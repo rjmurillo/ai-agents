@@ -24,8 +24,13 @@ SPLIT_OUTSIDE = "outside"
 STATUS_OK = "ok"
 STATUS_PARSE_ERROR = "parse_error"
 STATUS_CALL_ERROR = "call_error"
-STATUSES = (STATUS_OK, STATUS_PARSE_ERROR, STATUS_CALL_ERROR)
+# HTTP 401 or 403: the credential is wrong, so predict stops instead of failing every row.
+STATUS_AUTH_ERROR = "auth_error"
+STATUSES = (STATUS_OK, STATUS_PARSE_ERROR, STATUS_CALL_ERROR, STATUS_AUTH_ERROR)
 
 # Per-row diff hunk outcome. Null means the row has not been asked yet.
 HUNK_FETCHED = "fetched"
 HUNK_NO_HUNK = "no_hunk"
+
+# Default seed for every seeded step (sample, sheet, score), so one run is reproducible end to end.
+DEFAULT_SEED = 20261124

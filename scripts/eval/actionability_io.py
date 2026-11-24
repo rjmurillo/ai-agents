@@ -1,4 +1,4 @@
-"""Atomic text writes for the comment actionability eval tools.
+"""Atomic writes and JSONL reads for the comment actionability eval tools.
 
 Writes to a temporary file in the target directory, then swaps it in with
 ``os.replace``. A crash before the swap leaves the previous output whole. Same
@@ -11,9 +11,14 @@ mode 0600.
 
 from __future__ import annotations
 
+import json
+import logging
 import os
 import tempfile
 from pathlib import Path
+from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 def atomic_write_text(path: Path, text: str) -> None:
@@ -29,3 +34,22 @@ def atomic_write_text(path: Path, text: str) -> None:
     except BaseException:
         Path(tmp_name).unlink(missing_ok=True)
         raise
+
+
+def load_jsonl(path: Path) -> list[dict[str, Any]] | None:
+    """Return the JSON objects in ``path``, one per line, or None after logging why not."""
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+        rows = [json.loads(line) for line in lines if line.strip()]
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.error("Cannot read %s: %s", path, exc)
+        return None
+    if not all(isinstance(row, dict) for row in rows):
+        logger.error("%s must hold one JSON object per line", path)
+        return None
+    return rows
+
+
+def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
+    text = "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows)
+    atomic_write_text(path, text)

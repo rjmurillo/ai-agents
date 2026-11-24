@@ -317,6 +317,7 @@ class TestBuildReport:
             "ok": 4,
             "parse_error": 0,
             "call_error": 0,
+            "auth_error": 0,
             "missing": 6,
         }
 

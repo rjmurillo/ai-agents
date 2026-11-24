@@ -44,8 +44,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.eval.actionability_io import atomic_write_text  # noqa: E402
+from scripts.eval.actionability_io import load_jsonl, write_jsonl  # noqa: E402
 from scripts.eval.actionability_labels import (  # noqa: E402
+    DEFAULT_SEED,
     HUNK_FETCHED,
     HUNK_NO_HUNK,
     LABEL_UNSURE,
@@ -72,8 +73,6 @@ from scripts.update_reviewer_signal_stats import (  # noqa: E402
 )
 
 logger = logging.getLogger(__name__)
-
-DEFAULT_SEED = 20261124
 
 
 MAX_NAMED_ROWS = 10
@@ -111,20 +110,6 @@ def _load_json_list(path: Path) -> list[Any] | None:
         logger.error("%s must hold a JSON array", path)
         return None
     return data
-
-
-def load_jsonl(path: Path) -> list[dict[str, Any]] | None:
-    """Return the JSON objects in ``path``, one per line, or None after logging why not."""
-    try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-        rows = [json.loads(line) for line in lines if line.strip()]
-    except (OSError, json.JSONDecodeError) as exc:
-        logger.error("Cannot read %s: %s", path, exc)
-        return None
-    if not all(isinstance(row, dict) for row in rows):
-        logger.error("%s must hold one JSON object per line", path)
-        return None
-    return rows
 
 
 def _make_row(
@@ -223,11 +208,6 @@ def assign_splits(
         row["split"] = SPLIT_DEV if index in dev_indexes else SPLIT_HELDOUT
     for row in outside:
         row["split"] = SPLIT_OUTSIDE
-
-
-def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
-    text = "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows)
-    atomic_write_text(path, text)
 
 
 def _warn_shortfall(name: str, available: int, requested: int) -> None:

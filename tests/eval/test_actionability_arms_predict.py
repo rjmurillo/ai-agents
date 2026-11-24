@@ -6,34 +6,23 @@ Plan M1-T14, premortem R2. Shared helpers: _actionability_arms_test_support.py.
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Callable
 from pathlib import Path
-from typing import Any
 
 import pytest
 
 from tests.eval._actionability_arms_test_support import (
+    API_KEY,
+    GOOD,
+    FakeCallApi,
     aa,
+    heldout_rows,
+    install_call_api,
     make_row,
+    pm,
+    predict_argv,
     read_jsonl_file,
-    write_jsonl_file,
+    write_corpus_file,
 )
-
-_API_KEY = "sk-test-SECRET-123456"
-_GOOD = '{"is_actionable": true, "confidence": 0.9, "reason": "names a change"}'
-
-
-class _FakeCallApi:
-    """Stands in for `_anthropic_api.call_api`. Replies come from a callable or a fixed string."""
-
-    def __init__(self, reply: str | Callable[[str], str] = _GOOD) -> None:
-        self.reply = reply
-        self.calls: list[dict[str, Any]] = []
-
-    def __call__(self, api_key: str, messages: list[dict[str, str]], **kwargs: Any) -> str:
-        self.calls.append({"api_key": api_key, "messages": messages, **kwargs})
-        content = messages[0]["content"]
-        return self.reply(content) if callable(self.reply) else self.reply
 
 
 @pytest.fixture(autouse=True)
@@ -42,42 +31,14 @@ def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("EVAL_PROVIDER", raising=False)
 
 
-def _install(monkeypatch: pytest.MonkeyPatch, fake: _FakeCallApi) -> _FakeCallApi:
-    monkeypatch.setattr(aa, "_load_call_api", lambda: fake)
-    return fake
-
-
-def _corpus(tmp_path: Path, rows: list[dict[str, Any]]) -> Path:
-    return write_jsonl_file(tmp_path / "corpus.jsonl", rows)
-
-
-def _argv(corpus: Path, out: Path, *extra: str, model: str = "fake-model") -> list[str]:
-    return [
-        "predict",
-        "--corpus",
-        str(corpus),
-        "--split",
-        "heldout",
-        "--model",
-        model,
-        "--output",
-        str(out),
-        *extra,
-    ]
-
-
-def _heldout(count: int) -> list[dict[str, Any]]:
-    return [make_row(f"H{i}") for i in range(count)]
-
-
 class TestPredictRows:
     def test_ok_record_carries_verdict_latency_and_provenance(self) -> None:
         """Plan M1-T14: each record names status, verdict, latency, provider, model, prompt hash."""
         ticks = iter([10.0, 10.5])
 
-        records = aa.predict_rows(
+        records = pm.predict_rows(
             [make_row("A")],
-            complete=lambda _msg: _GOOD,
+            complete=lambda _msg: GOOD,
             provider="fake-provider",
             model="fake-model",
             prompt_sha256="h" * 64,
@@ -100,7 +61,7 @@ class TestPredictRows:
 
     def test_unparseable_reply_is_a_parse_error_with_no_verdict(self) -> None:
         """Plan M1-T14: a bad reply is recorded, never turned into a verdict."""
-        records = aa.predict_rows(
+        records = pm.predict_rows(
             [make_row("A")],
             complete=lambda _msg: "I think it is actionable",
             provider="p",
@@ -118,7 +79,7 @@ class TestPredictRows:
         def _fail(_msg: str) -> str:
             raise RuntimeError("secret-bearing provider detail")
 
-        records = aa.predict_rows(
+        records = pm.predict_rows(
             [make_row("A")], complete=_fail, provider="p", model="m", prompt_sha256="h"
         )
 
@@ -128,9 +89,9 @@ class TestPredictRows:
 
     def test_one_failed_row_does_not_stop_the_rest(self) -> None:
         """Plan M1-T14: every row gets a record."""
-        replies = iter(["garbage", _GOOD])
+        replies = iter(["garbage", GOOD])
 
-        records = aa.predict_rows(
+        records = pm.predict_rows(
             [make_row("A"), make_row("B")],
             complete=lambda _msg: next(replies),
             provider="p",
@@ -146,8 +107,8 @@ class TestPredictCli:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Plan M1-T14: dev, outside, and out-of-band rows are never sent."""
-        monkeypatch.setenv("ANTHROPIC_API_KEY", _API_KEY)
-        fake = _install(monkeypatch, _FakeCallApi())
+        monkeypatch.setenv("ANTHROPIC_API_KEY", API_KEY)
+        fake = install_call_api(monkeypatch, FakeCallApi())
         rows = [
             make_row("HELD1"),
             make_row("HELD2"),
@@ -155,10 +116,10 @@ class TestPredictCli:
             make_row("OUT1", split="outside", in_band=False),
             make_row("HELD_OUT_OF_BAND", in_band=False),
         ]
-        corpus = _corpus(tmp_path, rows)
+        corpus = write_corpus_file(tmp_path, rows)
         out = tmp_path / "pred.jsonl"
 
-        code = aa.main(_argv(corpus, out))
+        code = aa.main(predict_argv(corpus, out))
 
         assert code == 0
         assert [r["id"] for r in read_jsonl_file(out)] == ["HELD1", "HELD2"]
@@ -166,11 +127,11 @@ class TestPredictCli:
 
     def test_dev_split_is_selectable(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Plan M1-T16: prompt tuning runs on the dev split."""
-        monkeypatch.setenv("ANTHROPIC_API_KEY", _API_KEY)
-        _install(monkeypatch, _FakeCallApi())
-        corpus = _corpus(tmp_path, [make_row("HELD"), make_row("DEV", split="dev")])
+        monkeypatch.setenv("ANTHROPIC_API_KEY", API_KEY)
+        install_call_api(monkeypatch, FakeCallApi())
+        corpus = write_corpus_file(tmp_path, [make_row("HELD"), make_row("DEV", split="dev")])
         out = tmp_path / "pred.jsonl"
-        argv = _argv(corpus, out)
+        argv = predict_argv(corpus, out)
         argv[argv.index("heldout")] = "dev"
 
         assert aa.main(argv) == 0
@@ -181,24 +142,24 @@ class TestPredictCli:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Plan M1-T14: system prompt from prompt-v1.md, 100 output tokens, temperature 0."""
-        monkeypatch.setenv("ANTHROPIC_API_KEY", _API_KEY)
-        fake = _install(monkeypatch, _FakeCallApi())
-        corpus = _corpus(tmp_path, [make_row("A", body="Add a null check")])
+        monkeypatch.setenv("ANTHROPIC_API_KEY", API_KEY)
+        fake = install_call_api(monkeypatch, FakeCallApi())
+        corpus = write_corpus_file(tmp_path, [make_row("A", body="Add a null check")])
         out = tmp_path / "pred.jsonl"
 
-        assert aa.main(_argv(corpus, out, "--provider", "fake-provider")) == 0
+        assert aa.main(predict_argv(corpus, out, "--provider", "fake-provider")) == 0
 
         (call,) = fake.calls
-        system, digest = aa.load_prompt()
+        system, digest = pm.load_prompt()
         assert call["system"] == system
         assert call["model"] == "fake-model"
         assert call["provider"] == "fake-provider"
         assert call["max_tokens"] == 100
-        assert call["temperature"] == 0.0
+        assert call["temperature"] is None
         assert "Add a null check" in call["messages"][0]["content"]
         record = read_jsonl_file(out)[0]
         assert record["prompt_sha256"] == digest
-        assert record["prompt_sha256"] == hashlib.sha256(aa.PROMPT_PATH.read_bytes()).hexdigest()
+        assert record["prompt_sha256"] == hashlib.sha256(pm.PROMPT_PATH.read_bytes()).hexdigest()
         assert record["provider"] == "fake-provider"
         assert record["model"] == "fake-model"
 
@@ -209,17 +170,17 @@ class TestPredictCli:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         """Plan M1-T14: the key goes to the transport and nowhere else."""
-        monkeypatch.setenv("ANTHROPIC_API_KEY", _API_KEY)
-        fake = _install(monkeypatch, _FakeCallApi())
-        corpus = _corpus(tmp_path, _heldout(2))
+        monkeypatch.setenv("ANTHROPIC_API_KEY", API_KEY)
+        fake = install_call_api(monkeypatch, FakeCallApi())
+        corpus = write_corpus_file(tmp_path, heldout_rows(2))
         out = tmp_path / "pred.jsonl"
 
-        assert aa.main(_argv(corpus, out)) == 0
+        assert aa.main(predict_argv(corpus, out)) == 0
 
         seen = capsys.readouterr()
-        assert fake.calls[0]["api_key"] == _API_KEY
-        assert _API_KEY not in seen.out + seen.err
-        assert _API_KEY not in out.read_text(encoding="utf-8")
+        assert fake.calls[0]["api_key"] == API_KEY
+        assert API_KEY not in seen.out + seen.err
+        assert API_KEY not in out.read_text(encoding="utf-8")
 
     def test_default_provider_without_a_key_returns_two_and_writes_nothing(
         self,
@@ -228,11 +189,11 @@ class TestPredictCli:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         """Plan M1-T14: no key and no provider is a config error naming the variable."""
-        fake = _install(monkeypatch, _FakeCallApi())
-        corpus = _corpus(tmp_path, _heldout(2))
+        fake = install_call_api(monkeypatch, FakeCallApi())
+        corpus = write_corpus_file(tmp_path, heldout_rows(2))
         out = tmp_path / "pred.jsonl"
 
-        code = aa.main(_argv(corpus, out))
+        code = aa.main(predict_argv(corpus, out))
 
         assert code == 2
         assert not out.exists()
@@ -244,20 +205,22 @@ class TestPredictCli:
     ) -> None:
         """Plan M1-T14: an empty or blank key is absent."""
         monkeypatch.setenv("ANTHROPIC_API_KEY", "   ")
-        _install(monkeypatch, _FakeCallApi())
+        install_call_api(monkeypatch, FakeCallApi())
         out = tmp_path / "pred.jsonl"
 
-        assert aa.main(_argv(_corpus(tmp_path, _heldout(1)), out)) == 2
+        assert aa.main(predict_argv(write_corpus_file(tmp_path, heldout_rows(1)), out)) == 2
         assert not out.exists()
 
     def test_named_provider_runs_without_an_anthropic_key(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Plan M1-T14: a non-default provider brings its own credential."""
-        fake = _install(monkeypatch, _FakeCallApi())
+        fake = install_call_api(monkeypatch, FakeCallApi())
         out = tmp_path / "pred.jsonl"
 
-        code = aa.main(_argv(_corpus(tmp_path, _heldout(1)), out, "--provider", "other"))
+        code = aa.main(
+            predict_argv(write_corpus_file(tmp_path, heldout_rows(1)), out, "--provider", "other")
+        )
 
         assert code == 0
         assert fake.calls[0]["api_key"] == ""
@@ -276,11 +239,11 @@ class TestPredictCli:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, rate: str
     ) -> None:
         """Plan M1-T14: --max-failure-rate is a fraction."""
-        monkeypatch.setenv("ANTHROPIC_API_KEY", _API_KEY)
-        _install(monkeypatch, _FakeCallApi())
-        corpus = _corpus(tmp_path, _heldout(1))
+        monkeypatch.setenv("ANTHROPIC_API_KEY", API_KEY)
+        install_call_api(monkeypatch, FakeCallApi())
+        corpus = write_corpus_file(tmp_path, heldout_rows(1))
 
-        code = aa.main(_argv(corpus, tmp_path / "o.jsonl", "--max-failure-rate", rate))
+        code = aa.main(predict_argv(corpus, tmp_path / "o.jsonl", "--max-failure-rate", rate))
 
         assert code == 2
 
@@ -288,22 +251,22 @@ class TestPredictCli:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Plan M1-T14: zero in-band rows in the split is a wrong-split config error."""
-        monkeypatch.setenv("ANTHROPIC_API_KEY", _API_KEY)
-        _install(monkeypatch, _FakeCallApi())
-        corpus = _corpus(tmp_path, [make_row("DEV", split="dev")])
+        monkeypatch.setenv("ANTHROPIC_API_KEY", API_KEY)
+        install_call_api(monkeypatch, FakeCallApi())
+        corpus = write_corpus_file(tmp_path, [make_row("DEV", split="dev")])
         out = tmp_path / "pred.jsonl"
 
-        assert aa.main(_argv(corpus, out)) == 2
+        assert aa.main(predict_argv(corpus, out)) == 2
         assert not out.exists()
 
     def test_unreadable_corpus_returns_two(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Plan M1-T14: an unreadable corpus is a config error."""
-        monkeypatch.setenv("ANTHROPIC_API_KEY", _API_KEY)
-        _install(monkeypatch, _FakeCallApi())
+        monkeypatch.setenv("ANTHROPIC_API_KEY", API_KEY)
+        install_call_api(monkeypatch, FakeCallApi())
 
-        assert aa.main(_argv(tmp_path / "none.jsonl", tmp_path / "o.jsonl")) == 2
+        assert aa.main(predict_argv(tmp_path / "none.jsonl", tmp_path / "o.jsonl")) == 2
 
 
 class TestFailureRateExit:
@@ -314,18 +277,18 @@ class TestFailureRateExit:
         replies: list[str],
         *extra: str,
     ) -> tuple[int, Path]:
-        monkeypatch.setenv("ANTHROPIC_API_KEY", _API_KEY)
+        monkeypatch.setenv("ANTHROPIC_API_KEY", API_KEY)
         feed = iter(replies)
-        _install(monkeypatch, _FakeCallApi(lambda _msg: next(feed)))
-        corpus = _corpus(tmp_path, _heldout(len(replies)))
+        install_call_api(monkeypatch, FakeCallApi(lambda _msg: next(feed)))
+        corpus = write_corpus_file(tmp_path, heldout_rows(len(replies)))
         out = tmp_path / "pred.jsonl"
-        return aa.main(_argv(corpus, out, *extra)), out
+        return aa.main(predict_argv(corpus, out, *extra)), out
 
     def test_majority_failures_write_the_file_then_exit_three(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Premortem R2: more than half failing at 5+ calls exits 3, file still written."""
-        replies = ["bad", "bad", "bad", _GOOD, _GOOD]
+        replies = ["bad", "bad", "bad", GOOD, GOOD]
 
         code, out = self._run(tmp_path, monkeypatch, replies)
 
@@ -337,17 +300,17 @@ class TestFailureRateExit:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Premortem R2: the rule is strictly greater than the rate."""
-        replies = ["bad", "bad", "bad", _GOOD, _GOOD, _GOOD, "bad", _GOOD]
+        replies = ["bad", "bad", "bad", GOOD, GOOD, GOOD, "bad", GOOD]
 
         code, _ = self._run(tmp_path, monkeypatch, replies)
 
         assert code == 0
 
-    def test_failures_under_five_attempts_do_not_trip_the_exit(
+    def test_failures_under_five_attempts_do_not_trip_the_rate_exit(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Premortem R2: four calls is too few to judge a rate."""
-        code, out = self._run(tmp_path, monkeypatch, ["bad", "bad", "bad", "bad"])
+        """Premortem R2: four calls is too few to judge a rate when one of them worked."""
+        code, out = self._run(tmp_path, monkeypatch, ["bad", "bad", "bad", GOOD])
 
         assert code == 0
         assert len(read_jsonl_file(out)) == 4
@@ -356,7 +319,7 @@ class TestFailureRateExit:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Premortem R2: --max-failure-rate moves the line."""
-        replies = ["bad", _GOOD, _GOOD, _GOOD, _GOOD]
+        replies = ["bad", GOOD, GOOD, GOOD, GOOD]
 
         code, _ = self._run(tmp_path, monkeypatch, replies, "--max-failure-rate", "0.1")
 
@@ -366,15 +329,15 @@ class TestFailureRateExit:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Premortem R2: call_error rows count toward the failure rate."""
-        monkeypatch.setenv("ANTHROPIC_API_KEY", _API_KEY)
+        monkeypatch.setenv("ANTHROPIC_API_KEY", API_KEY)
 
         def _fail(_msg: str) -> str:
             raise RuntimeError("down")
 
-        _install(monkeypatch, _FakeCallApi(_fail))
+        install_call_api(monkeypatch, FakeCallApi(_fail))
         out = tmp_path / "pred.jsonl"
 
-        code = aa.main(_argv(_corpus(tmp_path, _heldout(5)), out))
+        code = aa.main(predict_argv(write_corpus_file(tmp_path, heldout_rows(5)), out))
 
         assert code == 3
         assert {r["status"] for r in read_jsonl_file(out)} == {"call_error"}
@@ -386,11 +349,11 @@ class TestPredictEmptyModel:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, model: str
     ) -> None:
         """Hygiene 6d: a blank --model is a config error, never a call."""
-        monkeypatch.setenv("ANTHROPIC_API_KEY", _API_KEY)
-        fake = _install(monkeypatch, _FakeCallApi())
+        monkeypatch.setenv("ANTHROPIC_API_KEY", API_KEY)
+        fake = install_call_api(monkeypatch, FakeCallApi())
         out = tmp_path / "pred.jsonl"
 
-        code = aa.main(_argv(_corpus(tmp_path, _heldout(1)), out, model=model))
+        code = aa.main(predict_argv(write_corpus_file(tmp_path, heldout_rows(1)), out, model=model))
 
         assert code == 2
         assert not out.exists()

@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+
+import pytest
 
 _SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "eval" / "actionability_arms.py"
 
@@ -22,6 +26,7 @@ def _load_module() -> Any:
 
 aa = _load_module()
 sc = importlib.import_module("scripts.eval.actionability_score")
+pm = importlib.import_module("scripts.eval.actionability_predict")
 
 
 def make_row(
@@ -86,3 +91,79 @@ def write_jsonl_file(path: Path, rows: list[dict[str, Any]]) -> Path:
 
 def read_jsonl_file(path: Path) -> list[dict[str, Any]]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+
+
+API_KEY = "sk-test-SECRET-123456"
+GOOD = '{"is_actionable": true, "confidence": 0.9, "reason": "names a change"}'
+
+
+class FakeCallApi:
+    """Stands in for `_anthropic_api.call_api`. Replies come from a callable or a fixed string."""
+
+    def __init__(self, reply: str | Callable[[str], str] = GOOD) -> None:
+        self.reply = reply
+        self.calls: list[dict[str, Any]] = []
+
+    def __call__(self, api_key: str, messages: list[dict[str, str]], **kwargs: Any) -> str:
+        self.calls.append({"api_key": api_key, "messages": messages, **kwargs})
+        content = messages[0]["content"]
+        return self.reply(content) if callable(self.reply) else self.reply
+
+
+def install_call_api(monkeypatch: pytest.MonkeyPatch, fake: FakeCallApi) -> FakeCallApi:
+    monkeypatch.setattr(pm, "_load_call_api", lambda: fake)
+    return fake
+
+
+def write_corpus_file(tmp_path: Path, rows: list[dict[str, Any]]) -> Path:
+    return write_jsonl_file(tmp_path / "corpus.jsonl", rows)
+
+
+def predict_argv(corpus: Path, out: Path, *extra: str, model: str = "fake-model") -> list[str]:
+    return [
+        "predict",
+        "--corpus",
+        str(corpus),
+        "--split",
+        "heldout",
+        "--model",
+        model,
+        "--output",
+        str(out),
+        *extra,
+    ]
+
+
+def heldout_rows(count: int) -> list[dict[str, Any]]:
+    return [make_row(f"H{i}") for i in range(count)]
+
+
+def provider_argv(corpus: Path, out: Path, *extra: str) -> list[str]:
+    """predict argv for the fake provider, which needs no Anthropic key."""
+    return predict_argv(corpus, out, "--provider", "fake", *extra)
+
+
+def ok_record(row_id: str, **overrides: Any) -> dict[str, Any]:
+    """An ok prediction carrying the provenance the CLI writes for `--provider fake`."""
+    record = make_prediction(
+        row_id, provider="fake", model="fake-model", prompt_sha256=pm.load_prompt()[1]
+    )
+    record.update(overrides)
+    return record
+
+
+def failed_record(row_id: str, status: str) -> dict[str, Any]:
+    return ok_record(row_id, status=status, is_actionable=None, confidence=None)
+
+
+def row_id_of(message: str) -> str:
+    """The `H<n>` id a FakeCallApi message was built for (make_row bodies name their id)."""
+    match = re.search(r"body of (H\d+)", message)
+    assert match is not None
+    return match.group(1)
+
+
+def token_of(message: str) -> str:
+    match = re.search(r"Delimiter token: ([0-9a-f]{16})", message)
+    assert match is not None
+    return match.group(1)

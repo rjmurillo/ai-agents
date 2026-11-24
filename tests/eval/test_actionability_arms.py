@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from tests.eval._actionability_arms_test_support import aa, make_prediction, make_row
+from tests.eval._actionability_arms_test_support import aa, make_prediction, make_row, pm
 
 _SCRIPT = Path(aa.__file__)
 
@@ -137,13 +137,13 @@ class TestPredictionFromDict:
 class TestParseVerdict:
     def test_valid_object_parses(self) -> None:
         """Plan M1-T14: the happy path."""
-        verdict = aa.parse_verdict('{"is_actionable": true, "confidence": 0.82, "reason": "x"}')
+        verdict = pm.parse_verdict('{"is_actionable": true, "confidence": 0.82, "reason": "x"}')
 
-        assert verdict == aa.Verdict(is_actionable=True, confidence=0.82, reason="x")
+        assert verdict == pm.Verdict(is_actionable=True, confidence=0.82, reason="x")
 
     def test_false_is_a_real_verdict(self) -> None:
         """Plan M1-T14: False is a value, not a parse failure."""
-        verdict = aa.parse_verdict('{"is_actionable": false, "confidence": 0.9}')
+        verdict = pm.parse_verdict('{"is_actionable": false, "confidence": 0.9}')
 
         assert verdict is not None
         assert verdict.is_actionable is False
@@ -153,17 +153,17 @@ class TestParseVerdict:
         """Plan M1-T14: one surrounding ```json fence is accepted."""
         text = '```json\n{"is_actionable": true, "confidence": 0.8}\n```'
 
-        assert aa.parse_verdict(text) is not None
+        assert pm.parse_verdict(text) is not None
 
     def test_bare_fence_is_tolerated(self) -> None:
         """Plan M1-T14: a fence with no language tag is accepted."""
         text = '```\n{"is_actionable": true, "confidence": 0.8}\n```'
 
-        assert aa.parse_verdict(text) is not None
+        assert pm.parse_verdict(text) is not None
 
     def test_surrounding_whitespace_is_tolerated(self) -> None:
         """Plan M1-T14: leading and trailing whitespace is not a defect."""
-        assert aa.parse_verdict('\n  {"is_actionable": true, "confidence": 1}  \n') is not None
+        assert pm.parse_verdict('\n  {"is_actionable": true, "confidence": 1}  \n') is not None
 
     @pytest.mark.parametrize(
         ("confidence", "expected"), [(1.5, 1.0), (-2, 0.0), (0, 0.0), (1, 1.0), (0.4, 0.4)]
@@ -174,7 +174,7 @@ class TestParseVerdict:
         """Plan M1-T14: confidence clamps to [0, 1]."""
         text = json.dumps({"is_actionable": True, "confidence": confidence})
 
-        verdict = aa.parse_verdict(text)
+        verdict = pm.parse_verdict(text)
 
         assert verdict is not None
         assert verdict.confidence == expected
@@ -183,14 +183,14 @@ class TestParseVerdict:
         """Plan M1-T14: reason truncates at 100."""
         text = json.dumps({"is_actionable": True, "confidence": 1, "reason": "r" * 250})
 
-        verdict = aa.parse_verdict(text)
+        verdict = pm.parse_verdict(text)
 
         assert verdict is not None
         assert verdict.reason == "r" * 100
 
     def test_non_string_reason_becomes_empty(self) -> None:
         """Plan M1-T14: reason is not part of the verdict, so a bad one is dropped, not fatal."""
-        verdict = aa.parse_verdict('{"is_actionable": true, "confidence": 1, "reason": 5}')
+        verdict = pm.parse_verdict('{"is_actionable": true, "confidence": 1, "reason": 5}')
 
         assert verdict is not None
         assert verdict.reason == ""
@@ -207,30 +207,30 @@ class TestParseVerdict:
     )
     def test_is_actionable_must_be_a_real_bool(self, text: str) -> None:
         """Plan M1-T14: a non-bool is_actionable is a parse failure, never False."""
-        assert aa.parse_verdict(text) is None
+        assert pm.parse_verdict(text) is None
 
     def test_missing_is_actionable_is_rejected(self) -> None:
         """Plan M1-T14: missing is_actionable is a parse failure."""
-        assert aa.parse_verdict('{"confidence": 0.9}') is None
+        assert pm.parse_verdict('{"confidence": 0.9}') is None
 
     def test_missing_confidence_is_rejected(self) -> None:
         """Plan M1-T14: missing confidence is a parse failure."""
-        assert aa.parse_verdict('{"is_actionable": true}') is None
+        assert pm.parse_verdict('{"is_actionable": true}') is None
 
     def test_string_confidence_is_rejected(self) -> None:
         """Plan M1-T14: a string confidence is a parse failure."""
-        assert aa.parse_verdict('{"is_actionable": true, "confidence": "0.9"}') is None
+        assert pm.parse_verdict('{"is_actionable": true, "confidence": "0.9"}') is None
 
     def test_bool_confidence_is_rejected(self) -> None:
         """Plan M1-T14: True is an int in Python but not a confidence."""
-        assert aa.parse_verdict('{"is_actionable": true, "confidence": true}') is None
+        assert pm.parse_verdict('{"is_actionable": true, "confidence": true}') is None
 
     @pytest.mark.parametrize("literal", ["NaN", "Infinity", "-Infinity", "1e999"])
     def test_non_finite_confidence_is_rejected(self, literal: str) -> None:
         """Plan M1-T14: NaN compares False to 0.7, so it must never become a verdict."""
         text = '{"is_actionable": true, "confidence": ' + literal + "}"
 
-        assert aa.parse_verdict(text) is None
+        assert pm.parse_verdict(text) is None
 
     @pytest.mark.parametrize(
         "text",
@@ -239,25 +239,25 @@ class TestParseVerdict:
     )
     def test_non_object_or_invalid_json_is_rejected(self, text: str) -> None:
         """Plan M1-T14: only a JSON object can be a verdict."""
-        assert aa.parse_verdict(text) is None
+        assert pm.parse_verdict(text) is None
 
     def test_prose_around_the_object_is_rejected(self) -> None:
         """Plan M1-T14: the prompt says reply with only the object, so prose is a failure."""
         text = 'Sure! {"is_actionable": true, "confidence": 0.9}'
 
-        assert aa.parse_verdict(text) is None
+        assert pm.parse_verdict(text) is None
 
     def test_doubly_fenced_text_is_rejected(self) -> None:
         """Plan M1-T14: only one surrounding fence is tolerated."""
         text = '```json\n```json\n{"is_actionable": true, "confidence": 0.9}\n```\n```'
 
-        assert aa.parse_verdict(text) is None
+        assert pm.parse_verdict(text) is None
 
 
 class TestPrompt:
     def test_system_prompt_demands_only_the_json_object(self) -> None:
         """Plan M1-T14: prompt-v1.md tells the model to reply with only the JSON object."""
-        system, _ = aa.load_prompt()
+        system, _ = pm.load_prompt()
 
         assert "ONLY" in system
         assert "is_actionable" in system
@@ -265,15 +265,15 @@ class TestPrompt:
 
     def test_prompt_hash_is_sha256_of_the_file_bytes(self) -> None:
         """Plan M1-T14: the recorded hash identifies the exact prompt file."""
-        _, digest = aa.load_prompt()
+        _, digest = pm.load_prompt()
 
-        assert digest == hashlib.sha256(aa.PROMPT_PATH.read_bytes()).hexdigest()
+        assert digest == hashlib.sha256(pm.PROMPT_PATH.read_bytes()).hexdigest()
 
     def test_user_message_carries_body_and_path(self) -> None:
         """Plan M1-T14: the model sees the comment and the file path."""
         row = make_row("r", body="Please add a null check", path="src/x.py")
 
-        message = aa.build_user_message(row)
+        message = pm.build_user_message(row)
 
         assert "Please add a null check" in message
         assert "src/x.py" in message
@@ -282,7 +282,7 @@ class TestPrompt:
         """Plan M1-T14 and spec Call contract: the score is logged, not sent."""
         row = make_row("r", score=0.5123, heuristic_reasons=["matched-pattern"])
 
-        message = aa.build_user_message(row)
+        message = pm.build_user_message(row)
 
         assert "0.5123" not in message
         assert "matched-pattern" not in message
@@ -290,7 +290,7 @@ class TestPrompt:
 
     def test_user_message_truncates_body_to_4000_characters(self) -> None:
         """Plan M1-T14 and spec Call contract: body truncates at 4000."""
-        message = aa.build_user_message(make_row("r", body="b" * 5000))
+        message = pm.build_user_message(make_row("r", body="b" * 5000))
 
         assert "b" * 4000 in message
         assert "b" * 4001 not in message
@@ -299,7 +299,7 @@ class TestPrompt:
         """Plan M1-T14 and spec Call contract: up to 3 replies, 500 characters each."""
         replies = ["a" * 600, "b" * 600, "c" * 600, "d" * 600]
 
-        message = aa.build_user_message(make_row("r", thread_replies=replies))
+        message = pm.build_user_message(make_row("r", thread_replies=replies))
 
         assert "a" * 500 in message
         assert "a" * 501 not in message
@@ -308,7 +308,7 @@ class TestPrompt:
 
     def test_user_message_without_replies_has_no_reply_block(self) -> None:
         """Plan M1-T14: no replies means no reply tags."""
-        assert "<reply>" not in aa.build_user_message(make_row("r"))
+        assert "<reply-" not in pm.build_user_message(make_row("r"))
 
 
 class TestCleanConfidenceOverflow:
@@ -316,4 +316,4 @@ class TestCleanConfidenceOverflow:
         """Hygiene 6d: float(10**400) raises OverflowError, which must become a parse failure."""
         text = '{"is_actionable": true, "confidence": 1' + "0" * 400 + "}"
 
-        assert aa.parse_verdict(text) is None
+        assert pm.parse_verdict(text) is None

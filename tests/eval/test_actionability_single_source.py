@@ -20,6 +20,7 @@ _CONSUMERS = [
     "actionability_corpus.py",
     "actionability_score.py",
     "actionability_arms.py",
+    "actionability_predict.py",
 ]
 _LITERALS = {
     "actionable",
@@ -33,6 +34,7 @@ _LITERALS = {
     "call_error",
     "fetched",
     "no_hunk",
+    "auth_error",
 }
 
 
