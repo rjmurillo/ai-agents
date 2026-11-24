@@ -26,7 +26,7 @@ from pathlib import Path
 from ..confidence import update_confidence_scores_with_memories
 from ..models import HealthReport
 from ..reflection import apply_confidence_decay, extract_session_facts
-from . import find_memory_root, repository_memory_dir, shadowed_notes_dir
+from ..stores import find_memory_root, repository_memory_dir, shadowed_notes_dir
 
 
 def main() -> int:

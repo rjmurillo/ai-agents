@@ -1,8 +1,9 @@
-"""One root rule for every memory entry point.
+"""One root rule and one store rule for every memory entry point (ADR-126).
 
-The search_memory.py skill script ships stdlib-only and cannot import the
-memory_enhancement package, so it keeps its own copy of the root rule. These
-tests hold the copy, the hooks, the CLI, and the recall formatter together.
+The memory skill ships stdlib-only and cannot import the memory_enhancement
+package, so its memory_core.memory_store keeps a copy of both rules. These
+tests hold the two copies, the hooks, the CLI, and the recall formatter
+together.
 """
 
 from __future__ import annotations
@@ -15,10 +16,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from memory_enhancement import find_memory_root
 from memory_enhancement.__main__ import _resolve_memories_dir
 from memory_enhancement.hooks import user_prompt_submit_memory as recall_hook
 from memory_enhancement.hooks.user_prompt_submit_memory import _format_recall_field
+from memory_enhancement.stores import find_memory_root
 
 SCRIPTS = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "memory" / "scripts"
 sys.path.insert(0, str(SCRIPTS))
@@ -28,10 +29,11 @@ import search_memory
 SKILL_DIR = SCRIPTS.parent
 sys.path.insert(0, str(SKILL_DIR))
 
-from memory_core import memory_router
+from memory_core import memory_router, memory_store
 
-from memory_enhancement import repository_memory_dir, shadowed_notes_dir
 from memory_enhancement.hooks.session_end_memory import main as session_end_main
+from memory_enhancement.hooks.session_end_memory import shadowed_notes_dir
+from memory_enhancement.stores import repository_memory_dir
 
 NOTES = Path(".project-toolkit", "memory", "notes")
 SERENA = Path(".serena", "memories")
@@ -60,13 +62,12 @@ LAYOUTS = ["git-only", "notes-without-git", "serena-without-git", "notes-nested-
 
 
 @pytest.mark.parametrize("layout", LAYOUTS)
-def test_hook_and_script_choose_the_same_root(tmp_path: Path, layout: str) -> None:
+def test_hook_and_skill_choose_the_same_root(tmp_path: Path, layout: str) -> None:
     start, expected = _layout(tmp_path, layout)
     start.mkdir(parents=True, exist_ok=True)
 
     assert find_memory_root(start) == expected.resolve()
-    assert search_memory._find_checkout(start.resolve()) == expected.resolve()
-    assert memory_router._find_memory_root(start.resolve()) == expected.resolve()
+    assert memory_store.find_memory_root(start.resolve()) == expected.resolve()
 
 
 def _both_stores(tmp_path: Path) -> Path:
@@ -271,7 +272,7 @@ class TestSearchMemoryContainment:
         bare.mkdir()
         monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
         monkeypatch.chdir(bare)
-        monkeypatch.setattr(search_memory, "_find_checkout", lambda start: None)
+        monkeypatch.setattr(search_memory, "find_memory_root", lambda start: None)
 
         assert search_memory.main(["retry"]) == 0
 
@@ -355,7 +356,7 @@ def test_every_picker_chooses_the_same_store(
     expected = _store_layout(tmp_path, layout)
 
     assert repository_memory_dir(tmp_path) == expected
-    assert memory_router.resolve_memory_store(tmp_path) == expected
+    assert memory_store.resolve_memory_store(tmp_path) == expected
     assert _script_store(tmp_path, monkeypatch) == expected
 
 
@@ -375,7 +376,7 @@ def test_every_picker_ignores_a_serena_link_outside_the_root(
     expected = (repo / NOTES).resolve()
 
     assert repository_memory_dir(repo) == expected
-    assert memory_router.resolve_memory_store(repo) == expected
+    assert memory_store.resolve_memory_store(repo) == expected
     assert _script_store(repo, monkeypatch) == expected
 
 
@@ -416,4 +417,4 @@ def test_router_prefers_the_project_directory_over_the_current_directory(
     monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(project))
     monkeypatch.chdir(other)
 
-    assert memory_router.resolve_memory_store() == (project / NOTES).resolve()
+    assert memory_store.resolve_memory_store() == (project / NOTES).resolve()

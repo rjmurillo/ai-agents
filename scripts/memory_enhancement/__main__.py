@@ -18,14 +18,13 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from . import MEMORY_STORE_DIRS, repository_memory_dir
 from .confidence import update_confidence_scores
 from .graph import build_memory_graph, traverse
 from .health import format_report, format_report_text, generate_health_report
-from .models import VerificationResult
 from .search import search_memories
 from .serena_integration import load_memories
-from .verification import verify_all_citations
+from .stores import MEMORY_STORE_DIRS, repository_memory_dir
+from .verification import VerificationResult, verify_all_citations
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -15,7 +15,9 @@ from .models import (
     Citation,
     MemoryWithCitations,
     SourceType,
-    VerificationResult,
+)
+from .models import (
+    VerificationResult as VerificationResult,  # re-exported for the CLI
 )
 
 STALE_REASON_MARKERS: tuple[str, ...] = ("exceeds", "not found in file")

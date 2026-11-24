@@ -14,10 +14,10 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import find_memory_root
 from .confidence import calculate_confidence
 from .models import VerificationResult
 from .serena_integration import load_memory
+from .stores import find_memory_root
 from .verification import STALE_REASON_MARKERS, verify_all_citations
 
 _SEARCH_TIMEOUT = 5

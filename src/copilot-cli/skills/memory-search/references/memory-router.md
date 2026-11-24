@@ -218,14 +218,14 @@ SHA-256 over UTF-8 bytes, lowercase hex output. Used for deduplication.
 Configuration lives in a module-level dict:
 
 ```python
-_config: dict[str, Any] = {
+_config = {
     "serena_path": None,
     "max_results": 10,
 }
 ```
 
 A `serena_path` of `None` resolves the store on each call with
-`resolve_memory_store`, starting from `CLAUDE_PROJECT_DIR`, else the current
+`memory_core.memory_store.resolve_memory_store`, starting from `CLAUDE_PROJECT_DIR`, else the current
 directory.
 
 The leading underscore marks it private; prefer the CLI `--serena-path` and

@@ -21,11 +21,12 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+from .memory_store import STORE_DIRS, resolve_memory_store
 
 logger = logging.getLogger(__name__)
 
@@ -80,43 +81,6 @@ _config: dict[str, Any] = {
     "serena_path": None,
     "max_results": 10,
 }
-
-# ADR-126 store folders, in preference order, and the root markers. The
-# memory_enhancement package and search_memory.py hold the same rule; the
-# test_memory_root_parity tests keep the copies together.
-STORE_DIRS = (Path(".serena", "memories"), Path(".project-toolkit", "memory", "notes"))
-_ROOT_MARKER_DIRS = (Path(".serena", "memories"), Path(".project-toolkit", "memory"))
-
-
-def _find_memory_root(start: Path) -> Path | None:
-    for parent in (start, *start.parents):
-        if (parent / ".git").exists() or any((parent / m).is_dir() for m in _ROOT_MARKER_DIRS):
-            return parent
-    return None
-
-
-def resolve_memory_store(start: Path | None = None) -> Path | None:
-    """Return the repository's one memory store, or None when it has none.
-
-    The root is the nearest ancestor holding `.git`, `.serena/memories`, or
-    `.project-toolkit/memory`. The store is the first of STORE_DIRS that
-    exists and resolves inside that root.
-    """
-    # The consumer project comes first, as in search_memory.py; the current
-    # directory is the fallback when the host sets no project directory.
-    if start is None:
-        project_dir = os.environ.get("CLAUDE_PROJECT_DIR")
-        start = Path(project_dir) if project_dir else Path.cwd()
-    root = _find_memory_root(start.resolve())
-    if root is None:
-        return None
-    for relative in STORE_DIRS:
-        candidate = root / relative
-        if candidate.is_dir():
-            resolved = candidate.resolve()
-            if resolved != root and resolved.is_relative_to(root):
-                return resolved
-    return None
 
 
 def _store_path() -> str | None:

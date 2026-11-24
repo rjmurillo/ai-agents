@@ -24,7 +24,7 @@ from html import escape
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from . import find_memory_root, repository_memory_dir
+from ..stores import find_memory_root, repository_memory_dir
 
 if TYPE_CHECKING:
     from ..search import SearchResult

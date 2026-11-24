@@ -18,11 +18,22 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import sys
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any
+
+# Bootstrap inline (ADR-047): `python3 -I` leaves the script directory off
+# sys.path, and the shared store rule lives in this skill's memory_core.
+_SKILL_DIR = Path(__file__).resolve().parents[1]
+if str(_SKILL_DIR) not in sys.path:
+    sys.path.insert(0, str(_SKILL_DIR))
+
+from memory_core.memory_store import (  # noqa: E402
+    Stores,
+    find_memory_root,
+    resolve_stores,
+)
 
 TOKEN_WARN_THRESHOLD = 5000
 TOKEN_DECOMPOSE_THRESHOLD = 10000
@@ -83,7 +94,7 @@ def estimate_tokens(file_path: Path) -> int:
 
 def _corpus_files(corpus: Path) -> list[Path]:
     resolved = corpus.resolve()
-    scope = _find_checkout(resolved) or resolved
+    scope = find_memory_root(resolved) or resolved
     return [
         path
         for path in corpus.rglob("*.md")
@@ -159,7 +170,7 @@ def search_episodes(
 
     keywords = query_keywords(query)
     results: list[dict[str, Any]] = []
-    scope = _find_checkout(episodes_path.resolve()) or episodes_path.resolve()
+    scope = find_memory_root(episodes_path.resolve()) or episodes_path.resolve()
     for episode_file in sorted(episodes_path.glob("episode-*.json")):
         # Same rule as _corpus_files: a linked episode must stay in the checkout.
         if episode_file.is_symlink() and not episode_file.resolve().is_relative_to(scope):
@@ -303,75 +314,17 @@ def validate_query(query: str) -> str | None:
     return None
 
 
-SERENA_REL = Path(".serena", "memories")
-EPISODES_REL = Path(".project-toolkit", "memory", "episodes")
-NOTES_REL = EPISODES_REL.with_name("notes")
-
-
-def _find_checkout(start: Path) -> Path | None:
-    return next(
-        (
-            parent
-            for parent in (start, *start.parents)
-            if (parent / ".git").exists()
-            or (parent / SERENA_REL).is_dir()
-            or (parent / EPISODES_REL.parent).is_dir()
-        ),
-        None,
-    )
-
-
-class _Stores(NamedTuple):
-    serena: Path | None
-    episodes: Path | None
-    notes: Path | None
-    shadowed_notes: Path | None
-
-
-def _resolve_repo_root() -> Path:
-    # Keep the consumer checkout ahead of the installed plugin directory.
-    project_dir = os.environ.get("CLAUDE_PROJECT_DIR")
-    repo_root = _find_checkout(Path(project_dir).resolve()) if project_dir else None
-    # No checkout found: search the current directory, never the installed
-    # plugin's own tree, so the report names the user's project.
-    return repo_root or _find_checkout(Path.cwd().resolve()) or Path.cwd().resolve()
-
-
-def _resolve_stores(args: argparse.Namespace) -> _Stores:
+def _resolve_stores(args: argparse.Namespace) -> Stores:
     """Pick the one memory store, the episode store, and any shadowed notes."""
-    repo_root = _resolve_repo_root()
-    declared_corpora = (repo_root / relative for relative in (SERENA_REL, NOTES_REL))
-    resolved_corpora = {
-        path.relative_to(repo_root): path.resolve() for path in declared_corpora if path.is_dir()
-    }
-    corpora = {
-        relative: path
-        for relative, path in resolved_corpora.items()
-        if path != repo_root and path.is_relative_to(repo_root)
-    }
-    serena_path = args.serena_path.resolve() if args.serena_path else corpora.get(SERENA_REL)
-    # A linked default episode store that leaves the checkout is not this
-    # project's, so it is not queried.
-    default_episodes = (repo_root / EPISODES_REL).resolve()
-    episodes_path: Path | None = None
-    if args.episodes_path:
-        episodes_path = args.episodes_path.resolve()
-    elif default_episodes.is_relative_to(repo_root):
-        episodes_path = default_episodes
-    notes_path = corpora.get(NOTES_REL) if serena_path is None else None
-    # ADR-126 reads one store. Notes hidden by a Serena store are reported,
-    # never searched, so the hidden memories stay visible to the caller.
-    shadowed_notes = None if args.serena_path or serena_path is None else corpora.get(NOTES_REL)
-    if shadowed_notes is not None and not _corpus_files(shadowed_notes):
-        shadowed_notes = None
-    if shadowed_notes is not None:
+    stores = resolve_stores(args.serena_path, args.episodes_path)
+    if stores.shadowed_notes is not None:
         print(
-            f"memory search: {shadowed_notes} holds notes this search skips because"
+            f"memory search: {stores.shadowed_notes} holds notes this search skips because"
             " .serena/memories exists (ADR-126). Move them with"
-            f" `git mv {shadowed_notes.relative_to(repo_root)}/* .serena/memories/`.",
+            f" `git mv {stores.shadowed_notes.relative_to(stores.root)}/* .serena/memories/`.",
             file=sys.stderr,
         )
-    return _Stores(serena_path, episodes_path, notes_path, shadowed_notes)
+    return stores
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -392,7 +345,9 @@ def main(argv: list[str] | None = None) -> int:
             json.dumps({"Error": "Security: path must not contain traversal sequences."}, indent=2)
         )
         return 2
-    serena_path, episodes_path, notes_path, shadowed_notes = _resolve_stores(args)
+    stores = _resolve_stores(args)
+    serena_path, episodes_path, notes_path = stores.serena, stores.episodes, stores.notes
+    shadowed_notes = stores.shadowed_notes
 
     results = search_episodes(query, episodes_path, max_results) if episodes_path else []
     if serena_path is not None:
