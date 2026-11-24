@@ -13,15 +13,17 @@ The config loader rejects a `packMaxFiles` above 400.
 
 ## Current numbers
 
-- [2026-11-16] at `2e98e526a`: `packMaxFiles` is 381.
-- `project-toolkit-knowledge` holds 381 files, so it has no room left.
-- `project-toolkit-delivery` holds 352 files.
+- [2026-11-24] `packMaxFiles` is 400, the Hermes cap.
+- `project-toolkit-delivery` holds 398 files (49 skills), so it has 2 left.
+- `project-toolkit-knowledge` holds 256 files (34 skills).
+- `project-toolkit-authoring` holds 190 files (6 skills).
+- skill-bootstrap, skillopt, skillforge, context-optimizer, skillify, and prose-self-check moved from knowledge to authoring on 2026-11-24. Knowledge held 393 files on main at 2dbaabd7a8. Merging PR #7527 counted 403, over the cap. The six share path references, so they moved together.
 
 ## Options when a pack is full
 
 - Fold the new file into an existing module in the same skill.
 - Raise `packMaxFiles`, up to 400. That edit is user-visible scope, so ask first.
-- Move a skill to the other pack. `hermes_pack_checks` requires skills that link to each other to share a pack.
+- Move a skill to another pack. `hermes_pack_checks` requires skills that link to each other to share a pack, so move the whole linked set (use `find_references`).
 
 ADR-115 Decision 6 points to `packMaxFiles` and does not restate the number. Do not copy the number into prose.
 

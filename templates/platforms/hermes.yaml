@@ -34,7 +34,11 @@ artifacts:
       - model
       - model-rationale
     # A skill appears in exactly one pack or under `excluded`. A new skill
-    # fails the build until it is added here, so no pack ever moves an old one.
+    # fails the build until it is added here, so a new skill never moves an old
+    # one. An old skill changes packs only by owner decision, recorded in ADR-115
+    # Decision 6, and takes every skill its path references connect. On
+    # 2026-11-24 six skills moved from knowledge, which sat at the 400-file cap,
+    # to authoring.
     packs:
       delivery:
         description: "Project Toolkit skills for GitHub pull request work, build, test, and quality gates, security review, and operations."
@@ -55,14 +59,16 @@ artifacts:
         skills:
           [adr-generator, analysis-provenance, autoplan, avoiding-manufactured-work,
            business-strategy, buy-vs-build-framework, checkpoint, chestertons-fence,
-           codebase-documenter, context-gather, context-hub-setup, context-optimizer,
+           codebase-documenter, context-gather, context-hub-setup,
            curating-memories, cynefin-classifier, decision-critic, decision-question, domain-design,
            evidence-provenance, memory, memory-consolidate, memory-documentary, memory-enhancement, negotiation,
-           panning-for-gold, pre-mortem, programming-advisor, prompt-engineer, prose-self-check,
-           reflect, requirements-interview, retrospective, skill-bootstrap, skillforge,
-           skillify, skillopt,
+           panning-for-gold, pre-mortem, programming-advisor, prompt-engineer,
+           reflect, requirements-interview, retrospective,
            software-engineering-library, spec, using-serena-symbols, work-operating-model,
            world-model-diagnostic]
+      authoring:
+        description: "Project Toolkit skills for writing, tuning, and bootstrapping skills, and for placing context."
+        skills: [context-optimizer, prose-self-check, skill-bootstrap, skillforge, skillify, skillopt]
     # Hermes runs plugin_guard on every install and blocks a dangerous verdict.
     # Exclusion is transitive: a skill that refers to an excluded skill is
     # excluded too, because its reference would point at nothing.
