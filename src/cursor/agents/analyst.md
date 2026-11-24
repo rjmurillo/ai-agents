@@ -214,7 +214,7 @@ Consider these when the problem structure matches:
 | **Five Whys** | Root cause analysis for incidents |
 | **CAP Theorem** | Distributed system trade-offs |
 
-Query Serena for full framework details when relevant: call `mcp__serena__read_memory` with `memory_file_name="knowledge/cynefin-framework"`. If the Serena MCP is unavailable, fall back to reading `knowledge/cynefin-framework.md` in the repository memory folder (ADR-126).
+Query Serena for full framework details when relevant: call `mcp__serena__read_memory` with `memory_file_name="knowledge/cynefin-framework"`. If the Serena MCP is unavailable, fall back to reading `knowledge/cynefin-framework.md` in the memory folder.
 
 ## Output Length Bounds
 

@@ -125,8 +125,7 @@ For durable knowledge, choose the persistence surface by who must obey it.
 Memory scoped to one harness is invisible to the other two.
 
 1. **Ephemeral, this-task-only**: Keep unfinished work in the issue handoff.
-2. **Retrieval aid, non-binding**: Use `memory-search` for prior context.
-   Use `memory-gate` before changing an existing system.
-   Use `memory` to save verified context in project tools or repository files.
+2. **Retrieval aid, non-binding**: `memory-search` recalls, `memory-gate`
+   checks before a change, and `memory` saves verified context.
 3. **Durable convention that binds every contributor and every harness**:
    Use the host's always-on rules.
