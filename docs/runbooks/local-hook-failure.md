@@ -117,13 +117,23 @@ Each of the 85 failures came from the shim exit. Either prefix below made all
 five files pass with 198 passed and 1 skipped at commit 161cf5abd3 (2026-11-24):
 
 ```bash
-PATH="/snap/bin:$PATH" uv run pytest <test files>
-DOTNET_ROOT="$HOME/.dotnet" uv run pytest <test files>
+PWSH_TESTS=(
+  tests/skills/code-qualities-assessment/test_powershell_coupling.py
+  tests/skills/code-qualities-assessment/test_powershell_pwsh_launch.py
+  tests/build_scripts/test_generate_hooks_runtime_contract.py
+  tests/skills/github/test_check_github_transport.py
+  tests/skills/skill-bootstrap/test_runtime_contract.py
+)
+PATH="/snap/bin:$PATH" uv run pytest "${PWSH_TESTS[@]}"
+DOTNET_ROOT="$HOME/.dotnet" uv run pytest "${PWSH_TESTS[@]}"
 ```
 
 The owner reported that a pre-push `python-tests` failure on 2026-11-24 cleared
-with the `PATH` prefix below, and every hook passed. The prefix changes only
-which `pwsh` the hooks start, so it is not a hook bypass:
+with the `PATH` prefix below, and every hook passed. The prefix does not skip
+any hook, so it is not a hook bypass. It does put `/snap/bin` first for every
+command the hooks run, not only `pwsh`. On 2026-11-24 it also moved `dotnet` to
+`/snap/bin/dotnet`, while `uv`, `python3`, and `git` resolved as before. Run
+`ls /snap/bin` to see what else the prefix can shadow on your machine:
 
 ```bash
 PATH="/snap/bin:$PATH" git push
@@ -136,8 +146,9 @@ or install changes was tested:
 - Put `/snap/bin` before `~/.dotnet/tools` on `PATH` in the shell profile.
 - Remove the shim with `dotnet tool uninstall -g PowerShell`. Other tools that
   call `~/.dotnet/tools/pwsh` by full path would then break.
-- Set `DOTNET_ROOT="$HOME/.dotnet"` in the shell profile, so the shim finds the
-  runtimes it already has.
+- Add `export DOTNET_ROOT="$HOME/.dotnet"` to the shell profile, so the shim
+  finds the runtimes it already has. The `export` matters: without it, child
+  processes such as the shim do not see the value.
 - Install the .NET 10 runtime where the shim looks (`/usr/share/dotnet`), for
   example from the system package manager.
 
