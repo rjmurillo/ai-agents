@@ -45,6 +45,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from scripts.eval.actionability_io import atomic_write_text  # noqa: E402
 from scripts.github_core.api import (  # noqa: E402
     get_all_prs_with_comments,
     resolve_repo_params,
@@ -189,7 +190,7 @@ def measure_band(prs: list[dict[str, Any]]) -> BandReport:
     )
 
 
-def _head_sha() -> str:
+def head_sha() -> str:
     try:
         result = subprocess.run(
             ["git", "rev-parse", "HEAD"],
@@ -264,20 +265,19 @@ def main(argv: list[str] | None = None) -> int:
     prs, meta = loaded
 
     if args.save_prs is not None:
-        args.save_prs.write_text(json.dumps(prs), encoding="utf-8")
+        atomic_write_text(args.save_prs, json.dumps(prs))
 
     report = measure_band(prs)
     payload = {
         "measured_at": datetime.now(UTC).isoformat(timespec="seconds"),
-        "head_sha": _head_sha(),
+        "head_sha": head_sha(),
         "band": [BAND_MIN, BAND_MAX],
         "kill_criterion_1_threshold": KILL_CRITERION_1_THRESHOLD,
         "prs_examined": len(prs),
         **meta,
         **asdict(report),
     }
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    atomic_write_text(args.output, json.dumps(payload, indent=2) + "\n")
 
     print(
         f"examined {report.total} comments in {len(prs)} PRs: "

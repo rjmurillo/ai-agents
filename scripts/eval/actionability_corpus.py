@@ -43,6 +43,14 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from scripts.eval.actionability_io import atomic_write_text  # noqa: E402
+from scripts.eval.actionability_labels import (  # noqa: E402
+    LABEL_UNSURE,
+    SPLIT_DEV,
+    SPLIT_HELDOUT,
+    SPLIT_OUTSIDE,
+    VALID_LABELS,
+)
 from scripts.eval.measure_actionability_band import (  # noqa: E402
     UNKNOWN_POSITION,
     is_in_band,
@@ -61,15 +69,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_SEED = 20261124
 HEX_SECRET_REASON = "hex-secret"
 
-SPLIT_DEV = "dev"
-SPLIT_HELDOUT = "heldout"
-SPLIT_OUTSIDE = "outside"
 
-# Label values from evals/comment-actionability/RUBRIC.md. A null label means not yet labeled.
-LABEL_ACTIONABLE = "actionable"
-LABEL_NOT_ACTIONABLE = "not_actionable"
-LABEL_UNSURE = "unsure"
-VALID_LABELS = (LABEL_ACTIONABLE, LABEL_NOT_ACTIONABLE, LABEL_UNSURE)
 MAX_NAMED_ROWS = 10
 
 # The only keys a labeler may see (rubric: body, path, hunk). Premortem R3: the sheet is
@@ -244,9 +244,8 @@ def scan_secrets(rows: list[dict[str, Any]]) -> tuple[dict[str, list[str]], list
 
 
 def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
     text = "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows)
-    path.write_text(text, encoding="utf-8")
+    atomic_write_text(path, text)
 
 
 def _warn_shortfall(name: str, available: int, requested: int) -> None:
@@ -288,7 +287,7 @@ def cmd_sample(args: argparse.Namespace) -> int:
     band_pool = [r for r in rows if r["in_band"]]
     outside_pool = [r for r in rows if not r["in_band"]]
     _warn_shortfall("band", len(band_pool), args.band_count)
-    _warn_shortfall("outside", len(outside_pool), args.outside_count)
+    _warn_shortfall(SPLIT_OUTSIDE, len(outside_pool), args.outside_count)
     band = stratified_sample(band_pool, args.band_count, rng)
     outside = stratified_sample(outside_pool, args.outside_count, rng)
     assign_splits(band, outside, args.dev_count, rng)
@@ -392,7 +391,8 @@ def _join_problems(corpus: list[dict[str, Any]], labels: dict[str, Any]) -> list
         problems.append("corpus rows without an id")
     if len(set(corpus_ids)) != len(corpus_ids):
         problems.append("duplicate corpus ids")
-    unknown = sum(1 for i in labels if i not in set(corpus_ids))
+    known = set(corpus_ids)
+    unknown = sum(1 for i in labels if i not in known)
     if unknown:
         problems.append(f"{unknown} sheet ids not in the corpus")
     missing = sum(1 for i in corpus_ids if i not in labels)

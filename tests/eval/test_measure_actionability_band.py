@@ -217,3 +217,62 @@ class TestMain:
         payload = json.loads(output.read_text(encoding="utf-8"))
         assert "updatedAt" in payload["window"]
         assert payload["kill_criterion_1_fired"] is None
+
+
+class TestSavePrs:
+    def test_save_prs_writes_the_fetched_nodes_to_the_named_file(self, tmp_path: Path) -> None:
+        """Hygiene 6d: --save-prs persists the PR nodes the run scored."""
+        prs = [_pr(1, _thread(_node("Consider a helper.")))]
+        source = tmp_path / "prs.json"
+        source.write_text(json.dumps(prs), encoding="utf-8")
+        saved = tmp_path / "saved" / "prs.json"
+
+        code = mab.main(
+            [
+                "--from-json",
+                str(source),
+                "--save-prs",
+                str(saved),
+                "--output",
+                str(tmp_path / "result.json"),
+            ]
+        )
+
+        assert code == 0
+        assert json.loads(saved.read_text(encoding="utf-8")) == prs
+
+
+class TestHeadSha:
+    def test_returns_unknown_when_git_cannot_run(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Hygiene 6d: a missing git binary yields "unknown", not a crash."""
+
+        def _boom(*_args: object, **_kwargs: object) -> None:
+            raise OSError("no git")
+
+        monkeypatch.setattr(mab.subprocess, "run", _boom)
+
+        assert mab.head_sha() == "unknown"
+
+    def test_returns_unknown_when_git_times_out(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Hygiene 6d: a hung git yields "unknown"."""
+
+        def _timeout(*_args: object, **_kwargs: object) -> None:
+            raise mab.subprocess.TimeoutExpired(cmd="git", timeout=10)
+
+        monkeypatch.setattr(mab.subprocess, "run", _timeout)
+
+        assert mab.head_sha() == "unknown"
+
+    def test_returns_unknown_when_git_prints_nothing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Hygiene 6d: empty stdout yields "unknown"."""
+        done = mab.subprocess.CompletedProcess(args=["git"], returncode=128, stdout="", stderr="x")
+        monkeypatch.setattr(mab.subprocess, "run", lambda *_a, **_k: done)
+
+        assert mab.head_sha() == "unknown"
+
+    def test_returns_the_trimmed_sha_on_success(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Hygiene 6d: the happy path strips the trailing newline."""
+        done = mab.subprocess.CompletedProcess(args=["git"], returncode=0, stdout="abc123\n")
+        monkeypatch.setattr(mab.subprocess, "run", lambda *_a, **_k: done)
+
+        assert mab.head_sha() == "abc123"

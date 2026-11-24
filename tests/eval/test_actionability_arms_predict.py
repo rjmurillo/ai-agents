@@ -378,3 +378,20 @@ class TestFailureRateExit:
 
         assert code == 3
         assert {r["status"] for r in read_jsonl_file(out)} == {"call_error"}
+
+
+class TestPredictEmptyModel:
+    @pytest.mark.parametrize("model", ["", "   "])
+    def test_blank_model_returns_two_before_any_call(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, model: str
+    ) -> None:
+        """Hygiene 6d: a blank --model is a config error, never a call."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", _API_KEY)
+        fake = _install(monkeypatch, _FakeCallApi())
+        out = tmp_path / "pred.jsonl"
+
+        code = aa.main(_argv(_corpus(tmp_path, _heldout(1)), out, model=model))
+
+        assert code == 2
+        assert not out.exists()
+        assert fake.calls == []

@@ -309,3 +309,11 @@ class TestPrompt:
     def test_user_message_without_replies_has_no_reply_block(self) -> None:
         """Plan M1-T14: no replies means no reply tags."""
         assert "<reply>" not in aa.build_user_message(make_row("r"))
+
+
+class TestCleanConfidenceOverflow:
+    def test_integer_too_large_for_a_float_is_rejected(self) -> None:
+        """Hygiene 6d: float(10**400) raises OverflowError, which must become a parse failure."""
+        text = '{"is_actionable": true, "confidence": 1' + "0" * 400 + "}"
+
+        assert aa.parse_verdict(text) is None

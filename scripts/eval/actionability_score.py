@@ -17,12 +17,17 @@ import random
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
+from scripts.eval.actionability_labels import (
+    LABEL_TRUTH,
+    LABEL_UNSURE,
+    SPLIT_HELDOUT,
+    SPLIT_OUTSIDE,
+    STATUS_OK,
+    STATUSES,
+)
+
 Arm = Callable[[dict[str, Any], dict[str, Any] | None], bool]
 
-LABEL_TRUTH = {"actionable": True, "not_actionable": False}
-LABEL_UNSURE = "unsure"
-
-STATUSES = ("ok", "parse_error", "call_error")
 PROVENANCE_FIELDS = ("provider", "model", "prompt_sha256")
 
 PASS_GAP = 0.10
@@ -33,8 +38,6 @@ Z_ALPHA_PLUS_Z_BETA = 1.96 + 0.8416
 CI_LOW_PERCENTILE = 2.5
 CI_HIGH_PERCENTILE = 97.5
 
-SPLIT_HELDOUT = "heldout"
-SPLIT_OUTSIDE = "outside"
 BASELINES = ("A", "B")
 
 
@@ -232,7 +235,7 @@ def _latency_section(predictions: list[dict[str, Any]]) -> dict[str, Any]:
     ok = [
         record["latency_s"]
         for record in predictions
-        if record["status"] == "ok" and record.get("latency_s") is not None
+        if record["status"] == STATUS_OK and record.get("latency_s") is not None
     ]
     return {"p50": nearest_rank(ok, 50), "p95": nearest_rank(ok, 95), "n_ok": len(ok)}
 

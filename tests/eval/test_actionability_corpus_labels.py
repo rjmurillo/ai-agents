@@ -195,3 +195,39 @@ class TestMergeLabels:
 
         lines = out.read_text(encoding="utf-8").splitlines()
         assert [json.loads(line)["id"] for line in lines] == ["A", "B"]
+
+
+class TestMergeLabelsCorpusProblems:
+    def test_corpus_row_without_an_id_exits_two(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Hygiene 6d: a corpus row with no id cannot be joined."""
+        no_id = corpus_row("X")
+        del no_id["id"]
+        corpus = write_corpus(tmp_path / "c.jsonl", [corpus_row("A"), no_id])
+        sheet = write_corpus(tmp_path / "s.jsonl", [_sheet_row("A", None)])
+        out = tmp_path / "o.jsonl"
+
+        code = cc.main(
+            ["merge-labels", "--corpus", str(corpus), "--sheet", str(sheet), "--output", str(out)]
+        )
+
+        assert code == 2
+        assert not out.exists()
+        assert "corpus rows without an id" in capsys.readouterr().err
+
+    def test_duplicate_corpus_id_exits_two(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Hygiene 6d: two corpus rows with one id make the join ambiguous."""
+        corpus = write_corpus(tmp_path / "c.jsonl", [corpus_row("A"), corpus_row("A")])
+        sheet = write_corpus(tmp_path / "s.jsonl", [_sheet_row("A", "actionable")])
+        out = tmp_path / "o.jsonl"
+
+        code = cc.main(
+            ["merge-labels", "--corpus", str(corpus), "--sheet", str(sheet), "--output", str(out)]
+        )
+
+        assert code == 2
+        assert not out.exists()
+        assert "duplicate corpus ids" in capsys.readouterr().err

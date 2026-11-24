@@ -55,6 +55,15 @@ from scripts.eval.actionability_corpus import (  # noqa: E402
     load_jsonl,
     write_jsonl,
 )
+from scripts.eval.actionability_io import atomic_write_text  # noqa: E402
+from scripts.eval.actionability_labels import (  # noqa: E402
+    SPLIT_DEV,
+    SPLIT_HELDOUT,
+    STATUS_CALL_ERROR,
+    STATUS_OK,
+    STATUS_PARSE_ERROR,
+    STATUSES,
+)
 from scripts.eval.actionability_score import ScoreInputError, build_report  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -76,10 +85,6 @@ MAX_OUTPUT_TOKENS = 100
 # Premortem R2: below this many calls a failure rate says nothing.
 MIN_ATTEMPTS_FOR_FAILURE_EXIT = 5
 
-STATUS_OK = "ok"
-STATUS_PARSE_ERROR = "parse_error"
-STATUS_CALL_ERROR = "call_error"
-_STATUSES = (STATUS_OK, STATUS_PARSE_ERROR, STATUS_CALL_ERROR)
 
 API_KEY_ENV = "ANTHROPIC_API_KEY"
 
@@ -364,7 +369,7 @@ def cmd_predict(args: argparse.Namespace) -> int:
         prompt_sha256=digest,
     )
     write_jsonl(args.output, records)
-    counts = {s: sum(1 for r in records if r["status"] == s) for s in _STATUSES}
+    counts = {s: sum(1 for r in records if r["status"] == s) for s in STATUSES}
     print(
         f"attempted {len(records)}: ok {counts[STATUS_OK]}, "
         f"parse_error {counts[STATUS_PARSE_ERROR]}, call_error {counts[STATUS_CALL_ERROR]}"
@@ -395,8 +400,7 @@ def cmd_score(args: argparse.Namespace) -> int:
             "arm C used the heuristic for them",
             file=sys.stderr,
         )
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    atomic_write_text(args.output, json.dumps(report, indent=2) + "\n")
     low, high = report["gap_ci"]
     print(
         f"verdict {report['verdict']}: gap {report['gap']:.4f} "
@@ -412,7 +416,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     predict = sub.add_parser("predict", help="Call a model on the in-band rows of one split")
     predict.add_argument("--corpus", type=Path, required=True, help="Corpus JSONL")
-    predict.add_argument("--split", choices=("dev", "heldout"), required=True)
+    predict.add_argument("--split", choices=(SPLIT_DEV, SPLIT_HELDOUT), required=True)
     predict.add_argument("--provider", default=None, help="Provider name passed to call_api")
     predict.add_argument("--model", required=True, help="Model id (no default)")
     predict.add_argument("--output", type=Path, required=True, help="Predictions JSONL to write")
