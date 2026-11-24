@@ -1,16 +1,8 @@
-"""Change admissions for issue #7525.
-
-A refactor that replaces local logic with one shared first-party import drops
-coupling by a point, and a file that only loses unique lines drops
-non-redundancy. Neither change adds a dependency or a duplicate, so the gate
-admits the drop while the raw score and regression row stay in the report.
-A new third-party import or a new duplicate still fails.
-"""
+"""Change-scoped admissions for issue #7493 (ADR-122 item 10)."""
 
 from __future__ import annotations
 
 import json
-import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -18,394 +10,430 @@ import pytest
 
 from scripts.ai_review_common import adapt_local_axis_verdict
 
-from .test_assess import _commit, _init_repo, _mod, _regression_argv, _run_git, _write, main
+from .test_assess import (
+    _SPRAWLING,
+    _commit,
+    _mod,
+    _regression_argv,
+    _repo_with_change,
+    _write,
+    main,
+)
+from .test_parser_admission import _PARSER_IMPORTS
+from .test_typescript_admission import _TYPESCRIPT_IMPORTS
 
-_AXIS = "code-qualities-assessment"
-# No absolute minimums, so files added beside a change never fail the run.
-_NO_MINIMUMS: dict[str, dict[str, int]] = {
-    key: {} for key in ("cohesion", "coupling", "encapsulation", "testability", "nonRedundancy")
-}
-_ADMISSION = {"firstPartyCouplingAdmission": {"importRoots": ["lib"]}}
+_RECORDS = list(_mod._CHANGE_ADMISSIONS)
+_LIB_MIRROR = "build/scripts/lib_mirror.py"
+_SEARCH = "scripts/memory_enhancement/search.py"
+_AUTHORIZATION = (
+    "Maintainer decisions D1 and D2, choice A: "
+    "admit all 8 transitions as fixed records in one ADR-122 item."
+)
+_BODY = "def alpha():\n    return 1\n"
 
-_LOCAL_LOGIC = "def caller(text):\n    head, _, body = text.partition('---')\n    return body\n"
-_SHARED_MODULE = "def split(text):\n    head, _, body = text.partition('---')\n    return body\n"
+
+def _record(file: str, quality: str) -> dict[str, Any]:
+    return next(r for r in _RECORDS if r["file"] == file and r["quality"] == quality)
 
 
-def _repo(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    base: dict[str, str],
-    head: dict[str, str],
+def _comparison(file: str, moves: dict[str, tuple[float, float]], **overrides: Any) -> Any:
+    deltas = [
+        _mod.QualityDelta(q, base, head, round(head - base, 4), "compared")
+        for q, (base, head) in moves.items()
+    ]
+    fields: dict[str, Any] = {
+        "file_path": file,
+        "is_new_file": False,
+        "deltas": deltas,
+        "regressions": list(moves),
+        "evidence_loss": [],
+    }
+    fields.update(overrides)
+    return _mod.FileComparison(**fields)
+
+
+_REAL_BLOB_IDS = _mod._blob_ids
+
+
+def _pinned_blobs(path: str, base_revision: str | None) -> tuple[str | None, str | None]:
+    """Return the record blobs for *path*, so fixture files match their pins."""
+    record = next((r for r in _RECORDS if r["file"] == path), None)
+    return (record["baseBlob"], record["headBlob"]) if record else (None, None)
+
+
+@pytest.fixture(autouse=True)
+def _use_pinned_blobs(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Fixture files cannot carry the real repository blobs. Tests of the blob
+    # gate itself restore the real lookup with monkeypatch.setattr.
+    monkeypatch.setattr(_mod, "_blob_ids", _pinned_blobs)
+
+
+def _admit(comparison: Any) -> Any:
+    _mod._apply_change_admissions([comparison], {"changeAdmissions": list(_RECORDS)})
+    return comparison
+
+
+# --- the fixed records ----------------------------------------------------------
+
+
+def test_the_scanner_holds_the_eight_records_from_adr_122_item_10() -> None:
+    table = [(r["file"], r["quality"], r["baseScore"], r["headScore"]) for r in _RECORDS]
+
+    assert table == [
+        (_LIB_MIRROR, "coupling", 8.0, 7.0),
+        ("scripts/memory_enhancement/hooks/user_prompt_submit_memory.py", "cohesion", 6.3, 4.2),
+        ("scripts/memory_enhancement/hooks/user_prompt_submit_memory.py", "coupling", 6.0, 3.0),
+        (_SEARCH, "cohesion", 4.2, 2.0),
+        (_SEARCH, "coupling", 5.0, 3.0),
+        ("templates/hooks/UserPromptSubmit/invoke_memory_recall.py", "cohesion", 9.2, 7.7),
+        ("templates/hooks/invoke_dispatch_claude.py", "cohesion", 5.7, 4.6),
+        ("tests/build_scripts/test_lib_mirror.py", "coupling", 7.0, 6.0),
+    ]
+    for record in _RECORDS:
+        assert record["issue"] == 7493
+        assert record["authorizedBy"] == "rjmurillo"
+        if record["file"] == _SEARCH:
+            assert record["authorizedOn"] == "2026-11-20"
+            assert record["authorization"] == _AUTHORIZATION + (
+                " Maintainer decisions D5 (2026-11-22, issue #7493 comment 7086682234),"
+                " D9 (2026-11-23, issue #7493 comment 7120119475), and D12"
+                " (2026-11-23, issue #7493 comment 7121288491) renewed this head pin."
+                " Maintainer decision D13 (2026-11-23, issue #7493 comment 7121992178)"
+                " set the cohesion head score to 2.0."
+            )
+        elif record["file"] == "templates/hooks/UserPromptSubmit/invoke_memory_recall.py":
+            assert record["authorizedOn"] == "2026-11-20"
+            assert record["authorization"] == _AUTHORIZATION + (
+                " Maintainer decision D12 (2026-11-23, issue #7493 comment 7121288491)"
+                " renewed this head pin."
+            )
+        else:
+            assert record["authorizedOn"] == "2026-11-20"
+            assert record["authorization"] == _AUTHORIZATION
+
+
+def test_the_repository_config_carries_the_same_list_in_the_same_order() -> None:
+    root = Path(__file__).resolve().parents[3]
+    config = json.loads((root / ".qualityrc.json").read_text(encoding="utf-8"))
+
+    assert config["changeAdmissions"] == _RECORDS
+
+
+# --- matching -------------------------------------------------------------------
+
+
+def test_an_exact_match_attaches_the_record() -> None:
+    comparison = _admit(_comparison(_LIB_MIRROR, {"coupling": (8.0, 7.0)}))
+
+    assert comparison.change_admissions == [_record(_LIB_MIRROR, "coupling")]
+
+
+def test_a_file_with_both_records_admits_both_qualities() -> None:
+    comparison = _admit(_comparison(_SEARCH, {"cohesion": (4.2, 2.0), "coupling": (5.0, 3.0)}))
+
+    assert comparison.change_admissions == [
+        _record(_SEARCH, "cohesion"),
+        _record(_SEARCH, "coupling"),
+    ]
+
+
+def test_only_the_regressed_quality_needs_a_record() -> None:
+    comparison = _admit(_comparison(_SEARCH, {"coupling": (5.0, 3.0)}))
+
+    assert comparison.change_admissions == [_record(_SEARCH, "coupling")]
+
+
+@pytest.mark.parametrize(("base", "head"), [(8.1, 7.0), (7.9, 7.0), (8.0, 7.1), (8.0, 6.9)])
+def test_a_base_or_head_off_by_a_tenth_is_refused(
+    base: float, head: float, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Commit *base* files on main, then *head* files on a feature branch."""
-    _init_repo(tmp_path)
-    for name, body in base.items():
-        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
-        _commit(tmp_path, name, body, f"base {name}")
-    _run_git(tmp_path, "checkout", "-b", "feature")
-    for name, body in head.items():
-        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
-        _commit(tmp_path, name, body, f"head {name}")
-    monkeypatch.chdir(tmp_path)
+    comparison = _admit(_comparison(_LIB_MIRROR, {"coupling": (base, head)}))
+
+    assert comparison.change_admissions is None
+    assert "NOT ADMITTED: build/scripts/lib_mirror.py: coupling:" in capsys.readouterr().err
+
+
+def test_a_delta_that_is_not_head_minus_base_is_refused() -> None:
+    comparison = _comparison(_LIB_MIRROR, {"coupling": (8.0, 7.0)})
+    comparison.deltas[0].delta = -0.5
+
+    assert _admit(comparison).change_admissions is None
+
+
+def test_a_status_other_than_compared_is_refused() -> None:
+    comparison = _comparison(_LIB_MIRROR, {"coupling": (8.0, 7.0)})
+    comparison.deltas[0].status = "newly_scored"
+
+    assert _admit(comparison).change_admissions is None
+
+
+def test_two_regressed_qualities_with_one_matching_record_stay_blocking(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    comparison = _admit(_comparison(_SEARCH, {"cohesion": (4.0, 2.1), "coupling": (5.0, 3.0)}))
+
+    assert comparison.change_admissions is None
+    err = capsys.readouterr().err
+    assert "NOT ADMITTED: scripts/memory_enhancement/search.py: cohesion:" in err
+    assert "coupling:" not in err.replace("cohesion:", "")
+
+
+def test_a_quality_with_no_record_keeps_the_whole_file_blocking(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    comparison = _admit(_comparison(_LIB_MIRROR, {"coupling": (8.0, 7.0), "cohesion": (9.0, 5.0)}))
+
+    assert comparison.change_admissions is None
+    assert "cohesion: no record for this file and quality" in capsys.readouterr().err
+
+
+def test_a_record_for_a_file_not_in_the_diff_is_inert(capsys: pytest.CaptureFixture[str]) -> None:
+    comparison = _admit(_comparison("src/other.py", {"coupling": (8.0, 7.0)}))
+
+    assert comparison.change_admissions is None
+    assert capsys.readouterr().err == ""
+
+
+@pytest.mark.parametrize("status", ["A", "R", "D"])
+def test_only_a_modified_file_is_admitted(status: str) -> None:
+    comparison = _comparison(_LIB_MIRROR, {"coupling": (8.0, 7.0)}, change_status=status)
+
+    assert _admit(comparison).change_admissions is None
+
+
+def test_a_new_file_is_not_admitted() -> None:
+    comparison = _comparison(_LIB_MIRROR, {"coupling": (8.0, 7.0)}, is_new_file=True)
+
+    assert _admit(comparison).change_admissions is None
+
+
+def test_an_absolute_gate_reason_is_not_admitted() -> None:
+    comparison = _comparison(_LIB_MIRROR, {"coupling": (8.0, 7.0)}, absolute_gate_reason="x")
+
+    assert _admit(comparison).change_admissions is None
+
+
+def test_evidence_loss_is_not_admitted() -> None:
+    comparison = _comparison(_LIB_MIRROR, {"coupling": (8.0, 7.0)}, evidence_loss=["testability"])
+
+    assert _admit(comparison).change_admissions is None
+
+
+def test_evidence_loss_still_blocks_even_when_records_are_attached(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    comparison = _comparison(_LIB_MIRROR, {"coupling": (8.0, 7.0)}, evidence_loss=["testability"])
+    comparison.change_admissions = [_record(_LIB_MIRROR, "coupling")]
+
+    assert _mod.check_regression([comparison], [], {}, None) == 10
+    assert "evidence loss" in capsys.readouterr().err
+
+
+def test_no_changeadmissions_key_means_nothing_is_admitted() -> None:
+    comparison = _comparison(_LIB_MIRROR, {"coupling": (8.0, 7.0)})
+
+    _mod._apply_change_admissions([comparison], {})
+
+    assert comparison.change_admissions is None
+
+
+# --- config equality -------------------------------------------------------------
+
+
+def _mutations() -> list[tuple[str, list[dict[str, Any]]]]:
+    cases: list[tuple[str, list[dict[str, Any]]]] = []
+    for field, value in [
+        ("issue", 7494),
+        ("file", "x.py"),
+        ("quality", "cohesion"),
+        ("baseScore", 8.1),
+        ("headScore", 6.9),
+        ("authorizedBy", "someone"),
+        ("authorizedOn", "2026-11-21"),
+        ("authorization", "anything"),
+    ]:
+        records = [dict(r) for r in _RECORDS]
+        records[0][field] = value
+        cases.append((f"field {field}", records))
+    extra = [dict(r) for r in _RECORDS]
+    extra[0]["extra"] = True
+    cases.append(("extra key", extra))
+    cases.append(("reordered", [dict(r) for r in reversed(_RECORDS)]))
+    cases.append(("dropped", [dict(r) for r in _RECORDS[:-1]]))
+    cases.append(("duplicated", [dict(r) for r in [*_RECORDS, _RECORDS[0]]]))
+    cases.append(("empty", []))
+    return cases
+
+
+@pytest.mark.parametrize(
+    ("label", "records"), _mutations(), ids=lambda v: v if isinstance(v, str) else ""
+)
+def test_a_config_list_that_differs_in_any_way_raises(
+    label: str, records: list[dict[str, Any]]
+) -> None:
+    with pytest.raises(ValueError, match="Invalid changeAdmissions"):
+        _mod._apply_change_admissions([], {"changeAdmissions": records})
+
+
+def test_a_config_that_is_not_a_list_raises() -> None:
+    with pytest.raises(ValueError, match="Invalid changeAdmissions"):
+        _mod._apply_change_admissions([], {"changeAdmissions": _RECORDS[0]})
+
+
+# --- report and exit code ---------------------------------------------------------
+
+
+def test_each_admitted_quality_prints_one_admitted_line_and_does_not_block(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    comparison = _admit(_comparison(_SEARCH, {"cohesion": (4.2, 2.0), "coupling": (5.0, 3.0)}))
+
+    rc = _mod.check_regression([comparison], [], {}, None)
+
+    err = capsys.readouterr().err
+    assert rc == 0
+    assert err.count("ADMITTED: issue #7493, authorized by rjmurillo on 2026-11-20:") == 2
+    assert err.count("issue #7493 comment 7086682234") == 2
+    assert err.count("issue #7493 comment 7120119475") == 2
+    assert err.count("issue #7493 comment 7121288491") == 2
+    assert err.count("issue #7493 comment 7121992178") == 2
+    assert "Raw cohesion regression remains reported." in err
+    assert "Raw coupling regression remains reported." in err
+    assert "❌ scripts/memory_enhancement/search.py: cohesion regressed 4.2 -> 2.0" in err
+
+
+def test_without_records_the_same_regressions_block(capsys: pytest.CaptureFixture[str]) -> None:
+    comparison = _comparison(_SEARCH, {"cohesion": (4.2, 2.0), "coupling": (5.0, 3.0)})
+
+    assert _mod.check_regression([comparison], [], {}, None) == 10
+    assert "ADMITTED" not in capsys.readouterr().err
+
+
+# --- end to end through main -------------------------------------------------------
+
+
+def _build_lib_mirror_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Base scores coupling 8.0 with two parser imports, head 7.0 with three."""
+    (tmp_path / _LIB_MIRROR).parent.mkdir(parents=True)
+    _repo_with_change(
+        tmp_path, monkeypatch, _PARSER_IMPORTS + _BODY, _TYPESCRIPT_IMPORTS + _BODY, _LIB_MIRROR
+    )
+    return tmp_path
+
+
+@pytest.fixture
+def lib_mirror_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    return _build_lib_mirror_repo(tmp_path, monkeypatch)
 
 
 def _run(tmp_path: Path, config: dict[str, Any]) -> int:
-    path = _write(tmp_path, ".qualityrc.json", json.dumps({"thresholds": _NO_MINIMUMS, **config}))
+    path = _write(tmp_path, ".qualityrc.json", json.dumps(config))
     result = main([*_regression_argv(), "--config", str(path)])
     assert isinstance(result, int)
     return result
 
 
-def _comparison(out: str, name: str) -> dict[str, Any]:
-    return next(c for c in json.loads(out)["comparisons"] if c["file_path"] == name)
-
-
-def _shared_extraction(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, head_import: str) -> None:
-    """Base keeps local fence logic; head imports it and deletes the copy."""
-    head = f"{head_import}\n\n\ndef caller(text):\n    return split(text)\n"
-    _repo(
-        tmp_path,
-        monkeypatch,
-        {"pkg/__init__.py": "", "tools/caller.py": _LOCAL_LOGIC},
-        {
-            "pkg/shared.py": _SHARED_MODULE,
-            "lib/fence/__init__.py": _SHARED_MODULE,
-            "tools/caller.py": head,
-        },
-    )
-
-
-@pytest.mark.parametrize(
-    "head_import",
-    [
-        "from pkg.shared import split",
-        "from fence import split",
-    ],
-    ids=["package-at-workspace-root", "configured-import-root"],
-)
-def test_shared_import_extraction_is_admitted_and_reported(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-    head_import: str,
+def test_exit_zero_with_the_record_and_ten_without(
+    lib_mirror_repo: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    _shared_extraction(tmp_path, monkeypatch, head_import)
+    admitted = _run(lib_mirror_repo, {"thresholds": {}, "changeAdmissions": _RECORDS})
+    admitted_err = capsys.readouterr().err
+    blocked = _run(lib_mirror_repo, {"thresholds": {}})
+    blocked_err = capsys.readouterr().err
 
-    rc = _run(tmp_path, _ADMISSION)
+    assert (admitted, blocked) == (0, 10)
+    assert "ADMITTED: issue #7493" in admitted_err
+    assert "ADMITTED" not in blocked_err
 
-    out, err = capsys.readouterr()
-    comparison = _comparison(out, "tools/caller.py")
+
+def test_the_json_report_carries_change_admissions(
+    lib_mirror_repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rc = _run(lib_mirror_repo, {"thresholds": {}, "changeAdmissions": _RECORDS})
+
+    comparison = json.loads(capsys.readouterr().out)["comparisons"][0]
     coupling = next(d for d in comparison["deltas"] if d["quality"] == "coupling")
     assert rc == 0
-    assert (coupling["base"], coupling["head"], coupling["delta"]) == (10.0, 9.0, -1.0)
+    assert (coupling["base"], coupling["head"], coupling["delta"]) == (8.0, 7.0, -1.0)
     assert comparison["regressions"] == ["coupling"]
-    assert comparison["change_admissions"] == {
-        "coupling": {
-            "issue": 7525,
-            "rule": "no_new_third_party_import",
-            "baseThirdParty": [],
-            "headThirdParty": [],
-        }
-    }
-    assert "coupling regressed 10.0 -> 9.0" in err
-    assert "ADMITTED: issue #7525, rule no_new_third_party_import" in err
-    assert adapt_local_axis_verdict(_AXIS, out, rc) == "WARN"
+    assert comparison["change_admissions"] == [_record(_LIB_MIRROR, "coupling")]
 
 
-def test_sibling_module_import_is_first_party(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+def test_the_report_has_a_null_field_when_nothing_is_admitted(
+    lib_mirror_repo: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    head = "from fence_helper import split\n\n\ndef caller(text):\n    return split(text)\n"
-    _repo(
-        tmp_path,
-        monkeypatch,
-        {"build/caller.py": _LOCAL_LOGIC},
-        {"build/fence_helper.py": _SHARED_MODULE, "build/caller.py": head},
+    _run(lib_mirror_repo, {"thresholds": {}})
+
+    assert json.loads(capsys.readouterr().out)["comparisons"][0]["change_admissions"] is None
+
+
+def test_the_review_adapter_reports_warn_for_the_admitted_run(
+    lib_mirror_repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rc = _run(lib_mirror_repo, {"thresholds": {}, "changeAdmissions": _RECORDS})
+
+    assert (
+        adapt_local_axis_verdict("code-qualities-assessment", capsys.readouterr().out, rc) == "WARN"
     )
 
-    assert _run(tmp_path, _ADMISSION) == 0
-    assert _comparison(capsys.readouterr().out, "build/caller.py")["change_admissions"]
+
+def test_a_config_that_differs_is_refused_with_exit_one(
+    lib_mirror_repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    changed = [dict(r) for r in _RECORDS]
+    changed[0]["headScore"] = 6.0
+
+    assert _run(lib_mirror_repo, {"thresholds": {}, "changeAdmissions": changed}) == 1
+    assert "ERROR: Invalid changeAdmissions" in capsys.readouterr().err
 
 
-def test_import_root_is_needed_for_a_module_only_found_there(
+def test_a_record_for_another_file_is_inert_end_to_end(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    _shared_extraction(tmp_path, monkeypatch, "from fence import split")
+    _repo_with_change(
+        tmp_path, monkeypatch, _PARSER_IMPORTS + _BODY, _TYPESCRIPT_IMPORTS + _BODY, "other.py"
+    )
 
-    rc = _run(tmp_path, {"firstPartyCouplingAdmission": {"importRoots": []}})
+    rc = _run(tmp_path, {"thresholds": {}, "changeAdmissions": _RECORDS})
 
-    out = capsys.readouterr().out
+    err = capsys.readouterr().err
     assert rc == 10
-    assert _comparison(out, "tools/caller.py")["change_admissions"] is None
-    assert adapt_local_axis_verdict(_AXIS, out, rc) == "FAIL"
+    assert "ADMITTED" not in err and "NOT ADMITTED" not in err
 
 
-def test_admission_is_inert_without_the_config_key(
+def test_the_parser_admission_still_admits_its_own_transition(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    _shared_extraction(tmp_path, monkeypatch, "from pkg.shared import split")
+    scanner = "src/claude/skills/code-qualities-assessment/scripts/assess.py"
+    (tmp_path / scanner).parent.mkdir(parents=True)
+    _repo_with_change(tmp_path, monkeypatch, _BODY, _PARSER_IMPORTS + _BODY, scanner)
+    record = _mod._CSHARP_PARSER_DEPENDENCY_ADMISSION
 
-    rc = _run(tmp_path, {})
+    rc = _run(
+        tmp_path,
+        {"thresholds": {}, "csharpParserDependencyAdmission": record, "changeAdmissions": _RECORDS},
+    )
 
-    out, err = capsys.readouterr()
-    assert rc == 10
-    assert _comparison(out, "tools/caller.py")["change_admissions"] is None
-    assert "ADMITTED" not in err
-
-
-@pytest.mark.parametrize(
-    "head_import",
-    [
-        "import requests\nfrom requests import get as split",
-        "from pkg.shared import split\nimport requests",
-    ],
-    ids=["third-party-only", "shared-plus-third-party"],
-)
-def test_new_third_party_import_still_fails(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-    head_import: str,
-) -> None:
-    _shared_extraction(tmp_path, monkeypatch, head_import)
-
-    rc = _run(tmp_path, _ADMISSION)
-
-    out, err = capsys.readouterr()
-    assert rc == 10
-    assert _comparison(out, "tools/caller.py")["change_admissions"] is None
-    assert "ADMITTED: issue" not in err
-    assert "NOT ADMITTED: tools/caller.py: coupling: new third-party requests" in err
-    assert adapt_local_axis_verdict(_AXIS, out, rc) == "FAIL"
-
-
-def test_swapping_one_third_party_package_for_another_fails(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    base = "import requests\n\n\ndef get(url):\n    return requests.get(url)\n"
-    head = "import httpx\nimport json\nimport yaml\n\n\ndef get(url):\n    return httpx.get(url)\n"
-    _repo(tmp_path, monkeypatch, {"tools/net.py": base}, {"tools/net.py": head})
-
-    assert _run(tmp_path, _ADMISSION) == 10
-
-
-@pytest.mark.parametrize(
-    "record",
-    [
-        {"importRoots": "lib"},
-        {"importRoots": [""]},
-        {"importRoots": ["../outside"]},
-        {"importRoots": ["lib"], "extra": True},
-        ["lib"],
-    ],
-    ids=["string", "blank", "escapes-workspace", "unknown-key", "not-an-object"],
-)
-def test_invalid_admission_config_is_a_script_error(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-    record: object,
-) -> None:
-    _shared_extraction(tmp_path, monkeypatch, "from pkg.shared import split")
-
-    rc = _run(tmp_path, {"firstPartyCouplingAdmission": record})
-
-    assert rc == 1
-    assert "ERROR:" in capsys.readouterr().err
-
-
-def _body(unique: int, repeats: int) -> str:
-    lines = [f"    v{i} = {i}\n" for i in range(unique)]
-    lines += ["    value = compute()\n"] * repeats
-    return "def build(compute):\n" + "".join(lines) + "    return value\n"
-
-
-def test_shorter_file_with_no_new_duplicate_is_admitted(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    _repo(tmp_path, monkeypatch, {"tools/body.py": _body(12, 3)}, {"tools/body.py": _body(2, 3)})
-
-    rc = _run(tmp_path, {})
-
-    out, err = capsys.readouterr()
-    comparison = _comparison(out, "tools/body.py")
+    comparison = json.loads(capsys.readouterr().out)["comparisons"][0]
     assert rc == 0
-    assert comparison["regressions"] == ["non_redundancy"]
-    assert comparison["change_admissions"] == {
-        "non_redundancy": {
-            "issue": 7525,
-            "rule": "no_new_duplicate_lines",
-            "baseDuplicateLines": 2,
-            "headDuplicateLines": 2,
-        }
-    }
-    assert "ADMITTED: issue #7525, rule no_new_duplicate_lines" in err
-    assert adapt_local_axis_verdict(_AXIS, out, rc) == "WARN"
-
-
-def test_added_duplicate_lines_still_fail(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    _repo(tmp_path, monkeypatch, {"tools/body.py": _body(12, 3)}, {"tools/body.py": _body(12, 8)})
-
-    rc = _run(tmp_path, {})
-
-    out, err = capsys.readouterr()
-    assert rc == 10
-    assert _comparison(out, "tools/body.py")["change_admissions"] is None
-    assert "NOT ADMITTED: tools/body.py: non_redundancy: a line gained a copy" in err
-    assert adapt_local_axis_verdict(_AXIS, out, rc) == "FAIL"
-
-
-def test_repository_config_opts_into_the_coupling_admission() -> None:
-    root = Path(__file__).resolve().parents[3]
-    config = json.loads((root / ".qualityrc.json").read_text(encoding="utf-8"))
-
-    assert config["firstPartyCouplingAdmission"] == {"importRoots": ["src/claude/lib"]}
-    assert (root / "src/claude/lib/hook_utilities").is_dir()
-
-
-@pytest.mark.parametrize(
-    "decoy",
-    ["lib/requests/__init__.py", "lib/requests/NOTES.md", "tools/requests.py"],
-    ids=["package-under-import-root", "bare-directory", "sibling-module"],
-)
-def test_checkout_decoy_cannot_hide_an_installed_package(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], decoy: str
-) -> None:
-    head = "import requests\n\n\ndef caller(text):\n    return requests.utils.quote(text)\n"
-    _repo(
-        tmp_path,
-        monkeypatch,
-        {"tools/caller.py": _LOCAL_LOGIC},
-        {decoy: "", "tools/caller.py": head},
-    )
-
-    rc = _run(tmp_path, _ADMISSION)
-
-    assert rc == 10
-    assert _comparison(capsys.readouterr().out, "tools/caller.py")["change_admissions"] is None
-
-
-def test_directory_without_init_is_not_a_first_party_package(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    head = "from localdir import split\n\n\ndef caller(text):\n    return split(text)\n"
-    _repo(
-        tmp_path,
-        monkeypatch,
-        {"tools/caller.py": _LOCAL_LOGIC},
-        {"localdir/split.py": _SHARED_MODULE, "tools/caller.py": head},
-    )
-
-    assert _run(tmp_path, _ADMISSION) == 10
-
-
-def test_untracked_module_is_not_first_party(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    head = "from scratch_mod import split\n\n\ndef caller(text):\n    return split(text)\n"
-    _repo(tmp_path, monkeypatch, {"tools/caller.py": _LOCAL_LOGIC}, {"tools/caller.py": head})
-    _write(tmp_path, "tools/scratch_mod.py", _SHARED_MODULE)
-
-    assert _run(tmp_path, _ADMISSION) == 10
-
-
-def test_coupling_admission_covers_python_only(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    base = "export function caller(text: string) {\n  return text.split('---')[1];\n}\n"
-    head = (
-        "import { split } from './fence';\n\n"
-        "export function caller(text: string) {\n  return split(text);\n}\n"
-    )
-    shared = "export function split(text: string) {\n  return text.split('---')[1];\n}\n"
-    _repo(
-        tmp_path,
-        monkeypatch,
-        {"web/caller.ts": base},
-        {"web/fence.ts": shared, "web/caller.ts": head},
-    )
-
-    rc = _run(tmp_path, _ADMISSION)
-
-    out, err = capsys.readouterr()
-    comparison = _comparison(out, "web/caller.ts")
-    assert "NOT ADMITTED: web/caller.ts: coupling: language is not Python" in err
-    assert rc == 10
-    assert comparison["regressions"] == ["coupling"]
+    assert comparison["csharp_parser_dependency_admission"] == record
     assert comparison["change_admissions"] is None
 
 
-def test_one_admitted_file_does_not_clear_another_files_regression(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+def test_a_new_file_threshold_failure_still_blocks_an_admitted_change(
+    lib_mirror_repo: Path,
 ) -> None:
-    shared = "from pkg.shared import split\n\n\ndef caller(text):\n    return split(text)\n"
-    third_party = "import requests\n\n\ndef caller(text):\n    return requests.get(text)\n"
-    _repo(
-        tmp_path,
-        monkeypatch,
-        {"pkg/__init__.py": "", "tools/caller.py": _LOCAL_LOGIC, "tools/net.py": _LOCAL_LOGIC},
-        {"pkg/shared.py": _SHARED_MODULE, "tools/caller.py": shared, "tools/net.py": third_party},
-    )
+    _commit(lib_mirror_repo, "new.py", _SPRAWLING, "new module")
+    config = {
+        "minConfidence": 0.0,
+        "thresholds": {
+            "cohesion": {"min": 10},
+            "coupling": {},
+            "encapsulation": {},
+            "testability": {},
+            "nonRedundancy": {},
+        },
+        "changeAdmissions": _RECORDS,
+    }
 
-    rc = _run(tmp_path, _ADMISSION)
-
-    out, err = capsys.readouterr()
-    assert rc == 10
-    assert _comparison(out, "tools/caller.py")["change_admissions"]
-    assert _comparison(out, "tools/net.py")["change_admissions"] is None
-    assert "tools/net.py: coupling regressed" in err
-    assert adapt_local_axis_verdict(_AXIS, out, rc) == "FAIL"
-
-
-def _swap_body(dup: str, unique: int) -> str:
-    lines = [f"    v{i} = {i}\n" for i in range(unique)] + [f"    {dup}\n"] * 3
-    return "def build(compute):\n" + "".join(lines) + "    return v0\n"
-
-
-def test_swapping_one_duplicate_for_another_still_fails(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    base = _swap_body("value = compute()", 12)
-    head = _swap_body("other = compute(1)", 2)
-    _repo(tmp_path, monkeypatch, {"tools/body.py": base}, {"tools/body.py": head})
-
-    rc = _run(tmp_path, {})
-
-    assert rc == 10
-    assert _comparison(capsys.readouterr().out, "tools/body.py")["change_admissions"] is None
-
-
-def test_git_tree_timeout_raises_a_runtime_error(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # main() maps RuntimeError from the admission step to exit 1. The fake
-    # records every call and raises, so no real git process runs.
-    calls: list[list[str]] = []
-
-    def hung_ls_tree(argv: list[str], **kwargs: Any) -> Any:
-        calls.append(argv)
-        raise subprocess.TimeoutExpired(argv, float(kwargs["timeout"]))
-
-    monkeypatch.setattr(subprocess, "run", hung_ls_tree)
-    _mod._tracked_python_paths.cache_clear()
-
-    with pytest.raises(RuntimeError, match="git ls-tree timed out after 60 seconds"):
-        _mod._tracked_python_paths(tmp_path)
-
-    assert calls == [["git", "ls-tree", "-r", "-z", "--name-only", "HEAD"]]
-
-
-def test_staged_but_uncommitted_module_is_not_first_party(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    head = "from staged_mod import split\n\n\ndef caller(text):\n    return split(text)\n"
-    _repo(tmp_path, monkeypatch, {"tools/caller.py": _LOCAL_LOGIC}, {"tools/caller.py": head})
-    _write(tmp_path, "tools/staged_mod.py", _SHARED_MODULE)
-    _run_git(tmp_path, "add", "tools/staged_mod.py")
-
-    rc = _run(tmp_path, _ADMISSION)
-
-    assert rc == 10
-    assert _comparison(capsys.readouterr().out, "tools/caller.py")["change_admissions"] is None
+    assert _run(lib_mirror_repo, config) == 11

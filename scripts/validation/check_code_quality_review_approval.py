@@ -90,7 +90,7 @@ def _regressions(report: dict[str, Any]) -> list[dict[str, object]]:
             raise UnapprovedError("the assessor reported lost evidence")
         # Rows the trusted assessor admitted (issue #7525) still sit in the raw
         # report but need no owner decision, so they stay out of the inventory.
-        admitted = comparison.get("change_admissions") or {}
+        admitted = comparison.get("rule_admissions") or {}
         for quality in comparison["regressions"]:
             if quality in admitted:
                 continue

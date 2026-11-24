@@ -89,3 +89,10 @@ Devin Review on PR #7535 found that a staged but uncommitted helper counted as f
 The assessor now reads the HEAD commit tree, not the index.
 Change item 3 now says "the HEAD commit holds" in place of "the index tracks".
 The rule is narrower and the decision is unchanged, so no new round was opened.
+
+## Merge with PR #7523
+
+PR #7523 landed on main with its own `changeAdmissions` records (ADR-122 item 10, issue #7493).
+Those records use the JSON field `change_admissions`, which this amendment had also used.
+This amendment's field is now `rule_admissions`, and its reference page is `rule-admissions.md`.
+Change item 4 now names `rule_admissions`. The decision is unchanged, so no new round was opened.
