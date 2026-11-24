@@ -223,3 +223,20 @@ def test_a_blank_line_ends_the_table_block(
     code, out = _run(root, capsys)
 
     assert code == 1, out
+
+
+@pytest.mark.parametrize("interrupter", ["# Next", "- item", "1. step", "```", "---", "* * *"])
+def test_a_block_start_ends_the_table_so_prose_below_still_wraps(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], interrupter: str
+) -> None:
+    """GFM ends a table at a heading, list item, fence, or thematic break."""
+    root = _repo(tmp_path)
+    doc = (
+        f"| Fact | Source |\n|---|---|\n| Row | here |\n{interrupter}\n"
+        f"The helper `no_such_token` lives in\n{TARGET}:3 for callers\n"
+    )
+    _add_doc(root, "docs/prose.md", doc)
+
+    code, out = _run(root, capsys)
+
+    assert code == 1, out
