@@ -55,3 +55,8 @@ No decision changed, so no new round was opened.
 
 Round 2 of `/review` found one more retired line, on the verifier reading config, with no pointer.
 It now carries one. No decision changed.
+
+## PR #7538 review edit
+
+Devin Review found the reversal line named only the verifier.
+It now names all four pieces to restore. No decision changed.

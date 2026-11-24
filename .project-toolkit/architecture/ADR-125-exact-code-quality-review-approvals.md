@@ -233,6 +233,8 @@ No CI step re-runs the assessor from a trusted copy.
 Original Consequences on approval comments, re-pins, comment edits, and the GitHub API no longer apply.
 The first amendment's line on the verifier reading config from the integration commit no longer applies.
 Markers written under the old procedure remain attestations of their own review.
-The verifier's last version is at `8d7c067f1a` (2026-11-24); restoring it reverses this amendment.
+Reversing this amendment means restoring four things from `8d7c067f1a` (2026-11-24):
+the verifier, its test, the procedure page, and the review-skill approval steps.
+The verifier alone does nothing, because no review step calls it.
 Revisit if a false regression blocks a merge and no code fix exists.
 Revisit too if a branch edits the assessor or its config to admit its own rows.
