@@ -19,20 +19,27 @@ intent reached".
 from __future__ import annotations
 
 import importlib.util
-import re
 import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
 
-import yaml
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+import yaml  # noqa: E402
+
+from scripts.hook_utilities.frontmatter_block import (  # noqa: E402
+    FrontmatterStatus,
+    parse_frontmatter,
+)
 
 CATALOG_DIR = "src/claude/skills"
 RESOLVER_PATH = f"{CATALOG_DIR}/autoplan/scripts/resolve_route.py"
 
 _ROUTED_KINDS = frozenset({"specialist", "explicit"})
-_FRONTMATTER = re.compile(r"\A---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 
 
 @dataclass(frozen=True)
@@ -101,12 +108,11 @@ def read_front_door(name: str, template: Path) -> FrontDoor | None:
     Returns None when the frontmatter does not parse; the routing gate already
     reports that defect.
     """
-    match = _FRONTMATTER.match(template.read_text(encoding="utf-8", errors="replace"))
-    try:
-        front = yaml.safe_load(match.group(1)) if match else {}
-    except yaml.YAMLError:
+    text = template.read_text(encoding="utf-8", errors="replace")
+    result = parse_frontmatter(text, yaml, allow_duplicate_keys=True)
+    if result.status is FrontmatterStatus.MALFORMED:
         return None
-    routing = _mapping(_mapping(_mapping(front).get("metadata")).get("routing"))
+    routing = _mapping(_mapping(_mapping(result.metadata).get("metadata")).get("routing"))
     intents = routing.get("intents")
     if not isinstance(intents, list):
         return FrontDoor(name=name, intents=())

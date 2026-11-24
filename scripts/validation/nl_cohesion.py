@@ -22,9 +22,18 @@ once. The measure under-reports; it never flags a rule that is cohesive by this 
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
 from typing import Any
 
 import yaml
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from scripts.hook_utilities.frontmatter_block import (
+    FrontmatterStatus,
+    parse_frontmatter,
+)
 
 WILDCARD_ROOT = "*"
 # A rule claiming this many distinct roots or more is reported as low cohesion.
@@ -38,25 +47,23 @@ class FrontmatterError(ValueError):
 def _frontmatter(text: str) -> dict[str, Any]:
     """Return the parsed frontmatter mapping, or an empty mapping when there is none.
 
+    Uses ``scripts/hook_utilities/frontmatter_block.py`` for the fence and the YAML load.
+
     Raises:
         FrontmatterError: a `---` block opens but never closes, is not valid YAML,
             or parses to something other than a mapping.
     """
-    lines = text.splitlines()
-    if not lines or lines[0].strip() != "---":
-        return {}
-    end = next((i for i in range(1, len(lines)) if lines[i].strip() == "---"), None)
-    if end is None:
+    result = parse_frontmatter(text, yaml, allow_duplicate_keys=True)
+    if result.status is FrontmatterStatus.UNTERMINATED:
         raise FrontmatterError("frontmatter opens with `---` but never closes")
-    try:
-        data = yaml.safe_load("\n".join(lines[1:end]))
-    except yaml.YAMLError as exc:
-        raise FrontmatterError(f"frontmatter is not valid YAML: {exc}") from exc
-    if data is None:
-        return {}
-    if not isinstance(data, dict):
-        raise FrontmatterError(f"frontmatter must be a mapping, got {type(data).__name__}")
-    return data
+    if result.status is FrontmatterStatus.MALFORMED:
+        detail = (result.error or "").removeprefix("invalid YAML frontmatter: ")
+        raise FrontmatterError(f"frontmatter is not valid YAML: {detail}")
+    if result.status is FrontmatterStatus.NOT_A_MAPPING:
+        # The core words it "(got <type>)"; keep this module's own wording.
+        got = (result.error or "").rsplit("got ", 1)[-1].rstrip(")")
+        raise FrontmatterError(f"frontmatter must be a mapping, got {got}")
+    return result.metadata or {}
 
 
 def _root(glob: str) -> str:

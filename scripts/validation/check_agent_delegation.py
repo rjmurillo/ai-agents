@@ -57,6 +57,13 @@ from pathlib import Path
 import delegation_contract as contract_rules
 import yaml
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from scripts.hook_utilities.frontmatter_block import (
+    FrontmatterStatus,
+    parse_frontmatter,
+)
+
 AGENT_TREE = Path("src/claude/agents")
 
 # Agents that route work to other agents. Adding a name here is a topology
@@ -76,17 +83,6 @@ class AgentFacts:
     grants_agent: bool
     contract: object = None
     prose_budgets: tuple[int, ...] = ()
-
-
-def _split_frontmatter(text: str) -> tuple[str, str] | None:
-    """Return ``(frontmatter, body)`` or None when no frontmatter block exists."""
-    lines = text.splitlines()
-    if not lines or lines[0].strip() != "---":
-        return None
-    for index in range(1, len(lines)):
-        if lines[index].strip() == "---":
-            return "\n".join(lines[1:index]), "\n".join(lines[index + 1 :])
-    return None
 
 
 def _strip_fences(body: str) -> str:
@@ -145,16 +141,16 @@ def _declared_contract(frontmatter: dict[str, object]) -> object:
 
 def read_agent_facts(path: Path) -> AgentFacts:
     """Parse one agent file. Raises ``ValueError`` when it cannot be read as an agent."""
-    parts = _split_frontmatter(path.read_text(encoding="utf-8"))
-    if parts is None:
+    result = parse_frontmatter(path.read_text(encoding="utf-8"), yaml, allow_duplicate_keys=True)
+    if not result.present or result.status is FrontmatterStatus.UNTERMINATED:
         raise ValueError("no YAML frontmatter block")
-    try:
-        loaded = yaml.safe_load(parts[0])
-    except yaml.YAMLError as exc:
-        raise ValueError(f"frontmatter is not valid YAML: {exc}") from exc
-    if not isinstance(loaded, dict):
+    if result.status is FrontmatterStatus.MALFORMED:
+        detail = (result.error or "").removeprefix("invalid YAML frontmatter: ")
+        raise ValueError(f"frontmatter is not valid YAML: {detail}")
+    loaded = result.metadata
+    if result.status is not FrontmatterStatus.VALID or loaded is None:
         raise ValueError("frontmatter is not a mapping")
-    prose = _strip_fences(parts[1])
+    prose = _strip_fences(result.body)
     return AgentFacts(
         states_denial=bool(_DENIAL.search(prose)),
         grants_agent=grants_agent_tool(loaded),

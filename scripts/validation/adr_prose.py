@@ -7,11 +7,10 @@ these; nothing else does.
 Different from the rule gate (``check_rule_adr_citations.py``) in two places,
 both on purpose:
 
-- Frontmatter. The rule gate masks ``\\A---\\n.*?\\n---\\n`` only. ADR records
-  are parsed through ``frontmatter_contract.py``, which takes its fence from
-  ``python-frontmatter``'s ``YAMLHandler.FM_BOUNDARY`` and accepts a padded or
-  four-dash fence. This module masks with that same ``FM_BOUNDARY``, so metadata
-  the lifecycle gate reads as frontmatter is never read here as prose.
+- Frontmatter. ADR records are parsed through
+  ``scripts/hook_utilities/frontmatter_block.py``, which accepts a padded or
+  four-dash fence. This module masks the block that same parser finds, so
+  metadata the lifecycle gate reads as frontmatter is never read here as prose.
 - Blocks. The rule gate starts a new block at a capitalised wrapped line, so a
   sentence soft-wrapped before ``ADR-080`` loses its first half. Here a block runs
   from one blank line, heading, list item, table row or quote to the next, so a
@@ -25,8 +24,10 @@ import sys
 from pathlib import Path
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
-if str(_SCRIPT_DIR) not in sys.path:
-    sys.path.insert(0, str(_SCRIPT_DIR))
+_REPO_ROOT = _SCRIPT_DIR.parents[1]
+for _path in (_REPO_ROOT, _SCRIPT_DIR):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
 
 from check_rule_adr_citations import (  # noqa: E402
     BLOCK_START_RE,
@@ -35,7 +36,8 @@ from check_rule_adr_citations import (  # noqa: E402
     HEADING_RE,
     blank,
 )
-from frontmatter.default_handlers import YAMLHandler  # noqa: E402
+
+from scripts.hook_utilities.frontmatter_block import split_frontmatter  # noqa: E402
 
 Block = list[tuple[int, str]]
 
@@ -45,17 +47,14 @@ def _blank_span(text: str) -> str:
 
 
 def mask_frontmatter(text: str) -> str:
-    """Blank a leading frontmatter block bounded by ``YAMLHandler.FM_BOUNDARY``.
+    """Blank the leading frontmatter block, fences included, keeping every offset.
 
     An unclosed block is left as it is: the lifecycle gate reports it.
     """
-    opened = YAMLHandler.FM_BOUNDARY.match(text)
-    if opened is None:
+    split = split_frontmatter(text)
+    if not split.found:
         return text
-    closed = YAMLHandler.FM_BOUNDARY.search(text, opened.end())
-    if closed is None:
-        return text
-    return _blank_span(text[: closed.end()]) + text[closed.end() :]
+    return _blank_span(text[: split.body_start]) + text[split.body_start :]
 
 
 def mask_comments(text: str) -> str:

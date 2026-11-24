@@ -1,0 +1,68 @@
+{
+  "skill_path": ".claude/skills/analyze/SKILL.md",
+  "skill_id": "analyze",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Architecture review across a multi-file system",
+      "input": "Do an architecture review of this system. It spans several services and shared libraries. Tell me how you would start and how the work is sequenced, including the minimum number of steps. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "analyze.py",
+        "step 1",
+        "explore",
+        "6"
+      ],
+      "expected_gate": "invoke-analyze-script-first",
+      "rationale": "SKILL.md opening rule: IMMEDIATELY invoke scripts/analyze.py, do not explore first. Quick Reference gives architecture review a minimum of 6 steps, with step 1 delegating to Explore agents."
+    },
+    {
+      "id": "S2",
+      "desc": "Security assessment with request-derived text",
+      "input": "Run a security assessment of this codebase. My request text contains backticks and $(...) fragments. How do you pass that text to the analysis script safely? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "--thoughts-file",
+        "scratchpad",
+        "heredoc",
+        "write tool"
+      ],
+      "expected_gate": "use-thoughts-file",
+      "rationale": "SKILL.md Security section: double quotes do not neutralize $(...) and heredocs can terminate early, so write the text with the Write tool to a scratchpad file and pass --thoughts-file, never inline --thoughts."
+    },
+    {
+      "id": "S3",
+      "desc": "Find code smells with severity and file:line evidence",
+      "input": "Find code smells across the repo and report findings. Which script drives the workflow, how many minimum steps apply, what happens at step N-1, and what must each finding contain? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "analyze.py",
+        "6-7",
+        "step n-1",
+        "step 3",
+        "file:line"
+      ],
+      "expected_gate": "produce-prioritized-findings",
+      "rationale": "SKILL.md Quick Reference sets Code quality to 6-7 minimum steps driven by scripts/analyze.py, Phase 5 (Step N-1) audits completeness against Step 3 commitments, and Verification requires file:line references and severity on every finding."
+    },
+    {
+      "id": "S4",
+      "desc": "CWE-78 injection pattern scan, which belongs to security-scan (negative)",
+      "input": "Scan my Python files for CWE-78 command injection patterns before I submit my PR. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "--thoughts-file",
+        "analyze.py"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The description says 'Do NOT use for ... CWE-78 injection pattern scanning (use security-scan)'. It is a narrow pattern scan, not a multi-step codebase analysis."
+    },
+    {
+      "id": "S5",
+      "desc": "Single-file maintainability score, which belongs to code-qualities-assessment (negative)",
+      "input": "Give me a maintainability score for src/utils/parser.py only. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "--thoughts-file",
+        "analyze.py"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The description says 'Do NOT use for single-file maintainability scoring (use code-qualities-assessment)', and 'When to Use' says single-file questions use direct reading."
+    }
+  ]
+}

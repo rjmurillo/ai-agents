@@ -27,6 +27,11 @@ from pathlib import Path
 from typing import Any
 
 REPO = Path(__file__).resolve().parents[2]
+if str(REPO) not in sys.path:
+    sys.path.insert(0, str(REPO))
+
+from scripts.hook_utilities.frontmatter_block import split_frontmatter  # noqa: E402
+
 CASES = Path(__file__).resolve().parent / "cases"
 PONYTAIL_VERSION = "4.9.0"
 PONYTAIL_SHA = "0a4dd63ad4541f4f655c4108a295916f3c1d8fda"
@@ -58,9 +63,11 @@ def load_corpus(repo: Path) -> str:
 
 def inject_corpus(prompt: str, corpus: str) -> str:
     """Add `append_system_prompt` to a prompt.md frontmatter block."""
-    if not prompt.startswith("---\n"):
+    split = split_frontmatter(prompt)
+    if not split.found:
         raise ValueError("prompt.md must start with a frontmatter block")
-    end = prompt.index("\n---\n", 4)
+    # Insert just before the newline that ends the last block line.
+    end = split.raw_end - 1
     block = "\n".join("  " + line if line else "" for line in corpus.splitlines())
     return f"{prompt[:end]}\nappend_system_prompt: |\n{block}{prompt[end:]}"
 

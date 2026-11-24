@@ -1,0 +1,69 @@
+{
+  "skill_path": ".claude/skills/memory-search/SKILL.md",
+  "skill_id": "memory-search",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Tier 1 search returns ranked memory hits",
+      "input": "My git hooks memory search returned ranked entries. Which command would repeat it with three JSON hits, and how should I load the details for the one relevant hit? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "search_memory.py",
+        "--max-results 3",
+        "--format json",
+        "read_memory"
+      ],
+      "expected_gate": "memory-search-tier1",
+      "rationale": "Quick Reference names the flags. The CLI returns individual ranked hits. Progressive Disclosure says to use read_memory for the relevant entry."
+    },
+    {
+      "id": "S2",
+      "desc": "A zero-result search is a valid outcome, not an error",
+      "input": "My Tier 1 search for an obsolete cache flag returned an empty JSON Results list. Is this a query failure? What should I record, and does a second semantic backend apply? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "no results",
+        "not an error",
+        "serena",
+        "log"
+      ],
+      "expected_gate": "memory-search-zero-results",
+      "rationale": "The CLI returns an empty Results list for a valid query with no hits. Verification accepts a logged no-results outcome. Anti-Patterns says Serena is the only semantic store."
+    },
+    {
+      "id": "S3",
+      "desc": "Progressive disclosure avoids eager full reads",
+      "input": "recall prior context on the hook dispatcher before I change it. A few memories are huge. How do I avoid loading all of them? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "index",
+        "read_memory",
+        "tokens",
+        "list names first"
+      ],
+      "expected_gate": "memory-search-progressive-disclosure",
+      "rationale": "Progressive Disclosure table: index costs about 100 to 500 tokens, details about 500 to 10K, and the skill says to list names first and read only the entry the query needs."
+    },
+    {
+      "id": "S4",
+      "desc": "Adding citations to a memory belongs to memory-enhancement (negative)",
+      "input": "Add code citations to the hook-dispatch memory and verify the references still resolve. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "search_memory.py",
+        "--max-results",
+        "coverage note"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The description says `Do NOT use to extract session episodes (use memory-reflexion) or add citations (use memory-enhancement)`."
+    },
+    {
+      "id": "S5",
+      "desc": "Extracting a session episode belongs to memory-reflexion (negative)",
+      "input": "Extract the episode from the session we just finished and store it as a reflexion entry. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "--max-results",
+        "follow cross-references",
+        "list names first"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "Session episode extraction routes to memory-reflexion. Its integration guide also names the shared search script, so the negative tests for the search-specific retrieval workflow instead."
+    }
+  ]
+}

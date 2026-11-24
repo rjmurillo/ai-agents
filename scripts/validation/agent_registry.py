@@ -62,6 +62,12 @@ def _load_read_yaml_frontmatter() -> Callable[[str], dict[str, str] | None]:
 
 read_yaml_frontmatter = _load_read_yaml_frontmatter()
 
+# The build helper already loads scripts/hook_utilities/frontmatter_block.py
+# without touching sys.path; reuse that one module for the YAML decode.
+decode_frontmatter_yaml = read_yaml_frontmatter.__globals__[
+    "_frontmatter_block"
+].decode_frontmatter_yaml
+
 # Files in src/claude/ and src/claude/agents/ that are not agent definitions
 _EXCLUDED_FILES = frozenset({"AGENTS.md", "claude-instructions.template.md"})
 
@@ -126,7 +132,7 @@ def _parse_frontmatter(file_path: Path, text: str) -> dict[str, object]:
                     f"{file_path.name}: duplicate frontmatter key '{key_node.value}'"
                 )
             keys.add(key)
-        parsed = yaml.safe_load(text)
+        parsed = decode_frontmatter_yaml(text, yaml, allow_duplicate_keys=True)
     except yaml.YAMLError as exc:
         raise MalformedAgentFileError(f"{file_path.name}: invalid YAML frontmatter: {exc}") from exc
     if not isinstance(parsed, dict):

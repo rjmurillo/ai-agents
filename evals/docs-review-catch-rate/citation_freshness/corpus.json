@@ -103,7 +103,7 @@
       "file": "templates/skills/ai-agents-debugging-playbook.SKILL.md.tmpl",
       "line": 86,
       "defect_class": "stale-citation",
-      "defect": "detect_agent_drift.py lines 57-76 and the bare continuation :668 are stale."
+      "defect": "detect_agent_drift.py lines 57-76 and the bare continuation :668 are stale. citation-freshness: ignore -- historical defect recorded at sha 3d6180a6bf."
     },
     {
       "id": "C1-12",

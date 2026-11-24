@@ -54,6 +54,10 @@ import sys
 from collections.abc import Iterator
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from scripts.hook_utilities.frontmatter_block import split_frontmatter
+
 SHIPPED_TREES: tuple[str, ...] = ("src/codex", "src/muse")
 ATTRIBUTION = "Claude Code"
 BARE_TASK = re.compile(r"(?<![A-Za-z0-9_])Task\(")
@@ -68,11 +72,12 @@ def _body_lines(path: Path, text: str) -> Iterator[tuple[int, str]]:
     """Yield (line number, line) for every line outside Markdown frontmatter."""
     lines = text.splitlines()
     start = 0
-    if path.suffix == ".md" and lines and lines[0].strip() == "---":
-        for index in range(1, len(lines)):
-            if lines[index].strip() == "---":
-                start = index + 1
-                break
+    if path.suffix == ".md":
+        # The frontmatter fence comes from `scripts/hook_utilities/frontmatter_block.py`.
+        # Lines before `body_start` are the block; numbering stays against the whole file.
+        split = split_frontmatter(text)
+        if split.found:
+            start = len(text[: split.body_start].splitlines())
     for index in range(start, len(lines)):
         yield index + 1, lines[index]
 

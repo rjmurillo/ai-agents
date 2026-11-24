@@ -80,6 +80,14 @@ except ImportError:  # pragma: no cover - PyYAML is a project dependency
     yaml = None
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.hook_utilities.frontmatter_block import (  # noqa: E402
+    FrontmatterStatus,
+    parse_frontmatter,
+)
+
 RESOLVER = REPO_ROOT / "src" / "claude" / "skills" / "autoplan" / "scripts" / "resolve_route.py"
 # The install tree holds every skill: shipped ones link into src/claude/skills
 # (ADR-119) and repo-local ones live here only, so both are checked.
@@ -104,7 +112,6 @@ _QUOTED_RE = re.compile(r'"([^"]+)"|`([^`]+)`')
 _WORD_RE = re.compile(r"[A-Za-z0-9]+")
 _REDIRECT_MARKER = "Do NOT"
 _MIN_WORDS = 2
-_FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 
 
 class Root(Protocol):
@@ -156,16 +163,15 @@ def _parse_frontmatter(path: Path) -> dict[str, Any]:
         text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
         raise ConfigError(f"{path}: unreadable: {exc}") from exc
-    match = _FRONTMATTER_RE.match(text)
-    if match is None:
+    result = parse_frontmatter(text, yaml, allow_duplicate_keys=True)
+    if not result.present or result.status is FrontmatterStatus.UNTERMINATED:
         raise ConfigError(f"{path}: no YAML frontmatter")
-    try:
-        data = yaml.safe_load(match.group(1))
-    except yaml.YAMLError as exc:
-        raise ConfigError(f"{path}: frontmatter does not parse: {exc}") from exc
-    if not isinstance(data, dict):
+    if result.status is FrontmatterStatus.MALFORMED:
+        detail = (result.error or "").removeprefix("invalid YAML frontmatter: ")
+        raise ConfigError(f"{path}: frontmatter does not parse: {detail}")
+    if result.status is not FrontmatterStatus.VALID:
         raise ConfigError(f"{path}: frontmatter is not a mapping")
-    return cast(dict[str, Any], data)
+    return cast(dict[str, Any], result.metadata)
 
 
 def _declares_intents(path: Path, data: dict[str, Any]) -> bool:

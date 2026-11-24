@@ -12,11 +12,13 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-_SCRIPT_DIR = Path(__file__).resolve().parent
-if str(_SCRIPT_DIR) not in sys.path:
-    sys.path.insert(0, str(_SCRIPT_DIR))
+import yaml
 
-from yaml_utils import _parse_yaml_frontmatter  # noqa: E402
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.hook_utilities.frontmatter_block import load_frontmatter  # noqa: E402
 
 _REQUIRED_FRONTMATTER_FIELDS = {"status", "priority", "blocking", "reviewer", "date"}
 _VALID_STATUSES = {"APPROVED", "NEEDS_CHANGES", "NEEDS_ADR", "BLOCKED", "REJECTED"}
@@ -52,7 +54,7 @@ def validate_design_review_frontmatter(repo_root: Path) -> bool:
 
     for filepath in review_files:
         text = filepath.read_text(encoding="utf-8")
-        frontmatter = _parse_yaml_frontmatter(text)
+        frontmatter = load_frontmatter(text, yaml)
 
         if frontmatter is None:
             print(f"  [FAIL] {filepath.name}: missing YAML frontmatter")
