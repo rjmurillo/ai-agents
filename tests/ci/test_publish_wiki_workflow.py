@@ -64,7 +64,8 @@ def _repo_module_imports(path: Path) -> set[Path]:
     for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
         names: list[str] = []
         if isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
-            names = [node.module]
+            # `from scripts.pkg import module` names the module in the alias.
+            names = [node.module] + [f"{node.module}.{a.name}" for a in node.names]
         elif isinstance(node, ast.Import):
             names = [alias.name for alias in node.names]
         for name in names:
