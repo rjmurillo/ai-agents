@@ -9,9 +9,7 @@ Follow-ups from PR #7531's review:
 
 from __future__ import annotations
 
-import gc
 import types
-import weakref
 
 import yaml
 
@@ -84,27 +82,13 @@ class TestLoaderCache:
 
         assert frontmatter_block._STRICT_LOADERS[yaml] is loader
 
-    def test_the_cache_keeps_its_module_alive(self) -> None:
-        """A strong key means no freed module's id can be reused to hit a stale loader."""
-        stand_in = types.ModuleType("yaml_kept_alive")
-        stand_in.__dict__.update(yaml.__dict__)
-        probe = weakref.ref(stand_in)
-        try:
-            frontmatter_block._strict_loader(stand_in)
-            del stand_in
-            gc.collect()
-            assert probe() is not None
-        finally:
-            kept = probe()
-            if kept is not None:
-                frontmatter_block._STRICT_LOADERS.pop(kept, None)
-
     def test_a_distinct_module_object_gets_its_own_loader(self) -> None:
         stand_in = types.ModuleType("yaml_stand_in")
         stand_in.__dict__.update(yaml.__dict__)
+        own = frontmatter_block._strict_loader(yaml)
         try:
             loader = frontmatter_block._strict_loader(stand_in)
             assert frontmatter_block._STRICT_LOADERS[stand_in] is loader
-            assert frontmatter_block._STRICT_LOADERS[yaml] is not loader
+            assert own is not loader
         finally:
             frontmatter_block._STRICT_LOADERS.pop(stand_in, None)

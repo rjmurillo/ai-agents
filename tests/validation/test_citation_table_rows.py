@@ -84,3 +84,24 @@ def test_a_non_markdown_line_starting_with_a_pipe_is_not_split_into_cells(
     code, _out = _run(root, capsys)
 
     assert code == 1
+
+
+@pytest.mark.parametrize(
+    ("row", "expected"),
+    [
+        (f"| `a | b` and `{TARGET}:3` (`magic_token`) | `ls` |", 0),
+        (f"| a \\| b and `{TARGET}:3` (`magic_token`) | `ls` |", 0),
+        (f"| it`s `{TARGET}:3` | `no_such_token` |", 0),
+        (f"| it`s `{TARGET}:3` (`no_such_token`) | `ls` |", 1),
+    ],
+    ids=["pipe-in-code-span", "escaped-pipe", "unbalanced-backtick", "unbalanced-own-cell"],
+)
+def test_cell_boundaries(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], row: str, expected: int
+) -> None:
+    root = _repo(tmp_path)
+    _add_doc(root, "docs/table.md", _table(row))
+
+    code, out = _run(root, capsys)
+
+    assert code == expected, out

@@ -349,8 +349,10 @@ def _cell_bounds(line: str, point: int) -> tuple[int, int]:
     """
     pipes: list[int] = []
     in_code = False
+    # An unbalanced backtick opens no span, so it cannot hide the row's pipes.
+    spans = line.count("`") % 2 == 0
     for i, char in enumerate(line):
-        if char == "`":
+        if char == "`" and spans:
             in_code = not in_code
         elif char == "|" and not in_code and (i == 0 or line[i - 1] != "\\"):
             pipes.append(i)

@@ -71,8 +71,10 @@ def _imported_modules(tree: ast.Module, package: str) -> list[str]:
             names.extend(f"{base}.{a.name}" for a in node.names if a.name != "*")
         elif (
             isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr == "import_module"
+            and (
+                (isinstance(node.func, ast.Attribute) and node.func.attr == "import_module")
+                or (isinstance(node.func, ast.Name) and node.func.id == "import_module")
+            )
             and node.args
             and isinstance(node.args[0], ast.Constant)
             and isinstance(node.args[0].value, str)
@@ -213,11 +215,12 @@ def test_the_closure_follows_every_import_shape(tmp_path, monkeypatch) -> None:
     (tmp_path / "scripts" / "__init__.py").write_text("X = 1\n", encoding="utf-8")
     (pkg / "__init__.py").write_text("", encoding="utf-8")
     (pkg / "entry.py").write_text(
-        "import importlib\nfrom scripts.pkg import sub\nfrom .rel import y\n"
-        "importlib.import_module('scripts.pkg.dyn')\n",
+        "import importlib\nfrom importlib import import_module\nfrom scripts.pkg import sub\n"
+        "from .rel import y\nimportlib.import_module('scripts.pkg.dyn')\n"
+        "import_module('scripts.pkg.dyn2')\n",
         encoding="utf-8",
     )
-    for leaf in ("sub", "rel", "dyn"):
+    for leaf in ("sub", "rel", "dyn", "dyn2"):
         (pkg / f"{leaf}.py").write_text("V = 1\n", encoding="utf-8")
     monkeypatch.setattr(sys.modules[__name__], "ROOT", tmp_path)
 
@@ -229,7 +232,19 @@ def test_the_closure_follows_every_import_shape(tmp_path, monkeypatch) -> None:
         "scripts/pkg/sub.py",
         "scripts/pkg/rel.py",
         "scripts/pkg/dyn.py",
+        "scripts/pkg/dyn2.py",
     }
+
+
+def test_the_closure_follows_a_bare_package_import(tmp_path, monkeypatch) -> None:
+    """`import scripts` from outside the package runs the package's __init__."""
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scripts" / "__init__.py").write_text("X = 1\n", encoding="utf-8")
+    (tmp_path / "tools").mkdir()
+    (tmp_path / "tools" / "entry.py").write_text("import scripts\n", encoding="utf-8")
+    monkeypatch.setattr(sys.modules[__name__], "ROOT", tmp_path)
+
+    assert _repo_import_closure("tools.entry") == {"tools/entry.py", "scripts/__init__.py"}
 
 
 @pytest.mark.parametrize(
