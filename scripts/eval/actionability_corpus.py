@@ -99,7 +99,7 @@ def _load_json_list(path: Path) -> list[Any] | None:
     return data
 
 
-def _load_jsonl(path: Path) -> list[dict[str, Any]] | None:
+def load_jsonl(path: Path) -> list[dict[str, Any]] | None:
     """Return the JSON objects in ``path``, one per line, or None after logging why not."""
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
@@ -229,7 +229,7 @@ def scan_secrets(rows: list[dict[str, Any]]) -> tuple[dict[str, list[str]], list
     return failures, hex_only
 
 
-def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
+def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     text = "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows)
     path.write_text(text, encoding="utf-8")
@@ -282,7 +282,7 @@ def cmd_sample(args: argparse.Namespace) -> int:
 
     if not _report_secret_scan(corpus):
         return 1
-    _write_jsonl(args.output, corpus)
+    write_jsonl(args.output, corpus)
     print(
         f"sampled {len(band)} band, {len(outside)} outside of {len(rows)} candidates; "
         f"skipped unknown_position {skipped.unknown_position}, "
@@ -301,7 +301,7 @@ def _fetch_hunk(node_id: str) -> str | None:
 
 def cmd_fetch_hunks(args: argparse.Namespace) -> int:
     """Fill ``diff_hunk`` for rows that lack one. Write only when every call succeeds."""
-    rows = _load_jsonl(args.corpus)
+    rows = load_jsonl(args.corpus)
     if rows is None:
         return 2
     fetched = 0
@@ -319,19 +319,19 @@ def cmd_fetch_hunks(args: argparse.Namespace) -> int:
             no_hunk += 1
         else:
             fetched += 1
-    _write_jsonl(args.output, rows)
+    write_jsonl(args.output, rows)
     print(f"fetched {fetched}, no_hunk {no_hunk}, of {len(rows)} rows")
     return 0
 
 
 def cmd_sheet(args: argparse.Namespace) -> int:
     """Write the blinded labeling sheet: allowlisted fields, seeded shuffle, blank labels."""
-    rows = _load_jsonl(args.corpus)
+    rows = load_jsonl(args.corpus)
     if rows is None:
         return 2
     sheet = [{**{key: row.get(key) for key in SHEET_FIELDS}, "label": None} for row in rows]
     random.Random(args.seed).shuffle(sheet)
-    _write_jsonl(args.output, sheet)
+    write_jsonl(args.output, sheet)
     print(f"wrote {len(sheet)} rows with fields {', '.join([*SHEET_FIELDS, 'label'])}")
     return 0
 
