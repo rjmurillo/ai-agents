@@ -34,8 +34,6 @@ The readiness branch needs a scoped decision across files and qualities.
 
 ## Decision
 
-> Items 2 to 8 below are retired. See "Amendment 2026-11-24: Owner-comment approval retired".
-
 1. Keep the assessor's scores, output, configuration, and exit behavior.
 2. Run the approval verifier from the pinned integration commit.
 3. Use its trusted assessor and configuration in an isolated candidate checkout.
@@ -48,12 +46,17 @@ The readiness branch needs a scoped decision across files and qualities.
 8. Report exact approvals as WARN and retain the raw FAIL for audit.
 9. Keep ordinary warning acknowledgement and SHA-bound review proof.
 
+> Items 2 to 8 above and the next two lines are retired.
+> See "Amendment 2026-11-24: Owner-comment approval retired".
+
 The GitHub comment locator supplies the issue and comment IDs.
 The verifier reads the comment's owner and body from the canonical repository.
 The review marker continues to attest to the verdict of the reviewed commit.
 Other review axes continue to gate independently.
 
 ## Alternatives
+
+> The chosen row, an explicit owner comment, is retired by the last amendment.
 
 | Alternative | Consequence |
 | --- | --- |
@@ -179,6 +182,7 @@ The evidence base is one branch; other branches were not replayed.
 
 The owner directed on 2026-11-24 that the owner-comment approval protocol be removed.
 The owner declined to post approval comments for any branch.
+The directive was given in a task session; no file in the tree records it.
 The first amendment admitted 69 of 74 rows on the consolidation branch.
 The other 5 rows still needed one owner comment, re-posted after each new commit.
 Issue #7525 tracked that cost; this change answers it by removing the comment.
@@ -223,6 +227,7 @@ The gate now runs only the branch's own `assess.py` and `.qualityrc.json`.
 A branch can edit either one to admit its own rows.
 That was already true for admitted rows; now it is true for every row.
 The control is human review of any diff to those two files.
+That control is advisory: the ruleset requires zero approvals and disables code-owner review.
 No CI step re-runs the assessor from a trusted copy.
 Original Consequences on approval comments, re-pins, comment edits, and the GitHub API no longer apply.
 The first amendment's line on the verifier reading config from the integration commit no longer applies.

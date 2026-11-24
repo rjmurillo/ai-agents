@@ -61,3 +61,4 @@ Checked on branch `chore/evict-owner-approval` after merging `8d7c067f1a` (PR #7
 | The owner directed removal on 2026-11-24. | quote | Owner message in the task session | SESSION-SOURCED, not in the tree: "Find wherever that is and evict." |
 | No CI step re-runs the assessor from a trusted copy. | absence | `git grep -lE 'code-qualities-assessment\|assess\.py' -- .github lefthook.yml` | VERIFIED: 0 files. |
 | The verifier's last version is at `8d7c067f1a`. | path | `git cat-file -e 8d7c067f1a:scripts/validation/check_code_quality_review_approval.py` | VERIFIED: present; deleted on this branch by `ade6623ba8`. |
+| The ruleset requires zero approvals and disables code-owner review. | behavior | `gh api repos/rjmurillo/ai-agents/rules/branches/main`, `pull_request` rule parameters, 2026-11-24 | VERIFIED: `required_approving_review_count: 0`, `require_code_owner_review: false`. |

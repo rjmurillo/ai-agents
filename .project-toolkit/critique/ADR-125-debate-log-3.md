@@ -32,8 +32,10 @@ All six seats voted Disagree-and-Commit. Each accepted the owner's direction.
 
 ## Deferred
 
-- Title and index row keep "Require Exact Approval". Renaming churns every citation.
-  The pointers under Decision and Consequences carry the change. P2, deferred.
+- The title keeps "Require Exact Approval". Renaming churns every citation.
+  The pointers under Decision, Alternatives, and Consequences carry the change. P2, deferred.
+- A CODEOWNERS entry or CI check for `assess.py` and `.qualityrc.json` would enforce the review control.
+  The ruleset disables code-owner review, so it would not bind today. Flagged for the owner, not added.
 - `implemented: false` stays. The admissions are implemented, but status edits belong to the
   review that closes with consensus; no seat asked to flip it.
 
@@ -41,3 +43,12 @@ All six seats voted Disagree-and-Commit. Each accepted the owner's direction.
 
 Consensus: six of six Disagree-and-Commit. All P1 findings were fixed in place.
 The fixes narrow claims and add pointers; no decision changed, so no new round was opened.
+The direction was the owner's, so no seat could block it; votes judged the record, not the choice.
+
+## Post-consensus review edits
+
+The `/review` run on `4d53aa61dc` re-read the fixed text with eleven axes.
+Ten axes found the index row showed the pointer, not the decision; the pointer now follows item 1.
+The correctness pass found two retired passages with no pointer; both now carry one.
+Four axes noted the review control is unenforced; Consequences now say it is advisory.
+No decision changed, so no new round was opened.
