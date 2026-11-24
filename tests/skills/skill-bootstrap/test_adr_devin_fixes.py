@@ -27,7 +27,9 @@ def test_draft_reads_a_scan_report_larger_than_the_pr_export_limit(tmp_path: Pat
     repo = new_repo(tmp_path / "r")
     filler = [_cand(id=f"c-{n:07d}", excerpt="x" * 1100) for n in range(16_000)]
     report = tmp_path / "scan.json"
-    report.write_text(json.dumps({"repo": str(repo), "candidates": [*filler, _cand()]}))
+    report.write_text(
+        json.dumps({"repo": str(repo), "candidates": [*filler, _cand()]}), encoding="utf-8"
+    )
     assert report.stat().st_size > bootstrap_adr.MAX_JSON_BYTES
 
     result = bootstrap_adr.draft(str(report), "c-1234567", str(tmp_path / "out"), "Proposed")
@@ -47,7 +49,7 @@ def test_drafting_one_of_two_log_twins_keeps_the_other_a_candidate(tmp_path: Pat
     first = _scan(repo)
     assert [c["source"]["entry_id"] for c in first["candidates"]] == ["D-1--1", "D-1--2"]
     report = tmp_path / "scan.json"
-    report.write_text(json.dumps(first))
+    report.write_text(json.dumps(first), encoding="utf-8")
 
     bootstrap_adr.draft(str(report), "log-D-1", str(repo / "docs" / "adr"), "Proposed")
 
