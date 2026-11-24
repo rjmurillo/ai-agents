@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# taste-lint: ignore naming -- docs, skills, and pyproject.toml invoke this script by
+# its hyphenated path; renaming it would break every documented command.
 """Agent Definition Quality Assessment: Measure agent prompt quality against role expectations.
 
 NOTE: This script is a quality assessment tool, not an ADR-057 prompt change validator.

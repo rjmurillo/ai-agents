@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# taste-lint: ignore naming -- docs, skills, and pyproject.toml invoke this script by
+# its hyphenated path; renaming it would break every documented command.
 """Eval Agent vs. Baseline runner.
 
 DESIGN-004 §5. Pipeline:
