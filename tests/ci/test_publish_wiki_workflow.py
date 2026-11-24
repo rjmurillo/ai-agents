@@ -60,12 +60,17 @@ def _repo_module_imports(path: Path) -> set[Path]:
     Package `__init__.py` files are left out on purpose. They run on import but
     do not shape the wiki output, so a change to them need not republish.
     """
+    package = path.parent.relative_to(ROOT).parts
     found: set[Path] = set()
     for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
         names: list[str] = []
-        if isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+        if isinstance(node, ast.ImportFrom):
+            # A relative import resolves against the importing file's package:
+            # level 1 is that package, each extra level is one parent up.
+            base = list(package[: len(package) - node.level + 1]) if node.level else []
+            module = ".".join(base + ([node.module] if node.module else []))
             # `from scripts.pkg import module` names the module in the alias.
-            names = [node.module] + [f"{node.module}.{a.name}" for a in node.names]
+            names = [module] + [f"{module}.{a.name}" for a in node.names]
         elif isinstance(node, ast.Import):
             names = [alias.name for alias in node.names]
         for name in names:
