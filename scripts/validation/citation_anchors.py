@@ -315,16 +315,20 @@ def _gap_split(line: str, prev_end: int, next_start: int) -> int:
     return prev_end + point
 
 
-def _same_line_segment(line: str, matches: list[re.Match[str]], index: int) -> str:
+def _same_line_segment(
+    line: str, matches: list[re.Match[str]], index: int, markdown: bool = False
+) -> str:
     """Return the slice of the citation line owned by one citation.
 
     Text between two citations binds to the nearer one (a midpoint split,
     snapped so it never bisects a span, quote, or identifier), so an anchor
     written beside one citation is never pooled into a sibling citation's
     check on the same line. Neighbor lines stay shared: a wrapped sentence's
-    anchor legitimately serves every citation it describes.
+    anchor legitimately serves every citation it describes. In Markdown, a
+    citation in a table row owns only its own cell.
     """
-    lo, hi = _cell_bounds(line, matches[index].start()) if _table_row(line) else (0, len(line))
+    in_table = markdown and _table_row(line)
+    lo, hi = _cell_bounds(line, matches[index].start()) if in_table else (0, len(line))
     if len(matches) == 1:
         return line[lo:hi]
     if index == 0:

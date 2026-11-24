@@ -72,3 +72,15 @@ def test_prose_lines_still_wrap_into_each_other(
     code, _out = _run(root, capsys)
 
     assert code == 1
+
+
+def test_a_non_markdown_line_starting_with_a_pipe_is_not_split_into_cells(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Only Markdown has table cells; elsewhere a wrong anchor after a pipe still counts."""
+    root = _repo(tmp_path)
+    _add_doc(root, "tools/run.txt", f"| see {TARGET}:3 | `no_such_token`\n")
+
+    code, _out = _run(root, capsys)
+
+    assert code == 1
