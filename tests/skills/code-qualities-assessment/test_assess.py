@@ -2183,6 +2183,40 @@ def test_every_lib_mirror_destination_is_generated(destination: str) -> None:
     assert classify_file_category(Path(destination), content="x = 1\n") == "generated"
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need Developer Mode on Windows")
+def test_a_changed_path_that_is_a_directory_link_is_not_assessed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # git diff lists a symlink to a directory (mode 120000) as one changed path.
+    # Reading it as a file fails, so it must not reach scoring.
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "real_pkg").mkdir()
+    (tmp_path / "real_pkg" / "mod.py").write_text("x = 1\n", encoding="utf-8")
+    (tmp_path / "linked_pkg").symlink_to("real_pkg", target_is_directory=True)
+    (tmp_path / "plain.py").write_text("y = 2\n", encoding="utf-8")
+    changes = [
+        ChangedFile("A", None, Path("linked_pkg")),
+        ChangedFile("M", Path("plain.py"), Path("plain.py")),
+    ]
+
+    files = get_files_to_assess(".", True, changed_files=changes)
+
+    assert files == [Path("plain.py")]
+
+
+def test_a_changed_regular_file_is_still_assessed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "plain.py").write_text("y = 2\n", encoding="utf-8")
+
+    files = get_files_to_assess(
+        ".", True, changed_files=[ChangedFile("M", Path("plain.py"), Path("plain.py"))]
+    )
+
+    assert files == [Path("plain.py")]
+
+
 def _large_module(tmp_path: Path) -> Path:
     """A 40-definition module: cohesion lands well under 7 at confidence 0.4."""
     body = "".join(f"def f{i}():\n    return {i}\n\n" for i in range(40))
