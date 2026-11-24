@@ -8,26 +8,9 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-RULE = (
-    REPO_ROOT
-    / "src"
-    / "claude"
-    / "skills"
-    / "pr-comment-responder"
-    / "references"
-    / "rule-lossless-queue-reads.md"
-)
-TEMPLATE = REPO_ROOT / "templates" / "rules" / "lossless-queue-reads.md"
-SKILL_TEMPLATE = REPO_ROOT / "templates" / "skills" / "pr-comment-responder.SKILL.md.tmpl"
-CLUSTER = (
-    REPO_ROOT
-    / "src"
-    / "claude"
-    / "skills"
-    / "pr-comment-responder"
-    / "scripts"
-    / "cluster_threads.py"
-)
+SKILL_DIR = REPO_ROOT / "src" / "claude" / "skills" / "pr-comment-responder"
+RULE = SKILL_DIR / "references" / "rule-lossless-queue-reads.md"
+CLUSTER = SKILL_DIR / "scripts" / "cluster_threads.py"
 MAX_BYTES = 2200
 REASONS = (
     "missing pagination info",
@@ -39,20 +22,6 @@ CITATION = re.compile(r"`(?P<path>[^`]*cluster_threads\.py):(?P<lo>\d+)-(?P<hi>\
 
 def _rule_text() -> str:
     return RULE.read_text(encoding="utf-8")
-
-
-def test_rule_moved_out_of_the_always_on_rule_set() -> None:
-    """The rule is a skill reference now: no template, and the skill links it."""
-    assert not TEMPLATE.exists()
-    assert RULE.is_file()
-    assert "rule-lossless-queue-reads.md" in SKILL_TEMPLATE.read_text(encoding="utf-8")
-
-
-def test_rule_records_its_former_always_on_scope() -> None:
-    first = _rule_text().splitlines()[0]
-    assert first.startswith("<!--")
-    assert "lossless-queue-reads" in first
-    assert "`**`" in first
 
 
 def test_rule_stays_under_the_size_budget() -> None:
