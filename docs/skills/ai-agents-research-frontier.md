@@ -26,7 +26,7 @@ The agent re-verifies the current state, picks the highest-ranked program with a
 
 ## What you get
 
-A chosen program, its three first steps, and a falsifiable milestone. The programs are verified governance (ADR-069, proposed), cross-harness abstraction (ADR-072 and ADR-068), and the self-improving loop. The rank order is owner-confirmed.
+A chosen program, its three first steps, and a falsifiable milestone. The programs are verified governance (ADR-069, accepted), cross-harness abstraction (ADR-072 and ADR-068), and the self-improving loop. The rank order is owner-confirmed.
 
 ## Advanced use
 
