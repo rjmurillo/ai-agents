@@ -106,3 +106,13 @@ Vote: Accept.
 ## After consensus
 
 - The frontmatter `date` moved from 2026-11-15 to 2026-11-24, as the doc-date-drift check asked. No decision text changed.
+- Devin Review on PR #7552 found two hidden cross-pack reads and an upgrade gap. `discover_skills.py` indexed only its own pack, and `_lint_frontmatter_checks.py` could not find `autoplan` in knowledge. A new `skillforge/scripts/_packs.py` lists sibling `project-toolkit-*` packs, and both scripts look there. `tests/skills/skillforge/test_hermes_sibling_packs.py` covers it, and three of its tests fail on the old code.
+- The upgrade probe ran against hermes-agent `63d0b94120`. Installing authoring before reinstalling knowledge listed 95 skills with six duplicates. Reinstalling knowledge left 89 with none. The guide now gives that order, and Negative records both points.
+
+## Round 3
+
+Scope: the post-consensus fix for the hidden cross-pack reads.
+
+- Architect: Accept, on condition the carve-out sits beside the rule. Done. The build-fails list now says "refers" means a path `find_references` matches, allows a sibling lookup only through `_packs.py`, and records two accepted risks: a hidden joined-path lookup, and trust in any `project-toolkit-*` sibling. The README generator and the install guide now say "by path".
+- Critic: Disagree-and-Commit. P1: the new test file left `src/claude` on `sys.path` and broke five mirror-tree tests. Fixed: the file loads its modules by file path, and the full skillforge set passes. P2: require a manifest. Fixed: a sibling must also hold `plugin.json`.
+- Consensus holds: no Block.

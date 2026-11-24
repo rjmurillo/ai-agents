@@ -119,6 +119,7 @@ In priority order:
      - a shipped skill is in no pack and not excluded, or is in two;
      - a pack, counting `lib/`, exceeds `packMaxFiles` or 10 MB;
      - a skill refers to a skill in another pack, or to an excluded skill;
+       (amended 2026-11-24: "refers" means a path that `find_references` matches. A script may also look up a sibling pack at run time, only through `skillforge/scripts/_packs.py`, and must report not evaluated when that pack is absent. `find_references` cannot see a path built by joining parts in code, so a new hidden lookup is an accepted risk that review must catch. `_packs.py` trusts any sibling folder named `project-toolkit-*` that holds `skills/` and `plugin.json`.)
      - the pinned `plugin_guard` returns `dangerous` for a pack.
    - Exclusions: the 7 dangerous skills are excluded at first. Exclusion is transitive: a skill that refers to an excluded skill, directly or through other skills, is excluded too, and the build computes the closure. A later change can restore a skill by rewording the flagged prose at its template. A pack with a `caution` verdict ships, and the install guide names it, because Hermes asks the user to confirm it.
    - Index: the build writes `src/hermes/README.md`, listing each pack and its skills, and `--check` gates it.
@@ -187,6 +188,8 @@ In priority order:
 - Four more generated trees add about 2,400 skill files, plus 40 `lib/` files per tree and 52 per Hermes pack (counted 2026-11-24, across three packs), plus the Cursor rule and agent copies.
 - Hermes users install several packs, and at least 7 skills do not ship to Hermes.
 - Amended 2026-11-24: a Hermes user who installed only the knowledge pack loses six skills until they install `project-toolkit-authoring`. The install guide says so. Seven skills outside the six name one of them in prose, which the build does not check: `autoplan`, `context-gather`, `prompt-engineer`, `retrospective`, and `spec` in knowledge, and `pr-comment-responder` and `technical-writing` in delivery. Those routes reach the skill only when the authoring pack is installed.
+- Amended 2026-11-24: two `skillforge` scripts read other packs at run time, which `find_references` cannot see, because they join path parts in code. `discover_skills.py` builds the skill index, and `_lint_frontmatter_checks.py` loads `autoplan`'s resolver. Both now look in sibling `project-toolkit-*` packs beside their own. Without knowledge installed, the index holds authoring skills only, and the trigger-phrase rule reports not evaluated.
+- Amended 2026-11-24: an upgrade that installs authoring before reinstalling knowledge lists the six skills twice until knowledge is reinstalled. The install guide gives the order.
 - Amended 2026-11-24: delivery was not split and has 2 files of room. A change that adds 3 files to delivery, or 3 to the shared `lib/`, fails the build and needs an owner decision.
 - Amended 2026-11-24: authoring installs past a `caution` verdict. The smoke checks the verdict only, not the findings, so a new high finding in authoring would still install. Delivery has had the same gap since it joined `FORCE_ALLOWED_PACKS`.
 - A host whose smoke cannot run stays without a marketplace entry until it can.

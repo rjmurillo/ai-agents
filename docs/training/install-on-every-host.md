@@ -285,9 +285,9 @@ Hermes caps a plugin at 400 files. The toolkit does not fit in one plugin, so it
 | `project-toolkit-knowledge` | 34 | Memory, context, decisions, requirements, strategy, documentation |
 | `project-toolkit-authoring` | 6 | Writing, tuning, and bootstrapping skills, and placing context |
 
-That is 89 skills. Another 15 skills ship in no pack. Hermes rates 7 of them dangerous. Seven more refer to an excluded skill. `skill-doctor` has a file over the 1 MiB limit. [src/hermes/README.md](../../src/hermes/README.md) lists each one with its reason. A skill in one pack never refers to a skill in another pack. No sign-in is needed.
+That is 89 skills. Another 15 skills ship in no pack. Hermes rates 7 of them dangerous. Seven more refer to an excluded skill. `skill-doctor` has a file over the 1 MiB limit. [src/hermes/README.md](../../src/hermes/README.md) lists each one with its reason. A skill in one pack never refers to a skill in another pack by path. Two `skillforge` scripts look in the other packs at run time when they are installed. No sign-in is needed.
 
-Six skills used to ship in the knowledge pack: `skill-bootstrap`, `skillopt`, `skillforge`, `context-optimizer`, `skillify`, and `prose-self-check`. They moved to `project-toolkit-authoring` because the knowledge pack reached the 400-file cap and the six refer to each other. If you installed only the knowledge pack, install `project-toolkit-authoring` to keep them.
+Six skills used to ship in the knowledge pack: `skill-bootstrap`, `skillopt`, `skillforge`, `context-optimizer`, `skillify`, and `prose-self-check`. They moved to `project-toolkit-authoring` because the knowledge pack reached the 400-file cap and the six refer to each other. To keep them, reinstall the knowledge pack with `--force` first, then install `project-toolkit-authoring` (step 4). The order matters. With an old knowledge pack still installed, Hermes lists all six skills twice, once from each pack, until you reinstall knowledge. We measured this on 2026-11-24 against hermes-agent `63d0b94120`: 95 skills listed with six duplicates, and 89 with none after the knowledge reinstall.
 
 1. Install the knowledge pack and enable it:
 
