@@ -2,7 +2,7 @@
 
 ## Summary
 
-The reduced panel reached consensus after two rounds with 0 P0 and 0 P1 findings.
+The reduced panel reached consensus after four rounds with 0 open P0 and 0 open P1 findings.
 The ADR retains its accepted status.
 Earlier reviews include the [joint debate](ADR-100-101-enforcement-planes-debate-log.md) and the [September amendment](ADR-100-amendment-2026-09-22-debate-log.md).
 
@@ -14,7 +14,8 @@ The parent supplied the positions and review receipt IDs below.
 
 ## Reviewed Patch
 
-The final patch replaces 15 lines across three ADRs.
+The Round 2 patch replaces 15 lines across three ADRs.
+Rounds 3 and 4 are later citation-only repairs after merges from main.
 The base commit is `49ebeee9ecc173475670fb42d3fb454b272ca3a4`.
 The full-index ADR patch has SHA-256 `431f1f3b7b42f10292112ce6a8d213a8ffff2bbae011e81c24f3c38e8a1fe996`.
 

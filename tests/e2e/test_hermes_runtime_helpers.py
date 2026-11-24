@@ -235,7 +235,7 @@ def test_only_delivery_and_authoring_carry_reviewed_findings() -> None:
 
 
 def test_caution_with_no_high_finding_fails() -> None:
-    with pytest.raises(ValueError, match="unreviewed"):
+    with pytest.raises(ValueError, match="no high findings"):
         hr.force_for_verdict(_DELIVERY, "caution", frozenset())
 
 

@@ -2,7 +2,7 @@
 
 ## Summary
 
-The reduced panel reached consensus after two rounds with 0 P0 and 0 P1 findings.
+The reduced panel reached consensus after three rounds with 0 open P0 and 0 open P1 findings.
 The ADR retains its accepted status.
 Prior closed debate log is [ADR-102-debate-log.md](ADR-102-debate-log.md).
 
@@ -14,7 +14,8 @@ The parent supplied the positions and review receipt IDs below.
 
 ## Reviewed Patch
 
-The final patch replaces 15 lines across three ADRs.
+The Round 2 patch replaces 15 lines across three ADRs.
+Round 3 is a later citation-only repair after a merge from main.
 The base commit is `49ebeee9ecc173475670fb42d3fb454b272ca3a4`.
 The full-index ADR patch has SHA-256 `431f1f3b7b42f10292112ce6a8d213a8ffff2bbae011e81c24f3c38e8a1fe996`.
 

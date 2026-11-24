@@ -277,8 +277,12 @@ def force_for_verdict(
         return False
     if verdict != "caution":
         raise ValueError(f"{pack_name} is rated {verdict!r}; only caution may install with --force")
+    if not high_findings:
+        raise ValueError(
+            f"{pack_name} is rated 'caution' with no high findings; the guard output is not trusted"
+        )
     unreviewed = sorted(high_findings - FORCE_ALLOWED_FINDINGS.get(pack_name, frozenset()))
-    if unreviewed or not high_findings:
+    if unreviewed:
         raise ValueError(
             f"{pack_name} is rated 'caution' with unreviewed high findings {unreviewed}; "
             "review them and add them to FORCE_ALLOWED_FINDINGS before --force"
