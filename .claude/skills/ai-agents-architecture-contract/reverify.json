@@ -181,7 +181,7 @@
     {
       "kind": "contains",
       "path": ".project-toolkit/architecture/ADR-069-context-corpus-is-the-product.md",
-      "text": "status: proposed",
+      "text": "status: accepted",
       "id": "R35"
     },
     {
