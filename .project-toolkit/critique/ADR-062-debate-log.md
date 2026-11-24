@@ -76,3 +76,40 @@ P1 findings recorded (all folded into the amendment or scoped to the implementat
 - ADR-062 carries no YAML frontmatter (it predates ADR-073), so the amendment status lives in prose only (critic). Left as-is: ADR-062 is a pre-frontmatter ADR; adding frontmatter is a separate modernization, not part of recording this amendment.
 - Monitor navigation patterns for four weeks post-removal; if drift returns to the session-16 baseline, revisit (independent-thinker). Recorded as a post-implementation watch item for #3216.
 
+## Amendment Review 2026-11-24: the lsp-first steering moves into a skill reference
+
+**Artifact**: the `## Amendment 2026-11-24 (accepted)` section of ADR-062, on branch `feat/context-diet-staging`.
+**Protocol**: reduced panel (architect, critic). The amendment changes how advisory steering is delivered. It changes no enforcement and no rule another gate reads.
+**Context**: the context-diet capability eval of 2026-11-24 scored this rule 3.58 with no rule, 4.83 loaded, and 4.83 routed. Richard kept the move.
+
+### Round 1
+
+| Agent | Vote | Core position |
+|-------|------|---------------|
+| architect | Block | The text was accurate, but it named only two removed mirrors and one skill copy, and it left out who loses the passive load. It also overstated "lost nothing measurable" and had no debate-log entry or Status mention. |
+| critic | Block | "Serena Init (AGENTS.md BLOCKING)" pointed at a heading that no longer exists. Decision section 10 still said the rule is mirrored, which contradicted the amendment. The reference kept a sentence about `paths` and `applyTo` that is now false. |
+
+### Round 1 changes
+
+- Listed every removed carrier and every harness copy of the skill.
+- Added a Consequences list: consumers on every harness and in-repo Copilot lose the passive load, from the release that ships this.
+- Reworded the evidence to the eval's limits and cited the runner and scenario file.
+- Pointed the retained carrier at the `AGENTS.md` Serena line, which now names `using-serena-symbols`.
+- Rewrote Decision section 10 as history, fixed the reference's scope sentence, added a Status sentence, and moved the amendment after the 2026-07-27 one.
+- Out of scope, flagged in the PR: three Serena memories still call `.claude/rules/lsp-first.md` current guidance, and ADR-068 lists it as a dependency.
+
+### Round 2
+
+| Agent | Vote | Core position |
+|-------|------|---------------|
+| architect | Accept | Every round-1 blocker is fixed. Nits: say Copilot's reading of the `AGENTS.md` line is unverified, and record these votes. |
+| critic | Block, then accept | Blocked on the `src/muse` reference copy. A `cmp` after the build finished showed all six harness copies identical to `src/claude`, so the read had caught the tree mid-build. Nit: list the 2026-07-17 "Serena Init (AGENTS.md BLOCKING)" claim as history too. |
+
+### Round 2 changes
+
+- Said that Copilot CLI's reading of the `AGENTS.md` Serena line is unverified.
+- Added the "Serena Init (AGENTS.md BLOCKING) stays" claim to the list of 2026-07-17 statements that describe the earlier state.
+
+**Consensus: ACCEPTED (2/2), reduced panel.**
+
+After acceptance, the amendment text was reflowed into fewer lines so ADR-062 fits the 500-line size cap of `check_adr_lifecycle.py`. No claim, carrier, consequence, or citation changed.

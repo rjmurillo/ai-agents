@@ -10,15 +10,16 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import find_repo_root
 from .confidence import calculate_confidence
 from .models import MemoryWithCitations, VerificationResult
 from .recall_log import note
 from .serena_integration import load_memory
+from .stores import find_memory_root
 from .tool_resolver import resolve_tool
 from .verification import STALE_REASON_MARKERS, cited_file_exceeds, verify_citation
 
@@ -112,7 +113,7 @@ def search_memories(
         memories_dir: Directory containing memory .md files.
         max_results: Maximum number of results to return.
         repo_root: Repository root for citation verification.
-                   Defaults to detected repo root via find_repo_root.
+                   Defaults to detected repo root via find_memory_root.
         min_relevance: Drop results whose query relevance (fraction of query
             terms naming the memory, see ``query_relevance``) is below this.
             Applied before the ``max_results`` cut. 0.0 keeps every match.
@@ -130,7 +131,7 @@ def search_memories(
     if not query or not query.strip() or not memories_dir.is_dir():
         return []
 
-    effective_root = repo_root or find_repo_root(memories_dir) or memories_dir.parent.parent
+    effective_root = repo_root or find_memory_root(memories_dir) or memories_dir.parent.parent
 
     paths = _search_with_ripgrep(query, memories_dir, deadline, effective_root)
     if paths is None:
@@ -322,6 +323,7 @@ def _search_with_ripgrep(
         return None
 
     if result.returncode not in (0, 1):
+        _warn_search_failure(cmd[0], result.returncode, result.stderr, "falling back to grep")
         return None
 
     return _parse_file_list(result.stdout, memories_dir)
@@ -371,9 +373,19 @@ def _search_with_grep(
         return None
 
     if result.returncode not in (0, 1):
+        _warn_search_failure(cmd[0], result.returncode, result.stderr, "recall skipped")
         return None
 
     return _parse_file_list(result.stdout, memories_dir)
+
+
+def _warn_search_failure(tool: str, returncode: int, stderr: str, outcome: str) -> None:
+    """Report a failed store search on stderr so a fallback or empty recall is not silent."""
+    detail = stderr.strip().splitlines()[0] if stderr.strip() else "no stderr"
+    print(
+        f"memory search: {Path(tool).name} exited {returncode}; {outcome} ({detail})",
+        file=sys.stderr,
+    )
 
 
 def _parse_file_list(stdout: str, memories_dir: Path) -> list[Path]:

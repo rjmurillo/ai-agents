@@ -40,7 +40,9 @@ def _find_project_root(fallback_dir: Path | None = None) -> Path:
     except FileNotFoundError:
         pass
 
-    search = fallback_dir or Path(__file__).resolve().parent
+    # Walk up from the caller's directory, never the script's own install
+    # tree: a vendored plugin copy must not edit itself as the project.
+    search = (fallback_dir or Path.cwd()).resolve()
     while search != search.parent:
         if (search / ".git").exists():
             return search

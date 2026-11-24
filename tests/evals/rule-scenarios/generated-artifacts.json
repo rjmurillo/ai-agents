@@ -1,5 +1,6 @@
 {
-  "rule_path": ".claude/rules/generated-artifacts.md",
+  "skill_path": ".claude/skills/ai-agents-generation-and-release/SKILL.md",
+  "reference_path": ".claude/skills/ai-agents-generation-and-release/references/rule-generated-artifacts.md",
   "rule_id": "generated-artifacts",
   "scenarios": [
     {

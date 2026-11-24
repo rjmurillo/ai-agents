@@ -312,3 +312,9 @@ absence of a semantic tier was chosen, not overlooked.
 - `ADR-086-lefthook-local-hook-orchestration.md`: amended by reference.
 - `ADR-089-remove-causal-memory-tier.md`: the precedent for amending
   point-in-time records rather than rewriting them.
+
+---
+
+**Amended by**:
+
+- 2026-11-23: [ADR-126: Repository-Resolved Memory Store](./ADR-126-repository-resolved-memory-store.md) resolves the one store per repository: `.serena/memories/` when present, else `.project-toolkit/memory/notes/`. It amends Decisions 2 and 5 by reference; the body is preserved.

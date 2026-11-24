@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Unified memory access layer over Serena, the only memory backend.
+"""Unified memory access layer over the repository's one memory store.
 
-Serena memories are plain committed markdown under `.serena/memories/`, so
+Per ADR-126 the store is `.serena/memories/` when that folder exists, else
+`.project-toolkit/memory/notes/`. Both hold plain committed markdown, so
 lexical search reads the working tree directly and cannot be unavailable the
 way a network backend can.
 
@@ -24,6 +25,8 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+from .memory_store import STORE_DIRS, resolve_memory_store
 
 logger = logging.getLogger(__name__)
 
@@ -73,11 +76,19 @@ class _FileListCache:
 
 _file_list_cache = _FileListCache()
 
-# Default configuration
+# Default configuration. A `serena_path` of None resolves the store per call.
 _config: dict[str, Any] = {
-    "serena_path": ".serena/memories",
+    "serena_path": None,
     "max_results": 10,
 }
+
+
+def _store_path() -> str | None:
+    configured = _config["serena_path"]
+    if configured:
+        return str(configured)
+    store = resolve_memory_store()
+    return str(store) if store else None
 
 
 # ---------------------------------------------------------------------------
@@ -116,7 +127,13 @@ def _get_memory_files(memory_path: str) -> tuple[list[Path], list[str]]:
 
     mem_dir = Path(memory_path)
     try:
-        files = sorted(mem_dir.rglob("*.md"))
+        # A linked memory must resolve inside the store, as in search_memory.py.
+        root = mem_dir.resolve()
+        files = sorted(
+            f
+            for f in mem_dir.rglob("*.md")
+            if not f.is_symlink() or f.resolve().is_relative_to(root)
+        )
     except OSError as exc:
         logger.warning("Failed to enumerate memory files in '%s': %s", memory_path, exc)
         return [], []
@@ -138,14 +155,14 @@ def invoke_serena_search(
     max_results: int = 10,
     skip_content: bool = False,
 ) -> list[MemoryResult]:
-    """Perform lexical search across Serena memory files.
+    """Perform lexical search across the repository memory files.
 
-    Searches .serena/memories/ for files matching query keywords.
+    Searches the resolved memory folder for files matching query keywords.
     Scoring: based on percentage of query keywords matching in filename.
 
     Args:
         query: Search query string.
-        memory_path: Path to Serena memories directory.
+        memory_path: Memory folder to search; defaults to the resolved store.
         max_results: Maximum results to return.
         skip_content: When True, skips file content reading and SHA-256 hashing.
 
@@ -156,6 +173,8 @@ def invoke_serena_search(
     if not mem_dir.is_dir():
         logger.debug("Memory path not found: %s", memory_path)
         return []
+    # Label results by the store they came from, matching search_memory.py.
+    source = "RepositoryNotes" if mem_dir.resolve().parts[-3:] == STORE_DIRS[1].parts else "Serena"
 
     # Extract keywords (>2 chars)
     lower_query = query.lower()
@@ -185,7 +204,7 @@ def invoke_serena_search(
             if not skip_content:
                 try:
                     content = current_file.read_text(encoding="utf-8")
-                except OSError as exc:
+                except (OSError, UnicodeDecodeError) as exc:
                     logger.warning("Failed to read memory file '%s': %s", current_file, exc)
                     continue
                 content_hash = get_content_hash(content or "")
@@ -194,7 +213,7 @@ def invoke_serena_search(
                 MemoryResult(
                     name=current_file.relative_to(mem_dir).with_suffix("").as_posix(),
                     content=content,
-                    source="Serena",
+                    source=source,
                     score=score,
                     path=str(current_file),
                     hash=content_hash,
@@ -221,12 +240,16 @@ def get_memory_router_status() -> dict[str, Any]:
     that probe's 30-second result cache.
 
     Returns:
-        Dict with Serena and Configuration status.
+        Dict keyed by the store found (`Serena` or `RepositoryNotes`), plus
+        `Configuration`.
     """
+    store = _store_path()
+    # Name the store that was found, as search_memory.py's Diagnostic does.
+    is_notes = store is not None and Path(store).resolve().parts[-3:] == STORE_DIRS[1].parts
     return {
-        "Serena": {
-            "Available": Path(_config["serena_path"]).is_dir(),
-            "Path": _config["serena_path"],
+        "RepositoryNotes" if is_notes else "Serena": {
+            "Available": store is not None and Path(store).is_dir(),
+            "Path": store or "",
         },
         "Configuration": dict(_config),
     }
@@ -236,7 +259,7 @@ def search_memory(
     query: str,
     max_results: int = 10,
 ) -> list[MemoryResult]:
-    """Search the Serena memory corpus.
+    """Search the repository memory store (ADR-126).
 
     Main entry point for memory search. The two backend-selection parameters
     are gone: they chose between a lexical and a semantic store, and only the
@@ -271,7 +294,11 @@ def search_memory(
 
     logger.debug("search_memory: Query='%s', MaxResults=%d", query, max_results)
 
-    return invoke_serena_search(query, max_results=max_results)
+    store = _store_path()
+    if store is None:
+        logger.debug("search_memory: no repository memory store")
+        return []
+    return invoke_serena_search(query, memory_path=store, max_results=max_results)
 
 
 def reset_caches() -> None:

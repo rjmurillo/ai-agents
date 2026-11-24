@@ -1,5 +1,6 @@
 {
-  "rule_path": ".claude/rules/efficiency.md",
+  "skill_path": ".claude/skills/programming-advisor/SKILL.md",
+  "reference_path": ".claude/skills/programming-advisor/references/rule-efficiency.md",
   "rule_id": "efficiency",
   "scenarios": [
     {

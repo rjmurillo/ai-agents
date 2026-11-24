@@ -47,7 +47,7 @@ def _fence_offsets(text: str) -> tuple[int, int, int] | None:
     block = split_frontmatter(text)
     if not block.found:
         return None
-    return text.index("\n") + 1, block.raw_end, block.fence_end
+    return block.open_end, block.raw_end, block.fence_end
 
 
 def split_fenced_frontmatter(content: str) -> tuple[str, str] | None:

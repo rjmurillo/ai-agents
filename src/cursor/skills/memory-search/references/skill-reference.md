@@ -18,7 +18,8 @@ The memory system exposes functionality through Claude Code skills - standardize
 
 ### Synopsis
 
-Unified memory search across Serena and the episode store.
+Search repository Markdown and session episodes. The CLI uses repository
+notes when there is no established Serena corpus.
 
 ### Description
 
@@ -123,7 +124,7 @@ array-handling          Episodes  0.85  Common array gotchas include...
   "Results": [
     {
       "Name": "memory-name",
-      "Source": "Serena|Episodes",
+      "Source": "Serena|RepositoryNotes|Episodes",
       "Score": 1.0,
       "Path": "/path/to/memory",
       "Content": "Full memory content..."
@@ -220,8 +221,8 @@ echo "$result" | python3 -c "import sys,json; data=json.load(sys.stdin); [print(
 | Dependency | Required | Purpose |
 |------------|----------|---------|
 | Python 3.12+ | Yes | Script execution |
-| memory router module | Yes | Core search functionality |
-| Serena MCP | Yes | Lexical memory search |
+| Scoped memory tool | Optional | Recall from the selected project store |
+| Repository Markdown | Optional | Local keyword search |
 
 ### Validation
 

@@ -39,10 +39,10 @@ You have direct access to:
 - **Read/Grep/Glob**: Analyze codebase architecture
 - **Write/Edit**: Create/update `.project-toolkit/architecture/` files only
 - **WebSearch**: Research architectural patterns
-- **Memory Router** (ADR-037): Search across `.serena/memories/`
+- **Memory search** (ADR-126): the `memory-search` skill over the repository memory folder
   - `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/search_memory.py "topic"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`
   - Keyword match on memory filenames; no semantic or graph search
-- **Serena write tools**: Memory persistence in `.serena/memories/`
+- **Memory writes**: the `memory` skill; Serena write tools when Serena is active
   - `mcp__serena__write_memory`: Create new memory
   - `mcp__serena__edit_memory`: Update existing memory
 
@@ -422,7 +422,7 @@ When reviewing PRs that add new directories or relocate files, assess structural
 
 ## Memory Protocol
 
-Use Memory Router for search and Serena tools for persistence (ADR-037):
+Use the `memory-search` skill for search and the `memory` skill for persistence (ADR-126). Serena tools apply when Serena is active:
 
 **Before design (retrieve context):**
 
@@ -444,7 +444,7 @@ Serena writes to the checkout active at server start (`--project` root),
 not your cwd. Call `mcp__serena__write_memory`, `edit_memory`,
 `delete_memory`, or `rename_memory` only from that checkout. A linked worktree
 (`git rev-parse --git-dir` differs from `--git-common-dir`) never qualifies.
-In one, unsure, or without a shell, do not call them: edit `.serena/memories/`
+In one, unsure, or without a shell, do not call them: edit the repository memory
 files in your own checkout, or return the change to the parent session. Delete or
 rename only when asked. New memory: `<topic>/<name>` plus a `memory-index.md` line.
 
@@ -461,7 +461,7 @@ If a tool or service is unavailable, do not halt on first failure or retry indef
 
 | Primary Tool | Fallback | If Fallback Also Fails |
 |--------------|----------|------------------------|
-| Memory Router (`search_memory.py`) | Read `.serena/memories/` directly with Read tool | Proceed without memory context, note gap in handoff |
+| Memory search (`search_memory.py`) | Read the repository memory folder directly with Read tool | Proceed without memory context, note gap in handoff |
 | Serena write (`mcp__serena__write_memory`, `mcp__serena__edit_memory`) | Write to `.project-toolkit/notes/` as temp markdown with intended memory name | Note in handoff that memory was not persisted |
 | MCP servers (Context7, DeepWiki) | Use WebSearch or WebFetch as alternative | Proceed with available information, document unverified claims |
 | External CLIs (`dotnet`, `gh`, `python3`) | Report error with exit code and failing command | Return to orchestrator as [BLOCKED] with reproduction steps |

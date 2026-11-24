@@ -1,6 +1,6 @@
 ---
 name: ai-agents-generation-and-release
-description: Operate the ai-agents generation and release machinery, covering the seven build_all.py generators, generate_agents.py, the drift gates, the version-free plugin manifests, and the npm publish path. Use when you say `regenerate the mirrors`, `run the drift checks`, `why is the plugin version gate red`, `release the npm cli`. Do NOT use for environment setup (use `ai-agents-build-and-env`) or architecture rationale (use `ai-agents-architecture-contract`).
+description: Operate and edit the ai-agents generation and release machinery, covering the seven build_all.py generators, generate_agents.py, customer-facing generated artifacts (references/rule-generated-artifacts.md), drift gates, version-free plugin manifests, and the npm publish path. Use when you say `regenerate the mirrors`, `run the drift checks`, `why is the plugin version gate red`, `release the npm cli`, or before changing a generator, launcher, or customer-facing generated artifact. Do NOT use for environment setup (use `ai-agents-build-and-env`) or architecture rationale (use `ai-agents-architecture-contract`).
 version: 1.0.0
 license: Apache-2.0
 metadata:
@@ -27,6 +27,8 @@ Jargon, defined once:
 - Semver: semantic version string MAJOR.MINOR.PATCH. The plugin manifests carry no version at all (ADR-092); the npm package still does.
 
 ## Triggers
+
+Before changing a generator or a customer-facing generated artifact, read [generated-artifacts](references/rule-generated-artifacts.md).
 
 - `regenerate the mirrors`
 - `run the drift checks`

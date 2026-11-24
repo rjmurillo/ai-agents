@@ -29,6 +29,7 @@ from __future__ import annotations
 import json
 import stat
 import sys
+from collections.abc import Iterable
 from pathlib import Path
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
@@ -40,7 +41,10 @@ from atomic_write import (  # noqa: E402
     read_bytes_no_redirect,
     reject_symlinked_ancestors,
 )
-from frontmatter_key_drop import drop_keys_from_skill_md  # noqa: E402
+from frontmatter_key_drop import (  # noqa: E402
+    drop_keys_from_skill_md,
+    split_fenced_frontmatter,
+)
 from hermes_pack_checks import (  # noqa: E402
     PackFile,
     check_assignment,
@@ -91,6 +95,32 @@ def _git_mode(path: Path) -> int:
     return _EXECUTABLE_FILE_MODE if executable else _PLAIN_FILE_MODE
 
 
+def drop_excluded_pointer_lines(text: str, skill: str, excluded_files: Iterable[str]) -> str:
+    """Remove SKILL.md lines that point at a file no pack carries.
+
+    An excluded file is absent from every pack, so a line naming it would
+    send a Hermes user to nothing. A line counts when it names the excluded
+    path relative to its skill, and the file is this skill's own or the line
+    also names the owning skill in backticks. Frontmatter is never touched,
+    because dropping a wrapped ``description`` line would corrupt it.
+    """
+    targets: list[tuple[str, str]] = []
+    for entry in excluded_files:
+        owner, _, rel = entry.partition("/")
+        if rel:
+            targets.append((owner, rel))
+    parts = split_fenced_frontmatter(text)
+    frontmatter, body = parts if parts is not None else ("", text)
+    kept = [
+        line
+        for line in body.splitlines(keepends=True)
+        if not any(
+            rel in line and (owner == skill or f"`{owner}`" in line) for owner, rel in targets
+        )
+    ]
+    return frontmatter + "".join(kept)
+
+
 def _skill_pack_files(source_root: Path, skill: str, config: HermesConfig) -> dict[str, PackFile]:
     files: dict[str, PackFile] = {}
     skill_dir = source_root / skill
@@ -105,6 +135,7 @@ def _skill_pack_files(source_root: Path, skill: str, config: HermesConfig) -> di
                 text = drop_keys_from_skill_md(data.decode("utf-8"), config.frontmatter_drop)
             except (ValueError, UnicodeDecodeError) as exc:
                 raise HermesPackError([f"{skill}/{_SKILL_MD}: {exc}"]) from exc
+            text = drop_excluded_pointer_lines(text, skill, config.excluded_files)
             data = text.encode("utf-8")
         files[f"skills/{skill}/{rel}"] = PackFile(data, mode)
     return files

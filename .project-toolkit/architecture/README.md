@@ -111,7 +111,7 @@ These bind today.
 | [ADR-043](ADR-043-scoped-tool-execution.md) | Scoped Tool Execution | 2026-01-21 | Session protocol tools MUST scope to changed files rather than the entire repository. |
 | [ADR-045](ADR-045-framework-extraction-via-plugin-marketplace.md) | Framework Extraction via Plugin Marketplace | 2026-02-07 | Extract the reusable multi-agent framework from `rjmurillo/ai-agents` into a new repository `rjmurillo/awesome-ai`, published as a Claude Code plugin marketplace with 4 plugins. |
 | [ADR-046](ADR-046-planning-agent-rename.md) | Planning Agent Rename for Role Clarity | 2026-02-08 | Rename all three planning agents to reflect their distinct roles: |
-| [ADR-047](ADR-047-plugin-mode-hook-behavior.md) | Plugin-Mode Hook Behavior | 2026-04-29 | All hooks and skills run in plugin mode. |
+| [ADR-047](ADR-047-plugin-mode-hook-behavior.md) | Plugin-Mode Hook Behavior | 2026-11-24 | All hooks and skills run in plugin mode. |
 | [ADR-051](ADR-051-synthesis-panel-frontmatter-standard.md) | Synthesis Panel Frontmatter Standard | 2026-03-07 | All DESIGN-REVIEW documents MUST include YAML frontmatter with structured metadata. |
 | [ADR-053](ADR-053-adr-exception-criteria.md) | ADR Exception Criteria (Chesterton's Fence) | 2026-03-07 | ADR exceptions MUST include a Chesterton's Fence analysis before approval. |
 | [ADR-054](ADR-054-local-security-scanning.md) | Local Security Scanning | 2026-07-20 | Add a Lefthook pre-push job that scans changed code files. |
@@ -193,6 +193,7 @@ Recorded, not yet binding. The last column is what each record says is holding i
 | [ADR-116](ADR-116-unchecked-in-context-rule-violation-failure-mode.md) | Propose a Failure Mode for Unchecked In-Context Rule Violations | 2026-10-13 | Propose a class named Unchecked In-Context Rule Violation, numbered with the next free FM number at acceptance (FM #14 on 2026-10-13, because ADR-117 took FM #13), for... | review by 2027-04-13; The owner has not accepted the class, and `FAILURE-MODES.md` is unchanged until then. |
 | [ADR-119](ADR-119-symlinked-dogfood-agents-and-skills.md) | Symlink the Agent and Skill Dogfood Trees to the Plugin Tree | 2026-11-04 | A binplace manifest row may set `link: true` (`templates/platforms/binplace.yaml`). | review by 2027-04-17; This record amends ADR-109 and ADR-108; see Related Decisions. |
 | [ADR-121](ADR-121-one-resolver-for-plugin-root-commands.md) | One Resolver Launches Every Shipped Plugin-Root Shell Command | 2026-11-14 | Three classes of site. | review by 2027-02-11 |
+| [ADR-126](ADR-126-repository-resolved-memory-store.md) | Repository-Resolved Memory Store | 2026-11-23 | Each repository has exactly one memory store, resolved by folder. | - |
 
 ## Retired
 

@@ -34,7 +34,7 @@ A report saved to `.project-toolkit/analysis/[topic]-documentary-[date].md` with
 | Evidence Trail | For each finding: source system, retrieval key with its command, date, direct quote, links to related evidence. |
 | Pattern Evolution | A dated timeline of how thinking changed. |
 | Unexpected Patterns | Frequency, correlation, avoidance, contradiction, evolution, and emotional patterns. |
-| Synthesis | What all systems agree on, what is recent (Claude-Mem) versus durable (Serena), and recommendations. |
+| Synthesis | Agreements across sources, recent observations, and durable patterns. |
 
 Every claim has a retrieval key, a date, and a direct quote. The skill does not paraphrase.
 
@@ -44,11 +44,11 @@ The skill runs five phases: topic comprehension, investigation planning, data co
 
 It searches these sources:
 
-- Memory systems: Claude-Mem (timeline observations), Serena (project lexical memory), and DeepWiki (documentation).
+- Scoped project memory, relevant timeline records, and documentation.
 - Project artifacts under `.project-toolkit/`: `retrospective/`, `sessions/`, `analysis/`, `architecture/`, and `planning/`.
 - GitHub issues: open and closed, with comments and related PRs.
 
-Use at least three query variants per system. Search all three systems, or record any that were unavailable. In a vendored install without the `.project-toolkit/` tree, the report uses whatever memory systems and artifacts the repository has.
+Record which sources you searched and which sources were unavailable.
 
 The source documents an optional time range, written as `--since 2025-12-01` after the topic. The full execution protocol is in [`references/execution-protocol.md`](../../src/claude/skills/memory-documentary/references/execution-protocol.md).
 

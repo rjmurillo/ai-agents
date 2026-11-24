@@ -1,6 +1,6 @@
 ---
 name: ai-agents-validation-and-qa
-description: What counts as evidence in ai-agents and how to produce it. Covers the TESTING-RIGOR pos+neg+edge bar, test layout and collection reality, coverage proof commands, runtime-contract tests with negative controls, and ADR-034 QA skip semantics at session end. Use when you say `what counts as evidence`, `how do I test this change`, `run skill tests`, `can I skip QA`. Do NOT use for CI failure triage (use `ai-agents-debugging-playbook`) or measurement tooling (use `ai-agents-diagnostics-toolkit`).
+description: What counts as evidence in ai-agents, how to produce it, and the contract for authoring CI workflows, composite actions, validation scripts, and CI ratchet baselines. Covers TESTING-RIGOR pos+neg+edge, test layout, coverage proof, runtime-contract tests, ADR-034 QA skips, and CI script rules (references/rule-ci-scripts.md). Use when you say `what counts as evidence`, `how do I test this change`, `run skill tests`, `can I skip QA`, or when editing a CI workflow, composite action, validation script, or CI ratchet baseline file. Do NOT use for general CI failure triage (use `ai-agents-debugging-playbook`) or measurement tooling (use `ai-agents-diagnostics-toolkit`).
 version: 1.0.0
 license: Apache-2.0
 metadata:
@@ -21,6 +21,8 @@ Audience: a zero-context contributor (human or model) about to write, run, or sk
 
 ## Triggers
 
+Before authoring or editing a CI workflow, composite action, validation script, or CI ratchet baseline file, read [ci-scripts](references/rule-ci-scripts.md).
+
 - `what counts as evidence`
 - `how do I test this change`
 - `run skill tests`
@@ -30,7 +32,7 @@ Audience: a zero-context contributor (human or model) about to write, run, or sk
 
 | You want | Use instead |
 |----------|-------------|
-| Triage a red CI check or a blocked push | `ai-agents-debugging-playbook` |
+| Triage a red CI check or blocked push (other than editing a CI script or ratchet baseline) | `ai-agents-debugging-playbook` |
 | Measure drift, budgets, telemetry, coverage trends | `ai-agents-diagnostics-toolkit` |
 | Probe an external tool's runtime behavior empirically | `ai-agents-empirical-probe-toolkit` |
 | Understand which gates a change class triggers | `ai-agents-change-control` |
@@ -100,7 +102,7 @@ Beyond pos+neg+edge, this repo demands five specific disciplines:
 
 **1. Isolation from the real repo.** The root `conftest.py` (repo root, fixture `_guard_real_repo_head`, helper `_check_head_change`) fails any test that moves the REAL repo HEAD: every git mutation must run in a `tmp_path` repo with `cwd=` that repo. Supporting fixtures in `tests/conftest.py`: `GIT_CONFIG_COUNT` injection neutralizes host `commit.gpgsign` so tmp-repo commits work in signing environments (fixture `_isolate_git_config_for_test_git` in tests/conftest.py), and `AI_AGENTS_PROJECT_REPO=1` defaults identity for guards that check the origin remote (fixture `_default_project_repo` in tests/conftest.py). Consumer-repo simulation tests override that env var to `"0"`.
 
-**2. Runtime-contract tests for generated artifacts (FM-11).** A generated artifact that has never been executed is not done (FAILURE-MODES.md:29, index row 11; the plugin-root incident wedged every plugin customer for 33 days). The `**Ship a runtime-contract test.**` item in `.claude/rules/generated-artifacts.md` (lines 68-74) requires:
+**2. Runtime-contract tests for generated artifacts (FM-11).** A generated artifact that has never been executed is not done (FAILURE-MODES.md:29, index row 11; the plugin-root incident wedged every plugin customer for 33 days). The `**Ship a runtime-contract test.**` item in the repo-local `ai-agents-generation-and-release` skill's `references/rule-generated-artifacts.md` points here; this section owns it:
 
 The artifact MUST have a test that executes
    it under the verified contract: set the cwd the host sets (for a plugin hook,
@@ -218,7 +220,8 @@ Re-verified 2026-10-31 at `42e409325`: line cites, the Phase 4 workflow pins, th
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_drift.py check --repo . --skills-root .claude/skills --name ai-agents-validation-and-qa --require; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
-Sources: `.agents/governance/TESTING-RIGOR.md` (Status :5, origin :3-16, pragma :54, cost :97), `.agents/governance/TESTING-ANTI-PATTERNS.md` (:91, :165-172), `.agents/governance/FAILURE-MODES.md` (:29, :390), `.claude/rules/generated-artifacts.md` (:68-74), `.claude/rules/claude-agents.md` (:29), `pyproject.toml [tool.pytest.ini_options]`, root `conftest.py`, `tests/conftest.py`, `.github/workflows/pytest.yml` (:508-524), ADR-034, `scripts/validate_session_json.py` (`_QA_SKIP_CHECKERS`), and the 2026-05-10 and 2026-06-02 retros in `.project-toolkit/retrospective/`.
+<!-- citation-freshness: ignore -- source list as the skill was written; FAILURE-MODES and pytest.yml ranges predate the context diet -->
+Sources: `.agents/governance/TESTING-RIGOR.md` (Status :5, origin :3-16, pragma :54, cost :97), `.agents/governance/TESTING-ANTI-PATTERNS.md` (:91, :165-172), `.agents/governance/FAILURE-MODES.md` (:29, :390), the repo-local `ai-agents-generation-and-release` skill's `references/rule-generated-artifacts.md` (MUST 2), `.claude/rules/claude-agents.md` (:29), `pyproject.toml [tool.pytest.ini_options]`, root `conftest.py`, `tests/conftest.py`, `.github/workflows/pytest.yml` (:508-524), ADR-034, `scripts/validate_session_json.py` (`_QA_SKIP_CHECKERS`), and the 2026-05-10 and 2026-06-02 retros in `.project-toolkit/retrospective/`.
 
 Calibration replay of a threshold detector over merged PRs (Phase 3, item 4) stays manual: it needs the GitHub API.
 

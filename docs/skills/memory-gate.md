@@ -21,7 +21,7 @@ This skill has no short slash command, so the agent usually loads it for you. In
 Use the memory-gate skill to check memory for why the retry limit in scripts/sync.py exists before I change it.
 ```
 
-The skill searches memory for the topic, records what it found, and only then lets the change proceed.
+The skill uses project memory tools or repository files. It records the sources, results, and coverage gaps before the change proceeds.
 
 ## What you get
 

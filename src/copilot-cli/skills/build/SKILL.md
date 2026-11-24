@@ -67,6 +67,8 @@ translation:
 
 ## Process
 
+Folded rules: before you write or change code, read [code-quality](references/rule-code-quality.md); for PowerShell files also read [powershell](references/rule-powershell.md), and for C# files [csharp](references/rule-csharp.md).
+
 **Delegation on each host.** "Delegate to the `X` agent" means the host's subagent tool: Claude Code `Task` with `subagent_type="X"`; Copilot CLI `task` with `agent_type="project-toolkit:X"`; Codex `spawn_agent` with `agent_type="X"`, plus `fork_turns="none"` when the agent reviews or judges work (the default hands it your whole history); Muse Code `subagent_spawn` with `role="X"` and an `objective`, plus `worktree_isolation: true` for an agent that writes files. If the host has no subagent tool, or no `X` agent is installed, run the step yourself in this session.
 
 ### Phase 0: Existing-PR check
@@ -139,6 +141,12 @@ Delegate to the `implementer` agent: You are a senior engineer. Discover the
 project's tech stack, coding patterns, and test conventions by reading the
 codebase. Build in thin vertical slices. Test-first when the project has tests.
 Commit atomically.
+
+Before changing existing behavior, reuse the spec's prior-art evidence for
+the same scope. If it leaves a gap, use `memory-gate` or the `memory` skill's
+recall procedure. When both are absent, try a scoped recall tool. Search
+repository memory and Git history for missing rationale.
+Verify recalled constraints in current code before changing behavior.
 
 For each slice:
 
@@ -313,11 +321,11 @@ Writes: `implementation-change`, `validation-record`. Next: `/test`.
 ## Guardrails
 
 - Atomic commits. Each commit is one logical change, rollback-safe.
-- Read existing patterns, memory (Serena, else `Grep`/`Read`), and canonical source before writing code that touches them.
+- Follow the Phase 3 memory check for existing rationale.
 - No feature flags or compat shims when you can change the code. Validate only at boundaries.
 - No generated headers, timestamps, or "do not edit" banners in any file. If a script emits one, delete the emitter.
 - .NET projects: target net10.0 (C# 14 implied; do not pin LangVersion). Use central package management, global.json to pin the SDK, and standard .editorconfig, .gitattributes, and .gitignore files.
-- Before changing the behavior of a validator, hook, ADR constraint, or shared infrastructure, invoke `skill: "memory-gate"`. If it returns findings, address or acknowledge them in the plan or issue handoff first.
+- Apply the Phase 3 memory check before changing validators, hooks, ADR constraints, or shared infrastructure. Record findings in the plan or handoff.
 - Favor delegation over inheritance. A makes B, or A uses B. Never both.
 - Verify CLI flags and argparse patterns against live output before committing.
 - Use the real repo as the integration test bed. Run new scripts against an open or recent PR before declaring done. Synthetic fixtures can only validate the wrapper; real data validates the semantic.

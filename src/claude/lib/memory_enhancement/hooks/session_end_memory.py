@@ -2,7 +2,7 @@
 """Hook: session_end - Reflection and confidence decay.
 
 Recalculates confidence scores for every memory and prints a health summary
-to stderr. Read-only: it writes nothing under ``.serena/memories``.
+to stderr. The hook reads repository memory without modifying it.
 
 Confidence is a pure function of citation validity, age, update recency, and
 link count, recomputed on every read (``search._score_memory_file``). Nothing
@@ -19,6 +19,7 @@ Exit Codes:
 
 from __future__ import annotations
 
+import os
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -26,37 +27,51 @@ from pathlib import Path
 from ..confidence import update_confidence_scores_with_memories
 from ..models import HealthReport
 from ..reflection import apply_confidence_decay, extract_session_facts
+from ..stores import find_memory_root, repository_memory_dir, shadowed_notes_dir
 
 
 def main() -> int:
     """Entry point for the session_end hook."""
-    repo_root = _find_repo_root()
+    project_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
+    repo_root = _find_repo_root(Path(project_dir) if project_dir else None)
     if repo_root is None:
         return 0
 
-    memories_dir = repo_root / ".serena" / "memories"
-    if not memories_dir.is_dir():
+    memories_dir = repository_memory_dir(repo_root)
+    if memories_dir is None:
         return 0
 
     summary = _generate_reflection(memories_dir, repo_root)
     if summary:
         print(summary, file=sys.stderr)
 
+    shadowed = shadowed_notes_dir(repo_root)
+    if shadowed is not None:
+        print(_shadowed_notes_warning(shadowed, repo_root), file=sys.stderr)
+
     return 0
 
 
-def _find_repo_root(start: Path | None = None) -> Path | None:
-    """Walk up from start to find repo root. Delegates to shared utility."""
-    from . import find_repo_root
+def _shadowed_notes_warning(notes: Path, repo_root: Path) -> str:
+    """Name the hidden notes folder and the manual migration (ADR-126)."""
+    relative = notes.relative_to(repo_root.resolve())
+    return (
+        f"Memory: {relative} holds notes that recall no longer searches, because"
+        " .serena/memories now exists. Move them with"
+        f" `git mv {relative}/* .serena/memories/`."
+    )
 
-    return find_repo_root(start)
+
+def _find_repo_root(start: Path | None = None) -> Path | None:
+    """Walk up from start to the checkout or memory-store root."""
+    return find_memory_root(start)
 
 
 def _generate_reflection(memories_dir: Path, repo_root: Path) -> str:
     """Score every memory and produce a health summary. Writes nothing.
 
     Args:
-        memories_dir: Path to .serena/memories/.
+        memories_dir: Path to a repository memory directory.
         repo_root: Repository root for verification.
 
     Returns:

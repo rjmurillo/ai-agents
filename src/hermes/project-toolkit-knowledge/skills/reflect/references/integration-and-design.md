@@ -1,7 +1,7 @@
 # Integration, Design Decisions, Extension Points (Detailed)
 
-SKILL.md points here for integration patterns (session protocol, memory skill,
-Serena), design-decision rationale, extension points, related skills, and the
+SKILL.md points here for session and project memory integration,
+design-decision rationale, extension points, related skills, and the
 commit convention for skill observation updates.
 
 ## Integration
@@ -14,13 +14,14 @@ Run reflection at session end as part of retrospective:
 ## Session End Checklist
 - [ ] Update the per-issue handoff
 - [ ] Run skill reflection (if skills were used)
-- [ ] Update Serena memory
+- [ ] Save approved observations in project memory
 - [ ] Commit changes
 ```
 
 ### With Memory Skill
 
-Skill memories integrate with the memory system:
+Use `memory` to find and save observations in the authorized project scope.
+The repository search example uses an existing Markdown sidecar.
 
 ```bash
 # Search skill sidecar learnings
@@ -30,9 +31,9 @@ Skill memories integrate with the memory system:
 Read .serena/memories/github/github-observations.md
 ```
 
-### With Serena
+### With Serena in an Existing Checkout
 
-If Serena MCP is available:
+When the selected project corpus uses Serena:
 
 > Serena writes to the checkout active at server start, not your current
 > directory. In a linked git worktree, or when you cannot tell, do not call
@@ -56,13 +57,9 @@ mcp__serena__write_memory(memory_file_name="github/github-observations", memory_
 - **ADR-007 Alignment**: Reuses the agent sidecar convention instead of inventing a parallel structure
 - **ADR-017 Compliance**: Keeps `{domain}-{description}` format while making "skill-sidecar" explicit
 - **Discovery**: Sidecars are now referenced in `memory-index.md`, preventing orphaned learnings
-- **Single Canonical Store**: Serena MCP and Git both write to the same file path, eliminating dual-governance ambiguity
+- **Single record**: Update the existing observations in the selected project store.
 
 **Migration**: Rename `{skill}-observations.md` (or legacy `skill-{name}.md`) to `{skill}-observations.md` and update index references.
-
-### Serena Sidecar Role
-
-- **Serena MCP** remains the canonical record. Every learning is persisted to the `{skill}-observations.md` file.
 
 ### Relationship to `curating-memories`
 

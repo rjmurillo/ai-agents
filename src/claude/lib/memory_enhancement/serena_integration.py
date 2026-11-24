@@ -144,25 +144,19 @@ def load_memory(
     memories_dir: Path | None = None,
     max_bytes: int | None = None,
 ) -> MemoryWithCitations | None:
-    """Load a single memory file and parse its content.
+    """Load one memory file: YAML frontmatter or a ``# Title (YYYY-MM-DD)`` header.
 
-    Supports two formats:
-    1. YAML frontmatter with title, tags, created_at, updated_at
-    2. Plain markdown with '# Title (YYYY-MM-DD)' header
-
-    Args:
-        file_path: Path to a .md memory file.
-        memories_dir: Root memories directory.  When provided the returned
-            ``memory_id`` is path-qualified (e.g. ``workflows/foo``) so it
-            matches the form ``verify --memory-id`` expects.  When absent the
-            bare stem is used (backward-compatible default).
-        max_bytes: Skip a file larger than this. None reads every file.
-
-    Returns:
-        Parsed MemoryWithCitations, or None if the file cannot be parsed.
+    ``memories_dir`` path-qualifies ``memory_id`` (``workflows/foo``, the form
+    ``verify --memory-id`` expects; the bare stem without it) and keeps a
+    symlinked file inside that store. ``max_bytes`` skips larger files.
+    Returns None when the file cannot be read or parsed.
     """
     if not file_path.is_file():
         return None
+    # A linked memory must resolve inside its own store, never elsewhere in the repo.
+    if memories_dir is not None and file_path.is_symlink():
+        if not file_path.resolve().is_relative_to(memories_dir.resolve()):
+            return None
 
     try:
         if max_bytes is not None and file_path.stat().st_size > max_bytes:

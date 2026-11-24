@@ -11,7 +11,7 @@
 [Constraints]
 |Every `.md` under `agents/` needs a non-empty `description:`; the loader regi... (see: .project-toolkit/context/claude/details/constraints.md)
 [Dangerous assumptions]
-|"`rules/`, `agents/`, `skills/<name>/SKILL.md`, `hooks/`, `settings.json`, `l... (see: .project-toolkit/context/claude/details/dangerous-assumptions.md)
+|For generated files, see the repo-local `ai-agents-generation-and-release` sk... (see: .project-toolkit/context/claude/details/dangerous-assumptions.md)
 [Dependencies]
 |`lib/` packages and `bootstrap.py` arrive by binplace from the repo build, on... (see: .project-toolkit/context/claude/details/dependencies.md)
 [Architecture]
