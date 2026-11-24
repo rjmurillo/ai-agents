@@ -10,12 +10,17 @@ Name rules (normalization, requirement parsing, table reads) live in
 
 from __future__ import annotations
 
+import importlib
 from pathlib import Path
 from typing import Any
 
 import tomllib
 from dependency_hygiene_policy import PolicyError
-from dependency_names import normalize, requirement_name, table
+
+try:
+    from scripts.validation import dependency_names as dep_names
+except ModuleNotFoundError:  # run as a script or loaded by path: the sibling is on sys.path
+    dep_names = importlib.import_module("dependency_names")
 
 _UV_PIN_KEYS = ("override-dependencies", "constraint-dependencies")
 
@@ -29,7 +34,7 @@ def _load_pyproject(pyproject: Path) -> dict[str, Any]:
 
 
 def _table(data: dict[str, Any], key: str, where: str) -> dict[str, Any]:
-    return table(data, key, where, PolicyError)
+    return dep_names.table(data, key, where, PolicyError)
 
 
 def _requirements(value: object, where: str) -> list[str]:
@@ -42,7 +47,7 @@ def _requirements(value: object, where: str) -> list[str]:
 def project_name(pyproject: Path) -> str | None:
     """Normalized ``[project].name``, or None when the manifest declares none."""
     name = _table(_load_pyproject(pyproject), "project", str(pyproject)).get("name")
-    return normalize(name) if isinstance(name, str) and name.strip() else None
+    return dep_names.normalize(name) if isinstance(name, str) and name.strip() else None
 
 
 def declared_packages(pyproject: Path, *, include_uv_pins: bool = False) -> set[str]:
@@ -65,5 +70,5 @@ def declared_packages(pyproject: Path, *, include_uv_pins: bool = False) -> set[
         uv = _table(_table(data, "tool", where), "uv", f"{where}: tool")
         for key in _UV_PIN_KEYS:
             requirements.extend(_requirements(uv.get(key, []), f"{where}: tool.uv.{key}"))
-    names = (requirement_name(requirement) for requirement in requirements)
+    names = (dep_names.requirement_name(requirement) for requirement in requirements)
     return {name for name in names if name}

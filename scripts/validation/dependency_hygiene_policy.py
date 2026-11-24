@@ -7,6 +7,7 @@ reports exit 2 instead of a traceback.
 
 from __future__ import annotations
 
+import importlib
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -15,9 +16,12 @@ from typing import Any
 import tomllib
 
 try:
-    from scripts.validation.dependency_names import normalize
+    from scripts.validation import dependency_names as dep_names
 except ModuleNotFoundError:  # run as a script or loaded by path: the sibling is on sys.path
-    from dependency_names import normalize
+    dep_names = importlib.import_module("dependency_names")
+
+# Re-exported for check_unused_dependencies.py, which imports it from here.
+normalize = dep_names.normalize
 
 
 class PolicyError(Exception):
@@ -108,7 +112,7 @@ def _module_map(entry: dict[str, Any], where: str) -> dict[str, tuple[str, ...]]
             raise PolicyError(
                 f"{where}.module_map: '{key}' must map to a module name or a list of names"
             )
-        mapping[normalize(key)] = tuple(names)
+        mapping[dep_names.normalize(key)] = tuple(names)
     return mapping
 
 
@@ -125,7 +129,7 @@ def _parse_manifest(entry: dict[str, Any], where: str) -> Manifest:
     transitive = tuple(
         TransitiveOk(
             module=require_str(t, "module", f"{where}.transitive_ok"),
-            via=normalize(require_str(t, "via", f"{where}.transitive_ok")),
+            via=dep_names.normalize(require_str(t, "via", f"{where}.transitive_ok")),
             only_under=require_str(t, "only_under", f"{where}.transitive_ok"),
             reason=require_str(t, "reason", f"{where}.transitive_ok"),
         )
