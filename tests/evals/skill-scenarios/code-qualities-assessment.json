@@ -1,0 +1,70 @@
+{
+  "skill_path": ".claude/skills/code-qualities-assessment/SKILL.md",
+  "skill_id": "code-qualities-assessment",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Score one source file on the five qualities",
+      "input": "Assess maintainability of src/services/auth.py. I want cohesion, coupling, encapsulation, testability and non-redundancy scored, with remediation guidance for the low ones. Tell me the exact command you would run. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "assess.py",
+        "--target",
+        "non-redundancy",
+        "markdown"
+      ],
+      "expected_gate": "run-quality-assessment",
+      "rationale": "SKILL.md Quick Start and Scripts table name scripts/assess.py --target <path> --format markdown and the five qualities. A generic answer would not name the script or its flags."
+    },
+    {
+      "id": "S2",
+      "desc": "CI gate on changed files that must not block on inherited debt",
+      "input": "I want a CI check that tells me whether my branch made code quality worse versus origin/main, without failing on old debt. How do I run the code qualities assessment for that, and what do the nonzero exit codes mean? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "--gate-mode regression",
+        "--changed-only",
+        "--base origin/main",
+        "10",
+        "11"
+      ],
+      "expected_gate": "use-regression-gate-mode",
+      "rationale": "Gate Modes and Exit Codes sections: regression mode needs --changed-only and --base, exit 10 means regressed, exit 11 means below thresholds. The Anti-Patterns table says not to block merges on absolute scores."
+    },
+    {
+      "id": "S3",
+      "desc": "Exit 10 after adding a few small functions",
+      "input": "assess.py exited 10 on my PR after I added three small helper functions and about 100 lines to one module. Cohesion dropped from 8.7 to about 7. Is that real decay, and how should I read it? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "growth",
+        "cohesion",
+        "regression-tolerance",
+        "0.5"
+      ],
+      "expected_gate": "interpret-regression-delta",
+      "rationale": "Gate Modes section explains cohesion is 10 - LOC/120 - 0.3 * (definitions - 1) at confidence 0.4, so growth costs about 1.7 points and the heuristic cannot tell growth from decay. Default --regression-tolerance is 0.5."
+    },
+    {
+      "id": "S4",
+      "desc": "Run risk-scoped pre-merge review on a docs-only branch (negative)",
+      "input": "Run a pre-merge review of my docs-only PR that edits README.md and docs/getting-started.md, checking spec compliance and documentation accuracy for a merge verdict. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "--gate-mode regression",
+        "regression-tolerance",
+        ".qualityrc.json"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The description says Do NOT use for a full pre-merge review (use review), and on a docs-only PR risk-scoped review skips code-qualities-assessment because no source files changed."
+    },
+    {
+      "id": "S5",
+      "desc": "Repo-wide domain grading (negative)",
+      "input": "Grade every domain in the repository A through F (agents, skills, scripts, tests, docs, workflows) and show me the trend since last quarter. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "--gate-mode regression",
+        "regression-tolerance",
+        ".qualityrc.json"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The description says Do NOT use for repo-wide domain grading (use quality-grades). This skill scores maintainability of specific code, not domains."
+    }
+  ]
+}

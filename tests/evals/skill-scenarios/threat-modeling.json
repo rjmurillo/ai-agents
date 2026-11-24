@@ -1,0 +1,69 @@
+{
+  "skill_path": ".claude/skills/threat-modeling/SKILL.md",
+  "skill_id": "threat-modeling",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Threat model for a new authentication service",
+      "input": "We are designing a new Authentication Service with a login API, a token store and a third-party identity provider. Run a threat model on it and tell me how you would structure the work and where the output goes. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "stride",
+        "four-question",
+        "trust boundar",
+        ".project-toolkit/security/threat-models"
+      ],
+      "expected_gate": "run-threat-model",
+      "rationale": "Triggers table lists threat model, and Process Overview defines the OWASP Four-Question Framework with STRIDE. Quick Reference names .project-toolkit/security/threat-models/ as the destination."
+    },
+    {
+      "id": "S2",
+      "desc": "Generate the threat matrix with the bundled script",
+      "input": "I need the STRIDE threat matrix scaffold for the Authentication Service scope written to a markdown file. Which script do you use, with what arguments, and what risk columns does the matrix track? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "generate_threat_matrix.py",
+        "--scope",
+        "--output",
+        "likelihood"
+      ],
+      "expected_gate": "use-threat-matrix-script",
+      "rationale": "Scripts table names generate_threat_matrix.py --scope \"Name\" --output path.md, Phase 2.2 builds the Threat Matrix with Likelihood, Impact, and Risk columns, and Phase 3.1 rates Risk = Likelihood x Impact."
+    },
+    {
+      "id": "S3",
+      "desc": "Validate a finished threat model for completeness",
+      "input": "My threat model at .project-toolkit/security/threat-models/auth-threats.md is drafted. How do I check it is complete, and what must be true for every Critical or High risk? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "validate_threat_model.py",
+        "mitigation",
+        "exit code 0",
+        "critical"
+      ],
+      "expected_gate": "validate-threat-model",
+      "rationale": "Phase 4 and Verification sections name validate_threat_model.py, require mitigations for all Critical/High risks, and state exit code 0 means a valid, complete model."
+    },
+    {
+      "id": "S4",
+      "desc": "Per-change diff risk review (negative)",
+      "input": "Here is my diff that adds a new endpoint reading a file path from the query string. Review this change for security risk before I merge it. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        ".project-toolkit/security/threat-models",
+        "generate_threat_matrix.py",
+        "validate_threat_model.py"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The description says Do NOT use for per-change diff or snippet risk review; use security-review instead. This request is a single diff, not an architecture-level threat model."
+    },
+    {
+      "id": "S5",
+      "desc": "Which changed files need security review (negative)",
+      "input": "I changed .github/workflows/deploy.yml and a Dockerfile. Did I touch security-critical files that need a security agent review? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        ".project-toolkit/security/threat-models",
+        "generate_threat_matrix.py",
+        "validate_threat_model.py"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "When to Use says to use security-detection instead for detecting security-critical file changes in a PR. That is a file-pattern check, not a threat model."
+    }
+  ]
+}
