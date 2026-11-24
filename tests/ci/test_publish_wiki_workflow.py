@@ -130,7 +130,7 @@ def _github_path_match(path: str, pattern: str) -> bool:
         elif pattern[i] == "*":
             regex += "[^/]*"
             i += 1
-        elif pattern[i] == "?":
+        elif pattern[i] == "?" and regex:
             regex += "?"  # GitHub: zero or one of the preceding character
             i += 1
         else:
@@ -265,6 +265,7 @@ def test_the_closure_follows_a_bare_package_import(tmp_path, monkeypatch) -> Non
         ("ac", "ab?c", True),
         ("abc", "ab?c", True),
         ("axc", "ab?c", False),
+        ("?x", "?x", True),
     ],
 )
 def test_path_matching_follows_github_glob_rules(path: str, pattern: str, expected: bool) -> None:
