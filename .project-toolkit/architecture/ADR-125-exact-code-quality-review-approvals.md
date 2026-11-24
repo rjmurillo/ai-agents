@@ -105,7 +105,7 @@ Scores, raw regression rows, and the report stay as before.
    A root the scanner's interpreter loads from site-packages is always third-party.
    A same-named folder cannot hide a dependency the scanner has installed.
    A dependency missing from the scanner's environment can be shadowed by a tracked package in the diff.
-4. Each admitted row appears under `change_admissions` in the comparison.
+4. Each admitted row's record is stored under `change_admissions` in the comparison.
 5. The review adapter reports an admitted row as WARN.
 6. A run with only admitted rows exits 0, so no owner comment applies.
 7. Other regressions still exit 10 and still need this ADR's approval path.

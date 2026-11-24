@@ -1292,7 +1292,7 @@ def _apply_change_admissions(
         texts = _comparison_texts(comparison, revision)
         if texts is None:
             continue
-        admissions: dict[str, dict[str, Any]] = {}
+        records: dict[str, dict[str, Any]] = {}
         for quality in wanted:
             record = (
                 _coupling_admission(*texts, comparison, import_roots or [])
@@ -1300,8 +1300,8 @@ def _apply_change_admissions(
                 else _non_redundancy_admission(*texts, comparison)
             )
             if record is not None:
-                admissions[quality] = record
-        comparison.change_admissions = admissions or None
+                records[quality] = record
+        comparison.change_admissions = records or None
 
 
 def _delta_for(quality: str, base: QualityScore, head: QualityScore) -> QualityDelta:

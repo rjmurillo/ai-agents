@@ -51,3 +51,10 @@ Of the three portability gates the seat searched, none parses import statements.
 That gap has no owner gate today; it is recorded for the user's decision, not fixed here.
 
 Consensus reached in round 2. The ADR status stays `accepted`; this debate covers only the amendment.
+
+## Post-consensus wording edit
+
+The doc-accuracy axis (rule R3) flagged Change item 4 against `assess.py`.
+Item 4 now reads "Each admitted row's record is stored under `change_admissions`".
+The local variable that fills the field is now `records`.
+The meaning is unchanged, so no new round was opened.
