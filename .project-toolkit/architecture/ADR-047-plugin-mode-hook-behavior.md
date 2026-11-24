@@ -1,7 +1,7 @@
 ---
 id: ADR-047
 status: accepted
-date: 2026-04-29
+date: 2026-11-24
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -45,7 +45,7 @@ All hooks and skills run in plugin mode. No hook uses `CLAUDE_PLUGIN_ROOT` as a 
 
 ### Path Resolution
 
-Hooks and skill scripts resolve library imports using a standard pattern:
+Hooks and skill scripts resolve library imports using a standard pattern. Skill scripts that import `hook_utilities.frontmatter_block` use the shape in the 2026-11-24 amendment instead.
 
 ```python
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
@@ -71,7 +71,7 @@ When a required directory (e.g., `.agents/`, `.project-toolkit/sessions/`) does 
 
 ### Standard Import Boilerplate
 
-Every hook or skill script that imports from `.claude/lib/` MUST use this pattern with path validation. The pattern checks `CLAUDE_PLUGIN_ROOT` first, then walks up from `__file__` looking for the `.claude-plugin/plugin.json` manifest marker:
+Every hook or skill script that imports from `.claude/lib/` MUST use this pattern with path validation, except the skill scripts the 2026-11-24 amendment covers. The pattern checks `CLAUDE_PLUGIN_ROOT` first, then walks up from `__file__` looking for the `.claude-plugin/plugin.json` manifest marker:
 
 ```python
 # Bootstrap: find lib directory via env var or manifest walk-up.
@@ -267,11 +267,40 @@ When creating a new hook or skill script:
 
 **Migration**: The 23 production hooks were migrated to the manifest-walk-up form by `scripts/migrations/req003_inline_plugin_root_bootstrap.py` as part of REQ-003. Re-running the migration is idempotent.
 
+### 2026-11-24: Skill scripts that load the shared parser prefer their own lib
+
+**Change**: Skill scripts that import `hook_utilities.frontmatter_block` use a new bootstrap shape. They read `Path(__file__).resolve().parents[3] / "lib"` first. They switch to the environment root's `lib` only when their own lib lacks `hook_utilities/frontmatter_block.py`. The environment root is `$COPILOT_PLUGIN_ROOT` when set, else `$CLAUDE_PLUGIN_ROOT`; the Standard Import Boilerplate reads only `CLAUDE_PLUGIN_ROOT`. PR #7531 added this shape to 18 authored scripts under `src/claude/skills/` and `.claude/skills/` (counted 2026-11-24). The build mirrors it into every plugin tree that ships those skills. PR #7531 changed no hook, so hooks keep the Standard Import Boilerplate above.
+
+**Why**:
+
+- **A foreign root must not shadow the parser.** With the environment root first, a root naming another plugin, or an older copy of this one, wins whenever its lib holds a file of that name. Review of PR #7531 found an older parser without `fence_end` could load that way. The security, architect, and agent-safety axes each flagged it.
+- **The depth is fixed for skill scripts.** Every one sits at `<plugin>/skills/<name>/scripts/`, so `parents[3]` is the plugin root. The codex, cursor, muse, and hermes trees carry no `.claude-plugin/plugin.json`, so the manifest walk-up would find no marker there.
+- **The probe names the module the script imports.** ADR-121's locator tells a foreign root apart by `lib/ptk_run.py`. This bootstrap checks for the file it is about to import, so the check matches the need.
+- **Rejected: keep the environment root first and check its parser version.** A version check needs a version contract the parser does not have, and it still trusts a root that only looks current. Preferring the script's own lib needs no contract.
+
+**Behavioral compatibility**:
+
+| Scenario | Standard boilerplate | This shape |
+|----------|----------------------|------------|
+| Script inside its plugin, no environment root | manifest walk-up | own lib |
+| Script inside its plugin, environment root names this plugin | environment root | own lib, the same files |
+| Environment root names another or older plugin | that root's lib | own lib |
+| Script copied outside its plugin, environment root set | environment root | environment root, after the own-lib probe fails |
+| Script copied outside its plugin, no environment root | manifest walk-up, else exit 2 | `ImportError` or `RuntimeError` |
+| Neither lib holds the parser | `ImportError`; exit 2 only when the lib directory is missing | `ImportError`; `RuntimeError` when the lib directory is missing |
+
+**Test impact**: `tests/test_frontmatter_bootstrap_foreign_root.py` runs every copy. It covers a stale root, a root that lacks the parser, and the fallback for a copied script. It also imports each copy under Python 3.10 when a 3.10 interpreter is available, and skips that case otherwise. `tests/test_plugin_path_resolution.py` still passes (83 passed with the bootstrap test on 2026-11-24), because each script still names `CLAUDE_PLUGIN_ROOT`. The bootstrap test finds copies by their parser import and the `parents[3]` line, so a copy written in another shape is not checked.
+
+**Trade-off**: A new skill script that imports the shared parser copies this shape; a hook keeps the boilerplate. This shape fails with exit 1 (`RuntimeError` or `ImportError`) where the boilerplate exits 2, the ADR-035 config-error code. The shape assumes a script sits four levels below its plugin root; a shallower copy raises `IndexError`.
+
+**Out of scope**: Other skill scripts predate this amendment and carry their own bootstraps. 15 read a plugin-root variable and fall back to `parents[3]` without the parser probe (counted 2026-11-24). A wider set puts an environment-root `lib` on `sys.path` in other ways. Most read the environment root first, so a foreign root can still shadow their imports. ADR-121's command locator is a separate shape for commands, not imports. This amendment does not change either.
+
 ## Related Decisions
 
 - ADR-045: Framework Extraction via Plugin Marketplace (established `CLAUDE_PLUGIN_ROOT` usage)
 - ADR-042: Python-First Enforcement (all new scripts in Python)
 - ADR-035: Exit Code Standardization
+- ADR-121: One resolver for plugin-root commands (the `lib/ptk_run.py` locator)
 
 ## References
 
