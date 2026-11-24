@@ -18,6 +18,7 @@ _LABELS = importlib.import_module("scripts.eval.actionability_labels")
 _OWNER = "actionability_labels.py"
 _CONSUMERS = [
     "actionability_corpus.py",
+    "actionability_sheet.py",
     "actionability_score.py",
     "actionability_arms.py",
     "actionability_predict.py",
@@ -70,10 +71,10 @@ class TestSingleSource:
 
     def test_exported_constants_are_the_owner_objects(self) -> None:
         """Hygiene 6a: the names consumers use resolve to the owner module."""
-        corpus = importlib.import_module("scripts.eval.actionability_corpus")
+        sheet = importlib.import_module("scripts.eval.actionability_sheet")
         score = importlib.import_module("scripts.eval.actionability_score")
 
-        assert corpus.VALID_LABELS is _LABELS.VALID_LABELS
+        assert sheet.VALID_LABELS is _LABELS.VALID_LABELS
         assert score.LABEL_TRUTH is _LABELS.LABEL_TRUTH
         assert score.STATUSES is _LABELS.STATUSES
 
@@ -81,6 +82,7 @@ class TestSingleSource:
 _PROVENANCE = {"provider", "model", "prompt_sha256"}
 _ALL_MODULES = [
     "actionability_corpus.py",
+    "actionability_sheet.py",
     "actionability_score.py",
     "actionability_arms.py",
     "actionability_predict.py",

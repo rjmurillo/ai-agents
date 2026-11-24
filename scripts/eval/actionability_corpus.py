@@ -60,17 +60,16 @@ from scripts.eval.actionability_labels import (  # noqa: E402
     DEFAULT_SEED,
     HUNK_FETCHED,
     HUNK_NO_HUNK,
-    LABEL_UNSURE,
     SPLIT_DEV,
     SPLIT_HELDOUT,
     SPLIT_OUTSIDE,
-    VALID_LABELS,
 )
 from scripts.eval.actionability_scan import (  # noqa: E402
     add_allow_hex_argument,
     report_scan,
     scan_secrets,
 )
+from scripts.eval.actionability_sheet import register_sheet_parsers  # noqa: E402
 from scripts.eval.actionability_validate import (  # noqa: E402
     HUNK_ROW_CHECKS,
     RecordError,
@@ -86,14 +85,8 @@ from scripts.update_reviewer_signal_stats import (  # noqa: E402
 logger = logging.getLogger(__name__)
 
 
-MAX_NAMED_ROWS = 10
-
 # fetch-hunks saves its progress after this many newly resolved rows.
 CHECKPOINT_EVERY = 25
-
-# The only keys a labeler may see (rubric: body, path, hunk). Premortem R3: the sheet is
-# built from this list, never by copying a corpus row, so a new corpus field cannot leak.
-SHEET_FIELDS = ("id", "path", "diff_hunk", "body")
 
 # The id travels as a variable, never in the query text (ADR-015).
 _HUNK_QUERY = "query($id: ID!) { node(id: $id) { ... on PullRequestReviewComment { diffHunk } } }"
@@ -251,6 +244,14 @@ def cmd_sample(args: argparse.Namespace) -> int:
     _warn_shortfall(SPLIT_OUTSIDE, len(outside_pool), args.outside_count)
     band = stratified_sample(band_pool, args.band_count, rng)
     outside = stratified_sample(outside_pool, args.outside_count, rng)
+    if band and args.dev_count >= len(band):
+        print(
+            f"error: --dev-count {args.dev_count} would take all {len(band)} band rows and "
+            f"leave no heldout rows to score (band pool {len(band_pool)}, "
+            f"--band-count {args.band_count})",
+            file=sys.stderr,
+        )
+        return 2
     assign_splits(band, outside, args.dev_count, rng)
     corpus = band + outside
     head = head_sha()
@@ -368,86 +369,6 @@ def cmd_fetch_hunks(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_sheet(args: argparse.Namespace) -> int:
-    """Write the blinded labeling sheet: allowlisted fields, seeded shuffle, blank labels."""
-    rows = load_jsonl(args.corpus)
-    if rows is None:
-        return 2
-    sheet = [{**{key: row.get(key) for key in SHEET_FIELDS}, "label": None} for row in rows]
-    random.Random(args.seed).shuffle(sheet)
-    write_jsonl(args.output, sheet)
-    print(f"wrote {len(sheet)} rows with fields {', '.join([*SHEET_FIELDS, 'label'])}")
-    return 0
-
-
-def _read_sheet_labels(sheet: list[dict[str, Any]]) -> tuple[dict[str, Any], list[str]]:
-    """Return the label per sheet id, plus the problems found while reading the sheet."""
-    labels: dict[str, Any] = {}
-    invalid: list[str] = []
-    no_id = duplicates = 0
-    for row in sheet:
-        row_id = row.get("id")
-        if not isinstance(row_id, str) or not row_id:
-            no_id += 1
-        elif row_id in labels:
-            duplicates += 1
-        else:
-            label = row.get("label")
-            labels[row_id] = label
-            if label is not None and not (isinstance(label, str) and label in VALID_LABELS):
-                invalid.append(row_id)
-    problems = []
-    if no_id:
-        problems.append(f"{no_id} sheet rows without an id")
-    if duplicates:
-        problems.append(f"{duplicates} duplicate sheet ids")
-    if invalid:
-        named = ", ".join(invalid[:MAX_NAMED_ROWS])
-        more = f" and {len(invalid) - MAX_NAMED_ROWS} more" if len(invalid) > MAX_NAMED_ROWS else ""
-        problems.append(
-            f"invalid label on rows {named}{more}; use {', '.join(VALID_LABELS)} or null"
-        )
-    return labels, problems
-
-
-def _join_problems(corpus: list[dict[str, Any]], labels: dict[str, Any]) -> list[str]:
-    corpus_ids = [row.get("id") for row in corpus]
-    problems = []
-    if not all(isinstance(i, str) and i for i in corpus_ids):
-        problems.append("corpus rows without an id")
-    if len(set(corpus_ids)) != len(corpus_ids):
-        problems.append("duplicate corpus ids")
-    known = set(corpus_ids)
-    unknown = sum(1 for i in labels if i not in known)
-    if unknown:
-        problems.append(f"{unknown} sheet ids not in the corpus")
-    missing = sum(1 for i in corpus_ids if i not in labels)
-    if missing:
-        problems.append(f"{missing} corpus ids missing from the sheet")
-    return problems
-
-
-def cmd_merge_labels(args: argparse.Namespace) -> int:
-    """Copy ``label`` from the sheet into the corpus by id. Take no other sheet field."""
-    corpus = load_jsonl(args.corpus)
-    sheet = load_jsonl(args.sheet)
-    if corpus is None or sheet is None:
-        return 2
-    labels, problems = _read_sheet_labels(sheet)
-    problems += _join_problems(corpus, labels)
-    if problems:
-        for problem in problems:
-            print(f"merge-labels: {problem}", file=sys.stderr)
-        return 2
-    merged = [{**row, "label": labels[row["id"]]} for row in corpus]
-    write_jsonl(args.output, merged)
-    kept = [row["label"] for row in merged]
-    unsure = kept.count(LABEL_UNSURE)
-    unlabeled = kept.count(None)
-    print(f"merged {len(kept) - unsure - unlabeled} labels, unlabeled {unlabeled}, unsure {unsure}")
-    return 0
-
-
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
@@ -468,17 +389,7 @@ def _build_parser() -> argparse.ArgumentParser:
     add_allow_hex_argument(hunks)
     hunks.set_defaults(handler=cmd_fetch_hunks)
 
-    sheet = sub.add_parser("sheet", help="Write the blinded labeling sheet")
-    sheet.add_argument("--corpus", type=Path, required=True, help="Corpus JSONL")
-    sheet.add_argument("--output", type=Path, required=True, help="Sheet JSONL to write")
-    sheet.add_argument("--seed", type=int, default=DEFAULT_SEED)
-    sheet.set_defaults(handler=cmd_sheet)
-
-    merge = sub.add_parser("merge-labels", help="Copy labels from the sheet into the corpus")
-    merge.add_argument("--corpus", type=Path, required=True, help="Corpus JSONL")
-    merge.add_argument("--sheet", type=Path, required=True, help="Labeled sheet JSONL")
-    merge.add_argument("--output", type=Path, required=True, help="Labeled corpus JSONL to write")
-    merge.set_defaults(handler=cmd_merge_labels)
+    register_sheet_parsers(sub)
     return parser
 
 

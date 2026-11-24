@@ -248,11 +248,14 @@ def _prediction_counts(
     return counts
 
 
-def _latency_section(predictions: list[dict[str, Any]]) -> dict[str, Any]:
+def _latency_section(predictions: list[dict[str, Any]], scored_ids: set[str]) -> dict[str, Any]:
+    """p50 and p95 of ok calls made for the scored heldout band rows only."""
     ok = [
         record["latency_s"]
         for record in predictions
-        if record["status"] == STATUS_OK and record.get("latency_s") is not None
+        if record["id"] in scored_ids
+        and record["status"] == STATUS_OK
+        and record.get("latency_s") is not None
     ]
     return {"p50": nearest_rank(ok, 50), "p95": nearest_rank(ok, 95), "n_ok": len(ok)}
 
@@ -316,5 +319,5 @@ def build_report(
         "non_dev": _subset_report(non_dev, by_id, arms),
         **_gap_section(band, by_id, arms, seed, iterations),
         "predictions": _prediction_counts(band, by_id),
-        "latency_s": _latency_section(predictions),
+        "latency_s": _latency_section(predictions, {row["id"] for row, _ in band}),
     }

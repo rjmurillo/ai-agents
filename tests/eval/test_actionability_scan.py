@@ -269,7 +269,7 @@ class TestSampleCliAllowance:
             "--outside-count",
             "0",
             "--dev-count",
-            "1",
+            "0",
             *extra,
         ]
 

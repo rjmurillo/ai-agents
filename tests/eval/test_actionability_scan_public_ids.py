@@ -176,7 +176,7 @@ class TestSummaryAndCli:
         prs = write_prs(tmp_path / "prs.json", [make_pr(1, make_thread(node))])
         out = tmp_path / "corpus.jsonl"
         argv = ["sample", "--prs", str(prs), "--output", str(out)]
-        argv += ["--band-count", "2", "--outside-count", "0", "--dev-count", "1"]
+        argv += ["--band-count", "2", "--outside-count", "0", "--dev-count", "0"]
 
         code = cc.main(argv)
 

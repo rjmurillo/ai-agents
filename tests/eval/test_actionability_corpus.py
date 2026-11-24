@@ -199,7 +199,7 @@ class TestSecretScan:
         prs = write_prs(tmp_path / "prs.json", self._prs_with_body(f"use {token} here"))
         out = tmp_path / "corpus.jsonl"
 
-        code = cc.main(sample_args(prs, out))
+        code = cc.main(sample_args(prs, out, **{"dev-count": 0}))
 
         err = capsys.readouterr().err
         assert code == 1
@@ -216,7 +216,7 @@ class TestSecretScan:
         prs = write_prs(tmp_path / "prs.json", [make_pr(1, make_thread(opener, reply))])
         out = tmp_path / "corpus.jsonl"
 
-        assert cc.main(sample_args(prs, out, **{"outside-count": 0})) == 1
+        assert cc.main(sample_args(prs, out, **{"outside-count": 0, "dev-count": 0})) == 1
         assert not out.exists()
 
     def test_commit_sha_passes_and_is_reported_for_review(
@@ -227,7 +227,7 @@ class TestSecretScan:
         prs = write_prs(tmp_path / "prs.json", self._prs_with_body(body))
         out = tmp_path / "corpus.jsonl"
 
-        code = cc.main(sample_args(prs, out))
+        code = cc.main(sample_args(prs, out, **{"dev-count": 0}))
 
         err = capsys.readouterr().err
         assert code == 0
