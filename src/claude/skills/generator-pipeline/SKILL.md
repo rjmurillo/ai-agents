@@ -36,7 +36,7 @@ Use this skill when the user says:
 
 ## Process
 
-1. Find the source. The folded generated-artifacts rule linked below maps each output to its source.
+1. Find the source. The folded generated-artifacts rule maps each output to its source.
 2. Edit the template. The `templates` path rule covers template grammar and escaping.
 3. Run `build_all.py`.
 4. Run it again. Confirm `git status --porcelain` shows no new changes.
