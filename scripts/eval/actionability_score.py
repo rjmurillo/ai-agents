@@ -12,16 +12,20 @@ Verdict rule (owner decision D1; spec, Eval method and kill criterion 2):
 * inconclusive: everything else, including a gap under 0.10 whose interval still
   reaches 0.10, and a gap of 0.10 or more whose interval reaches 0.
 
-The one-time extension is look 2. It widens the interval from 95 to 97.5 percent
-(1.25th to 98.75th percentile, Bonferroni over two looks). An inconclusive result at look 2
-is final and does not fire kill criterion 2.
+Both looks use one 97.5 percent interval (1.25th to 98.75th percentile of the bootstrap). The
+error budget alpha 0.05 is split over the two possible looks up front, so look 1 pays for the
+one-time extension in advance. ``--look`` only decides ``final`` and ``kill_criterion_2``:
+an inconclusive result at look 2 is final and does not fire kill criterion 2.
+
+The bootstrap resamples whole PRs (``pr_number`` clusters), never single rows. Comments in
+one PR are correlated, so a row-level bootstrap gives an interval that is too narrow.
 """
 
 from __future__ import annotations
 
 import math
 import random
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Hashable, Mapping, Sequence
 from typing import Any
 
 from scripts.eval.actionability_labels import (
@@ -50,11 +54,14 @@ ASSUMED_DISCORDANCE = (0.1, 0.2, 0.3)
 # Two-sided alpha 0.05 and 80 percent power: z(0.975) + z(0.80).
 Z_ALPHA_PLUS_Z_BETA = 1.96 + 0.8416
 
-# Bootstrap percentile cuts per look. Look 2 splits alpha 0.05 over two looks, so each look
-# gets 0.025 two-sided: the 1.25th to 98.75th percentile, a 97.5 percent interval.
+# Both looks use the same interval. Alpha 0.05 is split over the two looks, 0.025 each, so each
+# look is a two-sided 97.5 percent interval: the 1.25th to 98.75th percentile. Look 1 uses it
+# too, so the total error stays at 0.05 whether or not the extension is taken.
 LOOKS = (1, 2)
-CI_PERCENTILES = {1: (2.5, 97.5), 2: (1.25, 98.75)}
-CI_LEVELS = {1: 0.95, 2: 0.975}
+CI_PERCENTILES = (1.25, 98.75)
+CI_LEVEL = 0.975
+BOOTSTRAP_UNIT = "pr"
+MIN_CLUSTERS = 2
 
 BASELINES = ("A", "B")
 
@@ -98,7 +105,9 @@ def nearest_rank(values: Sequence[float], percentile: float) -> float | None:
 def min_detectable_gap(n: int, discordance: float) -> float | None:
     """Smallest accuracy gap a paired test of ``n`` rows detects at 80 percent power.
 
-    ``discordance`` is the share of rows where the two arms differ in correctness.
+    This is approximate (normal approximation): it treats rows as independent, which the
+    PR-clustered bootstrap does not. ``discordance`` is the share of rows where the two arms
+    differ in correctness.
     """
     if n <= 0:
         return None
@@ -112,35 +121,68 @@ def gap_from_counts(correct_c: int, correct_best: int, n: int) -> float:
     return (correct_c - correct_best) / n
 
 
-def ci_percentiles(look: int) -> tuple[float, float]:
-    """Return the (low, high) percentile cuts for ``look``. Raises ValueError otherwise."""
-    if look not in CI_PERCENTILES:
-        raise ValueError(f"look must be one of {LOOKS}, got {look!r}")
-    return CI_PERCENTILES[look]
+def _cluster_totals(
+    diffs: Sequence[int], clusters: Sequence[Hashable] | None
+) -> tuple[list[int], list[int]]:
+    """Return (sum of diffs, row count) per cluster, in order of first appearance.
+
+    Without ``clusters`` every row is its own cluster, which is the row-level bootstrap.
+    """
+    if clusters is None:
+        return list(diffs), [1] * len(diffs)
+    if len(clusters) != len(diffs):
+        raise ValueError(f"length mismatch: {len(diffs)} diffs, {len(clusters)} clusters")
+    position: dict[Hashable, int] = {}
+    sums: list[int] = []
+    sizes: list[int] = []
+    for diff, cluster in zip(diffs, clusters, strict=True):
+        if cluster not in position:
+            position[cluster] = len(sums)
+            sums.append(0)
+            sizes.append(0)
+        sums[position[cluster]] += diff
+        sizes[position[cluster]] += 1
+    return sums, sizes
+
+
+def bootstrap_gaps(
+    diffs: Sequence[int],
+    seed: int,
+    iterations: int,
+    clusters: Sequence[Hashable] | None = None,
+) -> list[float]:
+    """Sorted bootstrap gaps. Each draw takes whole clusters with replacement.
+
+    The gap of a draw is the sum of the diffs of every row in the drawn clusters over the
+    number of those rows, so a cluster counts once per time it is drawn, whatever its size.
+    """
+    sums, sizes = _cluster_totals(diffs, clusters)
+    count = len(sums)
+    rng = random.Random(seed)
+    gaps = []
+    for _ in range(iterations):
+        drawn = rng.choices(range(count), k=count)
+        gaps.append(sum(sums[i] for i in drawn) / sum(sizes[i] for i in drawn))
+    return sorted(gaps)
 
 
 def paired_bootstrap_ci(
-    diffs: Sequence[int], seed: int, iterations: int, look: int = 1
+    diffs: Sequence[int],
+    seed: int,
+    iterations: int,
+    clusters: Sequence[Hashable] | None = None,
 ) -> tuple[float, float] | None:
-    """CI on the mean of per-row C-minus-best correctness differences.
+    """97.5 percent CI on the gap, from a bootstrap that resamples clusters of rows.
 
-    The best baseline is chosen once, from the point estimate, before this runs.
-    Each iteration resamples rows with replacement and recomputes the mean. The
-    bounds are nearest-rank percentiles of those means: 2.5th and 97.5th at look 1,
-    1.25th and 98.75th at look 2. The same seed gives the same means at both looks, so
-    the look-2 interval always contains the look-1 interval.
+    ``diffs`` is the per-row C-minus-best correctness difference. The best baseline is chosen
+    once, from the point estimate, before this runs. The bounds are the nearest-rank 1.25th
+    and 98.75th percentiles of the bootstrap gaps. ``None`` for no rows.
     """
-    return _bootstrap_bounds(diffs, seed, iterations, look) if diffs else None
-
-
-def _bootstrap_bounds(
-    diffs: Sequence[int], seed: int, iterations: int, look: int = 1
-) -> tuple[float, float]:
-    low_pct, high_pct = ci_percentiles(look)
-    n = len(diffs)
-    rng = random.Random(seed)
-    means = sorted(sum(rng.choices(diffs, k=n)) / n for _ in range(iterations))
-    return _rank_value(means, low_pct), _rank_value(means, high_pct)
+    if not diffs:
+        return None
+    gaps = bootstrap_gaps(diffs, seed, iterations, clusters)
+    low_pct, high_pct = CI_PERCENTILES
+    return _rank_value(gaps, low_pct), _rank_value(gaps, high_pct)
 
 
 def verdict(gap: float, ci_low: float, ci_high: float) -> str:
@@ -248,6 +290,12 @@ def _correct_counts(
     }
 
 
+def _rank_pair(gaps: Sequence[float]) -> tuple[float, float]:
+    """The CI bounds of already-sorted bootstrap gaps."""
+    low_pct, high_pct = CI_PERCENTILES
+    return _rank_value(gaps, low_pct), _rank_value(gaps, high_pct)
+
+
 def _gap_section(
     items: list[tuple[dict[str, Any], bool]],
     by_id: Mapping[str, dict[str, Any]],
@@ -256,6 +304,11 @@ def _gap_section(
     iterations: int,
     look: int,
 ) -> dict[str, Any]:
+    """The gap of arm C over the better baseline, its interval, and the verdict.
+
+    The better baseline is arm A or arm B by held-out band accuracy, and A wins ties. It is
+    chosen once from the point estimate. The interval comes from a PR-clustered bootstrap.
+    """
     n = len(items)
     truth = [t for _, t in items]
     correct = _correct_counts(_subset_arm_outputs(items, by_id, arms), truth)
@@ -263,21 +316,35 @@ def _gap_section(
     best = "B" if totals["B"] > totals["A"] else "A"
     gap = gap_from_counts(totals["C"], totals[best], n)
     diffs = [c - b for c, b in zip(correct["C"], correct[best], strict=True)]
-    interval = _bootstrap_bounds(diffs, seed, iterations, look)
+    clusters = [row["pr_number"] for row, _ in items]
+    n_clusters = len(set(clusters))
+    if n_clusters < MIN_CLUSTERS:
+        raise ScoreInputError(
+            f"need heldout band rows from at least {MIN_CLUSTERS} PRs for a PR-clustered "
+            f"bootstrap, got {n_clusters}"
+        )
+    interval = _rank_pair(bootstrap_gaps(diffs, seed, iterations, clusters))
     discordance = sum(1 for d in diffs if d) / n
     result = verdict(gap, interval[0], interval[1])
     return {
         "best_baseline": best,
         "gap": gap,
         "gap_ci": list(interval),
-        "gap_ci_level": CI_LEVELS[look],
+        "gap_ci_level": CI_LEVEL,
+        "bootstrap_unit": BOOTSTRAP_UNIT,
+        "n_clusters": n_clusters,
         "look": look,
         "verdict": result,
         "final": is_final(result, look),
         "kill_criterion_2": kill_criterion_2(result, look),
         "minimum_detectable_gap": {
             "assumed": {str(d): min_detectable_gap(n, d) for d in ASSUMED_DISCORDANCE},
-            "observed": {"discordance": discordance, "gap": min_detectable_gap(n, discordance)},
+            # Post-hoc: computed from the discordance seen in this very run. It describes the
+            # data and never feeds the verdict, which reads only gap, ci_low, and ci_high.
+            "observed_descriptive": {
+                "discordance": discordance,
+                "gap": min_detectable_gap(n, discordance),
+            },
         },
     }
 
@@ -365,7 +432,11 @@ def build_report(
         "bootstrap_iterations": iterations,
         **provenance,
         **corpus_provenance,
-        "labels": {"unsure_dropped": unsure, "scored": len(labeled)},
+        "labels": {
+            "unsure_dropped": unsure,
+            "unsure_share": unsure / len(rows),
+            "scored": len(labeled),
+        },
         "heldout_band": _subset_report(band, by_id, arms),
         "non_dev": _subset_report(non_dev, by_id, arms),
         **_gap_section(band, by_id, arms, seed, iterations, look),

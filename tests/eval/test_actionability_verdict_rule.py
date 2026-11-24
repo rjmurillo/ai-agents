@@ -97,34 +97,30 @@ class TestKillCriterionTwo:
         assert sc.is_final(verdict, look) is final
 
 
-class TestLookIntervals:
+class TestBothLooksShareTheInterval:
+    """Review round 2, A1: the error budget is split, so both looks pay 97.5 percent."""
+
     _DIFFS = [1] * 14 + [0] * 38 + [-1] * 8
 
-    def test_percentiles_per_look(self) -> None:
-        """Look 1 is 2.5 to 97.5. Look 2 is 1.25 to 98.75, a 97.5 percent interval."""
-        assert sc.ci_percentiles(1) == (2.5, 97.5)
-        assert sc.ci_percentiles(2) == (1.25, 98.75)
+    def test_the_interval_is_the_975_percent_one(self) -> None:
+        """1.25th to 98.75th percentile, whatever the look."""
+        assert sc.CI_PERCENTILES == (1.25, 98.75)
+        assert sc.CI_LEVEL == 0.975
 
-    @pytest.mark.parametrize("look", [0, 3, -1])
-    def test_other_looks_are_rejected(self, look: int) -> None:
-        """Only looks 1 and 2 exist."""
-        with pytest.raises(ValueError, match="look"):
-            sc.ci_percentiles(look)
+    def test_paired_bootstrap_ci_takes_no_look(self) -> None:
+        """The look gates `final` and `kill_criterion_2`, not the interval."""
+        with pytest.raises(TypeError):
+            sc.paired_bootstrap_ci(self._DIFFS, seed=7, iterations=100, look=2)
 
-    def test_the_look_two_interval_is_wider_on_the_same_seed(self) -> None:
-        """Same resampled means, wider percentile cut, so it contains the look-1 interval."""
-        low1, high1 = sc.paired_bootstrap_ci(self._DIFFS, seed=7, iterations=4000, look=1)
-        low2, high2 = sc.paired_bootstrap_ci(self._DIFFS, seed=7, iterations=4000, look=2)
+    def test_the_interval_is_wider_than_the_old_95_percent_cut(self) -> None:
+        """Look 1 used to cut at 2.5 and 97.5. The new cut contains it."""
+        gaps = sc.bootstrap_gaps(self._DIFFS, seed=7, iterations=4000)
+        old = (sc._rank_value(gaps, 2.5), sc._rank_value(gaps, 97.5))
+        low, high = sc.paired_bootstrap_ci(self._DIFFS, seed=7, iterations=4000)
 
-        assert low2 <= low1
-        assert high2 >= high1
-        assert (low2, high2) != (low1, high1)
-
-    def test_look_defaults_to_one(self) -> None:
-        """Existing callers keep the 95 percent interval."""
-        default = sc.paired_bootstrap_ci(self._DIFFS, seed=7, iterations=500)
-
-        assert default == sc.paired_bootstrap_ci(self._DIFFS, seed=7, iterations=500, look=1)
+        assert low <= old[0]
+        assert high >= old[1]
+        assert (low, high) != old
 
 
 def _scenario(n: int, wins: int, losses: int) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -189,18 +185,17 @@ class TestReportFields:
         assert report["final"] is True
         assert report["kill_criterion_2"] == "not_fired"
 
-    def test_the_look_two_interval_contains_the_look_one_interval(self) -> None:
-        """Same seed and data: widening only moves the bounds outward."""
-        one = _report(60, 9, 3, look=1)["gap_ci"]
-        two = _report(60, 9, 3, look=2)["gap_ci"]
+    def test_both_looks_report_the_same_interval(self) -> None:
+        """Same seed and data: the look changes the label, not the bounds."""
+        one = _report(60, 9, 3, look=1)
+        two = _report(60, 9, 3, look=2)
 
-        assert two[0] <= one[0]
-        assert two[1] >= one[1]
-        assert two != one
+        assert one["gap_ci"] == two["gap_ci"]
+        assert one["gap"] == two["gap"]
 
-    def test_the_report_states_the_interval_level(self) -> None:
-        """95 percent at look 1, 97.5 percent at look 2."""
-        assert _report(10, 3, 1, look=1)["gap_ci_level"] == 0.95
+    def test_the_report_states_the_interval_level_for_both_looks(self) -> None:
+        """97.5 percent at look 1 and at look 2."""
+        assert _report(10, 3, 1, look=1)["gap_ci_level"] == 0.975
         assert _report(10, 3, 1, look=2)["gap_ci_level"] == 0.975
 
     def test_an_invalid_look_is_a_score_input_error(self) -> None:

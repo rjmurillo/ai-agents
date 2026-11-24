@@ -6,6 +6,7 @@ import importlib.util
 import json
 import re
 import sys
+import zlib
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -39,10 +40,14 @@ def make_row(
     label: str | None = None,
     **overrides: Any,
 ) -> dict[str, Any]:
-    """A corpus row as `actionability_corpus.py sample` writes it."""
+    """A corpus row as `actionability_corpus.py sample` writes it.
+
+    Each id gets its own `pr_number`, so the PR-clustered bootstrap treats rows as
+    independent unless a test sets `pr_number` to group them.
+    """
     row: dict[str, Any] = {
         "id": row_id,
-        "pr_number": 1,
+        "pr_number": zlib.crc32(row_id.encode("utf-8")) % 1_000_000 + 1,
         "reviewer": "alice",
         "thread_position": 0,
         "path": "src/a.py",

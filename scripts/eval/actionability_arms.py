@@ -208,16 +208,19 @@ def cmd_score(args: argparse.Namespace) -> int:
     atomic_write_text(args.output, json.dumps(report, indent=2) + "\n")
     low, high = report["gap_ci"]
     counts = report["predictions"]
+    labels = report["labels"]
     band_n = report["heldout_band"]["n"]
     print(
         f"verdict {report['verdict']}: gap {report['gap']:.4f} "
-        f"(95% CI {low:.4f} to {high:.4f}) over {band_n} heldout band rows, "
+        f"({report['gap_ci_level'] * 100:g}% CI {low:.4f} to {high:.4f}) over {band_n} heldout "
+        f"band rows in {report['n_clusters']} PRs, "
         f"best baseline {report['best_baseline']}; "
         f"look {report['look']}{' (final)' if report['final'] else ''}, "
         f"kill criterion 2 {report['kill_criterion_2']}; "
         f"predictions ok {counts[STATUS_OK]}, parse_error {counts[STATUS_PARSE_ERROR]}, "
         f"call_error {counts[STATUS_CALL_ERROR]}{_auth_part(counts)}, "
-        f"missing {counts['missing']} of {band_n}"
+        f"missing {counts['missing']} of {band_n}; "
+        f"unsure {labels['unsure_dropped']} ({labels['unsure_share']:.1%})"
     )
     _warn_non_ok(counts, band_n)
     return 0
@@ -239,7 +242,10 @@ def _build_parser() -> argparse.ArgumentParser:
         "--look",
         type=int,
         default=1,
-        help="1 (95 percent interval) or 2, the one-time extension (97.5 percent interval)",
+        help=(
+            "1, or 2 for the one-time extension. The interval is 97.5 percent at both looks; "
+            "the look only decides final and kill_criterion_2"
+        ),
     )
     score.set_defaults(handler=cmd_score)
     return parser

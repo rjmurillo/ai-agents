@@ -56,6 +56,11 @@ def is_number_or_none(value: object) -> bool:
     return value is None or finite_number(value)
 
 
+def is_int(value: object) -> bool:
+    """True for a real int. A bool is not one here."""
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
 def is_int_or_none(value: object) -> bool:
     return value is None or (isinstance(value, int) and not isinstance(value, bool))
 
@@ -68,6 +73,7 @@ SCORE_CORPUS_CHECKS = (
     ("in_band", lambda v: isinstance(v, bool), "a bool"),
     ("heuristic_score", finite_number, "a finite number"),
     ("label", is_str_or_none, "a string or null"),
+    ("pr_number", is_int, "an int"),
     ("corpus_seed", is_int_or_none, "an int or null"),
     ("corpus_head_sha", is_str_or_none, "a string or null"),
 )

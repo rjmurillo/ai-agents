@@ -247,8 +247,8 @@ class TestBuildReport:
         mdg = report["minimum_detectable_gap"]
         assert set(mdg["assumed"]) == {"0.1", "0.2", "0.3"}
         assert mdg["assumed"]["0.2"] == pytest.approx(sc.min_detectable_gap(10, 0.2))
-        assert mdg["observed"]["discordance"] == pytest.approx(0.4)
-        assert mdg["observed"]["gap"] == pytest.approx(sc.min_detectable_gap(10, 0.4))
+        assert mdg["observed_descriptive"]["discordance"] == pytest.approx(0.4)
+        assert mdg["observed_descriptive"]["gap"] == pytest.approx(sc.min_detectable_gap(10, 0.4))
 
     def test_unsure_rows_are_dropped_and_counted(self) -> None:
         """Plan M1-T15: unsure leaves the scored set."""
