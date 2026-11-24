@@ -239,6 +239,9 @@ stops recall entirely (Decision 7). A path the caller passes explicitly, such as
   `test_search_script_skips_the_env_link_end_to_end` check linked-file
   containment, and `test_recall_fails_open_when_store_resolution_raises` checks
   that a resolve error never fails a prompt.
+- `test_recall_accepts_a_git_file_as_in_a_linked_worktree` checks that a `.git`
+  file counts, and the `notes-nested-in-outer-git` layout in
+  `test_hook_and_skill_choose_the_same_root` checks that the nearest marker wins.
 
 ## Impact on Dependent Components
 

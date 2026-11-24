@@ -37,3 +37,9 @@ Architect voted Accept. Critic voted Disagree-and-Commit.
 Consensus: architect Accept, critic Disagree-and-Commit.
 All P1 findings were fixed in place. Each narrows or clarifies a claim.
 The post-consensus hardening from debate log 3 now has a recorded round.
+
+## Post-consensus review edit
+
+The round 2 `/review` decision-rigor axis found two Decision 7 claims with no named test.
+A new test covers the `.git` file case; the nested case already had a parity layout.
+Confirmation now names both. No decision changed.

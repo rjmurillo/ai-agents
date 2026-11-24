@@ -128,6 +128,22 @@ def test_recall_fails_open_when_store_resolution_raises(
     assert "memory recall failed: OSError: resolve failed" in capsys.readouterr().err
 
 
+def test_recall_accepts_a_git_file_as_in_a_linked_worktree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = tmp_path / "worktree"
+    (repo / NOTES).mkdir(parents=True)
+    (repo / ".git").write_text("gitdir: /elsewhere/.git/worktrees/w\n", encoding="utf-8")
+    (repo / NOTES / "retry-policy.md").write_text(
+        "# Retry policy\n\nRetry on rate limiting.\n", encoding="utf-8"
+    )
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(repo))
+
+    block = recall_hook.recall_block("what is the client retry policy")
+
+    assert "Source: .project-toolkit/memory/notes/retry-policy.md" in block
+
+
 def test_search_script_skips_the_env_link_end_to_end(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

@@ -36,6 +36,7 @@ round 2 revision; rows 4, 5, 8, and 16 to 18 after the module move; rows 10, 11,
 | 28 | Recall caps are 8000 characters and 3 results | path | `grep -n "MAX_BLOCK_CHARS =\|_MAX_RECALL_RESULTS ="` in the recall hook | VERIFIED: lines 107 and 95 |
 | 29 | A memory root with no `.git` prints a `recall skipped` note | behavior | `test_hook_recalls_notes_only_inside_a_checkout`; mutation removing the note | VERIFIED: mutation failed 1 test |
 | 30 | A resolve error in store lookup never fails a prompt | behavior | `test_recall_fails_open_when_store_resolution_raises`; mutation moving lookup outside the guard | VERIFIED: mutation failed 1 test |
+| 31 | A `.git` file counts as a checkout for recall | behavior | `test_recall_accepts_a_git_file_as_in_a_linked_worktree`; mutation `.exists()` to `.is_dir()` | VERIFIED on 2026-11-24: mutation failed 1 test |
 
 ## Gate results
 
