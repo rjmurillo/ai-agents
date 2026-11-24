@@ -204,8 +204,10 @@ def test_reference_lists_still_read_as_fixes_only(line: str) -> None:
 def test_a_failed_write_leaves_no_file(tmp_path: Path) -> None:
     target = tmp_path / "out" / "scan.json"
 
+    data: Any = "not bytes"
+
     with pytest.raises(TypeError):
-        adr_write.create_new(target, "not bytes")  # type: ignore[arg-type]
+        adr_write.create_new(target, data)
 
     assert not target.exists()
 

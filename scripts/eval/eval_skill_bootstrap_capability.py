@@ -69,6 +69,7 @@ _SKILL_SCRIPTS = (  # not a sandbox: print mode refuses unlisted tools; use a wo
     "bootstrap_drift",
     "bootstrap_boundary",
     "bootstrap_sweep",
+    "bootstrap_adr",
 )
 READ_ONLY_TOOLS = (
     "Read",
