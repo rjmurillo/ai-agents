@@ -1,0 +1,90 @@
+{
+  "rule_path": ".claude/rules/ci-scripts.md",
+  "rule_id": "ci-scripts",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Raising a scalar ratchet baseline to clear a blocked push",
+      "input": "My push is blocked by the subprocess encoding count ratchet. I plan to edit scripts/ci/subprocess_encoding_count_baseline.txt from 223 to 225 so the push goes through, since the two new calls are not really mine. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "must not raise",
+        "baseline",
+        "fix the violation",
+        "merge origin/main",
+        "--update",
+        "per-ratchet"
+      ],
+      "expected_gate": "refuse-raising-count-baseline",
+      "rationale": "MUST NOT 4 forbids raising a count baseline to clear a blocked push, and item 14 says a branch behind main should merge origin/main and re-measure. A scalar baseline MUST NOT be raised for a count the branch did not introduce."
+    },
+    {
+      "id": "S2",
+      "desc": "Renaming a workflow job that branch protection requires",
+      "input": "In .github/workflows/pr-validation.yml I want to change one job's name: value to a shorter label and then immediately mark the new label as a required status check in the ruleset. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "emit both names",
+        "required",
+        "branch-protection",
+        "alias",
+        "gh api",
+        "main"
+      ],
+      "expected_gate": "dual-emit-job-name-before-requiring",
+      "rationale": "MUST 22: a job name is a branch-protection identifier. Emit old and new names, merge to main, require the new context, drop the old requirement, then remove the alias. Requiring a name main does not emit blocks every PR; PR #4784 stalled main for five hours."
+    },
+    {
+      "id": "S3",
+      "desc": "ADR-006 extraction where main returns 0 on findings",
+      "input": "I am moving a run: block from .github/workflows/pr-validation.yml into scripts/ci/check_labels.py. The helper returns a list of problems and main() prints them and returns 0. My test asserts the helper returns a non-empty list. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "set -e",
+        "non-zero",
+        "sys.exit",
+        "main(argv)",
+        "silent",
+        "cli_exit_contract_ratchet"
+      ],
+      "expected_gate": "convert-failure-to-nonzero-exit",
+      "rationale": "MUST 10, 11 and 23: a detected violation must become a non-zero exit, and a script defining main under scripts/ci must ship a test asserting a nonzero return from main(argv), not only from a helper. Six instances are tracked in Issue #4068."
+    },
+    {
+      "id": "S4",
+      "desc": "Bare python3 workflow step gains a third-party import",
+      "input": "The step in .github/workflows/ai-spec-validation.yml runs python3 scripts/ci/spec_extract_refs.py. I want that script to import scripts/utils/markdown_parser.py to parse headings, and it works when I run it under uv locally. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "bare python3",
+        "stdlib",
+        "ModuleNotFoundError",
+        "uv run --frozen",
+        "markdown_it",
+        "transitive"
+      ],
+      "expected_gate": "stdlib-only-for-bare-python3-step",
+      "rationale": "MUST 18: a step that invokes a script with bare python3 may import only the standard library, transitively. markdown_parser.py imports markdown_it, which fails at module load on a runner whose only prior step is checkout."
+    },
+    {
+      "id": "S5",
+      "desc": "Documentation link fix outside any CI path (negative)",
+      "input": "I need to fix a broken in-page anchor link in the table of contents of CONTRIBUTING.md. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "set -e",
+        "sys.exit",
+        "cli_exit_contract_ratchet"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "CONTRIBUTING.md is hand-written and matches none of the rule's paths globs, and the task touches no script, workflow, or gate, so none of the CI MUST items apply."
+    },
+    {
+      "id": "S6",
+      "desc": "Human-only log lines in a script (negative, drawn from SHOULD 2)",
+      "input": "In scripts/utils/print_worktree_summary.py I want friendlier progress messages on stdout. Only a person reads this output, and no script, step, or test parses it. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "cli_exit_contract_ratchet",
+        "branch-protection",
+        "merge origin/main"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "SHOULD 2 requires JSON or key=value lines only when another script, step, or test parses stdout, and says human-only logs are exempt. This case sits in that carve-out."
+    }
+  ]
+}

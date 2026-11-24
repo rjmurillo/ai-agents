@@ -69,7 +69,7 @@ def test_full_delegate_flow_matches_script_route_prompts(tmp_path, question, cap
 
     code, chair = _run(capsys, "chair", "--run-dir", str(run_dir))
     assert code == 0
-    assert chair["chairman"] == "gpt-6-astra"
+    assert chair["chairman"] == "gpt-6.2-astra"
     assert chair["borda"][0] == [survivors[1], 1.0]
     assert chair["unparsed_rankers"] == []
     _write(chair["reply"], "Ship it.")
@@ -86,18 +86,18 @@ def test_unavailable_member_is_reported_not_replaced(tmp_path, question, capsys)
     run_dir = tmp_path / "run"
 
     code, init = _init(
-        capsys, run_dir, question, "--unavailable", "gpt-6-astra=not in this harness"
+        capsys, run_dir, question, "--unavailable", "gpt-6.2-astra=not in this harness"
     )
 
     assert code == 0
-    assert "gpt-6-astra" not in init["start"]
+    assert "gpt-6.2-astra" not in init["start"]
     assert len(init["start"]) == 3
-    assert init["unavailable"] == {"gpt-6-astra": "not in this harness"}
+    assert init["unavailable"] == {"gpt-6.2-astra": "not in this harness"}
     for path in init["replies"].values():
         _write(path, "answer")
     _run(capsys, "rank", "--run-dir", str(run_dir))
     _, finish = _run(capsys, "finish", "--run-dir", str(run_dir))
-    assert finish["errors"]["gpt-6-astra"] == "not in this harness"
+    assert finish["errors"]["gpt-6.2-astra"] == "not in this harness"
     plan = json.loads((run_dir / "plan.json").read_text(encoding="utf-8"))
     assert plan["council"] == core.COUNCILS_BY_MODE["general"]
 
@@ -117,7 +117,7 @@ def test_unavailable_needs_model_equals_reason(tmp_path, question, capsys):
             "--question-file",
             str(question),
             "--unavailable",
-            "gpt-6-astra",
+            "gpt-6.2-astra",
         ]
     )
 
@@ -258,7 +258,7 @@ def test_second_rank_is_refused(tmp_path, question, capsys):
 
 def test_unavailable_chairman_is_reported_not_replaced(tmp_path, question, capsys):
     run_dir = tmp_path / "run"
-    _, init = _init(capsys, run_dir, question, "--unavailable", "gpt-6-astra=not in this harness")
+    _, init = _init(capsys, run_dir, question, "--unavailable", "gpt-6.2-astra=not in this harness")
     for path in init["replies"].values():
         _write(path, "answer")
     _run(capsys, "rank", "--run-dir", str(run_dir))
