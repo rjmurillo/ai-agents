@@ -125,6 +125,15 @@ Not all failing checks block merge. Distinguish them before acting.
 
 The required set is the `main` ruleset, read live with `get_pr_checks.py --required-only`. Do not keep a hand list of optional checks. Workflows that never block in any state are listed in `advisory_agent_workflows` in `.claude/skills/pr-review/pr-review-config.yaml`. The full policy is the github skill reference `required-vs-optional-checks.md`.
 
+When a gated run matters to the change, run the same job locally instead of waiting for an approval. For the plugin CLI smoke, the commands are in the header of `.github/workflows/plugin-cli-smoke.yml` ("Local equivalent"). Swap `claude` for `copilot` or `codex`:
+
+```bash
+RUN_CLI_E2E=1 uv run --frozen pytest tests/e2e/test_cli_hook_e2e.py -m "smoke and claude" -v
+RUN_CLI_E2E=1 uv run --frozen pytest tests/e2e/test_plugin_load_smoke.py -m "smoke and claude" -v
+```
+
+Report the local result in the PR body.
+
 ### Thread Severity Classification and Lifecycle
 
 Every conversation on a PR MUST traverse the full lifecycle before the PR can land. No shortcuts.

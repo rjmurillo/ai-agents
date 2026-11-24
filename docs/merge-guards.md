@@ -216,7 +216,7 @@ Enhance `.github/workflows/pr-validation.yml` to detect security dismissals:
 # Check branch protection status
 gh api repos/:owner/:repo/branches/main/protection | jq .
 
-# List required status checks (rulesets; the legacy protection endpoint returns 404)
+# List required status checks from the branch rules (this repo uses rulesets)
 gh api repos/:owner/:repo/rules/branches/main | jq '[.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context]'
 
 # Check if PR is mergeable
