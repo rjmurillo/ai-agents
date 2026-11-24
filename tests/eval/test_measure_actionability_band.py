@@ -12,6 +12,9 @@ from typing import Any
 
 import pytest
 
+from scripts.eval.actionability_band import UNKNOWN_POSITION
+from scripts.update_reviewer_signal_stats import CommentData
+
 _SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "eval" / "measure_actionability_band.py"
 
 
@@ -110,7 +113,7 @@ class TestMeasureBand:
 
 class TestThreadPosition:
     def test_returns_unknown_when_comment_is_not_in_its_thread(self) -> None:
-        comment = mab.CommentData(
+        comment = CommentData(
             pr_number=1,
             body="missing",
             created_at="x",
@@ -120,7 +123,7 @@ class TestThreadPosition:
             thread_comments=[{"body": "other", "createdAt": "y"}],
         )
 
-        assert mab.thread_position(comment) == mab.UNKNOWN_POSITION
+        assert mab.thread_position(comment) == UNKNOWN_POSITION
 
 
 class TestCountTruncation:
@@ -351,7 +354,7 @@ class TestKillCriterionOnTheExactRatio:
 
     def _patch_scores(self, monkeypatch: pytest.MonkeyPatch, total: int, in_band: int) -> None:
         comments = [
-            mab.CommentData(
+            CommentData(
                 pr_number=1,
                 body=f"c{i}",
                 created_at="2026-11-20T00:00:00Z",

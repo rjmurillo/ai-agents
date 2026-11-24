@@ -32,5 +32,9 @@ STATUSES = (STATUS_OK, STATUS_PARSE_ERROR, STATUS_CALL_ERROR, STATUS_AUTH_ERROR)
 HUNK_FETCHED = "fetched"
 HUNK_NO_HUNK = "no_hunk"
 
+# The fields that say which model run a prediction came from. predict refuses to resume a log
+# whose ok records differ in any of them, and score refuses a predictions file that mixes them.
+PROVENANCE_FIELDS = ("provider", "model", "prompt_sha256")
+
 # Default seed for every seeded step (sample, sheet, score), so one run is reproducible end to end.
 DEFAULT_SEED = 20261124

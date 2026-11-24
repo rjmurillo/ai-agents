@@ -42,6 +42,7 @@ from scripts.eval.actionability_io import (  # noqa: E402
     write_jsonl,
 )
 from scripts.eval.actionability_labels import (  # noqa: E402
+    PROVENANCE_FIELDS,
     SPLIT_DEV,
     SPLIT_HELDOUT,
     STATUS_AUTH_ERROR,
@@ -81,7 +82,6 @@ MIN_ATTEMPTS_FOR_FAILURE_EXIT = 5
 MAX_CONSECUTIVE_CALL_ERRORS = 5
 
 API_KEY_ENV = "ANTHROPIC_API_KEY"
-PROVENANCE_FIELDS = ("provider", "model", "prompt_sha256")
 MAX_TOKEN_ATTEMPTS = 8
 
 EXIT_SECRET = 1

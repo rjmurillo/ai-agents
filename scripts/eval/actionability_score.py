@@ -20,6 +20,7 @@ from typing import Any
 from scripts.eval.actionability_labels import (
     LABEL_TRUTH,
     LABEL_UNSURE,
+    PROVENANCE_FIELDS,
     SPLIT_HELDOUT,
     SPLIT_OUTSIDE,
     STATUS_OK,
@@ -35,7 +36,6 @@ from scripts.eval.actionability_validate import (
 
 Arm = Callable[[dict[str, Any], dict[str, Any] | None], bool]
 
-PROVENANCE_FIELDS = ("provider", "model", "prompt_sha256")
 CORPUS_PROVENANCE_FIELDS = ("corpus_seed", "corpus_head_sha")
 
 PASS_GAP = 0.10

@@ -76,3 +76,55 @@ class TestSingleSource:
         assert corpus.VALID_LABELS is _LABELS.VALID_LABELS
         assert score.LABEL_TRUTH is _LABELS.LABEL_TRUTH
         assert score.STATUSES is _LABELS.STATUSES
+
+
+_PROVENANCE = {"provider", "model", "prompt_sha256"}
+_ALL_MODULES = [
+    "actionability_corpus.py",
+    "actionability_score.py",
+    "actionability_arms.py",
+    "actionability_predict.py",
+    "actionability_validate.py",
+    "actionability_scan.py",
+    "actionability_verdict.py",
+]
+
+
+def _sequence_literals(path: Path) -> list[set[str]]:
+    """The string constants of every tuple, list, and set literal in a module."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    found = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Tuple | ast.List | ast.Set):
+            found.append(
+                {
+                    e.value
+                    for e in node.elts
+                    if isinstance(e, ast.Constant) and isinstance(e.value, str)
+                }
+            )
+    return found
+
+
+class TestProvenanceFieldsSingleSource:
+    """Review finding 8: PROVENANCE_FIELDS is defined once, in the labels module."""
+
+    def test_the_owner_defines_the_tuple(self) -> None:
+        """The tuple lives in actionability_labels.py."""
+        assert set(_LABELS.PROVENANCE_FIELDS) == _PROVENANCE
+        assert isinstance(_LABELS.PROVENANCE_FIELDS, tuple)
+
+    @pytest.mark.parametrize("module", _ALL_MODULES)
+    def test_no_other_module_spells_the_three_names_as_one_sequence(self, module: str) -> None:
+        """A second tuple or list of the three names is a copy that can drift."""
+        offenders = [s for s in _sequence_literals(_EVAL_DIR / module) if _PROVENANCE <= s]
+
+        assert offenders == []
+
+    def test_consumers_use_the_owner_object(self) -> None:
+        """Predict and score read the same tuple object."""
+        score = importlib.import_module("scripts.eval.actionability_score")
+        predict = importlib.import_module("scripts.eval.actionability_predict")
+
+        assert score.PROVENANCE_FIELDS is _LABELS.PROVENANCE_FIELDS
+        assert predict.PROVENANCE_FIELDS is _LABELS.PROVENANCE_FIELDS

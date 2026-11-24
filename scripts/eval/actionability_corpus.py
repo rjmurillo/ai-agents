@@ -44,6 +44,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from scripts.eval.actionability_band import (  # noqa: E402
+    UNKNOWN_POSITION,
+    is_in_band,
+    thread_position,
+)
 from scripts.eval.actionability_io import (  # noqa: E402
     FETCH_ERRORS,
     head_sha,
@@ -70,11 +75,6 @@ from scripts.eval.actionability_validate import (  # noqa: E402
     HUNK_ROW_CHECKS,
     RecordError,
     validate_records,
-)
-from scripts.eval.measure_actionability_band import (  # noqa: E402
-    UNKNOWN_POSITION,
-    is_in_band,
-    thread_position,
 )
 from scripts.github_core.api import gh_graphql  # noqa: E402
 from scripts.update_reviewer_signal_stats import (  # noqa: E402

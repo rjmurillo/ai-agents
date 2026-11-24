@@ -44,6 +44,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from scripts.eval.actionability_band import (  # noqa: E402
+    BAND_MAX,
+    BAND_MIN,
+    is_in_band,
+    thread_position,
+)
 from scripts.eval.actionability_io import (  # noqa: E402
     FETCH_ERRORS,
     atomic_write_text,
@@ -54,7 +60,6 @@ from scripts.github_core.api import (  # noqa: E402
     resolve_repo_params,
 )
 from scripts.update_reviewer_signal_stats import (  # noqa: E402
-    CommentData,
     get_actionability_score,
     get_comments_by_reviewer,
 )
@@ -67,15 +72,10 @@ logger = logging.getLogger(__name__)
 THREADS_PER_PR_LIMIT = 100
 COMMENTS_PER_THREAD_LIMIT = 50
 
-# Spec LLMFallbackConfig defaults (scripts/llm_classification/config.py).
-BAND_MIN = 0.4
-BAND_MAX = 0.6
 NEUTRAL_SCORE = 0.5
 
 # Kill criterion 1: under this band share, the fallback moves nothing.
 KILL_CRITERION_1_THRESHOLD = 0.05
-
-UNKNOWN_POSITION = -1
 
 
 @dataclass
@@ -117,23 +117,6 @@ class BandReport:
     unknown_position: PositionCounts
     truncation: Truncation
     kill_criterion_1_fired: bool | None
-
-
-def thread_position(comment: CommentData) -> int:
-    """Return the comment's index in its thread, or -1 when it cannot be found.
-
-    ``CommentData`` carries no comment id, so the match is on body and
-    creation time, the two fields the fetch returns for every node.
-    """
-    for index, node in enumerate(comment.thread_comments):
-        if node.get("body", "") == comment.body and node.get("createdAt", "") == comment.created_at:
-            return index
-    return UNKNOWN_POSITION
-
-
-def is_in_band(score: float) -> bool:
-    """Return True when the heuristic score falls in the fallback band."""
-    return BAND_MIN <= score <= BAND_MAX
 
 
 def count_truncation(prs: list[dict[str, Any]]) -> Truncation:
