@@ -114,3 +114,43 @@ No P0 or P1 finding remains open.
 The helper-docstring finding is resolved.
 The optional review-date suggestion remains nonblocking.
 The implementation adds no shipped library or skill file.
+
+## Round 2: Merge Reconciliation (2026-11-24)
+
+This log was `ADR-047-debate-log-2.md` on the branch.
+Main had already published `-2` and `-3` for the 2026-11-24 amendment.
+The merge kept main's logs and renamed this one to `-4`.
+
+### Scope
+
+The merge kept both amendments in full and rewrote two lines.
+Line 16 now names the 2026-04-29, 2026-11-19, and 2026-11-24 amendments.
+Line 74 now names both amendments' exception sets.
+
+### Agent Positions
+
+| Agent | Vote | Summary |
+|-------|------|---------|
+| architect | Block, then Accept | P1: the out-of-scope count of 15 was false after the merge; cleared on re-check |
+| critic | Disagree-and-Commit | Four P2 findings; no lost substance |
+
+### Findings and Resolution
+
+- P1 (architect): the count is now 14. `council.py` and `sol_loop.py` left the set. `scan_principles.py` joined it. Ledger row 16 matches.
+- P2 (both): the bootstrap tests give 87 passed, not 83. The ADR and ledger row 15 now say 87.
+- P2 (both): the "inline requirement" sentence now names both exception sets.
+- P2 (architect): checklist item 1 now names `load_skill_paths()` for the 2026-11-19 pair.
+- P2 (critic): the out-of-scope paragraph now states that loader's environment-first order.
+- P2 (both): Review Evidence now maps each amendment to its debate log.
+- P2 (critic): this round records the line 16 and line 74 rewrites.
+
+### Verification
+
+- The set diff between origin/main and HEAD removes `council.py` and `sol_loop.py` and adds `scan_principles.py`.
+- `tests/test_plugin_path_resolution.py` and `tests/test_frontmatter_bootstrap_foreign_root.py`: 87 passed.
+- `git grep ADR-047-debate-log`, scratch excluded, finds no dangling reference.
+
+### Consensus Decision
+
+One Accept and one Disagree-and-Commit vote close this round.
+No P0 or P1 finding remains open.

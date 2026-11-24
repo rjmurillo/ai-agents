@@ -232,7 +232,7 @@ if not os.path.isdir(_lib_dir):
 
 When creating a new hook or skill script:
 
-1. Use the standard 7-line import boilerplate if importing from `.claude/lib/`. A skill script that imports `hook_utilities.frontmatter_block` uses the 2026-11-24 amendment's shape instead
+1. Use the standard 7-line import boilerplate if importing from `.claude/lib/`. A skill script that imports `hook_utilities.frontmatter_block` uses the 2026-11-24 amendment's shape instead. `council.py` and `sol_loop.py` use `load_skill_paths()` per the 2026-11-19 amendment
 2. Use `get_project_directory()` for consumer project paths
 3. **Validate all paths are within project boundary before file operations**
 4. Use `os.makedirs(path, exist_ok=True)` for required directories **AFTER path validation**
@@ -290,7 +290,7 @@ Exhausted candidates raise `RuntimeError`, listing their paths in order.
 A partial install missing the bundled bootstrap fails while loading that file.
 
 Hook callers keep their existing bootstrap and failure handling.
-Other skill callers retain the inline requirement.
+Other skill callers retain the inline requirement, except the 2026-11-24 amendment's scripts and the older scripts its Out of scope paragraph counts.
 
 ### 2026-11-24: Skill scripts that load the shared parser prefer their own lib
 
@@ -314,11 +314,11 @@ Other skill callers retain the inline requirement.
 | Script copied outside its plugin, no environment root | manifest walk-up, else exit 2 | `ImportError` or `RuntimeError` |
 | Neither lib holds the parser | `ImportError`; exit 2 only when the lib directory is missing | `ImportError`; `RuntimeError` when the lib directory is missing |
 
-**Test impact**: `tests/test_frontmatter_bootstrap_foreign_root.py` runs every authored copy under `src/claude/skills/` and `.claude/skills/`. The generated plugin mirrors are not run there; all 77 generated copies, 16 each in copilot-cli, codex, cursor, and muse plus 13 in the hermes packs, are byte-identical to their sources (compared 2026-11-24 UTC), and `build_all.py --check` keeps every generated tree in sync. It covers a stale root, a root that lacks the parser, and the fallback for a copied script. It also imports each copy under Python 3.10 when a 3.10 interpreter is available, and skips that case otherwise. `tests/test_plugin_path_resolution.py` still passes (83 passed with the bootstrap test on 2026-11-24), because each script still names `CLAUDE_PLUGIN_ROOT`. The bootstrap test finds copies by their parser import and the `parents[3]` line, so a copy written in another shape is not checked.
+**Test impact**: `tests/test_frontmatter_bootstrap_foreign_root.py` runs every authored copy under `src/claude/skills/` and `.claude/skills/`. The generated plugin mirrors are not run there; all 77 generated copies, 16 each in copilot-cli, codex, cursor, and muse plus 13 in the hermes packs, are byte-identical to their sources (compared 2026-11-24 UTC), and `build_all.py --check` keeps every generated tree in sync. It covers a stale root, a root that lacks the parser, and the fallback for a copied script. It also imports each copy under Python 3.10 when a 3.10 interpreter is available, and skips that case otherwise. `tests/test_plugin_path_resolution.py` still passes (87 passed with the bootstrap test on 2026-11-24, after the 2026-11-19 amendment merged), because each script still names `CLAUDE_PLUGIN_ROOT`. The bootstrap test finds copies by their parser import and the `parents[3]` line, so a copy written in another shape is not checked.
 
 **Trade-off**: A new skill script that imports the shared parser copies this shape; a hook keeps the boilerplate. This shape fails with exit 1 (`RuntimeError` or `ImportError`) where the boilerplate exits 2, the ADR-035 config-error code. The shape assumes a script sits four levels below its plugin root; a shallower copy raises `IndexError`.
 
-**Out of scope**: Other skill scripts predate this amendment and carry their own bootstraps. 15 read a plugin-root variable and fall back to `parents[3]` without the parser probe (counted 2026-11-24). A wider set puts an environment-root `lib` on `sys.path` in other ways. Most read the environment root first, so a foreign root can still shadow their imports. ADR-121's command locator is a separate shape for commands, not imports. This amendment does not change either.
+**Out of scope**: Other skill scripts predate this amendment and carry their own bootstraps. 14 read a plugin-root variable and fall back to `parents[3]` without the parser probe (counted 2026-11-24, after the 2026-11-19 amendment moved `council.py` and `sol_loop.py` to `load_skill_paths()`). That loader still reads the environment root before the script's own lib; this amendment does not change its order. A wider set puts an environment-root `lib` on `sys.path` in other ways. Most read the environment root first, so a foreign root can still shadow their imports. ADR-121's command locator is a separate shape for commands, not imports. This amendment does not change either.
 
 ## Related Decisions
 
@@ -340,6 +340,8 @@ Other skill callers retain the inline requirement.
 ## Review Evidence
 
 - Debate log: `.project-toolkit/critique/ADR-047-debate-log.md`
+- 2026-11-19 amendment: `.project-toolkit/critique/ADR-047-debate-log-4.md`
+- 2026-11-24 amendment: `.project-toolkit/critique/ADR-047-debate-log-2.md` and `ADR-047-debate-log-3.md`, with `ADR-047-claims-ledger.md`
 - Security review: `.project-toolkit/security/SR-002-ADR-047-plugin-mode-security-review.md`
 - Analysis: `.project-toolkit/analysis/001-adr-047-plugin-mode-hook-behavior-analysis.md`
 
