@@ -18,7 +18,7 @@ import pytest
 
 from scripts.ai_review_common import adapt_local_axis_verdict
 
-from .test_assess import _commit, _init_repo, _regression_argv, _run_git, _write, main
+from .test_assess import _commit, _init_repo, _mod, _regression_argv, _run_git, _write, main
 
 _AXIS = "code-qualities-assessment"
 # No absolute minimums, so files added beside a change never fail the run.
@@ -377,20 +377,21 @@ def test_swapping_one_duplicate_for_another_still_fails(
     assert _comparison(capsys.readouterr().out, "tools/body.py")["change_admissions"] is None
 
 
-def test_git_index_timeout_is_a_script_error(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+def test_git_index_timeout_raises_a_runtime_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    _shared_extraction(tmp_path, monkeypatch, "from pkg.shared import split")
-    real_run = subprocess.run
+    # main() maps RuntimeError from the admission step to exit 1. The fake
+    # answers only git ls-files, so no other subprocess call reaches it.
+    calls: list[list[str]] = []
 
-    def hung_ls_files(argv: list[str], *args: Any, **kwargs: Any) -> Any:
-        if argv[:2] == ["git", "ls-files"]:
-            raise subprocess.TimeoutExpired(argv, float(kwargs["timeout"]))
-        return real_run(argv, *args, **kwargs)
+    def hung_ls_files(argv: list[str], **kwargs: Any) -> Any:
+        calls.append(argv)
+        raise subprocess.TimeoutExpired(argv, float(kwargs["timeout"]))
 
     monkeypatch.setattr(subprocess, "run", hung_ls_files)
+    _mod._tracked_python_paths.cache_clear()
 
-    rc = _run(tmp_path, _ADMISSION)
+    with pytest.raises(RuntimeError, match="git ls-files timed out after 60 seconds"):
+        _mod._tracked_python_paths(tmp_path)
 
-    assert rc == 1
-    assert "git ls-files timed out after 60 seconds" in capsys.readouterr().err
+    assert calls == [["git", "ls-files", "-z", "--", "*.py"]]
