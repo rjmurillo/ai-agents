@@ -82,3 +82,10 @@ The edits below change no decision, so no new round was opened.
 - Alternatives now cover an opt-in non-redundancy admission and a ratio-score fix.
 - Consequences now give the reason for the opt-in asymmetry and name the upstream-only import gap.
 - The scope sentence now names the first decision in words, so the doc-accuracy count rule reads its three items correctly.
+
+## PR #7535 review wording edit
+
+Devin Review on PR #7535 found that a staged but uncommitted helper counted as first-party.
+The assessor now reads the HEAD commit tree, not the index.
+Change item 3 now says "the HEAD commit holds" in place of "the index tracks".
+The rule is narrower and the decision is unchanged, so no new round was opened.

@@ -1091,7 +1091,7 @@ _ISSUE_CHANGE_ADMISSIONS = 7525
 _FIRST_PARTY_COUPLING_KEY = "firstPartyCouplingAdmission"
 _COUPLING_RULE = "no_new_third_party_import"
 _NON_REDUNDANCY_RULE = "no_new_duplicate_lines"
-_GIT_LS_FILES_TIMEOUT_SECONDS = 60
+_GIT_LS_TREE_TIMEOUT_SECONDS = 60
 
 
 def _first_party_import_roots(config: dict[str, Any]) -> list[Path] | None:
@@ -1112,29 +1112,31 @@ def _first_party_import_roots(config: dict[str, Any]) -> list[Path] | None:
 
 @lru_cache(maxsize=1)
 def _tracked_python_paths(workspace: Path) -> frozenset[str]:
-    """Return tracked ``.py`` paths under *workspace*, relative to it.
+    """Return ``.py`` paths in the HEAD commit under *workspace*, relative to it.
 
-    The index, not the disk, decides: an untracked or ignored local directory
-    must not change a verdict (ci-scripts MUST 9).
+    The reviewed commit decides, not the disk or the index: an untracked,
+    ignored, or staged-but-uncommitted file must not change a verdict on the
+    committed diff (ci-scripts MUST 9).
     """
     import subprocess
 
     try:
         result = subprocess.run(
-            ["git", "ls-files", "-z", "--", "*.py"],
+            ["git", "ls-tree", "-r", "-z", "--name-only", "HEAD"],
             cwd=workspace,
             capture_output=True,
             check=False,
-            timeout=_GIT_LS_FILES_TIMEOUT_SECONDS,
+            timeout=_GIT_LS_TREE_TIMEOUT_SECONDS,
         )
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError(
-            f"git ls-files timed out after {_GIT_LS_FILES_TIMEOUT_SECONDS} seconds"
+            f"git ls-tree timed out after {_GIT_LS_TREE_TIMEOUT_SECONDS} seconds"
         ) from exc
     if result.returncode != 0:
         error = result.stderr.decode("utf-8", errors="replace").strip()
-        raise RuntimeError(f"git ls-files failed: {error}")
-    return frozenset(path for path in result.stdout.decode("utf-8").split("\0") if path)
+        raise RuntimeError(f"git ls-tree failed: {error}")
+    paths = result.stdout.decode("utf-8").split("\0")
+    return frozenset(path for path in paths if path.endswith(".py"))
 
 
 @cache

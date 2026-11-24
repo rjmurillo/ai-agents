@@ -17,7 +17,7 @@ A Python coupling drop is admitted when the change added no third-party import
 root, as when local logic moves into a shared first-party module. It is off
 unless the config sets `"firstPartyCouplingAdmission": {"importRoots": [...]}`.
 
-A root is first-party only when the git index tracks `<root>.py` or
+A root is first-party only when the HEAD commit holds `<root>.py` or
 `<root>/__init__.py` in one of these folders:
 
 - the importing file's folder, or a parent folder inside the workspace
@@ -25,7 +25,7 @@ A root is first-party only when the git index tracks `<root>.py` or
 
 A root the scanner's interpreter can import from its site-packages is always
 third-party, so a same-named folder cannot hide an installed dependency. A
-bare folder, or a module the index does not track, is not first-party.
+bare folder, or a module the HEAD commit does not hold, is not first-party.
 
 ## Still failing
 

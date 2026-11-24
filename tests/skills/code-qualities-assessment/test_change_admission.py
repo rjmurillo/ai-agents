@@ -377,21 +377,35 @@ def test_swapping_one_duplicate_for_another_still_fails(
     assert _comparison(capsys.readouterr().out, "tools/body.py")["change_admissions"] is None
 
 
-def test_git_index_timeout_raises_a_runtime_error(
+def test_git_tree_timeout_raises_a_runtime_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # main() maps RuntimeError from the admission step to exit 1. The fake
-    # answers only git ls-files, so no other subprocess call reaches it.
+    # records every call and raises, so no real git process runs.
     calls: list[list[str]] = []
 
-    def hung_ls_files(argv: list[str], **kwargs: Any) -> Any:
+    def hung_ls_tree(argv: list[str], **kwargs: Any) -> Any:
         calls.append(argv)
         raise subprocess.TimeoutExpired(argv, float(kwargs["timeout"]))
 
-    monkeypatch.setattr(subprocess, "run", hung_ls_files)
+    monkeypatch.setattr(subprocess, "run", hung_ls_tree)
     _mod._tracked_python_paths.cache_clear()
 
-    with pytest.raises(RuntimeError, match="git ls-files timed out after 60 seconds"):
+    with pytest.raises(RuntimeError, match="git ls-tree timed out after 60 seconds"):
         _mod._tracked_python_paths(tmp_path)
 
-    assert calls == [["git", "ls-files", "-z", "--", "*.py"]]
+    assert calls == [["git", "ls-tree", "-r", "-z", "--name-only", "HEAD"]]
+
+
+def test_staged_but_uncommitted_module_is_not_first_party(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    head = "from staged_mod import split\n\n\ndef caller(text):\n    return split(text)\n"
+    _repo(tmp_path, monkeypatch, {"tools/caller.py": _LOCAL_LOGIC}, {"tools/caller.py": head})
+    _write(tmp_path, "tools/staged_mod.py", _SHARED_MODULE)
+    _run_git(tmp_path, "add", "tools/staged_mod.py")
+
+    rc = _run(tmp_path, _ADMISSION)
+
+    assert rc == 10
+    assert _comparison(capsys.readouterr().out, "tools/caller.py")["change_admissions"] is None

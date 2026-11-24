@@ -109,6 +109,25 @@ def _verify(repo: Path) -> int:
     return _run(repo, "--issue", str(_ISSUE), "--comment", str(_COMMENT))
 
 
+def test_inventory_lists_only_rows_the_assessor_did_not_admit(repo, capsys):
+    _git(repo, "switch", "--quiet", "--detach", gate.INTEGRATION_REF)
+    _write(repo, "third.py", "def ready():\n    return True\n")
+    _commit(repo, "Add a third duplicate")
+    _git(repo, "update-ref", gate.INTEGRATION_REF, "HEAD")
+    _git(repo, "switch", "--quiet", "-c", "mixed")
+    _write(repo, "second.py", "import requests\n\n\ndef check():\n    return requests.get\n")
+    _write(repo, "third.py", "from first import ready\n\n\ndef check():\n    return ready()\n")
+    _commit(repo, "Add a dependency and extract shared setup")
+
+    inventory = _inventory(repo, capsys)
+
+    raw = json.loads((repo.parent / "raw.json").read_text(encoding="utf-8"))
+    third = next(c for c in raw["comparisons"] if c["file_path"] == "third.py")
+    assert third["regressions"] == ["coupling"]
+    assert third["change_admissions"]["coupling"]["rule"] == "no_new_third_party_import"
+    assert [row["path"] for row in inventory["regressions"]] == ["second.py"]
+
+
 def test_trusted_approval_keeps_raw_scores_and_reports_warn(repo, capsys, monkeypatch):
     inventory = _inventory(repo, capsys)
     assert inventory["regressions"] == [

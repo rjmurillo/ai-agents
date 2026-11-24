@@ -101,7 +101,7 @@ Scores and raw regression rows stay as before.
    This admission is on for every consumer and language.
 2. The assessor admits a Python coupling drop when third-party import roots did not grow.
    This admission is off unless the config sets `firstPartyCouplingAdmission`.
-3. A root is first-party only when the index tracks `<root>.py` or `<root>/__init__.py`.
+3. A root is first-party only when the HEAD commit holds `<root>.py` or `<root>/__init__.py`.
    The search covers the file's folder, its parents in the workspace, and each `importRoots` entry.
    A root the scanner's interpreter loads from site-packages is always third-party.
    A same-named folder cannot hide a dependency the scanner has installed.
