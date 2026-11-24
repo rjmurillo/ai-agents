@@ -1,5 +1,6 @@
 {
-  "rule_path": ".claude/rules/powershell.md",
+  "skill_path": ".claude/skills/build/SKILL.md",
+  "reference_path": ".claude/skills/build/references/rule-powershell.md",
   "rule_id": "powershell",
   "scenarios": [
     {

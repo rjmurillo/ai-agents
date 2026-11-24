@@ -319,8 +319,8 @@ A routed run is complete when every box checks:
 ## Extension Points
 
 - **New routing row.** When a new skill lands and requests start missing the
-  table, add one row (intent, route) here and mirror the change in the
-  CLAUDE.md Skill routing section until that section delegates here.
+  table, add one row (intent, route) here. The AGENTS.md `Routing` line
+  sends unnamed requests here and needs no mirror.
 - **Tier signals.** Size-tier signals may grow project-specific entries (for
   example, a change that touches the shared agent templates implies Standard or
   above because of mirror obligations).

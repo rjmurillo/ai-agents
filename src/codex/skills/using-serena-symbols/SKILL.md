@@ -284,3 +284,5 @@ Serena works with any language that has an LSP server configured:
 - And more...
 
 The specific features available depend on the language server's capabilities.
+
+Folded rule: before you navigate or search code, read [lsp-first](references/rule-lsp-first.md).

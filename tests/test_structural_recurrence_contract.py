@@ -41,12 +41,10 @@ from tests.eval._runtime_parity_test_support import runtime_parity
 from tests.structural_recurrence_support import REPO_ROOT, flat, missing
 
 RECURRENCE_SURFACES = (
-    Path("templates/rules/code-quality.md"),
-    Path(".claude/rules/code-quality.md"),
-    Path("src/claude/rules/code-quality.md"),
-    Path(".github/instructions/code-quality.instructions.md"),
-    Path("src/copilot-cli/instructions/code-quality.instructions.md"),
-    Path("src/cursor/rules/code-quality.mdc"),
+    Path("src/claude/skills/build/references/rule-code-quality.md"),
+    Path(".claude/skills/build/references/rule-code-quality.md"),
+    Path("src/copilot-cli/skills/build/references/rule-code-quality.md"),
+    Path("src/codex/skills/build/references/rule-code-quality.md"),
 )
 
 TESTING_SURFACES = (
@@ -338,12 +336,19 @@ def test_activation_negative_control_writes_no_test_file(fixture_id: str) -> Non
     assert {a.path for a in file_specs} == {"dates.py", "tests/test_dates.py"}
 
 
-def test_recurrence_clause_loads_on_source_paths_and_not_only_on_tests() -> None:
-    """Review thread PRRT_kwDOQoWRls6tpCo9: the owner rule must match a source-only edit."""
-    head = (REPO_ROOT / "templates/rules/code-quality.md").read_text(encoding="utf-8")
-    head = head.split("---")[1]
-    assert '"**/*.py"' in head
-    assert not any(glob in head for glob in ('"tests/**"', "Tests.ps1"))
+def test_recurrence_clause_lives_in_the_build_skill_and_keeps_its_source_scope() -> None:
+    """Review thread PRRT_kwDOQoWRls6tpCo9: the owner stays source-scoped, not tests-only.
+
+    code-quality is a folded rule now: no template under templates/rules/, a
+    first-line comment records the former scope, and the build skill links it.
+    """
+    assert not (REPO_ROOT / "templates/rules/code-quality.md").exists()
+    ref = REPO_ROOT / "src/claude/skills/build/references/rule-code-quality.md"
+    first = ref.read_text(encoding="utf-8").splitlines()[0]
+    assert "`**/*.py`" in first
+    assert not any(glob in first for glob in ("tests/**", "Tests.ps1"))
+    template = REPO_ROOT / "templates/skills/build.SKILL.md.tmpl"
+    assert "rule-code-quality.md" in template.read_text(encoding="utf-8")
     assert "defect class that returns" not in flat(Path("templates/rules/testing.md"))
     for fixture_id in ACTIVATION_FIXTURE_IDS:
         assert "dates.py" in _structural()[fixture_id].setup_files

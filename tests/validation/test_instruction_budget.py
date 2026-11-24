@@ -13,6 +13,7 @@ measurement methodology from silent regressions.
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from pathlib import Path
 
@@ -573,9 +574,22 @@ def test_real_repo_python_baseline_is_under_ceiling_and_nonzero() -> None:
     assert py.total_bytes <= py.ceiling_bytes
 
 
-def test_committed_lsp_first_scope_matches_code_not_markdown() -> None:
-    rule = REPO_ROOT / ib.INSTRUCTIONS_SUBDIR / "lsp-first.instructions.md"
-    patterns = ib.parse_applyto(rule.read_text(encoding="utf-8"))
+def test_folded_lsp_first_scope_comment_matches_code_not_markdown() -> None:
+    """lsp-first is a skill reference now; its first-line comment keeps the code-only scope."""
+    ref = (
+        REPO_ROOT
+        / "src"
+        / "claude"
+        / "skills"
+        / "using-serena-symbols"
+        / "references"
+        / "rule-lsp-first.md"
+    )
+    assert not (REPO_ROOT / "templates" / "rules" / "lsp-first.md").exists()
+    first = ref.read_text(encoding="utf-8").splitlines()[0]
+    assert first.startswith("<!--")
+    patterns = re.findall(r"`(\*\*/[^`]+)`", first)
+    assert patterns
 
     assert any(ib._glob_to_regex(pattern).fullmatch("src/app.py") for pattern in patterns)
     assert not any(ib._glob_to_regex(pattern).fullmatch("docs/guide.md") for pattern in patterns)

@@ -1,1 +1,0 @@
-../../src/copilot-cli/instructions/csharp.instructions.md

@@ -1,1 +1,0 @@
-../../src/copilot-cli/instructions/code-quality.instructions.md
