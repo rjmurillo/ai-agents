@@ -163,6 +163,39 @@ class TestDuplicateKeys:
         assert merged.metadata == {"base": {"x": 1}, "child": {"x": 2}}
         assert repeated.status is FrontmatterStatus.MALFORMED
 
+    @pytest.mark.parametrize(
+        "child",
+        [
+            '  <<: *b\n  "<<": q\n',
+            '  "<<": q\n  <<: *b\n',
+            "  <<: *b\n  '<<': q\n",
+            "  '<<': q\n  <<: *b\n",
+        ],
+        ids=["merge-then-double", "double-then-merge", "merge-then-single", "single-then-merge"],
+    )
+    def test_a_quoted_merge_spelling_beside_a_real_merge_key_loads(self, child: str) -> None:
+        """A quoted `"<<"` is a plain string key, not a merge; PyYAML keeps both."""
+        result = parse(f"---\nbase: &b {{x: 1}}\nchild:\n{child}---\nBody.\n")
+
+        assert result.status is FrontmatterStatus.VALID, result.error
+        assert result.metadata == {"base": {"x": 1}, "child": {"x": 1, "<<": "q"}}
+
+    @pytest.mark.parametrize(
+        "block",
+        [
+            "<<: {a: 1}\n<<: {b: 2}\n",
+            '"<<": q\n"<<": r\n',
+            "\"<<\": q\n'<<': r\n",
+        ],
+        ids=["two-real-merges", "two-quoted-keys", "mixed-quote-styles"],
+    )
+    def test_a_repeated_merge_or_repeated_quoted_key_is_still_rejected(self, block: str) -> None:
+        result = parse(f"---\n{block}---\nBody.\n")
+
+        assert result.status is FrontmatterStatus.MALFORMED
+        assert result.error is not None
+        assert "duplicate key '<<'" in result.error
+
     def test_unhashable_key_does_not_raise_typeerror(self) -> None:
         """`? [a, b]` builds a list key. A set-based duplicate check raises
         TypeError here, escaping the caller's YAMLError handling and turning a

@@ -181,6 +181,22 @@ def split_frontmatter(text: str) -> FrontmatterSplit:
 _STRICT_LOADERS: dict[int, type] = {}
 
 
+class _MergeKey:
+    """Stands for a real ``<<`` merge key in the duplicate check.
+
+    A quoted ``"<<"`` constructs to the plain string ``"<<"``, which PyYAML keeps
+    as an ordinary key beside a real merge. Using that string for the merge
+    would report the pair as a duplicate. This sentinel equals only itself and
+    prints as ``'<<'`` so the duplicate-merge message reads the same.
+    """
+
+    def __repr__(self) -> str:
+        return "'<<'"
+
+
+_MERGE_KEY = _MergeKey()
+
+
 def _strict_loader(yaml: ModuleType) -> type:
     """Return a ``SafeLoader`` subclass that rejects a repeated mapping key.
 
@@ -205,8 +221,9 @@ def _strict_loader(yaml: ModuleType) -> type:
             if key_node.tag == "tag:yaml.org,2002:merge":
                 # construct_mapping flattens `<<` without this constructor, so an
                 # inline merged mapping is checked here or not at all. A second
-                # `<<` at one level is a repeated key like any other.
-                key: Any = "<<"
+                # `<<` at one level is a repeated key like any other. A quoted
+                # `"<<"` is a string key, so the merge gets its own sentinel.
+                key: Any = _MERGE_KEY
                 merged = (
                     value_node.value if isinstance(value_node, yaml.SequenceNode) else [value_node]
                 )
