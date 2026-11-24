@@ -111,7 +111,7 @@ These bind today.
 | [ADR-043](ADR-043-scoped-tool-execution.md) | Scoped Tool Execution | 2026-01-21 | Session protocol tools MUST scope to changed files rather than the entire repository. |
 | [ADR-045](ADR-045-framework-extraction-via-plugin-marketplace.md) | Framework Extraction via Plugin Marketplace | 2026-02-07 | Extract the reusable multi-agent framework from `rjmurillo/ai-agents` into a new repository `rjmurillo/awesome-ai`, published as a Claude Code plugin marketplace with 4 plugins. |
 | [ADR-046](ADR-046-planning-agent-rename.md) | Planning Agent Rename for Role Clarity | 2026-02-08 | Rename all three planning agents to reflect their distinct roles: |
-| [ADR-047](ADR-047-plugin-mode-hook-behavior.md) | Plugin-Mode Hook Behavior | 2026-04-29 | All hooks and skills run in plugin mode. |
+| [ADR-047](ADR-047-plugin-mode-hook-behavior.md) | Plugin-Mode Hook Behavior | 2026-11-24 | All hooks and skills run in plugin mode. |
 | [ADR-051](ADR-051-synthesis-panel-frontmatter-standard.md) | Synthesis Panel Frontmatter Standard | 2026-03-07 | All DESIGN-REVIEW documents MUST include YAML frontmatter with structured metadata. |
 | [ADR-053](ADR-053-adr-exception-criteria.md) | ADR Exception Criteria (Chesterton's Fence) | 2026-03-07 | ADR exceptions MUST include a Chesterton's Fence analysis before approval. |
 | [ADR-054](ADR-054-local-security-scanning.md) | Local Security Scanning | 2026-07-20 | Add a Lefthook pre-push job that scans changed code files. |

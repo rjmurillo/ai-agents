@@ -151,7 +151,7 @@ def _parse_frontmatter(content: str) -> dict[str, object] | None:
         return None
     # From the physical opening line: the fence match absorbs whitespace-only lines.
     try:
-        loaded = decode_frontmatter_yaml(content[content.index("\n") + 1 : split.raw_end], yaml)
+        loaded = decode_frontmatter_yaml(content[split.open_end : split.raw_end], yaml)
     except yaml.YAMLError:
         return None
     if loaded is None:
