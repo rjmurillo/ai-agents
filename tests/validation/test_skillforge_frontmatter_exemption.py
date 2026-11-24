@@ -281,5 +281,7 @@ def test_an_unchanged_nested_repeat_or_merge_keeps_the_pin_exemption():
 
 
 def test_a_repeated_top_level_key_refuses_the_exemption():
+    # Changing the last value moves the effective pin, so only the duplicate
+    # scan can refuse this; without it last-one-wins would grant the exemption.
     old = "name: example\nmodel: sonnet\nmodel: opus\n"
-    assert ghp._only_model_pin_fields_changed(old, old.replace("sonnet", "haiku")) is False
+    assert ghp._only_model_pin_fields_changed(old, old.replace("opus", "haiku")) is False

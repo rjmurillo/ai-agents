@@ -300,8 +300,9 @@ def _default_namespace(root: Path) -> str:
 def _read_frontmatter(path: Path) -> dict[str, object]:
     """Best-effort YAML frontmatter parse. Returns `{}` on any defect.
 
-    Reads the block with `hook_utilities.frontmatter_block.parse_frontmatter`,
-    last-one-wins on a repeated key as `yaml.safe_load` was.
+    Finds the block with `hook_utilities.frontmatter_block.split_frontmatter`
+    and loads it with `decode_frontmatter_yaml`, last-one-wins on a repeated
+    key as `yaml.safe_load` was.
 
     The resolver is not a validator: `check_skill_routing_roles.py` already
     refuses a malformed routing block before this script ever runs against a
