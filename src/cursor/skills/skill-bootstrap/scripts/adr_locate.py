@@ -6,7 +6,7 @@
 #   src/lib/fetchers/docs.ts       (ADR_DIR_CANDIDATES, lines 43-48; title and heading
 #                                   reading of the ADR files, lines 70-110)
 # Sibling ports: adr_shape.py, adr_reason.py, adr_commits.py, adr_docs.py, adr_locate.py,
-# adr_scan.py, bootstrap_adr.py.
+# adr_log.py, adr_scan.py, bootstrap_adr.py.
 # MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align
 """Find the repository's ADR folders and read their naming and heading style.
 
@@ -379,7 +379,7 @@ def read_adr_texts(
     root = root.resolve()
     total = 0
     for rel, _source in locate_folders(root)[0] if folders is None else folders:
-        for item in adr_files(root / rel):
+        for item in sorted(adr_files(root / rel), key=lambda f: f.number, reverse=True):
             if tally.read >= MAX_ADR_FILES or total >= MAX_ADR_BYTES:
                 tally.skipped, tally.cut = tally.skipped + 1, True
                 continue

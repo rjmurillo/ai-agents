@@ -1,0 +1,310 @@
+# Port of aligndottech/align-cli at commit 8d758e9899677b61442b08ffda74b74887bfc42a
+# Ported upstream files:
+#   src/lib/fetchers/docs-decision-log.ts (all of it, P12)
+# Extension E1, log_candidates, has no upstream source.
+# Sibling ports: adr_shape.py, adr_reason.py, adr_commits.py, adr_docs.py, adr_locate.py,
+# adr_log.py, adr_scan.py, bootstrap_adr.py.
+# MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align
+"""Decision logs and ledgers, and the candidates they yield (extension E1).
+
+Standard library only. ``read_log_entries`` reads the decision log and ledger files a
+repository keeps by hand, never a file over 1 MiB. A numbered log (``## D17 - title``,
+``D181: ...``) or a ledger (``id: D-001 | status: test | modified: 2026-10-27``, then text) is
+listed from the repository root and ``docs/`` only, because ``docs/decisions/`` is an ADR folder
+that ``adr_locate.py`` reads.
+
+Departures from the upstream source, each pinned by a test:
+
+- Upstream used log entries as context. Extension E1 makes an entry that has an id a
+  candidate when no existing ADR names that id (``log_candidates``).
+- ``entry_date`` returns the day (``YYYY-MM-DD``) through ``adr_commits.iso_day``, which accepts
+  only a real calendar day. Upstream returned an ISO instant.
+- A sub-heading deeper than its decision's heading (``### Rationale``) stays inside it.
+- Upstream's minimum chunk length is not ported.
+- The log and heading patterns trim blanks in code instead of in a lazy group, so a long run
+  of spaces costs linear time.
+
+Regex notes: see the module docstring of ``adr_shape.py``; they apply to every module here.
+"""
+
+from __future__ import annotations
+
+import re
+from collections import Counter
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+from adr_commits import EXCERPT_CHARS, iso_day, sanitize
+from adr_docs import ExistingAdrs
+from adr_locate import read_bounded
+from adr_reason import extract_reason
+
+__all__ = [
+    "MAX_LOG_CANDIDATES",
+    "MAX_LOG_FILES",
+    "LogEntry",
+    "entry_date",
+    "find_log_files",
+    "log_candidates",
+    "read_log_entries",
+    "split_decision_log",
+]
+
+_I = re.IGNORECASE | re.ASCII
+_A = re.ASCII
+
+_LOG_FILE = re.compile(r"(?:decisions?[-_]log|decisions|.*ledger.*)\.md\Z", _I)
+_LOG_DIRS = ("", "docs")
+MAX_LOG_FILES = 20
+# Blanks and closing marks come off in ``_heading_text``: a lazy group before ``[ \t]*#*[ \t]*\Z``
+# is quadratic on a long run of spaces.
+_HEADING = re.compile(r"#{1,6}[ \t]+(.+)", _A)
+# `id: X`, or a bare id-like token (D-001, D181, ADR-7), at the start of a top-level line.
+_ID_START = re.compile(r"(?:[-*][ \t]+)?(?:id:[ \t]*([\w.-]+)|([A-Za-z]{1,6}-?[0-9]+))(?!\w)", _I)
+_ID_IN_HEADING = re.compile(r"(?:id:[ \t]*([\w.-]+)|([A-Za-z]{1,6}-?[0-9]+))(?!\w)", _I)
+# `https://...` is a URL, not a field: a colon followed by // never starts a value.
+_FIELD = re.compile(r"([a-z_]+):(?!//)\s*(.*)\Z", _I | re.DOTALL)
+# No ``\s*`` around the mark: it is quadratic on a long run of spaces. Segments are stripped.
+_FIELD_SEPARATOR = re.compile(r"[·|]")
+_FENCE = re.compile(r"\s*(```|~~~)", _A)
+_MIN_ENTRY_CHARS = 20
+_TITLE_MAX = 120
+_DATE_KEYS = ("date", "decided", "modified")
+
+
+@dataclass(frozen=True)
+class LogEntry:
+    id: str | None
+    heading: str | None
+    title: str
+    text: str
+
+
+@dataclass
+class _Block:
+    id: str | None
+    heading: str | None
+    level: int
+    lines: list[str]
+
+
+def find_log_files(root: Path) -> list[str]:
+    """Decision log file paths, relative to ``root``, at the root and in ``docs/``."""
+    found: list[str] = []
+    for folder in _LOG_DIRS:
+        try:
+            base = root.resolve()
+            names = [
+                entry.name
+                for entry in (root / folder).iterdir()
+                if entry.is_file() and base in entry.resolve().parents
+            ]
+        except OSError:
+            continue
+        found.extend(f"{folder}/{n}" if folder else n for n in names if _LOG_FILE.fullmatch(n))
+    return sorted(found)
+
+
+def _heading_text(line: str) -> str | None:
+    """The text of a ``#`` heading line without its closing marks, or None for any other line."""
+    match = _HEADING.fullmatch(line)
+    if match is None:
+        return None
+    text = match[1].rstrip(" \t").rstrip("#").rstrip(" \t")
+    return text or match[1][:1]
+
+
+def _fields_of(line: str) -> dict[str, str]:
+    fields: dict[str, str] = {}
+    for segment in _FIELD_SEPARATOR.split(line):
+        match = _FIELD.fullmatch(segment.strip())
+        if match:
+            fields[match[1].lower()] = match[2].strip()
+    return fields
+
+
+def _heading_title(heading: str) -> str:
+    """The first line with its ``key: value`` segments removed."""
+    parts = re.split(r"([·|])", heading)
+    out = parts[0].strip()
+    for index in range(1, len(parts) - 1, 2):
+        segment = parts[index + 1].strip()
+        if segment and not _FIELD.fullmatch(segment):
+            out += f" {parts[index]} {segment}"
+    return out
+
+
+def _text_outside_fields(line: str) -> str:
+    kept = [
+        segment
+        for segment in _FIELD_SEPARATOR.split(line)
+        if not re.fullmatch(r"[a-z_]+:(?:\s.*)?", segment.strip(), _I | re.DOTALL)
+    ]
+    return " ".join(segment.strip() for segment in kept).strip()
+
+
+def _blocks(content: str) -> list[_Block]:
+    blocks: list[_Block] = []
+    fence: str | None = None
+    for line in content.replace("\r\n", "\n").split("\n"):
+        mark = _FENCE.match(line)
+        if fence is not None or mark:
+            # Lines inside a fenced block belong to the enclosing entry, whatever they look like.
+            if mark and (fence is None or mark[1] == fence):
+                fence = mark[1] if fence is None else None
+            if blocks:
+                blocks[-1].lines.append(line)
+            continue
+        heading = _heading_text(line)
+        top_level = not line[:1].isspace()
+        if heading:
+            found = _ID_IN_HEADING.match(heading)
+        else:
+            found = _ID_START.match(line) if top_level else None
+        level = len(line) - len(line.lstrip("#")) if heading else 0
+        if heading and not found and blocks and blocks[-1].id and 0 < blocks[-1].level < level:
+            blocks[-1].lines.append(line)  # a sub-heading such as ``### Rationale`` stays inside
+        elif heading or found:
+            blocks.append(_Block((found[1] or found[2]) if found else None, heading, level, [line]))
+        elif blocks:
+            blocks[-1].lines.append(line)
+    return blocks
+
+
+def _without_closing_hashes(text: str) -> str:
+    """``## Title ##`` without its closing marks. ``\\s+#+\\Z`` is quadratic on spaces."""
+    body = text.rstrip("#")
+    return body.rstrip() if body != text and body[-1:].isspace() else text
+
+
+def _entry_of(block: _Block) -> LogEntry:
+    text = "\n".join(block.lines).strip()
+    first = re.sub(r"^#+[ \t]+", "", block.lines[0])
+    first = re.sub(r"^[-*][ \t]+", "", first).strip()
+    if block.heading:
+        remainder = _heading_title(_without_closing_hashes(first))
+    else:
+        remainder = _text_outside_fields(first)
+    body = next((line.strip() for line in block.lines[1:] if line.strip()), "")
+    title = (remainder or body or block.id or "")[:_TITLE_MAX]
+    return LogEntry(block.id, block.heading, title, text)
+
+
+def split_decision_log(content: str) -> list[LogEntry]:
+    """One entry per id line or heading. A leading id-less H1 is the file's title, not an entry."""
+    blocks = _blocks(content)
+    if blocks and blocks[0].level == 1 and blocks[0].id is None:
+        blocks.pop(0)
+    entries = (_entry_of(block) for block in blocks)
+    return [
+        entry
+        for entry in entries
+        if entry.title
+        and (
+            entry.id is not None
+            or (entry.heading is not None and len(entry.text) >= _MIN_ENTRY_CHARS)
+        )
+    ]
+
+
+def entry_date(text: str) -> str | None:
+    """The first real calendar day in a ``date``, ``decided`` or ``modified`` field, else None.
+
+    No git fallback: one file holds many decisions, so the file's history says nothing true
+    about when any single entry was decided.
+    """
+    fields: dict[str, str] = {}
+    for line in text.split("\n"):
+        for key, value in _fields_of(re.sub(r"^\s*[-*][ \t]+", "", line)).items():
+            fields.setdefault(key, value)
+    for key in _DATE_KEYS:
+        day = iso_day(fields.get(key))
+        if day:
+            return day
+    return None
+
+
+def read_log_entries(root: Path) -> tuple[list[tuple[str, LogEntry]], int, int]:
+    """``(entries, files, skipped)`` for the decision log files under ``root``.
+
+    An entry is ``(relative file, entry)``. ``files`` counts the log files found, and
+    ``skipped`` counts those that were unreadable, over ``MAX_READ_BYTES``, or past the first
+    ``MAX_LOG_FILES`` in path order.
+    """
+    entries: list[tuple[str, LogEntry]] = []
+    files = find_log_files(root)
+    skipped = max(0, len(files) - MAX_LOG_FILES)
+    for rel in files[:MAX_LOG_FILES]:
+        text = read_bounded(root / rel)
+        if text is None:
+            skipped += 1
+        else:
+            entries.extend((rel, entry) for entry in split_decision_log(text))
+    return entries, len(files), skipped
+
+
+MAX_LOG_CANDIDATES = 1000
+
+
+def _entry_keys(entries: list[tuple[str, LogEntry]]) -> list[str]:
+    """The id a draft records for each entry: the bare id when it names one entry, else
+    ``<id>--<n>`` in order, one word, so drafting one twin never hides the other."""
+    total = Counter(entry.id for _rel, entry in entries if entry.id)
+    seen: Counter[str] = Counter()
+    keys: list[str] = []
+    for _rel, entry in entries:
+        ident = entry.id or ""
+        seen[ident] += 1
+        keys.append(ident if total[ident] < 2 else f"{ident}--{seen[ident]}")
+    return keys
+
+
+def _log_candidate(rel: str, entry: LogEntry, ident: str, key: str) -> dict[str, Any]:
+    rest = entry.text.split("\n", 1)[1] if "\n" in entry.text else ""
+    return {
+        "id": ident,
+        "kind": "decision-log",
+        "title": sanitize(entry.title).strip(),
+        "reason": extract_reason(entry.title, rest),
+        "excerpt": sanitize(entry.text, EXCERPT_CHARS),
+        "date": entry_date(entry.text),
+        "source": {"file": rel, "entry_id": key},
+        "signals": [],
+    }
+
+
+def log_candidates(
+    root: Path, existing: ExistingAdrs, dropped: dict[str, int]
+) -> tuple[list[dict[str, Any]], int, int]:
+    """E1: ``(candidates, log files, log files skipped)``.
+
+    A decision-log entry that has an id and is named by no ADR is a candidate. A log file yields
+    at most ``MAX_LOG_CANDIDATES``, and the rest count under ``log_over_limit``. A repeated id
+    gets the suffix ``.2``, ``.3`` and so on, from one counter per id.
+    """
+    found: list[dict[str, Any]] = []
+    taken: set[str] = set()
+    seen: dict[str, int] = {}
+    per_file: dict[str, int] = {}
+    entries, files, skipped = read_log_entries(root)
+    keys = _entry_keys(entries)
+    for (rel, entry), key in zip(entries, keys, strict=True):
+        if entry.id is None:
+            dropped["log_no_id"] += 1
+        elif existing.names_id(key):
+            dropped["already_documented"] += 1
+        elif per_file.get(rel, 0) >= MAX_LOG_CANDIDATES:
+            dropped["log_over_limit"] += 1
+        else:
+            per_file[rel] = per_file.get(rel, 0) + 1
+            count = seen.get(entry.id, 0)
+            while True:
+                count += 1
+                ident = f"log-{entry.id}" if count == 1 else f"log-{entry.id}.{count}"
+                if ident not in taken:
+                    break
+            seen[entry.id] = count
+            taken.add(ident)
+            found.append(_log_candidate(rel, entry, ident, key))
+    return found, files, skipped

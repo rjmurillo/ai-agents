@@ -8,6 +8,7 @@ from typing import Any
 
 import adr_docs
 import adr_locate
+import adr_log
 import adr_reason
 import adr_scan
 import pytest
@@ -139,7 +140,7 @@ def _entries(ids: list[str]) -> list[str]:
 
 def _candidates(repo: Path) -> tuple[list[dict[str, Any]], dict[str, int]]:
     dropped = dict.fromkeys(adr_docs.DROP_KEYS, 0)
-    found, _files, _skipped = adr_docs.log_candidates(repo, adr_docs.ExistingAdrs([]), dropped)
+    found, _files, _skipped = adr_log.log_candidates(repo, adr_docs.ExistingAdrs([]), dropped)
     return found, dropped
 
 
@@ -160,7 +161,7 @@ def test_eight_thousand_entries_sharing_an_id_are_numbered_in_linear_time(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # The per-file cap would hide the quadratic search, so lift it where it exists.
-    monkeypatch.setattr(adr_docs, "MAX_LOG_CANDIDATES", 10**6, raising=False)
+    monkeypatch.setattr(adr_log, "MAX_LOG_CANDIDATES", 10**6, raising=False)
     repo = _log(tmp_path, "decisions.md", _entries(["D-1"] * 8000))
     started = time.perf_counter()
     found, _ = _candidates(repo)
@@ -172,7 +173,7 @@ def test_eight_thousand_entries_sharing_an_id_are_numbered_in_linear_time(
 def test_a_log_file_keeps_at_most_the_cap_and_counts_the_rest(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(adr_docs, "MAX_LOG_CANDIDATES", 3)
+    monkeypatch.setattr(adr_log, "MAX_LOG_CANDIDATES", 3)
     repo = _log(tmp_path, "decisions.md", _entries([f"D-{n}" for n in range(1, 6)]))
     found, dropped = _candidates(repo)
     assert [c["id"] for c in found] == ["log-D-1", "log-D-2", "log-D-3"]
@@ -180,7 +181,7 @@ def test_a_log_file_keeps_at_most_the_cap_and_counts_the_rest(
 
 
 def test_the_cap_is_per_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(adr_docs, "MAX_LOG_CANDIDATES", 2)
+    monkeypatch.setattr(adr_log, "MAX_LOG_CANDIDATES", 2)
     repo = _log(tmp_path, "decisions.md", _entries(["D-1", "D-2", "D-3"]))
     _log(tmp_path, "docs/decision-log.md", _entries(["X-1", "X-2", "X-3"]))
     found, dropped = _candidates(repo)
@@ -189,7 +190,7 @@ def test_the_cap_is_per_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
 
 
 def test_the_default_cap_is_one_thousand(tmp_path: Path) -> None:
-    assert adr_docs.MAX_LOG_CANDIDATES == 1000
+    assert adr_log.MAX_LOG_CANDIDATES == 1000
     repo = _log(tmp_path, "decisions.md", _entries([f"D-{n}" for n in range(1, 1003)]))
     found, dropped = _candidates(repo)
     assert len(found) == 1000 and dropped["log_over_limit"] == 2
@@ -198,11 +199,11 @@ def test_the_default_cap_is_one_thousand(tmp_path: Path) -> None:
 def test_entries_that_are_documented_or_have_no_id_do_not_count_toward_the_cap(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(adr_docs, "MAX_LOG_CANDIDATES", 2)
+    monkeypatch.setattr(adr_log, "MAX_LOG_CANDIDATES", 2)
     repo = _log(tmp_path, "decisions.md", _entries(["D-1", "D-2", "D-3"]))
     dropped = dict.fromkeys(adr_docs.DROP_KEYS, 0)
     existing = adr_docs.ExistingAdrs([("a.md", "see D-1 and D-2")])
-    found, _files, _skipped = adr_docs.log_candidates(repo, existing, dropped)
+    found, _files, _skipped = adr_log.log_candidates(repo, existing, dropped)
     assert [c["id"] for c in found] == ["log-D-3"]
     assert dropped["already_documented"] == 2 and dropped["log_over_limit"] == 0
 
@@ -210,7 +211,7 @@ def test_entries_that_are_documented_or_have_no_id_do_not_count_toward_the_cap(
 def test_scan_reports_log_over_limit_under_dropped(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(adr_docs, "MAX_LOG_CANDIDATES", 1)
+    monkeypatch.setattr(adr_log, "MAX_LOG_CANDIDATES", 1)
     repo = _log(tmp_path, "decisions.md", _entries(["D-1", "D-2"]))
     payload = adr_scan.scan(repo, "HEAD", 10, None, None)
     assert payload["dropped"]["log_over_limit"] == 1
@@ -246,12 +247,12 @@ def _read(repo: Path) -> tuple[list[tuple[str, str]], adr_locate.AdrTally]:
     return list(adr_locate.read_adr_texts(repo, tally=tally)), tally
 
 
-def test_reading_stops_after_the_file_cap_and_counts_the_rest(
+def test_reading_stops_after_the_file_cap_and_counts_the_oldest(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(adr_locate, "MAX_ADR_FILES", 3)
     texts, tally = _read(_adr_repo(tmp_path, 5))
-    assert [path for path, _ in texts] == [f"docs/adr/000{n}-decision-{n}.md" for n in (1, 2, 3)]
+    assert [path for path, _ in texts] == [f"docs/adr/000{n}-decision-{n}.md" for n in (5, 4, 3)]
     assert (tally.read, tally.skipped, tally.cut) == (3, 2, True)
 
 
@@ -289,7 +290,7 @@ def test_the_files_over_the_cap_are_listed_not_read(
     _record_reads(monkeypatch, opened)
     _read(repo)
     adr_reads = [name for name in opened if name.endswith(".md")]
-    assert adr_reads == ["0001-decision-1.md", "0002-decision-2.md"]
+    assert adr_reads == ["0006-decision-6.md", "0005-decision-5.md"]
 
 
 def test_the_stream_reads_one_file_at_a_time(
@@ -301,7 +302,7 @@ def test_the_stream_reads_one_file_at_a_time(
     stream = adr_locate.read_adr_texts(repo)
     next(stream)
     adr_reads = [name for name in opened if name.endswith(".md")]
-    assert adr_reads == ["0001-decision-1.md"]
+    assert adr_reads == ["0004-decision-4.md"]
 
 
 def test_the_scan_payload_says_when_the_corpus_was_truncated(

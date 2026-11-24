@@ -68,7 +68,7 @@ def test_a_named_pipe_as_the_pr_export_is_refused_not_read(tmp_path: Path) -> No
 
 def test_a_directory_as_a_json_input_is_refused(tmp_path: Path) -> None:
     with pytest.raises(ConfigError, match="not a regular file|cannot read"):
-        bootstrap_adr._read_json(str(tmp_path), "scan file")
+        bootstrap_adr._read_json(str(tmp_path), "scan file", bootstrap_adr.MAX_JSON_BYTES)
 
 
 def test_a_json_file_over_the_limit_is_refused(
@@ -78,7 +78,7 @@ def test_a_json_file_over_the_limit_is_refused(
     big = tmp_path / "big.json"
     big.write_text('["abcdefghi"]', encoding="utf-8")
     with pytest.raises(ConfigError, match="too large"):
-        bootstrap_adr._read_json(str(big), "scan file")
+        bootstrap_adr._read_json(str(big), "scan file", 10)
 
 
 def test_a_json_file_at_the_limit_is_read(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -86,7 +86,7 @@ def test_a_json_file_at_the_limit_is_read(tmp_path: Path, monkeypatch: pytest.Mo
     exact = tmp_path / "exact.json"
     exact.write_text('["abcdef"]', encoding="utf-8")
     assert exact.stat().st_size == 10
-    assert bootstrap_adr._read_json(str(exact), "scan file") == ["abcdef"]
+    assert bootstrap_adr._read_json(str(exact), "scan file", 10) == ["abcdef"]
 
 
 @pytest.mark.skipif(not Path("/proc/self/status").is_file(), reason="needs procfs")
@@ -97,18 +97,22 @@ def test_the_limit_counts_bytes_read_not_the_size_the_file_reports(
     monkeypatch.setattr(bootstrap_adr, "MAX_JSON_BYTES", 10)
     assert Path("/proc/self/status").stat().st_size == 0
     with pytest.raises(ConfigError, match="too large"):
-        bootstrap_adr._read_json("/proc/self/status", "scan file")
+        bootstrap_adr._read_json("/proc/self/status", "scan file", bootstrap_adr.MAX_JSON_BYTES)
 
 
 def test_a_missing_json_file_is_still_a_config_error(tmp_path: Path) -> None:
     with pytest.raises(ConfigError, match="cannot read"):
-        bootstrap_adr._read_json(str(tmp_path / "nope.json"), "--prs-json")
+        bootstrap_adr._read_json(
+            str(tmp_path / "nope.json"), "--prs-json", bootstrap_adr.MAX_JSON_BYTES
+        )
 
 
 def test_a_regular_json_file_still_parses(tmp_path: Path) -> None:
     path = tmp_path / "ok.json"
     path.write_text('{"a": [1, 2]}', encoding="utf-8")
-    assert bootstrap_adr._read_json(str(path), "scan file") == {"a": [1, 2]}
+    assert bootstrap_adr._read_json(str(path), "scan file", bootstrap_adr.MAX_JSON_BYTES) == {
+        "a": [1, 2]
+    }
 
 
 # ---------------------------------------------------------------------------

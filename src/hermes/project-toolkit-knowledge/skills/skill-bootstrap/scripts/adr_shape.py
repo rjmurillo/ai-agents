@@ -10,7 +10,7 @@
 #                                     and the patterns they use). The sentence scoring lives in
 #                                     adr_reason.py.
 # Sibling ports: adr_shape.py, adr_reason.py, adr_commits.py, adr_docs.py, adr_locate.py,
-# adr_scan.py, bootstrap_adr.py.
+# adr_log.py, adr_scan.py, bootstrap_adr.py.
 # MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align
 """Pure classifiers for commit subjects: is this one a decision, and does it say why?
 

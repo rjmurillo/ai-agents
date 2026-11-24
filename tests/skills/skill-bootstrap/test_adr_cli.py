@@ -104,7 +104,7 @@ def test_scan_out_that_exists_or_is_a_directory_exits_two(tmp_path: Path) -> Non
     [
         (["--rev", "nope"], "rev does not name a commit"),
         (["--rev=--all"], "may not start with"),
-        (["--since=--all"], "--since may not start with"),
+        (["--since=--all"], "--since must be an ISO 8601 date"),
     ],
 )
 def test_a_bad_rev_or_since_exits_two(tmp_path: Path, args: list[str], message: str) -> None:

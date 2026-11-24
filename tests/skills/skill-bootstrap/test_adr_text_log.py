@@ -12,7 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import adr_commits
-import adr_docs
+import adr_log
 import pytest
 from adr_helpers import write
 
@@ -31,8 +31,8 @@ Raw text stays in the source system; we keep a pointer only.
 """
 
 
-def _entries(text: str) -> list[adr_docs.LogEntry]:
-    entries: list[adr_docs.LogEntry] = adr_docs.split_decision_log(text)
+def _entries(text: str) -> list[adr_log.LogEntry]:
+    entries: list[adr_log.LogEntry] = adr_log.split_decision_log(text)
     return entries
 
 
@@ -54,14 +54,14 @@ def test_an_entry_is_dated_from_modified_and_left_undated_when_no_field_parses()
         LEDGER + "\nid: D-004 · modified: soon\nSomething was decided here with no usable date.\n"
     )
     entries = _entries(text)
-    assert adr_docs.entry_date(entries[0].text) == "2026-10-27"
-    assert adr_docs.entry_date(entries[2].text) is None
+    assert adr_log.entry_date(entries[0].text) == "2026-10-27"
+    assert adr_log.entry_date(entries[2].text) is None
 
 
 def test_the_date_fields_are_read_in_order_and_a_bad_day_is_skipped() -> None:
-    assert adr_docs.entry_date("id: D1 | date: 2026-02-30 | decided: 2026-03-04") == "2026-03-04"
-    assert adr_docs.entry_date("D1: x\nmodified: 2026-05-06\ndate: 2026-01-02") == "2026-01-02"
-    assert adr_docs.entry_date("D1: x\n- decided: 2026-03-04\n") == "2026-03-04"
+    assert adr_log.entry_date("id: D1 | date: 2026-02-30 | decided: 2026-03-04") == "2026-03-04"
+    assert adr_log.entry_date("D1: x\nmodified: 2026-05-06\ndate: 2026-01-02") == "2026-01-02"
+    assert adr_log.entry_date("D1: x\n- decided: 2026-03-04\n") == "2026-03-04"
 
 
 def test_a_numbered_log_splits_on_headings_and_id_lines_and_dates_from_decided() -> None:
@@ -70,7 +70,7 @@ def test_a_numbered_log_splits_on_headings_and_id_lines_and_dates_from_decided()
     assert first.title == "D17 - Use Postgres for the graph"
     assert "team already runs it" in first.text
     assert second.title == "D181: Never store raw message text in the payload column"
-    assert adr_docs.entry_date(second.text) == "2026-03-04"
+    assert adr_log.entry_date(second.text) == "2026-03-04"
 
 
 def test_an_entry_with_no_id_keeps_its_heading_and_has_no_id() -> None:
@@ -86,8 +86,8 @@ def test_the_listed_names_are_found_at_the_root_and_in_docs(tmp_path: Path) -> N
         write(tmp_path, name, f"D{index + 1}: Keep this decision in the log file\n")
     write(tmp_path, "README.md", "D9: not a log\n")
     write(tmp_path, "docs/guide.md", "D9: not a log\n")
-    assert adr_docs.find_log_files(tmp_path) == sorted(names)
-    entries, _files, _skipped = adr_docs.read_log_entries(tmp_path)
+    assert adr_log.find_log_files(tmp_path) == sorted(names)
+    entries, _files, _skipped = adr_log.read_log_entries(tmp_path)
     assert sorted(entry.id or "" for _file, entry in entries) == ["D1", "D2", "D3", "D4"]
 
 
@@ -95,7 +95,7 @@ def test_nothing_under_a_dot_folder_is_read(tmp_path: Path) -> None:
     write(tmp_path, "DECISIONS.md", "D1: A real decision the user wrote by hand\n")
     write(tmp_path, ".align/decisions.md", "D2: Written by a tool and must not be read back\n")
     write(tmp_path, ".align/DECISIONS.md", "D3: Written by a tool and must not be read back\n")
-    assert adr_docs.find_log_files(tmp_path) == ["DECISIONS.md"]
+    assert adr_log.find_log_files(tmp_path) == ["DECISIONS.md"]
 
 
 def test_a_log_with_no_recognisable_entries_gives_nothing() -> None:

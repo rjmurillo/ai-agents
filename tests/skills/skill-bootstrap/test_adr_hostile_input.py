@@ -14,6 +14,7 @@ from pathlib import Path
 import adr_commits
 import adr_docs
 import adr_locate
+import adr_log
 import adr_scan
 import adr_shape
 import bootstrap_adr
@@ -46,8 +47,8 @@ def _seconds(call: Callable[[], object]) -> float:
             "file action line",
             lambda: adr_shape.has_stated_rationale("Adopt x for all", "added " + "." * N + " x"),
         ),
-        ("entry_date", lambda: adr_docs.entry_date("a" + " " * N + "y")),
-        ("log heading", lambda: adr_docs.split_decision_log("## D1 " + " " * N + "x")),
+        ("entry_date", lambda: adr_log.entry_date("a" + " " * N + "y")),
+        ("log heading", lambda: adr_log.split_decision_log("## D1 " + " " * N + "x")),
     ],
 )
 def test_a_hostile_200k_string_is_linear(name: str, call: Callable[[], object]) -> None:
@@ -81,11 +82,11 @@ def test_a_file_action_subject_is_still_told_from_a_decision(
 
 
 def test_a_closing_mark_and_a_field_segment_still_come_off_a_log_title() -> None:
-    entries = adr_docs.split_decision_log(
+    entries = adr_log.split_decision_log(
         "## D17 - Use pnpm everywhere ##\n\nBecause it is faster.\n"
     )
     assert entries[0].title == "D17 - Use pnpm everywhere"
-    ledger = adr_docs.split_decision_log("D5 | status: test | Keep one lockfile\n\nWhy.\n")
+    ledger = adr_log.split_decision_log("D5 | status: test | Keep one lockfile\n\nWhy.\n")
     assert ledger[0].title == "D5 Keep one lockfile"
 
 

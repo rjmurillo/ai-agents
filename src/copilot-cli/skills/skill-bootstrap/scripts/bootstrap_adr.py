@@ -6,7 +6,7 @@
 #   src/lib/adr-writer.ts (writeAdr, lines 137-148; renderAdr and slug live in adr_locate.py
 #                          and adr_commits.py. The trailing "Drafted by" comment is not ported.)
 # Sibling ports: adr_shape.py, adr_reason.py, adr_commits.py, adr_docs.py, adr_locate.py,
-# adr_scan.py, bootstrap_adr.py.
+# adr_log.py, adr_scan.py, bootstrap_adr.py.
 # MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align
 """Find the decisions in a repository that have no ADR, and draft one ADR for each you accept.
 
@@ -23,12 +23,9 @@ Standard library only. Subcommands:
     repository. ``--prs-json`` is an offline export (see ``adr_commits.py`` for its shape).
 
 ``draft --scan FILE --id ID --out DIR [--status Proposed]``
-    Render one candidate as an ADR and create it with mode ``x``, never replacing a file.
-    Everything in the draft comes from the source: its title, the reason it stated, an
-    excerpt of its text, and a link to where it was decided. A section the source never
-    covered says so. If git finds a work tree around DIR, DIR must be one of that work
-    tree's located ADR folders and the file must not be ignored by git, whatever repository
-    the scan file names.
+    Create one ADR from a candidate with mode ``x``, never replacing a file. Its text comes
+    from the source: title, stated reason, excerpt, and a link back. Inside a work tree, DIR
+    must be a located ADR folder of that tree and the file must not be ignored by git.
 
 Every command prints JSON. Exit codes: 0 done; 1 the draft target exists or another ADR took
 its number (``error`` is ``exists``, and ``written`` is true when the draft stays on disk); 2 bad
@@ -37,14 +34,13 @@ internal error (``internal``); 3 git is missing, failed, or timed out (``git``).
 
 Departures from the upstream source, each pinned by a test:
 
-- The status is ``Proposed`` by default. A person accepts the ADR through review. Upstream
-  wrote ``Accepted``.
-- The H1 copies the newest ADR's form (``# ADR-123: Title``) and the file name keeps its
-  prefix and zero padding. Upstream wrote ``# 123. Title`` and a bare number.
+- The status is ``Proposed`` by default, never ``Accepted``, which upstream wrote.
+- The H1 copies the newest ADR's form (``# ADR-123: Title``), and the file name keeps its
+  prefix and padding. Upstream wrote ``# 123. Title`` and a bare number.
 - The headings follow the newest ADR in the folder. A heading the source does not fill says
   ``Not recorded in the source.`` Upstream wrote fixed Nygard headings.
-- The number is chosen at write time from the folder, then the file is created with mode
-  ``x``. A name that exists is reported and never retried with another number.
+- The number is taken at write time and the file created with mode ``x``. A name that
+  exists is reported, never retried with another number.
 - A title with no ASCII letter or digit gives the slug ``decision-<sha7>`` (or the id), not ``""``.
 """
 
@@ -55,6 +51,7 @@ import json
 import os
 import stat
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -101,6 +98,8 @@ __all__ = [
 # ---------------------------------------------------------------------------
 
 MAX_JSON_BYTES = 16 * MAX_READ_BYTES
+# scan refuses to write a report over this, so draft can always read what scan wrote.
+MAX_SCAN_BYTES = 256 * MAX_READ_BYTES
 _KINDS = frozenset({"commit", "pr", "decision-log"})
 # ADR-073's status enum, without "accepted": a draft never asserts its own approval.
 # Acceptance needs a review, so a person sets it after the draft is written. Superseded is
@@ -144,8 +143,8 @@ def _text(value: object, name: str, required: bool = False) -> str | None:
     return sanitize(value)
 
 
-def _read_json(path: str, label: str) -> Any:
-    """Parse a regular JSON file of at most ``MAX_JSON_BYTES``, or raise ConfigError.
+def _read_json(path: str, label: str, limit: int) -> Any:
+    """Parse a regular JSON file of at most ``limit`` bytes, or raise ConfigError.
 
     The file opens without blocking and ``fstat`` checks the open descriptor, so a named pipe is
     refused, never waited on. The read stops one byte past the limit, whatever size the file
@@ -156,8 +155,8 @@ def _read_json(path: str, label: str) -> Any:
         with os.fdopen(fd, "rb") as handle:
             if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
                 raise ConfigError(f"{label} {path} is not a regular file")
-            data = handle.read(MAX_JSON_BYTES + 1)
-        if len(data) > MAX_JSON_BYTES:
+            data = handle.read(limit + 1)
+        if len(data) > limit:
             raise ConfigError(f"{label} {path} is too large")
         return json.loads(data.decode("utf-8", errors="replace"))
     except (OSError, ValueError, RecursionError) as exc:
@@ -166,7 +165,7 @@ def _read_json(path: str, label: str) -> Any:
 
 def load_candidate(path: str, ident: str) -> tuple[dict[str, Any], dict[str, Any]]:
     """Read a scan file and return ``(scan, candidate)`` for ``ident``, or raise ConfigError."""
-    data = _read_json(path, "scan file")
+    data = _read_json(path, "scan file", MAX_SCAN_BYTES)
     if not isinstance(data, dict) or not isinstance(data.get("candidates"), list):
         raise ConfigError(f"scan file {path} is not a scan result")
     if not isinstance(data.get("repo"), str):
@@ -375,7 +374,7 @@ def _positive(text: str) -> int:
 def _read_prs(path: str | None) -> list[Any] | None:
     if path is None:
         return None
-    data = _read_json(path, "--prs-json")
+    data = _read_json(path, "--prs-json", MAX_JSON_BYTES)
     if not isinstance(data, list):
         raise ConfigError(f"--prs-json {path} must hold a JSON list")
     return data
@@ -405,14 +404,29 @@ def _cmd_locate(args: argparse.Namespace) -> dict[str, Any]:
     return locate(repo_root(Path(args.repo)))
 
 
+def _check_since(since: str | None) -> None:
+    """``--since`` must be an ISO 8601 date or time: git reads a word it cannot parse as now."""
+    try:
+        if since is not None:
+            datetime.fromisoformat(since)
+    except ValueError as exc:
+        raise ConfigError(
+            f"--since must be an ISO 8601 date such as 2026-01-31: {since!r}"
+        ) from exc
+
+
 def _cmd_scan(args: argparse.Namespace) -> dict[str, Any]:
     root = repo_root(Path(args.repo))
     target = _out_outside_repo(root, args.out)
-    if args.since is not None and args.since.startswith("-"):
-        raise ConfigError(f"--since may not start with '-': {args.since!r}")
+    _check_since(args.since)
     payload = scan(root, args.rev, args.max_commits, args.since, _read_prs(args.prs_json))
+    data = _encode(json.dumps(payload, indent=2) + "\n", target)
+    if len(data) > MAX_SCAN_BYTES:
+        raise ConfigError(
+            "the scan report is over 256 MiB; narrow it with --max-commits or --since"
+        )
     try:
-        _create_new(target, _encode(json.dumps(payload, indent=2) + "\n", target))
+        _create_new(target, data)
     except FileExistsError as exc:
         raise ConfigError(f"--out {target} already exists; it is never overwritten") from exc
     return {**payload, "out": str(target)}

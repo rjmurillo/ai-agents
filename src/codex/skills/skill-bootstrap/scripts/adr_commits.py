@@ -8,7 +8,7 @@
 #                                   dropCommitsOfStoredPrs, lines 73-130 and 160-207)
 # Not ported: unquoteGitPath, because the port reads no per-commit file lists.
 # Sibling ports: adr_shape.py, adr_reason.py, adr_commits.py, adr_docs.py, adr_locate.py,
-# adr_scan.py, bootstrap_adr.py.
+# adr_log.py, adr_scan.py, bootstrap_adr.py.
 # MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align
 """Commit records, text helpers, pull request selection, and commit links.
 
@@ -60,7 +60,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlsplit
 
-from adr_reason import extract_reason
+from adr_reason import breaking_change, extract_reason
 from adr_shape import is_release_or_bump_subject
 
 __all__ = [
@@ -280,7 +280,7 @@ class PrRow:
     url: str
     merged_day: str
     merge_sha: str | None
-    reason: str
+    reason: str | None
 
 
 def trailing_pr_number(subject: str) -> int | None:
@@ -374,7 +374,9 @@ def select_prs(items: list[Any], dropped: dict[str, int], base: str | None = Non
             dropped["pr_bot"] = dropped.get("pr_bot", 0) + 1
         elif is_release_or_bump_subject(title):
             dropped["pr_housekeeping"] = dropped.get("pr_housekeeping", 0) + 1
-        elif not (reason := extract_reason(title, body[:BODY_CAP])):
+        elif not (reason := extract_reason(title, body[:BODY_CAP])) and not breaking_change(
+            title, body
+        ):
             dropped["pr_no_reason"] = dropped.get("pr_no_reason", 0) + 1
         else:
             rows.append(PrRow(number, title, body, url, day, _merge_sha(item), reason))
@@ -405,7 +407,8 @@ def excerpt(title: str, body: str) -> str:
 
 
 _URL_REMOTE = re.compile(
-    r"(?:https?|ssh|git)://(?:[^@/]*@)?(?P<host>[A-Za-z0-9.-]+)(?::[0-9]+)?/(?P<path>.+)\Z",
+    r"(?P<scheme>https?|ssh|git)://(?:[^@/]*@)?(?P<host>[A-Za-z0-9.-]+)(?P<port>:[0-9]+)?"
+    r"/(?P<path>.+)\Z",
     re.ASCII,
 )
 _SCP_REMOTE = re.compile(r"(?:[^@/:]+@)?(?P<host>[A-Za-z0-9.-]+):(?P<path>[^/].*)\Z", re.ASCII)
@@ -427,7 +430,10 @@ def web_base(remote: str) -> tuple[str, str] | None:
     path = match["path"].strip("/").removesuffix(".git").strip("/")
     if not _HOSTED.fullmatch(host) or not _REPO_PATH.fullmatch(path):
         return None
-    return ("github" if host.startswith("github.") else "gitlab"), f"https://{host}/{path}"
+    # An https port belongs to the web address; an ssh port does not.
+    groups = match.groupdict()
+    port = groups.get("port") or "" if groups.get("scheme") in ("http", "https") else ""
+    return ("github" if host.startswith("github.") else "gitlab"), f"https://{host}{port}/{path}"
 
 
 def commit_urls(

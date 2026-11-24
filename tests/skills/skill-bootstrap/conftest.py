@@ -19,6 +19,7 @@ try:
     import adr_docs  # noqa: F401
     import adr_helpers  # noqa: F401
     import adr_locate  # noqa: F401
+    import adr_log  # noqa: F401
     import adr_reason  # noqa: F401
     import adr_scan  # noqa: F401
     import adr_shape  # noqa: F401

@@ -6,8 +6,8 @@ from pathlib import Path
 from typing import Any
 
 import adr_commits
-import adr_docs
 import adr_locate
+import adr_log
 import adr_reason
 import pytest
 from adr_helpers import write
@@ -118,11 +118,11 @@ def test_the_decision_line_escapes_every_leading_markdown_mark(title: str, expec
 def test_log_files_past_the_cap_are_counted_not_read(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(adr_docs, "MAX_LOG_FILES", 2)
+    monkeypatch.setattr(adr_log, "MAX_LOG_FILES", 2)
     for n in range(4):
         write(tmp_path, f"docs/decisions-{n}-ledger.md", f"## D-{n}: Adopt x number {n}\n\nText.\n")
 
-    entries, files, skipped = adr_docs.read_log_entries(tmp_path)
+    entries, files, skipped = adr_log.read_log_entries(tmp_path)
 
     assert files == 4
     assert skipped == 2
