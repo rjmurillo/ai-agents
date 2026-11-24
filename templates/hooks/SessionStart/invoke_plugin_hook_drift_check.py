@@ -43,9 +43,9 @@ Exit Codes:
 References:
     - Issue #5085 (installed plugin enforces guards deleted from main)
     - ADR-097 (tool-call hooks retired; the shipped state is zero of them)
-    - `.claude/rules/ci-scripts.md` MUST 8, which names
-      `~/.claude/plugins/cache` and `~/.copilot/installed-plugins` as the
-      copies that "can be arbitrarily old"
+    - the repo-local `ai-agents-validation-and-qa` skill's
+      `references/rule-ci-scripts.md` MUST 8 names `~/.claude/plugins/cache` and
+      `~/.copilot/installed-plugins` as copies that "can be arbitrarily old"
 """
 
 from __future__ import annotations

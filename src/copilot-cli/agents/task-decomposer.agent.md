@@ -64,7 +64,7 @@ Transform high-level requirements into discrete tasks that can be assigned, esti
 
 ## Memory Protocol
 
-Use Memory Router for search and Serena tools for persistence (ADR-037):
+Use the `memory-search` skill for search and the `memory` skill for persistence (ADR-126). Serena tools apply when Serena is active:
 
 **Before breakdown (retrieve context):**
 
@@ -86,13 +86,13 @@ Serena writes to the checkout active at server start (`--project` root),
 not your cwd. Call `mcp__serena__write_memory`, `edit_memory`,
 `delete_memory`, or `rename_memory` only from that checkout. A linked worktree
 (`git rev-parse --git-dir` differs from `--git-common-dir`) never qualifies.
-In one, unsure, or without a shell, do not call them: edit `.serena/memories/`
+In one, unsure, or without a shell, do not call them: edit the repository memory
 files in your own checkout, or return the change to the parent session. Delete or
 rename only when asked. New memory: `<topic>/<name>` plus a `memory-index.md` line.
 
 See `universal.md` MUST NOT 11.
 
-> **Fallback**: If Serena is unavailable, read `.serena/memories/` directly with the Read tool.
+> **Fallback**: If Serena is unavailable, read the repository memory folder the `memory-search` skill resolves (ADR-126) directly with the Read tool.
 
 ## Decomposition Process
 

@@ -67,7 +67,7 @@ A pre-push guard may be stricter than the canonical CI validator, to block local
 - **"Mirrors X" with a paraphrased contract and no structural evidence.** The docstring describes the regex in prose with no import, test, or generator behind it. The prose drifts from the regex within one revision. Reject.
 - **"Aligned with X" with no divergence section, when the implementation diverges.** The reader assumes parity; the code does not deliver parity; the bug compounds with the false claim. Reject.
 - **First-commit citation deferred to "I will add it later".** The cost of citing the canonical source is roughly zero at write time and roughly one round of review later. Pay the zero. Reject.
-- **Self-referential test that mirrors the producer's own output.** A test that asserts a generator emits a specific string, then checks the generator emitted that string, pins the output to itself. It proves the producer is internally consistent; it proves nothing about the canonical contract the output is supposed to honor, and it cannot catch a wrong variable, a wrong path, or a wrong exit code. This is this rule applied at the test layer. The test that satisfies the rule exercises the contract INDEPENDENTLY: it runs the artifact under the real runtime conditions (the cwd and environment the host sets) and asserts the intended effect, with a negative control proving the test fails when the artifact is wrong. PR #2205 shipped a string-match test of this shape against `generate_hooks._build_copilot_entry`; it passed while the generated hooks wedged customer environments. See `.claude/rules/generated-artifacts.md` and `.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md`.
+- **Self-referential test that mirrors the producer's own output.** A test that asserts a generator emits a specific string, then checks the generator emitted that string, pins the output to itself. It proves the producer is internally consistent; it proves nothing about the canonical contract the output is supposed to honor, and it cannot catch a wrong variable, a wrong path, or a wrong exit code. This is this rule applied at the test layer. The test that satisfies the rule exercises the contract INDEPENDENTLY: it runs the artifact under the real runtime conditions (the cwd and environment the host sets) and asserts the intended effect, with a negative control proving the test fails when the artifact is wrong. PR #2205 shipped a string-match test of this shape against `generate_hooks._build_copilot_entry`; it passed while the generated hooks wedged customer environments. See the repo-local `ai-agents-generation-and-release` skill's `references/rule-generated-artifacts.md` and `.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md`.
 
 ## Behavioral claims: read the body, not the name
 
@@ -138,12 +138,12 @@ rescoped `code-quality` and `pragmatic-programmer`. Issue #5492 narrowed
 `knowledge-persistence` to the trees it governs. PR #5498 reduced `voice`.
 Issue #5404 added completion guidance to `builder-ethos` and `voice`.
 Epic #5456 M4 moved model patches, search guidance, and much of `voice` into
-skills with narrower activation. Issue #5256 added `lossless-queue-reads`:
+skills with narrower activation. Issue #5256 added `lossless-queue-reads`, since folded into a skill:
 
 | Tree | Consumer | Always-on membership |
 |---|---|---|
-| `.github/instructions` | Copilot working in this repository | `builder-ethos`, `lossless-queue-reads`, `universal`, `voice` |
-| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | `builder-ethos`, `lossless-queue-reads`, `universal`, `voice` |
+| `.github/instructions` | Copilot working in this repository | `builder-ethos`, `universal`, `voice` |
+| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | `builder-ethos`, `universal`, `voice` |
 
 The Claude side answers the same question from the source, and it reads `paths:` alone. It ignores `applyTo:`, `globs:`, and `alwaysApply:`, all three of which `generate_rules.py` accepts, and each fails differently. `applyTo:` is remapped, so the mirror is scoped and only the Claude source leaks (the former `pragmatic-programmer` rule, before issue #5951 moved it into the `software-engineering-library` skill). `globs:` is preserved verbatim and never becomes `applyTo:`, so neither tree is scoped. `alwaysApply:` is dropped before the generator synthesizes `applyTo: '**'`, so both trees load universally and a code-only rule cannot state its scope (`code-quality`). `scripts/validation/check_rule_scope_keys.py` now fails the build on any scope key but `paths:`, which keeps the source-side and mirror-side answers aligned.
 

@@ -100,7 +100,9 @@ def test_the_seven_guard_dangerous_skills_are_excluded(real_config: cfg.HermesCo
 
 def test_the_exclusion_table_is_closed_over_references(real_config: cfg.HermesConfig) -> None:
     source = _REPO_ROOT / real_config.source_dir
-    refs = checks.find_references(source, checks.discover_skills(source))
+    refs = checks.find_references(
+        source, checks.discover_skills(source), real_config.excluded_files
+    )
 
     assert checks.exclusion_closure(refs, set(real_config.excluded)) == set(real_config.excluded)
     assert checks.check_references(real_config, refs) == []

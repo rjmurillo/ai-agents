@@ -140,7 +140,7 @@ For when to use REST or GraphQL under these scripts, read [GitHub API capabiliti
 
    Three things to know:
 
-   - Both scripts return at most `--limit` rows. The default is 30 and the range is 1 to 1000. A full page does not mean you saw every row. A limit is a fetch size, not a completeness bound. For a work queue, where each row is an obligation, follow the [lossless work-queue reads rule](../../.claude/rules/lossless-queue-reads.md).
+   - Both scripts return at most `--limit` rows. The default is 30 and the range is 1 to 1000. A full page does not mean you saw every row. A limit is a fetch size, not a completeness bound. For a work queue, where each row is an obligation, follow the [lossless work-queue reads rule](../../src/claude/skills/pr-comment-responder/references/rule-lossless-queue-reads.md).
    - `--search` replaces the other filters. `list_issues.py` ignores `--label`, `--author`, `--assignee`, and `--milestone` when you pass it. `get_pull_requests.py` ignores `--label`, `--author`, `--base`, and `--head`.
    - `--state closed` on `get_pull_requests.py` includes merged PRs. Read `state` on each row. Use `--state merged` for merged PRs only.
 

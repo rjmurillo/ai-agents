@@ -40,6 +40,7 @@ from pathlib import Path
 from typing import Any
 
 from _inflection import has_term as _has_term
+from _packs import sibling_pack_roots
 
 # ADR-047 keeps this bootstrap inline because imports need sys.path first.
 # This file's own plugin lib wins when it holds the shared frontmatter parser,
@@ -163,6 +164,9 @@ def _runtime_roots(
 
     # <skills dir>/skillforge/scripts/discover_skills.py -> <skills dir>
     roots.append(("plugin-local", script_path.resolve().parents[2]))
+    # Hermes installs the other packs beside this one; their skills are local too.
+    for pack in sibling_pack_roots(script_path.resolve().parents[3]):
+        roots.append((f"pack-{pack.name}", pack / "skills"))
 
     for index, root in enumerate(extra_roots or [], start=1):
         roots.append((f"extra-{index}", Path(root).expanduser()))

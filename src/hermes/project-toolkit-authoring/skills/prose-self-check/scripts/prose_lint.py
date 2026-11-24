@@ -461,7 +461,8 @@ def scan_prose(text: str, banned: set[str]) -> Scan:
     """Scan *text* and report both the findings and the coverage behind them.
 
     A run that read almost nothing must not look like a clean one, so the
-    caller also gets the coverage (`.claude/rules/ci-scripts.md` MUST-12).
+    caller also gets the coverage (the repo-local `ai-agents-validation-and-qa`
+    skill's `references/rule-ci-scripts.md` MUST-12).
     """
     lines, masked, total, opened_at = _prose_lines(text)
     findings = _lexical_findings(lines, banned) + _structural_findings(masked)

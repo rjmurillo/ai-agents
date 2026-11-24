@@ -1493,18 +1493,18 @@ class _PyScope:
     """
 
     def __init__(self, kind: str, parent: "_PyScope | None", local: set[str]) -> None:
-        self.kind = kind
-        self.local = local
+        self._kind = kind
+        self._local = local
         self.never: set[str] = set()
         self.defined: _PyDefined = {}
-        self.outer: _PyDefined = {}
+        self._outer: _PyDefined = {}
         if parent is not None:
-            self.outer = dict(parent.outer)
-            if parent.kind != "class":
+            self._outer = dict(parent._outer)
+            if parent._kind != "class":
                 # Nested scopes never see a class body's names.
-                for name in parent.local | parent.never:
-                    self.outer.pop(name, None)
-                self.outer.update(
+                for name in parent._local | parent.never:
+                    self._outer.pop(name, None)
+                self._outer.update(
                     (n, v) for n, v in parent.defined.items() if n not in parent.never
                 )
 
@@ -1512,7 +1512,7 @@ class _PyScope:
         """Whether ``name`` is definitely bound here and what it binds."""
         if name in self.never:
             return False, None
-        table = self.defined if name in self.local else self.outer
+        table = self.defined if name in self._local else self._outer
         return (name in table), table.get(name)
 
 
@@ -1568,25 +1568,25 @@ class _PyBindingCollector(ast.NodeVisitor):
     def __init__(
         self, lines: list[str], tree: ast.Module, resolve_import: _PyImportResolver | None = None
     ) -> None:
-        self.lines = lines
+        self._lines = lines
         local, never = _py_scope_locals(tree.body)
-        self.scope = _PyScope("module", None, local)
-        self.scope.never = never
+        self._scope = _PyScope("module", None, local)
+        self._scope.never = never
         self.uses: list[tuple[_PyPos, str, bool]] = []
         self.unproven_module_roots: set[_PyPos] = set()
-        self.conditional = 0  # depth inside short-circuit or ternary operands
-        self.halted = False  # the last statement left its block
-        self.resolve_import = resolve_import
+        self._conditional = 0  # depth inside short-circuit or ternary operands
+        self._halted = False  # the last statement left its block
+        self._resolve_import = resolve_import
 
     def _pos(self, lineno: int, byte_col: int) -> _PyPos:
-        line = self.lines[lineno - 1].encode("utf-8")
+        line = self._lines[lineno - 1].encode("utf-8")
         return lineno, len(line[:byte_col].decode("utf-8", "replace"))
 
     def _bind(self, name: str, pos: _PyPos | None, class_scope: "_PyScope | None" = None) -> None:
         if pos is not None:
             self.uses.append((pos, name, True))
-        if self.conditional == 0 and name not in self.scope.never:
-            self.scope.defined[name] = class_scope
+        if self._conditional == 0 and name not in self._scope.never:
+            self._scope.defined[name] = class_scope
 
     def _visit_all(self, nodes: list[Any]) -> None:
         for child in nodes:
@@ -1600,17 +1600,17 @@ class _PyBindingCollector(ast.NodeVisitor):
         if isinstance(node.ctx, ast.Store):
             self._bind(node.id, pos)
         elif isinstance(node.ctx, ast.Load):
-            self.uses.append((pos, node.id, self.scope.lookup(node.id)[0]))
+            self.uses.append((pos, node.id, self._scope.lookup(node.id)[0]))
         else:
             self.uses.append((pos, node.id, False))
-            self.scope.defined.pop(node.id, None)
+            self._scope.defined.pop(node.id, None)
 
     def visit_Attribute(self, node: ast.Attribute) -> None:
         self.visit(node.value)
         line, end = self._pos(cast(int, node.end_lineno), cast(int, node.end_col_offset))
         resolved = False
         if isinstance(node.value, ast.Name):
-            found, class_scope = self.scope.lookup(node.value.id)
+            found, class_scope = self._scope.lookup(node.value.id)
             resolved = found and class_scope is not None and node.attr in class_scope.defined
             if class_scope is not _PY_STDLIB_MODULE:
                 self.unproven_module_roots.add(self._pos(node.value.lineno, node.value.col_offset))
@@ -1622,15 +1622,15 @@ class _PyBindingCollector(ast.NodeVisitor):
 
     def visit_BoolOp(self, node: ast.BoolOp) -> None:
         self.visit(node.values[0])
-        self.conditional += 1
+        self._conditional += 1
         self._visit_all(node.values[1:])
-        self.conditional -= 1
+        self._conditional -= 1
 
     def visit_IfExp(self, node: ast.IfExp) -> None:
         self.visit(node.test)
-        self.conditional += 1
+        self._conditional += 1
         self._visit_all([node.body, node.orelse])
-        self.conditional -= 1
+        self._conditional -= 1
 
     # --- simple statements ----------------------------------------------------
 
@@ -1638,7 +1638,7 @@ class _PyBindingCollector(ast.NodeVisitor):
         for alias in node.names:
             root = alias.name.split(".")[0]
             name = alias.asname or root
-            self.scope.defined.pop(name, None)
+            self._scope.defined.pop(name, None)
             if root in sys.stdlib_module_names:
                 self._bind(name, None, _PY_STDLIB_MODULE)
 
@@ -1646,14 +1646,14 @@ class _PyBindingCollector(ast.NodeVisitor):
         for alias in node.names:
             name = alias.asname or alias.name
             if name == "*":
-                self.scope.defined.clear()
+                self._scope.defined.clear()
                 continue
             # An unverified import still replaces any previous binding.
-            self.scope.defined.pop(name, None)
-            if self.resolve_import is None or node.module is None or node.level:
+            self._scope.defined.pop(name, None)
+            if self._resolve_import is None or node.module is None or node.level:
                 continue
-            class_scope = self.resolve_import(node.module, alias.name)
-            if class_scope is None or name in self.scope.never:
+            class_scope = self._resolve_import(node.module, alias.name)
+            if class_scope is None or name in self._scope.never:
                 continue
             self.uses.append((self._pos(alias.lineno, alias.col_offset), alias.name, True))
             self._bind(name, None, class_scope)
@@ -1677,34 +1677,34 @@ class _PyBindingCollector(ast.NodeVisitor):
     def visit_AugAssign(self, node: ast.AugAssign) -> None:
         if isinstance(node.target, ast.Name):
             pos = self._pos(node.target.lineno, node.target.col_offset)
-            self.uses.append((pos, node.target.id, self.scope.lookup(node.target.id)[0]))
+            self.uses.append((pos, node.target.id, self._scope.lookup(node.target.id)[0]))
         self.visit(node.value)
         self.visit(node.target)
 
     def generic_visit(self, node: ast.AST) -> None:
         super().generic_visit(node)
         if isinstance(node, _PY_TERMINAL_STATEMENTS):
-            self.halted = True
+            self._halted = True
 
     # --- control flow ---------------------------------------------------------
 
     def _run_block(self, stmts: list[ast.stmt], start: _PyDefined) -> _PyDefined | None:
         """Visit ``stmts`` from ``start``; the bindings at exit, or None if none falls out."""
-        self.scope.defined = dict(start)
-        self.halted = False
+        self._scope.defined = dict(start)
+        self._halted = False
         for stmt in stmts:
             self.visit(stmt)
-            if self.halted:
-                self.halted = False
+            if self._halted:
+                self._halted = False
                 return None
-        return self.scope.defined
+        return self._scope.defined
 
     def _merge(self, paths: list[_PyDefined | None], start: _PyDefined) -> None:
         """Keep only bindings every path that falls through has made."""
         live = [path for path in paths if path is not None]
         if not live:
-            self.scope.defined = dict(start)
-            self.halted = True
+            self._scope.defined = dict(start)
+            self._halted = True
             return
         merged = {
             name: value for name, value in live[0].items() if all(name in path for path in live[1:])
@@ -1712,12 +1712,12 @@ class _PyBindingCollector(ast.NodeVisitor):
         for name in merged:
             if any(path[name] is not merged[name] for path in live[1:]):
                 merged[name] = None
-        self.scope.defined = merged
-        self.halted = False
+        self._scope.defined = merged
+        self._halted = False
 
     def visit_If(self, node: ast.If) -> None:
         self.visit(node.test)
-        start = dict(self.scope.defined)
+        start = dict(self._scope.defined)
         body = self._run_block(node.body, start)
         orelse = self._run_block(node.orelse, start)
         self._merge([body, orelse], start)
@@ -1725,13 +1725,13 @@ class _PyBindingCollector(ast.NodeVisitor):
     def _visit_loop(self, node: ast.For | ast.AsyncFor | ast.While) -> None:
         # The body may run zero times, so nothing it binds survives the loop.
         self.visit(node.iter if not isinstance(node, ast.While) else node.test)
-        start = dict(self.scope.defined)
+        start = dict(self._scope.defined)
         if not isinstance(node, ast.While):
             self.visit(node.target)
-        self._run_block(node.body, self.scope.defined)
+        self._run_block(node.body, self._scope.defined)
         self._run_block(node.orelse, start)
-        self.scope.defined = start
-        self.halted = False
+        self._scope.defined = start
+        self._halted = False
 
     def visit_For(self, node: ast.For) -> None:
         self._visit_loop(node)
@@ -1747,10 +1747,10 @@ class _PyBindingCollector(ast.NodeVisitor):
         for item in node.items:
             self.visit(item.context_expr)
             self._visit_all([item.optional_vars])
-        start = dict(self.scope.defined)
+        start = dict(self._scope.defined)
         self._run_block(node.body, start)
-        self.scope.defined = start
-        self.halted = False
+        self._scope.defined = start
+        self._halted = False
 
     def visit_With(self, node: ast.With) -> None:
         self._visit_with(node)
@@ -1760,33 +1760,33 @@ class _PyBindingCollector(ast.NodeVisitor):
 
     def visit_Match(self, node: Any) -> None:
         self.visit(node.subject)
-        start = dict(self.scope.defined)
+        start = dict(self._scope.defined)
         for case in node.cases:
-            self.scope.defined = dict(start)
+            self._scope.defined = dict(start)
             self._visit_all([case.pattern, case.guard])
-            self._run_block(case.body, self.scope.defined)
-        self.scope.defined = start
-        self.halted = False
+            self._run_block(case.body, self._scope.defined)
+        self._scope.defined = start
+        self._halted = False
 
     def _visit_try(self, node: Any) -> None:
         # An exception can leave the body before any binding in it.
-        start = dict(self.scope.defined)
+        start = dict(self._scope.defined)
         body = self._run_block(node.body, start)
         if body is not None:
             body = self._run_block(node.orelse, body)
         paths = [body]
         for handler in node.handlers:
-            self.scope.defined = dict(start)
+            self._scope.defined = dict(start)
             self._visit_all([handler.type])
-            paths.append(self._run_block(handler.body, self.scope.defined))
+            paths.append(self._run_block(handler.body, self._scope.defined))
         self._merge(paths, start)
-        merged, halted = self.scope.defined, self.halted
+        merged, halted = self._scope.defined, self._halted
         final = self._run_block(node.finalbody, start)
         if final is None:
-            self.scope.defined, self.halted = merged, True
+            self._scope.defined, self._halted = merged, True
             return
-        self.scope.defined = {**merged, **final}
-        self.halted = halted
+        self._scope.defined = {**merged, **final}
+        self._halted = halted
 
     def visit_Try(self, node: ast.Try) -> None:
         self._visit_try(node)
@@ -1798,20 +1798,20 @@ class _PyBindingCollector(ast.NodeVisitor):
 
     def _bind_def_name(self, node: _PyDef, class_scope: "_PyScope | None" = None) -> None:
         lineno, col = self._pos(node.lineno, node.col_offset)
-        match = _PY_DEF_NAME_RE.search(self.lines[lineno - 1], col)
+        match = _PY_DEF_NAME_RE.search(self._lines[lineno - 1], col)
         found = match is not None and match[1] == node.name
         pos = (lineno, cast(re.Match[str], match).start(1)) if found else None
         self._bind(node.name, pos, class_scope)
 
     def _enter(self, kind: str, local: set[str], never: set[str] | None = None) -> _PyScope:
-        outer = self.scope
-        self.scope = _PyScope(kind, outer, local)
-        self.scope.never = never or set()
+        outer = self._scope
+        self._scope = _PyScope(kind, outer, local)
+        self._scope.never = never or set()
         return outer
 
     def _leave(self, outer: _PyScope) -> None:
-        self.scope = outer
-        self.halted = False
+        self._scope = outer
+        self._halted = False
 
     def _bind_arguments(self, args: ast.arguments) -> None:
         every = [*args.posonlyargs, *args.args, *args.kwonlyargs, args.vararg, args.kwarg]
@@ -1833,7 +1833,7 @@ class _PyBindingCollector(ast.NodeVisitor):
         local, never = _py_scope_locals(node.body)
         outer = self._enter("function", local | self._argument_names(args), never)
         self._bind_arguments(args)
-        self._run_block(node.body, self.scope.defined)
+        self._run_block(node.body, self._scope.defined)
         self._leave(outer)
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
@@ -1853,7 +1853,7 @@ class _PyBindingCollector(ast.NodeVisitor):
         self._visit_all([*node.decorator_list, *node.bases, *node.keywords])
         local, never = _py_scope_locals(node.body)
         outer = self._enter("class", local, never)
-        class_scope = self.scope
+        class_scope = self._scope
         self._run_block(node.body, {})
         self._leave(outer)
         # A class name binds only after its body has run.
@@ -1955,7 +1955,7 @@ def _python_import_resolver(
             return None
         collector = _PyBindingCollector(source.split("\n"), tree)
         collector.visit(tree)
-        return collector.scope.lookup(name)[1]
+        return collector._scope.lookup(name)[1]
 
     return resolve
 
@@ -2209,14 +2209,14 @@ class _ScanBudgetError(Exception):
 class _ScanBudget:
     """Steps left for one C-family scan, so unclosed holes cannot rescan forever."""
 
-    __slots__ = ("steps",)
+    __slots__ = ("_steps",)
 
     def __init__(self, steps: int) -> None:
-        self.steps = steps
+        self._steps = steps
 
     def spend(self) -> None:
-        self.steps -= 1
-        if self.steps < 0:
+        self._steps -= 1
+        if self._steps < 0:
             raise _ScanBudgetError
 
 

@@ -139,10 +139,10 @@ Pick the recipe from the selector table. Each recipe states when to use it, the 
 
 **Steps**:
 
-1. Build the test per `.claude/rules/generated-artifacts.md` (runtime-contract test, foreign cwd, real subprocess, contract env set explicitly) and avoid the self-referential form that `.claude/rules/canonical-source-mirror.md` names. The customer wedge first fix and the payload-format `test_shim_reads_snake_case_wire_format` both passed while wrong.
+1. Build the test per the repo-local `ai-agents-generation-and-release` skill's `references/rule-generated-artifacts.md` (runtime-contract test, foreign cwd, real subprocess, contract env set explicitly) and avoid the self-referential form that `.claude/rules/canonical-source-mirror.md` names. The customer wedge first fix and the payload-format `test_shim_reads_snake_case_wire_format` both passed while wrong.
 2. Add at least one negative control: run the known-broken form through the same harness and assert it FAILS. Exemplar: `tests/build_scripts/test_generate_hooks_runtime_contract.py` (`test_negative_control_bare_relative_path_fails`).
 3. Add a load-bearing check: strip the contract precondition (unset the env var) and assert the passing case now fails, proving the anchor matters.
-4. Cite the empirical contract (tool name + version + date) in the test module docstring, per `.claude/rules/generated-artifacts.md`.
+4. Cite the empirical contract (tool name + version + date) in the test module docstring, per the repo-local `ai-agents-generation-and-release` skill's `references/rule-generated-artifacts.md`.
 
 **Worked examples**: see [references/worked-examples.md](references/worked-examples.md), Recipe 6.
 

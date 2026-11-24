@@ -583,7 +583,10 @@ def print_report(result: CheckResult) -> None:
         print()
         print("Raising the recorded baseline score is not one of the options.")
         print("A ratchet baseline may only fall")
-        print("(.claude/rules/ci-scripts.md, 'Count ratchets').")
+        print(
+            "(the repo-local ai-agents-validation-and-qa skill, "
+            "references/rule-ci-scripts.md, 'Count ratchets')."
+        )
     print()
     print(f"See {AUDIT_PATH}")
     print(f"and {GOVERNANCE_PATH}")
@@ -679,10 +682,11 @@ def _refuse_incomplete_corpus(corpus: list[str] | None, repo_root: Path) -> int 
 
     An empty list means git answered and no agent definition is tracked. That
     is indistinguishable in outcome from a scan that examined nothing, and
-    `.claude/rules/ci-scripts.md` MUST-12 forbids reporting the two the same
-    way: a full-corpus run that scores zero agents would pass the gate and
-    write an empty baseline, which disables the ratchet for every path at
-    once. There is no legitimate full-corpus run over an empty corpus.
+    `.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`
+    MUST-12 forbids reporting the two the same way: a full-corpus run that scores
+    zero agents would pass the gate and write an empty baseline, which disables
+    the ratchet for every path at once. There is no legitimate full-corpus run
+    over an empty corpus.
     """
     if corpus is None:
         print(
@@ -690,7 +694,8 @@ def _refuse_incomplete_corpus(corpus: list[str] | None, repo_root: Path) -> int 
             "Full-corpus mode scores what the commit contains and will not "
             "fall back to a filesystem walk, which counts untracked files "
             "and reads a partial checkout as an empty repository "
-            "(.claude/rules/ci-scripts.md MUST-9).",
+            "(the repo-local ai-agents-validation-and-qa skill, "
+            "references/rule-ci-scripts.md MUST-9).",
             file=sys.stderr,
         )
         return 2
@@ -738,10 +743,10 @@ def _resolve_baseline_scope(
 def _refuses_write_from_outside(repo_root: Path) -> bool:
     """True when the process is not standing inside ``repo_root``.
 
-    ``.claude/rules/ci-scripts.md`` MUST-7, quoted verbatim: "A script that
-    resolves the repository root and then writes to it MUST confirm the
-    current directory is inside the resolved root before the first write
-    (``Path.cwd().resolve().is_relative_to(top_level)``)."
+    ``.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md``
+    MUST-7, quoted verbatim: "A script that resolves the repository root and
+    then writes to it MUST confirm the current directory is inside the resolved
+    root before the first write (``Path.cwd().resolve().is_relative_to(top_level)``)."
 
     Different than canonical: the rule's worked example is a root taken from
     ``git rev-parse --show-toplevel``, which ``GIT_WORK_TREE`` or a local
@@ -761,7 +766,8 @@ def _refuses_write_from_outside(repo_root: Path) -> bool:
         f"{cwd}. --update-baseline records the checkout it is run from; a "
         "repo root that is not an ancestor of the current directory means "
         "the two disagree about which tree is being recorded "
-        "(.claude/rules/ci-scripts.md MUST-7).",
+        "(the repo-local ai-agents-validation-and-qa skill, "
+        "references/rule-ci-scripts.md MUST-7).",
         file=sys.stderr,
     )
     return True

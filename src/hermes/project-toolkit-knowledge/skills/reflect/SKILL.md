@@ -55,28 +55,9 @@ Use [retrospective](../retrospective/SKILL.md) instead when:
 
 ### Phase 1: Identify the Target Skill
 
-Locate the skill-based memory to update:
-
-1. **Check Serena memories**: Look for files ending with `-observations.md` in `.serena/memories/`
-2. **Infer from context**: Identify which skill(s) were used in the conversation
-3. **Create if needed**: If missing, propose `{skill-name}-observations.md` (skill observations pattern)
-
-**Storage Locations**:
-
-- **Serena MCP (canonical)**: `.serena/memories/{skill-name}-observations.md` via `mcp__serena__write_memory`
-- **Contingency (Serena unavailable)**: Manually edit the same file in Git and note the manual update in the per-issue handoff for later Serena sync
-
-### Serena memory writes: check the checkout first
-
-Serena writes to the checkout active at server start (`--project` root),
-not your cwd. Call `mcp__serena__write_memory`, `edit_memory`,
-`delete_memory`, or `rename_memory` only from that checkout. A linked worktree
-(`git rev-parse --git-dir` differs from `--git-common-dir`) never qualifies.
-In one, unsure, or without a shell, do not call them: edit `.serena/memories/`
-files in your own checkout, or return the change to the parent session. Delete or
-rename only when asked. New memory: `<topic>/<name>` plus a `memory-index.md` line.
-
-See `universal.md` MUST NOT 11.
+Identify the skill used in the conversation. Find its observations through
+`memory-search` or the `memory` skill's recall procedure. Use the project
+scope. Propose a descriptive sidecar name when no record exists.
 
 ### Phase 2: Analyze the Conversation
 
@@ -96,10 +77,9 @@ show changes before applying.**
 
 ### Phase 4: Persist Learnings to Memory
 
-After approval: read existing memory, append new learnings with timestamp and
-session reference, preserve existing content, extract code citations, and write
-to `.serena/memories/{skill-name}-observations.md` (Serena MCP canonical; Git
-fallback when Serena is unavailable).
+After approval, use the `memory` write procedure. Update the existing record
+with dated observations and source citations. For Markdown, use the established
+project corpus or the default repository notes directory.
 
 See [references/phase3-4-propose-persist.md](references/phase3-4-propose-persist.md)
 for the proposal display format, user-response handling, persistence strategy,
@@ -119,8 +99,8 @@ documentation), and the anti-patterns table.
 ## Integration, Design Decisions, and Commit Convention
 
 See [references/integration-and-design.md](references/integration-and-design.md)
-for integration with the session protocol, the memory skill, and Serena; the
-design-decision rationale (sidecar naming, the Serena sidecar contract,
+for integration with the session protocol and memory skill; the
+design-decision rationale (sidecar naming, the project store,
 relationship to `curating-memories`); extension points; and the commit
 convention for skill observation updates.
 
@@ -132,9 +112,9 @@ convention for skill observation updates.
 |--------|--------------|
 | Analysis complete | Signals categorized by confidence |
 | User approved | Explicit Y or approval statement |
-| Memory updated | File written to `.serena/memories/` |
+| Memory updated | Approved observations exist in the selected project store |
 | Changes preserved | Existing content not lost |
-| Commit ready | Changes staged, message drafted |
+| Repository files | Follow the project's version control policy |
 
 ---
 

@@ -69,6 +69,8 @@
   },
   "marker_files": {
     ".claude/skills/adr-generator/SKILL.md": 2,
+    ".claude/skills/ai-agents-generation-and-release/references/rule-generated-artifacts.md": 1,
+    ".claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md": 2,
     ".claude/skills/checkpoint/SKILL.md": 1,
     ".claude/skills/checkpoint/references/steps.md": 1,
     ".claude/skills/github/references/revision-grounding.md": 2,

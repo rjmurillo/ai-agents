@@ -57,11 +57,18 @@ runtime scripts shared by Claude Code and Copilot CLI, load
 `agent-harness-reference`. Execute contract changes through
 `ai-agents-portability-campaign`. Do not infer one harness from another.
 
-## Serena MCP Initialization (BLOCKING)
+## Project Memory
 
-Serena MCP tools available → MUST call FIRST:
+Use `memory-search` to recall prior work and `memory-gate` before changing
+existing behavior. Use `memory` to save durable findings. These skills use
+available project-scoped tools and repository files. This checkout keeps
+its project corpus in `.serena/memories/`.
 
-1. `serena/activate_project` (with project path)
+## Serena Code Navigation
+
+For code navigation, initialize Serena once when its tools are available:
+
+1. `serena/activate_project` if no project is active
 2. `serena/initial_instructions`
 
 **Check for**: Tools prefixed `serena/` or `mcp__serena__`
@@ -95,7 +102,7 @@ Serena MCP tools available → MUST call FIRST:
 **Session End:**
 
 1. Update per-issue handoff when work remains
-2. Update Serena memory (if available)
+2. Use `memory` for verified findings worth retaining
 3. Run scoped markdownlint on changed files (ADR-043)
 4. Validate an existing JSON session log when one is staged or supplied
 

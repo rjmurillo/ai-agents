@@ -1,1 +1,0 @@
-../../src/copilot-cli/instructions/token-economy.instructions.md

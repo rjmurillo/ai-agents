@@ -55,7 +55,7 @@ Source: `pyproject.toml` `[tool.pytest.ini_options]`. Counts are measurements of
 | [`check_skill_contract_tests.py`](../../scripts/validation/check_skill_contract_tests.py) | A `SKILL.md` documenting a script + exit code with no test under `tests/` naming it | 0 every in-scope skill bound, 1 unbound skill found, 2 usage/I/O error | CI only, `.github/workflows/validate-vendor-portability.yml` |
 | [`check_zero_collection_tests.py`](../../scripts/validation/check_zero_collection_tests.py) | A `test_*.py` under `testpaths` that pytest walks but collects zero tests from (undeclared) | 0 ok, 1 violations found, 2 config error | pre-push (direct `lefthook.yml` job) and CI (`.github/workflows/pytest.yml`) |
 
-All six read the shell-fail-loud contract in [`.claude/rules/ci-scripts.md`](../../.claude/rules/ci-scripts.md) MUST 10-11: a detected violation MUST exit non-zero, never print-and-exit-0. Invoke any of them as `uv run python scripts/validation/<name>.py`.
+All six read the shell-fail-loud contract in [the repo-local `ai-agents-validation-and-qa` skill's `references/rule-ci-scripts.md`](../../.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md) MUST 10-11: a detected violation MUST exit non-zero, never print-and-exit-0. Invoke any of them as `uv run python scripts/validation/<name>.py`.
 
 ## Second sanctioned location: security benchmarks
 
@@ -103,7 +103,7 @@ Source: `pyproject.toml` `[tool.pytest.ini_options]`.
 ## Related Documents
 
 - [`.claude/rules/testing.md`](../../.claude/rules/testing.md): binding rule this document expands on.
-- [`.claude/rules/ci-scripts.md`](../../.claude/rules/ci-scripts.md): exit-code and fail-loud contract every gate above follows.
+- [the repo-local `ai-agents-validation-and-qa` skill's `references/rule-ci-scripts.md`](../../.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md): exit-code and fail-loud contract every gate above follows.
 - [`.agents/governance/TESTING-RIGOR.md`](TESTING-RIGOR.md): pos+neg+edge evidence bar.
 - [`.agents/governance/TESTING-ANTI-PATTERNS.md`](TESTING-ANTI-PATTERNS.md): forbidden test shapes.
 - [`.project-toolkit/architecture/ADR-042-python-migration-strategy.md`](../../.project-toolkit/architecture/ADR-042-python-migration-strategy.md): the migration this document catches up to.

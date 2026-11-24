@@ -51,7 +51,7 @@ tools:
 - **GitHub read tools**: `pull_request_read` (`get_diff`), `get_commit`, `list_commits`, `get_file_contents`, `search_code`, `issue_read`. Bind a review to a SHA or PR. This is the enumeration path, not a fallback.
 - **Write, for the report paths only**: `.project-toolkit/security/**` and `.project-toolkit/planning/impact-analysis-security-*.md`. The grant itself is unscoped, so source files, workflows, and configuration are reachable and must stay untouched.
 - **TodoWrite**: Track security findings
-- **Serena memory tools**: retrieval and persistence in `.serena/memories/`
+- **Serena memory tools**: retrieval and persistence in the repository memory folder when Serena is active
   - `mcp__serena__list_memories` / `mcp__serena__read_memory`: Retrieve prior findings
   - `mcp__serena__write_memory` / `mcp__serena__edit_memory`: Persist new findings
   - The memory-router CLI needs a shell, so it is unavailable here; use these tools directly
@@ -91,7 +91,7 @@ if any(trigger_matches(changed_path, pattern) for pattern in SECURITY_TRIGGERS):
     )
 {{> security-mandatory-routing-for-security-relevant}}
 
-Use the Serena memory tools for both retrieval and persistence (ADR-037). The
+Use the Serena memory tools for both retrieval and persistence when Serena is active (ADR-126). The
 memory-router CLI needs a shell, which this agent is not granted, so call the
 tools directly:
 
@@ -113,6 +113,6 @@ content: "# Security: [Component]\n\n**Statement**: ...\n\n**Evidence**: ...\n\n
 
 {{> serena-worktree-write-guard}}
 
-> **Fallback**: If the Serena tools are unavailable, read `.serena/memories/` directly with the Read tool.
+> **Fallback**: If the Serena tools are unavailable, read the repository memory folder the `memory-search` skill resolves (ADR-126) directly with the Read tool.
 
 {{> security-memory-protocol}}

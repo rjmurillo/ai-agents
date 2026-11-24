@@ -1,108 +1,118 @@
-# ADR Debate Log: ADR-115 Hermes Third Pack (D10)
+# ADR Debate Log: ADR-115 Hermes Authoring Pack
 
 ## Summary
 
 - **ADR**: `.project-toolkit/architecture/ADR-115-native-plugin-support-per-host.md`
 - **Prior debate log**: `.project-toolkit/critique/ADR-115-debate-log-5.md`
-- **Trigger**: owner decision D10, Richard, 2026-11-19, relayed in the readiness integration session. Merging `origin/main` at `ae5acffcb` into the readiness branch left `project-toolkit-delivery` at 404 files against `packMaxFiles: 399`. The owner chose "add a third pack" over "rebalance the two packs".
-- **Panel**: full (architect, critic, independent-thinker, security, analyst, high-level-advisor). The amendment changes executable enforcement: the pack table the build reads, and the smoke's `--force` policy.
-- **Implementation under review**: commit `9693b7932b3eb6211613f32fca478fa72ee865be`, parent `07a69ff6e`.
+- **Trigger**: owner decision, Richard, 2026-11-24. Merging main into PR #7527 put the knowledge pack at 403 files, over the 400-file cap. The owner chose a new pack over excluding files (D1). The owner then chose to move the whole six-skill reference group (D2), because `skill-bootstrap` alone fails the cross-pack rule.
+- **Panel**: full (architect, critic, independent-thinker, security, analyst, high-level-advisor). The change widens `FORCE_ALLOWED_PACKS`, a guard allowlist that the smoke enforces.
+- **Result**: consensus in round 2. All six vote Accept.
 
 ## Pre-review evidence
 
-- Measured 2026-11-19 at `07a69ff6e`: `build_all.py --check` failed with one error, `pack project-toolkit-delivery has 404 files; packMaxFiles is 399`.
-- Measured 2026-11-19 at `9693b793`: delivery 297 files and 42 skills, knowledge 386 and 40, quality 163 and 14. No skill file lost, gained, or changed; 55 `lib/` files identical in all three packs. `build_all.py --check` exits 0.
-- Pinned guard (hermes-agent `63d0b94`) at `9693b793`: delivery `caution` with 10 `high` findings, knowledge `caution` with 2, quality `safe`. Knowledge was already `caution` on `origin/main` at `ae5acffcb` and `safe` at `0982e4fe7`.
-- Real Hermes smoke at the pin, run 2026-11-19: 9 passed. Before the force-policy change every test errored, because the old rule allowed `--force` for delivery only.
+All measured on 2026-11-24.
+
+- `src/hermes/project-toolkit-knowledge` held 393 files on main at `2dbaabd7a8`. Merging main into PR #7527, which adds 10 files, counted 403.
+- After the split: authoring 190, knowledge 256, delivery 398.
+- `find_references` path edges: `skill-bootstrap` to `skillopt`, `skillopt` to `skillforge`, `skillforge` to `context-optimizer`, `skillify` to `skillforge`, `prose-self-check` to `skillforge`. No outside skill has a path edge into the six.
+- Pinned `plugin_guard` (hermes-agent `63d0b94120`): authoring `caution` (49 low, 49 medium, 1 high), knowledge `safe`, delivery `caution`. Main's knowledge was `caution`, with the same high finding at `skillforge/references/script-design-rules.md:232`.
+- `build_all.py --check` wrote 0 files.
 
 ## Round 1
 
-Each seat reviewed independently and wrote its own file. No seat saw another's review.
+### Architect
 
-| Agent | Vote | P0 | P1 |
-|-------|------|----|----|
-| architect | Disagree-and-Commit | 0 | A1 wrong alternative named ("budget raise"); A2 Packs bullet contradicts the new move rule; A3 Reversibility not amended |
-| critic | Disagree-and-Commit | 0 | conflicting remedies in the Packs bullet; no knowledge headroom plan; cross-pack rule says more than the build checks; force list never runs automatically; reinstall drop stated as fact but not run |
-| independent-thinker | Disagree-and-Commit | 0 | stale "255 files" count; knowledge runs out next with no plan; install guide claim about `/test` refuted (`security-scan`) |
-| security | Disagree-and-Commit | 0 | F1 no workflow runs the smoke, so a new high finding merges green; F2 the guide's update step uses `--force`, which accepts any new caution finding |
-| analyst | Disagree-and-Commit | 0 | none; five P2, including unlogged measurements and the stale `stuck-detection` reason |
-| high-level-advisor | Disagree-and-Commit | 0 | wrong alternative named; stale remedies in the Packs bullet; no split trigger; "no file changed" refuted (manifests changed) |
+Vote: Accept.
 
-No claim was REFUTED except: the `/test` sentence in the install guide (independent-thinker), "255 files" (independent-thinker), and "No skill, file, ... changed" (high-level-advisor).
+- P1: no smoke run backs the new allowlist entry.
+- P2: the `caution` on main implies a smoke failure the ADR did not state.
+- P2: "the one time an old skill changed packs" is a prediction, not a rule.
+- P2: the memory file said 393 where the ADR said 403.
+
+### Critic
+
+Vote: Disagree-and-Commit.
+
+- P1: "no skill outside the six refers to any of them" holds only for path references. Seven skills name the six in prose.
+- P1: the update path reinstalled only the knowledge pack.
+- P1: no smoke run evidence.
+- P1: this debate log did not exist.
+- P2: the `lib/` count of 40 per pack is stale; it is 52.
+- P2: troubleshooting named step 3 only.
+- P2: main's smoke failure went unstated.
+
+### Independent-thinker
+
+Vote: Disagree-and-Commit.
+
+- P1: the prose-reference gap, as the critic found.
+- P1: "one time" is prose nothing enforces.
+- P1: delivery at 398 fails on 3 more files, including shared `lib/` files.
+- P2: delivery got no room.
+- P2: the 393 and 403 counts disagree.
+
+### Security
+
+Vote: Accept.
+
+- P1: the smoke checks the verdict only. A new high finding in authoring would still install.
+- P2: the guide did not name the guard pin or say the high finding is reference prose.
+
+### Analyst
+
+Vote: Disagree-and-Commit.
+
+- P1: the prose-reference gap.
+- P1: the 403 count did not match the tree without its source.
+- P2: missing debate log.
+- P2: main's smoke failure went unstated.
+- P2: the 255-file sentence may be stale.
+
+### High-level-advisor
+
+Vote: Accept.
+
+- P1: missing debate log.
+- P1: the 393 and 403 counts disagree.
+- P2: state the split procedure as a rule.
 
 ### Changes made after round 1
 
-- The Split bullet says a raise could not clear 404 at a 400 cap and names rebalancing as the offered alternative. Alternatives Considered adds rebalancing and the smaller 17-skill split.
-- The Packs bullet gives two remedies with their cost: a raise up to 400, or a move or new pack under an amendment with the full panel.
-- Negative consequences and the Reversibility Assessment gain 2026-11-19 paragraphs.
-- The build-fail list states the exact path check. The guard rule moved out of that list, because the smoke runs the guard, not the build.
-- The Split bullet names the prose cross-pack mentions a single-pack user sees.
-- The Smoke bullet says no workflow runs the smoke, that the Decision 10 CI leg is still missing, and that line churn is the accepted cost of rejecting moved findings.
-- "255 files" became a dated 150 files in 12 skills at `9693b793`.
-- "No skill, file" became "no skill file, `lib/` module, exclusion, or budget", naming the two manifest changes.
-- Install guide: the update step reinstalls without `--force` first; the `/test` sentence names `security-scan`; the reinstall drop is marked not run, with a count check.
-- Logs added under the session scratch folder for the guard history, the move check, and pack counts.
+- Decision 6 limits the reference claim to path references and lists the seven prose routes under Negative.
+- Decision 6 states the rule: an old skill changes packs only by owner decision, recorded as a Decision 6 amendment, and takes its whole path-reference set. The `hermes.yaml` comment says the same.
+- Decision 6 and the memory file give 393 on main at `2dbaabd7a8` and 403 after the merge.
+- The smoke ran with `RUN_CLI_E2E=1` against hermes-agent `63d0b94120`. Main failed 7 of 7 at setup, because knowledge was `caution` and not allowlisted. This change passed 6 of 7.
+- The one smoke failure is the guard negative control. Its `stuck-detection` fixture rates `safe` on main too, so the failure predates this change. Decision 6 records it.
+- Negative states delivery's 2 files of room and the verdict-only allowlist gap.
+- The `lib/` figure reads 52 per Hermes pack.
+- The install guide names the guard pin and line 232, reinstalls all three packs on update, and names step 4 for authoring.
+- A recount over packed skills found the largest reference group at 12 skills and 151 source files.
 
-### Deferred P1 items
+### Deferred
 
-- **Split trigger for knowledge (critic, independent-thinker, high-level-advisor).** Setting a trigger is the owner's call under User Sovereignty, and the owner set "no earlier trigger" on 2026-11-15. Since then `origin/main` raised `packMaxFiles` five times, from 381 to 399, on 2026-11-17 and 2026-11-18 (`031b40d48`, `57feafaed`, `4f8e3852a`, `498d4892a`, `d374ae9c1`). The ADR now states that knowledge has 13 free files and reaches the budget first. Deferred to the owner.
-- **Hermes CI leg (critic, security F1).** Decision 10 already requires it; it predates D10 and is outside its scope. The ADR now states it is missing.
+- Security P1, per-pack severity ceiling. Deferred. Delivery has had the same verdict-only gap since it joined the allowlist. A ceiling needs the guard snippet to report findings, which changes the smoke for both packs. The Negative section names the gap.
 
 ## Round 2
 
-Each seat checked its own round 1 items and every claim in the changed text against primary sources.
+- Critic: Accept. All findings resolved once this log lands.
+- Analyst: Accept. Remaining P2s were the 255-file sentence and the negative-control cause. Both are now measured and recorded.
+- Independent-thinker: Accept. One P2 on `lib/` wording, fixed.
+- Architect, security, and high-level-advisor voted Accept in round 1. Round 2 changed no finding they raised to a worse state.
 
-| Agent | Vote | Position |
-|-------|------|----------|
-| architect | Accept | A1, A2, A3 resolved. P2: the 398 and 392 rebalance figures have no log; the reinstall loss is stated as fact; the frontmatter date is stale. |
-| critic | Disagree-and-Commit | Three P1s fixed; the knowledge trigger and the CI leg are deferred with reasons. P2: the CI leg is not under Deferred Items; "failed every smoke run" is too broad, since knowledge is `safe` at `0982e4fe7`; the reinstall loss and the 398 and 392 figures are not measured; D10 has no record outside the session. |
-| independent-thinker | Accept | All three P1s resolved or deferred. P2: the reinstall loss; the rebalance figures; knowledge growth rate (333 to 386 files in 30 days) not stated; "four rules" lists three. |
-| security | Disagree-and-Commit | F2 resolved; F1 deferred as P2, because the ADR states the missing CI leg. P2: the reinstall loss; the `/test` list reads as complete. |
-| analyst | Accept | No REFUTED claim; round 1 UNVERIFIED claims now verified from the new logs. P2: the reinstall loss; the `/test` list; the 150-file and rebalance figures have no saved output; `spec` fills two sections from quality skills. |
-| high-level-advisor | Accept | Three P1s fixed; the trigger deferral is recorded. Open owner question: whether knowledge relief should ride in this change so users migrate once. |
+## Open items outside this change
 
-### P2 wording edits after round 2
+- The smoke's guard negative control no longer proves anything, because `stuck-detection` rates `safe` at the pin. The seven skills excluded as dangerous rest on older guard runs.
 
-These narrow claims and change no rule, so no further round ran.
+## After consensus
 
-- The reinstall loss now reads as "the new delivery pack no longer carries 14 skills", with the reinstall marked not run.
-- The 398 and 392 figures are gone; the eight-file total follows from 404 plus 386 against two budgets of 399.
-- "Four rules" became three rules plus the headroom aim.
-- The `/test` sentence names its skills as examples, not the full list.
-- "Failed every smoke run" now names `ae5acffcb` and `07a69ff6e`.
-- Deferred Items lists the knowledge trigger and the Hermes CI leg.
-- The frontmatter `date` is 2026-11-19.
-- The Packs bullet and Negative consequences no longer restate the panel size; `AGENTS.md` owns that rule.
-- The deferral entry gains the budget history.
+- The frontmatter `date` moved from 2026-11-15 to 2026-11-24, as the doc-date-drift check asked. No decision text changed.
+- Devin Review on PR #7552 found two hidden cross-pack reads and an upgrade gap. `discover_skills.py` indexed only its own pack, and `_lint_frontmatter_checks.py` could not find `autoplan` in knowledge. A new `skillforge/scripts/_packs.py` lists sibling `project-toolkit-*` packs, and both scripts look there. `tests/skills/skillforge/test_hermes_sibling_packs.py` covers it, and three of its tests fail on the old code.
+- The upgrade probe ran against hermes-agent `63d0b94120`. Installing authoring before reinstalling knowledge listed 95 skills with six duplicates. Reinstalling knowledge left 89 with none. The guide now gives that order, and Negative records both points.
 
-## Owner questions
+## Round 3
 
-- Set a trigger for the next Hermes split or move, given knowledge has 13 free files at `9693b793`?
-- Should knowledge relief ride in this unmerged change, so Hermes users migrate once?
+Scope: the post-consensus fix for the hidden cross-pack reads.
 
-## Outcome
-
-Outcome: Consensus in round 2, four Accept and two Disagree-and-Commit, no P0 or P1 open. Dissent recorded: the critic and security seats commit with the Hermes CI leg still missing, so the force allow list is checked only by a local smoke. The ADR stays `proposed`.
-
-## Follow-up after the outcome
-
-Recorded 2026-11-19 after consensus. These apply fixes the security seat proposed for its own P2 items and narrow claims; no rule changed, so no further round ran.
-
-- Security F3 (P2): the smoke hashed a line found with `utf-8` and `splitlines()`, while the pinned guard numbers lines with `read_text(encoding="utf-8-sig").split("\n")` (`tools/skills_guard.py` at `63d0b94`). A form feed or other separator could bind a hash to a different line than the guard flagged. The smoke now splits exactly as the guard does. A unit test with a byte-order mark and a form feed fails when `splitlines()` returns.
-- Security F4 (P2): entries stored 16 hex digits of the hash. They now store the full SHA-256. The Smoke bullet says so.
-- Security F5 (P2): the install guide now says the reviewed `git` context lines run only when `skills.inline_shell` is on (default off, `hermes_cli/config_defaults.py` at `63d0b94`), through `bash` in the installed skill folder, with output placed in the model's context.
-- The guide's `Decision: BLOCKED` sentence is now measured: a no-force install at the pin blocked knowledge (144 findings) and delivery (278), and installed quality.
-- The generated `src/hermes/README.md` said skills in one pack never refer to skills in another. It now says no skill points at a script, reference, or other support file in another pack, and that some skills name a skill there.
-- The guard's own `match` text sits in the hashed line for 11 of the 12 reviewed findings. The twelfth, `invisible_unicode`, reports a description as its match; its hashed line holds the byte-order mark.
-
-### P2 items left open
-
-- Reviewed entries stay in `FORCE_ALLOWED_FINDINGS` after their finding disappears (independent-thinker).
-- Knowledge's growth rate, 333 to 386 files in 30 days, is not in the ADR (independent-thinker).
-- `spec` fills two sections from `threat-modeling` and `slo-designer`, a cross-pack mention the Split bullet does not list (analyst).
-- The D10 decision has no record outside the integration session and the commit messages (critic, analyst).
-- `stuck-detection` keeps a stale exclusion reason in `templates/platforms/hermes.yaml` and the generated `src/hermes/README.md`.
-
-### LLM council on the split choice
-
-A council (GPT-6 Astra, Claude Opus 5.5, GPT-6 Sol, Claude Sonnet 5; chairman GPT-6 Astra) compared this split with the 17-skill alternative. All four answered. The verdict chose this split, because the other moves two skills `/test` calls and leaves 48 free files against 102. The strongest objection it named: this split's pack boundary is less coherent than a "review" theme. It also noted that knowledge's 13 free files bound shared `lib/` growth for both splits alike. The question gave the councillors the facts above; they did not read the repository.
+- Architect: Accept, on condition the carve-out sits beside the rule. Done. The build-fails list now says "refers" means a path `find_references` matches, allows a sibling lookup only through `_packs.py`, and records two accepted risks: a hidden joined-path lookup, and trust in any `project-toolkit-*` sibling. The README generator and the install guide now say "by path".
+- Critic: Disagree-and-Commit. P1: the new test file left `src/claude` on `sys.path` and broke five mirror-tree tests. Fixed: the file loads its modules by file path, and the full skillforge set passes. P2: require a manifest. Fixed: a sibling must also hold `plugin.json`.
+- Consensus holds: no Block.
