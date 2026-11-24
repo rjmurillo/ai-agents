@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import sys
+from collections.abc import Hashable
 from functools import cache
 from pathlib import Path
 
@@ -32,20 +33,61 @@ class UnsupportedApplyToError(ValueError):
     """
 
 
+class _UniqueKeySafeLoader(yaml.SafeLoader):
+    """``SafeLoader`` that rejects duplicate mapping keys instead of last-wins.
+
+    PyYAML (like most YAML parsers) silently keeps the last value when a key
+    repeats. A rule with two ``applyTo`` keys would then be scored on whichever
+    came last, so a universal ``applyTo`` could be masked by a trailing
+    directory-scoped one and dodge the budget. Fail closed on any duplicate.
+
+    This loader is this module's own policy, passed to the shared parser. It is
+    not the shared parser's duplicate-key loader: keys compare by Python dict
+    semantics (a repeated ``.nan`` is a duplicate because PyYAML reuses one NaN
+    object), values build shallow (a self-referencing sequence loads), and a
+    duplicate or unhashable key raises ``UnsupportedApplyToError``.
+    """
+
+
+def _construct_unique_mapping(
+    loader: _UniqueKeySafeLoader, node: yaml.MappingNode, deep: bool = False
+) -> dict[object, object]:
+    """Build a mapping, raising ``UnsupportedApplyToError`` on a duplicate key."""
+    mapping: dict[object, object] = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        # SafeLoader.construct_mapping rejects an unhashable key (a YAML complex
+        # key such as ``? [a, b]``) with a ConstructorError; the raw ``key in
+        # mapping`` below would instead raise an uncaught TypeError and escape as
+        # exit 1. Guard it so malformed frontmatter fails closed as exit 2.
+        if not isinstance(key, Hashable):
+            msg = f"unhashable key in frontmatter: {key!r}"
+            raise UnsupportedApplyToError(msg)
+        if key in mapping:
+            msg = f"duplicate key {key!r} in frontmatter"
+            raise UnsupportedApplyToError(msg)
+        mapping[key] = loader.construct_object(value_node, deep=deep)
+    return mapping
+
+
+_UniqueKeySafeLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+    _construct_unique_mapping,
+)
+
+
 def load_unique_frontmatter(text: str) -> dict[str, object]:
     """Return the leading frontmatter mapping, rejecting duplicate keys.
 
-    Uses ``scripts/hook_utilities/frontmatter_block.py``. PyYAML keeps the last
-    value when a key repeats, so a rule with two ``applyTo`` keys would be
-    scored on whichever came last and a universal ``applyTo`` could be masked
-    by a trailing directory-scoped one. Fail closed on any duplicate, at any
-    depth.
+    The fence and the load come from ``scripts/hook_utilities/frontmatter_block.py``;
+    the duplicate-key policy is ``_UniqueKeySafeLoader``, passed as ``loader``.
+    Fail closed on any duplicate, at any depth.
 
     Returns ``{}`` when there is no block, the block never closes, or the block
     is empty or not a mapping. Raises ``UnsupportedApplyToError`` when the YAML
     is invalid, a key repeats, or a key is unhashable.
     """
-    result = parse_frontmatter(text, yaml)
+    result = parse_frontmatter(text, yaml, loader=_UniqueKeySafeLoader)
     if result.status is FrontmatterStatus.MALFORMED:
         detail = (result.error or "").removeprefix("invalid YAML frontmatter: ")
         raise UnsupportedApplyToError(f"frontmatter is not valid YAML: {detail}")

@@ -405,6 +405,64 @@ class TestLoaderOverride:
         assert len(frontmatter_block._STRICT_LOADERS) == 1
 
 
+class TestDecodeFrontmatterYaml:
+    """Raw-text entry point: no fence handling, same loader choice as the parser."""
+
+    # staticmethod: Python 3.14 binds a bare functools.partial class attribute as a method.
+    decode = staticmethod(functools.partial(frontmatter_block.decode_frontmatter_yaml, yaml=yaml))
+
+    def test_default_loader_rejects_duplicate_keys(self) -> None:
+        with pytest.raises(yaml.YAMLError, match="duplicate key 'a'"):
+            self.decode("a: 1\na: 2\n")
+
+    def test_allow_duplicate_keys_is_last_one_wins(self) -> None:
+        assert self.decode("a: 1\na: 2\n", allow_duplicate_keys=True) == {"a": 2}
+
+    @pytest.mark.parametrize(
+        ("raw", "expected"), [("", None), ("- x\n- y\n", ["x", "y"]), ("s\n", "s")]
+    )
+    def test_null_list_and_scalar_come_back_unclassified(self, raw: str, expected: object) -> None:
+        assert self.decode(raw, allow_duplicate_keys=True) == expected
+
+    def test_fence_lines_are_not_stripped(self) -> None:
+        # Raw text is decoded as given. A caller that passes fences gets a
+        # multi-document stream, which yaml.load rejects: nothing re-fences or unfences.
+        with pytest.raises(yaml.YAMLError):
+            self.decode("---\na: 1\n---\n", allow_duplicate_keys=True)
+
+    def test_error_keeps_type_and_marks_of_safe_load(self) -> None:
+        bad = "a: 1\nb: [unclosed\n"
+        with pytest.raises(yaml.YAMLError) as decoded:
+            self.decode(bad, allow_duplicate_keys=True)
+        with pytest.raises(yaml.YAMLError) as direct:
+            yaml.safe_load(bad)
+        assert type(decoded.value) is type(direct.value)
+        assert str(decoded.value) == str(direct.value)
+
+    def test_custom_loader_is_used(self) -> None:
+        marker: Any = type("marker_loader", (yaml.SafeLoader,), {})
+        marker.add_constructor("tag:yaml.org,2002:str", lambda loader, node: "X")
+        assert self.decode("a: b\n", loader=marker) == {"X": "X"}
+
+    def test_non_safe_loader_is_refused(self) -> None:
+        with pytest.raises(TypeError, match="SafeLoader"):
+            self.decode("a: 1\n", loader=yaml.UnsafeLoader)
+
+    def test_parse_frontmatter_reads_through_the_entry_point(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        seen: list[str] = []
+        real = frontmatter_block.decode_frontmatter_yaml
+
+        def spy(raw: str, yaml_module: Any, **kwargs: Any) -> Any:
+            seen.append(raw)
+            return real(raw, yaml_module, **kwargs)
+
+        monkeypatch.setattr(frontmatter_block, "decode_frontmatter_yaml", spy)
+        assert parse("---\na: 1\n---\n").metadata == {"a": 1}
+        assert seen == ["\na: 1\n"]
+
+
 class TestShippedLibStaysStdlibOnly:
     """The module ships in the plugin lib trees, so it imports no third-party module."""
 

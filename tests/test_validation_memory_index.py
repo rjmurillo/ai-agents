@@ -2619,7 +2619,12 @@ class TestCheckFrontmatterValidity:
         result = check_frontmatter_validity(tmp_path)
         assert result.passed is False
         assert result.invalid_files == ["list-memory.md"]
-        assert "not a mapping" in result.issues[0]
+        assert "must be a mapping" in result.issues[0]
+        # Exact base wording (f9d788bd8): type name, then the mapping-specific hint.
+        assert result.issues[0] == (
+            "Malformed YAML frontmatter: list-memory.md (frontmatter must be a "
+            "mapping, got list). Use 'key: value' lines, or remove the frontmatter block."
+        )
 
     def test_scalar_metadata_detected(self, tmp_path: Path) -> None:
         # A bare scalar is not a metadata mapping; must be flagged (issue #4918).
@@ -2627,7 +2632,21 @@ class TestCheckFrontmatterValidity:
         result = check_frontmatter_validity(tmp_path)
         assert result.passed is False
         assert result.invalid_files == ["scalar-memory.md"]
-        assert "not a mapping" in result.issues[0]
+        assert "must be a mapping" in result.issues[0]
+        assert "got str)" in result.issues[0]
+
+    def test_malformed_yaml_keeps_the_colon_space_hint(self, tmp_path: Path) -> None:
+        # The parse-error branch keeps its own hint, distinct from the mapping hint.
+        (tmp_path / "bad-memory.md").write_text("---\nname: a: b\n---\nbody\n")
+        result = check_frontmatter_validity(tmp_path)
+        assert result.passed is False
+        issue = result.issues[0]
+        assert issue.startswith("Malformed YAML frontmatter: bad-memory.md (")
+        assert "must be a mapping" not in issue
+        assert issue.endswith(
+            "). Quote values that contain a colon-space, close the block with "
+            "a '---' delimiter, or remove the frontmatter block."
+        )
 
     def test_empty_frontmatter_block_passes(self, tmp_path: Path) -> None:
         # An empty block carries no corruption; optional frontmatter (#4900).

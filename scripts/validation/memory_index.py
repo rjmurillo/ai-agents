@@ -830,17 +830,21 @@ def check_naming_convention(memory_path: Path) -> NamingConventionResult:
 _CANONICAL_SKIP_NAMES = frozenset({"README.md", "CLAUDE.md"})
 
 
-def _parse_leading_frontmatter(text: str) -> tuple[bool, str | None]:
+def _parse_leading_frontmatter(text: str) -> tuple[bool, str | None, str | None]:
     """Check a leading YAML frontmatter block with the repository's one parser.
 
-    Returns ``(has_frontmatter, error)``:
+    Returns ``(has_frontmatter, error, value_type)``:
 
-    - ``(False, None)`` when the file has no leading frontmatter block.
+    - ``(False, None, None)`` when the file has no leading frontmatter block.
       Frontmatter is optional (issue #4900), so plain Markdown, or a file whose
       only ``---`` is a horizontal rule in the body, is not frontmatter.
-    - ``(True, None)`` when a closed block parsed to a mapping or was empty.
-    - ``(True, error)`` when the block never closes, is not parseable YAML, or
-      is not a mapping. ``error`` is a one-line reason.
+    - ``(True, None, None)`` when a closed block parsed to a mapping or was empty.
+    - ``(True, error, None)`` when the block never closes or is not parseable
+      YAML. ``error`` is a one-line reason.
+    - ``(True, error, value_type)`` when the block parsed to something other
+      than a mapping. ``value_type`` is the core result's type name (``list``,
+      ``str``, ...) and ``error`` reads ``frontmatter must be a mapping, got
+      <value_type>``.
 
     The fence and the YAML load come from
     ``scripts/hook_utilities/frontmatter_block.py``, the parser the canonical
@@ -869,21 +873,22 @@ def _parse_leading_frontmatter(text: str) -> tuple[bool, str | None]:
         normalized = normalized[1:].strip()
     result = parse_frontmatter(normalized, yaml, allow_duplicate_keys=True)
     if result.status is FrontmatterStatus.ABSENT:
-        return False, None
+        return False, None, None
     if bom_prefixed:
         return (
             True,
             "UTF-8 BOM before the frontmatter delimiter; the loader reads the "
             "whole file as plain Markdown and drops the metadata",
+            None,
         )
     if result.status is FrontmatterStatus.UNTERMINATED:
-        return True, "unclosed frontmatter delimiter (missing closing '---')"
+        return True, "unclosed frontmatter delimiter (missing closing '---')", None
     if result.status is FrontmatterStatus.MALFORMED:
         detail = (result.error or "").removeprefix("invalid YAML frontmatter: ")
-        return True, detail.splitlines()[0] if detail else "invalid YAML frontmatter"
+        return True, detail.splitlines()[0] if detail else "invalid YAML frontmatter", None
     if result.status is FrontmatterStatus.NOT_A_MAPPING:
-        return True, result.error
-    return True, None
+        return True, f"frontmatter must be a mapping, got {result.value_type}", result.value_type
+    return True, None, None
 
 
 def check_frontmatter_validity(memory_path: Path) -> FrontmatterResult:
@@ -928,17 +933,22 @@ def check_frontmatter_validity(memory_path: Path) -> FrontmatterResult:
         if f.name in _CANONICAL_SKIP_NAMES:
             continue
         relative = f.relative_to(memory_path)
-        has_frontmatter, error = _parse_leading_frontmatter(f.read_text(encoding="utf-8"))
+        has_frontmatter, error, value_type = _parse_leading_frontmatter(
+            f.read_text(encoding="utf-8")
+        )
         if not has_frontmatter or error is None:
             continue
         rel_posix = relative.as_posix()
         result.passed = False
         result.invalid_files.append(rel_posix)
-        result.issues.append(
-            f"Malformed YAML frontmatter: {rel_posix} ({error}). "
-            f"Quote values that contain a colon-space, use 'key: value' lines, "
-            f"close the block with a '---' delimiter, or remove the frontmatter block."
-        )
+        if value_type is not None:
+            hint = "Use 'key: value' lines, or remove the frontmatter block."
+        else:
+            hint = (
+                "Quote values that contain a colon-space, close the block with "
+                "a '---' delimiter, or remove the frontmatter block."
+            )
+        result.issues.append(f"Malformed YAML frontmatter: {rel_posix} ({error}). {hint}")
 
     return result
 

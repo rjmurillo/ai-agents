@@ -24,6 +24,8 @@ Entry points, one fence rule:
 
 - :func:`split_frontmatter` finds the block and returns its raw text, the body,
   and where the body starts. No YAML. Use it to strip or locate a block.
+- :func:`decode_frontmatter_yaml` loads raw block text a caller already
+  extracted, with the same pinned loader choice. No fence handling.
 - :func:`parse_frontmatter` splits, then loads the block with a pinned
   ``SafeLoader`` (or a loader the caller names) and reports why a block is
   unusable.
@@ -51,6 +53,7 @@ __all__ = [
     "FrontmatterResult",
     "FrontmatterSplit",
     "FrontmatterStatus",
+    "decode_frontmatter_yaml",
     "load_frontmatter",
     "parse_frontmatter",
     "split_frontmatter",
@@ -208,6 +211,28 @@ def _strict_loader(yaml: ModuleType) -> type:
     return strict
 
 
+def decode_frontmatter_yaml(
+    raw: str,
+    yaml: ModuleType,
+    *,
+    allow_duplicate_keys: bool = False,
+    loader: type | None = None,
+) -> Any:  # noqa: ANN401 - YAML yields whatever the document holds
+    """Load YAML text that a caller already extracted, with the pinned loader.
+
+    ``raw`` is the text between the fences, as :attr:`FrontmatterSplit.raw`
+    holds it. No fence is searched for or added. The result is whatever YAML
+    produces (mapping, list, scalar, or ``None``), and a ``yaml.YAMLError``
+    propagates unchanged with its marks. Loader choice and the ``SafeLoader``
+    guard are the ones :func:`parse_frontmatter` applies, because it calls this.
+    """
+    chosen = loader or (yaml.SafeLoader if allow_duplicate_keys else _strict_loader(yaml))
+    if not issubclass(chosen, yaml.SafeLoader):
+        # A non-safe loader would build arbitrary Python objects from !!python tags.
+        raise TypeError(f"loader must subclass yaml.SafeLoader, got {chosen.__name__}")
+    return yaml.load(raw, Loader=chosen)
+
+
 def parse_frontmatter(
     text: str,
     yaml: ModuleType,
@@ -240,12 +265,10 @@ def parse_frontmatter(
         )
         return _maybe_raise(result, strict)
 
-    chosen = loader or (yaml.SafeLoader if allow_duplicate_keys else _strict_loader(yaml))
-    if not issubclass(chosen, yaml.SafeLoader):
-        # A non-safe loader would build arbitrary Python objects from !!python tags.
-        raise TypeError(f"loader must subclass yaml.SafeLoader, got {chosen.__name__}")
     try:
-        parsed = yaml.load(split.raw, Loader=chosen)
+        parsed = decode_frontmatter_yaml(
+            split.raw, yaml, allow_duplicate_keys=allow_duplicate_keys, loader=loader
+        )
     except yaml.YAMLError as exc:
         result = FrontmatterResult(
             FrontmatterStatus.MALFORMED,
