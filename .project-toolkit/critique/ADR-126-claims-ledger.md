@@ -2,7 +2,7 @@
 
 Every factual claim in ADR-126, checked against the working tree on branch
 `t3/7cbd5e13` on 2026-11-23. Rows 4, 5, and 12 to 15 were re-read after the
-round 2 revision; rows 4, 5, 8, and 16 to 18 after the module move.
+round 2 revision; rows 4, 5, 8, and 16 to 18 after the module move; rows 10, 11, 17, and 19 to 22 after merging #7523.
 
 | # | Claim | Kind | Command | Result |
 |---|-------|------|---------|--------|
@@ -15,19 +15,24 @@ round 2 revision; rows 4, 5, 8, and 16 to 18 after the module move.
 | 7 | Root parity test covers four layouts; store parity test covers five | count | `LAYOUTS` and `STORE_LAYOUTS` in the test | VERIFIED |
 | 8 | `search_memory.py`, `store_resolution.py`, `memory_router.py`, and `memory_store.py` import only the standard library or each other | behavior | `grep -E '^(import|from) '` in the four files, 2026-11-23 | VERIFIED: the only non-stdlib imports are `from store_resolution import` and `from .memory_store import` |
 | 9 | ADR-038 and ADR-063 exist | path | `ls .project-toolkit/architecture` | VERIFIED |
-| 10 | The prompt recall hook does not ship to plugin installs | absence | `grep -c UserPromptSubmit` on `src/claude/hooks/hooks.json` and `src/copilot-cli/hooks/hooks.json` | VERIFIED: 0 and 0 |
-| 11 | The recall hook frames excerpts as data and collapses them to one line | behavior | `user_prompt_submit_memory.py:206,231`; `test_recall_field_cannot_forge_a_heading_or_source_line` | VERIFIED. A mutation removing the collapse failed that test (1 failed, 11 passed) |
+| 10 | The prompt recall hook ships to Claude plugin installs only, not Copilot | path | `grep -c UserPromptSubmit` on `src/claude/hooks/hooks.json` and `src/copilot-cli/hooks/hooks.json` | VERIFIED on 2026-11-23 after merging #7523: 1 and 0 (the first draft said 0 and 0, before #7523) |
+| 11 | The recall hook frames excerpts as data and collapses snippets to one line | behavior | `_PREFACE` and `_format_entry` in `user_prompt_submit_memory.py`; `test_recall_snippet_cannot_forge_a_heading_or_source_line` | VERIFIED on 2026-11-23 |
 | 12 | Eight maintenance scripts default to `.serena/memories` | count | `grep -c '\.serena/memories'` in each named script | VERIFIED: each has at least one occurrence |
 | 13 | Search and SessionEnd name the `git mv` step for shadowed notes | behavior | `test_search_names_the_git_mv_step_for_shadowed_notes`, `test_session_end_names_shadowed_notes` | VERIFIED: both pass |
 | 14 | The router starts from `CLAUDE_PROJECT_DIR` | behavior | `test_router_prefers_the_project_directory_over_the_current_directory`; mutation to `Path.cwd()` | VERIFIED: mutation failed the test (1 failed, 30 passed) |
 | 15 | Every Confirmation test name exists | path | `grep -c "^def <name>"` over the seven newest names | VERIFIED: 7 of 7 |
 | 16 | A shipped script may import only the standard library, a declared dependency, its tree's `lib/`, or a module beside it | quote | read `build/scripts/import_closure.py` module docstring, "An absolute import resolves when..." | VERIFIED on 2026-11-23 |
-| 17 | All 14 test names cited in ADR-126 exist | path | `grep -rq "def <name>" tests/skills/memory` for each backticked `test_*` name | VERIFIED on 2026-11-23 after renaming `test_hook_and_script_choose_the_same_root` |
+| 17 | Every `test_*` name cited in ADR-126 exists | path | `grep -rq "def <name>"` over `tests/` for each backticked `test_*` name | VERIFIED on 2026-11-23 after renaming two stale citations; an earlier VERIFIED here missed one |
 | 18 | The shipped lib bootstrap fails when `CLAUDE_PLUGIN_ROOT` names another plugin | behavior | pytest run with the context-mode plugin root exported, 2026-11-23 | VERIFIED: `RuntimeError: Expected portability helper lib directory not found` |
+| 19 | ADR-109's 2026-11-20 amendment treats consumer memory as untrusted repository content and says a repository without `.serena/memories/` gets no output | quote | `git show origin/main:` ADR-109, "Trust boundary." and "Consumer impact." paragraphs | VERIFIED on 2026-11-23 at `a6ccc9e6` |
+| 20 | The recall hook shares the root rule and recalls only under a `.git` at or above that root; it notes an escaping Serena folder | behavior | `test_hook_and_skill_choose_the_same_root` (hook column), `test_hook_recalls_notes_only_inside_a_checkout`, and the two `test_memory_recall_limits.py` tests | VERIFIED: all pass with and without `CLAUDE_PROJECT_DIR` set; removing the checkout check fails 4 |
+| 21 | `memory_enhancement` with `stores.py` ships in the Claude plugin lib | path | `ls src/claude/lib/memory_enhancement/` | VERIFIED: `stores.py` present |
+| 22 | ADR-109 carries an `**Amended by**:` footer naming ADR-126 | path | `tail` of ADR-109 | VERIFIED on 2026-11-23 |
+| 23 | Besides `src/claude`, the memory skill ships to five trees with no `memory_enhancement` package: `src/codex`, `src/copilot-cli`, `src/cursor`, `src/muse`, and `src/hermes/project-toolkit-knowledge` | path | `ls -d src/*/skills/memory src/hermes/*/skills/memory`; `ls src/*/lib/memory_enhancement` | VERIFIED on 2026-11-23 |
 
 ## Gate results
 
-- Claims ledger: VERIFIED, 18 rows, 1 corrected before hand-off.
+- Claims ledger: VERIFIED, 23 rows, 3 corrected after review.
 - Self-consistency: VERIFIED. Decision 1 (one store) agrees with Decision 6
   (ADR-106 Decision 3 stands), with Decision 2's list of Serena-layout scripts,
   and with the Negative consequences on shadowed notes.

@@ -34,7 +34,8 @@ Forces:
   router, deduplication, and cross-store augmentation. Two live stores would
   bring all three back.
 - Serena users must keep their corpus, index files, and tools unchanged.
-- The `memory_enhancement` package lives under `scripts/` and does not ship.
+- The `memory_enhancement` package ships only in the Claude plugin's `lib/`
+  (ADR-109 amendment 2026-11-20); the memory skill ships to five more trees.
   A shipped script may import only the standard library, a declared dependency,
   its tree's `lib/`, or a module beside it (import-closure gate, issue #7221).
   So the root and store rules exist in three source copies.
@@ -97,17 +98,18 @@ current directory. Each rule exists in three source copies, one per import
 boundary. The build mirrors the two skill copies into each harness tree.
 
 - `scripts/memory_enhancement/stores.py`: `find_memory_root`,
-  `repository_memory_dir`, and `shadowed_notes_dir`. The recall hooks,
-  SessionEnd, and the CLI use it.
+  `repository_memory_dir`, and `shadowed_notes_dir`. The prompt recall hook
+  (both entry points), SessionEnd, and the CLI use it; the hook adds Decision 7.
 - `src/claude/skills/memory/memory_core/memory_store.py`: `find_memory_root`
   and `resolve_memory_store`. The shipped router uses it.
 - `src/claude/skills/memory/scripts/store_resolution.py`: `find_memory_root`
   and `resolve_stores`, which also reports shadowed notes. It sits beside
   `search_memory.py`, which may not import `memory_core`.
 
-The rules do not live in the tree's `lib/`. That tree holds packages shared by
-every skill and renders from `scripts/`; its bootstrap also fails when
-`CLAUDE_PLUGIN_ROOT` points at another plugin. The CLI takes its root from
+The two skill copies do not live in `lib/`. The memory skill ships to five
+trees with no `memory_enhancement`, `search_memory.py` may not import
+`memory_core`, and the lib bootstrap fails when `CLAUDE_PLUGIN_ROOT` points at
+another plugin. The CLI takes its root from
 `--repo-root` and picks its default folder with `repository_memory_dir`.
 
 **5. The prompt recall hook frames recalled text as data.** Its block says
@@ -120,8 +122,15 @@ collapsed to one line, so a note cannot forge a heading or a `Source:` line.
 stays under ADR-038. ADR-063's decomposition stands: it decides which sub-skill
 does what, not where the store lives, so it is not amended.
 
-**Out of scope.** Shipping the prompt recall hook to plugin installs is a
-separate decision. Today it runs only in this repository.
+**7. The prompt recall hook keeps ADR-109's trust boundary.** The hook ships to
+Claude plugin installs under ADR-109's 2026-11-20 amendment, which treats memory
+as untrusted repository content. It finds its root with Decision 4's rule, then
+recalls only when a `.git` exists at or above that root. It refuses, with a
+note, a Serena folder that resolves outside the repository, and then recalls
+nothing, even when a notes folder exists. Otherwise its store follows Decision
+1, so a consumer with only the notes folder gets recall from it. This amends by
+reference ADR-109's statement that a repository without `.serena/memories/` gets
+no output.
 
 ## Rationale
 
@@ -153,7 +162,7 @@ that visible instead of silent.
 ### Negative
 
 - Three source copies of the root and store rules exist because the package
-  does not ship and the search script may not import `memory_core` (see Context). The
+  ships only in the Claude lib while the skill ships to five more trees (see Decision 4). The
   parity tests are the only guard.
 - Corpus maintenance scripts still assume the Serena layout (Decision 2).
 - Creating `.serena/memories/` in a repository that has notes shadows them.
@@ -171,15 +180,21 @@ that visible instead of silent.
 ADR-106's Security Considerations apply to `.project-toolkit/memory/notes/`
 unchanged. Notes are committed files a branch can change, so recalled text is
 untrusted data. A store the resolver finds that resolves outside the repository
-root is ignored by all three store-rule copies. A path the caller passes
-explicitly, such as `--serena-path`, is trusted as given.
+root is ignored by all three store-rule copies. The recall hook is stricter: an
+escaping Serena folder stops recall entirely (Decision 7). A path the caller
+passes explicitly, such as `--serena-path`, is trusted as given.
 
 ## Confirmation
 
 `tests/skills/memory/test_memory_root_parity.py` confirms the decisions:
 
 - `test_hook_and_skill_choose_the_same_root` runs four layouts through all
-  three root-rule copies (Decision 4).
+  three root-rule copies and the recall hook's root (Decisions 4 and 7).
+- `test_hook_recalls_notes_only_inside_a_checkout`, and in
+  `tests/test_memory_recall_limits.py`
+  `test_a_project_dir_with_no_git_ancestor_recalls_nothing` and
+  `test_a_symlinked_memories_dir_notes_the_directory_and_reason`, check the
+  recall hook's trust boundary (Decision 7).
 - `test_every_picker_chooses_the_same_store` runs five layouts, including an
   empty Serena folder beside notes, through all three store-rule copies, and
   `test_every_picker_ignores_a_serena_link_outside_the_root` checks containment.
@@ -195,13 +210,14 @@ explicitly, such as `--serena-path`, is trusted as given.
   `test_empty_notes_folder_is_not_reported_as_shadowed` check the shadow report.
 - `test_cli_defaults_to_notes_when_no_store_exists` and
   `test_cli_prefers_serena_corpus_when_present` check the CLI default.
-- `test_recall_field_cannot_forge_a_heading_or_source_line` checks Decision 5.
+- `test_recall_snippet_cannot_forge_a_heading_or_source_line` checks Decision 5.
 
 ## Impact on Dependent Components
 
 | Component | Impact | Action |
 |-----------|--------|--------|
 | ADR-106 | Decisions 2 and 5 amended by reference | `**Amended by**:` footer added; body unchanged |
+| ADR-109 | 2026-11-20 amendment's no-output statement amended by reference | `**Amended by**:` footer added; body unchanged |
 | Memory skills and agent templates | Named one folder | Reworded in this change to name the resolved folder |
 | `search_memory.py`, `memory_router`, recall hooks, CLI | Implement Decisions 1, 4, and 5 | Done in this change |
 
@@ -211,11 +227,14 @@ Branch `t3/7cbd5e13` implements every decision. Decision 3 needs no code:
 `memory_id_from_path` in `serena_integration.py` already builds identity
 relative to the folder it is given. Of the implementing code, `search_memory.py`
 with `store_resolution.py`, and `memory_router.py` with `memory_store.py`, ship
-to plugin installs. The hooks and the CLI live under `scripts/` and run in this
-repository.
+to plugin installs. The package, with the recall hook and `stores.py`, ships in the
+Claude plugin's `lib/`; SessionEnd and the CLI run only in this repository.
 
 ## Related Decisions
 
+- ADR-109: Template-first plugin distribution. Its 2026-11-20 amendment ships the
+  recall hook and sets its trust boundary; this record amends its no-output
+  statement by reference.
 - ADR-106: Serena-only memory architecture. Decisions 2 and 5 amended here.
 - ADR-038: Reflexion memory schema. Episode tier, unchanged.
 - ADR-063: Memory skill decomposition. Unchanged; see Decision 6.

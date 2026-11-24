@@ -71,6 +71,10 @@ def test_hook_and_skill_choose_the_same_root(tmp_path: Path, layout: str) -> Non
     assert find_memory_root(start) == expected.resolve()
     assert memory_store.find_memory_root(start.resolve()) == expected.resolve()
     assert store_resolution.find_memory_root(start.resolve()) == expected.resolve()
+    # The recall hook shares the root and adds ADR-109's trust boundary: a .git
+    # at or above the root, or no recall at all.
+    in_checkout = layout in ("git-only", "notes-nested-in-outer-git")
+    assert recall_hook._find_repo_root(start) == (expected.resolve() if in_checkout else None)
 
 
 def _both_stores(tmp_path: Path) -> Path:
@@ -119,6 +123,7 @@ def test_recall_hook_reads_only_serena_when_both_exist(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     repo = _both_stores(tmp_path)
+    monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
     monkeypatch.chdir(repo)
 
     block = recall_hook.recall_block("what is the retry policy here")

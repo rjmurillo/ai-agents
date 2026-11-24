@@ -250,14 +250,17 @@ def _project_dir() -> Path | None:
 
 
 def _find_repo_root(start: Path | None = None) -> Path | None:
-    """Walk up from start to the git checkout root.
+    """Return the memory root (ADR-126), but only inside a git checkout.
 
-    Recall trusts only a repository (ADR-109 amendment 2026-11-20), so a
-    directory with no ``.git`` ancestor recalls nothing. Inside the checkout,
-    the store follows ADR-126.
+    Recall trusts only repository content (ADR-109 amendment 2026-11-20), so a
+    root with no ``.git`` at or above it recalls nothing.
     """
-    current = (start or Path.cwd()).resolve()
-    return next((p for p in (current, *current.parents) if (p / ".git").exists()), None)
+    from ..stores import find_memory_root
+
+    root = find_memory_root(start)
+    if root is None or not any((p / ".git").exists() for p in (root, *root.parents)):
+        return None
+    return root
 
 
 def _search_and_format(
