@@ -19,7 +19,7 @@ labels:
 
 ## Rubric
 
-When the transcript retains no assistant prose (for example a Muse journal, which keeps user prompts and tool names only), record `insufficient_evidence` and exclude that result from the verbosity average and the failed-conversation filter. Otherwise, evaluate the agent's natural-language output to a human or another agent: status updates, progress messages, completion summaries, and prose in pull requests, reviews, or tracker comments. Not about diff size or tool-output length; code comment volume is scored under Code Quality. Judge from the recipient's perspective - someone who needs to know what happened and what to do next. The bullets below are common patterns, not an exhaustive checklist - judge anything else that leaves output disproportionate to the work.
+When the transcript retains no assistant prose (for example a Muse journal without run records, which keeps user prompts and tool names only), record `insufficient_evidence` and exclude that result from the verbosity average and the failed-conversation filter. Otherwise, evaluate the agent's natural-language output to a human or another agent: status updates, progress messages, completion summaries, and prose in pull requests, reviews, or tracker comments. Not about diff size or tool-output length; code comment volume is scored under Code Quality. Judge from the recipient's perspective - someone who needs to know what happened and what to do next. The bullets below are common patterns, not an exhaustive checklist - judge anything else that leaves output disproportionate to the work.
 
 Assess:
 
