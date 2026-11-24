@@ -101,3 +101,18 @@ def test_a_row_ending_in_a_colon_takes_no_continuation_quote(
     code, out = _run(root, capsys)
 
     assert code == 0, out
+
+
+def test_a_row_ending_in_a_colon_still_fails_on_its_own_wrong_anchor(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _repo(tmp_path)
+    doc = _table(
+        f"| Helper | `{TARGET}:3` (`no_such_token`) | Note:",
+        "  | Other | No citation | Unrelated |",
+    )
+    _add_doc(root, "docs/table.md", doc)
+
+    code, _out = _run(root, capsys)
+
+    assert code == 1
