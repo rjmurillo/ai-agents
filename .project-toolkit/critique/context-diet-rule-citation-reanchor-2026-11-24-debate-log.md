@@ -2,7 +2,7 @@
 
 ## Summary
 
-- **Rounds**: 6 of 10 (round 5 was critic only)
+- **Rounds**: 7 of 10 (round 5 was critic only)
 - **Outcome**: Consensus
 - **Final Status**: unchanged (the edit changes no ADR status or decision)
 - **Scope**: citations of three moved rules in ADR-062, ADR-071, ADR-096, ADR-100, ADR-102,
@@ -131,6 +131,16 @@ ADR-062 already cites the unchanged lsp-first destination.
 
 Both seats reviewed the diff independently.
 The lifecycle, conformance, and citation gates verify paths and parser behavior.
+
+## Round 7 Summary
+
+The forward citation gate read the bare range in ADR-102 against the moved rule.
+The citation now names the adjacent warning in `scripts/validate_session_json.py:693-696`.
+
+| Agent | Position |
+|-------|----------|
+| architect | Accept. The citation names its source and preserves the non-blocking warning. |
+| critic | Accept. The source path and line range change without altering the decision. |
 
 ## Final Verdicts
 

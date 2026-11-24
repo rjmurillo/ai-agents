@@ -518,9 +518,10 @@ def _looks_like_yaml_mapping(block: list[str]) -> bool:
     linter is invoked with a bare ``python3`` in seven places in its own
     SKILL.md, and a job whose only preceding step is a checkout has installed
     nothing, so a third-party import here fails at module load and takes the
-    gate red on every PR (the repo-local `ai-agents-validation-and-qa` skill's `references/rule-ci-scripts.md` MUST-18). The question
-    is only "is this frontmatter or a horizontal rule", which does not need a
-    parser.
+    gate red on every PR (the repo-local `ai-agents-validation-and-qa`
+    skill's `references/rule-ci-scripts.md` MUST-18).
+    The question is only "is this frontmatter or a horizontal rule", which
+    does not need a parser.
 
     A mapping needs at least one top-level ``key:`` line, and every non-blank,
     non-comment line must be either such a key or an indented continuation of
