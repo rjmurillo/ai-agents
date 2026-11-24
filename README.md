@@ -72,7 +72,7 @@ A Claude install lands the full set of agents and skills, including the six life
 
 - **Runs in:** Claude Code, GitHub Copilot CLI, or VS Code Copilot Chat. This repository ships agents, skills (some with Python scripts), rules/instructions, hooks, and marketplace metadata.
 - **Hooks and local code:** Claude Code registers two non-blocking hooks: an advisory `Stop` hook (ADR-084 rule 2a) and a fail-open `UserPromptSubmit` memory-recall hook (ADR-109 2026-11-20 amendment). Copilot CLI registers no hooks. Neither registers tool-use hooks (ADR-097). The hooks and some skills run Python scripts, so they need Python 3.10+ on PATH (see the note above).
-- **Data sent:** prompts, source context, and agent output go through the host CLI and its model. This repository runs no hosted service. Skills you invoke can reach other services: the `github` skill calls the GitHub API through `gh`, `research` and `context-gather` can use the host's web search and fetch tools, `benchmark-models` sends your prompt to the `claude`, `codex`, and `gemini` CLIs you have installed and signed in to (plus the Anthropic API if you enable its `--judge` option with `ANTHROPIC_API_KEY`), `llm-council` routes prompts to `claude`, `codex`, `copilot`, or GitHub Models (`models.github.ai` via `gh auth token`), and `sol-loop` sends review briefs to `codex` or `droid` (read-only) on its CLI route. The plugin registers no MCP servers; any MCP server you add (for example GitHub MCP or Serena) receives the data its tools are called with.
+- **Data sent:** prompts, source context, and agent output go through the host CLI and its model. This repository runs no hosted service. Skills you invoke can reach other services: the `github` skill calls the GitHub API through `gh`, `research` and `context-gather` can use the host's web search and fetch tools, `benchmark-models` sends your prompt to the `claude`, `codex`, and `gemini` CLIs you have installed and signed in to (plus the Anthropic API if you enable its `--judge` option with `ANTHROPIC_API_KEY`), `llm-council` routes prompts to `claude`, `codex`, `copilot`, or GitHub Models (`models.github.ai` via `gh auth token`), and `sol-loop` sends review briefs to a GPT Sol model via T3 delegation (on the `codex` provider), a host-native Sol subagent, or the fallback `codex` / `droid` CLI (read-only). The plugin registers no MCP servers; any MCP server you add (for example GitHub MCP or Serena) receives the data its tools are called with.
 - **Permissions:** the host CLI's permission prompts apply. Review shell and git actions before you accept them. Child CLIs that a skill starts follow their own settings: `benchmark-models` runs `gemini` with `--yolo` (auto-approve, not sandboxed) in a throwaway workdir.
 - **Remove access:** run `/plugin uninstall project-toolkit@ai-agents` in either CLI. See [Uninstallation](docs/installation.md#uninstallation).
 
@@ -263,7 +263,7 @@ Here are prompts you can copy and paste. Prefix with the agent name to route dir
 
 Review code quality:
 
-> critic: review @src/auth/login-handler.ts for coupling, error handling gaps, and test coverage. Deliver an APPROVED or NEEDS_REVISION verdict with specific line references.
+> critic: review @src/auth/login-handler.ts for coupling, error handling gaps, and test coverage. Deliver a verdict (APPROVED, APPROVED_WITH_CONCERNS, NEEDS_REVISION, or BLOCKED) with specific line references.
 
 Shows the critic agent doing a focused code review.
 
@@ -553,7 +553,7 @@ If you're contributing code or running tests locally:
 This project uses a **template-based generation system**. To modify agents:
 
 1. Edit templates in `templates/agents/` (`*.shared.md`, plus `*.claude.md.tmpl` and `*.copilot.md.tmpl` where platform-specific)
-2. Run `uv run python build/scripts/build_all.py` to regenerate all agent trees and `docs/agent-catalog.md` (use `uv run python build/generate_agents.py` for VS Code and Copilot CLI agents only)
+2. Run `uv run python build/scripts/build_all.py` to compile platform templates and regenerate all agent trees and `docs/agent-catalog.md`
 3. Commit both template and generated files
 
 **Do not edit generated agent files in `src/claude/agents/`, `.claude/agents/`, `src/copilot-cli/agents/`, `.github/agents/`, or `src/vs-code-agents/` directly.** See [.agents/governance/GENERATOR-FILES.md](.agents/governance/GENERATOR-FILES.md) and [CONTRIBUTING.md](CONTRIBUTING.md) for details.
