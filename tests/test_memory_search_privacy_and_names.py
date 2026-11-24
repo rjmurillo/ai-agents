@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -22,14 +24,14 @@ def test_prompt_terms_go_through_stdin_not_argv(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, searcher
 ) -> None:
     directory = _memories(tmp_path)
-    seen: dict[str, object] = {}
+    seen: dict[str, Any] = {}
 
     def fake_run(cmd, **kwargs):
         seen["cmd"], seen["input"] = cmd, kwargs.get("input")
         return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="")
 
     monkeypatch.setattr(search, "resolve_tool", lambda name, _roots: f"/usr/bin/{name}")
-    monkeypatch.setattr(search.subprocess, "run", fake_run)
+    monkeypatch.setattr("memory_enhancement.search.subprocess.run", fake_run)
 
     searcher("secretterm otherterm", directory)
 
@@ -63,7 +65,10 @@ def test_a_name_match_outside_the_memories_dir_is_dropped(tmp_path: Path) -> Non
     outside = tmp_path / "outside"
     outside.mkdir()
     (outside / "database-cutover.md").write_text("# Notes\n\nOutside.\n", encoding="utf-8")
-    (directory / "linked").symlink_to(outside, target_is_directory=True)
+    try:
+        (directory / "linked").symlink_to(outside, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"symlinks unavailable on this host: {exc}")
 
     results = search.search_memories("database cutover", directory, repo_root=tmp_path)
 
@@ -86,19 +91,21 @@ def test_the_name_scan_stops_at_half_the_budget_and_keeps_content_hits(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     directory = _memories(tmp_path)
-    (directory / "notes.md").write_text("# Notes\n\nThe database cutover runs at night.\n")
+    (directory / "notes.md").write_text(
+        "# Notes\n\nThe database cutover runs at night.\n", encoding="utf-8"
+    )
     late = directory / "z-late"
     late.mkdir()
     (late / "database-cutover.md").write_text("# Late\n\nNothing here.\n", encoding="utf-8")
     clock = {"now": 1000.0}
-    real_scandir = search.os.scandir
+    real_scandir = os.scandir
 
     def slow_scandir(path):
         clock["now"] += 3.0
         return real_scandir(path)
 
-    monkeypatch.setattr(search.time, "monotonic", lambda: clock["now"])
-    monkeypatch.setattr(search.os, "scandir", slow_scandir)
+    monkeypatch.setattr("memory_enhancement.search.time.monotonic", lambda: clock["now"])
+    monkeypatch.setattr("memory_enhancement.search.os.scandir", slow_scandir)
     ranked = _ranked_paths(monkeypatch)
 
     results = search.search_memories(
@@ -113,9 +120,13 @@ def test_the_name_scan_stops_inside_one_large_directory(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     directory = _memories(tmp_path)
-    (directory / "notes.md").write_text("# Notes\n\nThe database cutover runs at night.\n")
+    (directory / "notes.md").write_text(
+        "# Notes\n\nThe database cutover runs at night.\n", encoding="utf-8"
+    )
     for index in range(20):
-        (directory / f"database-cutover-{index:02d}.md").write_text("# Name\n\nNo terms.\n")
+        (directory / f"database-cutover-{index:02d}.md").write_text(
+            "# Name\n\nNo terms.\n", encoding="utf-8"
+        )
     clock = {"now": 1000.0}
     real_relevance = search.query_relevance
 
@@ -123,7 +134,7 @@ def test_the_name_scan_stops_inside_one_large_directory(
         clock["now"] += 1.0
         return real_relevance(query, label)
 
-    monkeypatch.setattr(search.time, "monotonic", lambda: clock["now"])
+    monkeypatch.setattr("memory_enhancement.search.time.monotonic", lambda: clock["now"])
     monkeypatch.setattr(search, "query_relevance", slow_relevance)
     ranked = _ranked_paths(monkeypatch)
 
@@ -140,7 +151,7 @@ def test_no_entry_is_read_after_the_cutoff(tmp_path: Path, monkeypatch: pytest.M
     directory = _memories(tmp_path)
     (directory / "database-cutover.md").write_text("# Name\n\nNo terms.\n", encoding="utf-8")
     clock = {"now": 1000.0, "reads": 0}
-    real_scandir = search.os.scandir
+    real_scandir = os.scandir
 
     class CountingEntries:
         def __init__(self, inner):
@@ -163,8 +174,8 @@ def test_no_entry_is_read_after_the_cutoff(tmp_path: Path, monkeypatch: pytest.M
         clock["now"] += 6.0
         return CountingEntries(real_scandir(path))
 
-    monkeypatch.setattr(search.time, "monotonic", lambda: clock["now"])
-    monkeypatch.setattr(search.os, "scandir", late_scandir)
+    monkeypatch.setattr("memory_enhancement.search.time.monotonic", lambda: clock["now"])
+    monkeypatch.setattr("memory_enhancement.search.os.scandir", late_scandir)
 
     search.search_memories("database cutover", directory, repo_root=tmp_path, deadline=1010.0)
 
