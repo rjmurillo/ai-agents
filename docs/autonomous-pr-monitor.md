@@ -120,14 +120,10 @@ Not all failing checks block merge. Distinguish them before acting.
 
 - Required check with FAILURE: block landing. Fix before proceeding.
 - Non-required check with FAILURE: do not block landing. Document in PR comment if expected.
+- Non-required check PENDING or WAITING (for example, a job waiting on an environment approval): do not wait. Only the owner approves environments.
+- Review bot that has not posted: do not wait. Work its threads if it posts.
 
-Known non-required checks that may fail without blocking:
-
-| Check | Category | Action |
-|-------|----------|--------|
-| Respond to @rjmurillo-bot | Bot activity | Skip if no open threads |
-| Verify citations | Documentation | Skip on non-doc PRs |
-| Python Security Checks | Security scan | Review output; skip if no Python changes |
+The required set is the `main` ruleset, read live with `get_pr_checks.py --required-only`. Do not keep a hand list of optional checks. Workflows that never block in any state are listed in `advisory_agent_workflows` in `.claude/skills/pr-review/pr-review-config.yaml`. The full policy is the github skill reference `required-vs-optional-checks.md`.
 
 ### Thread Severity Classification and Lifecycle
 
