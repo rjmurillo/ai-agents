@@ -138,9 +138,13 @@ def _applied_verdict(row: dict[str, Any], prediction: Prediction | None) -> bool
     """Return the model verdict when arm C applies it, else None."""
     if not row["in_band"] or prediction is None or prediction.status != STATUS_OK:
         return None
-    if prediction.confidence is None or prediction.confidence < APPLY_CONFIDENCE:
+    confidence = prediction.confidence
+    if isinstance(confidence, bool) or not isinstance(confidence, int | float):
         return None
-    return prediction.is_actionable
+    if confidence < APPLY_CONFIDENCE:
+        return None
+    # Only a real bool is a verdict: a hand-edited "no" or 1 must not be applied.
+    return prediction.is_actionable if isinstance(prediction.is_actionable, bool) else None
 
 
 def arm_c(row: dict[str, Any], prediction: Prediction | None) -> bool:
@@ -377,6 +381,21 @@ def cmd_predict(args: argparse.Namespace) -> int:
     return _failure_exit(records, args.max_failure_rate)
 
 
+# Share of heldout band rows without an ok prediction above which score warns.
+NON_OK_WARN_SHARE = 0.10
+
+
+def _warn_non_ok(counts: dict[str, int], band_n: int) -> None:
+    """Warn when more than 10 percent of band rows fell back to the heuristic."""
+    non_ok = band_n - counts[STATUS_OK]
+    if non_ok > NON_OK_WARN_SHARE * band_n:
+        print(
+            f"warning: {non_ok} of {band_n} heldout band rows ({non_ok / band_n:.0%}) "
+            "have no ok prediction; arm C used the heuristic for them",
+            file=sys.stderr,
+        )
+
+
 def cmd_score(args: argparse.Namespace) -> int:
     """Score the arms on a labeled corpus and write the report JSON."""
     if args.bootstrap < 1:
@@ -402,11 +421,16 @@ def cmd_score(args: argparse.Namespace) -> int:
         )
     atomic_write_text(args.output, json.dumps(report, indent=2) + "\n")
     low, high = report["gap_ci"]
+    counts = report["predictions"]
+    band_n = report["heldout_band"]["n"]
     print(
         f"verdict {report['verdict']}: gap {report['gap']:.4f} "
-        f"(95% CI {low:.4f} to {high:.4f}) over {report['heldout_band']['n']} heldout band rows, "
-        f"best baseline {report['best_baseline']}"
+        f"(95% CI {low:.4f} to {high:.4f}) over {band_n} heldout band rows, "
+        f"best baseline {report['best_baseline']}; "
+        f"predictions ok {counts[STATUS_OK]}, parse_error {counts[STATUS_PARSE_ERROR]}, "
+        f"call_error {counts[STATUS_CALL_ERROR]}, missing {counts['missing']} of {band_n}"
     )
+    _warn_non_ok(counts, band_n)
     return 0
 
 

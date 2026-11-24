@@ -20,6 +20,7 @@ from typing import Any
 from scripts.eval.actionability_labels import (
     LABEL_TRUTH,
     LABEL_UNSURE,
+    SPLIT_DEV,
     SPLIT_HELDOUT,
     SPLIT_OUTSIDE,
     STATUS_OK,
@@ -39,6 +40,7 @@ CI_LOW_PERCENTILE = 2.5
 CI_HIGH_PERCENTILE = 97.5
 
 BASELINES = ("A", "B")
+SPLITS = (SPLIT_DEV, SPLIT_HELDOUT, SPLIT_OUTSIDE)
 
 
 class ScoreInputError(ValueError):
@@ -120,6 +122,65 @@ def verdict(gap: float, ci_low: float) -> str:
     return "pass" if ci_low > 0 else "inconclusive"
 
 
+def _finite_number(value: object) -> bool:
+    """True for a real int or float that is finite. A bool is not a number here."""
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return False
+    try:
+        return math.isfinite(float(value))
+    except OverflowError:
+        return False
+
+
+def _is_nonempty_str(value: object) -> bool:
+    return isinstance(value, str) and bool(value)
+
+
+def _is_str_or_none(value: object) -> bool:
+    return value is None or isinstance(value, str)
+
+
+def _is_bool_or_none(value: object) -> bool:
+    return value is None or isinstance(value, bool)
+
+
+def _is_number_or_none(value: object) -> bool:
+    return value is None or _finite_number(value)
+
+
+# (key, predicate, description). Checked against ``record.get(key)``, so an absent key
+# fails unless None is allowed. A label of None is handled later as "unlabeled".
+_CORPUS_CHECKS = (
+    ("id", _is_nonempty_str, "a non-empty string"),
+    ("split", lambda v: v in SPLITS, f"one of {', '.join(SPLITS)}"),
+    ("in_band", lambda v: isinstance(v, bool), "a bool"),
+    ("heuristic_score", _finite_number, "a finite number"),
+    ("label", _is_str_or_none, "a string or null"),
+)
+_PREDICTION_CHECKS = (
+    ("id", _is_nonempty_str, "a non-empty string"),
+    ("status", lambda v: isinstance(v, str), "a string"),
+    ("is_actionable", _is_bool_or_none, "a bool or null"),
+    ("confidence", _is_number_or_none, "a finite number or null"),
+    ("latency_s", _is_number_or_none, "a finite number or null"),
+    ("provider", _is_str_or_none, "a string or null"),
+    ("model", _is_str_or_none, "a string or null"),
+    ("prompt_sha256", _is_str_or_none, "a string or null"),
+)
+
+
+def _validate_records(
+    records: list[dict[str, Any]],
+    checks: Sequence[tuple[str, Callable[[object], bool], str]],
+    where: str,
+) -> None:
+    """Raise ScoreInputError naming the first record and key that breaks a check."""
+    for index, record in enumerate(records, start=1):
+        for key, accepts, description in checks:
+            if not accepts(record.get(key)):
+                raise ScoreInputError(f"{where} row {index}: {key} must be {description}")
+
+
 def _label_truth(rows: list[dict[str, Any]]) -> tuple[list[tuple[dict[str, Any], bool]], int]:
     """Return (row, truth) pairs with unsure rows dropped, plus the unsure count."""
     unlabeled = sum(1 for r in rows if r.get("label") is None)
@@ -130,6 +191,8 @@ def _label_truth(rows: list[dict[str, Any]]) -> tuple[list[tuple[dict[str, Any],
     if invalid:
         raise ScoreInputError(f"{invalid} rows have an invalid label; use {sorted(allowed)}")
     kept = [(r, LABEL_TRUTH[r["label"]]) for r in rows if r["label"] != LABEL_UNSURE]
+    if rows and not kept:
+        raise ScoreInputError("every label is unsure; nothing to score")
     return kept, len(rows) - len(kept)
 
 
@@ -140,8 +203,8 @@ def _index_predictions(predictions: list[dict[str, Any]]) -> dict[str, dict[str,
     for record in predictions:
         if record["id"] in by_id:
             raise ScoreInputError(f"duplicate prediction for row {record['id']}")
-        if record.get("status") not in STATUSES:
-            raise ScoreInputError(f"unknown prediction status {record.get('status')!r}")
+        if record["status"] not in STATUSES:
+            raise ScoreInputError(f"unknown prediction status {record['status'][:40]!r}")
         by_id[record["id"]] = record
     return by_id
 
@@ -240,6 +303,23 @@ def _latency_section(predictions: list[dict[str, Any]]) -> dict[str, Any]:
     return {"p50": nearest_rank(ok, 50), "p95": nearest_rank(ok, 95), "n_ok": len(ok)}
 
 
+def _require_scorable_band(
+    rows: list[dict[str, Any]],
+    band: list[tuple[dict[str, Any], bool]],
+    by_id: Mapping[str, dict[str, Any]],
+) -> None:
+    """Raise when the heldout band is empty, all unsure, or matches no prediction."""
+    if not band:
+        if any(r["split"] == SPLIT_HELDOUT and r["in_band"] for r in rows):
+            raise ScoreInputError("every heldout band label is unsure; nothing to score")
+        raise ScoreInputError("no heldout band rows to score")
+    if not any(row["id"] in by_id for row, _ in band):
+        raise ScoreInputError(
+            "no prediction matches a heldout band row; the predictions may be for "
+            "another split (dev) or another corpus"
+        )
+
+
 def build_report(
     rows: list[dict[str, Any]],
     predictions: list[dict[str, Any]],
@@ -249,12 +329,13 @@ def build_report(
     iterations: int,
 ) -> dict[str, Any]:
     """Score the arms on labeled rows. Raises ScoreInputError when inputs cannot be scored."""
+    _validate_records(rows, _CORPUS_CHECKS, "corpus")
+    _validate_records(predictions, _PREDICTION_CHECKS, "predictions")
     labeled, unsure = _label_truth(rows)
     by_id = _index_predictions(predictions)
     provenance = _provenance(predictions)
     band = [(r, t) for r, t in labeled if r["split"] == SPLIT_HELDOUT and r["in_band"]]
-    if not band:
-        raise ScoreInputError("no heldout band rows to score")
+    _require_scorable_band(rows, band, by_id)
     non_dev = [(r, t) for r, t in labeled if r["split"] in (SPLIT_HELDOUT, SPLIT_OUTSIDE)]
     return {
         "seed": seed,
