@@ -27,6 +27,9 @@ Standard library only. Subcommands:
     from the source: title, stated reason, excerpt, and a link back. Inside a work tree, DIR
     must be a located ADR folder of that tree and the file must not be ignored by git.
 
+The checks on ``--out`` go by path, so its folder must not change during a run. A successful
+payload's ``leftover`` key names a temporary file that could not be removed after publication.
+
 Every command prints JSON. Exit codes: 0 done; 1 the draft target exists or another ADR took
 its number (``error`` is ``exists``, and ``written`` is true when the draft stays on disk); 2 bad
 arguments, unreadable or malformed input, a refused ``--out`` (``config`` or ``io``), or an
@@ -190,6 +193,8 @@ def _prepare_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(kind, str) or kind not in _KINDS:
         raise ConfigError(f"candidate {candidate.get('id')!r} has an unknown kind")
     title = flat(_text(candidate.get("title"), "title", True) or "")
+    if not title:
+        raise ConfigError(f"candidate {candidate.get('id')!r} has no title once cleaned")
     reason = _text(candidate.get("reason"), "reason")
     return {
         **candidate,
@@ -237,8 +242,21 @@ def draft(scan_path: str, ident: str, out: str, status: str) -> dict[str, Any]:
     if tree is not None:
         refuse_ignored(tree, target)
     data = encode(render(style, number, candidate, status), target)
+    if len(data) > MAX_READ_BYTES:  # the scan reads no ADR over this, so it would miss the draft
+        raise ConfigError(f"the draft is over {MAX_READ_BYTES >> 20} MiB; shorten the excerpt")
+    leftover = _publish_draft(target, data, out_dir, number)
+    result = {"path": str(target), "number": number, "id": ident, "status": status}
+    return {**result, "in_repo": tree is not None, **leftover}
+
+
+def _leftover(temp: Path | None) -> dict[str, str]:
+    return {} if temp is None else {"leftover": str(temp)}
+
+
+def _publish_draft(target: Path, data: bytes, out_dir: Path, number: int) -> dict[str, str]:
+    """Create ``target``, then raise ExistsError if another ADR took ``number`` meanwhile."""
     try:
-        create_new(target, data)
+        leftover = _leftover(create_new(target, data))
     except FileExistsError as exc:
         raise ExistsError(f"{target} already exists; it is never replaced", target) from exc
     twins = [
@@ -254,13 +272,7 @@ def draft(scan_path: str, ident: str, out: str, status: str) -> dict[str, Any]:
             twins,
             written=True,
         )
-    return {
-        "path": str(target),
-        "number": number,
-        "id": ident,
-        "status": status,
-        "in_repo": tree is not None,
-    }
+    return leftover
 
 
 # ---------------------------------------------------------------------------
@@ -307,9 +319,10 @@ def _cmd_locate(args: argparse.Namespace) -> dict[str, Any]:
     return locate(repo_root(Path(args.repo)))
 
 
-# A date, or a date and time. git reads a compact or week date (20260131, 2026-W05-1) as now.
+# A date, or a date and time. git reads a compact or week date (20260131, 2026-W05-1) as now,
+# and ignores an offset with 60 or more minutes.
 _SINCE = re.compile(
-    r"[0-9]{4}-[0-9]{2}-[0-9]{2}(?:[T ][0-9]{2}:[0-9]{2}(?::[0-9]{2})?(?:Z|[+-][0-9]{2}:?[0-9]{2})?)?",
+    r"[0-9]{4}-[0-9]{2}-[0-9]{2}(?:[T ][0-9]{2}:[0-9]{2}(?::[0-9]{2})?(?:Z|[+-][0-9]{2}:?[0-5][0-9])?)?",
     re.ASCII,
 )
 
@@ -334,9 +347,10 @@ def _check_since(since: str | None) -> str | None:
 # and the May 2024 security releases of 2.39 to 2.44.
 _NO_LAZY_FETCH_GIT = (2, 45, 1)
 _NO_LAZY_FETCH_BACKPORTS = {(2, 39): 4, (2, 40): 2, (2, 41): 1, (2, 42): 2, (2, 43): 4, (2, 44): 1}
-# A line of ``git config --get-regexp`` that makes the repository a partial clone.
+# A line of ``git config --get-regexp`` that makes the repository a partial clone. git 2.37
+# reads a filter key as a promisor whatever its value, even empty or bare (no space follows).
 _PROMISOR = re.compile(
-    r"(?:extensions\.partialclone|remote\..*\.partialclonefilter) \S"
+    r"extensions\.partialclone \S|remote\..*\.partialclonefilter(?: |\Z)"
     r"|remote\..*\.promisor(?:\Z| (?!false|no|off|0\b)\S)"  # a bare key means true
 )
 
@@ -372,12 +386,13 @@ def _cmd_scan(args: argparse.Namespace) -> dict[str, Any]:
     if len(text) > MAX_SCAN_BYTES:
         raise ConfigError(f"scan report over {MAX_SCAN_BYTES >> 20} MiB; narrow --max-commits")
     data = encode(text, target)
-    out_outside_repo(root, str(target))  # again: a work tree may have been added meanwhile
+    # Again, and write where this check resolved: a work tree or a link may have appeared.
+    target = out_outside_repo(root, str(target))
     try:
-        create_new(target, data)
+        leftover = _leftover(create_new(target, data))
     except FileExistsError as exc:
         raise ConfigError(f"--out {target} already exists; it is never overwritten") from exc
-    return {**payload, "out": str(target)}
+    return {**payload, "out": str(target), **leftover}
 
 
 def _cmd_draft(args: argparse.Namespace) -> dict[str, Any]:
