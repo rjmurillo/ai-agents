@@ -30,10 +30,12 @@ Exit codes (ADR-035):
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import logging
 import random
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -85,6 +87,9 @@ logger = logging.getLogger(__name__)
 
 
 MAX_NAMED_ROWS = 10
+
+# fetch-hunks saves its progress after this many newly resolved rows.
+CHECKPOINT_EVERY = 25
 
 # The only keys a labeler may see (rubric: body, path, hunk). Premortem R3: the sheet is
 # built from this list, never by copying a corpus row, so a new corpus field cannot leak.
@@ -281,11 +286,14 @@ def _hunk_status(row: dict[str, Any]) -> str | None:
     return status if status in (HUNK_FETCHED, HUNK_NO_HUNK) else None
 
 
-def _fetch_pending(rows: list[dict[str, Any]]) -> tuple[int, int, tuple[str, str] | None]:
+def _fetch_pending(
+    rows: list[dict[str, Any]], checkpoint: Callable[[], object]
+) -> tuple[int, int, tuple[str, str] | None]:
     """Fetch the hunk for each unresolved row, stopping at the first transport failure.
 
     Returns (fetched, no_hunk, failure) where failure is (row id, exception class name).
     The exception text is dropped: GraphQL errors can embed response bodies.
+    ``checkpoint`` runs after every ``CHECKPOINT_EVERY`` rows resolved in this call.
     """
     fetched = no_hunk = 0
     for row in rows:
@@ -301,16 +309,30 @@ def _fetch_pending(rows: list[dict[str, Any]]) -> tuple[int, int, tuple[str, str
         row["hunk_status"] = HUNK_FETCHED if hunk is not None else HUNK_NO_HUNK
         fetched += hunk is not None
         no_hunk += hunk is None
+        if (fetched + no_hunk) % CHECKPOINT_EVERY == 0:
+            checkpoint()
     return fetched, no_hunk, None
+
+
+def _save_if_clean(path: Path, rows: list[dict[str, Any]], allow: frozenset[str]) -> bool:
+    """Write ``rows`` atomically unless the secret scan blocks them. Quiet: no report.
+
+    A row that fails the scan is never written. The caller's final scan reports it.
+    """
+    if scan_secrets(rows, allow_hex_rows=allow).blocking:
+        return False
+    write_jsonl(path, rows)
+    return True
 
 
 def cmd_fetch_hunks(args: argparse.Namespace) -> int:
     """Fill ``diff_hunk`` for unresolved rows, secret-scan every row, then write.
 
     The scan runs first and blocks the write: a row that fails it is never written, on
-    success or on abort. When a call fails, the rows resolved so far are written (after the
-    scan passes) so a rerun on the output resumes. ``fetched k of N`` counts rows whose hunk
-    status is resolved, whether fetched or confirmed to have none.
+    success or on abort. Progress is saved every ``CHECKPOINT_EVERY`` rows and when any
+    exception escapes the loop. When a call fails, the rows resolved so far are written
+    (after the scan passes) so a rerun on the output resumes. ``fetched k of N`` counts rows
+    whose hunk status is resolved, whether fetched or confirmed to have none.
     """
     rows = load_jsonl(args.corpus)
     if rows is None:
@@ -320,7 +342,18 @@ def cmd_fetch_hunks(args: argparse.Namespace) -> int:
     except RecordError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    fetched, no_hunk, failure = _fetch_pending(rows)
+
+    def checkpoint() -> bool:
+        return _save_if_clean(args.output, rows, args.allow_hex_rows)
+
+    try:
+        fetched, no_hunk, failure = _fetch_pending(rows, checkpoint)
+    except BaseException:
+        # An error the loop does not map to exit 3, or Ctrl-C: keep what was fetched.
+        # A failed save must not mask the original exception.
+        with contextlib.suppress(OSError):
+            checkpoint()
+        raise
     resolved = sum(1 for row in rows if row["hunk_status"] is not None)
     if failure is not None:
         print(f"fetch failed at row {failure[0]}: {failure[1]}", file=sys.stderr)
