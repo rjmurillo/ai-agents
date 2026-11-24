@@ -413,8 +413,9 @@ _LIST_NUMBER = re.compile(r"\A([0-9]+)([.)])(?=[ \t]|\Z)", re.ASCII)
 
 
 def clean_source(source: object) -> dict[str, Any]:
-    """The source fields the draft quotes, each string on one line. A ``sha`` or ``*_sha`` not of
-    40 or 64 hex digits, or a ``url`` or ``*_url`` not one ``https://`` word, is dropped."""
+    """The source fields the draft quotes, each string on one line. A ``sha`` or ``*_sha`` (such as
+    ``reason_sha``) not of 40 or 64 hex digits, or a ``url`` or ``*_url`` not one ``https://``
+    word, is dropped, so no field can add a draft line."""
     cleaned: dict[str, Any] = {}
     for key, value in (source if isinstance(source, dict) else {}).items():
         text = " ".join(sanitize(value).splitlines()) if isinstance(value, str) else value

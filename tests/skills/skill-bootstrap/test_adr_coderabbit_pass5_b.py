@@ -55,6 +55,14 @@ def test_a_long_log_title_is_cut_to_120_characters_only_for_display(tmp_path: Pa
     assert candidate["source"]["entry_id"] == f"D-1--{_hash(LONG + ' alpha')}"
 
 
+def test_a_display_cut_at_a_space_leaves_no_trailing_blank(tmp_path: Path) -> None:
+    write(tmp_path, "DECISIONS.md", f"id: D-1\n{'a' * 119} b\n")
+
+    (candidate,), _ = _candidates(tmp_path)
+
+    assert candidate["title"] == "a" * 119
+
+
 # ---------------------------------------------------------------------------
 # B12: a title line that cleans to nothing falls back to the id
 # ---------------------------------------------------------------------------
@@ -137,10 +145,12 @@ def test_a_level_two_rationale_keeps_the_ledger_records_reason_and_date() -> Non
     assert adr_log.entry_date(entries[0].text) == "2026-03-04"
 
 
-def test_an_unrelated_section_after_an_id_ledger_record_still_splits() -> None:
+@pytest.mark.parametrize("heading", ["How to add a decision", "Notes", "References"])
+@pytest.mark.parametrize("record", ["id: D-1 | status: test", "- D-1: Adopt x"])
+def test_an_unrelated_section_after_a_ledger_record_still_splits(record: str, heading: str) -> None:
     log = (
-        "# Ledger\n\nid: D-1 | status: test\nWe chose the x runtime.\n\n"
-        "## How to add a decision\n\nAdd one line per decision because reviewers read it.\n"
+        f"# Ledger\n\n{record}\nWe chose the x runtime.\n\n"
+        f"## {heading}\n\nAdd one line per decision because reviewers read it.\n"
     )
 
     entries = adr_log.split_decision_log(log)
@@ -190,6 +200,18 @@ def test_a_literal_id_equal_to_a_suffixed_twin_key_is_ambiguous_too(tmp_path: Pa
     found, dropped = _candidates(tmp_path, f"Recorded as {twin}.")
 
     assert len(found) == 3 and dropped["already_documented"] == 0
+
+
+def test_a_current_key_documents_its_entry_even_when_it_was_another_twins_old_key(
+    tmp_path: Path,
+) -> None:
+    key = f"D-1--{_hash('Adopt x')}"
+    write(tmp_path, "DECISIONS.md", f"id: D-1\nAdopt x\n\nid: D-1\nAdopt x\n\nid: {key}\nKeep y\n")
+
+    found, dropped = _candidates(tmp_path, f"Recorded as {key}-2.")
+
+    assert [c["source"]["entry_id"] for c in found] == [f"{key}-3", f"{key}--{_hash('Keep y')}"]
+    assert dropped["already_documented"] == 1
 
 
 def test_an_unambiguous_citation_still_documents_only_its_entry(tmp_path: Path) -> None:

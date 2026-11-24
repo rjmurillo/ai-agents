@@ -21,7 +21,7 @@ Departures from the upstream source, each pinned by a test:
   only a real calendar day. Upstream returned an ISO instant.
 - A sub-heading deeper than its decision's heading (``### Rationale``) stays inside that
   decision. After a ledger line, a heading at the ledger's own depth stays only when it names a
-  record section (``## Rationale``); ``## How to add a decision`` starts a new block.
+  reason (``## Rationale``); ``## How to add a decision`` or ``## Notes`` starts a new block.
 - Upstream's minimum chunk length is not ported.
 - The log and heading patterns trim blanks in code instead of in a lazy group, so a long run
   of spaces costs linear time.
@@ -77,31 +77,10 @@ _FIELD_SEPARATOR = re.compile(r"[·|]")
 _MIN_ENTRY_CHARS = 20
 _TITLE_MAX = 120  # the displayed title only; the key hashes the full title
 _DATE_KEYS = ("date", "decided", "modified")
-# Headings a ledger record uses for its own parts. The record format cannot tell ``## Rationale``
+# Headings that give a ledger record its reason. The record format cannot tell ``## Rationale``
 # from an unrelated ``## How to add a decision`` at the same depth, so the heading text decides.
-_RECORD_SECTIONS = frozenset(
-    {
-        "rationale",
-        "reason",
-        "reasons",
-        "why",
-        "context",
-        "background",
-        "motivation",
-        "decision",
-        "status",
-        "consequences",
-        "alternatives",
-        "alternatives considered",
-        "options",
-        "options considered",
-        "notes",
-        "details",
-        "discussion",
-        "references",
-        "links",
-    }
-)
+# Only reason names: a generic ``## Notes`` or ``## References`` after a ledger is its own section.
+_RECORD_SECTIONS = frozenset({"rationale", "reason", "reasons", "why", "motivation"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -195,7 +174,7 @@ def _text_outside_fields(line: str) -> str:
 def _stays_in_record(last: _Block | None, heading: str, level: int, outer: int) -> bool:
     """Does an id-less heading belong to the decision ``last``? A heading deeper than a ``## D-7``
     heading does, and for a ledger record (level 0) one deeper than ``outer + 1``, a record's level
-    inside its section. At the record's own depth, only a record section name does."""
+    inside its section. At the record's own depth, only a reason heading (``## Rationale``) does."""
     if last is None or not last.id:
         return False
     if (last.level or outer + 1) < level:
@@ -330,8 +309,8 @@ def _entry_keys(entries: list[tuple[str, LogEntry]], reserve: bool = True) -> li
     not change. An entry with no id gets ``""``. Keys compare without regard to case, as
     ``ExistingAdrs.names_id`` does. Every literal id is reserved first, so a key already taken, by
     a same-title twin or by any entry's literal id, gets ``-2``, ``-3`` and so on; same-title
-    twins differ only by order. ``reserve=False`` gives the keys of the earlier scheme, which
-    reserved no literal id; ``log_candidates`` still honours an ADR that cites one of those."""
+    twins differ only by order. ``reserve=False`` gives the keys without that reservation, as the
+    collision rule gave them before it; ``log_candidates`` still honours an ADR that cites one."""
     keys: list[str] = []
     taken = {e.id.lower() for _rel, e in entries if e.id and reserve}
     following: dict[str, int] = {}
@@ -355,7 +334,7 @@ def _log_candidate(rel: str, entry: LogEntry, ident: str, key: str) -> dict[str,
     return {
         "id": ident,
         "kind": "decision-log",
-        "title": sanitize(entry.title).strip()[:_TITLE_MAX],
+        "title": sanitize(entry.title).strip()[:_TITLE_MAX].rstrip(),
         "reason": extract_reason(entry.title[:_TITLE_MAX], rest),
         "excerpt": sanitize(entry.text, EXCERPT_CHARS),
         "date": entry_date(entry.text),
@@ -369,10 +348,10 @@ def log_candidates(
 ) -> tuple[list[dict[str, Any]], int, int]:
     """E1: ``(candidates, log files, log files skipped)``.
 
-    An entry with an id is documented when an ADR names its key, its key under the earlier
-    scheme, or its bare id, and that word names no other entry, case aside, in the logs read;
-    otherwise it is a candidate. A word that names two entries, such as a literal id that the
-    earlier scheme also generated as another entry's key, documents neither. A log file yields
+    An entry with an id is documented when an ADR names its key, which ``draft`` records. Its key
+    without literal-id reservation, or its bare id, documents it only when that word names no
+    other entry, case aside, in the logs read: a literal id equal to another entry's unreserved
+    key documents neither. Otherwise the entry is a candidate. A log file yields
     at most ``MAX_LOG_CANDIDATES``, and the rest count under ``log_over_limit``. The candidate id
     is ``log-`` plus the entry key, so twins of one id get distinct ids.
     """
@@ -388,7 +367,9 @@ def log_candidates(
     for (rel, entry), key, owned in zip(entries, keys, words, strict=True):
         if entry.id is None:
             dropped["log_no_id"] += 1
-        elif any(claims[word] == 1 and existing.names_id(word) for word in owned):
+        elif existing.names_id(key) or any(
+            claims[word] == 1 and existing.names_id(word) for word in owned
+        ):
             dropped["already_documented"] += 1
         elif per_file.get(rel, 0) >= MAX_LOG_CANDIDATES:
             dropped["log_over_limit"] += 1
