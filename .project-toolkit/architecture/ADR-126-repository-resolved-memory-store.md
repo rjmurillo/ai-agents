@@ -86,6 +86,9 @@ Serena layout stay Serena-layout tools: `memory_git_targets.py`,
 `convert_memory_references.py`, `convert_index_table_links.py`,
 `invoke_memory_cross_reference.py`, `test_memory_size.py`, and
 `measure_memory_performance.py`. They default to `.serena/memories`.
+The `memory-consolidate` and `curating-memories` skills drive
+`memory_git_targets.py` and `supersession_sweep.py`, so they are Serena-layout
+skills too.
 
 **3. Identity is the path under the resolved folder.** This amends ADR-106
 Decision 5. In this repository the resolved folder is `.serena/memories/`, so
@@ -125,10 +128,15 @@ does what, not where the store lives, so it is not amended.
 **7. The prompt recall hook keeps ADR-109's trust boundary.** The hook ships to
 Claude plugin installs under ADR-109's 2026-11-20 amendment, which treats memory
 as untrusted repository content. It finds its root with Decision 4's rule, then
-recalls only when that root itself holds `.git`, so an untracked memory folder
-nested inside a work tree recalls nothing. It refuses, with a
-note, a Serena folder that resolves outside the repository, and then recalls
-nothing, even when a notes folder exists. Otherwise its store follows Decision
+recalls only when that root itself holds `.git`. The nearest marker wins first,
+so an untracked memory folder nested inside a work tree shadows the checkout
+above it, and recall then prints a `recall skipped` note and returns nothing. A
+`.git` file, as in a linked worktree or a submodule, counts. A tree with no
+`.git`, such as an unpacked tarball, gets no recall, while search, the router,
+and the CLI still read its store. The hook refuses, with a note, a Serena folder
+that resolves outside the repository, and then recalls nothing, even when a
+notes folder exists. A linked memory file that leaves its store is skipped
+without a note, on every entry point. Otherwise its store follows Decision
 1, so a consumer with only the notes folder gets recall from it. This amends by
 reference ADR-109's statement that a repository without `.serena/memories/` gets
 no output.
@@ -165,12 +173,18 @@ that visible instead of silent.
 - Three source copies of the root and store rules exist because the package
   ships only in the Claude lib while the skill ships to five more trees (see Decision 4). The
   parity tests are the only guard.
-- Corpus maintenance scripts still assume the Serena layout (Decision 2).
+- Corpus maintenance scripts still assume the Serena layout (Decision 2). In a
+  notes-only repository, `supersession_sweep.py` stops with
+  `root not found: .serena/memories`, so `curating-memories` cannot run there.
 - Creating `.serena/memories/` in a repository that has notes shadows them.
   A Serena write can create that folder. No tool migrates the notes; the
   diagnostic names the `git mv` step.
 - Prose that named `.serena/memories/` as the only store had to change across
   agent and skill templates.
+- Rollback to Serena only means removing the notes branch from the three
+  store-rule copies and the hook. Serena identities do not move, so nothing in
+  `.serena/memories/` changes; notes written meanwhile need a `git mv`. The
+  hook keeps Decision 7's `.git` rule either way.
 
 ### Neutral
 
@@ -181,10 +195,13 @@ that visible instead of silent.
 ADR-106's Security Considerations apply to `.project-toolkit/memory/notes/`
 unchanged. Notes are committed files a branch can change, so recalled text is
 untrusted data. A store the resolver finds that resolves outside the repository
-root is ignored by all three store-rule copies. A linked memory file counts only
-when it resolves inside its own store, in the search script, the router, and the
+root is ignored by all three store-rule copies. A linked memory file (a file
+symlink) counts only when it resolves inside its own store, in the search script, the router, and the
 loader the hook uses, so a committed link cannot surface another repository file
-such as `.env`. The recall hook is stricter still: an escaping Serena folder
+such as `.env`. The corpus walk does not enter a linked folder: `rglob` returned
+no files under one on Python 3.14.8 and 3.15.0. The data framing is advisory: the model may still follow text
+in a note. `MAX_BLOCK_CHARS` (8000), at most 3 results, and one-line snippets
+bound what one prompt can carry. The recall hook is stricter still: an escaping Serena folder
 stops recall entirely (Decision 7). A path the caller passes explicitly, such as
 `--serena-path`, is trusted as given.
 
@@ -215,6 +232,13 @@ stops recall entirely (Decision 7). A path the caller passes explicitly, such as
 - `test_cli_defaults_to_notes_when_no_store_exists` and
   `test_cli_prefers_serena_corpus_when_present` check the CLI default.
 - `test_recall_snippet_cannot_forge_a_heading_or_source_line` checks Decision 5.
+- In `tests/skills/memory/test_memory_store_containment.py`,
+  `test_search_script_refuses_a_link_to_a_repository_file`,
+  `test_router_refuses_a_link_to_a_repository_file`,
+  `test_loader_bounds_links_to_the_store`, and
+  `test_search_script_skips_the_env_link_end_to_end` check linked-file
+  containment, and `test_recall_fails_open_when_store_resolution_raises` checks
+  that a resolve error never fails a prompt.
 
 ## Impact on Dependent Components
 

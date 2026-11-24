@@ -30,6 +30,12 @@ round 2 revision; rows 4, 5, 8, and 16 to 18 after the module move; rows 10, 11,
 | 22 | ADR-109 carries an `**Amended by**:` footer naming ADR-126 | path | `tail` of ADR-109 | VERIFIED on 2026-11-23 |
 | 23 | Besides `src/claude`, the memory skill ships to five trees with no `memory_enhancement` package: `src/codex`, `src/copilot-cli`, `src/cursor`, `src/muse`, and `src/hermes/project-toolkit-knowledge` | path | `ls -d src/*/skills/memory src/hermes/*/skills/memory`; `ls src/*/lib/memory_enhancement` | VERIFIED on 2026-11-23 |
 | 24 | Linked memory files count only inside their own store, in the search script, router, and loader | behavior | `tests/skills/memory/test_memory_store_containment.py` and `test_repository_corpus_links.py` | VERIFIED: removing the router filter fails 1 test; removing the loader bound fails 7 |
+| 25 | `memory-consolidate` and `curating-memories` drive `memory_git_targets.py` and `supersession_sweep.py` | path | `grep -n` for both script names in their `SKILL.md.tmpl` files | VERIFIED on 2026-11-24: `memory-consolidate.SKILL.md.tmpl:126`, `curating-memories.SKILL.md.tmpl:72` |
+| 26 | In a notes-only repository `supersession_sweep.py` stops with `root not found: .serena/memories` | behavior | run the script in a temporary repository holding only the notes folder | VERIFIED on 2026-11-24 |
+| 27 | The corpus walk does not enter a linked folder | behavior | `Path.rglob("*.md")` over a store holding a folder symlink, Python 3.14.8 and 3.15.0 | VERIFIED: empty list on both |
+| 28 | Recall caps are 8000 characters and 3 results | path | `grep -n "MAX_BLOCK_CHARS =\|_MAX_RECALL_RESULTS ="` in the recall hook | VERIFIED: lines 107 and 95 |
+| 29 | A memory root with no `.git` prints a `recall skipped` note | behavior | `test_hook_recalls_notes_only_inside_a_checkout`; mutation removing the note | VERIFIED: mutation failed 1 test |
+| 30 | A resolve error in store lookup never fails a prompt | behavior | `test_recall_fails_open_when_store_resolution_raises`; mutation moving lookup outside the guard | VERIFIED: mutation failed 1 test |
 
 ## Gate results
 
