@@ -19,8 +19,9 @@ Departures from the upstream source, each pinned by a test:
   candidate when no existing ADR names its key (``log_candidates``).
 - ``entry_date`` returns the day (``YYYY-MM-DD``) through ``adr_commits.iso_day``, which accepts
   only a real calendar day. Upstream returned an ISO instant.
-- A sub-heading deeper than its decision's heading (``### Rationale``), or any id-less heading
-  after a ledger line, stays inside that decision.
+- A sub-heading deeper than its decision's heading (``### Rationale``) stays inside that
+  decision. After a ledger line, a heading at the ledger's own depth stays only when it names a
+  record section (``## Rationale``); ``## How to add a decision`` starts a new block.
 - Upstream's minimum chunk length is not ported.
 - The log and heading patterns trim blanks in code instead of in a lazy group, so a long run
   of spaces costs linear time.
@@ -74,8 +75,33 @@ _FIELD = re.compile(r"([a-z_]+):(?!//)\s*(.*)\Z", _I | re.DOTALL)
 # No ``\s*`` around the mark: it is quadratic on a long run of spaces. Segments are stripped.
 _FIELD_SEPARATOR = re.compile(r"[·|]")
 _MIN_ENTRY_CHARS = 20
-_TITLE_MAX = 120
+_TITLE_MAX = 120  # the displayed title only; the key hashes the full title
 _DATE_KEYS = ("date", "decided", "modified")
+# Headings a ledger record uses for its own parts. The record format cannot tell ``## Rationale``
+# from an unrelated ``## How to add a decision`` at the same depth, so the heading text decides.
+_RECORD_SECTIONS = frozenset(
+    {
+        "rationale",
+        "reason",
+        "reasons",
+        "why",
+        "context",
+        "background",
+        "motivation",
+        "decision",
+        "status",
+        "consequences",
+        "alternatives",
+        "alternatives considered",
+        "options",
+        "options considered",
+        "notes",
+        "details",
+        "discussion",
+        "references",
+        "links",
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,27 +120,41 @@ class _Block:
     lines: list[str]
 
 
+def _real_log(base: Path, entry: Path) -> Path | None:
+    """The resolved path of a decision log inside ``base``, or None. A symlinked file is left out,
+    because ``read_bounded`` refuses it, and so is a file whose metadata check fails."""
+    if not _LOG_FILE.fullmatch(entry.name):
+        return None
+    try:
+        if entry.is_symlink() or not entry.is_file():
+            return None
+        real = entry.resolve()
+    except (OSError, RuntimeError):  # RuntimeError: a symlink loop before Python 3.13
+        return None
+    return real if base in real.parents else None
+
+
 def find_log_files(root: Path) -> list[str]:
     """Decision log file paths, relative to ``root``, at the root and in ``docs/``.
 
-    A symlinked file is left out here, before the ``MAX_LOG_FILES`` quota, because
-    ``read_bounded`` refuses it and it would take a real log's place."""
-    found: list[str] = []
+    Each real file is listed once, before the ``MAX_LOG_FILES`` quota, under its first spelling
+    (the root before ``docs/``): a ``docs`` link to the root would list it twice. A folder that
+    cannot be listed is skipped; a file that fails its check skips only itself."""
+    found: dict[Path, str] = {}
+    try:
+        base = root.resolve()
+    except (OSError, RuntimeError):
+        return []
     for folder in _LOG_DIRS:
         try:
-            base = root.resolve()
-            names = [
-                entry.name
-                for entry in (root / folder).iterdir()
-                if _LOG_FILE.fullmatch(entry.name)
-                and entry.is_file()
-                and not entry.is_symlink()
-                and base in entry.resolve().parents
-            ]
+            entries = sorted((root / folder).iterdir())
         except OSError:
             continue
-        found.extend(f"{folder}/{n}" if folder else n for n in names if _LOG_FILE.fullmatch(n))
-    return sorted(found)
+        for entry in entries:
+            real = _real_log(base, entry)
+            if real is not None:
+                found.setdefault(real, f"{folder}/{entry.name}" if folder else entry.name)
+    return sorted(found.values())
 
 
 def _heading_text(line: str) -> str | None:
@@ -152,6 +192,17 @@ def _text_outside_fields(line: str) -> str:
     return " ".join(segment.strip() for segment in kept).strip()
 
 
+def _stays_in_record(last: _Block | None, heading: str, level: int, outer: int) -> bool:
+    """Does an id-less heading belong to the decision ``last``? A heading deeper than a ``## D-7``
+    heading does, and for a ledger record (level 0) one deeper than ``outer + 1``, a record's level
+    inside its section. At the record's own depth, only a record section name does."""
+    if last is None or not last.id:
+        return False
+    if (last.level or outer + 1) < level:
+        return True
+    return last.level == 0 and heading.strip(" \t:").lower() in _RECORD_SECTIONS
+
+
 def _blocks(content: str) -> list[_Block]:
     blocks: list[_Block] = []
     fence: str | None = None
@@ -171,15 +222,8 @@ def _blocks(content: str) -> list[_Block]:
         else:
             found = _ID_START.match(line) if top_level else None
         level = len(line) - len(line.lstrip("#")) if heading else 0
-        if (
-            heading
-            and not found
-            and blocks
-            and blocks[-1].id
-            and (blocks[-1].level or outer + 1) < level
-        ):
-            # A sub-heading stays with its decision: deeper than a ``## D-7`` heading, or for a
-            # ledger record (level 0) deeper than ``outer + 1``, a record's level inside its section.
+        last = blocks[-1] if blocks else None
+        if heading and not found and _stays_in_record(last, heading, level, outer):
             blocks[-1].lines.append(line)
         elif heading or found:
             ident = (
@@ -206,8 +250,9 @@ def _entry_of(block: _Block) -> LogEntry:
         remainder = _heading_title(_without_closing_hashes(first))
     else:
         remainder = _text_outside_fields(first)
-    body = next((line.strip() for line in block.lines[1:] if line.strip()), "")
-    title = (remainder or body or block.id or "")[:_TITLE_MAX]
+    # Cleaned before the fallback, so a line of only control bytes gives way to the next one.
+    cleaned = (sanitize(line).strip() for line in (remainder, *block.lines[1:]))
+    title = next((line for line in cleaned if line), block.id or "")
     return LogEntry(block.id, block.heading, title, text)
 
 
@@ -279,14 +324,16 @@ def read_log_entries(
 MAX_LOG_CANDIDATES = 1000
 
 
-def _entry_keys(entries: list[tuple[str, LogEntry]]) -> list[str]:
+def _entry_keys(entries: list[tuple[str, LogEntry]], reserve: bool = True) -> list[str]:
     """The key a draft records for each entry with an id: ``<id>--`` and 8 hex digits of the
-    SHA-256 of its title, one word that adding, removing, or reordering other entries does not
-    change. An entry with no id gets ``""``. Keys compare without regard to case, as
-    ``ExistingAdrs.names_id`` does. A key already taken, by a same-title twin or a literal id,
-    gets ``-2``, ``-3`` and so on, so no key repeats; same-title twins differ only by order."""
+    SHA-256 of its full title, one word that adding, removing, or reordering other entries does
+    not change. An entry with no id gets ``""``. Keys compare without regard to case, as
+    ``ExistingAdrs.names_id`` does. Every literal id is reserved first, so a key already taken, by
+    a same-title twin or by any entry's literal id, gets ``-2``, ``-3`` and so on; same-title
+    twins differ only by order. ``reserve=False`` gives the keys of the earlier scheme, which
+    reserved no literal id; ``log_candidates`` still honours an ADR that cites one of those."""
     keys: list[str] = []
-    taken: set[str] = set()
+    taken = {e.id.lower() for _rel, e in entries if e.id and reserve}
     following: dict[str, int] = {}
     for _rel, e in entries:
         if not e.id:
@@ -308,8 +355,8 @@ def _log_candidate(rel: str, entry: LogEntry, ident: str, key: str) -> dict[str,
     return {
         "id": ident,
         "kind": "decision-log",
-        "title": sanitize(entry.title).strip(),
-        "reason": extract_reason(entry.title, rest),
+        "title": sanitize(entry.title).strip()[:_TITLE_MAX],
+        "reason": extract_reason(entry.title[:_TITLE_MAX], rest),
         "excerpt": sanitize(entry.text, EXCERPT_CHARS),
         "date": entry_date(entry.text),
         "source": {"file": rel, "entry_id": key},
@@ -322,8 +369,10 @@ def log_candidates(
 ) -> tuple[list[dict[str, Any]], int, int]:
     """E1: ``(candidates, log files, log files skipped)``.
 
-    An entry with an id is documented when an ADR names its key, or names the bare id while that
-    id is unique, case aside, in the logs read; otherwise it is a candidate. A log file yields
+    An entry with an id is documented when an ADR names its key, its key under the earlier
+    scheme, or its bare id, and that word names no other entry, case aside, in the logs read;
+    otherwise it is a candidate. A word that names two entries, such as a literal id that the
+    earlier scheme also generated as another entry's key, documents neither. A log file yields
     at most ``MAX_LOG_CANDIDATES``, and the rest count under ``log_over_limit``. The candidate id
     is ``log-`` plus the entry key, so twins of one id get distinct ids.
     """
@@ -331,13 +380,15 @@ def log_candidates(
     per_file: dict[str, int] = {}
     entries, files, skipped = read_log_entries(root, dropped)
     keys = _entry_keys(entries)
-    total = Counter(e.id.lower() for _rel, e in entries if e.id)
-    for (rel, entry), key in zip(entries, keys, strict=True):
+    words = [
+        {key.lower(), old.lower(), e.id.lower()} if e.id else set()
+        for (_rel, e), key, old in zip(entries, keys, _entry_keys(entries, False), strict=True)
+    ]
+    claims = Counter(word for owned in words for word in owned)
+    for (rel, entry), key, owned in zip(entries, keys, words, strict=True):
         if entry.id is None:
             dropped["log_no_id"] += 1
-        elif existing.names_id(key) or (
-            total[entry.id.lower()] == 1 and existing.names_id(entry.id)
-        ):
+        elif any(claims[word] == 1 and existing.names_id(word) for word in owned):
             dropped["already_documented"] += 1
         elif per_file.get(rel, 0) >= MAX_LOG_CANDIDATES:
             dropped["log_over_limit"] += 1

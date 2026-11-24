@@ -152,12 +152,12 @@ def test_read_bounded_reads_at_most_one_byte_past_the_cap(
     exact = tmp_path / "exact.md"
     exact.write_bytes(b"x\r\n" + b"x" * (adr_locate.MAX_READ_BYTES - 3))
     sizes: list[int] = []
-    real_open = Path.open
 
-    def spy_open(self: Path, *args: Any, **kwargs: Any) -> _ReadSpy:
-        return _ReadSpy(real_open(self, *args, **kwargs), sizes)
+    def spy_open(*args: Any, **kwargs: Any) -> _ReadSpy:
+        return _ReadSpy(open(*args, **kwargs), sizes)
 
-    monkeypatch.setattr(Path, "open", spy_open)
+    # read_bounded wraps the descriptor it checked with the module's ``open``.
+    monkeypatch.setattr(adr_locate, "open", spy_open, raising=False)
 
     assert adr_locate.read_bounded(big) is None
     text = adr_locate.read_bounded(exact)
