@@ -137,7 +137,7 @@ and ratchets existing byte ceilings downward without changing enforcement hooks.
 
 | Agent | Position | Notes |
 |---|---|---|
-| architect | Accept | Verified all byte measurements (`instruction_budget.py`, `instruction_bytes.py`), ratchet tests (47 pass), rule deletion and 5 harness copies of `build/references/rule-code-quality.md`, `build/SKILL.md:70` pointer, Hermes exclusion, and all 8 scenario paths. P1: state eval limits (one repeat, one judge, target-only routing) and source of scores. P2: clarify 0.6 floor vs `MIN_ACTIVATION_SCORE = 3.5`, name the eight references inline, note tight `.py` headroom. |
+| architect | Accept | Verified all byte measurements (`instruction_budget.py`, `instruction_bytes.py`), ratchet tests (47 pass), rule deletion and 5 harness copies of `build/references/rule-code-quality.md`, `src/claude/skills/build/SKILL.md:70` pointer, Hermes exclusion, and all 8 scenario paths. P1: state eval limits (one repeat, one judge, target-only routing) and source of scores. P2: clarify 0.6 floor vs `MIN_ACTIVATION_SCORE = 3.5`, name the eight references inline, note tight `.py` headroom. |
 | critic | Disagree-and-Commit | Verified all byte measurements, 91 budget/ratchet/floor tests, rule move, Hermes 397/400 pack count, and 8 scenarios. Zero P0 blockers. P1: state `n=4` and that raw eval JSON is not committed; explicitly answer ADR-088's always-on criterion for `code-quality`. P2: note tight headroom as a known ratchet cost. |
 
 ### Key Issues Addressed
