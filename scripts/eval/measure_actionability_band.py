@@ -147,7 +147,19 @@ def count_truncation(prs: list[dict[str, Any]]) -> Truncation:
 
 
 def _share(part: int, whole: int) -> float:
+    """Return part / whole rounded to 4 places. For display: never decide on this value."""
     return round(part / whole, 4) if whole else 0.0
+
+
+def kill_criterion_1_fired(in_band: int, total: int) -> bool | None:
+    """Decide kill criterion 1 on the exact ratio. None when there is nothing to measure.
+
+    The reported ``band_share`` is rounded to 4 places, so 1999 of 40000 (4.9975 percent)
+    displays as 0.05 and would clear a rounded comparison against the 0.05 threshold.
+    """
+    if not total:
+        return None
+    return in_band / total < KILL_CRITERION_1_THRESHOLD
 
 
 def measure_band(prs: list[dict[str, Any]]) -> BandReport:
@@ -185,7 +197,7 @@ def measure_band(prs: list[dict[str, Any]]) -> BandReport:
         replies=buckets["replies"],
         unknown_position=buckets["unknown"],
         truncation=count_truncation(prs),
-        kill_criterion_1_fired=(band_share < KILL_CRITERION_1_THRESHOLD) if total else None,
+        kill_criterion_1_fired=kill_criterion_1_fired(in_band_total, total),
     )
 
 

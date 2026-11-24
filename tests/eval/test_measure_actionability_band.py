@@ -323,3 +323,89 @@ class TestFromJsonProvenance:
         assert payload["path"] == "prs.json"
         assert "private" not in text
         assert str(tmp_path) not in text
+
+
+class TestKillCriterionOnTheExactRatio:
+    """Plan M1-T5, review finding 2: decide on in_band / total, round for display only."""
+
+    @pytest.mark.parametrize(
+        ("in_band", "total", "expected"),
+        [
+            (1999, 40000, True),
+            (2000, 40000, False),
+            (0, 100, True),
+            (5, 100, False),
+            (4, 100, True),
+            (1, 1, False),
+        ],
+    )
+    def test_threshold_decision_uses_the_unrounded_share(
+        self, in_band: int, total: int, expected: bool
+    ) -> None:
+        """1999 of 40000 is 4.9975 percent. It rounds to 5.00 and must still fire."""
+        assert mab.kill_criterion_1_fired(in_band, total) is expected
+
+    def test_no_comments_means_no_decision(self) -> None:
+        """An empty set cannot clear or fire the criterion."""
+        assert mab.kill_criterion_1_fired(0, 0) is None
+
+    def _patch_scores(self, monkeypatch: pytest.MonkeyPatch, total: int, in_band: int) -> None:
+        comments = [
+            mab.CommentData(
+                pr_number=1,
+                body=f"c{i}",
+                created_at="2026-11-20T00:00:00Z",
+                path="a.py",
+                is_resolved=False,
+                is_outdated=False,
+                thread_comments=[],
+            )
+            for i in range(total)
+        ]
+        stats = type("S", (), {"comments": comments})()
+        monkeypatch.setattr(mab, "get_comments_by_reviewer", lambda _prs: {"r": stats})
+        position = {"i": 0}
+
+        def _score(_comment: object, llm_classifier: object = None) -> object:
+            position["i"] += 1
+            score = 0.5 if position["i"] <= in_band else 0.9
+            return type("R", (), {"score": score, "reasons": ["x"]})()
+
+        monkeypatch.setattr(mab, "get_actionability_score", _score)
+
+    def test_measure_band_fires_at_1999_of_40000_though_the_share_rounds_to_five_percent(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The displayed share is 0.05, the decision is still 'fired'."""
+        self._patch_scores(monkeypatch, total=40000, in_band=1999)
+
+        report = mab.measure_band([])
+
+        assert report.total == 40000
+        assert report.in_band == 1999
+        assert report.band_share == 0.05
+        assert report.kill_criterion_1_fired is True
+
+    def test_main_writes_the_exact_decision_and_the_rounded_share(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Driven through main(argv): the result file carries both values."""
+        self._patch_scores(monkeypatch, total=40000, in_band=1999)
+        source = tmp_path / "prs.json"
+        source.write_text("[]", encoding="utf-8")
+        out = tmp_path / "result.json"
+
+        code = mab.main(["--from-json", str(source), "--output", str(out)])
+
+        payload = json.loads(out.read_text(encoding="utf-8"))
+        assert code == 0
+        assert payload["band_share"] == 0.05
+        assert payload["kill_criterion_1_fired"] is True
+
+    def test_measure_band_does_not_fire_at_exactly_five_percent(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """2000 of 40000 is exactly 0.05, which is not under the threshold."""
+        self._patch_scores(monkeypatch, total=40000, in_band=2000)
+
+        assert mab.measure_band([]).kill_criterion_1_fired is False
