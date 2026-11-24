@@ -11,7 +11,7 @@ Built for platform teams, engineering managers, and organizations that want AI-a
 ![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/rjmurillo/ai-agents)
 
 ![Spec-to-Implementation Validation](https://github.com/rjmurillo/ai-agents/actions/workflows/ai-spec-validation.yml/badge.svg)
-![Pester Tests](https://github.com/rjmurillo/ai-agents/actions/workflows/pester-tests.yml/badge.svg)
+![Python Tests](https://github.com/rjmurillo/ai-agents/actions/workflows/pytest.yml/badge.svg)
 ![CodeQL Analysis](https://github.com/rjmurillo/ai-agents/actions/workflows/codeql-analysis.yml/badge.svg)
 
 ## Why AI Agents
@@ -34,7 +34,7 @@ Built for platform teams, engineering managers, and organizations that want AI-a
 **Not a fit:**
 
 - You only want a single-agent assistant. Claude Code or Copilot CLI alone covers that.
-- You need Gemini CLI or Codex CLI. This README documents Claude Code, GitHub Copilot CLI, and VS Code Copilot Chat only.
+- You need Gemini CLI. This README covers Claude Code, GitHub Copilot CLI, and VS Code Copilot Chat; Codex, Cursor, Grok Build, Pi, Hermes, and Muse have install routes in [docs/installation.md](docs/installation.md#other-hosts).
 - You want a tmux-driven pipeline across many CLIs. [AgentMux](https://github.com/markuswondrak/AgentMux) is an option there.
 
 More answers: [FAQ](docs/faq.md). Copilot CLI install: [docs/installation.md](docs/installation.md#github-copilot-cli). Which lifecycle phases fit which task: [docs/when-to-use.md](docs/when-to-use.md). Every agent: [docs/agents/README.md](docs/agents/README.md). Every skill: [docs/skills/README.md](docs/skills/README.md).
@@ -59,15 +59,20 @@ Each AI tool has its own native marketplace flow. This repo ships a Claude Code 
 /plugin install project-toolkit@ai-agents
 ```
 
-A Claude install lands the full set of agents and skills, including the six lifecycle skills. A Copilot install lands the same capabilities generated from the same canonical sources. See [Verify Installation](#verify-installation) for the per-tool check that confirms your install, or [More Installation Options](#alternative-full-installation) for component-level installs (agents only, etc.).
+A Claude install lands the full set of agents and skills, including the six lifecycle skills. A Copilot install lands the same agents and skills generated from the same canonical sources, except the Claude-only `merge-resolver` skill (the `merge-resolver` agent ships to both). See [Verify Installation](#verify-installation) for the per-tool check that confirms your install, or [Alternative: Full Installation](#alternative-full-installation) for bundle details and platform paths.
 
-> **One advisory hook.** In Claude Code, the `project-toolkit@ai-agents` plugin registers one advisory Stop hook (ADR-084 rule 2a). It prints a one-line retrospective suggestion when a session shows friction. It never blocks, never writes inside a repository, and keeps per-session markers under `$XDG_STATE_HOME/ai-agents-reflect-nudge` (default `~/.local/state/...`; `%LOCALAPPDATA%` on Windows). Set `AI_AGENTS_RETRO_NUDGE_THRESHOLD=0` (or `off`) to turn it off. The Copilot CLI plugin registers no hooks. Neither CLI gets tool-use hooks (ADR-097). The Stop hook and some skills run Python scripts, so they need Python 3.10 or later on PATH. The Stop hook looks for `python3`, then `python`. Skills also accept `py` on Windows. Skill and hook scripts are held to a 3.10 syntax floor (`.claude/rules/python.md`). Python 3.14.x is a contributor requirement for this repository (see [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites)).
+> **Two non-blocking Claude Code hooks.** In Claude Code, the `project-toolkit@ai-agents` plugin registers two non-blocking hooks:
+>
+> 1. An advisory `Stop` hook (ADR-084 rule 2a) that prints a one-line `/reflect` or `/retrospective` suggestion when a session shows corrections, preferences, or repeated friction. It never blocks, never writes inside a repository, and keeps per-session markers under `$XDG_STATE_HOME/ai-agents-reflect-nudge` (default `~/.local/state/...`; `%LOCALAPPDATA%` on Windows). Set `AI_AGENTS_RETRO_NUDGE_THRESHOLD=0` (or `off`) to turn it off. It looks for `python3`, then `python`.
+> 2. A fail-open `UserPromptSubmit` hook (ADR-109 2026-11-20 amendment) that injects up to three matching Serena memories from `.serena/memories/` on each prompt (producing no output when `.serena/memories/` is absent). It never blocks or erases a prompt (exits 0 on every failure path). Set `AI_AGENTS_MEMORY_RECALL=0` (or `off` or `false`) to turn it off. It filters `PATH` to exclude the project directory and checks `python3`, `python3.exe`, `python`, `python.exe`.
+>
+> The Copilot CLI plugin registers no hooks. Neither CLI gets tool-use hooks (ADR-097). Both hooks and some skills run Python scripts, so they need Python 3.10 or later on PATH (skills also accept `py` on Windows). Skill and hook scripts are held to a 3.10 syntax floor (`.claude/rules/python.md`). Python 3.14.x is a contributor requirement for this repository (see [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites)).
 
 ### Trust Boundary
 
-- **Runs in:** Claude Code, GitHub Copilot CLI, or VS Code Copilot Chat. This repository ships agents, skills (some with Python scripts), and marketplace metadata.
-- **Hooks and local code:** Claude Code registers one advisory Stop hook (ADR-084 rule 2a). Copilot CLI registers no hooks. Neither registers tool-use hooks (ADR-097). The Stop hook and some skills run Python scripts, so they need Python 3.10+ on PATH (see the note above).
-- **Data sent:** prompts, source context, and agent output go through the host CLI and its model. This repository runs no hosted service. Skills you invoke can reach other services: the `github` skill calls the GitHub API through `gh`, `research` and `context-gather` can use the host's web search and fetch tools, and `benchmark-models` sends your prompt to the `claude`, `codex`, and `gemini` CLIs you have installed and signed in to, plus the Anthropic API if you enable its `--judge` option with `ANTHROPIC_API_KEY`. The plugin registers no MCP servers; any MCP server you add (for example GitHub MCP or Serena) receives the data its tools are called with.
+- **Runs in:** Claude Code, GitHub Copilot CLI, or VS Code Copilot Chat. This repository ships agents, skills (some with Python scripts), rules/instructions, hooks, and marketplace metadata.
+- **Hooks and local code:** Claude Code registers two non-blocking hooks: an advisory `Stop` hook (ADR-084 rule 2a) and a fail-open `UserPromptSubmit` memory-recall hook (ADR-109 2026-11-20 amendment). Copilot CLI registers no hooks. Neither registers tool-use hooks (ADR-097). The hooks and some skills run Python scripts, so they need Python 3.10+ on PATH (see the note above).
+- **Data sent:** prompts, source context, and agent output go through the host CLI and its model. This repository runs no hosted service. Skills you invoke can reach other services: the `github` skill calls the GitHub API through `gh`, `research` and `context-gather` can use the host's web search and fetch tools, `benchmark-models` sends your prompt to the `claude`, `codex`, and `gemini` CLIs you have installed and signed in to (plus the Anthropic API if you enable its `--judge` option with `ANTHROPIC_API_KEY`), `llm-council` routes prompts to `claude`, `codex`, `copilot`, or GitHub Models (`models.github.ai` via `gh auth token`), and `sol-loop` sends review briefs to `codex` or `droid` (read-only) on its CLI route. The plugin registers no MCP servers; any MCP server you add (for example GitHub MCP or Serena) receives the data its tools are called with.
 - **Permissions:** the host CLI's permission prompts apply. Review shell and git actions before you accept them. Child CLIs that a skill starts follow their own settings: `benchmark-models` runs `gemini` with `--yolo` (auto-approve, not sandboxed) in a throwaway workdir.
 - **Remove access:** run `/plugin uninstall project-toolkit@ai-agents` in either CLI. See [Uninstallation](docs/installation.md#uninstallation).
 
@@ -76,9 +81,9 @@ A Claude install lands the full set of agents and skills, including the six life
 | Component | Claude Code | Copilot CLI |
 |-----------|-------------|-------------|
 | Agents | Included | Included |
-| Skills | Included | Included |
+| Skills | Included | Included (all except Claude-only `merge-resolver` skill) |
 | Lifecycle skills (`/spec` to `/ship`) | Included, run as slash commands (`/project-toolkit:spec` after a marketplace install) | Included, name the skill with a slash in your prompt (for example `Use /plan ...`), per GitHub's Copilot CLI skills docs |
-| Hooks | One advisory Stop hook (ADR-084 rule 2a) | Not registered |
+| Hooks | Two non-blocking hooks: advisory `Stop` (ADR-084 rule 2a) and fail-open `UserPromptSubmit` memory recall (ADR-109 amendment) | Not registered |
 | Session protocol | Included | Included |
 | Review gates | Included | Included |
 
@@ -150,7 +155,7 @@ AI Agents is a coordinated multi-agent system for software development. It provi
 
 The orchestrator is the hub of operations. Its logic spans the full range, from taking a "vibe" or a "shower thought" and building out a functional spec with acceptance criteria and user stories, to taking a well-defined idea as input and executing on it. Both bundles ship a roster of agents that cover the roles of software development, from vision and strategy, to architecture, implementation, and verification. Each role looks at something specific, like the critic that just looks to poke holes in other agents' (or your own) work, or DevOps that's concerned about how you deploy and operate the thing you just built.
 
-The agents themselves use the platform specific handoffs to invoke subagents, keeping the orchestrator context clean. A great example of this is orchestrator facilitating creating and debating an [Architectural Decision Record](https://adr.github.io/) from research and drafting, to discussion, iterating on the issues, tie breaking when agents don't agree. And then  extracting persistent knowledge to steer future agents to adhere. Artifacts are stored in your memory system if you have one enabled, and Markdown files for easy reference to both agents and humans.
+The agents themselves use the platform specific handoffs to invoke subagents, keeping the orchestrator context clean. A great example of this is orchestrator facilitating creating and debating an [Architectural Decision Record](https://adr.github.io/) from research and drafting, to discussion, iterating on the issues, tie breaking when agents don't agree. And then extracting persistent knowledge to steer future agents to adhere. Artifacts are stored in your memory system if you have one enabled, and Markdown files for easy reference to both agents and humans.
 
 ### Core Capabilities
 
@@ -180,13 +185,13 @@ The agents themselves use the platform specific handoffs to invoke subagents, ke
 
 ## Alternative: Full Installation
 
-The [Fastest Start](#fastest-start) above is the recommended path. Use the commands below when you want component-level control (agents only, no skills, etc.).
+The [Fastest Start](#fastest-start) above is the recommended path. Both CLIs ship a single `project-toolkit` plugin bundle; use the reference below for bundle sources, verification commands, and platform paths.
 
-> See [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites) for development setup including Python 3.14.x, pre-commit hooks, and test dependencies. In Claude Code, the `project-toolkit@ai-agents` plugin registers one advisory Stop hook (ADR-084 rule 2a) and no tool-use hooks (ADR-097). The Stop hook and skills that run Python scripts need Python 3.10 or later on PATH.
+> See [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites) for development setup including Python 3.14.x, pre-commit hooks, and test dependencies. In Claude Code, the `project-toolkit@ai-agents` plugin registers two non-blocking hooks: an advisory `Stop` hook (ADR-084 rule 2a) and a fail-open `UserPromptSubmit` memory-recall hook (ADR-109 2026-11-20 amendment), and no tool-use hooks (ADR-097). The hooks and skills that run Python scripts need Python 3.10 or later on PATH.
 
 ### Quick Install (CLI marketplace)
 
-The [Fastest Start](#fastest-start) commands install the full toolkit. For component-level installs, register the marketplace once in the CLI you are using and then install just the parts you want. Claude Code resolves that repository to `.claude-plugin/marketplace.json`; Copilot CLI resolves it to `.github/plugin/marketplace.json`.
+Register the marketplace once in the CLI you are using, then install `project-toolkit@ai-agents`. Claude Code resolves that repository to `.claude-plugin/marketplace.json`; Copilot CLI resolves it to `.github/plugin/marketplace.json`.
 
 **Claude Code:**
 
@@ -196,7 +201,7 @@ The [Fastest Start](#fastest-start) commands install the full toolkit. For compo
 
 | Component | Install Command | What You Get |
 |-----------|----------------|--------------|
-| Project toolkit | `/plugin install project-toolkit@ai-agents` | Agents and reusable skills from `src/claude/` |
+| Project toolkit | `/plugin install project-toolkit@ai-agents` | Agents, reusable skills, rules, and two non-blocking hooks from `src/claude/` |
 
 **GitHub Copilot CLI:**
 
@@ -206,9 +211,9 @@ The [Fastest Start](#fastest-start) commands install the full toolkit. For compo
 
 | Component | Install Command | What You Get |
 |-----------|----------------|--------------|
-| Copilot full toolkit | `/plugin install project-toolkit@ai-agents` | Agents and skills from `src/copilot-cli/` (Copilot CLI) |
+| Copilot full toolkit | `/plugin install project-toolkit@ai-agents` | Agents, skills, and instructions from `src/copilot-cli/` (Copilot CLI) |
 
-Claude Code installs ship a single `project-toolkit` plugin from `src/claude/` (the separate agents-only `claude-agents` bundle was retired; ADR-109). Copilot CLI installs ship a single `project-toolkit` plugin from `src/copilot-cli/` because that directory's `plugin.json` declares one identity; an agents-only Copilot install would silently register as `project-toolkit` and is therefore not advertised (issue #1840).
+Claude Code installs ship a single `project-toolkit` plugin from `src/claude/` (the separate agents-only `claude-agents` bundle was retired; ADR-109). Copilot CLI installs ship a single `project-toolkit` plugin from `src/copilot-cli/` because `src/copilot-cli/.claude-plugin/plugin.json` declares one identity; an agents-only Copilot install would silently register as `project-toolkit` and is therefore not advertised (issue #1840).
 
 ### Verify Installation
 
@@ -226,7 +231,7 @@ Task(subagent_type="analyst", prompt="Hello, are you available?")
 copilot plugin list
 ```
 
-The output should include `project-toolkit@ai-agents` (or whichever component you installed). To exercise an agent end-to-end, run `copilot -p "analyst: respond with 'available'"`.
+The output should include `project-toolkit@ai-agents`. To exercise an agent end-to-end, run `copilot -p "analyst: respond with 'available'"`.
 
 **VS Code (Copilot Chat):**
 
@@ -242,7 +247,7 @@ The output should include `project-toolkit@ai-agents` (or whichever component yo
 | **GitHub Copilot CLI** | `src/copilot-cli/` | Use `--agent` flag, `/agent` to select, or call out agent by name |
 | **VS Code / GitHub Copilot** | `.github/agents/` | Use `@agent` syntax in Copilot Chat |
 
-See [docs/installation.md](docs/installation.md) for complete installation documentation, including platform-specific paths, troubleshooting, and post-installation steps.
+Additional hosts (Codex, Cursor, Grok Build, Pi, Hermes, and Muse) have install routes in [docs/installation.md](docs/installation.md#other-hosts). See [docs/installation.md](docs/installation.md) for full installation documentation, including platform-specific paths, troubleshooting, and post-installation steps.
 
 ---
 
@@ -258,7 +263,7 @@ Here are prompts you can copy and paste. Prefix with the agent name to route dir
 
 Review code quality:
 
-> critic: review @src/auth/login-handler.ts for coupling, error handling gaps, and test coverage. Deliver an APPROVE or REJECT verdict with specific line references.
+> critic: review @src/auth/login-handler.ts for coupling, error handling gaps, and test coverage. Deliver an APPROVED or NEEDS_REVISION verdict with specific line references.
 
 Shows the critic agent doing a focused code review.
 
@@ -314,7 +319,7 @@ Turns an incident report into a shipped fix through structured agent collaborati
 
 Technology migration evaluation:
 
-> orchestrator: we are considering migrating from REST to gRPC for internal services. Route through analyst to research benchmarks and ecosystem maturity. Then architect to map impact on existing contracts. Then security to threat-model the new transport layer. Then devops to estimate CI/CD changes. Then independent-thinker to argue the strongest case for staying with REST. Then high-level-advisor to deliver a GO or NO-GO verdict with conditions.
+> orchestrator: we are considering migrating from REST to gRPC for internal services. Route through analyst to research benchmarks and ecosystem maturity. Then architect to map impact on existing contracts. Then security to threat-model the new transport layer. Then devops to estimate CI/CD changes. Then independent-thinker to argue the strongest case for staying with REST. Then high-level-advisor to deliver a CONTINUE, PIVOT, or CUT verdict with conditions.
 
 Six agents build a decision package. Each contributes a different dimension of analysis. The advisor synthesizes everything into an actionable verdict.
 
@@ -341,9 +346,9 @@ Six lifecycle skills that map to the development lifecycle. Claude Code runs the
 
 | What you're doing | Command | What happens |
 |-------------------|---------|--------------|
-| Define what to build | `/spec` | CVA analysis, testable acceptance criteria, critic review |
+| Define what to build | `/spec` | First-principles and memory-first gates, CVA analysis, testable acceptance criteria, critic review |
 | Plan how to build it | `/plan` | Milestones, atomic tasks (S/M/L), dependency graph, risk register |
-| Build incrementally | `/build` | TDD slices, atomic commits, code quality scoring |
+| Build incrementally | `/build` | TDD slices, atomic commits, four mandatory exit gates (code quality, taste lints, doc accuracy, orphan refs) |
 | Prove it works | `/test` | 6 quality gates (functional, non-functional, security, DevOps, DX, observability) |
 | Review before merge | `/review` | Spec-compliance gate, then review axes picked by risk |
 | Ship to production | `/ship` | Pre-flight checks, PR creation, ship report |
@@ -424,7 +429,7 @@ Both bundles include every agent. `spec-generator` is now a skill (issue #2001),
 |-------|---------|--------|--------|
 | **orchestrator** | Task coordination and routing | Delegated results from specialists | both |
 | **analyst** | Research, feasibility analysis, trade-off evaluation | Quantitative findings with evidence | both |
-| **architect** | System design evaluation, ADRs, pattern enforcement | Rated assessments (Strong/Adequate/Needs-Work) | both |
+| **architect** | System design evaluation, ADRs, pattern enforcement | ADRs (MADR 4.0), design reviews (APPROVED / NEEDS_CHANGES / NEEDS_ADR / BLOCKED / REJECTED) | both |
 | **code-reviewer** | Code review for correctness, conventions, and duplicated logic | Findings with file and line evidence | both |
 | **code-simplifier** | Simplify recently changed code while preserving behavior | Rewrite diff or focused refactors | both |
 | **comment-analyzer** | Check code comments for accuracy, completeness, and maintainability | Specific corrections with evidence | both |
@@ -442,7 +447,7 @@ Both bundles include every agent. `spec-generator` is now a skill (issue #2001),
 | **quality-auditor** | Grade product domains across architectural layers | Quality reports with gap tracking and trends | both |
 | **explainer** | PRDs and documentation | Specs, user guides | both |
 | **task-decomposer** | Atomic task breakdown | Estimable work items with done criteria | both |
-| **high-level-advisor** | Strategic decisions, unblocking | Verdicts: GO / CONDITIONAL GO / NO-GO | both |
+| **high-level-advisor** | Strategic decisions, unblocking | Direct verdicts (DO / DON'T), Priority Stacks (P0-P2 / KILL), CONTINUE / PIVOT / CUT | both |
 | **independent-thinker** | Challenge assumptions, devil's advocate | Counter-arguments with alternatives | both |
 | **pr-test-analyzer** | Assess behavioral test coverage in pull requests | Ranked coverage gaps and recommendation | both |
 | **debug** | Debugging assistance, root cause analysis | Diagnostic findings with resolution steps | both |
@@ -460,12 +465,14 @@ See [AGENTS.md](AGENTS.md) for detailed agent documentation.
 ai-agents/
 ├── src/
 │   ├── vs-code-agents/      # VS Code / GitHub Copilot agents
-│   ├── copilot-cli/         # GitHub Copilot CLI agents
-│   └── claude/              # Claude Code CLI agents
-├── templates/               # Agent template system
+│   ├── copilot-cli/         # GitHub Copilot CLI plugin (agents, skills, instructions)
+│   └── claude/              # Claude Code CLI plugin (agents, skills, rules, hooks)
+├── templates/               # Canonical templates (agents, skills, rules, hooks, platforms)
+├── build/                   # Generators and build orchestration (build/scripts/build_all.py)
 ├── scripts/                 # Validation and utility scripts
 ├── docs/                    # Documentation
-├── .agents/                 # Agent artifacts (ADRs, plans, etc.)
+├── .agents/                 # Governance, steering, schemas, and guides
+├── .project-toolkit/        # Project artifacts (ADRs, specs, plans, retrospectives)
 ├── .claude-plugin/          # Claude Code marketplace manifest
 ├── .github/plugin/          # GitHub Copilot CLI marketplace manifest
 ├── .github/copilot-instructions.md  # GitHub Copilot instructions
@@ -499,8 +506,8 @@ ai-agents/
 <details>
 <summary><strong>Python version errors when running tests</strong></summary>
 
-- This project requires **Python 3.14.x** for development (running tests, linters, build scripts). In Claude Code, the `project-toolkit@ai-agents` plugin registers one advisory Stop hook (ADR-084 rule 2a) and no tool-use hooks (ADR-097). The Stop hook and skills that run Python scripts need Python 3.10 or later on PATH.
-- The `.python-version` file pins the exact version (currently 3.14.4)
+- This project requires **Python 3.14.x** for development (running tests, linters, build scripts). In Claude Code, the `project-toolkit@ai-agents` plugin registers two non-blocking hooks: an advisory `Stop` hook (ADR-084 rule 2a) and a fail-open `UserPromptSubmit` memory-recall hook (ADR-109 2026-11-20 amendment), and no tool-use hooks (ADR-097). The hooks and skills that run Python scripts need Python 3.10 or later on PATH.
+- The `.python-version` file pins the exact version (currently 3.14.8)
 - See [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites) for detailed setup
 
 </details>
@@ -545,11 +552,11 @@ If you're contributing code or running tests locally:
 
 This project uses a **template-based generation system**. To modify agents:
 
-1. Edit templates in `templates/agents/*.shared.md`
-2. Run `uv run python build/generate_agents.py` to regenerate
+1. Edit templates in `templates/agents/` (`*.shared.md`, plus `*.claude.md.tmpl` and `*.copilot.md.tmpl` where platform-specific)
+2. Run `uv run python build/scripts/build_all.py` to regenerate all agent trees and `docs/agent-catalog.md` (use `uv run python build/generate_agents.py` for VS Code and Copilot CLI agents only)
 3. Commit both template and generated files
 
-**Do not edit files in `src/vs-code-agents/` or `src/copilot-cli/` directly.** See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+**Do not edit generated agent files in `src/claude/agents/`, `.claude/agents/`, `src/copilot-cli/agents/`, `.github/agents/`, or `src/vs-code-agents/` directly.** See [.agents/governance/GENERATOR-FILES.md](.agents/governance/GENERATOR-FILES.md) and [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ---
 
