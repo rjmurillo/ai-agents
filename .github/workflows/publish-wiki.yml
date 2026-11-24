@@ -27,6 +27,7 @@ on:
       - 'docs/training/**'
       - 'scripts/ci/publish_wiki.py'
       - 'scripts/ci/_wiki_links.py'
+      - 'scripts/hook_utilities/**'
       - '.github/workflows/publish-wiki.yml'
   workflow_dispatch:
     inputs:

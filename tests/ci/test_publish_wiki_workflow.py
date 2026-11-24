@@ -7,7 +7,9 @@ the dry-run job fails here.
 
 from __future__ import annotations
 
+import ast
 import re
+from fnmatch import fnmatch
 from pathlib import Path
 
 import pytest
@@ -50,6 +52,50 @@ def test_runs_on_main_pushes_that_touch_the_training_tree(doc: dict) -> None:
     assert "docs/training/**" in push["paths"]
     assert "scripts/ci/publish_wiki.py" in push["paths"]
     assert "scripts/ci/_wiki_links.py" in push["paths"]
+
+
+def _repo_import_closure(module: str) -> set[str]:
+    """Repo-relative paths of every ``scripts.*`` module ``module`` loads, transitively."""
+    found: set[str] = set()
+    pending = [module]
+    while pending:
+        name = pending.pop()
+        parts = name.split(".")
+        candidates = [
+            ROOT.joinpath(*parts).with_suffix(".py"),
+            ROOT.joinpath(*parts, "__init__.py"),
+        ]
+        # Importing a submodule runs every parent package's __init__ first.
+        for depth in range(1, len(parts)):
+            init = ROOT.joinpath(*parts[:depth], "__init__.py")
+            if init.is_file() and str(init.relative_to(ROOT)) not in found:
+                pending.append(".".join(parts[:depth]))
+        for path in candidates:
+            rel = str(path.relative_to(ROOT))
+            if not path.is_file() or rel in found:
+                continue
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            if all(
+                isinstance(n, ast.Expr) and isinstance(n.value, ast.Constant) for n in tree.body
+            ):
+                continue  # a docstring-only package marker runs no code
+            found.add(rel)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom) and (node.module or "").startswith("scripts."):
+                    pending.append(node.module or "")
+                elif isinstance(node, ast.Import):
+                    pending.extend(a.name for a in node.names if a.name.startswith("scripts."))
+    return found
+
+
+def test_the_path_filter_covers_every_repo_module_the_script_imports(doc: dict) -> None:
+    """A change to any module publish_wiki.py loads must trigger the workflow."""
+    patterns = doc["on"]["push"]["paths"]
+    closure = _repo_import_closure("scripts.ci.publish_wiki")
+
+    assert "scripts/hook_utilities/frontmatter_block.py" in closure
+    uncovered = sorted(p for p in closure if not any(fnmatch(p, g) for g in patterns))
+    assert uncovered == []
 
 
 def test_manual_run_defaults_to_dry_run(doc: dict) -> None:
