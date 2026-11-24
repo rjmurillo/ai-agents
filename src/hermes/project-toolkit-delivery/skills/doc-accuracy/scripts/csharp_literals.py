@@ -88,15 +88,17 @@ def _csharp_raw_string_end(code: str, match: re.Match[str], chars: list[str]) ->
     A raw string closes on the same quote run that opened it. With N "$"
     markers, a run of N braces opens a hole, which stays visible; braces
     before it in a longer run are literal text. An unterminated raw string,
-    or one whose hole never closes, is not closed.
+    one whose hole never closes, or one whose hole runs past the closing
+    run is not closed. The close is found once, so the scan stays linear.
     """
     quotes, dollars = match.group("quotes"), match.group("prefix").count("$")
-    index, close = match.end(), -1
+    index = match.end()
+    close = _csharp_raw_close(code, quotes, index, index)
     while True:
-        if close < index:
-            close = _csharp_raw_close(code, quotes, match.end(), index)
         if close < 0:
             return line_end(code, index), False
+        if index > close:
+            return index, False
         hole = code.find("{" * dollars, index, close) if dollars else -1
         if hole < 0:
             blank_span(chars, index, close)

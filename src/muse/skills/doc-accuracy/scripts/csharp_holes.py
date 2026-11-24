@@ -57,7 +57,7 @@ def csharp_hole_end(
     """Scan the hole opened at ``start``; return (end, closed).
 
     ``end`` is just past the hole's closing "}" when ``closed`` is true,
-    else where the enclosing string must stop. ``escape`` is the enclosing
+    else where the scan stopped. ``escape`` is the enclosing
     string's kind: "\\" regular, '"' verbatim, or the raw opening run.
     ``skip_token`` passes one comment or literal and reports if it closed.
 
@@ -68,12 +68,12 @@ def csharp_hole_end(
     not), and a specifier meeting a newline, quote, or "{" stays visible.
 
     In regular and verbatim strings a hole may span ``_MAX_HOLE_LINES``
-    lines. It is unclosed at that cap, at the snippet end, when a nested
-    literal or comment lacks its close, or when an interpolated string
-    opens on a later line (in any string kind). An unclosed hole is
-    restored, and the enclosing string reports itself unclosed, so
-    ``blank_csharp_literals`` leaves the whole snippet unblanked. In a raw
-    string, a quote run that closes nothing ends the hole there.
+    lines. In any string kind it is unclosed at that cap, at the snippet
+    end, when a nested literal or comment lacks its close, when an
+    interpolated string opens on a later line, or, in a raw string, at a
+    quote run that closes nothing. The enclosing string then reports itself
+    unclosed, so ``blank_csharp_literals`` leaves the whole snippet
+    unblanked.
 
     Accepted limit: a string missing its close quote that pairs with a
     later quote on its own line looks closed, so code between the two
@@ -82,8 +82,8 @@ def csharp_hole_end(
     return _HoleScan(code, chars, escape, start, skip_token).run()
 
 
-# A hole spanning more lines than this is treated as unclosed. The cap keeps
-# rescans linear when many unclosed holes stack on consecutive lines.
+# A hole in a regular or verbatim string spanning more lines than this is
+# treated as unclosed, since such a hole is far likelier a missing "}".
 _MAX_HOLE_LINES = 16
 
 
@@ -99,7 +99,6 @@ class _HoleScan:
         self._code = code
         self._chars = chars
         self._escape = escape
-        self._start = start
         self._base = opening - start
         self._depth = 0
         self._paren = 0
@@ -116,8 +115,6 @@ class _HoleScan:
             done = self._step()
             if done is not None:
                 return done, self._closed
-        if self._line_bound:
-            return self._unclosed(self._index), False
         return self._index, False
 
     def _step(self) -> int | None:
@@ -127,7 +124,7 @@ class _HoleScan:
             return self._token(token)
         char = self._code[self._index]
         if char == "\n" and self._count_lines(1):
-            return self._unclosed(self._index)
+            return self._index
         top_level = self._paren == 0 and self._depth == self._base
         if char == "\n" or (top_level and _ends_format_context(self._code, self._index)):
             self._format_allowed = False
@@ -148,21 +145,17 @@ class _HoleScan:
         if self._lines and "$" in (token.group("prefix") or ""):
             # An interpolated string opening on a later line of this hole
             # would nest one hole per line. Treat this hole as broken here.
-            return self._unclosed(index, resume=index)
-        after, closed = self._skip_token(code, token, self._chars)
-        if _closes_outer_raw_string(code, token, after, self._escape):
-            self._chars[index:after] = code[index:after]
             return index
-        if self._line_bound and not closed:
-            # A nested literal or comment with no close means this hole is
-            # broken: its quote was the outer close, or an inner hole never
-            # closed. Resume at that token so it is scanned once, at top level.
-            return self._unclosed(after, resume=index)
+        after, closed = self._skip_token(code, token, self._chars)
+        if not closed or _closes_outer_raw_string(code, token, after, self._escape):
+            # A nested literal or comment with no close, or a quote run that
+            # closes the outer raw string, means this hole is broken.
+            return index
         newlines = code.count("\n", index, after)
         if newlines:
             self._format_allowed = False
             if self._count_lines(newlines):
-                return self._unclosed(after, resume=index)
+                return index
         self._index = after
         return None
 
@@ -185,25 +178,6 @@ class _HoleScan:
         if self._code.startswith("}" * self._base, stop):
             blank_span(self._chars, self._index + 1, stop)
         self._index = stop
-
-    def _unclosed(self, end: int, resume: int | None = None) -> int:
-        """Undo blanking up to ``end``; return where the enclosing string stops.
-
-        That is the hole's opening line end, or ``resume`` when earlier: the
-        start of a token that broke the hole, so it is rescanned only once.
-        """
-        line_end = _end_unclosed_hole(self._code, self._start, end, self._chars)
-        return line_end if resume is None else min(resume, line_end)
-
-
-def _end_unclosed_hole(code: str, start: int, end: int, chars: list[str]) -> int:
-    """Undo blanking in a hole that never closed; return its line's end.
-
-    ``end`` is how far the hole scan reached.
-    """
-    chars[start:end] = code[start:end]
-    newline = code.find("\n", start, end)
-    return end if newline < 0 else newline
 
 
 def _closes_outer_raw_string(code: str, token: re.Match[str], after: int, escape: str) -> bool:

@@ -1383,9 +1383,10 @@ def _extract_identifiers(code: str, lang: str = "") -> list[str]:
         code = _CSHARP_DIRECTIVE_LINE_RE.sub("", code)
         blanked = _sibling_module("csharp_literals").blank_csharp_literals(code)
         if blanked is None:
-            # A multi-line verbatim string or the recursion limit stopped the
-            # scan. Scanning the unblanked code can only report extra names.
-            logger.info("C# literal scan could not read the snippet; scanning raw code")
+            # An unclosed string, a multi-line verbatim string, or the
+            # recursion limit stopped the scan. Scanning the unblanked code
+            # can only report extra names, never hide one.
+            logger.warning("C# literal scan could not read the snippet; scanning raw code")
         else:
             holes = _sibling_module("csharp_holes")
             code = holes.blank_csharp_attribute_named_args(blanked)

@@ -504,7 +504,7 @@ class TestCsharpLiteralAndAttributeArguments:
         code = 'x = $"{a\n' * 200 + '[Conditional("DEBUG")]\nvar w = new FakeWidget();'
         closed = '[Conditional("DEBUG")]\nvar w = new FakeWidget();'
 
-        with caplog.at_level("INFO"):
+        with caplog.at_level("WARNING"):
             result = _extract_identifiers(code, "csharp")
             control = _extract_identifiers(closed, "csharp")
 
@@ -577,7 +577,7 @@ class TestCsharpLiteralAndAttributeArguments:
     def test_recursion_limit_falls_back_to_unblanked_code(self, caplog) -> None:
         code = '$"{' * 2000 + '"Quoted" [Attr(Named = 1)]' + '}"' * 2000
 
-        with caplog.at_level("INFO"):
+        with caplog.at_level("WARNING"):
             result = _extract_identifiers(code, "csharp")
 
         assert "Quoted" in result
@@ -663,6 +663,7 @@ class TestCsharpLiteralAndAttributeArguments:
             'var a = @"x;\nFakeWidget.Go();\nLog(\n    ".");',
             'var a = @"x;\nLog(" + @");\nFakeWidget.Go();\nLog(\n    ".");',
             'var a = @"x;\nFakeWidget.Go();\nvar q = from c in xs select ".";',
+            "var s = $" + '"""' + '\n    {"unclosed FakeWidget();\n    }\n    ' + '"""' + ";",
         ):
             result = _extract_identifiers(code, "csharp")
 
@@ -731,6 +732,11 @@ class TestCsharpLiteralAndAttributeArguments:
             + "var w = new FakeWidget();",
             ("x = $$" + '"""' + "\n{{ a\n") * 3000 + "var w = new FakeWidget();",
             "var x = " + '$@"{' * 60 + "q" + '\n}"a' * 60 + ";\nvar w = new FakeWidget();",
+            "x = $"
+            + '"""'
+            + "\n"
+            + ("    {/*\n    " + '"""' + "*/x}\n") * 20000
+            + "var w = new FakeWidget();",
         )
         for code in cases:
             started = time.monotonic()
