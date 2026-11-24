@@ -11,7 +11,7 @@ ADR-085 Decision 7 item 9 asks for three kinds of test around a
 
 - Copilot-side absence regression: ``test_copilot_plugin_has_no_entry_for_the_hook``
   and ``test_flipping_the_flag_puts_the_hook_back_on_copilot`` (the inverse).
-- Claude-side presence regression: ``test_claude_plugin_registers_the_group_on_stop_only``.
+- Claude-side presence regression: ``test_claude_plugin_registers_the_reflect_nudge_on_stop_only``.
 - Strict-boolean validation: ``test_copilot_exclude_rejects_non_boolean_types`` in
   ``tests/build_scripts/test_dispatch_expansion.py``.
 """
@@ -69,10 +69,14 @@ def _module_docstring(path: Path) -> str:
 # --- AC-21, AC-25: where the group is registered ------------------------------
 
 
-def test_claude_plugin_registers_the_group_on_stop_only() -> None:
+def test_claude_plugin_registers_the_reflect_nudge_on_stop_only() -> None:
     commands = _registered_commands(_load(CLAUDE_PLUGIN_HOOKS))
-    assert [event for event, _ in commands] == ["Stop"], "AC-25: Stop only"
-    command = commands[0][1]
+    # AC-25: the reflect nudge registers on Stop only. The one other
+    # registration is the memory recall group on UserPromptSubmit (issue #7493).
+    nudge = [(event, command) for event, command in commands if f"--group {GROUP}" in command]
+    assert [event for event, _ in nudge] == ["Stop"], "AC-25: Stop only"
+    assert [event for event, _ in commands] == ["Stop", "UserPromptSubmit"]
+    command = nudge[0][1]
     assert f"--group {GROUP}" in command
     assert "${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py" in command
 

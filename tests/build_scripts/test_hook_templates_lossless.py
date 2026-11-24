@@ -58,7 +58,6 @@ REPO_ONLY_TOP_LEVEL = frozenset(
         "PreToolUse",
         "SessionEnd",
         "SessionStart",
-        "UserPromptSubmit",
         "session-start.sh",
     }
 )

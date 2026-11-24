@@ -72,6 +72,8 @@ def repo(tmp_path: Path) -> Path:
     """A scratch repo with the real binplace manifest and one review skill."""
     for pkg in lib_mirror.PACKAGES:
         _write(tmp_path, f"scripts/{pkg}/__init__.py", "")
+        for sub in lib_mirror.PACKAGE_SUBDIRS.get(pkg, ()):
+            _write(tmp_path, f"scripts/{pkg}/{sub}/__init__.py", "")
     _write(tmp_path, "scripts/hook_utilities/bootstrap.py", '"""Bootstrap."""\n')
     for name in lib_hand_files.PLUGIN_LIB_FILES:
         _write(

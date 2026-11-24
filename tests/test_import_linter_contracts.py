@@ -143,11 +143,22 @@ def test_every_contract_is_registered() -> None:
     )
 
 
+# memory_enhancement ships with guarded third-party imports (ADR-109 amendment
+# 2026-11-20). The no-runtime-dependencies contract keeps a shrink-only ignore
+# baseline, so the package stays out of it. The blocked-import tests in
+# tests/hooks/test_memory_recall_closure_blocked_imports.py enforce the guards.
+_GUARDED_IMPORT_PACKAGES = {
+    "shipped-lib-no-runtime-dependencies": frozenset({"memory_enhancement"}),
+}
+
+
 @pytest.mark.parametrize("contract_id", _SHIPPED_LIB_CONTRACTS)
 def test_shipped_lib_contracts_name_every_mirrored_package(contract_id: str) -> None:
     contract = _contracts()[contract_id]
     modules = contract.get("modules") or contract["source_modules"]
-    assert sorted(modules) == sorted(f"scripts.{package}" for package in lib_mirror.PACKAGES)
+    exempt = _GUARDED_IMPORT_PACKAGES.get(contract_id, frozenset())
+    expected = {f"scripts.{package}" for package in lib_mirror.PACKAGES if package not in exempt}
+    assert sorted(modules) == sorted(expected)
 
 
 def test_runtime_dependency_contract_names_every_project_dependency() -> None:

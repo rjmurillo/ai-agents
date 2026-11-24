@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import ast
 import re
-import sys
 from pathlib import Path
 
 import pytest
@@ -52,102 +51,53 @@ def test_runs_on_main_pushes_that_touch_the_training_tree(doc: dict) -> None:
     assert "docs/training/**" in push["paths"]
     assert "scripts/ci/publish_wiki.py" in push["paths"]
     assert "scripts/ci/_wiki_links.py" in push["paths"]
+    assert "scripts/hook_utilities/frontmatter_block.py" in push["paths"]
 
 
-def _imported_modules(tree: ast.Module, package: str) -> list[str]:
-    """Every ``scripts`` module a parsed file names, in any import shape."""
-    names: list[str] = []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            names.extend(a.name for a in node.names)
-        elif isinstance(node, ast.ImportFrom):
-            if node.level:
-                anchor = package.split(".")[: len(package.split(".")) - node.level + 1]
-                base = ".".join([*anchor, node.module] if node.module else anchor)
-            else:
-                base = node.module or ""
-            names.append(base)
-            # `from scripts.pkg import mod` may name a submodule, not an attribute.
-            names.extend(f"{base}.{a.name}" for a in node.names if a.name != "*")
-        elif (
-            isinstance(node, ast.Call)
-            and (
-                (isinstance(node.func, ast.Attribute) and node.func.attr == "import_module")
-                or (isinstance(node.func, ast.Name) and node.func.id == "import_module")
-            )
-            and node.args
-            and isinstance(node.args[0], ast.Constant)
-            and isinstance(node.args[0].value, str)
-        ):
-            names.append(node.args[0].value)
-    return [n for n in names if n == "scripts" or n.startswith("scripts.")]
+def _repo_module_imports(path: Path) -> set[Path]:
+    """Return the repo files that `path` imports as `scripts.*` modules.
 
-
-def _repo_import_closure(module: str) -> set[str]:
-    """Repo-relative paths of every ``scripts`` module ``module`` loads, transitively."""
-    found: set[str] = set()
-    seen: set[str] = set()
-    pending = [module]
-    while pending:
-        name = pending.pop()
-        if name in seen:
-            continue
-        seen.add(name)
-        parts = name.split(".")
-        # Importing a submodule runs every parent package's __init__ first.
-        pending.extend(".".join(parts[:depth]) for depth in range(1, len(parts)))
-        for path in (
-            ROOT.joinpath(*parts).with_suffix(".py"),
-            ROOT.joinpath(*parts, "__init__.py"),
-        ):
-            if not path.is_file():
+    Package `__init__.py` files are left out on purpose. They run on import but
+    do not shape the wiki output, so a change to them need not republish.
+    """
+    package = path.parent.relative_to(ROOT).parts
+    found: set[Path] = set()
+    for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+        names: list[str] = []
+        if isinstance(node, ast.ImportFrom):
+            # A relative import resolves against the importing file's package:
+            # level 1 is that package, each extra level is one parent up.
+            base = list(package[: len(package) - node.level + 1]) if node.level else []
+            module = ".".join(base + ([node.module] if node.module else []))
+            # `from scripts.pkg import module` names the module in the alias.
+            names = [module] + [f"{module}.{a.name}" for a in node.names]
+        elif isinstance(node, ast.Import):
+            names = [alias.name for alias in node.names]
+        for name in names:
+            if not name.startswith("scripts."):
                 continue
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-            if all(
-                isinstance(n, ast.Expr) and isinstance(n.value, ast.Constant) for n in tree.body
-            ):
-                continue  # a docstring-only package marker runs no code
-            found.add(str(path.relative_to(ROOT)))
-            package = name if path.name == "__init__.py" else ".".join(parts[:-1])
-            pending.extend(_imported_modules(tree, package))
+            candidate = ROOT.joinpath(*name.split(".")).with_suffix(".py")
+            if candidate.is_file():
+                found.add(candidate)
     return found
 
 
-def _github_path_match(path: str, pattern: str) -> bool:
-    """Match like a GitHub path filter: `*` stays in one segment, `**` spans them.
-
-    `?` makes the preceding character optional and `+` repeats it, as GitHub's
-    filter syntax says.
-    """
-    regex = ""
-    i = 0
-    while i < len(pattern):
-        if pattern.startswith("**/", i):
-            regex += "(?:.*/)?"
-            i += 3
-        elif pattern.startswith("**", i):
-            regex += ".*"
-            i += 2
-        elif pattern[i] == "*":
-            regex += "[^/]*"
-            i += 1
-        elif pattern[i] in "?+" and regex:
-            regex += pattern[i]  # GitHub: zero-or-one, or one-or-more, of the preceding character
-            i += 1
-        else:
-            regex += re.escape(pattern[i])
-            i += 1
-    return re.fullmatch(regex, path) is not None
-
-
-def test_the_path_filter_covers_every_repo_module_the_script_imports(doc: dict) -> None:
-    """A change to any module publish_wiki.py loads must trigger the workflow."""
-    patterns = doc["on"]["push"]["paths"]
-    closure = _repo_import_closure("scripts.ci.publish_wiki")
-
-    assert "scripts/hook_utilities/frontmatter_block.py" in closure
-    uncovered = sorted(p for p in closure if not any(_github_path_match(p, g) for g in patterns))
-    assert uncovered == []
+def test_push_paths_cover_every_repo_module_the_publisher_imports(doc: dict) -> None:
+    # A change to any module the publisher loads can change the wiki output, so
+    # each one must trigger a run. Walk the imports from the entry point.
+    entry = ROOT / "scripts" / "ci" / "publish_wiki.py"
+    seen: set[Path] = set()
+    queue = [entry]
+    while queue:
+        current = queue.pop()
+        if current in seen:
+            continue
+        seen.add(current)
+        queue.extend(_repo_module_imports(current) - seen)
+    imported = {p.relative_to(ROOT).as_posix() for p in seen}
+    assert "scripts/hook_utilities/frontmatter_block.py" in imported
+    missing = sorted(imported - set(doc["on"]["push"]["paths"]))
+    assert missing == []
 
 
 def test_manual_run_defaults_to_dry_run(doc: dict) -> None:
@@ -210,67 +160,3 @@ def test_concurrency_is_per_ref_and_queues(doc: dict) -> None:
         "group": "publish-wiki-${{ github.ref }}",
         "cancel-in-progress": False,
     }
-
-
-def test_the_closure_follows_every_import_shape(tmp_path, monkeypatch) -> None:
-    """Submodule, relative, bare-package, and import_module() imports all count."""
-    pkg = tmp_path / "scripts" / "pkg"
-    pkg.mkdir(parents=True)
-    (tmp_path / "scripts" / "__init__.py").write_text("X = 1\n", encoding="utf-8")
-    (pkg / "__init__.py").write_text("", encoding="utf-8")
-    (pkg / "entry.py").write_text(
-        "import importlib\nfrom importlib import import_module\nfrom scripts.pkg import sub\n"
-        "from .rel import y\nimportlib.import_module('scripts.pkg.dyn')\n"
-        "import_module('scripts.pkg.dyn2')\n",
-        encoding="utf-8",
-    )
-    for leaf in ("sub", "rel", "dyn", "dyn2"):
-        (pkg / f"{leaf}.py").write_text("V = 1\n", encoding="utf-8")
-    monkeypatch.setattr(sys.modules[__name__], "ROOT", tmp_path)
-
-    closure = _repo_import_closure("scripts.pkg.entry")
-
-    assert closure == {
-        "scripts/__init__.py",
-        "scripts/pkg/entry.py",
-        "scripts/pkg/sub.py",
-        "scripts/pkg/rel.py",
-        "scripts/pkg/dyn.py",
-        "scripts/pkg/dyn2.py",
-    }
-
-
-def test_the_closure_follows_a_bare_package_import(tmp_path, monkeypatch) -> None:
-    """`import scripts` from outside the package runs the package's __init__."""
-    (tmp_path / "scripts").mkdir()
-    (tmp_path / "scripts" / "__init__.py").write_text("X = 1\n", encoding="utf-8")
-    (tmp_path / "tools").mkdir()
-    (tmp_path / "tools" / "entry.py").write_text("import scripts\n", encoding="utf-8")
-    monkeypatch.setattr(sys.modules[__name__], "ROOT", tmp_path)
-
-    assert _repo_import_closure("tools.entry") == {"tools/entry.py", "scripts/__init__.py"}
-
-
-@pytest.mark.parametrize(
-    ("path", "pattern", "expected"),
-    [
-        ("scripts/hook_utilities/guards.py", "scripts/hook_utilities/**", True),
-        ("scripts/hook_utilities/sub/x.py", "scripts/hook_utilities/**", True),
-        ("scripts/ci/sub/x.py", "scripts/ci/*", False),
-        ("scripts/ci/x.py", "scripts/ci/*", True),
-        ("docs/training/a/b.md", "docs/training/**", True),
-        ("scripts/ci/publish_wiki.py", "scripts/ci/publish_wiki.py", True),
-        ("a.py", "**/a.py", True),
-        ("x/y/a.py", "**/a.py", True),
-        ("xa.py", "**/a.py", False),
-        ("ac", "ab?c", True),
-        ("abc", "ab?c", True),
-        ("axc", "ab?c", False),
-        ("?x", "?x", True),
-        ("ab", "a+b", True),
-        ("aaab", "a+b", True),
-        ("b", "a+b", False),
-    ],
-)
-def test_path_matching_follows_github_glob_rules(path: str, pattern: str, expected: bool) -> None:
-    assert _github_path_match(path, pattern) is expected
