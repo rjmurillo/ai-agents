@@ -136,7 +136,7 @@ _CHANGE_ADMISSIONS = tuple(
         "baseBlob": base_blob,
         "headBlob": head_blob,
         "authorizedBy": "rjmurillo",
-        "authorizedOn": "2026-11-22" if head_blob == _RENEWED_SEARCH_HEAD else "2026-11-20",
+        "authorizedOn": "2026-11-20",
         "authorization": (
             "Maintainer decisions D1 and D2, choice A: "
             "admit all 8 transitions as fixed records in one ADR-122 item."

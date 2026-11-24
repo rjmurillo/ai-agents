@@ -47,7 +47,7 @@
       "baseBlob": "1dcb875cc1a14544bf3ff6294a45894fe2ae1106",
       "headBlob": "e8b99efd13cc07a5cf6f7b9d74ca838ec6221029",
       "authorizedBy": "rjmurillo",
-      "authorizedOn": "2026-11-22",
+      "authorizedOn": "2026-11-20",
       "authorization": "Maintainer decisions D1 and D2, choice A: admit all 8 transitions as fixed records in one ADR-122 item. Maintainer decision D5 renewed this head pin on 2026-11-22 (issue #7493 comment 7086682234)."
     },
     {
@@ -59,7 +59,7 @@
       "baseBlob": "1dcb875cc1a14544bf3ff6294a45894fe2ae1106",
       "headBlob": "e8b99efd13cc07a5cf6f7b9d74ca838ec6221029",
       "authorizedBy": "rjmurillo",
-      "authorizedOn": "2026-11-22",
+      "authorizedOn": "2026-11-20",
       "authorization": "Maintainer decisions D1 and D2, choice A: admit all 8 transitions as fixed records in one ADR-122 item. Maintainer decision D5 renewed this head pin on 2026-11-22 (issue #7493 comment 7086682234)."
     },
     {

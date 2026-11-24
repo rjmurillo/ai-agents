@@ -93,7 +93,7 @@ def test_the_scanner_holds_the_eight_records_from_adr_122_item_10() -> None:
         assert record["issue"] == 7493
         assert record["authorizedBy"] == "rjmurillo"
         if record["file"] == _SEARCH:
-            assert record["authorizedOn"] == "2026-11-22"
+            assert record["authorizedOn"] == "2026-11-20"
             assert record["authorization"] == _AUTHORIZATION + (
                 " Maintainer decision D5 renewed this head pin on 2026-11-22"
                 " (issue #7493 comment 7086682234)."
@@ -283,7 +283,7 @@ def test_each_admitted_quality_prints_one_admitted_line_and_does_not_block(
 
     err = capsys.readouterr().err
     assert rc == 0
-    assert err.count("ADMITTED: issue #7493, authorized by rjmurillo on 2026-11-22:") == 2
+    assert err.count("ADMITTED: issue #7493, authorized by rjmurillo on 2026-11-20:") == 2
     assert err.count("issue #7493 comment 7086682234") == 2
     assert "Raw cohesion regression remains reported." in err
     assert "Raw coupling regression remains reported." in err
