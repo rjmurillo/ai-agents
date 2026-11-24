@@ -197,7 +197,7 @@ memory, eval numbers, ADR (if governance), calibrated gate, monitoring hook.
 Retirement gets recorded, never silenced. The exemplar is the fail-open wrapper proposal: a
 launcher-level fail-open wrapper was proposed, evaluated, and REJECTED as a
 silent-failure anti-pattern; the rejection is recorded with rationale in the customer wedge retro decision table
-(.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:297 and :393) and
+(.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:297 and :393) and <!-- citation-freshness: ignore -- historical retro citation; the range predates the context diet -->
 the binding principle lives in the `generator-pipeline` skill's `references/rule-generated-artifacts.md`. Because
 the rejection was written down, nobody re-proposes it. An unrecorded rejection
 is a future duplicate proposal.

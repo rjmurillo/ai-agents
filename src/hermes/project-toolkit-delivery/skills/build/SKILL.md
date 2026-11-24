@@ -316,3 +316,5 @@ Writes: `implementation-change`, `validation-record`. Next: `/test`.
 - **Non-pytest stacks.** Phase 3 step 3 names pytest because this project uses
   it. The unconditional-TDD rule is stack-independent; swap the runner.
 
+
+For an edit under `templates/` or to a generated file, use the `generator-pipeline` skill.
