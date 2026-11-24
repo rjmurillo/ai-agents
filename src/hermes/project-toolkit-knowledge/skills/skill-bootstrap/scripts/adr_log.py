@@ -155,6 +155,7 @@ def _text_outside_fields(line: str) -> str:
 def _blocks(content: str) -> list[_Block]:
     blocks: list[_Block] = []
     fence: str | None = None
+    outer = 0  # level of the last id-less heading, such as the ``# Ledger`` around the records
     for line in content.replace("\r\n", "\n").split("\n"):
         after = fence_after(fence, line, any_indent=True)
         if fence is not None or after is not None:
@@ -170,14 +171,21 @@ def _blocks(content: str) -> list[_Block]:
         else:
             found = _ID_START.match(line) if top_level else None
         level = len(line) - len(line.lstrip("#")) if heading else 0
-        if heading and not found and blocks and blocks[-1].id and blocks[-1].level < level:
-            # ``### Rationale`` stays inside a deeper-level decision, and inside a ledger record
-            # (level 0) until the next entry.
+        if (
+            heading
+            and not found
+            and blocks
+            and blocks[-1].id
+            and max(blocks[-1].level, outer + 1) < level
+        ):
+            # A sub-heading stays with its decision: deeper than a ``## D-7`` heading, or for a
+            # ledger record (level 0) deeper than the section around it. A peer section ends it.
             blocks[-1].lines.append(line)
         elif heading or found:
             ident = (
                 (found[1] or found[2]).rstrip(".") or None if found else None
             )  # "id: D-7." is D-7
+            outer = level if heading and not found else outer
             blocks.append(_Block(ident, heading, level, [line]))
         elif blocks:
             blocks[-1].lines.append(line)

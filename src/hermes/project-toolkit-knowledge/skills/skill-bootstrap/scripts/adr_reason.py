@@ -438,7 +438,7 @@ _BREAKING_SUBJECT = re.compile(r"^[a-z]+(?:\([^)]*\))?!:", _I)
 # The token is uppercase by the specification. BREAKING-CHANGE is its synonym.
 _BREAKING_FOOTER = re.compile(r"^BREAKING[ -]CHANGE:[ \t]+\S", re.MULTILINE | _A)
 # Both Conventional Commits separators: ``Key: value`` and ``Key #value``.
-_ISSUE_LIST = r"#[^\s#,]+(?:,?[ \t]+#[^\s#,]+)*"  # #12, #12 #13 or #12, #13: disjoint tokens
+_ISSUE_LIST = r"#[^\s#,]+(?:,?[ \t]+#[^\s#,]+){0,99}"  # #12, #13; bounded, so memory is flat
 _FOOTER_LINE = re.compile(rf"[A-Za-z][A-Za-z0-9-]*(?::[ \t]+\S|[ \t]+{_ISSUE_LIST}[ \t]*\Z)", _A)
 _BLANK_LINES = re.compile(r"\n(?:[ \t]*\n)+", _A)  # a run of blank lines is one break
 _FENCE_LINE = re.compile(r"[ \t]{0,3}(`{3,}|~{3,})(.*)", _A)

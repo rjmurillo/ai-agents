@@ -9,6 +9,8 @@ from typing import Any
 
 import adr_commits
 import adr_locate
+import adr_log
+import adr_reason
 import adr_shape
 import adr_write
 import pytest
@@ -194,3 +196,37 @@ def test_url_commas_never_make_the_reference_list_backtrack(value: str) -> None:
     matched = adr_shape._REFERENCES_ONLY.search(value)
 
     assert matched is None and time.process_time() - start < 0.5
+
+
+def test_a_peer_section_after_a_ledger_is_not_the_last_records_reason() -> None:
+    log = (
+        "# Decision log\n\n- D-1: Adopt trunk-based development for every repo\n"
+        "- D-2: Use Renovate for dependency updates\n\n## How to add a decision\n\n"
+        "Add one line per decision because reviewers read this file first.\n"
+    )
+
+    entries = adr_log.split_decision_log(log)
+
+    assert [entry.id for entry in entries] == ["D-1", "D-2", None]
+    assert "reviewers read" not in entries[1].text
+
+
+def test_a_subsection_under_a_heading_decision_stays_with_it() -> None:
+    log = "# Log\n\n## D-3 - Keep Postgres\n\n### Rationale\n\nBecause the team knows it.\n"
+
+    (entry,) = [e for e in adr_log.split_decision_log(log) if e.id]
+
+    assert entry.id == "D-3" and "team knows it" in entry.text
+
+
+def test_a_github_merge_time_with_z_is_read_on_every_python() -> None:
+    assert adr_commits._merged_day("2026-01-01T00:00:00Z") == "2026-01-01"
+
+
+def test_a_long_issue_list_footer_line_costs_flat_memory() -> None:
+    body = "Body.\n\nBREAKING CHANGE: x\n\na " + "#b " * 400_000 + "!"
+
+    start = time.process_time()
+    result = adr_reason.breaking_change("feat: x", body)
+
+    assert result is False and time.process_time() - start < 2.0

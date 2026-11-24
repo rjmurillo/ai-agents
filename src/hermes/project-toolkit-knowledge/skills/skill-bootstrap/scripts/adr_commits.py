@@ -324,7 +324,7 @@ def _merged_day(value: object) -> str | None:
     """The day of a bare ``YYYY-MM-DD`` or an ISO 8601 ``T`` timestamp; other text gives None."""
     text = value.strip() if isinstance(value, str) else ""
     try:
-        datetime.fromisoformat(text)  # Python 3.11 and later read ``Z`` and every ISO form
+        datetime.fromisoformat(text.replace("Z", "+00:00"))  # Python 3.10 reads no ``Z``
     except ValueError:  # not a string, or not ISO 8601
         return None
     return iso_day(text) if text[10:11] in ("", "T") else None  # fromisoformat takes any separator
