@@ -2,13 +2,14 @@
 
 A name that appears only inside an ordinary string, a character literal, or
 a comment is not a repository API claim. Interpolation holes are code, so a
-name inside one stays checkable. Raw extraction keeps string mentions; the
-filter lives in Phase 3.
+name inside one stays checkable. Raw extraction already drops C# string
+text; Phase 3 filters every C-family literal and comment again.
 """
 
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -42,8 +43,11 @@ def test_literal_and_comment_only_names_are_not_flagged(code: str, lang: str) ->
     assert unresolved(code, lang) == set()
 
 
-def test_raw_extraction_still_reports_string_mentions() -> None:
-    assert "GhostWidget" in mod._extract_identifiers('var s = "GhostWidget";', "csharp")
+def test_raw_extraction_drops_csharp_string_only_mentions() -> None:
+    ids = mod._extract_identifiers('var s = "GhostWidget"; var w = new FakeWidget();', "csharp")
+
+    assert "GhostWidget" not in ids
+    assert "FakeWidget" in ids
 
 
 # --- Negative: interpolation holes and real code stay checkable ----------------
@@ -168,3 +172,60 @@ def test_cli_gates_on_code_not_literals(
     tmp_path: Path, lang: str, code: str, exit_code: int, expected: set[tuple[str, str]]
 ) -> None:
     assert run_cli(tmp_path, lang, code) == (exit_code, expected)
+
+
+# --- Negative: an unreadable snippet stays raw, in bounded time ----------------
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        'x = $"{a\n' * 300 + "var y = 1;\n" * 20000 + 'var s = "class FakeWidget";',
+        '$"{' * 2000 + 'var s = "class FakeWidget";' + '}"' * 2000,
+    ],
+    ids=["unclosed-holes", "deep-nesting"],
+)
+def test_unreadable_snippet_keeps_raw_text_and_declares_nothing(code: str, caplog) -> None:
+    literal_ends: set[int] = set()
+
+    with caplog.at_level("WARNING"):
+        view = mod._c_family_code_view(code, "csharp", literal_ends=literal_ends)
+        declared = mod._example_declaration_names(code, "csharp")
+
+    assert view == code
+    assert literal_ends == set()
+    assert "FakeWidget" not in declared
+    assert "gave up on the snippet" in caplog.text
+
+
+def test_readable_snippet_still_declares_its_types() -> None:
+    declared = mod._example_declaration_names(
+        'class LocalThing {}\nvar s = "class FakeWidget";', "csharp"
+    )
+
+    assert "LocalThing" in declared
+    assert "FakeWidget" not in declared
+
+
+def test_open_block_comments_strip_in_linear_time() -> None:
+    code = "/* BlockNote */ " + '$"{/*\n' * 40000 + "Real.Go(); // TrailNote"
+    started = time.monotonic()
+
+    stripped = mod._strip_csharp_comments(code)
+
+    assert time.monotonic() - started < 2
+    assert "BlockNote" not in stripped
+    assert stripped.count("/*") == 40000
+    assert "Real.Go();" in stripped
+    assert "TrailNote" not in stripped
+
+
+def test_closed_block_comment_and_strings_keep_their_handling() -> None:
+    code = 'Keep("/* not */"); /* Gone */ Next(); /*/ open'
+
+    stripped = mod._strip_csharp_comments(code)
+
+    assert '"/* not */"' in stripped
+    assert "Gone" not in stripped
+    assert "Next();" in stripped
+    assert stripped.endswith("/*/ open")

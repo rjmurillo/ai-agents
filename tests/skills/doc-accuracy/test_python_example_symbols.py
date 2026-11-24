@@ -140,7 +140,12 @@ def test_fallback_blanks_single_line_strings_and_comments() -> None:
 
 
 def test_other_languages_keep_agnostic_extraction() -> None:
-    ids = mod._extract_identifiers('var s = "Hook ADR"; // UTC', "csharp")
-    assert {"Hook", "ADR"} <= set(ids)
-    assert "UTC" not in ids
+    ids = mod._extract_identifiers('s := "Hook ADR" // UTC', "go")
+    assert {"Hook", "ADR", "UTC"} <= set(ids)
     assert mod._extract_identifiers('"""Hook"""') == ["Hook"]
+
+
+def test_csharp_blanks_strings_and_comments() -> None:
+    ids = set(mod._extract_identifiers('var s = "Hook ADR"; // UTC\nClock.Now();', "csharp"))
+    assert not {"Hook", "ADR", "UTC"} & ids
+    assert "Clock" in ids

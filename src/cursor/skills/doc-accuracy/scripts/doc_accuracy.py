@@ -25,6 +25,7 @@ Exit Codes:
 import argparse
 import ast
 import builtins
+import importlib
 import io
 import json
 import logging
@@ -40,6 +41,7 @@ import typing
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
+from types import ModuleType
 from typing import Any, cast
 
 logger = logging.getLogger(__name__)
@@ -2152,7 +2154,11 @@ def _example_declaration_names(code: str, lang: str) -> set[str]:
     pattern = _DECLARATION_RES.get(lang)
     if pattern is None:
         return set()
-    stripped = _c_family_code_view(code, lang)
+    stripped = _try_c_family_code_view(code, lang)
+    if stripped is None:
+        # Unreadable literals: a declaration inside a string must not hide a
+        # real-code name, so drop nothing.
+        return set()
     names = set(pattern.findall(stripped))
     for body in re.findall(r"\benum\s+[A-Z]\w*\s*\{([^{}]*)\}", stripped):
         names.update(re.findall(r"(?:^|,)\s*([A-Za-z]\w*)", body))
@@ -2162,27 +2168,56 @@ def _example_declaration_names(code: str, lang: str) -> set[str]:
     return names
 
 
-_CSHARP_COMMENT_TOKENS = re.compile(
-    r"""@"(?:""|[^"])*"|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|//[^\r\n]*|/\*.*?\*/""",
-    re.DOTALL,
-)
+_CSHARP_TOKENS_NO_BLOCK = r"""@"(?:""|[^"])*"|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|//[^\r\n]*"""
+_CSHARP_LINE_COMMENT_TOKENS = re.compile(_CSHARP_TOKENS_NO_BLOCK, re.DOTALL)
+_CSHARP_COMMENT_TOKENS = re.compile(_CSHARP_TOKENS_NO_BLOCK + r"|/\*.*?(?:\*/|\Z)", re.DOTALL)
+
+
+def _blank_csharp_comment_token(match: re.Match[str]) -> str:
+    text = match[0]
+    if text.startswith("/*") and (len(text) < 4 or not text.endswith("*/")):
+        # An unclosed ``/*`` stays text. No later ``/*`` can close either, so
+        # the rest is scanned for line comments only. Retrying every open
+        # ``/*`` to the end of input made this pass quadratic.
+        return text[:2] + _CSHARP_LINE_COMMENT_TOKENS.sub(_blank_csharp_comment_token, text[2:])
+    if text.startswith(("//", "/*")):
+        return re.sub(r"[^\r\n]", " ", text)
+    return text
 
 
 def _strip_csharp_comments(code: str) -> str:
     """Blank comments while preserving string literals and their delimiters."""
-    return _CSHARP_COMMENT_TOKENS.sub(
-        lambda match: (
-            re.sub(r"[^\r\n]", " ", match[0]) if match[0].startswith(("//", "/*")) else match[0]
-        ),
-        code,
-    )
+    return _CSHARP_COMMENT_TOKENS.sub(_blank_csharp_comment_token, code)
 
 
 # (start, end) character spans of literal text or comment to blank.
 _Spans = list[tuple[int, int]]
-_CSHARP_STRING_PREFIX_RE = re.compile(r'(\$*)(@?)(\$*)("+)')
+# The lookbehind lets a second ``$`` run follow only ``@``. Two free ``\$*``
+# runs made a failed match quadratic in the length of a ``$`` run.
+_CSHARP_STRING_PREFIX_RE = re.compile(r'(\$*)(@?)((?:(?<=@)\$+)?)("+)')
 _CSHARP_CHAR_RE = re.compile(r"'(?:\\.[^'\n]{0,8}|[^'\\\n])'")
 _BRACE_RUN_RE = re.compile(r"\{+")
+# Scanner loop steps allowed per input character. A well-formed snippet
+# needs at most about two; each hole that never closes rescans its text.
+_SCAN_STEPS_PER_CHAR = 8
+
+
+class _ScanBudgetError(Exception):
+    """The C-family literal scan ran out of steps."""
+
+
+class _ScanBudget:
+    """Steps left for one C-family scan, so unclosed holes cannot rescan forever."""
+
+    __slots__ = ("steps",)
+
+    def __init__(self, steps: int) -> None:
+        self.steps = steps
+
+    def spend(self) -> None:
+        self.steps -= 1
+        if self.steps < 0:
+            raise _ScanBudgetError
 
 
 def _c_family_code_view(code: str, lang: str, *, literal_ends: set[int] | None = None) -> str:
@@ -2190,10 +2225,31 @@ def _c_family_code_view(code: str, lang: str, *, literal_ends: set[int] | None =
 
     Interpolation holes stay visible because they are code. A literal or
     comment whose terminator is missing stays visible too: blanking hides
-    findings, so the view errs toward keeping text. Column preserving.
+    findings, so the view errs toward keeping text. Column preserving. A
+    snippet the scanner cannot read in bounded work comes back unchanged.
     """
+    view = _try_c_family_code_view(code, lang, literal_ends=literal_ends)
+    return code if view is None else view
+
+
+def _try_c_family_code_view(
+    code: str, lang: str, *, literal_ends: set[int] | None = None
+) -> str | None:
+    """The literal-blanked view, or None when the scan gives up.
+
+    Crafted nesting exhausts the step budget or the recursion limit. The
+    caller then keeps the raw text, which can only report extra names.
+    ``literal_ends`` is filled only on success.
+    """
+    try:
+        spans = _scan_c_family(
+            code, 0, lang, in_hole=False, budget=_ScanBudget(_SCAN_STEPS_PER_CHAR * len(code))
+        )[1]
+    except (_ScanBudgetError, RecursionError):
+        logger.warning("C-family literal scan gave up on the snippet; keeping raw text")
+        return None
     chars = list(code)
-    for start, end in _scan_c_family(code, 0, lang, in_hole=False)[1]:
+    for start, end in spans:
         if (
             literal_ends is not None
             and code[end - 1] != "{"
@@ -2206,7 +2262,9 @@ def _c_family_code_view(code: str, lang: str, *, literal_ends: set[int] | None =
     return "".join(chars)
 
 
-def _scan_c_family(code: str, i: int, lang: str, *, in_hole: bool) -> tuple[int, _Spans]:
+def _scan_c_family(
+    code: str, i: int, lang: str, *, in_hole: bool, budget: _ScanBudget
+) -> tuple[int, _Spans]:
     """Scan code from ``i``; inside a hole, stop at its unmatched ``}``."""
     spans: _Spans = []
     depth = 0
@@ -2214,6 +2272,7 @@ def _scan_c_family(code: str, i: int, lang: str, *, in_hole: bool) -> tuple[int,
     control_parens: list[bool] = []
     statement_braces: list[bool] = []
     while i < len(code):
+        budget.spend()
         char = code[i]
         if code.startswith("//", i):
             end = code.find("\n", i)
@@ -2235,7 +2294,7 @@ def _scan_c_family(code: str, i: int, lang: str, *, in_hole: bool) -> tuple[int,
             i = regex_end
             previous = "literal"
             continue
-        literal = _scan_c_family_literal(code, i, lang)
+        literal = _scan_c_family_literal(code, i, lang, budget)
         if literal is not None:
             i, literal_spans = literal
             spans.extend(literal_spans)
@@ -2316,30 +2375,41 @@ def _scan_js_regex(code: str, i: int) -> int | None:
     return None
 
 
-def _scan_c_family_literal(code: str, i: int, lang: str) -> tuple[int, _Spans] | None:
+def _scan_c_family_literal(
+    code: str, i: int, lang: str, budget: _ScanBudget
+) -> tuple[int, _Spans] | None:
     """Return the end index and blank spans of a literal at ``i``, if terminated."""
     if lang == "csharp":
         if code[i] == "'":
             match = _CSHARP_CHAR_RE.match(code, i)
             return (match.end(), [(i, match.end())]) if match else None
+        if i > 0 and code[i - 1] in "$@":
+            return None
         prefix = _CSHARP_STRING_PREFIX_RE.match(code, i)
-        if prefix is None or (prefix[1] and prefix[3]) or i > 0 and code[i - 1] in "$@":
+        if prefix is None or (prefix[1] and prefix[3]):
             return None
         dollars = len(prefix[1] or prefix[3])
         quotes = len(prefix[4])
         if quotes >= 3 and not prefix[2]:
-            return _scan_quoted(code, i, prefix.end(), '"' * quotes, dollars, lang, "raw")
+            return _scan_quoted(code, i, prefix.end(), '"' * quotes, dollars, lang, "raw", budget)
         mode = "verbatim" if prefix[2] else "regular"
-        return _scan_quoted(code, i, prefix.start(4) + 1, '"', dollars, lang, mode)
+        return _scan_quoted(code, i, prefix.start(4) + 1, '"', dollars, lang, mode, budget)
     if code[i] in "\"'":
-        return _scan_quoted(code, i, i + 1, code[i], 0, lang, "regular")
+        return _scan_quoted(code, i, i + 1, code[i], 0, lang, "regular", budget)
     if code[i] == "`":
-        return _scan_quoted(code, i, i + 1, "`", 1, lang, "template")
+        return _scan_quoted(code, i, i + 1, "`", 1, lang, "template", budget)
     return None
 
 
 def _scan_quoted(
-    code: str, start: int, i: int, closer: str, holes: int, lang: str, mode: str
+    code: str,
+    start: int,
+    i: int,
+    closer: str,
+    holes: int,
+    lang: str,
+    mode: str,
+    budget: _ScanBudget,
 ) -> tuple[int, _Spans] | None:
     """Scan a quoted body from ``i``; ``holes`` is the brace count opening a hole.
 
@@ -2350,6 +2420,7 @@ def _scan_quoted(
     spans: _Spans = []
     text_start = start
     while i < len(code):
+        budget.spend()
         if mode in ("regular", "template") and code[i] == "\\":
             i += 2
             continue
@@ -2367,7 +2438,7 @@ def _scan_quoted(
             continue
         if opener:
             spans.append((text_start, i + opener))
-            end, hole_spans = _scan_c_family(code, i + opener, lang, in_hole=True)
+            end, hole_spans = _scan_c_family(code, i + opener, lang, in_hole=True, budget=budget)
             closing = "}" * (1 if mode == "template" else holes)
             if not code.startswith(closing, end):
                 return None
@@ -3039,6 +3110,14 @@ def _qualified_member_checks(
 _CSHARP_DIRECTIVE_LINE_RE = re.compile(r"^[ \t]*#[ \t]*[a-z]+\b.*$", re.MULTILINE)
 
 
+def _sibling_module(stem: str) -> ModuleType:
+    """Import a sibling script module by name, as ``_same_pr_scan`` does."""
+    scripts_dir = str(Path(__file__).resolve().parent)
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    return importlib.import_module(stem)
+
+
 def _extract_identifiers(
     code: str,
     lang: str = "",
@@ -3058,17 +3137,23 @@ def _extract_identifiers(
     tokenizer splits f-strings. On 3.10 and 3.11 the whole f-string is one
     STRING token and is blanked, which can only miss a symbol, never add a
     false finding. C#, TypeScript, and JavaScript comments are blanked,
-    example-local declarations are dropped. C# string literal text stays
-    in the extracted list; Phase 3 drops a name seen only in literals or
-    comments (``_c_family_code_view``). Member calls stay visible for
-    parameter checks against known methods. TypeScript object-literal keys
-    are data, not named parameters.
+    example-local declarations are dropped. TypeScript and JavaScript
+    literal text is blanked by ``_c_family_code_view``; C# literal text by
+    the steps below. Member calls stay visible for parameter checks against
+    known methods. TypeScript object-literal keys are data, not named
+    parameters.
 
     For C# (``lang == "csharp"``) preprocessor directive lines are blanked
     first, so ``#if NETFRAMEWORK`` does not report an unresolved symbol
-    (issue #7453). Other languages keep lines starting with ``#``, because
-    JavaScript and TypeScript private members use that prefix, and keep the
-    language-agnostic scan.
+    (issue #7453). Then string and char literal text is blanked, keeping
+    interpolation holes, so ``[Conditional("DEBUG")]`` does not report
+    ``DEBUG``. Named-argument names in attribute argument lists are blanked
+    too, so ``EntryPoint`` in ``[DllImport("k32", EntryPoint = "Beep")]`` is
+    not reported. The attribute name itself stays a checked code reference.
+    When the literal scan cannot read the snippet, the raw code is scanned,
+    which can only report extra names. Other languages keep lines starting with
+    ``#``, because JavaScript and TypeScript private members use that prefix,
+    and keep the language-agnostic scan.
     """
     ignored_names: set[str] = set(doc_definitions)
     if lang == "python":
@@ -3079,6 +3164,15 @@ def _extract_identifiers(
     elif lang in _DECLARATION_RES:
         if lang == "csharp":
             code = _CSHARP_DIRECTIVE_LINE_RE.sub("", code)
+            blanked = _sibling_module("csharp_literals").blank_csharp_literals(code)
+            if blanked is None:
+                # An unclosed string, a multi-line verbatim string, or the
+                # recursion limit stopped the scan. Scanning the unblanked code
+                # can only report extra names, never hide one.
+                logger.warning("C# literal scan could not read the snippet; scanning raw code")
+            else:
+                holes = _sibling_module("csharp_holes")
+                code = holes.blank_csharp_attribute_named_args(blanked)
         ignored_names.update(_example_declaration_names(code, lang))
         code = _strip_csharp_comments(code) if lang == "csharp" else _c_family_code_view(code, lang)
     # Match CamelCase and snake_case identifiers (3+ chars)

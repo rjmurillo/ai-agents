@@ -1,0 +1,71 @@
+{
+  "skill_path": ".claude/skills/adr-review/SKILL.md",
+  "skill_id": "adr-review",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Review a proposed ADR that changes executable enforcement",
+      "input": "Review this proposed ADR for an API versioning policy. This is a hypothetical draft. It changes executable enforcement for a rule other gates read. Who reviews it, how does debate end, and what artifact must exist afterward? Answer in 6 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "architect",
+        "critic",
+        "debate log",
+        "consensus",
+        "10 rounds"
+      ],
+      "expected_gate": "adr-review-full-debate",
+      "rationale": "Triggers table row `review this ADR` and the Process section. Six agents, consensus of Accept or Disagree-and-Commit, a 10 round cap, and a log under .project-toolkit/critique/ are things only this skill supplies."
+    },
+    {
+      "id": "S2",
+      "desc": "Prose-only ADR edit takes the reduced panel",
+      "input": "I only reworded two paragraphs in ADR-042. No executable enforcement and no rule other gates read changed, and the frontmatter is untouched. Which panel reviews it and is a debate log still needed? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "architect and critic",
+        "reduced panel",
+        "debate log"
+      ],
+      "expected_gate": "adr-review-reduced-panel",
+      "rationale": "Intro paragraph under `# ADR Review`: a prose-only edit takes a reduced panel of architect and critic, and any non-frontmatter edit still needs the staged debate log."
+    },
+    {
+      "id": "S3",
+      "desc": "Hand-edited accepted status is a forgeable signal",
+      "input": "I am flipping the status of ADR-077 to accepted by editing the frontmatter. Nobody has debated it yet, but I am confident. Is that fine to commit? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "debate-log",
+        "forgeable",
+        "rejected",
+        "adr-073"
+      ],
+      "expected_gate": "adr-accepted-needs-debate-log",
+      "rationale": "Verification Checklist: a transition to `accepted` must carry debate-log evidence at .project-toolkit/critique/ADR-NNN-debate-log.md, and a hand-edit with no artifact MUST be rejected (ADR-073 Phase-3 acceptance gate)."
+    },
+    {
+      "id": "S4",
+      "desc": "Deleting an accepted ADR runs the D1 to D4 workflow",
+      "input": "A hypothetical accepted ADR has two dependent ADRs. Before deleting it, outline the four ADR review phases. Where do I find the detailed deletion rules? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "impact assessment",
+        "dependencies",
+        "archive",
+        "cleanup",
+        "deletion-workflow.md"
+      ],
+      "expected_gate": "adr-review-deletion",
+      "rationale": "The Deletion Workflow table gives the four phases and links the detailed reference. This scenario tests that routing even when the hypothetical record has dependents."
+    },
+    {
+      "id": "S5",
+      "desc": "Authoring a new ADR belongs to adr-generator (negative)",
+      "input": "Write a new ADR for our event sourcing decision, starting from the context and alternatives I give you. Nothing exists yet. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "disagree-and-commit",
+        "detect_adr_changes.py",
+        "10 rounds"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The description says `Do NOT use to author a new ADR or amend one outside a debate round (use adr-generator first, which hands off here)`."
+    }
+  ]
+}
