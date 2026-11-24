@@ -23,8 +23,9 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 import doc_date_claims as claims  # noqa: E402
+import yaml  # noqa: E402
 
-from scripts.validation.frontmatter_contract import parse_frontmatter  # noqa: E402
+from scripts.hook_utilities.frontmatter_block import parse_frontmatter  # noqa: E402
 
 RULE_ADR = "adr-date"
 _ADR_PATH = re.compile(r"^(?:\.project-toolkit|\.agents)/architecture/ADR-\d+[^/]*\.md$")
@@ -49,7 +50,7 @@ def adr_problem(
     """Find the newest added amendment or changed Decision section date."""
     if not _ADR_PATH.match(path):
         return None
-    parsed = parse_frontmatter("\n".join(lines))
+    parsed = parse_frontmatter("\n".join(lines), yaml)
     if not parsed.ok or not parsed.metadata:
         return None
     raw_date = parsed.metadata.get("date")

@@ -19,12 +19,17 @@ keeps its own per-glob filter.
 from __future__ import annotations
 
 import os
-import re
 import sys
 from pathlib import Path
 from typing import Protocol
 
 from yaml_text_cache import load_yaml_text
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.hook_utilities.frontmatter_block import split_frontmatter  # noqa: E402
 
 INTERNAL_PATH_PREFIXES = (".agents/", ".project-toolkit/", ".claude/", ".serena/")
 
@@ -67,15 +72,16 @@ class _Outcome(Protocol):
     exit_code: int
 
 
-_FRONTMATTER = re.compile(r"\A---\s*\n(.*?)\n---\s*(?:\n|\Z)", re.DOTALL)
-
-
 def scope_globs(text: str) -> list[str]:
-    """Return the rule's ``paths:`` globs, or ``[]`` when it declares none."""
-    match = _FRONTMATTER.match(text)
-    if match is None:
+    """Return the rule's ``paths:`` globs, or ``[]`` when it declares none.
+
+    The block is located by ``scripts/hook_utilities/frontmatter_block.py``. Its
+    YAML goes through ``load_yaml_text``, which memoizes the parse (issue #6734).
+    """
+    split = split_frontmatter(text)
+    if not split.found:
         return []
-    frontmatter = load_yaml_text(match.group(1))
+    frontmatter = load_yaml_text(split.raw.removeprefix("\n"))
     if not isinstance(frontmatter, dict):
         return []
     value = frontmatter.get("paths")

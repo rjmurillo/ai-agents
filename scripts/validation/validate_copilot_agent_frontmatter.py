@@ -48,18 +48,24 @@ for _path in (_REPO_ROOT, _SCRIPT_DIR):
     if str(_path) not in sys.path:
         sys.path.insert(0, str(_path))
 
+from scripts.hook_utilities.frontmatter_block import (  # noqa: E402
+    FrontmatterStatus,
+    load_frontmatter,
+)
+from scripts.hook_utilities.frontmatter_block import (  # noqa: E402
+    parse_frontmatter as parse_core_frontmatter,
+)
+
 
 def parse_frontmatter(text: str) -> dict[str, object] | None:
-    """Return parsed frontmatter via the canonical ``yaml_utils`` parser, or None.
+    """Return parsed frontmatter via ``scripts/hook_utilities/frontmatter_block.py``, or None.
 
     A thin convenience wrapper that returns None on malformed YAML (it does not
-    surface the parser error). ``find_malformed`` deliberately does NOT use this:
-    it parses the raw block itself so it can report the YAML parser error, which
-    this helper discards. Kept for callers and tests that only need a parsed dict.
+    surface the parser error). ``_frontmatter_error`` deliberately does NOT use this:
+    it needs the YAML parser error, which this helper discards. Kept for callers
+    and tests that only need a parsed dict.
     """
-    from scripts.validation.yaml_utils import _parse_yaml_frontmatter
-
-    return _parse_yaml_frontmatter(text)
+    return load_frontmatter(text, yaml)
 
 
 def _frontmatter_error(text: str) -> str | None:
@@ -79,17 +85,16 @@ def _frontmatter_error(text: str) -> str | None:
     here exactly as it does in Copilot, which is the regression these issues fix.
     """
 
-    block = _raw_frontmatter(text)
-    if block is None:
+    # Call the core's ``parse_frontmatter`` rather than the ``load_frontmatter``
+    # wrapper above: that one drops the error, and issue #2500 requires the YAML
+    # parser error in the message.
+    result = parse_core_frontmatter(text, yaml, allow_duplicate_keys=True)
+    if result.status in (FrontmatterStatus.ABSENT, FrontmatterStatus.UNTERMINATED):
         return "no YAML frontmatter block found"
-    # Parse the raw block directly rather than via parse_frontmatter /
-    # yaml_utils._parse_yaml_frontmatter: that helper swallows the error to None,
-    # but issue #2500 requires the YAML parser error in the message.
-    try:
-        parsed = yaml.safe_load(block)
-    except yaml.YAMLError as exc:
-        return f"invalid YAML frontmatter: {str(exc).replace(chr(10), ' ').strip()}"
-    if not isinstance(parsed, dict):
+    if result.status is FrontmatterStatus.MALFORMED:
+        return (result.error or "").replace("\n", " ").strip()
+    parsed = result.metadata
+    if result.status is not FrontmatterStatus.VALID or parsed is None:
         return "frontmatter is not a YAML mapping"
     missing = [
         field
@@ -132,18 +137,6 @@ def find_malformed(agents_dir: Path, *, repo_root: Path = _REPO_ROOT) -> list[tu
         if error is not None:
             offenders.append((path, error))
     return offenders
-
-
-def _raw_frontmatter(text: str) -> str | None:
-    """Return the raw text between the first two ``---`` fences, or None."""
-
-    lines = text.splitlines()
-    if not lines or lines[0] != "---":
-        return None
-    for i in range(1, len(lines)):
-        if lines[i] == "---":
-            return "\n".join(lines[1:i])
-    return None
 
 
 def build_parser() -> argparse.ArgumentParser:

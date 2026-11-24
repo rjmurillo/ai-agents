@@ -78,6 +78,7 @@ SUPPORT_FILES = (
     "scripts/ci/run_pytest_non_tmp.py",
     "scripts/ci/run_pytest_partition.py",
     "scripts/hook_utilities/__init__.py",
+    "scripts/hook_utilities/frontmatter_block.py",
     "scripts/hook_utilities/guards.py",
     "scripts/hook_utilities/utilities.py",
     "scripts/maintenance/__init__.py",

@@ -29,11 +29,21 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import frontmatter
 import yaml
+
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.hook_utilities.frontmatter_block import (  # noqa: E402
+    FrontmatterStatus,
+    parse_frontmatter,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
+
+_MALFORMED_PREFIX = "invalid YAML frontmatter: "
 
 
 def _validate_path_component(name: str, base_dir: Path) -> Path:
@@ -104,6 +114,8 @@ class ExportResult:
 def parse_agent_file(path: Path) -> AgentDefinition | None:
     """Parse a single ai-agents markdown file with YAML frontmatter.
 
+    Uses `scripts/hook_utilities/frontmatter_block.py`.
+
     Args:
         path: Path to the agent definition file.
 
@@ -111,12 +123,21 @@ def parse_agent_file(path: Path) -> AgentDefinition | None:
         AgentDefinition if valid, None if the file lacks required fields.
     """
     try:
-        post = frontmatter.load(str(path))
-    except (yaml.YAMLError, OSError, UnicodeDecodeError) as exc:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
         logger.warning("Failed to parse %s: %s", path.name, exc)
         return None
 
-    metadata: dict[str, Any] = dict(post.metadata)
+    parsed = parse_frontmatter(text.strip(), yaml, allow_duplicate_keys=True)
+    if parsed.status is FrontmatterStatus.MALFORMED:
+        logger.warning(
+            "Failed to parse %s: %s",
+            path.name,
+            (parsed.error or "").removeprefix(_MALFORMED_PREFIX),
+        )
+        return None
+
+    metadata: dict[str, Any] = dict(parsed.metadata or {})
     name = metadata.get("name", "")
     description = metadata.get("description", "")
     model = metadata.get("model", "sonnet")
@@ -131,7 +152,7 @@ def parse_agent_file(path: Path) -> AgentDefinition | None:
         model=model,
         role=role,
         argument_hint=metadata.get("argument-hint", ""),
-        body=post.content,
+        body=parsed.body.strip(),
         source_path=str(path),
     )
 

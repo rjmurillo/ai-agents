@@ -167,7 +167,15 @@ from checks_common import (  # noqa: E402
     _resolve_default_base_ref,
     _run_subprocess,
 )
-from yaml_utils import _parse_yaml_frontmatter  # noqa: E402
+
+from scripts.hook_utilities.frontmatter_block import (  # noqa: E402
+    FrontmatterStatus,
+    decode_frontmatter_yaml,
+    load_frontmatter,
+)
+from scripts.hook_utilities.frontmatter_block import (  # noqa: E402
+    parse_frontmatter as _parse_frontmatter_block,
+)
 
 # Imported, not redefined, so the two ADR gates never disagree about which files are ADRs.
 from scripts.validation.adr_cited_paths import (  # noqa: E402
@@ -176,10 +184,6 @@ from scripts.validation.adr_cited_paths import (  # noqa: E402
     tracked_paths,
 )
 from scripts.validation.check_adr_uniqueness import ADR_FILENAME_RE  # noqa: E402
-from scripts.validation.frontmatter_contract import FrontmatterStatus  # noqa: E402
-from scripts.validation.frontmatter_contract import (  # noqa: E402
-    parse_frontmatter as _parse_frontmatter_block,
-)
 
 EXIT_OK = 0
 EXIT_REGRESSION = 1
@@ -303,10 +307,10 @@ class Record:
 def _split_frontmatter(text: str) -> tuple[str | None, str]:
     r"""Return ``(raw frontmatter block, body)``; the block is None when absent.
 
-    Delegates to ``scripts/validation/frontmatter_contract.parse_frontmatter``,
-    which delegates in turn to ``python-frontmatter``. This function used to
+    Delegates to ``scripts/hook_utilities/frontmatter_block.parse_frontmatter``,
+    the repository's one parser. This function used to
     carry its own boundary arithmetic, taken from
-    ``_parse_yaml_frontmatter`` in ``scripts/validation/yaml_utils.py``::
+    ``_parse_yaml_frontmatter`` in the deleted ``scripts/validation/yaml_utils.py``::
 
         end_index = text.find("\n---", 3)
 
@@ -332,26 +336,27 @@ def _split_frontmatter(text: str) -> tuple[str | None, str]:
     YAML loader or scans it for duplicate keys, and both tolerate the leading
     newline the block carries.
     """
-    result = _parse_frontmatter_block(text, allow_duplicate_keys=True)
+    result = _parse_frontmatter_block(text, yaml, allow_duplicate_keys=True)
     if not result.present or result.status is FrontmatterStatus.UNTERMINATED:
         return None, result.body
     return result.raw, result.body
 
 
-def _frontmatter_reason(raw: str | None, text: str) -> str:
+def _frontmatter_reason(text: str) -> str:
     """Human-readable reason a frontmatter block is unusable.
 
-    ``_parse_yaml_frontmatter`` collapses "absent", "malformed", and "not a
+    ``load_frontmatter`` collapses "absent", "malformed", and "not a
     mapping" into one None and discards the YAML parser error. Re-deriving the
     reason follows the precedent of ``_frontmatter_error`` in
     ``scripts/validation/validate_copilot_agent_frontmatter.py``, whose comment
     states the same rationale: "that helper swallows the error to None, but
     issue #2500 requires the YAML parser error in the message".
 
-    ``raw`` is None for two different defects, and ``text`` is what separates
-    them. ``_split_frontmatter`` returns None when the file does not start with
-    ``---`` (the block is absent) and also when it starts with ``---`` but no
-    closing fence follows (the block is unterminated). Reporting both as
+    The split returns no block for two different defects, and the shared
+    parser's status is what separates them. ``_split_frontmatter`` returns
+    None when the file does not start with ``---`` (the block is absent) and
+    also when it starts with ``---`` but no closing fence follows (the block is
+    unterminated). Reporting both as
     "no leading `---` frontmatter block" sends an author to add frontmatter that
     is already there: a record can open with ``---`` and carry ``id``,
     ``status`` and ``date``, and still be told its schema is absent. The record
@@ -364,7 +369,7 @@ def _frontmatter_reason(raw: str | None, text: str) -> str:
     reported as an unterminated block because that is how the splitter, and the
     canonical helper it mirrors, classify it.
     """
-    result = _parse_frontmatter_block(text, allow_duplicate_keys=True)
+    result = _parse_frontmatter_block(text, yaml, allow_duplicate_keys=True)
     if result.status is FrontmatterStatus.ABSENT:
         return "no leading `---` frontmatter block (ADR-073 schema absent)"
     if result.status is FrontmatterStatus.UNTERMINATED:
@@ -377,8 +382,7 @@ def _frontmatter_reason(raw: str | None, text: str) -> str:
     if result.status is FrontmatterStatus.MALFORMED:
         detail = " ".join(str(result.error or "").split())
         return f"frontmatter YAML did not parse: {detail}"
-    parsed = yaml.safe_load(raw) if raw is not None else None
-    return f"frontmatter is a {type(parsed).__name__}, not a YAML mapping"
+    return f"frontmatter is a {result.value_type}, not a YAML mapping"
 
 
 class _DuplicateKey(yaml.YAMLError):
@@ -398,7 +402,7 @@ def _reject_duplicate_keys(loader: yaml.SafeLoader, node: yaml.MappingNode) -> d
 
     `_read_record` names the key in the violation. `build/scripts/generate_adr_index.py`
     no longer has its own duplicate-key loader: the three ADR parsers share the
-    contract in `frontmatter_contract`, so this loader is the only one here.
+    parser in `scripts/hook_utilities/frontmatter_block.py`, so this loader is the only one here.
 
     A list compared with `==`, not a set: a YAML key need not be hashable
     (`? [a, b]` builds a list key), and a set raises `TypeError` on it.
@@ -454,7 +458,7 @@ def _duplicate_key(raw: str | None) -> str | None:
     if raw is None:
         return None
     try:
-        yaml.load(raw, Loader=_StrictLoader)
+        decode_frontmatter_yaml(raw, yaml, loader=_StrictLoader)
     except _DuplicateKey as exc:
         return exc.key if isinstance(exc.key, str) else repr(exc.key)
     except yaml.YAMLError:
@@ -492,11 +496,11 @@ def _read_record(path: Path, number: int, rel: str) -> tuple[Record, Violation |
                 f"silently, so the visible declaration and the enforced one differ",
             ),
         )
-    frontmatter = _parse_yaml_frontmatter(text)
+    frontmatter = load_frontmatter(text, yaml)
     if frontmatter is None:
         return (
             Record(number, rel, None, body, lines),
-            Violation("frontmatter-parses", rel, _frontmatter_reason(raw, text)),
+            Violation("frontmatter-parses", rel, _frontmatter_reason(text)),
         )
     return Record(number, rel, frontmatter, body, lines), None
 

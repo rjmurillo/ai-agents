@@ -72,6 +72,45 @@ def test_parse_error_raises_every_time_with_the_same_message() -> None:
     assert (info.hits, info.currsize) == (0, 0)
 
 
+@pytest.mark.parametrize(
+    "text",
+    ["a: 1\na: 2\n", "- x\n- y\n", "", "just a scalar\n", "a: 1\nb:\n  - 2\n"],
+)
+def test_outputs_match_safe_load(text: str) -> None:
+    """Last-wins, list, scalar, and null results equal ``yaml.safe_load``."""
+    assert yaml_text_cache.load_yaml_text(text) == yaml.safe_load(text)
+
+
+def test_duplicate_keys_are_last_one_wins() -> None:
+    assert yaml_text_cache.load_yaml_text("a: 1\na: 2\n") == {"a": 2}
+
+
+def test_error_marks_match_safe_load() -> None:
+    bad = "a: 1\nb: [unclosed\n"
+    with pytest.raises(yaml.YAMLError) as cached:
+        yaml_text_cache.load_yaml_text(bad)
+    with pytest.raises(yaml.YAMLError) as direct:
+        yaml.safe_load(bad)
+    assert type(cached.value) is type(direct.value)
+    assert cached.value.problem_mark.index == direct.value.problem_mark.index
+    assert cached.value.problem_mark.line == direct.value.problem_mark.line
+
+
+def test_decode_goes_through_the_core_entry_point(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The cache has no ``yaml`` call of its own: a miss reaches the core decoder once."""
+    calls: list[str] = []
+    real = yaml_text_cache.decode_frontmatter_yaml
+
+    def spy(raw: str, yaml_module: object, **kwargs: object) -> object:
+        calls.append(raw)
+        return real(raw, yaml_module, **kwargs)
+
+    monkeypatch.setattr(yaml_text_cache, "decode_frontmatter_yaml", spy)
+    assert yaml_text_cache.load_yaml_text("k: v\n") == {"k": "v"}
+    assert yaml_text_cache.load_yaml_text("k: v\n") == {"k": "v"}
+    assert calls == ["k: v\n"]
+
+
 def test_is_repo_local_follows_a_file_rewritten_at_the_same_path(tmp_path: Path) -> None:
     """A path-keyed cache would return the first verdict twice; a text key must not."""
     skill_dir = tmp_path / ".claude" / "skills" / "x"

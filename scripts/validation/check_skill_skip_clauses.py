@@ -16,9 +16,17 @@ from collections import defaultdict, deque
 from dataclasses import dataclass
 from pathlib import Path
 
-import yaml
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
-_FRONTMATTER_PATTERN = re.compile(r"^---\n(.*?)\n---\n", re.DOTALL)
+import yaml  # noqa: E402
+
+from scripts.hook_utilities.frontmatter_block import (  # noqa: E402
+    FrontmatterStatus,
+    parse_frontmatter,
+)
+
 _SKIP_CLAUSE_PATTERN = re.compile(
     r"Do NOT use\b.*?(?:\.(?=\s+[A-Z]|$)|$)",
     re.DOTALL,
@@ -58,17 +66,14 @@ def leading_token(skill_name: str) -> str:
 def parse_skill_file(path: Path) -> Skill:
     """Parse a SKILL.md file without raising on malformed frontmatter."""
     text = path.read_text(encoding="utf-8")
-    match = _FRONTMATTER_PATTERN.match(text)
-    if match is None:
+    result = parse_frontmatter(text, yaml, allow_duplicate_keys=True)
+    if result.status in (FrontmatterStatus.ABSENT, FrontmatterStatus.UNTERMINATED):
         return Skill(path.parent.name, path, "", "missing YAML frontmatter")
-
-    try:
-        data = yaml.safe_load(match.group(1)) or {}
-    except yaml.YAMLError as exc:
-        return Skill(path.parent.name, path, "", f"invalid YAML frontmatter: {exc}")
-
-    if not isinstance(data, dict):
+    if result.status is FrontmatterStatus.MALFORMED:
+        return Skill(path.parent.name, path, "", result.error or "invalid YAML frontmatter")
+    if result.metadata is None:
         return Skill(path.parent.name, path, "", "frontmatter is not a mapping")
+    data = result.metadata
 
     description = data.get("description", "")
     if description is None:

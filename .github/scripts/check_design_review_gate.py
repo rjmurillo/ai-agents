@@ -26,6 +26,7 @@ workspace = os.environ.get(
 sys.path.insert(0, workspace)
 
 from scripts.ai_review_common import write_output  # noqa: E402
+from scripts.hook_utilities.frontmatter_block import split_frontmatter  # noqa: E402
 
 # Verdicts that block merge
 BLOCKING_VERDICTS = frozenset(
@@ -48,9 +49,6 @@ PASSING_VERDICTS = frozenset(
     }
 )
 
-# Pattern to extract YAML frontmatter
-_FRONTMATTER_RE = re.compile(r"\A---\n(.+?)\n---", re.DOTALL)
-
 # Patterns for markdown header fields
 _VERDICT_RE = re.compile(
     r"\*{2}(?:Verdict|VERDICT)\*{2}\s*:\s*\[?\s*(\w+)",
@@ -72,12 +70,17 @@ class ReviewResult:
 
 
 def parse_yaml_frontmatter(content: str) -> dict[str, str]:
-    """Extract key-value pairs from YAML frontmatter without pyyaml dependency."""
-    match = _FRONTMATTER_RE.match(content)
-    if not match:
+    """Extract key-value pairs from YAML frontmatter without pyyaml dependency.
+
+    The workflow runs this with bare ``python3``, so it stays stdlib-only. The
+    block comes from ``scripts/hook_utilities/frontmatter_block.py`` and only
+    its raw text is read here, by a flat ``key: value`` parser.
+    """
+    block = split_frontmatter(content)
+    if not block.found:
         return {}
     result: dict[str, str] = {}
-    for line in match.group(1).splitlines():
+    for line in block.raw.splitlines():
         if ":" in line and not line.startswith(" ") and not line.startswith("-"):
             key, _, value = line.partition(":")
             result[key.strip()] = value.strip()

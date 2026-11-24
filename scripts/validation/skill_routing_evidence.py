@@ -21,10 +21,18 @@ from pathlib import Path
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
+_REPO_ROOT = _SCRIPT_DIR.parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
 import yaml  # noqa: E402
 from skill_routing_model import RESERVED_INVOKERS, ROLES, SkillDecl  # noqa: E402
 from skill_routing_resolver_evidence import intents_reached  # noqa: E402
+
+from scripts.hook_utilities.frontmatter_block import (  # noqa: E402
+    FrontmatterStatus,
+    parse_frontmatter,
+)
 
 
 @dataclass(frozen=True)
@@ -45,9 +53,6 @@ class Evidence:
 _REACHABLE_ROLES = frozenset({"front-door", "lifecycle", "conditional-adjunct", "nested-helper"})
 
 
-_FRONTMATTER = re.compile(r"\A---\s*\n(.*?)\n---\s*\n", re.DOTALL)
-
-
 def _names_token(name: str, text: str) -> bool:
     """Return True when `name` appears in `text` as an exact token."""
     return re.search(rf"(?<![\w-]){re.escape(name)}(?![\w-])", text) is not None
@@ -63,20 +68,15 @@ def _strip_routing_block(text: str) -> str:
     frontmatter that does not parse is returned unchanged; the gate already
     reports it as a defect.
     """
-    match = _FRONTMATTER.match(text)
-    if match is None:
+    result = parse_frontmatter(text, yaml, allow_duplicate_keys=True)
+    if result.status is not FrontmatterStatus.VALID or result.metadata is None:
         return text
-    try:
-        front = yaml.safe_load(match.group(1))
-    except yaml.YAMLError:
-        return text
-    if not isinstance(front, dict):
-        return text
+    front = result.metadata
     metadata = front.get("metadata")
     if isinstance(metadata, dict):
         metadata.pop("routing", None)
     remaining: str = yaml.safe_dump(front, sort_keys=True)
-    return remaining + text[match.end() :]
+    return remaining + result.body
 
 
 def _skill_own_text(repo_root: Path, skill_path: Path, name: str) -> str:

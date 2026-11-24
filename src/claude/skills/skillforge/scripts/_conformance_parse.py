@@ -12,10 +12,31 @@ from __future__ import annotations
 
 import os
 import re
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from _path_guard import contained_realpath, is_within, resolve_root
+
+# ADR-047 keeps this bootstrap inline because imports need sys.path first.
+# This file's own plugin lib wins when it holds the shared frontmatter parser,
+# so a foreign or older plugin root in the environment cannot shadow it. The
+# environment root is the fallback for a script copied outside its plugin.
+_PLUGIN_ROOT = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+_LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+if _PLUGIN_ROOT and not os.path.isfile(_LIB_DIR / "hook_utilities" / "frontmatter_block.py"):
+    _LIB_DIR = Path(_PLUGIN_ROOT) / "lib"
+
+if not os.path.isdir(_LIB_DIR):
+    raise RuntimeError(
+        "Expected portability helper lib directory not found: "
+        f"{_LIB_DIR}. Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT to the "
+        "plugin root, or run from an ai-agents checkout."
+    )
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from hook_utilities import frontmatter_block  # noqa: E402
 
 KEY_RE = re.compile(r"^([A-Za-z0-9_][A-Za-z0-9_.-]*)[ \t]*:(?:[ \t]+(.*)|[ \t]*)$")
 BLOCK_SCALAR_RE = re.compile(r"^([|>])([+-]?)([1-9]?)([+-]?)\s*(?:#.*)?$")
@@ -319,15 +340,23 @@ def parse_frontmatter(raw: str) -> dict[str, object]:
 
 
 def split_frontmatter(text: str) -> tuple[str | None, str, str | None]:
-    """Return (frontmatter, body, error). Frontmatter is None when absent."""
-    text = text.lstrip("﻿").replace("\r\n", "\n")
-    lines = text.split("\n")
-    if not lines or lines[0].rstrip() != "---":
+    """Return (frontmatter, body, error). Frontmatter is None when absent.
+
+    The fence rule is ``hook_utilities.frontmatter_block.split_frontmatter``.
+    This module stays PyYAML-free, so only the block's text is read from the
+    core and ``parse_frontmatter`` below interprets it.
+    """
+    text = text.lstrip("\ufeff").replace("\r\n", "\n")
+    split = frontmatter_block.split_frontmatter(text)
+    if split.status is frontmatter_block.FrontmatterStatus.ABSENT:
         return None, text, "SKILL.md does not start with a '---' line"
-    for index in range(1, len(lines)):
-        if lines[index].rstrip() == "---":
-            return "\n".join(lines[1:index]), "\n".join(lines[index + 1 :]), None
-    return None, text, "the frontmatter has no closing '---' line"
+    if not split.found:
+        return None, text, "the frontmatter has no closing '---' line"
+    # The core's raw text runs from the opening fence's newline through the
+    # closing fence's preceding newline. Drop both so line numbers in parse
+    # errors count from the first line after the fence.
+    raw = split.raw.removeprefix("\n").removesuffix("\n")
+    return raw, split.body, None
 
 
 def contained(doc: SkillDoc, path: Path) -> bool:

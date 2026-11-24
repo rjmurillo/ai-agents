@@ -55,7 +55,7 @@ purpose: it names a memory to create, so a name that does not resolve yet is
 its normal case, not a defect.
 
 Stricter (existence): canonical resolves any safe in-root path without
-requiring the target to exist (``memory_index.py:244-247``). This gate adds an
+requiring the target to exist (``memory_index.py:248-251``). This gate adds an
 existence requirement: the resolved path must be present in the git index (or,
 outside a repository, on the filesystem). A reference that would resolve
 canonically but names no tracked file still fails, because an agent issuing
