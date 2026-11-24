@@ -29,9 +29,10 @@ import json
 import math
 import re
 import sys
+from collections import Counter
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
-from functools import partial
+from functools import cache, lru_cache, partial
 from pathlib import Path
 from typing import Any
 
@@ -997,6 +998,7 @@ class FileComparison:
     csharp_parser_dependency_admission: dict[str, Any] | None = None
     typescript_parser_dependency_admission: dict[str, Any] | None = None
     python_parser_dependency_admission: dict[str, Any] | None = None
+    change_admissions: dict[str, dict[str, Any]] | None = None
 
     def parser_dependency_admission(self) -> dict[str, Any] | None:
         """Return the admission record attached to this comparison, if any."""
@@ -1078,6 +1080,228 @@ def _apply_parser_dependency_admissions(
         else:
             for reason in reasons:
                 print(f"NOT ADMITTED: {comparison.file_path}: {reason}", file=sys.stderr)
+
+
+# Issue #7525: a change that replaces local logic with one shared import drops
+# coupling a point per file, and a file that loses unique lines drops
+# non-redundancy with no duplicate added. These admissions keep the raw score
+# and row, and admit the drop only when the change added no new dependency or
+# duplicate. The coupling admission is inert unless the config opts in.
+_ISSUE_CHANGE_ADMISSIONS = 7525
+_FIRST_PARTY_COUPLING_KEY = "firstPartyCouplingAdmission"
+_COUPLING_RULE = "no_new_third_party_import"
+_NON_REDUNDANCY_RULE = "no_new_duplicate_lines"
+
+
+def _first_party_import_roots(config: dict[str, Any]) -> list[Path] | None:
+    """Return the configured import roots, or None when the admission is off."""
+    record = config.get(_FIRST_PARTY_COUPLING_KEY)
+    if record is None:
+        return None
+    roots = record.get("importRoots") if isinstance(record, dict) else None
+    if (
+        not isinstance(record, dict)
+        or set(record) != {"importRoots"}
+        or not isinstance(roots, list)
+        or not all(isinstance(root, str) and root.strip() for root in roots)
+    ):
+        raise ValueError(f"Invalid {_FIRST_PARTY_COUPLING_KEY}: expected {{'importRoots': [str]}}")
+    return [_resolve_in_workspace(Path(root), "importRoots entry") for root in roots]
+
+
+@lru_cache(maxsize=1)
+def _tracked_python_paths(workspace: Path) -> frozenset[str]:
+    """Return tracked ``.py`` paths under *workspace*, relative to it.
+
+    The index, not the disk, decides: an untracked or ignored local directory
+    must not change a verdict (ci-scripts MUST 9).
+    """
+    import subprocess
+
+    result = subprocess.run(
+        ["git", "ls-files", "-z", "--", "*.py"],
+        cwd=workspace,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        error = result.stderr.decode("utf-8", errors="replace").strip()
+        raise RuntimeError(f"git ls-files failed: {error}")
+    return frozenset(path for path in result.stdout.decode("utf-8").split("\0") if path)
+
+
+@cache
+def _is_installed_package(root: str) -> bool:
+    """Return True when the running interpreter imports *root* from site-packages.
+
+    An installed package stays third-party even when the checkout holds a
+    directory of the same name, so a branch cannot add a decoy to admit a new
+    dependency.
+    """
+    import importlib.util
+    import site
+    import sysconfig
+
+    try:
+        spec = importlib.util.find_spec(root)
+    except (ImportError, ValueError):
+        return False
+    if spec is None:
+        return False
+    site_dirs = {sysconfig.get_paths()[key] for key in ("purelib", "platlib")}
+    site_dirs.update(site.getsitepackages())
+    site_dirs.add(site.getusersitepackages())
+    roots = [Path(d).resolve() for d in site_dirs if d]
+    locations = list(spec.submodule_search_locations or []) or [spec.origin or ""]
+    return any(
+        location and any(Path(location).resolve().is_relative_to(r) for r in roots)
+        for location in locations
+    )
+
+
+def _is_first_party_root(root: str, file_path: Path, import_roots: list[Path]) -> bool:
+    """Return True when *root* names a tracked module or package in the checkout.
+
+    Searched: the importing file's directory and each ancestor up to the
+    workspace (``scripts.x`` from anywhere, a sibling module from a build
+    script), then each configured import root (a plugin ``lib`` directory that
+    callers put on ``sys.path``). A match is a tracked ``<root>.py`` or
+    ``<root>/__init__.py``; a bare directory such as ``build/`` is not.
+    """
+    if _is_installed_package(root):
+        return False
+    workspace = Path.cwd().resolve()
+    tracked = _tracked_python_paths(workspace)
+    directory = (workspace / file_path).parent.resolve()
+    candidates = [directory, *directory.parents]
+    searched = [d for d in candidates if d.is_relative_to(workspace)]
+    for base in [*searched, *import_roots]:
+        relative = base.relative_to(workspace)
+        for module in (relative / f"{root}.py", relative / root / "__init__.py"):
+            if module.as_posix() in tracked:
+                return True
+    return False
+
+
+def _python_third_party_roots(
+    source: str, file_path: Path, import_roots: list[Path]
+) -> set[str] | None:
+    """Return the import roots *source* takes from outside the checkout.
+
+    Standard library, relative, and first-party roots are excluded. None means
+    the source does not parse, so no admission can be shown.
+    """
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError):
+        return None
+    names: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            names.extend(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+            names.append(node.module)
+    roots = {name.split(".", 1)[0] for name in names}
+    return {
+        root
+        for root in roots - _PY_STDLIB_MODULES
+        if not _is_first_party_root(root, file_path, import_roots)
+    }
+
+
+def _coupling_admission(
+    base_text: str,
+    head_text: str,
+    comparison: FileComparison,
+    import_roots: list[Path],
+) -> dict[str, Any] | None:
+    """Admit a Python coupling drop whose third-party roots did not grow."""
+    head_path = Path(comparison.file_path)
+    if detect_language(head_path) != "python":
+        return None
+    base = _python_third_party_roots(base_text, head_path, import_roots)
+    head = _python_third_party_roots(head_text, head_path, import_roots)
+    if base is None or head is None or not head <= base:
+        return None
+    return {
+        "issue": _ISSUE_CHANGE_ADMISSIONS,
+        "rule": _COUPLING_RULE,
+        "baseThirdParty": sorted(base),
+        "headThirdParty": sorted(head),
+    }
+
+
+def _non_redundancy_admission(
+    base_text: str, head_text: str, comparison: FileComparison
+) -> dict[str, Any] | None:
+    """Admit a non-redundancy drop that added no copy of any line.
+
+    Each line's repeat count at head must not exceed its count at base, so
+    removing one duplicate cannot pay for a new one elsewhere.
+    """
+    head_path = Path(comparison.file_path)
+    base_path = Path(comparison.base_file_path or comparison.file_path)
+    base = _duplicate_lines(_code_lines(base_text, detect_language(base_path)))
+    head = _duplicate_lines(_code_lines(head_text, detect_language(head_path)))
+    if head - base:
+        return None
+    return {
+        "issue": _ISSUE_CHANGE_ADMISSIONS,
+        "rule": _NON_REDUNDANCY_RULE,
+        "baseDuplicateLines": base.total(),
+        "headDuplicateLines": head.total(),
+    }
+
+
+def _comparison_texts(comparison: FileComparison, revision: str) -> tuple[str, str] | None:
+    """Return the base and head text of a modified file, or None if unreadable."""
+    if comparison.base_file_path is None:
+        return None
+    raw = get_file_at_revision(Path(comparison.base_file_path), revision)
+    if raw is None:
+        return None
+    try:
+        return raw.decode("utf-8"), Path(comparison.file_path).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+
+
+def _apply_change_admissions(
+    comparisons: list[FileComparison], config: dict[str, Any], base: str | None
+) -> None:
+    """Admit coupling and non-redundancy drops that add no dependency or duplicate."""
+    import_roots = _first_party_import_roots(config)
+    # The index can change between runs in one process; read it fresh per run.
+    _tracked_python_paths.cache_clear()
+    revision: str | None = None
+    for comparison in comparisons:
+        wanted = [
+            quality
+            for quality in comparison.regressions
+            if quality == "non_redundancy" or (quality == "coupling" and import_roots is not None)
+        ]
+        if (
+            not wanted
+            or base is None
+            or comparison.is_new_file
+            or comparison.absolute_gate_reason is not None
+            or comparison.parser_dependency_admission() is not None
+        ):
+            continue
+        revision = revision or resolve_comparison_base(base)
+        texts = _comparison_texts(comparison, revision)
+        if texts is None:
+            continue
+        admissions: dict[str, dict[str, Any]] = {}
+        for quality in wanted:
+            record = (
+                _coupling_admission(*texts, comparison, import_roots or [])
+                if quality == "coupling"
+                else _non_redundancy_admission(*texts, comparison)
+            )
+            if record is not None:
+                admissions[quality] = record
+        comparison.change_admissions = admissions or None
 
 
 def _delta_for(quality: str, base: QualityScore, head: QualityScore) -> QualityDelta:
@@ -1296,11 +1520,19 @@ def check_regression(
                 file=sys.stderr,
             )
             approval = comparison.parser_dependency_admission()
+            change = (comparison.change_admissions or {}).get(quality)
             if quality == "coupling" and approval:
                 print(
                     f"ADMITTED: issue #{approval['issue']}, authorized by "
                     f"{approval['authorizedBy']} on {approval['authorizedOn']}: "
                     f"{approval['authorization']} Raw coupling regression remains reported.",
+                    file=sys.stderr,
+                )
+            elif change:
+                print(
+                    f"ADMITTED: issue #{change['issue']}, rule {change['rule']}: the change "
+                    f"added no new {'third-party import' if quality == 'coupling' else 'duplicate line'}. "
+                    f"Raw {quality} regression remains reported.",
                     file=sys.stderr,
                 )
             else:
@@ -2186,6 +2418,28 @@ def _is_syntax_only_line(line: str) -> bool:
     return bool(_STRUCTURAL_ONLY_LINE.fullmatch(line) or _BARE_ATTRIBUTE_LINE.fullmatch(line))
 
 
+def _code_lines(content: str, language: str | None) -> list[str]:
+    """Return non-blank lines, minus line comments for a tuned language."""
+    prefixes = _LINE_COMMENT_PREFIXES.get(language, ()) if language else ()
+    return [
+        line
+        for line in content.split("\n")
+        if line.strip() and not (prefixes and line.strip().startswith(prefixes))
+    ]
+
+
+def _compared_lines(code_lines: list[str]) -> list[str]:
+    """Return the stripped lines non-redundancy compares, syntax-only lines dropped."""
+    stripped = [line.strip() for line in code_lines if line.strip()]
+    return [line for line in stripped if not _is_syntax_only_line(line)]
+
+
+def _duplicate_lines(code_lines: list[str]) -> Counter[str]:
+    """Return each compared line's count of copies beyond its first."""
+    counts = Counter(_compared_lines(code_lines))
+    return Counter({line: count - 1 for line, count in counts.items() if count > 1})
+
+
 def _score_non_redundancy(code_lines: list[str], scored: bool) -> QualityScore:
     """Approximate non-redundancy from the ratio of unique to compared lines.
 
@@ -2195,7 +2449,7 @@ def _score_non_redundancy(code_lines: list[str], scored: bool) -> QualityScore:
     """
     confidence = 0.5 if scored else 0.0
     stripped = [line.strip() for line in code_lines if line.strip()]
-    compared = [line for line in stripped if not _is_syntax_only_line(line)]
+    compared = _compared_lines(code_lines)
     if not compared:
         return QualityScore(
             value=10.0, confidence=confidence, reasons=["No lines left to compare, no duplication"]
@@ -2284,18 +2538,13 @@ def assess_content(
     resolve_go_module = go_module_resolver or (lambda: _go_module_path(file_path))
 
     language = detect_language(file_path)
-    comment_prefixes = _LINE_COMMENT_PREFIXES.get(language, ()) if language else ()
 
     category = classify_file_category(file_path, content)
     if category == "generated":
         return _unscored_generated_assessment(file_path)
 
     lines = content.split("\n")
-    code_lines = [
-        line
-        for line in lines
-        if line.strip() and not (comment_prefixes and line.strip().startswith(comment_prefixes))
-    ]
+    code_lines = _code_lines(content, language)
     loc = len(code_lines)
 
     return FileAssessment(
@@ -2828,6 +3077,7 @@ def main(argv: list[str] | None = None) -> int:
             changed_files,
         )
         _apply_parser_dependency_admissions(comparisons, config)
+        _apply_change_admissions(comparisons, config, comparison_base)
     except (RuntimeError, ValueError) as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1

@@ -1,7 +1,7 @@
 ---
 id: ADR-125
 status: accepted
-date: 2026-11-21
+date: 2026-11-24
 decision-makers:
   - rjmurillo
 supersedes: []
@@ -74,3 +74,83 @@ Existing markers remain attestations of their original review.
 The ordinary marker reader accepts eligible clean merges above those markers.
 Revisit this policy if unrelated main changes repeatedly force new approvals.
 Removing the verifier and review procedure reverses this decision.
+
+## Amendment 2026-11-24
+
+### Why
+
+Issue #7525 reports that the approval loop costs more than it protects.
+Tracking issue #7528 needed three re-pins for one consolidation branch.
+The Consequences section asked for a revisit in this case.
+
+The frontmatter consolidation branch was assessed at `0a101a596` against `a217e3a3d1` on 2026-11-24.
+It produced 74 regression rows.
+72 were coupling rows. 70 added an import of the shared `hook_utilities` parser.
+The other 2 added an import of a helper made in the same branch.
+One non-redundancy row came from a test file that lost 131 code lines.
+Its duplicated lines fell from 56 to 33, yet the ratio score fell 7.3 to 6.0.
+
+### Change
+
+This amendment changes Decision 1 for exit behavior only.
+Scores, raw regression rows, and the report stay as before.
+
+1. The assessor admits a non-redundancy drop when no line gained a copy.
+   Each line's repeat count at head must not exceed its count at base.
+   This admission is on for every consumer and language.
+2. The assessor admits a Python coupling drop when third-party import roots did not grow.
+   This admission is off unless the config sets `firstPartyCouplingAdmission`.
+3. A root is first-party only when the index tracks `<root>.py` or `<root>/__init__.py`.
+   The search covers the file's folder, its parents in the workspace, and each `importRoots` entry.
+   A root the scanner's interpreter loads from site-packages is always third-party.
+   A same-named folder cannot hide a dependency the scanner has installed.
+   A dependency missing from the scanner's environment can be shadowed by a tracked package in the diff.
+4. Each admitted row appears under `change_admissions` in the comparison.
+5. The review adapter reports an admitted row as WARN.
+6. A run with only admitted rows exits 0, so no owner comment applies.
+7. Other regressions still exit 10 and still need this ADR's approval path.
+   These include new third-party roots, new duplicate copies, and other qualities.
+
+The repository config sets `importRoots` to `src/claude/lib`.
+On the consolidation branch, 69 of 74 rows are admitted.
+Four remaining rows add a direct `yaml` import.
+One remaining row is a cohesion drop of 0.9 from file growth.
+That branch still needs one owner approval, or code changes, for those rows.
+
+### Relation to ADR-122
+
+ADR-122 rejected a generic exception framework with no present need.
+Issue #7525 is that need: three approval rounds on #7512 and three re-pins on #7528.
+ADR-122 records name one file and one score transition, authorized by a person.
+These admissions are rules instead; they hold for any file whose change meets them.
+The adapter checks each record's own numbers against its rule.
+For non-redundancy it sees only totals; the assessor enforces the per-line rule.
+
+### Alternatives
+
+| Alternative | Consequence |
+| --- | --- |
+| List shared packages in config | Three rows stay: two import a branch-local helper, one adds `yaml`. |
+| Raise the regression tolerance | Rejected above; unrelated drops would pass. |
+| Count distinct modules, not statements | Clears 1 of 72 coupling rows and changes every score. |
+| Stop gating coupling | Loses the signal for a new third-party dependency. |
+| Drop first-party imports from the score | Conflicts with first-party Go scoring from PR #7051 (issue #7047). |
+| Bind approval to rows, not commits | Keeps an owner comment per branch; tracked in issue #7525. |
+
+### Consequences
+
+A shared-helper extraction no longer needs an owner comment.
+A file that adds many new first-party imports passes as WARN.
+Reviewers see that WARN in the report, but nothing blocks it.
+More imports from a third-party root the file already uses also pass as WARN.
+A namespace root such as `google` counts once, so a new subpackage under it passes.
+A Python file swapping one third-party package for another still blocks.
+Coupling admissions cover Python only; other languages keep the old behavior.
+Consumers keep the old coupling behavior until they opt in.
+The non-redundancy admission applies to every consumer with no opt-out.
+Ordinary runs read the branch's own config, so an `importRoots` edit needs review.
+The approval verifier reads the config from the integration commit instead.
+Base imports resolve against the head tree, so a renamed file can misjudge a base import.
+Removing `firstPartyCouplingAdmission` reverses the coupling rule.
+Reversing the non-redundancy rule takes a code change.
+Revisit these rules if an admitted row hides a dependency a reviewer later rejects.

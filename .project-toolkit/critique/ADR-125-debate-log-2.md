@@ -1,0 +1,53 @@
+# ADR-125 debate log 2
+
+Prior debate log: [ADR-125 debate log](ADR-125-debate-log.md).
+Claims ledger: [ADR-125 claims ledger](ADR-125-claims-ledger.md), section "Amendment 2026-11-24 claims".
+Scope: the section "Amendment 2026-11-24" and its code in issue #7525.
+The panel is the full six seats, because the change alters validator exit behavior.
+
+## Round 1
+
+Votes: architect, critic, independent-thinker, analyst, and high-level-advisor voted Disagree-and-Commit.
+Security voted Block.
+
+| Seat | Priority | Finding | Resolution |
+| --- | --- | --- | --- |
+| Security | P0 | A branch could add a folder named like a third-party package, so `import yaml` read as first-party. | A root the scanner loads from site-packages is always third-party. First-party also needs a tracked `.py` file. A decoy test covers three shapes. |
+| Security, architect, advisor, critic | P2 | Any folder counted as a package, so `import build` read as first-party. | A match needs a tracked `<root>.py` or `<root>/__init__.py`. Tested. |
+| Independent-thinker | P2 | The check read the working tree, so untracked folders changed verdicts. | Matches come from `git ls-files`. An untracked module test covers it. |
+| Independent-thinker, critic | P2 | Net duplicate counts let a new duplicate replace a removed one. | Each line's repeat count must not grow. A swap test covers it. |
+| Architect, advisor | P1 | The non-redundancy admission is on for all consumers, and the ADR did not say so. | Change item 1 and Consequences now say so, and say how to reverse it. |
+| Architect | P1 | The amendment did not relate itself to ADR-122's rejection of a generic exception framework. | New section "Relation to ADR-122". |
+| Critic, independent-thinker | P1 | Unbounded first-party growth passes as WARN; same-root third-party growth too. | Kept as an accepted trade, now stated in Consequences, including namespace roots. A cap was rejected: it reintroduces a tolerance band. |
+| Independent-thinker | P1 | A shipped file can import an upstream-only first-party module and pass. | Deferred: plugin self-containment gates own that defect, not this score. Recorded here. |
+| Critic | P1 | No test proved Python-only coverage. | A TypeScript test now exits 10. The `ast` parse also rejects TypeScript, so the explicit language guard is not separately discriminated. |
+| Analyst | P1 | The Alternatives row said every residual row imported a branch helper; one adds `yaml`. | Row corrected. |
+| Analyst | P1 | The #7047 citation pointed at the wrong change. | Now cites PR #7051, which added the quoted text while fixing #7047. Ledger row shows `git log -S`. |
+| Advisor, architect | P2 | The consolidation branch still needs one owner approval. | Stated in the Change section. Row-bound approval is listed as an alternative, tracked in #7525. |
+| Architect, advisor | P2 | No reversibility statement or revisit trigger. | Added to Consequences. |
+| Critic | P2 | A test was missing for one admitted file beside one unadmitted file. | Added; exit 10 and adapter FAIL. |
+| Critic | P2 | The ledger mixed code lines with compared lines. | Ledger row now gives both measures. |
+| Independent-thinker | P2 | Base imports resolve against the head tree. | Stated in Consequences as a known limit. |
+
+Round 1 did not reach consensus because of the security Block.
+
+## Round 2
+
+The round 1 fixes landed in the code and the amendment text.
+Votes: architect, critic, security, analyst, and high-level-advisor voted Accept.
+Independent-thinker voted Disagree-and-Commit.
+
+| Seat | Priority | Finding | Resolution |
+| --- | --- | --- | --- |
+| Architect | P2 | Item 3 overclaimed: an uninstalled dependency can be shadowed by a tracked package. | Item 3 now limits the claim to installed packages and names the residual case. |
+| Critic, security | P2 | The adapter checks duplicate totals, not the per-line rule. | The ADR now says the assessor enforces the per-line rule. |
+| Security | P2 | A committed `<name>/__init__.py` can shadow an uninstalled package. | Accepted risk; the decoy is a tracked Python package in the reviewed diff. |
+| Advisor | P2 | A namespace package without `__init__.py` reads as third-party. | Accepted; it fails toward blocking. |
+| Advisor | P2 | Results depend on the scanner's installed packages. | Accepted; the approval verifier uses its pinned environment. |
+| Analyst | P2 | The 131-line and +36-line counts were not independently re-run by the seat. | Both rest on the author's AST and line-count replay in the ledger. |
+
+Dissent (independent-thinker): a shipped lib file that adds `import scripts.x` is admitted here.
+Of the three portability gates the seat searched, none parses import statements.
+That gap has no owner gate today; it is recorded for the user's decision, not fixed here.
+
+Consensus reached in round 2. The ADR status stays `accepted`; this debate covers only the amendment.

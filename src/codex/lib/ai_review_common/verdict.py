@@ -336,6 +336,73 @@ def _is_admitted_parser_transition(comparison: dict[str, object], field: str) ->
     return False
 
 
+# Issue #7525: drops the scanner admits because the change added no
+# third-party import root (coupling) or no duplicated line (non_redundancy).
+_CHANGE_ADMISSION_ISSUE = 7525
+_CHANGE_ADMISSION_RULES = {
+    "coupling": "no_new_third_party_import",
+    "non_redundancy": "no_new_duplicate_lines",
+}
+
+
+def _is_count(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+def _is_name_list(value: object) -> bool:
+    return isinstance(value, list) and all(isinstance(name, str) and name for name in value)
+
+
+def _is_valid_change_record(quality: str, record: object) -> bool:
+    """Return True when *record* proves its rule held for *quality*."""
+    if not isinstance(record, dict):
+        return False
+    if (record.get("issue"), record.get("rule")) != (
+        _CHANGE_ADMISSION_ISSUE,
+        _CHANGE_ADMISSION_RULES.get(quality),
+    ):
+        return False
+    if quality == "coupling":
+        base, head = record.get("baseThirdParty"), record.get("headThirdParty")
+        if not (isinstance(base, list) and isinstance(head, list)):
+            return False
+        return _is_name_list(base) and _is_name_list(head) and set(head) <= set(base)
+    base, head = record.get("baseDuplicateLines"), record.get("headDuplicateLines")
+    if not (isinstance(base, int) and isinstance(head, int)):
+        return False
+    return _is_count(base) and _is_count(head) and head <= base
+
+
+def _change_admission_verdict(comparison: dict[str, object]) -> str:
+    """Return PASS, WARN, FAIL, or UNKNOWN for one comparison without a parser record.
+
+    Evidence loss and any regression without a valid admission fail. A record
+    for a quality that did not regress, or one whose own numbers break its
+    rule, is a payload this adapter cannot vouch for.
+    """
+    regressions = comparison.get("regressions") or []
+    admissions = comparison.get("change_admissions")
+    if not isinstance(regressions, list):
+        return "UNKNOWN"
+    if admissions is not None:
+        if (
+            not isinstance(admissions, dict)
+            or not admissions
+            or not set(admissions) <= set(regressions)
+            or comparison.get("is_new_file") is not False
+            or comparison.get("absolute_gate_reason") is not None
+            or not all(_is_valid_change_record(q, r) for q, r in admissions.items())
+        ):
+            return "UNKNOWN"
+    if comparison.get("evidence_loss"):
+        return "FAIL"
+    if not regressions:
+        return "PASS"
+    if admissions is None or set(regressions) - set(admissions):
+        return "FAIL"
+    return "WARN"
+
+
 def _has_assessed_files(files: list[object], summary: dict[str, object]) -> bool:
     """Return True when the assessment actually evaluated at least one file.
 
@@ -519,13 +586,20 @@ def adapt_local_axis_verdict(
                 for field in _PARSER_DEPENDENCY_ADMISSIONS
                 if comparison.get(field) is not None
             ]
-            if not admitted:
-                if comparison.get("regressions") or comparison.get("evidence_loss"):
-                    return "FAIL"
+            if admitted:
+                if comparison.get("change_admissions") is not None:
+                    return "UNKNOWN"
+                if len(admitted) != 1 or not _is_admitted_parser_transition(
+                    comparison, admitted[0]
+                ):
+                    return "UNKNOWN"
+                verdicts.append("WARN")
                 continue
-            if len(admitted) != 1 or not _is_admitted_parser_transition(comparison, admitted[0]):
-                return "UNKNOWN"
-            verdicts.append("WARN")
+            verdict = _change_admission_verdict(comparison)
+            if verdict != "PASS":
+                if verdict != "WARN":
+                    return verdict
+                verdicts.append(verdict)
         return merge_verdicts(verdicts)
 
     if axis == "doc-accuracy":
