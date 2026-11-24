@@ -291,7 +291,7 @@ five hooks retired here is a security control by property. All five are
 cost or correctness guards (session-model spend, cross-worktree data
 integrity, memory bookkeeping), not authentication, injection, or
 secret-handling controls, which is what the carve-out's operative sentence
-protects. `.claude/rules/tool-use-hook-bar.md` already states of
+protects. The former `tool-use-hook-bar` rule (now at `src/claude/skills/skillforge/references/rule-tool-use-hook-bar.md`) already states of
 `require_subagent_model`: "it is not a security boundary; its own docstring
 says so." The two Serena guards could plausibly be read as security-adjacent
 (Serena memories are agent-steering instructions, so a misplaced write puts
@@ -446,7 +446,7 @@ as of this ADR (see
 for the exact file list and verification steps). Remaining work: dispose of
 the ~32 tests this change reddens (categorized in that handoff), update the
 dependent components above, run `uv run python scripts/validation/pre_pr.py`,
-commit atomically (5 files or fewer per commit, per `.claude/rules/universal.md`
+commit atomically (5 files or fewer per commit, per the former `universal` rule
 rule 6), push, and confirm the draft PR.
 
 ## Related Decisions

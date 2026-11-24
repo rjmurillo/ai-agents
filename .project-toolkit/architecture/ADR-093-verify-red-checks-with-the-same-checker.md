@@ -48,7 +48,7 @@ nothing.
 
 ## Decision
 
-Add one MUST to `.claude/rules/universal.md`, which is always-on:
+Add one MUST to the former `universal` rule, which was always-on (the MUST now lives in the `AGENTS.md` red remote check line):
 
 > **Verify a red remote check with equivalent evidence, or report it
 > unreproduced.** MUST NOT claim a red remote check is cleared by a local run

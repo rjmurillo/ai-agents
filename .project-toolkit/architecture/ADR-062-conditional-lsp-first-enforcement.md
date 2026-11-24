@@ -292,7 +292,7 @@ Register in `.claude/settings.json` and plugin `.claude/hooks/hooks.json`;
 generate `src/copilot-cli/hooks/hooks.json` via `build/scripts/generate_hooks.py`
 (Copilot uses `permissionDecision`, Claude uses exit-2; the generator owns the
 translation and preserves the ADR-061 shim crash policy). One canonical rule
-`.claude/rules/lsp-first.md` mirrored to `.github/instructions/` and
+the former `lsp-first` rule (now at `src/claude/skills/using-serena-symbols/references/rule-lsp-first.md`) mirrored to `.github/instructions/` and
 `src/copilot-cli/instructions/` by `build/scripts/generate_rules.py`; passes
 `build/scripts/validate_install_parity.py`.
 

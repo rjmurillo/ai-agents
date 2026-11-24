@@ -97,11 +97,11 @@ Each current gate substitutes a proxy for equivalence, because no predicate is d
   drift as advisory unless `--fail-on-install-drift`, and runs that flag only in the weekly
   `.github/workflows/drift-detection.yml`. The hardcoded score is recorded as
   `match zero sections and return a hardcoded 100.0` (`docs-say`,
-  `.claude/rules/claude-agents.md:89`, `:125-127`).
+  `src/claude/skills/skillforge/references/rule-claude-agents.md:84`, `:120-122`).
 - A lexical floor cannot see a contradiction. Sixty appended identical lines move the score by
   zero, and the rule states the surviving claim as
   `contradiction that reuses the surrounding vocabulary scores high and passes`
-  (`docs-say`, `.claude/rules/claude-agents.md:109-123`).
+  (`docs-say`, `src/claude/skills/skillforge/references/rule-claude-agents.md:104-118`).
 
 So the honest scope of the claim is: **the contract is missing for the hand-maintained agent
 trees**, three of the five agent surfaces. It is not missing for the generated classes, which
