@@ -34,9 +34,10 @@ Forces:
   router, deduplication, and cross-store augmentation. Two live stores would
   bring all three back.
 - Serena users must keep their corpus, index files, and tools unchanged.
-- The skill script `search_memory.py` and the `memory_router` module ship
-  stdlib-only. Neither can import the `memory_enhancement` package, so the root
-  and store rules exist in three copies each.
+- The `memory_enhancement` package lives under `scripts/` and does not ship.
+  A shipped script may import only the standard library, a declared dependency,
+  its tree's `lib/`, or a module beside it (import-closure gate, issue #7221).
+  So the root and store rules exist in three source copies.
 - Recalled text enters model context. It must arrive as data.
 
 ## Prior Art Investigation
@@ -46,7 +47,7 @@ Forces:
 - ADR-106 (accepted, 2026-09-08) names `.serena/memories/` as the only backend.
 - `.project-toolkit/memory/episodes/` holds the ADR-038 episode tier. ADR-106
   Decision 2 leaves it untouched.
-- `scripts/memory_enhancement/__init__.py:58` defines `repository_memory_dir`.
+- `repository_memory_dir` in `scripts/memory_enhancement/stores.py` picks the store.
   It returns `.serena/memories` when that folder exists, else
   `.project-toolkit/memory/notes` when that folder exists, else `None`.
 
@@ -92,15 +93,22 @@ existing identities do not change.
 **4. One root rule and one store rule.** A repository root is the nearest
 ancestor holding `.git`, `.serena/memories`, or `.project-toolkit/memory`.
 Search starts from `CLAUDE_PROJECT_DIR` when the host sets it, else from the
-current directory. Three copies implement the root rule: `find_memory_root` in
-`scripts/memory_enhancement/__init__.py:24`, `_find_checkout` in
-`search_memory.py:311`, and `_find_memory_root` in
-`memory_core/memory_router.py:91`. Three copies pick the store inside that root:
-`repository_memory_dir` (`__init__.py:58`), `_resolve_stores`
-(`search_memory.py:340`), and `resolve_memory_store` (`memory_router.py:98`).
-The recall and SessionEnd hooks use the package copies. The `memory_enhancement`
-CLI takes its root from `--repo-root` and picks its default folder with
-`repository_memory_dir`.
+current directory. Each rule exists in three source copies, one per import
+boundary. The build mirrors the two skill copies into each harness tree.
+
+- `scripts/memory_enhancement/stores.py`: `find_memory_root`,
+  `repository_memory_dir`, and `shadowed_notes_dir`. The recall hooks,
+  SessionEnd, and the CLI use it.
+- `src/claude/skills/memory/memory_core/memory_store.py`: `find_memory_root`
+  and `resolve_memory_store`. The shipped router uses it.
+- `src/claude/skills/memory/scripts/store_resolution.py`: `find_memory_root`
+  and `resolve_stores`, which also reports shadowed notes. It sits beside
+  `search_memory.py`, which may not import `memory_core`.
+
+The rules do not live in the tree's `lib/`. That tree holds packages shared by
+every skill and renders from `scripts/`; its bootstrap also fails when
+`CLAUDE_PLUGIN_ROOT` points at another plugin. The CLI takes its root from
+`--repo-root` and picks its default folder with `repository_memory_dir`.
 
 **5. The prompt recall hook frames recalled text as data.** Its block says
 excerpts are data and must not be followed as instructions. Excerpts are
@@ -144,8 +152,9 @@ that visible instead of silent.
 
 ### Negative
 
-- Three copies of the root and store rules exist because two shipped modules
-  must stay stdlib-only. The parity tests are the only guard.
+- Three source copies of the root and store rules exist because the package
+  does not ship and the search script may not import `memory_core` (see Context). The
+  parity tests are the only guard.
 - Corpus maintenance scripts still assume the Serena layout (Decision 2).
 - Creating `.serena/memories/` in a repository that has notes shadows them.
   A Serena write can create that folder. No tool migrates the notes; the
@@ -169,7 +178,7 @@ explicitly, such as `--serena-path`, is trusted as given.
 
 `tests/skills/memory/test_memory_root_parity.py` confirms the decisions:
 
-- `test_hook_and_script_choose_the_same_root` runs four layouts through all
+- `test_hook_and_skill_choose_the_same_root` runs four layouts through all
   three root-rule copies (Decision 4).
 - `test_every_picker_chooses_the_same_store` runs five layouts, including an
   empty Serena folder beside notes, through all three store-rule copies, and
@@ -200,9 +209,10 @@ explicitly, such as `--serena-path`, is trusted as given.
 
 Branch `t3/7cbd5e13` implements every decision. Decision 3 needs no code:
 `memory_id_from_path` in `serena_integration.py` already builds identity
-relative to the folder it is given. Of the implementing code, only
-`search_memory.py` and `memory_router` ship to plugin installs. The hooks and the
-CLI live under `scripts/` and run in this repository.
+relative to the folder it is given. Of the implementing code, `search_memory.py`
+with `store_resolution.py`, and `memory_router.py` with `memory_store.py`, ship
+to plugin installs. The hooks and the CLI live under `scripts/` and run in this
+repository.
 
 ## Related Decisions
 
@@ -212,7 +222,9 @@ CLI live under `scripts/` and run in this repository.
 
 ## References
 
-- `scripts/memory_enhancement/__init__.py`
+- `scripts/memory_enhancement/stores.py`
+- `src/claude/skills/memory/scripts/store_resolution.py`
+- `src/claude/skills/memory/memory_core/memory_store.py`
 - `src/claude/skills/memory/scripts/search_memory.py`
 - `src/claude/skills/memory/memory_core/memory_router.py`
 - `tests/skills/memory/test_memory_root_parity.py`

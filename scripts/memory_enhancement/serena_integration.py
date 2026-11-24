@@ -165,17 +165,13 @@ def load_memory(file_path: Path, memories_dir: Path | None = None) -> MemoryWith
         return None
     if memories_dir is not None and file_path.is_symlink():
         corpus = memories_dir.resolve()
-        scope = next(
-            (
-                parent
-                for parent in (corpus, *corpus.parents)
-                if (parent / ".git").exists()
-                or (parent / ".serena/memories").resolve() == corpus
-                or (parent / ".project-toolkit/memory/notes").resolve() == corpus
-            ),
-            corpus,
-        )
-        if not file_path.resolve().is_relative_to(scope):
+        stores = (".serena/memories", ".project-toolkit/memory/notes")
+        scopes = [
+            p
+            for p in (corpus, *corpus.parents)
+            if (p / ".git").exists() or corpus in {(p / s).resolve() for s in stores}
+        ]
+        if not file_path.resolve().is_relative_to(scopes[0] if scopes else corpus):
             return None
 
     try:

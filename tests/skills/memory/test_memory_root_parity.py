@@ -1,9 +1,9 @@
 """One root rule and one store rule for every memory entry point (ADR-126).
 
-The memory skill ships stdlib-only and cannot import the memory_enhancement
-package, so its memory_core.memory_store keeps a copy of both rules. These
-tests hold the two copies, the hooks, the CLI, and the recall formatter
-together.
+The memory_enhancement package does not ship, so the memory skill keeps two
+more copies of both rules: memory_core.memory_store for the router and
+store_resolution beside search_memory.py. These tests hold the three copies,
+the hooks, the CLI, and the recall formatter together.
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ from __future__ import annotations
 import io
 import json
 import sys
+from argparse import Namespace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -33,8 +34,7 @@ sys.path.insert(0, str(SKILL_DIR))
 from memory_core import memory_router, memory_store
 
 from memory_enhancement.hooks.session_end_memory import main as session_end_main
-from memory_enhancement.hooks.session_end_memory import shadowed_notes_dir
-from memory_enhancement.stores import repository_memory_dir
+from memory_enhancement.stores import repository_memory_dir, shadowed_notes_dir
 
 NOTES = Path(".project-toolkit", "memory", "notes")
 SERENA = Path(".serena", "memories")
@@ -207,13 +207,13 @@ def test_hook_recalls_notes_in_a_repo_without_git(
 
 def test_cli_defaults_to_notes_when_no_serena_corpus(tmp_path: Path) -> None:
     (tmp_path / NOTES).mkdir(parents=True)
-    args = SimpleNamespace(repo_root=str(tmp_path), memories_dir=None)
+    args = Namespace(repo_root=str(tmp_path), memories_dir=None)
 
     assert _resolve_memories_dir(args) == (tmp_path / NOTES).resolve()
 
 
 def test_cli_defaults_to_notes_when_no_store_exists(tmp_path: Path) -> None:
-    args = SimpleNamespace(repo_root=str(tmp_path), memories_dir=None)
+    args = Namespace(repo_root=str(tmp_path), memories_dir=None)
 
     assert _resolve_memories_dir(args) == tmp_path.resolve() / NOTES
 
@@ -221,7 +221,7 @@ def test_cli_defaults_to_notes_when_no_store_exists(tmp_path: Path) -> None:
 def test_cli_prefers_serena_corpus_when_present(tmp_path: Path) -> None:
     (tmp_path / NOTES).mkdir(parents=True)
     (tmp_path / SERENA).mkdir(parents=True)
-    args = SimpleNamespace(repo_root=str(tmp_path), memories_dir=None)
+    args = Namespace(repo_root=str(tmp_path), memories_dir=None)
 
     assert _resolve_memories_dir(args) == (tmp_path / SERENA).resolve()
 
@@ -245,10 +245,9 @@ def test_grep_store_failure_is_reported_on_stderr(
 ) -> None:
     from memory_enhancement import search
 
-    monkeypatch.setattr(search.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("memory_enhancement.search.shutil.which", lambda name: f"/usr/bin/{name}")
     monkeypatch.setattr(
-        search.subprocess,
-        "run",
+        "memory_enhancement.search.subprocess.run",
         lambda *a, **k: SimpleNamespace(
             returncode=returncode, stdout="", stderr="grep: notes: Permission denied\nmore"
         ),

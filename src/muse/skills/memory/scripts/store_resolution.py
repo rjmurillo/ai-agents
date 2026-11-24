@@ -2,8 +2,9 @@
 
 Each repository has one memory store: `.serena/memories` when that folder
 exists, else `.project-toolkit/memory/notes`. This module sits beside
-search_memory.py because a shipped script may import only the standard library
-or a module beside it (import-closure gate, issue #7221). The router keeps its
+search_memory.py because a shipped script may import only the standard library,
+a declared dependency, its tree's lib/, or a module beside it (import-closure
+gate, issue #7221), and `memory_core` is none of those. The router keeps its
 own copy in `memory_core/memory_store.py` and the `memory_enhancement` package
 keeps a third; the test_memory_root_parity tests hold all three together.
 """

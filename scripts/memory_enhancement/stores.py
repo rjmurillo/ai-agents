@@ -1,9 +1,10 @@
 """Repository memory store resolution (ADR-126).
 
 Each repository has one memory store: ``.serena/memories`` when that folder
-exists, else ``.project-toolkit/memory/notes``. The skill-side copy lives in the
-memory skill's ``memory_core/memory_store.py``, which ships stdlib-only; the
-test_memory_root_parity tests hold the two together.
+exists, else ``.project-toolkit/memory/notes``. This package does not ship, so
+the memory skill keeps two more copies: ``memory_core/memory_store.py`` for the
+router and ``scripts/store_resolution.py`` for the search script. The
+test_memory_root_parity tests hold all three together.
 """
 
 from __future__ import annotations

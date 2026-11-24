@@ -79,9 +79,7 @@ Atomicity penalties (reject if score < 80%):
 [What NOT to do, concrete]
 ```
 
-`<memory-root>` is the repository memory folder the `memory` skill resolves (ADR-126): `.serena/memories` when that folder exists, else the repository notes folder.
-
-Skill files live at `<memory-root>/{domain}/{domain}-{NNN}-{short-descriptor}.md` (kebab-case, lowercase, numbered within each domain). Example: `<memory-root>/pr-review/pr-review-001-reviewer-enumeration.md`. The domain index at `<memory-root>/skills-{domain}-index.md` links to these using the relative path `{domain}/{filename}`.
+Skill files live at `<memory-root>/{domain}/{domain}-{NNN}-{short-descriptor}.md` (kebab-case, lowercase, numbered within each domain). Example: `<memory-root>/pr-review/pr-review-001-reviewer-enumeration.md`. The domain index at `<memory-root>/skills-{domain}-index.md` links to these using the relative path `{domain}/{filename}`. `<memory-root>` is the repository memory folder (ADR-126): `.serena/memories` when present, else the repository notes folder.
 
 Note: the "pure lookup table" / no-title restriction in ADR-017 applies only to domain `*-index.md` files in `<memory-root>/`, not to individual skill files. Regular skill files retain their `# Title` header.
 
