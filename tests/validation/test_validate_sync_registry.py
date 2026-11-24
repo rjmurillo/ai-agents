@@ -246,6 +246,7 @@ def _run_cli(repo_root: Path) -> subprocess.CompletedProcess[str]:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
         check=False,
     )
 
