@@ -48,7 +48,7 @@ artifacts:
            pr-autofix, pr-babysit, pr-comment-responder, pr-review,
            push-pr, quality-grades, research, reviewer-findings, security-review, slo-designer, sol-loop,
            steering-matcher, style-enforcement, sync, takeover, taste-lints,
-           technical-writing, test, threat-modeling,
+           generator-pipeline, technical-writing, test, threat-modeling,
            validate-pr-description, validation-authority, windows-image-updater]
       knowledge:
         description: "Project Toolkit skills for memory, context, decisions, requirements, strategy, and documentation."
@@ -75,7 +75,6 @@ artifacts:
       planner: "plugin_guard returns dangerous for this skill (ADR-115 Decision 6)."
       security-scan: "plugin_guard returns dangerous for this skill (ADR-115 Decision 6)."
       stuck-detection: "plugin_guard returns dangerous for this skill (ADR-115 Decision 6)."
-      generator-pipeline: "Its only reference is excluded below to keep the delivery pack under its 400-file cap."
       memory-gate: "Refers to excluded skill(s): memory-search."
       memory-reflexion: "Refers to excluded skill(s): memory-maintenance and memory-search."
       review: "Refers to excluded skill(s): security-scan."
@@ -88,6 +87,7 @@ artifacts:
     excludedFiles:
       pr-comment-responder/references/rule-lossless-queue-reads.md: "Folded path rule; the delivery pack is at its 400-file cap."
       pipeline-validator/references/rule-ci-scripts.md: "Folded path rule; the delivery pack is at its 400-file cap."
+      generator-pipeline/references/rule-generated-artifacts.md: "Folded path rule; the delivery pack is at its 400-file cap."
       build/references/rule-code-quality.md: "Folded path rule; the delivery pack is at its 400-file cap."
       build/references/rule-powershell.md: "Folded path rule; the delivery pack is at its 400-file cap."
       build/references/rule-csharp.md: "Folded path rule; the delivery pack is at its 400-file cap."
