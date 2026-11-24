@@ -8,7 +8,7 @@
 #                                   dropCommitsOfStoredPrs, lines 73-130 and 160-207)
 # Not ported: unquoteGitPath, because the port reads no per-commit file lists.
 # Sibling ports: adr_shape.py, adr_reason.py, adr_commits.py, adr_docs.py, adr_locate.py,
-# adr_render.py, adr_scan.py, bootstrap_adr.py.
+# adr_scan.py, bootstrap_adr.py.
 # MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align
 """Commit records, text helpers, pull request selection, and commit links.
 

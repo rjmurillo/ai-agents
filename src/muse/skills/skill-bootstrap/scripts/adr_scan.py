@@ -7,7 +7,7 @@
 #   src/lib/git.ts                     (replaced here by the raw-object commit reader)
 # Extensions E1 (decision-log candidates) and E3 (breaking-change signal) have no upstream source.
 # Sibling ports: adr_shape.py, adr_reason.py, adr_commits.py, adr_docs.py, adr_locate.py,
-# adr_render.py, adr_scan.py, bootstrap_adr.py.
+# adr_scan.py, bootstrap_adr.py.
 # MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align
 """List the decisions in a repository that have no ADR yet. Read-only, no network.
 

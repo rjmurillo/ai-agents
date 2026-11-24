@@ -220,6 +220,16 @@ def test_scan_reports_log_over_limit_under_dropped(
 # ---------------------------------------------------------------------------
 
 
+def _record_reads(monkeypatch: pytest.MonkeyPatch, opened: list[str]) -> None:
+    real = adr_locate.read_bounded
+
+    def recording(path: Path) -> str | None:
+        opened.append(path.name)
+        return real(path)
+
+    monkeypatch.setattr(adr_locate, "read_bounded", recording)
+
+
 def _adr_repo(tmp_path: Path, count: int, size: int = 30) -> Path:
     repo = new_repo(tmp_path / "r")
     for n in range(1, count + 1):
@@ -273,10 +283,7 @@ def test_the_files_over_the_cap_are_listed_not_read(
     monkeypatch.setattr(adr_locate, "MAX_ADR_FILES", 2)
     repo = _adr_repo(tmp_path, 6)
     opened: list[str] = []
-    real = adr_locate.read_bounded
-    monkeypatch.setattr(
-        adr_locate, "read_bounded", lambda path: (opened.append(path.name), real(path))[1]
-    )
+    _record_reads(monkeypatch, opened)
     _read(repo)
     adr_reads = [name for name in opened if name.endswith(".md")]
     assert adr_reads == ["0001-decision-1.md", "0002-decision-2.md"]
@@ -287,10 +294,7 @@ def test_the_stream_reads_one_file_at_a_time(
 ) -> None:
     repo = _adr_repo(tmp_path, 4)
     opened: list[str] = []
-    real = adr_locate.read_bounded
-    monkeypatch.setattr(
-        adr_locate, "read_bounded", lambda path: (opened.append(path.name), real(path))[1]
-    )
+    _record_reads(monkeypatch, opened)
     stream = adr_locate.read_adr_texts(repo)
     next(stream)
     adr_reads = [name for name in opened if name.endswith(".md")]

@@ -7,7 +7,7 @@
 #   src/lib/adr-writer.ts                 (linkedFromAdrs, lines 100-120: ExistingAdrs)
 # Extension E1, log_candidates, has no upstream source.
 # Sibling ports: adr_shape.py, adr_reason.py, adr_commits.py, adr_docs.py, adr_locate.py,
-# adr_render.py, adr_scan.py, bootstrap_adr.py.
+# adr_scan.py, bootstrap_adr.py.
 # MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align
 """Rule sections of README, CONTRIBUTING and changelog, decision logs, and ADR suppression.
 

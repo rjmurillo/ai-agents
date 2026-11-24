@@ -15,7 +15,6 @@ MODULES = (
     "adr_commits",
     "adr_docs",
     "adr_locate",
-    "adr_render",
     "adr_scan",
     "bootstrap_adr",
 )

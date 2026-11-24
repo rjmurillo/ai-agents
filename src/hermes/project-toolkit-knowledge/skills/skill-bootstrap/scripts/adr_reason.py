@@ -5,7 +5,7 @@
 # Not ported: withReasons, which shapes align's search JSON and has no consumer here.
 # Extension E3, breaking_change, has no upstream source.
 # Sibling ports: adr_shape.py, adr_reason.py, adr_commits.py, adr_docs.py, adr_locate.py,
-# adr_render.py, adr_scan.py, bootstrap_adr.py.
+# adr_scan.py, bootstrap_adr.py.
 # MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align
 """The stated reason behind a decision, pulled out of its own text with no model.
 

@@ -14,7 +14,6 @@ from pathlib import Path
 import adr_commits
 import adr_docs
 import adr_locate
-import adr_render
 import adr_scan
 import adr_shape
 import bootstrap_adr
@@ -41,8 +40,8 @@ def _seconds(call: Callable[[], object]) -> float:
         ("pr reference marks", lambda: adr_shape.is_decision_commit("Adopt x" + "(#1" * (N // 3))),
         ("urls_in", lambda: adr_commits.urls_in("https://a" + "." * N + "b")),
         ("replace", lambda: adr_shape.is_decision_shaped_title("replace " * (N // 5))),
-        ("adr_title", lambda: adr_render.adr_title("commit", "x" + " " * N + "y")),
-        ("title with prefix", lambda: adr_render.adr_title("pr", "feat: a" + " " * N + "(#1")),
+        ("adr_title", lambda: adr_locate.adr_title("commit", "x" + " " * N + "y")),
+        ("title with prefix", lambda: adr_locate.adr_title("pr", "feat: a" + " " * N + "(#1")),
         (
             "file action line",
             lambda: adr_shape.has_stated_rationale("Adopt x for all", "added " + "." * N + " x"),
@@ -62,7 +61,7 @@ def test_the_decision_shaped_filter_still_reads_a_replace_with_title() -> None:
 
 
 def test_the_pr_reference_still_comes_off_a_title() -> None:
-    assert adr_render.adr_title("pr", "feat(api): Adopt gRPC   (#12)") == "Adopt gRPC"
+    assert adr_locate.adr_title("pr", "feat(api): Adopt gRPC   (#12)") == "Adopt gRPC"
     assert adr_shape.is_decision_commit("Adopt gRPC for every internal service (#42)")
     assert not adr_shape.is_decision_commit("Release 5.9.0 (#42)")
 
