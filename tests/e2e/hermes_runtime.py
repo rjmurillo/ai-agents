@@ -48,7 +48,7 @@ ReviewedFinding = tuple[str, str, int, str]
 # - python_os_environ: a reference example that drops CI variables from a child
 #   process environment.
 # The invisible_unicode entry for skillforge's ``_conformance_parse.py`` was
-# dropped after #7531 wrote that byte-order mark as an ``﻿`` escape.
+# dropped after #7531 wrote that byte-order mark as an ``\ufeff`` escape.
 _GH_ISSUE = "skills/github/scripts/issue/check_existing_pr_for_issue.py"
 FORCE_ALLOWED_FINDINGS: dict[str, frozenset[ReviewedFinding]] = {
     "project-toolkit-delivery": frozenset(

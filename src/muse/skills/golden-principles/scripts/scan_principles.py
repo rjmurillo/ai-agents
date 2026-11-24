@@ -27,7 +27,9 @@ _PLUGIN_ROOT = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_P
 if _PLUGIN_ROOT and not os.path.isfile(_LIB_DIR / "hook_utilities" / "scan_rules.py"):
     _LIB_DIR = Path(_PLUGIN_ROOT) / "lib"
 if not os.path.isdir(_LIB_DIR):
-    raise RuntimeError(f"Plugin lib not found at {_LIB_DIR}. Set CLAUDE_PLUGIN_ROOT.")
+    raise RuntimeError(
+        f"Plugin lib not found at {_LIB_DIR}. Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT."
+    )
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
