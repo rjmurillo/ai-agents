@@ -289,9 +289,10 @@ class GitError(Exception):
     """git is missing, failed, or timed out: exit 3."""
 
 
-# What ``git rev-parse --local-env-vars`` lists, plus GIT_NAMESPACE and the two discovery limits.
+# What ``git rev-parse --local-env-vars`` lists, plus GIT_NAMESPACE and the discovery ceiling.
 # Hard-coded so no extra git call is spent. Any of them in the parent environment would point the
 # child at another repository, or hide the work tree around a folder, whatever ``-C`` says.
+# GIT_DISCOVERY_ACROSS_FILESYSTEM is not here: ``git_env`` forces it on, never scrubs it.
 _LOCAL_GIT_ENV = frozenset(
     "GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_CEILING_DIRECTORIES GIT_COMMON_DIR GIT_CONFIG "
     "GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS GIT_DIR "

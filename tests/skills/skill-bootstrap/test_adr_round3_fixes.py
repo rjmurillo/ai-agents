@@ -38,6 +38,17 @@ def test_two_adjacent_urls_leave_no_placeholder_in_the_reason() -> None:
     assert adr_reason._URL_HOLE not in reason
 
 
+def test_a_link_whose_url_holds_parentheses_is_reduced_to_its_text() -> None:
+    body = (
+        "We picked Raft, see [Raft](https://en.wikipedia.org/wiki/Raft_(algorithm)). "
+        "It avoids split brain because leaders are elected."
+    )
+
+    reason = adr_reason.extract_reason("Adopt Raft", body)
+
+    assert reason == "It avoids split brain because leaders are elected."
+
+
 def test_an_unclosed_link_bracket_run_stays_fast() -> None:
     import time
 

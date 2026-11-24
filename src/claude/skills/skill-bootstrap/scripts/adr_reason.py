@@ -199,7 +199,9 @@ def commit_sha_of(source_url: str | None) -> str | None:
 
 
 def _strip_markup(text: str) -> str:
-    out = re.sub(r"!?\[([^\[\]]*)\]\([^()]*\)", r"\1", text)
+    # One level of balanced parentheses in the URL (``wiki/Raft_(algorithm)``). Each branch stops
+    # at the next parenthesis, so an unclosed ``[`` or ``(`` run stays linear.
+    out = re.sub(r"!?\[([^\[\]]*)\]\((?:[^()]|\([^()]*\))*\)", r"\1", text)
     out = _HTML_TAG.sub(" ", out)
     out = re.sub(r"https?://\S+", f" {_URL_HOLE} ", out)
     out = re.sub(r"(\*\*|__)(.+?)\1", r"\2", out)
