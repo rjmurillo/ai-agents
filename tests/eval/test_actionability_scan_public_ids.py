@@ -176,3 +176,63 @@ class TestSummaryAndCli:
         assert code == 0
         assert out.exists()
         assert "public-id 1" in capsys.readouterr().err
+
+
+class TestPublicIdRows:
+    """Review round 2, finding 10: rows kept only by the public-id rule are named."""
+
+    def test_a_row_whose_only_hex_is_a_public_id_is_listed(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """So a reviewer can look at what the prefix rule let through."""
+        rows = [_row(f"pr-review-job-{_HEX32}", "BOT1"), _row("plain", "PLAIN")]
+
+        result = scan.scan_secrets(rows)
+        scan.report_scan(result)
+
+        assert result.public_id_rows == ["BOT1"]
+        assert "public-id rows: BOT1" in capsys.readouterr().err
+
+    def test_a_row_with_a_public_id_and_a_git_sha_is_hex_reported_not_public(self) -> None:
+        """The sha already puts the row in the review list."""
+        result = scan.scan_secrets([_row(f"Syntactic id: {_HEX32} and {'c' * 40}", "BOTH")])
+
+        assert result.hex_reported == ["BOTH"]
+        assert result.public_id_rows == []
+
+    def test_a_blocked_row_is_not_listed(self) -> None:
+        """A row that blocks is reported as blocking only."""
+        result = scan.scan_secrets([_row(f"pr-review-job-{_HEX32} and {'b' * 33}", "BAD")])
+
+        assert set(result.blocking) == {"BAD"}
+        assert result.public_id_rows == []
+
+    def test_rows_are_listed_in_input_order(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Stable output."""
+        rows = [_row(f"pr-review-job-{_HEX32}", "B2"), _row(f"Syntactic id: {'e' * 32}", "A1")]
+
+        scan.report_scan(scan.scan_secrets(rows))
+
+        assert "public-id rows: B2, A1" in capsys.readouterr().err
+
+    def test_no_line_when_there_are_none(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Nothing to list, nothing printed."""
+        scan.report_scan(scan.scan_secrets([_row("plain")]))
+
+        assert "public-id rows" not in capsys.readouterr().err
+
+    def test_sample_prints_the_line_through_main(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Driven through the CLI, with the exit code asserted."""
+        marker = f'<!-- devin-review-comment {{"id": "BUG_pr-review-job-{_HEX32}"}} -->'
+        node = make_node("PRRC_BOT", f"Consider a helper {marker}")
+        prs = write_prs(tmp_path / "prs.json", [make_pr(1, make_thread(node))])
+        out = tmp_path / "corpus.jsonl"
+        argv = ["sample", "--prs", str(prs), "--output", str(out)]
+        argv += ["--band-count", "2", "--outside-count", "0", "--dev-count", "0"]
+
+        code = cc.main(argv)
+
+        assert code == 0
+        assert "public-id rows: PRRC_BOT" in capsys.readouterr().err

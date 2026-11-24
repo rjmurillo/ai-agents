@@ -59,6 +59,7 @@ from scripts.eval.actionability_labels import (  # noqa: E402
     DEFAULT_SEED,
     STATUS_AUTH_ERROR,
     STATUS_CALL_ERROR,
+    STATUS_INPUT_ERROR,
     STATUS_OK,
     STATUS_PARSE_ERROR,
 )
@@ -142,9 +143,14 @@ ARM_FUNCTIONS = {
 NON_OK_WARN_SHARE = 0.10
 
 
-def _auth_part(counts: dict[str, int]) -> str:
-    """Name auth_error rows in the score line only when there are any."""
-    return f", auth_error {counts[STATUS_AUTH_ERROR]}" if counts[STATUS_AUTH_ERROR] else ""
+def _rare_status_part(counts: dict[str, int]) -> str:
+    """Name auth_error and input_error rows in the score line only when there are any."""
+    parts = [
+        f", {status} {counts[status]}"
+        for status in (STATUS_AUTH_ERROR, STATUS_INPUT_ERROR)
+        if counts[status]
+    ]
+    return "".join(parts)
 
 
 def _warn_non_ok(counts: dict[str, int], band_n: int) -> None:
@@ -218,7 +224,7 @@ def cmd_score(args: argparse.Namespace) -> int:
         f"look {report['look']}{' (final)' if report['final'] else ''}, "
         f"kill criterion 2 {report['kill_criterion_2']}; "
         f"predictions ok {counts[STATUS_OK]}, parse_error {counts[STATUS_PARSE_ERROR]}, "
-        f"call_error {counts[STATUS_CALL_ERROR]}{_auth_part(counts)}, "
+        f"call_error {counts[STATUS_CALL_ERROR]}{_rare_status_part(counts)}, "
         f"missing {counts['missing']} of {band_n}; "
         f"unsure {labels['unsure_dropped']} ({labels['unsure_share']:.1%})"
     )

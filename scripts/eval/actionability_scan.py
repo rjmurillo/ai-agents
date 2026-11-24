@@ -29,7 +29,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from scripts.redact_secrets import redact_ci_sink
@@ -85,6 +85,7 @@ class ScanResult:
     rows_scanned: int
     hunks_scanned: int
     public_ids: int = 0
+    public_id_rows: list[str] = field(default_factory=list)
 
 
 def parse_allow_hex_rows(text: str) -> frozenset[str]:
@@ -149,17 +150,20 @@ def scan_secrets(
     """Scan every row. A null ``diff_hunk`` is skipped, as is any hunk when not requested."""
     blocking: dict[str, list[str]] = {}
     hex_reported: list[str] = []
+    public_id_rows: list[str] = []
     hunks = public_ids = 0
     for row in rows:
         texts = _row_texts(row, include_hunk)
         hunks += int(include_hunk and row.get("diff_hunk") is not None)
         reasons: set[str] = set()
         hex_lengths: list[int] = []
+        row_public = 0
         for text in texts:
             reasons |= _text_reasons(text)
             lengths, public = _hex_runs(text)
             hex_lengths += lengths
             public_ids += public
+            row_public += public
         odd_hex = any(length not in HEX_ALLOWED_LENGTHS for length in hex_lengths)
         if odd_hex and row["id"] not in allow_hex_rows:
             reasons.add(HEX_SECRET_REASON)
@@ -167,7 +171,9 @@ def scan_secrets(
             blocking[row["id"]] = sorted(reasons)
         elif hex_lengths:
             hex_reported.append(row["id"])
-    return ScanResult(blocking, hex_reported, len(rows), hunks, public_ids)
+        elif row_public:
+            public_id_rows.append(row["id"])
+    return ScanResult(blocking, hex_reported, len(rows), hunks, public_ids, public_id_rows)
 
 
 def report_scan(result: ScanResult) -> bool:
@@ -183,6 +189,8 @@ def report_scan(result: ScanResult) -> bool:
             f"review: hex-like strings in rows {', '.join(result.hex_reported)}",
             file=sys.stderr,
         )
+    if result.public_id_rows:
+        print(f"public-id rows: {', '.join(result.public_id_rows)}", file=sys.stderr)
     print(
         f"scanned {result.rows_scanned} rows (+{result.hunks_scanned} hunks): "
         f"blocking {len(result.blocking)}, hex-reported {len(result.hex_reported)}, "

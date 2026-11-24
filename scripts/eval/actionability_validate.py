@@ -83,6 +83,7 @@ PREDICTION_CHECKS = (
     ("is_actionable", is_bool_or_none, "a bool or null"),
     ("confidence", is_number_or_none, "a finite number or null"),
     ("latency_s", is_number_or_none, "a finite number or null"),
+    ("reason", is_str_or_none, "a string or null"),
     ("provider", is_str_or_none, "a string or null"),
     ("model", is_str_or_none, "a string or null"),
     ("prompt_sha256", is_str_or_none, "a string or null"),

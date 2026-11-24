@@ -26,7 +26,16 @@ STATUS_PARSE_ERROR = "parse_error"
 STATUS_CALL_ERROR = "call_error"
 # HTTP 401 or 403: the credential is wrong, so predict stops instead of failing every row.
 STATUS_AUTH_ERROR = "auth_error"
-STATUSES = (STATUS_OK, STATUS_PARSE_ERROR, STATUS_CALL_ERROR, STATUS_AUTH_ERROR)
+# A local ValueError while building the message: the row, not the transport, is at fault. It
+# never counts toward the consecutive call_error breaker.
+STATUS_INPUT_ERROR = "input_error"
+STATUSES = (
+    STATUS_OK,
+    STATUS_PARSE_ERROR,
+    STATUS_CALL_ERROR,
+    STATUS_AUTH_ERROR,
+    STATUS_INPUT_ERROR,
+)
 
 # Per-row diff hunk outcome. Null means the row has not been asked yet.
 HUNK_FETCHED = "fetched"

@@ -47,6 +47,7 @@ from scripts.eval.actionability_labels import (  # noqa: E402
     SPLIT_HELDOUT,
     STATUS_AUTH_ERROR,
     STATUS_CALL_ERROR,
+    STATUS_INPUT_ERROR,
     STATUS_OK,
     STATUS_PARSE_ERROR,
     STATUSES,
@@ -57,8 +58,10 @@ from scripts.eval.actionability_scan import (  # noqa: E402
     scan_secrets,
 )
 from scripts.eval.actionability_validate import (  # noqa: E402
+    PREDICTION_CHECKS,
     SENT_ROW_CHECKS,
     RecordError,
+    finite_number,
     validate_records,
 )
 from scripts.eval.actionability_verdict import parse_verdict  # noqa: E402
@@ -167,8 +170,12 @@ def _failure_outcome(status: str, exc: BaseException, latency: float) -> dict[st
 
 
 def _breaker_tripped(records: list[dict[str, Any]]) -> bool:
-    """True when the newest records are ``MAX_CONSECUTIVE_CALL_ERRORS`` call_error in a row."""
-    tail = records[-MAX_CONSECUTIVE_CALL_ERRORS:]
+    """True when the newest transport results are ``MAX_CONSECUTIVE_CALL_ERRORS`` call_error.
+
+    An ``input_error`` never touched the transport, so it neither counts toward the streak
+    nor breaks it.
+    """
+    tail = [r for r in records if r["status"] != STATUS_INPUT_ERROR][-MAX_CONSECUTIVE_CALL_ERRORS:]
     return len(tail) == MAX_CONSECUTIVE_CALL_ERRORS and all(
         r["status"] == STATUS_CALL_ERROR for r in tail
     )
@@ -179,7 +186,11 @@ def _predict_one(
 ) -> dict[str, Any]:
     start = clock()
     try:
-        text = complete(build_user_message(row))
+        message = build_user_message(row)
+    except ValueError as exc:
+        return _failure_outcome(STATUS_INPUT_ERROR, exc, round(clock() - start, 4))
+    try:
+        text = complete(message)
     except (RuntimeError, OSError, ValueError) as exc:
         auth = isinstance(exc, RuntimeError) and is_auth_failure(exc)
         status = STATUS_AUTH_ERROR if auth else STATUS_CALL_ERROR
@@ -282,14 +293,31 @@ def _read_prior_records(path: Path) -> list[dict[str, Any]]:
     return records
 
 
+def _check_carried(path: Path, index: int, record: dict[str, Any]) -> None:
+    """Raise OutputError unless an ok record holds a well-formed verdict.
+
+    Carrying a malformed record forward would put it into the score input unchecked.
+    """
+    try:
+        validate_records([record], PREDICTION_CHECKS, path.name, numbers=[index])
+    except RecordError as exc:
+        raise OutputError(str(exc)) from None
+    if not isinstance(record["is_actionable"], bool) or not finite_number(record["confidence"]):
+        raise OutputError(
+            f"{path.name} row {index}: an ok record needs a bool is_actionable and a "
+            "finite confidence"
+        )
+
+
 def _carried_ok(path: Path, run: dict[str, str]) -> list[dict[str, Any]]:
     """Return the ok records of an existing output, one per id, after checking provenance."""
     carried: list[dict[str, Any]] = []
     seen: set[str] = set()
-    for record in _read_prior_records(path):
-        record_id = record.get("id")
-        if record.get("status") != STATUS_OK or not isinstance(record_id, str):
+    for index, record in enumerate(_read_prior_records(path), start=1):
+        if record.get("status") != STATUS_OK:
             continue
+        _check_carried(path, index, record)
+        record_id = record["id"]
         differing = [f for f in PROVENANCE_FIELDS if record.get(f) != run[f]]
         if differing:
             raise OutputError(
@@ -349,6 +377,8 @@ def _summary_line(records: list[dict[str, Any]], selected: int, tripped: bool = 
     )
     if counts[STATUS_AUTH_ERROR]:
         line += f", auth_error {counts[STATUS_AUTH_ERROR]}"
+    if counts[STATUS_INPUT_ERROR]:
+        line += f", input_error {counts[STATUS_INPUT_ERROR]}"
     if tripped:
         line += f"; stopped after {MAX_CONSECUTIVE_CALL_ERRORS} consecutive call_error"
     return line
