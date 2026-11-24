@@ -17,6 +17,7 @@ row in or out of the band (premortem R1).
 
 Subcommands:
     predict  Call a model on the in-band rows of one split.
+    score    Score the arms on a labeled corpus and report the gap with a bootstrap CI.
 
 Usage:
     ANTHROPIC_API_KEY=... uv run python scripts/eval/actionability_arms.py predict \\
@@ -24,7 +25,7 @@ Usage:
 
 Exit codes (ADR-035):
     0 - Done
-    2 - Bad argument, missing credential, or unreadable input
+    2 - Bad argument, missing credential, unreadable input, or a corpus that cannot be scored
     3 - Model calls failed past --max-failure-rate (the output file is still written)
 """
 
@@ -49,7 +50,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.eval.actionability_corpus import load_jsonl, write_jsonl  # noqa: E402
+from scripts.eval.actionability_corpus import (  # noqa: E402
+    DEFAULT_SEED,
+    load_jsonl,
+    write_jsonl,
+)
+from scripts.eval.actionability_score import ScoreInputError, build_report  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -136,6 +142,18 @@ def arm_c(row: dict[str, Any], prediction: Prediction | None) -> bool:
     """Heuristic plus model fallback. Reads the stored score, never rescores."""
     verdict = _applied_verdict(row, prediction)
     return arm_a(row) if verdict is None else verdict
+
+
+def _arm_c_from_record(row: dict[str, Any], record: dict[str, Any] | None) -> bool:
+    return arm_c(row, None if record is None else Prediction.from_dict(record))
+
+
+# Each arm takes the corpus row and the raw prediction record (or None) for that row.
+ARM_FUNCTIONS = {
+    "A": lambda row, _record: arm_a(row),
+    "B": lambda row, _record: arm_b(row),
+    "C": _arm_c_from_record,
+}
 
 
 def _reject_constant(name: str) -> None:
@@ -354,6 +372,40 @@ def cmd_predict(args: argparse.Namespace) -> int:
     return _failure_exit(records, args.max_failure_rate)
 
 
+def cmd_score(args: argparse.Namespace) -> int:
+    """Score the arms on a labeled corpus and write the report JSON."""
+    if args.bootstrap < 1:
+        print("error: --bootstrap must be at least 1", file=sys.stderr)
+        return 2
+    rows = load_jsonl(args.corpus)
+    predictions = load_jsonl(args.predictions)
+    if rows is None or predictions is None:
+        return 2
+    try:
+        report = build_report(
+            rows, predictions, ARM_FUNCTIONS, seed=args.seed, iterations=args.bootstrap
+        )
+    except ScoreInputError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    missing = report["predictions"]["missing"]
+    if missing:
+        print(
+            f"warning: {missing} heldout band rows have no prediction; "
+            "arm C used the heuristic for them",
+            file=sys.stderr,
+        )
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    low, high = report["gap_ci"]
+    print(
+        f"verdict {report['verdict']}: gap {report['gap']:.4f} "
+        f"(95% CI {low:.4f} to {high:.4f}) over {report['heldout_band']['n']} heldout band rows, "
+        f"best baseline {report['best_baseline']}"
+    )
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
@@ -366,6 +418,14 @@ def _build_parser() -> argparse.ArgumentParser:
     predict.add_argument("--output", type=Path, required=True, help="Predictions JSONL to write")
     predict.add_argument("--max-failure-rate", type=float, default=0.5)
     predict.set_defaults(handler=cmd_predict)
+
+    score = sub.add_parser("score", help="Score the arms on a labeled corpus")
+    score.add_argument("--corpus", type=Path, required=True, help="Labeled corpus JSONL")
+    score.add_argument("--predictions", type=Path, required=True, help="predict output JSONL")
+    score.add_argument("--output", type=Path, required=True, help="Report JSON to write")
+    score.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    score.add_argument("--bootstrap", type=int, default=10000, help="Bootstrap iterations")
+    score.set_defaults(handler=cmd_score)
     return parser
 
 

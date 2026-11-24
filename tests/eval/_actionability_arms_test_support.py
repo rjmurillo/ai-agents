@@ -21,6 +21,7 @@ def _load_module() -> Any:
 
 
 aa = _load_module()
+sc = importlib.import_module("scripts.eval.actionability_score")
 
 
 def make_row(
