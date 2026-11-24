@@ -263,12 +263,16 @@ def test_a_git_timeout_exits_three(
 def test_a_write_failure_exits_two_with_an_io_error(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
-    def broken(args: Any) -> Any:
-        raise PermissionError("disk full")
+    repo = _decision_repo(tmp_path)
+    out = tmp_path / "scan.json"
 
-    monkeypatch.setitem(bootstrap_adr._HANDLERS, "locate", broken)
-    assert bootstrap_adr.main(["locate", "--repo", str(tmp_path)]) == 2
+    def refused(target: Path, data: bytes) -> None:
+        raise PermissionError(13, "Permission denied", str(target))
+
+    monkeypatch.setattr(bootstrap_adr, "create_new", refused)
+    assert bootstrap_adr.main(["scan", "--repo", str(repo), "--out", str(out)]) == 2
     assert json.loads(capsys.readouterr().out)["error"] == "io"
+    assert not out.exists()
 
 
 def _offline_env(home: Path) -> dict[str, str]:
