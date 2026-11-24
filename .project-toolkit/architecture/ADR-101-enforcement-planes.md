@@ -302,7 +302,7 @@ Before any gate below is treated as binding, **and the order of these items is l
 
 ### Application A: make debate execution verifiable, and narrow its trigger
 
-**Move enforcement to P1**, as a required context produced by a base-ref job per the rules above. The pre-commit hook stays as fast local feedback and stops being the only enforcement. Remove the `skip:` / `- merge` pair at `lefthook.yml:222-223` or document it in the former `universal` rule MUST NOT 2 alongside the other bypasses.
+**Move enforcement to P1**, as a required context produced by a base-ref job per the rules above. The pre-commit hook stays as fast local feedback and stops being the only enforcement. Remove the `skip:` / `- merge` pair at `lefthook.yml:222-223` or document it in `.claude/rules/universal.md` MUST NOT 2 alongside the other bypasses.
 
 **Require an attestation the author cannot mint**: the set of agent invocations, the model identifier each ran under, and a digest of the exact diff reviewed, emitted by the base-ref job. A debate log whose diff digest does not match the head being merged is stale and does not satisfy the gate.
 

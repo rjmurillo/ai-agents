@@ -97,11 +97,11 @@ Each current gate substitutes a proxy for equivalence, because no predicate is d
   drift as advisory unless `--fail-on-install-drift`, and runs that flag only in the weekly
   `.github/workflows/drift-detection.yml`. The hardcoded score is recorded as
   `match zero sections and return a hardcoded 100.0` (`docs-say`,
-  `src/claude/skills/skillforge/references/rule-claude-agents.md:84`, `:120-122`).
+  `.claude/rules/claude-agents.md:89`, `:125-127`).
 - A lexical floor cannot see a contradiction. Sixty appended identical lines move the score by
   zero, and the rule states the surviving claim as
   `contradiction that reuses the surrounding vocabulary scores high and passes`
-  (`docs-say`, `src/claude/skills/skillforge/references/rule-claude-agents.md:104-118`).
+  (`docs-say`, `.claude/rules/claude-agents.md:109-123`).
 
 So the honest scope of the claim is: **the contract is missing for the hand-maintained agent
 trees**, three of the five agent surfaces. It is not missing for the generated classes, which
@@ -508,7 +508,7 @@ Six classes. Five name a gate that exists. One is open work.
 | C3 invariant preservation | Asserts invariants 6 and 8 survive the transform | **Missing.** M2 |
 | C4 generated drift | `build/scripts/validate_install_parity.py`, `build/scripts/check_agent_content_parity.py`, `build/scripts/detect_agent_drift.py` | Exists; the third is advisory |
 | C5 capability-profile provenance | `scripts/eval/_harness_capability.py` fail-closed contract, plus the refresh rules in `.claude/skills/agent-harness-reference/SKILL.md` | Exists |
-| C6 negative controls | `.claude/rules/generated-artifacts.md` MUST 2, requiring a runtime-contract test with a negative control and a gate over the committed artifact | Exists as policy; per-class fixtures are M2 |
+| C6 negative controls | The former `generated-artifacts` rule (now at `src/claude/skills/generator-pipeline/references/rule-generated-artifacts.md`) MUST 2, requiring a runtime-contract test with a negative control and a gate over the committed artifact | Exists as policy; per-class fixtures are M2 |
 
 This record ships one artifact: `tests/validation/test_adr107_conformance_gates.py`. It parses the
 table above, asserts the class-id set is exactly C1 through C6, and asserts every row either cites

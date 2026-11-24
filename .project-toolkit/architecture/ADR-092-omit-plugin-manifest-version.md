@@ -82,7 +82,7 @@ Delete `version` from all three packaged plugin manifests and keep it deleted. F
 
 3. **The version half of the parity gate is retired.** `check_plugin_manifest_parity.py` keeps only the description-count check (#2187, #3651). With no version there is nothing to hold equal.
 
-4. **PRs never touch the field.** The former `plugin-version-bump` rule is rewritten from a rebump recipe into that rule, and the former `knowledge-persistence` rule (now at `src/claude/skills/memory-gate/references/rule-knowledge-persistence.md`) drops its MUST to bump the manifests.
+4. **PRs never touch the field.** `.claude/rules/plugin-version-bump.md` is rewritten from a rebump recipe into that rule, and `.claude/rules/knowledge-persistence.md` drops its MUST to bump the manifests.
 
 ### Why ADR-079's objection does not apply
 
@@ -206,7 +206,7 @@ Landed with this ADR:
 2. `validate_plugin_version_bump.py` inverted, with positive, negative, and edge tests driven through the CLI.
 3. Version parity retired from `check_plugin_manifest_parity.py`.
 4. Marketplace guard test added.
-5. The former `plugin-version-bump` rule and the former `knowledge-persistence` rule (now at `src/claude/skills/memory-gate/references/rule-knowledge-persistence.md`) rewritten and mirrors regenerated.
+5. `.claude/rules/plugin-version-bump.md` and `.claude/rules/knowledge-persistence.md` rewritten and mirrors regenerated.
 6. The gate extended to both `marketplace.json` files, and `validate-plugin-version-bump.yml` given those two paths so a marketplace-only change runs it.
 7. `scripts/dev/dogfood_copilot_plugin.py` re-keyed from the manifest version to a content fingerprint of the shipped tree.
 8. `resolve_pr_conflicts.py` taught the versionless-side resolution so the migration below is automatic.
