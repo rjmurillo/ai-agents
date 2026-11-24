@@ -93,7 +93,7 @@ Its duplicated lines fell from 56 to 33, yet the ratio score fell 7.3 to 6.0.
 
 ### Change
 
-This amendment changes Decision 1 in three ways: exit behavior, one optional config key, and one JSON field.
+This amendment changes Decision 1 in three ways: exit behavior, a new optional config key, and a new JSON field.
 Scores and raw regression rows stay as before.
 
 1. The assessor admits a non-redundancy drop when no line gained a copy.

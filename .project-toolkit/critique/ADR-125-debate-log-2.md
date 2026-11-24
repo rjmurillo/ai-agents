@@ -81,3 +81,4 @@ The edits below change no decision, so no new round was opened.
 - The scope sentence now lists the config key and the JSON field, not only exit behavior.
 - Alternatives now cover an opt-in non-redundancy admission and a ratio-score fix.
 - Consequences now give the reason for the opt-in asymmetry and name the upstream-only import gap.
+- The scope sentence now says "a new optional config key, and a new JSON field" so the doc-accuracy count rule reads it correctly.
