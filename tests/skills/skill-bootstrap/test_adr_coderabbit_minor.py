@@ -183,14 +183,14 @@ def test_work_trees_falls_back_when_git_has_no_z(
 ) -> None:
     repo = new_repo(tmp_path / "main")
     commit(repo, "Initial work")
-    real = adr_scan.git_text
+    real = adr_scan.git_bytes
 
-    def old_git(root: Path, *args: str, ok: tuple[int, ...] = (0,)) -> Any:
+    def old_git(root: Path, *args: str, stdin: bytes | None = None) -> Any:
         if "-z" in args:
-            return subprocess.CompletedProcess(args, 129, "", "error: unknown switch `z'")
-        return real(root, *args, ok=ok)
+            return subprocess.CompletedProcess(args, 129, b"", b"error: unknown switch `z'")
+        return real(root, *args, stdin=stdin)
 
-    monkeypatch.setattr(adr_write, "git_text", old_git)
+    monkeypatch.setattr(adr_write, "git_bytes", old_git)
 
     assert adr_write.work_trees(repo) == [repo]
 
