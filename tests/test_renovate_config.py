@@ -15,23 +15,14 @@ import pytest
 
 CONFIG_PATH = Path(__file__).resolve().parents[1] / "renovate.json"
 
-# Automerge is the default for every manager, with one deliberate exception:
-# a devcontainer feature or image bump must refresh devcontainer-lock.json in
-# the same commit. Renovate's devcontainer manager does not rewrite that lock
-# file, so an automerged bump would leave the committed digests stale and break
-# the documented `devcontainer up --frozen-lockfile` path. The exemption is
-# listed here so that widening it takes a deliberate edit, and
-# `test_devcontainer_updates_require_a_manual_merge` asserts it is still there.
-_AUTOMERGE_OFF_MANAGERS = {"devcontainer"}
+# Every Renovate update automerges. Richard directed this on 2026-11-23 (PR #7521):
+# CI is the gate, not a human approval on each bump. The devcontainer, workflow,
+# and CLI smoke exemptions that used to turn automerge off are gone.
 
-# The second deliberate exception is by path, not manager (#6506 review-gates-15):
-# a workflow file can hold secrets or write tokens, so a bump to it needs a human
-# approval. Scope stays on the two directories below because PR #6127 made automerge
-# universal and a wider glob would quietly remove other updates from that path.
+# Workflow files and the CLI smoke pins (#6506 review-gates-15, workflow-ci-01).
+# Renovate now automerges them. The Dependabot guard still skips its own merge
+# for these two directories, and its drift test reads the globs from here.
 _WORKFLOW_FILE_GLOB = ".github/workflows/**"
-# The CLI smoke pins moved out of the workflow into .github/cli-smoke/ (#6506
-# workflow-ci-01). Those CLIs run beside the smoke credentials, and before the
-# move a bump edited the workflow file, so the same approval applies to them.
 _CLI_SMOKE_FILE_GLOB = ".github/cli-smoke/**"
 _EXEMPT_FILE_GLOBS = [_WORKFLOW_FILE_GLOB, _CLI_SMOKE_FILE_GLOB]
 
@@ -75,64 +66,28 @@ def test_global_automerge_and_platform_automerge_enabled(config: dict[str, Any])
     assert config["platformAutomerge"] is True
 
 
-def test_automerge_stays_on_except_for_named_managers(config: dict[str, Any]) -> None:
-    """A rule may disable automerge only for a manager in _AUTOMERGE_OFF_MANAGERS.
+def test_no_package_rule_disables_automerge(config: dict[str, Any]) -> None:
+    """Automerge is on for every update, so no rule may turn it off (PR #7521).
 
-    Automerge is the repo default. A rule that turns it off for anything else
-    is almost certainly a mistake, so it fails here instead of quietly
-    removing every future update from the auto-merge path.
+    A rule with `automerge: false` would quietly pull every update it matches
+    off the automerge path. Turning one back on takes a deliberate edit here.
     """
-    for rule in config["packageRules"]:
-        if rule.get("automerge") is False:
-            if set(rule.get("matchFileNames", [])) and not rule.get("matchManagers"):
-                assert set(rule["matchFileNames"]) <= set(_EXEMPT_FILE_GLOBS), (
-                    f"rule {rule.get('description', rule)!r} disables automerge for "
-                    f"{rule['matchFileNames']}; add the glob to _EXEMPT_FILE_GLOBS "
-                    "if that is intended"
-                )
-                continue
-            managers = set(rule.get("matchManagers", []))
-            assert managers <= _AUTOMERGE_OFF_MANAGERS, (
-                f"rule {rule.get('description', rule)!r} disables automerge for "
-                f"{sorted(managers - _AUTOMERGE_OFF_MANAGERS)}; add the manager to "
-                "_AUTOMERGE_OFF_MANAGERS if that is intended"
-            )
-            assert managers, "an automerge:false rule must name the managers it covers"
+    disabled = [rule for rule in config["packageRules"] if rule.get("automerge") is False]
+    assert not disabled, f"rules that disable automerge: {disabled}"
 
 
-def test_devcontainer_updates_require_a_manual_merge(config: dict[str, Any]) -> None:
-    """The lock refresh must ship with the bump, so this exemption must exist.
+def test_devcontainer_updates_automerge(config: dict[str, Any]) -> None:
+    """The devcontainer manager rule automerges and stays last (PR #7521).
 
-    Without this rule a Renovate feature bump automerges on its own and leaves
-    devcontainer-lock.json holding digests for refs that are no longer used,
-    which breaks `devcontainer up --frozen-lockfile` for every contributor.
-
-    Renovate applies packageRules in order with later rules winning, so the
-    requirement only holds while no rule after the exemption turns automerge
-    back on. That is why this test pins position and not just presence: a later
-    rule carrying `automerge: true` reaches devcontainer too, whether it is
-    unscoped, narrowed by `matchUpdateTypes`, or narrowed by `matchDatasources`
-    such as `docker`, none of which exclude the manager. A later `automerge:
-    false` rule is allowed, since it can only keep updates reviewable.
+    Renovate applies packageRules in order with later rules winning. The rule
+    keeps the last slot so its description of lock refresh risk stays beside
+    the setting that accepts it.
     """
     rules = config["packageRules"]
-    exemptions = [
-        index
-        for index, rule in enumerate(rules)
-        if "devcontainer" in rule.get("matchManagers", []) and rule.get("automerge") is False
-    ]
-    assert exemptions, "no packageRules entry disables automerge for the devcontainer manager"
-    exemption = rules[exemptions[-1]]
-    # The exemption must cover every devcontainer update. Narrow it with a
-    # matchUpdateTypes or matchDatasources key and an earlier automerge:true
-    # rule takes over for the rest, silently, with this test still green.
-    extra = set(exemption) - {"matchManagers", "description", "automerge"}
-    assert not extra, f"the devcontainer exemption is narrowed by {sorted(extra)}"
-    reenabled = [rule for rule in rules[exemptions[-1] + 1 :] if rule.get("automerge") is True]
-    assert not reenabled, (
-        "a rule after the devcontainer exemption re-enables automerge, which would "
-        f"land a bump without the lock refresh: {reenabled}"
-    )
+    matches = [i for i, rule in enumerate(rules) if "devcontainer" in rule.get("matchManagers", [])]
+    assert matches, "no packageRules entry names the devcontainer manager"
+    assert rules[matches[-1]]["automerge"] is True
+    assert matches[-1] == len(rules) - 1
 
 
 def test_no_package_rule_excludes_packages_from_automerge(config: dict[str, Any]) -> None:
