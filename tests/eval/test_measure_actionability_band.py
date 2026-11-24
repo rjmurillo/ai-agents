@@ -409,3 +409,86 @@ class TestKillCriterionOnTheExactRatio:
         self._patch_scores(monkeypatch, total=40000, in_band=2000)
 
         assert mab.measure_band([]).kill_criterion_1_fired is False
+
+
+class TestFetchFailureExitCodes:
+    """Plan M1-T2, review finding 4: every failed gh call is exit 3, not a traceback."""
+
+    @pytest.mark.parametrize(
+        ("error", "name"),
+        [
+            (RuntimeError("graphql failed"), "RuntimeError"),
+            (subprocess.TimeoutExpired(cmd="gh", timeout=30), "TimeoutExpired"),
+            (FileNotFoundError("gh not installed"), "FileNotFoundError"),
+            (PermissionError("denied"), "PermissionError"),
+            (OSError("pipe broke"), "OSError"),
+        ],
+    )
+    def test_each_transport_error_exits_three_with_only_the_class_name(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+        error: BaseException,
+        name: str,
+    ) -> None:
+        """Group 4: the same set of errors fetch-hunks already treats as exit 3."""
+
+        def _fail(*_args: object, **_kwargs: object) -> list[dict[str, Any]]:
+            raise error
+
+        monkeypatch.setattr(
+            mab,
+            "resolve_repo_params",
+            lambda owner, repo: type("P", (), {"owner": "o", "repo": "r"})(),
+        )
+        monkeypatch.setattr(mab, "get_all_prs_with_comments", _fail)
+        out = tmp_path / "o.json"
+
+        code = mab.main(["--output", str(out)])
+
+        assert code == 3
+        assert not out.exists()
+        assert name in caplog.text
+        assert str(error) not in caplog.text
+
+    def test_a_failure_while_resolving_the_repository_is_exit_three_too(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """resolve_repo_params shells out to git, so it can time out as well."""
+
+        def _fail(*_args: object, **_kwargs: object) -> None:
+            raise subprocess.TimeoutExpired(cmd="git", timeout=10)
+
+        monkeypatch.setattr(mab, "resolve_repo_params", _fail)
+
+        assert mab.main(["--output", str(tmp_path / "o.json")]) == 3
+
+    def test_a_programming_error_is_not_swallowed_as_a_fetch_failure(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Only transport errors map to exit 3. A TypeError is a bug and must surface."""
+
+        def _bug(*_args: object, **_kwargs: object) -> None:
+            raise TypeError("bug")
+
+        monkeypatch.setattr(
+            mab,
+            "resolve_repo_params",
+            lambda owner, repo: type("P", (), {"owner": "o", "repo": "r"})(),
+        )
+        monkeypatch.setattr(mab, "get_all_prs_with_comments", _bug)
+
+        with pytest.raises(TypeError):
+            mab.main(["--output", str(tmp_path / "o.json")])
+
+    def test_band_and_corpus_share_one_error_tuple(self) -> None:
+        """Single source: both modules use actionability_io.FETCH_ERRORS."""
+        import importlib
+
+        io_module = importlib.import_module("scripts.eval.actionability_io")
+        corpus = importlib.import_module("scripts.eval.actionability_corpus")
+
+        assert mab.FETCH_ERRORS is io_module.FETCH_ERRORS
+        assert corpus.FETCH_ERRORS is io_module.FETCH_ERRORS
+        assert set(io_module.FETCH_ERRORS) == {RuntimeError, subprocess.TimeoutExpired, OSError}

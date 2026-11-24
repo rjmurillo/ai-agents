@@ -24,6 +24,11 @@ logger = logging.getLogger(__name__)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
+# What a failed gh or git call can raise: a GraphQL error, a timeout, or a missing or blocked
+# binary. Callers map all of them to exit 3 and print the class name only, because GraphQL
+# errors can embed response bodies.
+FETCH_ERRORS = (RuntimeError, subprocess.TimeoutExpired, OSError)
+
 
 def atomic_write_text(path: Path, text: str) -> None:
     """Write ``text`` to ``path`` atomically, creating parent directories."""

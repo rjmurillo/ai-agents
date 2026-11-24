@@ -44,7 +44,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.eval.actionability_io import atomic_write_text, head_sha  # noqa: E402
+from scripts.eval.actionability_io import (  # noqa: E402
+    FETCH_ERRORS,
+    atomic_write_text,
+    head_sha,
+)
 from scripts.github_core.api import (  # noqa: E402
     get_all_prs_with_comments,
     resolve_repo_params,
@@ -237,7 +241,7 @@ def _load_prs(args: argparse.Namespace) -> tuple[list[dict[str, Any]], dict[str,
         repo_params = resolve_repo_params(args.owner, args.repo)
         since = datetime.now(UTC) - timedelta(days=args.days_back)
         prs = get_all_prs_with_comments(repo_params.owner, repo_params.repo, since)
-    except RuntimeError as exc:
+    except FETCH_ERRORS as exc:
         # Class name only: a GraphQL error can embed a response body.
         logger.error("GitHub fetch failed: %s", type(exc).__name__)
         return 3

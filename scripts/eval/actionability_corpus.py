@@ -33,7 +33,6 @@ import argparse
 import json
 import logging
 import random
-import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -44,6 +43,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.eval.actionability_io import (  # noqa: E402
+    FETCH_ERRORS,
     head_sha,
     load_jsonl,
     utc_now_iso,
@@ -268,10 +268,6 @@ def _fetch_hunk(node_id: str) -> str | None:
     return hunk if isinstance(hunk, str) and hunk else None
 
 
-# What a failed gh call can raise: a GraphQL error, a timeout, or a missing or blocked binary.
-_FETCH_ERRORS = (RuntimeError, subprocess.TimeoutExpired, OSError)
-
-
 def _hunk_status(row: dict[str, Any]) -> str | None:
     """Return the row's hunk outcome. A hunk with no recorded status counts as fetched."""
     status = row.get("hunk_status")
@@ -294,7 +290,7 @@ def _fetch_pending(rows: list[dict[str, Any]]) -> tuple[int, int, tuple[str, str
             continue
         try:
             hunk = _fetch_hunk(row["id"])
-        except _FETCH_ERRORS as exc:
+        except FETCH_ERRORS as exc:
             return fetched, no_hunk, (row["id"], type(exc).__name__)
         row["diff_hunk"] = hunk
         row["hunk_status"] = HUNK_FETCHED if hunk is not None else HUNK_NO_HUNK
