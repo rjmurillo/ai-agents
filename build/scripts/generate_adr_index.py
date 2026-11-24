@@ -228,11 +228,10 @@ def parse_frontmatter(content: str, path: Path) -> tuple[dict[str, object] | Non
     closing fence to be three dashes followed immediately by ``\r?\n``, so a
     fence padded with one trailing space raised ``AdrIndexError`` while
     ``check_adr_lifecycle.py`` parsed the same file cleanly and ran all its
-    checks. The shared parser now accepts a padded fence, a tab, and four or
-    more dashes, matching ``python-frontmatter``'s own boundary, and still
-    rejects ``--- trailing text``. Duplicate-key rejection is unchanged: it
-    moved into ``scripts/hook_utilities/frontmatter_block.py``, which hooks the
-    constructor the same way this module did.
+    checks. The one parser now accepts a padded fence, a tab, and four or more
+    dashes, matching ``python-frontmatter``'s own boundary, and still rejects
+    ``--- trailing text``. Duplicate-key rejection is unchanged: it moved into
+    ``frontmatter_block``, which hooks the constructor as this module did.
     """
     result = _parse_frontmatter_block(content, yaml)
 
