@@ -86,6 +86,9 @@ _VALIDATION_PACKAGE_SENTINEL = _PROJECT_ROOT / "scripts" / "validation" / "model
 if _VALIDATION_PACKAGE_SENTINEL.is_file() and str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
+from scripts.hook_utilities.frontmatter_block import (  # noqa: E402
+    split_frontmatter as _split_frontmatter_block,
+)
 from scripts.validation.agent_skill_discriminator_baseline import (  # noqa: E402
     AGENT_CORPUS_ROOTS,
     DEFAULT_BASELINE_NAME,
@@ -212,16 +215,14 @@ def split_frontmatter(content: str) -> tuple[str, str]:
     """Return (frontmatter_block, body) for a markdown file.
 
     The frontmatter block excludes the ``---`` fences. When no frontmatter is
-    present the first element is empty and the body is the whole content.
+    present the first element is empty and the body is the whole content. The
+    fences come from ``scripts/hook_utilities/frontmatter_block.py``.
     """
-    if not content.startswith("---"):
+    split = _split_frontmatter_block(content)
+    if not split.found:
         return "", content
-
-    lines = content.splitlines()
-    for i in range(1, len(lines)):
-        if lines[i].strip() == "---":
-            return "\n".join(lines[1:i]), "\n".join(lines[i + 1 :])
-    return "", content
+    # ``raw`` starts with the newline that ends the opening fence line.
+    return "\n".join(split.raw.splitlines()[1:]), "\n".join(split.body.splitlines())
 
 
 def has_isolation_required(frontmatter: str) -> bool:

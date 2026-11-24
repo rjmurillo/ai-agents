@@ -139,6 +139,16 @@ import yaml
 from markdown_it import MarkdownIt
 from markdown_it.token import Token
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.hook_utilities.frontmatter_block import (  # noqa: E402
+    FrontmatterStatus,
+    decode_frontmatter_yaml,
+    split_frontmatter,
+)
+
 # Canonical tree. Matrices originate here and propagate to the copies, so a
 # scan that finds nothing here is looking in the wrong place.
 CANONICAL_TREE = Path("templates/agents")
@@ -191,19 +201,6 @@ MARKDOWN = MarkdownIt("commonmark").enable("table")
 # every tree. Presence of a valid frontmatter block with this key separates an
 # agent from a sibling document sharing the tree's filename suffix.
 FRONTMATTER_KEY = "description"
-
-# The opening delimiter, anchored at the first byte. Anchoring is what stops a
-# body-level ``---`` horizontal rule from turning the prose above it into a
-# pseudo-block. Trailing spaces are tolerated because the closing fence already
-# tolerates them, and rejecting them here reported a real agent as missing.
-# A fourth hyphen still fails: ``----`` is not the frontmatter convention.
-FRONTMATTER_OPEN = re.compile(r"---[ \t]*\n")
-
-# The closing delimiter of a frontmatter block, which must be a line holding
-# nothing but three hyphens. Searching for the substring ``\n---`` instead
-# accepted ``---not-a-closing-fence``, which let a malformed document present
-# itself as an agent.
-FRONTMATTER_CLOSE = re.compile(r"^---[ \t]*$", re.MULTILINE)
 
 
 @dataclass(frozen=True)
@@ -362,10 +359,10 @@ def agent_frontmatter(path: Path, reasons: list[str] | None = None) -> dict[str,
 
     Both fences are required, and the opening fence must sit at the first byte.
     Without that anchor a body-level ``---`` horizontal rule turns any prose
-    above it into a pseudo-block. Each fence tolerates trailing spaces and
-    neither tolerates a fourth hyphen. The closing fence must otherwise be a
-    line holding nothing but three hyphens: a substring search for ``\n---``
-    accepted ``---not-a-closing-fence`` and admitted a malformed document.
+    above it into a pseudo-block. The fences are found by
+    ``scripts/hook_utilities/frontmatter_block.py``: each is a line of three or
+    more hyphens and optional whitespace, so ``---not-a-closing-fence`` is not a
+    closing fence, which a substring search for ``\n---`` once accepted.
 
     The block is parsed as YAML rather than pattern matched. A textual search for
     the key reported success on ``description: [``, which no host can load, so a
@@ -393,20 +390,23 @@ def agent_frontmatter(path: Path, reasons: list[str] | None = None) -> dict[str,
         text = path.read_text(encoding="utf-8-sig")
     except (OSError, UnicodeDecodeError):
         return None
-    if not (opened := FRONTMATTER_OPEN.match(text)):
+    split = split_frontmatter(text)
+    if not split.found:
         return None
-    close = FRONTMATTER_CLOSE.search(text, opened.end())
-    if close is None:
-        return None
+    # The loader runs through ``decode_frontmatter_yaml``, not ``parse_frontmatter``:
+    # the latter's MALFORMED result keeps only a message, and
+    # ``DuplicateFrontmatterKey`` carries the line
+    # numbers the reason below reports.
     try:
-        block = yaml.load(text[opened.end() : close.start()], Loader=FrontmatterLoader)
+        block = decode_frontmatter_yaml(split.raw, yaml, loader=FrontmatterLoader)
     except DuplicateFrontmatterKey as exc:
-        # Marks are zero-based within the block, and the block starts on the
-        # line after the opening fence, so file line = mark + 2.
+        # Marks are zero-based within the block text, which starts where the
+        # opening fence ends, so file line = lines before the block + mark + 1.
+        offset = text.count("\n", 0, split.raw_start) + 1
         _record(
             reasons,
             f"frontmatter repeats the {exc.key!r} key at lines "
-            f"{exc.first_line + 2} and {exc.second_line + 2}; PyYAML keeps the "
+            f"{exc.first_line + offset} and {exc.second_line + offset}; PyYAML keeps the "
             "last value and a stricter reader rejects the file outright",
         )
         return None
@@ -563,13 +563,13 @@ def _frontmatter_is_broken(path: Path) -> bool:
         text = path.read_text(encoding="utf-8-sig")
     except (OSError, UnicodeDecodeError):
         return False
-    if not (opened := FRONTMATTER_OPEN.match(text)):
+    split = split_frontmatter(text)
+    if split.status is FrontmatterStatus.ABSENT:
         return False
-    close = FRONTMATTER_CLOSE.search(text, opened.end())
-    if close is None:
+    if not split.found:
         return True
     try:
-        block = yaml.load(text[opened.end() : close.start()], Loader=FrontmatterLoader)
+        block = decode_frontmatter_yaml(split.raw, yaml, loader=FrontmatterLoader)
     except (DuplicateFrontmatterKey, yaml.YAMLError):
         return True
     return not isinstance(block, dict)

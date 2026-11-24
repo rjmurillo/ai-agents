@@ -57,6 +57,10 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from scripts.hook_utilities.frontmatter_block import split_frontmatter
+
 SOURCE_ROOT = ".claude/skills"
 PROJECTION_ROOT = "src/copilot-cli/skills"
 SKILL_FILE = "SKILL.md"
@@ -88,16 +92,16 @@ _DIGITS = re.compile(r"^\d+$")
 
 
 def _frontmatter_lines(text: str) -> list[str]:
-    """Return the lines between the opening and closing ``---`` markers."""
-    lines = text.replace("\r\n", "\n").split("\n")
-    if not lines or lines[0].strip() != "---":
+    """Return the lines between the opening and closing fences.
+
+    The fences come from ``scripts/hook_utilities/frontmatter_block.py``. ``raw`` opens
+    and closes with the newline of a fence line, so the first and last pieces are
+    not lines of the block.
+    """
+    split = split_frontmatter(text)
+    if not split.found:
         return []
-    collected: list[str] = []
-    for line in lines[1:]:
-        if line.strip() == "---":
-            return collected
-        collected.append(line)
-    return []
+    return split.raw.replace("\r\n", "\n").split("\n")[1:-1]
 
 
 def _split_top_level(value: str) -> list[str]:

@@ -57,12 +57,12 @@ if _SENTINEL.is_file() and str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from scripts.ci.lefthook_budget_model import declared_budget, load_config
+from scripts.hook_utilities.frontmatter_block import load_frontmatter
 from scripts.validate_workspace_budget import WORKSPACE_FILES
 from scripts.validation.instruction_budget_globs import is_language_universal, parse_applyto
 from scripts.validation.token_budget import estimate_token_count
 
 _O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
-_FRONTMATTER_RE = re.compile(r"\A---\n(.*?)\n---\n", re.DOTALL)
 _HARNESS_BASE_FILES = {
     "claude_code": [f for f in WORKSPACE_FILES if f != ".github/copilot-instructions.md"],
     "copilot": [
@@ -135,16 +135,12 @@ def _frontmatter_paths(text: str) -> set[str]:
     parser. Claude rules use a different key, ``paths``, holding a plain
     YAML list (never comma-joined per entry), so this reads only that key.
     Patterns still feed the same ``is_language_universal`` matcher, so the
-    matching logic stays shared (DR4); only extraction differs.
+    matching logic stays shared (DR4); only extraction differs. The block is
+    read through ``scripts/hook_utilities/frontmatter_block.py``, last-one-wins
+    on a repeated key like ``yaml.safe_load``.
     """
-    match = _FRONTMATTER_RE.match(text)
-    if match is None:
-        return set()
-    try:
-        data = yaml.safe_load(match.group(1))
-    except yaml.YAMLError:
-        return set()
-    if not isinstance(data, dict):
+    data = load_frontmatter(text, yaml)
+    if data is None:
         return set()
     raw = data.get("paths")
     if isinstance(raw, str):

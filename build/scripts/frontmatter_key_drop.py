@@ -18,19 +18,49 @@ The parse-and-compare guard below is what makes a line-based cut safe.
 from __future__ import annotations
 
 import re
+import sys
+from pathlib import Path
 
 import yaml
 from yaml_text_cache import load_yaml_text
 
-_SKILL_SPLIT_RE = re.compile(r"\A(---\r?\n.*?\r?\n---\r?\n)(.*)\Z", re.DOTALL)
-_FRONTMATTER_FENCE_RE = re.compile(r"\A---\r?\n|^---\r?\n\Z", re.MULTILINE)
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.hook_utilities.frontmatter_block import split_frontmatter  # noqa: E402
+
 # A top-level frontmatter key line, bare or quoted, with optional space before
 # the colon. Group 2 is the key name. Its value lines are found by
 # `_drop_key_lines`, not by this pattern.
 _TOP_LEVEL_KEY_RE = re.compile(r"""^(["']?)([^\s"':#][^"':]*?)\1[ \t]*:(?:[ \t]|$)""")
-# A whole SKILL.md: fenced frontmatter (group 1, fences included) and the body.
-# Same shape `copilot_body_translation` splits on.
-_SKILL_MD_RE = re.compile(r"\A(---\r?\n.*?\r?\n---\r?\n)(.*)\Z", re.DOTALL)
+
+
+def _fence_offsets(text: str) -> tuple[int, int, int] | None:
+    """Return (opening line end, closing line start, closing line end) of the block.
+
+    The block is located by ``scripts/hook_utilities/frontmatter_block.py``.
+    ``fence_end`` stops right after the closing fence line, so every byte after
+    that fence stays untouched. Returns None when ``text`` does not open a
+    closed block.
+    """
+    block = split_frontmatter(text)
+    if not block.found:
+        return None
+    return text.index("\n") + 1, block.raw_end, block.fence_end
+
+
+def split_fenced_frontmatter(content: str) -> tuple[str, str] | None:
+    """Split a whole file into (fenced frontmatter, rest), or None without a block.
+
+    The first part keeps both fences and ends just past the closing fence line.
+    The rest is every following byte, so the two parts concatenate to ``content``.
+    ``copilot_body_translation`` and ``agent_capabilities`` split on this.
+    """
+    offsets = _fence_offsets(content)
+    if offsets is None:
+        return None
+    return content[: offsets[2]], content[offsets[2] :]
 
 
 def drop_frontmatter_keys(frontmatter: str, keys: frozenset[str]) -> str:
@@ -59,10 +89,10 @@ def drop_keys_from_skill_md(content: str, keys: frozenset[str]) -> str:
     fenced frontmatter, because a skill without one cannot load in Hermes, and
     when the cut would change any other key (see :func:`drop_frontmatter_keys`).
     """
-    match = _SKILL_MD_RE.match(content)
-    if match is None:
+    parts = split_fenced_frontmatter(content)
+    if parts is None:
         raise ValueError("SKILL.md has no fenced frontmatter")
-    return drop_frontmatter_keys(match.group(1), keys) + match.group(2)
+    return drop_frontmatter_keys(parts[0], keys) + parts[1]
 
 
 def _names_listed_key(text: str, keys: frozenset[str]) -> bool:
@@ -98,7 +128,11 @@ def _drop_key_lines(frontmatter: str, keys: frozenset[str]) -> str:
 
 
 def _frontmatter_mapping(frontmatter: str) -> object:
-    return load_yaml_text(_FRONTMATTER_FENCE_RE.sub("", frontmatter))
+    """Load the YAML between the fences. Text with no closed block loads as is."""
+    offsets = _fence_offsets(frontmatter)
+    if offsets is None:
+        return load_yaml_text(frontmatter)
+    return load_yaml_text(frontmatter[offsets[0] : offsets[1]])
 
 
 def _check_only_keys_dropped(before: str, after: str, keys: frozenset[str]) -> None:
@@ -136,13 +170,20 @@ def keep_frontmatter_keys(frontmatter: str, keys: frozenset[str]) -> str:
 
 
 def _keep_key_lines(frontmatter: str, keys: frozenset[str]) -> str:
-    kept: list[str] = []
+    offsets = _fence_offsets(frontmatter)
+    opening, inner, closing = (
+        ("", frontmatter, "")
+        if offsets is None
+        else (
+            frontmatter[: offsets[0]],
+            frontmatter[offsets[0] : offsets[1]],
+            frontmatter[offsets[1] :],
+        )
+    )
+    kept: list[str] = [opening]
     keeping = False
-    for line in frontmatter.splitlines(keepends=True):
+    for line in inner.splitlines(keepends=True):
         text = line.rstrip("\r\n")
-        if text == "---":
-            kept.append(line)
-            continue
         if text.startswith("#"):
             continue
         is_continuation = not text.strip() or text[:1] in (" ", "\t") or text.startswith("- ")
@@ -150,6 +191,7 @@ def _keep_key_lines(frontmatter: str, keys: frozenset[str]) -> str:
             keeping = _names_listed_key(text, keys)
         if keeping:
             kept.append(line)
+    kept.append(closing)
     return "".join(kept)
 
 
@@ -174,7 +216,7 @@ def keep_skill_frontmatter(content: str, keys: frozenset[str]) -> str:
 
     Content with no leading frontmatter block is returned unchanged.
     """
-    match = _SKILL_SPLIT_RE.match(content)
-    if match is None:
+    parts = split_fenced_frontmatter(content)
+    if parts is None:
         return content
-    return keep_frontmatter_keys(match.group(1), keys) + match.group(2)
+    return keep_frontmatter_keys(parts[0], keys) + parts[1]

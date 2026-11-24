@@ -24,9 +24,31 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 from dataclasses import dataclass, field
+from pathlib import Path
+
+# ADR-047 keeps this bootstrap inline because imports need sys.path first.
+# This file's own plugin lib wins when it holds the shared frontmatter parser,
+# so a foreign or older plugin root in the environment cannot shadow it. The
+# environment root is the fallback for a script copied outside its plugin.
+_PLUGIN_ROOT = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+_LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+if _PLUGIN_ROOT and not os.path.isfile(_LIB_DIR / "hook_utilities" / "frontmatter_block.py"):
+    _LIB_DIR = Path(_PLUGIN_ROOT) / "lib"
+
+if not os.path.isdir(_LIB_DIR):
+    raise RuntimeError(
+        "Expected portability helper lib directory not found: "
+        f"{_LIB_DIR}. Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT to the "
+        "plugin root, or run from an ai-agents checkout."
+    )
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from hook_utilities.frontmatter_block import split_frontmatter  # noqa: E402
 
 # --- Enum contracts, checked against .agents/governance/spec-schemas.md -------
 
@@ -62,7 +84,6 @@ _REQUIRED: dict[str, tuple[str, ...]] = {
 }
 
 _VALID_TYPES = frozenset(_STATUS_BY_TYPE)
-_FRONTMATTER_DELIM = "---"
 
 
 @dataclass
@@ -98,17 +119,16 @@ def extract_frontmatter(text: str) -> dict[str, str] | None:
 
     Only scalar (single-line ``key: value``) fields are captured; list fields
     such as ``related`` are recorded as present with a sentinel non-empty value
-    so required-field checks pass. Returns None when no frontmatter block is
-    found (the file does not open with a ``---`` fence).
+    so required-field checks pass. Returns None when no complete frontmatter block
+    is found (absent, or never closed). The fence rule is
+    ``hook_utilities.frontmatter_block.split_frontmatter``.
     """
-    lines = text.splitlines()
-    if not lines or lines[0].strip() != _FRONTMATTER_DELIM:
+    split = split_frontmatter(text)
+    if not split.found:
         return None
     fields: dict[str, str] = {}
     current_key: str | None = None
-    for line in lines[1:]:
-        if line.strip() == _FRONTMATTER_DELIM:
-            return fields
+    for line in split.raw.splitlines():
         if re.match(r"^[ \t]*-\s+", line) and current_key is not None:
             # A list item under the most recent key: mark the key present.
             fields.setdefault(current_key, "[]")
@@ -122,8 +142,7 @@ def extract_frontmatter(text: str) -> dict[str, str] | None:
         value = _strip_scalar(value)
         current_key = key
         fields[key] = value
-    # Unterminated frontmatter (no closing fence): treat as malformed.
-    return None
+    return fields
 
 
 def _check_enum(

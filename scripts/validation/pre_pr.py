@@ -162,9 +162,9 @@ from pre_pr_sequence import run_all_validations
 from stale_script_refs import validate_stale_script_refs
 from validate_argument_hint import validate_argument_hint
 
-# Frontmatter parsing and DESIGN-REVIEW validation live in sibling modules
-# (issue #2223). Re-exported here so ``_parse_yaml_frontmatter`` and
-# ``validate_design_review_frontmatter`` stay importable from ``pre_pr``.
+# DESIGN-REVIEW validation lives in a sibling module (issue #2223).
+# Re-exported here so ``validate_design_review_frontmatter`` stays importable
+# from ``pre_pr``.
 from validate_design_review import (
     _BLOCKING_STATUSES,
     _REQUIRED_FRONTMATTER_FIELDS,
@@ -176,7 +176,6 @@ from validate_no_orphaned_build_deferrals import (
     validate_no_orphaned_build_deferrals,
 )
 from validate_python_syntax import validate_python_syntax
-from yaml_utils import _parse_yaml_frontmatter
 
 # The typed evidence contract (issue #5635). Imported by its PACKAGE path, not
 # flat like the ``checks_*`` siblings above, because ``EvidenceState`` identity

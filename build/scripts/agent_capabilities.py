@@ -19,6 +19,7 @@ import re
 from pathlib import Path
 
 import yaml
+from frontmatter_key_drop import split_fenced_frontmatter
 
 TOOLSETS_RELATIVE_PATH = Path("templates") / "toolsets.yaml"
 MCP_TABLE_RELATIVE_PATH = Path("templates") / "agent-mcp-servers.yaml"
@@ -71,7 +72,6 @@ _REF_ITEM_RE = re.compile(r"^(?P<indent>[ \t]*)- \$mcp:(?P<name>\S*)[ \t]*$", re
 # A bare `mcp__*` (or `mcp__`) grants no MCP tool on Claude Code 2.1.302 (probe,
 # 2026-10-17), so a template that writes one silently grants nothing.
 _GLOBAL_MCP_RE = re.compile(r"(?<![\w])mcp__\*?(?![\w*])")
-_FRONTMATTER_BLOCK_RE = re.compile(r"\A---\r?\n.*?\r?\n---\r?\n", re.DOTALL)
 _PLACEHOLDER_RE = re.compile(r"\{(\w+)\}")
 _TOOL_NAME_RE = re.compile(r"^[A-Za-z0-9_]+$")
 
@@ -324,17 +324,18 @@ def expand_frontmatter(text: str, table: dict[str, object]) -> str:
     would ship the literal text as a tool name. A bare ``mcp__*`` entry raises
     too: it grants nothing on Claude Code 2.1.302.
     """
-    match = _FRONTMATTER_BLOCK_RE.match(text)
-    if match is None:
+    parts: tuple[str, str] | None = split_fenced_frontmatter(text)
+    if parts is None:
         return text
+    block, rest = parts
 
     def replace(item: re.Match[str]) -> str:
         entries = expand_server_grant(item["name"], table)
         return "\n".join(f"{item['indent']}- {entry}" for entry in entries)
 
-    head = _REF_ITEM_RE.sub(replace, match.group(0))
+    head = _REF_ITEM_RE.sub(replace, block)
     if "$mcp:" in head:
         raise CapabilityError("a $mcp: reference must be a whole list item")
     if _GLOBAL_MCP_RE.search(head):
         raise CapabilityError("bare `mcp__*` grants no tool; use a `$mcp:<server>` reference")
-    return head + text[match.end() :]
+    return head + rest

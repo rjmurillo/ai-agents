@@ -1,0 +1,70 @@
+{
+  "skill_path": ".claude/skills/decision-critic/SKILL.md",
+  "skill_id": "decision-critic",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Stress-test a tradeoff using the seven-step critic process",
+      "input": "We decided to move our job queue from Redis to Postgres because it removes one dependency and our load is low. Stress-test this tradeoff before we commit. Walk me through how you would run the critique, including how claims and assumptions are tracked and what verdict options exist. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "decomposition",
+        "verification",
+        "contrarian",
+        "stand",
+        "revise",
+        "escalate"
+      ],
+      "expected_gate": "run-structured-decision-critique",
+      "rationale": "SKILL.md Triggers ('Stress-test this tradeoff') and the Process diagram: 7 steps (decomposition, verification, challenge, synthesis) ending in a STAND, REVISE, or ESCALATE verdict with VERIFIED, FAILED, UNCERTAIN claim marks. A generic critique does not name this verdict set."
+    },
+    {
+      "id": "S2",
+      "desc": "Rewrite justified by improvement triggers the rewrite-regression halt",
+      "input": "Poke holes in this decision: we will rewrite our billing service in Rust because the v0 prototype benchmarked 3x faster than the old Java path. The proposer cannot say what the baseline was, what v1 will do under load, or how we would catch a regression. What does your critique conclude and why? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "rewrite-regression",
+        "halt",
+        "baseline",
+        "v1 projection",
+        "escalate"
+      ],
+      "expected_gate": "halt-rewrite-regression",
+      "rationale": "SKILL.md Verification checklist: when only the v0 win exists and the baseline, v1 projection, and regression plan are unanswered, the decision is HALTED with ESCALATE rather than STAND (references/rewrite-regression-check.md). Only this skill supplies that halt criterion."
+    },
+    {
+      "id": "S3",
+      "desc": "Inversion analysis as the final check on an ADR",
+      "input": "Criticize this approach before we approve the ADR: all agents hand off through free-form chat messages with no explicit protocol. Run the final check that asks how to guarantee this decision fails, and tell me the minimum count and structure it produces. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "invert",
+        "at least 3",
+        "success criteria",
+        "decision validation"
+      ],
+      "expected_gate": "apply-inversion-analysis",
+      "rationale": "SKILL.md 'Inversion Thinking Protocol' and Verification: invert the goal, list at least 3 failure modes, reverse each to a success criterion, and complete the Decision Validation section."
+    },
+    {
+      "id": "S4",
+      "desc": "Ask for pre-launch failure risks, which belongs to pre-mortem (negative)",
+      "input": "We launch the new payments flow next Friday. Imagine it failed in production and list the most likely reasons it failed, ranked by likelihood. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "rewrite-regression",
+        "invert the goal"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The description says 'Do NOT use to surface failure risks pre-launch (use pre-mortem)'. This near miss sounds like adversarial review but is the pre-mortem skill's job."
+    },
+    {
+      "id": "S5",
+      "desc": "Review a plan file, which belongs to the critic agent (negative)",
+      "input": "Here is my implementation plan in plan.md. Is it ready to build, and what gaps block approval? Give a ready-or-revise verdict. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "rewrite-regression",
+        "invert the goal"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The description says 'Do NOT use to ... review a plan file or diff (use the critic agent)'. A plan readiness verdict is the critic agent's contract, not a decision stress-test."
+    }
+  ]
+}

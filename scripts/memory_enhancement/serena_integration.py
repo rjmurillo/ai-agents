@@ -15,6 +15,11 @@ from pathlib import Path
 import frontmatter
 import yaml
 
+from scripts.hook_utilities.frontmatter_block import (
+    FrontmatterStatus,
+    parse_frontmatter,
+)
+
 from .code_masking import mask_code, original_context, sub_outside_code
 from .models import (
     Citation,
@@ -334,37 +339,38 @@ def _extract_metadata(
 ) -> tuple[str | None, datetime, datetime, list[str], float, str]:
     """Extract metadata from raw markdown text.
 
-    Tries YAML frontmatter first, then falls back to title-date header parsing.
+    Tries YAML frontmatter (via `scripts/hook_utilities/frontmatter_block.py`)
+    first, then falls back to title-date header parsing.
 
     Returns:
         Tuple of (title, created_at, updated_at, tags, confidence, content).
     """
     now = datetime.now(UTC)
 
-    try:
-        post = frontmatter.loads(raw_text)
-    except yaml.YAMLError:
+    stripped_text = raw_text.strip()
+    parsed = parse_frontmatter(stripped_text, yaml, allow_duplicate_keys=True)
+    if parsed.status is FrontmatterStatus.MALFORMED:
         # Malformed YAML frontmatter; treat as plain markdown
         print(
             "Warning: malformed YAML frontmatter, treating as plain markdown",
             file=sys.stderr,
         )
-        post = frontmatter.Post(content=raw_text)
-    has_frontmatter = bool(post.metadata)
+    metadata = parsed.metadata or {}
+    content_body = parsed.body.strip()
 
-    if has_frontmatter:
-        title = post.metadata.get("title")
-        tags = _parse_tags(post.metadata.get("tags"))
-        raw_created = post.metadata.get("created_at")
-        raw_updated = post.metadata.get("updated_at")
+    if metadata:
+        title = metadata.get("title")
+        tags = _parse_tags(metadata.get("tags"))
+        raw_created = metadata.get("created_at")
+        raw_updated = metadata.get("updated_at")
         created_at = _parse_datetime(raw_created, now)
         updated_at = _parse_datetime(raw_updated, now)
         if raw_created is None and raw_updated is not None:
             created_at = updated_at
         elif raw_updated is None and raw_created is not None:
             updated_at = created_at
-        confidence = _parse_confidence(post.metadata.get("confidence"))
-        return title, created_at, updated_at, tags, confidence, post.content
+        confidence = _parse_confidence(metadata.get("confidence"))
+        return title, created_at, updated_at, tags, confidence, content_body
 
     content = raw_text
     title = None

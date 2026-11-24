@@ -46,17 +46,14 @@ if str(_SCRIPT_DIR) not in sys.path:
 
 import yaml  # noqa: E402
 
-# scripts/validation/instruction_budget_globs.py:11 and :27 (read 2026-09-24):
-#     _FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
-#     class _UniqueKeySafeLoader(yaml.SafeLoader): ...
 # Reused for the same reason check_capability_graph.py reuses it: PyYAML
 # keeps the last value when a top-level key repeats, and nothing guarantees a
 # harness resolves the duplicate the same way, so a duplicate `metadata:` key
-# must be a defect rather than a silent overwrite.
+# must be a defect rather than a silent overwrite. The loader reads the block
+# through scripts/hook_utilities/frontmatter_block.py.
 from instruction_budget_globs import (  # noqa: E402
-    _FRONTMATTER_RE,
     UnsupportedApplyToError,
-    _UniqueKeySafeLoader,
+    load_unique_frontmatter,
 )
 
 # The shared vocabulary lives in skill_routing_model.py and the reported
@@ -81,11 +78,7 @@ class TreeError(Exception):
 
 def _frontmatter(text: str) -> dict[str, object]:
     """Parse frontmatter, rejecting duplicate top-level keys."""
-    match = _FRONTMATTER_RE.match(text)
-    if match is None:
-        return {}
-    data = yaml.load(match.group(1), Loader=_UniqueKeySafeLoader)
-    return data if isinstance(data, dict) else {}
+    return load_unique_frontmatter(text)
 
 
 def _is_positive_int(value: object) -> bool:

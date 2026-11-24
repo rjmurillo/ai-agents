@@ -108,6 +108,7 @@ if str(_REPO_ROOT) not in sys.path:
 from check_skill_adr_bindings import adr_statuses  # noqa: E402
 
 from scripts.ci.count_ratchet import tracked_files  # noqa: E402
+from scripts.hook_utilities.frontmatter_block import split_frontmatter  # noqa: E402
 
 EXIT_OK = 0
 EXIT_REGRESSION = 1
@@ -141,7 +142,6 @@ _MENTION_RE = re.compile(r"(?<![/\w-])ADR-(\d{1,4})\b(?![-\w]*\.md)")
 
 _FENCE_RE = re.compile(r"^(```|~~~)[^\n]*\n.*?(?:^\1[^\n]*$|\Z)", re.DOTALL | re.MULTILINE)
 _COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
-_FRONTMATTER_RE = re.compile(r"\A---\n.*?\n---\n", re.DOTALL)
 _CODE_SPAN_RE = re.compile(r"(?<!`)(`+)(?!`)[^\n]*?(?<!`)\1(?!`)")
 
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*$")
@@ -206,7 +206,7 @@ def unterminated_fence_line(text: str) -> int | None:
     close does not crash the scan, but then every later citation is masked.
     Frontmatter is blanked first so a ``---`` block cannot hold a fence.
     """
-    body = _FRONTMATTER_RE.sub(_blank, text)
+    body = _blank_frontmatter(text)
     for match in _FENCE_RE.finditer(body):
         lines = match.group(0).split("\n")
         if len(lines) < 2 or not lines[-1].startswith(match.group(1)):
@@ -216,12 +216,29 @@ def unterminated_fence_line(text: str) -> int | None:
 
 def _blank(match: re.Match[str]) -> str:
     """Replace a match with spaces, keeping newlines so line numbers hold."""
-    return re.sub(r"[^\n]", " ", match.group(0))
+    return _blank_text(match.group(0))
+
+
+def _blank_text(text: str) -> str:
+    return re.sub(r"[^\n]", " ", text)
+
+
+def _blank_frontmatter(text: str) -> str:
+    """Blank the leading frontmatter block, found by ``frontmatter_block.py``.
+
+    Offsets and line numbers hold. The block runs through the closing fence line
+    and any blank lines after it, which hold no citation either.
+    """
+    split = split_frontmatter(text)
+    if not split.found:
+        return text
+    return _blank_text(text[: split.body_start]) + split.body
 
 
 def mask_noise(text: str) -> str:
     """Blank out text that cannot hold a citation, preserving every offset."""
-    for pattern in (_FRONTMATTER_RE, _FENCE_RE, _COMMENT_RE, _CODE_SPAN_RE):
+    text = _blank_frontmatter(text)
+    for pattern in (_FENCE_RE, _COMMENT_RE, _CODE_SPAN_RE):
         text = pattern.sub(_blank, text)
     return text
 

@@ -10,7 +10,7 @@ local ``.git/config``. GitHub then assembled the squash trailer block from
 every commit author in the PR's history.
 
 Two confirmed leak sources (issue #2466):
-- tests/skills/adr-review/test_detect_adr_changes.py:117-127
+- tests/skills/adr-review/test_detect_adr_changes.py:127-137
 - tests/skills/metrics/test_collect_metrics.py:133-143
 
 This module is the SINGLE SOURCE OF TRUTH for:

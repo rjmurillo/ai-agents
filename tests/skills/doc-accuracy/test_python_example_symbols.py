@@ -126,6 +126,12 @@ def test_fallback_blanks_single_line_strings_and_comments() -> None:
 
 
 def test_other_languages_keep_agnostic_extraction() -> None:
-    ids = mod._extract_identifiers('var s = "Hook ADR"; // UTC', "csharp")
+    ids = mod._extract_identifiers('let s = "Hook ADR"; // UTC', "typescript")
     assert {"Hook", "ADR", "UTC"} <= set(ids)
     assert mod._extract_identifiers('"""Hook"""') == ["Hook"]
+
+
+def test_csharp_blanks_strings_but_keeps_comments() -> None:
+    ids = set(mod._extract_identifiers('var s = "Hook ADR"; // UTC', "csharp"))
+    assert not {"Hook", "ADR"} & ids
+    assert "UTC" in ids

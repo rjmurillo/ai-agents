@@ -21,6 +21,13 @@ from tests.validation.citation_freshness_helpers import (
 )
 
 
+def _is_exempt_citing_file(path: str) -> bool:
+    """Call the exemption predicate from the module that defines it."""
+    from scripts.validation.citation_exemptions import _is_exempt_citing_file as exempt
+
+    return exempt(path)
+
+
 @pytest.mark.parametrize(
     "path",
     (
@@ -32,7 +39,21 @@ from tests.validation.citation_freshness_helpers import (
 )
 def test_generated_project_toolkit_artifacts_are_exempt(path: str) -> None:
     """Generated reports retain the historical-artifact citation policy."""
-    assert checker._is_exempt_citing_file(path)
+    assert _is_exempt_citing_file(path)
+
+
+@pytest.mark.parametrize(
+    ("path", "exempt"),
+    (
+        (".project-toolkit/metrics/sol-loop/20261124T013251Z-branch-r1-ok.json", True),
+        (".project-toolkit/metrics/sol-loop/README.md", False),
+        (".project-toolkit/metrics/sol-loop/nested/run.json", False),
+        (".project-toolkit/metrics/other/run.json", False),
+    ),
+)
+def test_sol_loop_run_logs_are_point_in_time_records(path: str, exempt: bool) -> None:
+    """A sol-loop log pins each finding to the reviewed head, so later fixes move its lines."""
+    assert _is_exempt_citing_file(path) is exempt
 
 
 @pytest.mark.parametrize(
@@ -49,7 +70,7 @@ def test_generated_hermes_packs_are_exempt_like_the_other_skill_mirrors(
     path: str, exempt: bool
 ) -> None:
     """ADR-115: a pack copies skills and lib, so its citations are policed at the source."""
-    assert checker._is_exempt_citing_file(path) is exempt
+    assert _is_exempt_citing_file(path) is exempt
 
 
 @pytest.mark.parametrize(
@@ -66,7 +87,7 @@ def test_generated_hermes_packs_are_exempt_like_the_other_skill_mirrors(
 )
 def test_only_recorded_eval_runs_are_exempt(path: str, exempt: bool) -> None:
     """Raw eval replies are records; authored eval docs stay policed."""
-    assert checker._is_exempt_citing_file(path) is exempt
+    assert _is_exempt_citing_file(path) is exempt
 
 
 @pytest.mark.parametrize(
@@ -82,7 +103,7 @@ def test_only_recorded_eval_runs_are_exempt(path: str, exempt: bool) -> None:
 )
 def test_cursor_generated_mirrors_are_exempt(path: str, exempt: bool) -> None:
     """The Cursor tree's generated copies are policed once, at their source (ADR-115)."""
-    assert checker._is_exempt_citing_file(path) is exempt
+    assert _is_exempt_citing_file(path) is exempt
 
 
 class TestFreshCitationsPass:
