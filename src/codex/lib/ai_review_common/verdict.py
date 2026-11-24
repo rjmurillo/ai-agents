@@ -302,7 +302,7 @@ _PARSER_DEPENDENCY_ADMISSIONS: dict[str, dict[str, object]] = {
 
 # ADR-122 item 10: the adapter's own copy of the eight issue #7493 change
 # records. The scanner holds a second copy; a conformance test keeps them equal.
-_RENEWED_SEARCH_HEAD = "e8b99efd13cc07a5cf6f7b9d74ca838ec6221029"
+_RENEWED_SEARCH_HEAD = "9493edf7bf19d832b68e426f09bcdf8364f62ad4"
 
 _CHANGE_ADMISSIONS: tuple[dict[str, object], ...] = tuple(
     {
@@ -319,8 +319,8 @@ _CHANGE_ADMISSIONS: tuple[dict[str, object], ...] = tuple(
             "Maintainer decisions D1 and D2, choice A: "
             "admit all 8 transitions as fixed records in one ADR-122 item."
             + (
-                " Maintainer decision D5 renewed this head pin on 2026-11-22"
-                " (issue #7493 comment 7086682234)."
+                " Maintainer decisions D5 (2026-11-22, issue #7493 comment 7086682234) and D9"
+                " (2026-11-23, issue #7493 comment 7120119475) renewed this head pin."
                 if head_blob == _RENEWED_SEARCH_HEAD
                 else ""
             )

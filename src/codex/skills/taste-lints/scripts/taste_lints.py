@@ -120,6 +120,7 @@ _GENERATED_PATH_SEGMENTS: tuple[tuple[str, ...], ...] = (
     ("src", "claude", "lib", "failure_classifier"),
     ("src", "claude", "lib", "github_core"),
     ("src", "claude", "lib", "hook_utilities"),
+    ("src", "claude", "lib", "memory_enhancement"),
     ("src", "claude", "skills", "review", "scripts", "validate_review_marker.py"),
     # src/claude/skills/ is not listed. Under ADR-119 decision 3, a shipped
     # skill's scripts, references, and tests are hand-maintained there, and

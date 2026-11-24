@@ -37,7 +37,7 @@ EXPECTED_C901_BASELINE_ENTRIES = 80
 # build/scripts/generate_hooks_events.py, which failed even before strict
 # mode. From here the number only goes down. It counts entries, not distinct
 # modules (145): a module listed in three blocks lowers it by three once fixed.
-EXPECTED_STRICT_BASELINE_MODULE_NAMES = 159
+EXPECTED_STRICT_BASELINE_MODULE_NAMES = 157
 
 C901_BASELINE_CODES = ["C901"]
 DISABLE_ERROR_CODE_KEY = "disable_error_code"

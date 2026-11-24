@@ -103,3 +103,11 @@ VERIFIED with one stated conflict. Item 5 says not to extend admission to anothe
 | All eight admissions still match file content. | Behavior | Run `git rev-parse origin/main:<file>` and `git hash-object -- <file>` for each record. | VERIFIED. Every base and head blob matches. |
 | The assessor retains every regression and reports the new receipt. | Behavior | Run `assess.py --target . --changed-only --base origin/main --format json`. | VERIFIED. Exit zero with eight raw drops and eight admissions. Two admissions cite the D5 receipt. |
 | The renewal preserves fail-closed behavior. | Behavior | Remove `changeAdmissions` from a temporary config and rerun the assessor. | VERIFIED. Exit 10 with all eight drops. The adapter reports FAIL. |
+
+## Item 10 pin renewal D9 (2026-11-23, issue #7493)
+
+| Claim | Kind | Check | Result |
+| --- | --- | --- | --- |
+| Decision D9 renews two search pins. | Quote | Read issue #7493 comment 7120119475. | VERIFIED. The receipt names blob 9493edf7bf19 and both unchanged scores. |
+| All eight admissions still match file content. | Behavior | Run `git hash-object -- scripts/memory_enhancement/search.py`. | VERIFIED. It returns the renewed pin. The other six records are unchanged. |
+| The assessor admits exactly eight drops. | Behavior | Run `assess.py --target . --changed-only --base origin/main --format json`. | VERIFIED. Exit zero, eight admissions, no unadmitted drop. |

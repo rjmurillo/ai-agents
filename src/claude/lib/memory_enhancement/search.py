@@ -408,6 +408,9 @@ def _score_memory_file(
     )
 
 
+_UNCHECKED = "unchecked"
+
+
 def _verify_within(
     memory: MemoryWithCitations,
     repo_root: Path,
@@ -416,18 +419,18 @@ def _verify_within(
 ) -> list[VerificationResult]:
     """Verify each citation while time remains and cited files stay small.
 
-    Out of time, or a cited file over *max_verify_bytes*, means no verification
-    at all, not a partial one, so the status reads "unverified" and a
-    half-checked memory never reads "verified".
+    Out of time, or a cited file over *max_verify_bytes*, stops the check. Each
+    citation left unchecked counts as a failure with reason "unchecked", so a
+    skipped check never raises confidence and the status reads "unverified".
     """
     results: list[VerificationResult] = []
-    for citation in memory.citations:
-        if _time_left(deadline) == 0.0:
-            return []
-        if max_verify_bytes is not None and cited_file_exceeds(
-            citation, repo_root, max_verify_bytes
+    for index, citation in enumerate(memory.citations):
+        if _time_left(deadline) == 0.0 or (
+            max_verify_bytes is not None
+            and cited_file_exceeds(citation, repo_root, max_verify_bytes)
         ):
-            return []
+            rest = memory.citations[index:]
+            return results + [VerificationResult.create(c, False, _UNCHECKED) for c in rest]
         results.append(verify_citation(citation, repo_root))
     return results
 
@@ -439,7 +442,7 @@ def _determine_citation_status(results: list[VerificationResult]) -> str:
     - "stale" means file exists but content changed (e.g., line count exceeded)
     - "broken" means target is missing entirely
     """
-    if not results:
+    if not results or any(r.reason == _UNCHECKED for r in results):
         return "unverified"
 
     all_valid = all(r.is_valid for r in results)
