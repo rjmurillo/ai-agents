@@ -109,12 +109,14 @@ text, along with the architecture README row for ADR-093.
   sits two lines above an edited line. Its bare `:160-168` was written for the resolver path,
   but the checker binds it to `TESTING-RIGOR.md`, the last path on the line.
 - The line gains a reasoned `citation-freshness: ignore` marker. Its text is unchanged.
+- Line 325, also near the edit, cites `.claude/lib/qa_report.py:173-177` as the code stood
+  when the ADR was written. It gets the same kind of marker.
 
 ### Agent Positions
 
 | Agent | Position |
 |-------|----------|
-| critic | See final verdicts. |
+| critic | Accept. Keep historical numbers with reasoned markers, as the 2026-11-20 precedent did. |
 
 ## Final Verdicts
 
