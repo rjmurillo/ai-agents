@@ -518,6 +518,7 @@ class TestCsharpLiteralAndAttributeArguments:
             ('var a = """\n    RawLine\n    """;\nvar w = new FakeWidget();', "RawLine"),
             ('var a = """Single RawWord""";\nvar w = new FakeWidget();', "RawWord"),
             ('var a = @"single VerbWord";\nvar w = new FakeWidget();', "VerbWord"),
+            ('var s = $"""{"""x"""} RawNest""";\nvar w = new FakeWidget();', "RawNest"),
             ('var a = $@"one {x} VerbHole ""q""";\nvar w = new FakeWidget();', "VerbHole"),
             ('var u = @"one LineHid"u8;\nvar w = new FakeWidget();', "LineHid"),
             (
@@ -737,6 +738,7 @@ class TestCsharpLiteralAndAttributeArguments:
             + "\n"
             + ("    {/*\n    " + '"""' + "*/x}\n") * 20000
             + "var w = new FakeWidget();",
+            '"""a""" ' * 320000 + "\nvar w = new FakeWidget();",
         )
         for code in cases:
             started = time.monotonic()

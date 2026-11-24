@@ -88,17 +88,30 @@ def _csharp_raw_string_end(code: str, match: re.Match[str], chars: list[str]) ->
     A raw string closes on the same quote run that opened it. With N "$"
     markers, a run of N braces opens a hole, which stays visible; braces
     before it in a longer run are literal text. An unterminated raw string,
-    one whose hole never closes, or one whose hole runs past the closing
-    run is not closed. The close is found once, so the scan stays linear.
+    one whose hole never closes, or a multi-line one whose hole runs past
+    its closing run is not closed. A single-line string looks for its close
+    again after each hole, since a hole may hold a nested raw string. A
+    multi-line close is found once. Each lookup reads only text it has not
+    read, so the scan stays linear.
     """
     quotes, dollars = match.group("quotes"), match.group("prefix").count("$")
     index = match.end()
-    close = _csharp_raw_close(code, quotes, index, index)
+    after_run = index
+    while after_run < len(code) and code[after_run] != "\n" and code[after_run].isspace():
+        after_run += 1
+    single_line = after_run < len(code) and code[after_run] != "\n"
+    if single_line:
+        close = _raw_single_line_close(code, quotes, index)
+    else:
+        close = _raw_multi_line_close(code, quotes, after_run)
     while True:
         if close < 0:
             return line_end(code, index), False
         if index > close:
-            return index, False
+            if not single_line:
+                return index, False
+            close = _raw_single_line_close(code, quotes, index)
+            continue
         hole = code.find("{" * dollars, index, close) if dollars else -1
         if hole < 0:
             blank_span(chars, index, close)
@@ -111,20 +124,28 @@ def _csharp_raw_string_end(code: str, match: re.Match[str], chars: list[str]) ->
             return index, False
 
 
-def _csharp_raw_close(code: str, quotes: str, body: int, index: int) -> int:
-    """Index of the raw string's closing run at or after ``index``, or -1.
+def _raw_single_line_close(code: str, quotes: str, index: int) -> int:
+    """Index of a single-line raw string's closing run at or after ``index``, or -1.
 
-    Follows the C# raw string rules. Text after the opening run makes it a
-    single-line string that must close on that line. Otherwise content can
-    never hold a run as long as the delimiter, so the first such run must
-    be the close: alone on its line after only whitespace, with every
-    content line starting with that whitespace. Any other first run means
-    the close is missing, so a later string's quotes are never borrowed.
+    Text after the opening run makes a raw string single-line, so it must
+    close before the line ends.
     """
-    opening_line_end = line_end(code, body)
-    if code[body:opening_line_end].strip():
-        return code.find(quotes, index, opening_line_end)
-    pos = code.find(quotes, max(index, opening_line_end))
+    pos = code.find(quotes, index)
+    if pos < 0 or code.find("\n", index, pos) >= 0:
+        return -1
+    return pos
+
+
+def _raw_multi_line_close(code: str, quotes: str, opening_line_end: int) -> int:
+    """Index of a multi-line raw string's closing run, or -1.
+
+    Content can never hold a run as long as the delimiter, so the first such
+    run after the opening line must be the close: alone on its line after
+    only whitespace, with every content line starting with that whitespace.
+    Any other first run means the close is missing, so a later string's
+    quotes are never borrowed.
+    """
+    pos = code.find(quotes, opening_line_end)
     if pos < 0:
         return -1
     line_start = code.rfind("\n", 0, pos) + 1

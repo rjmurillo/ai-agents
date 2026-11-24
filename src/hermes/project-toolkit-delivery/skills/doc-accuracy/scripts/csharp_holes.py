@@ -67,9 +67,9 @@ def csharp_hole_end(
     ";", statement word, or ternary "?" ("?.", "??" and an unspaced "?[" are
     not), and a specifier meeting a newline, quote, or "{" stays visible.
 
-    In regular and verbatim strings a hole may span ``_MAX_HOLE_LINES``
-    lines. In any string kind it is unclosed at that cap, at the snippet
-    end, when a nested literal or comment lacks its close, when an
+    In regular and verbatim strings a hole is unclosed once it spans more
+    than ``_MAX_HOLE_LINES`` lines. In any string kind it is unclosed at the
+    snippet end, when a nested literal or comment lacks its close, when an
     interpolated string opens on a later line, or, in a raw string, at a
     quote run that closes nothing. The enclosing string then reports itself
     unclosed, so ``blank_csharp_literals`` leaves the whole snippet
