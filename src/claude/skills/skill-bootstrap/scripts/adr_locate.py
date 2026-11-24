@@ -10,9 +10,8 @@
 # MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align
 """Find the repository's ADR folders and read their naming and heading style.
 
-Reads the working tree only: directory listings and the newest ADR of each folder, never a
-file over 1 MiB. Standard library only. Also holds the draft renderer, which fills the newest
-ADR's headings from a scan candidate.
+Reads folder listings and each folder's newest ADR, never a file over 1 MiB. Standard library
+only. The draft renderer fills the newest ADR's headings from a scan candidate.
 
 Departures from the upstream source, each pinned by a test:
 
@@ -20,9 +19,8 @@ Departures from the upstream source, each pinned by a test:
   (adr-review's folders plus upstream's candidates), then, only when those find nothing, any
   folder holding three or more ADR-named files. Upstream had the known list alone.
 - A file is an ADR when named ``ADR-NNN-slug``, ``adr-NNN-slug``, ``NNNN-slug`` or ``NNNN_slug``
-  with an ``.md``, ``.mdx`` or ``.adoc`` extension. Upstream matched ``^(\\d+)-.*\\.md$`` and
-  missed ``ADR-122-x.md``. A number has 1 to 6 digits, so a date-stamped name such as
-  ``20240301-x.md`` is not an ADR number.
+  with an ``.md``, ``.mdx`` or ``.adoc`` extension (upstream: ``^(\\d+)-.*\\.md$``, which
+  missed ``ADR-122-x.md``). A number has 1 to 6 digits, so ``20240301-x.md`` is no ADR.
 - A folder with no ADR-named file, such as one holding only ``README.md``, is not an ADR folder.
 - The next number keeps the newest ADR's prefix and zero padding. The H1 form copies the newest
   ADR's H1 (``# ADR-123: Title``). Upstream always wrote ``# 123. Title``.
@@ -35,6 +33,7 @@ from __future__ import annotations
 
 import os
 import re
+import stat
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -48,6 +47,7 @@ __all__ = [
     "KNOWN_FOLDERS",
     "MAX_ADR_CHARS",
     "MAX_ADR_FILES",
+    "MAX_ADR_NUMBER",
     "MAX_READ_BYTES",
     "NOT_RECORDED",
     "NO_REASON",
@@ -72,6 +72,7 @@ __all__ = [
 MAX_READ_BYTES = 1024 * 1024
 MAX_ADR_FILES = 2000
 MAX_ADR_CHARS = 32 * 1024 * 1024  # decoded characters, so not a byte count
+MAX_ADR_NUMBER = 999_999  # ``_ADR_NAME`` reads one to six digits; draft stops here too
 MIN_SCAN_FILES = 3
 _MAX_WALK_DIRS = 20000
 _MAX_WALK_DEPTH = 8
@@ -136,13 +137,16 @@ class Style:
     headings: tuple[str, ...]
 
 
-def adr_files(directory: Path) -> list[AdrFile]:
-    """The ADR-named regular files of ``directory``. Symlinks are not followed."""
+def adr_files(directory: Path, strict: bool = True) -> list[AdrFile]:
+    """The ADR-named regular files of ``directory``, symlinks not followed; none when missing. Any
+    other listing error raises when ``strict``, so ``draft`` never numbers an unlisted folder."""
     found: list[AdrFile] = []
     try:
         with os.scandir(directory) as scan:
             names = sorted(entry.name for entry in scan if entry.is_file(follow_symlinks=False))
-    except OSError:
+    except OSError as exc:
+        if strict and not isinstance(exc, (FileNotFoundError, NotADirectoryError)):
+            raise
         return found
     for name in names:
         match = _ADR_NAME.fullmatch(name)
@@ -152,16 +156,31 @@ def adr_files(directory: Path) -> list[AdrFile]:
     return found
 
 
+# No wait on a FIFO, no final symlink followed (where the OS has the flags), binary on Windows.
+_OPEN_FLAGS = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_NOFOLLOW", 0)
+_OPEN_FLAGS |= getattr(os, "O_BINARY", 0)
+
+
 def read_bounded(path: Path) -> str | None:
-    """File text, or None when unreadable, not a regular file, or over ``MAX_READ_BYTES``."""
+    """Text of a regular file at most ``MAX_READ_BYTES`` long, else None. ``fstat`` checks the
+    opened file, so a swap after the path check reads nothing and an oversized file no byte."""
     try:
-        if path.is_symlink() or not path.is_file():
+        if path.is_symlink():
             return None
-        with path.open("rb") as handle:
+        fd = os.open(path, _OPEN_FLAGS)
+    except OSError:
+        return None
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_READ_BYTES:
+            return None
+        with open(fd, "rb", closefd=False) as handle:
             data = handle.read(MAX_READ_BYTES + 1)
     except OSError:
         return None
-    if len(data) > MAX_READ_BYTES:
+    finally:
+        os.close(fd)
+    if len(data) > MAX_READ_BYTES:  # it grew after the fstat
         return None
     return data.decode("utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
 
@@ -216,16 +235,12 @@ def render_h1(form: str, number: int, title: str) -> str:
     return form.format(number=number, title=title)
 
 
-def _newest(files: list[AdrFile]) -> AdrFile:
-    return max(files, key=lambda item: (item.number, len(item.digits), item.name))
-
-
 def folder_style(directory: Path) -> Style:
     """Read the style of ``directory``. An empty or missing folder gets the Nygard defaults."""
     files = adr_files(directory)
     if not files:
         return Style(0, "", 4, 0, None, "# {number}. {title}", NYGARD_HEADINGS)
-    newest = _newest(files)
+    newest = max(files, key=lambda item: (item.number, len(item.digits), item.name))
     highest = newest.number
     width = max(len(item.digits) for item in files if item.number == highest)
     text = read_bounded(directory / newest.name)
@@ -235,17 +250,17 @@ def folder_style(directory: Path) -> Style:
     return Style(len(files), newest.prefix, width, highest, newest.name, form, headings)
 
 
-def _adr_dir_file(root: Path) -> str | None:
-    """The folder named by an adr-tools ``.adr-dir`` file, relative to the root."""
+def _declared(root: Path) -> list[tuple[str, str]]:
+    """The folder an adr-tools ``.adr-dir`` file names, from the root, then ``KNOWN_FOLDERS``."""
     text = read_bounded(root / ".adr-dir")
     name = next((line.strip() for line in (text or "").splitlines() if line.strip()), "")
-    return None if not name or "\x00" in name or Path(name).is_absolute() else name
+    named = name and "\x00" not in name and not Path(name).is_absolute()
+    return ([(name, "adr-dir")] if named else []) + [(rel, "known") for rel in KNOWN_FOLDERS]
 
 
 def _walk_candidates(root: Path) -> tuple[list[str], bool]:
-    """Folders holding ``MIN_SCAN_FILES`` or more ADR-named files, bounded and sorted, and a flag
-    that is True when the walk stopped at ``_MAX_WALK_DIRS`` folders or did not enter the
-    folders below ``_MAX_WALK_DEPTH`` levels. ``_SKIP_DIRS`` folders never count as a cut."""
+    """Sorted folders with ``MIN_SCAN_FILES`` or more ADR-named files, and True when the walk hit
+    ``_MAX_WALK_DIRS`` folders or ``_MAX_WALK_DEPTH`` levels (a ``_SKIP_DIRS`` folder is no cut)."""
     found: list[str] = []
     visited, truncated = 0, False
     for current, dirs, _files in os.walk(root, followlinks=False):
@@ -258,14 +273,9 @@ def _walk_candidates(root: Path) -> tuple[list[str], bool]:
         dirs[:] = below
         if visited > _MAX_WALK_DIRS:
             return found, True
-        if len(adr_files(here)) >= MIN_SCAN_FILES and here != root:
+        if len(adr_files(here, strict=False)) >= MIN_SCAN_FILES and here != root:
             found.append(here.relative_to(root).as_posix())
     return found, truncated
-
-
-def _declared(root: Path) -> list[tuple[str, str]]:
-    declared = _adr_dir_file(root)
-    return ([(declared, "adr-dir")] if declared else []) + [(rel, "known") for rel in KNOWN_FOLDERS]
 
 
 def _resolved(path: Path) -> Path | None:
@@ -280,17 +290,15 @@ def _accept(root: Path, rel: str, seen: set[Path]) -> Path | None:
     target = _resolved(root / rel)
     if target is None or target in seen or root not in target.parents:
         return None
-    if not target.is_dir() or not adr_files(target):
+    if not target.is_dir() or not adr_files(target, strict=False):
         return None
     seen.add(target)
     return target
 
 
 def locate_folders(root: Path) -> tuple[list[tuple[str, str]], bool]:
-    """Every ADR folder as ``(path relative to the root, source)``, sorted by path, and whether
-    the walk was cut short (see ``_walk_candidates``). ``source`` is ``adr-dir``, ``known`` or
-    ``scan``; the scan runs only when the first two find nothing.
-    """
+    """Sorted ``(path from the root, source)`` folders, source ``adr-dir``, ``known`` or ``scan``
+    (only when the first two find nothing), and whether ``_walk_candidates`` was cut short."""
     seen: set[Path] = set()
     root = root.resolve()
     found: dict[str, str] = {}
@@ -334,7 +342,7 @@ def _folder_payload(root: Path, rel: str, source: str) -> dict[str, Any]:
         "prefix": style.prefix,
         "width": style.width,
         "highest": style.highest,
-        "next_number": style.highest + 1,
+        "next_number": style.highest + 1 if style.highest < MAX_ADR_NUMBER else None,
         "newest": style.newest,
         "h1_form": style.h1_form,
         "headings": list(style.headings),
@@ -359,9 +367,8 @@ def locate(root: Path) -> dict[str, Any]:
 
 @dataclass
 class AdrTally:
-    """What ``read_adr_texts`` did, filled in as the stream runs: ``read`` files gave text,
-    ``skipped`` were unreadable, over ``MAX_READ_BYTES``, or left unread after a cap, and
-    ``cut`` is True when a cap left at least one file unread."""
+    """``read_adr_texts`` so far: ``read`` files gave text, ``skipped`` were unreadable, oversized
+    or after a cap, and ``cut`` is True when a cap left at least one file unread."""
 
     read: int = 0
     skipped: int = 0
@@ -371,18 +378,14 @@ class AdrTally:
 def read_adr_texts(
     root: Path, folders: list[tuple[str, str]] | None = None, tally: AdrTally | None = None
 ) -> Iterator[tuple[str, str]]:
-    """Yield ``(relative path, text)`` of the ADR-named files, one at a time, newest first.
-
-    ``folders`` is ``locate_folders(root)`` when the caller has it. Highest numbers come first,
-    across folders. Reading stops after ``MAX_ADR_FILES`` files, or at the first file that would
-    take the text past ``MAX_ADR_CHARS`` characters (an exact fit is read). ``tally.skipped``
-    counts each file left unread that way, unreadable, or over ``MAX_READ_BYTES``.
-    """
+    """Yield ``(relative path, text)`` of the ADR files, highest number first across ``folders``
+    (``locate_folders(root)`` when not given). Reading stops after ``MAX_ADR_FILES`` files, or at
+    the first file that would pass ``MAX_ADR_CHARS`` (an exact fit is read); see ``AdrTally``."""
     tally = tally if tally is not None else AdrTally()
     root = root.resolve()
     total, full = 0, False
     pairs = locate_folders(root)[0] if folders is None else folders
-    found = [(item, rel) for rel, _ in pairs for item in adr_files(root / rel)]
+    found = [(item, rel) for rel, _ in pairs for item in adr_files(root / rel, strict=False)]
     for item, rel in sorted(found, key=lambda pair: pair[0].number, reverse=True):
         full = full or tally.read >= MAX_ADR_FILES
         text = None if full else read_bounded(root / rel / item.name)
@@ -411,8 +414,8 @@ _LIST_NUMBER = re.compile(r"\A([0-9]+)([.)])(?=[ \t]|\Z)", re.ASCII)
 
 def clean_source(source: object) -> dict[str, Any]:
     """The source fields the draft quotes, each string on one line. A ``sha`` or ``*_sha`` (such as
-    ``reason_sha``) not of 40 or 64 hex digits, or a ``url`` or ``*_url`` (``pr_url``,
-    ``reason_url``) not one ``https://`` word, is dropped, so no field can add a draft line."""
+    ``reason_sha``) not of 40 or 64 hex digits, or a ``url`` or ``*_url`` not one ``https://``
+    word, is dropped, so no field can add a draft line."""
     cleaned: dict[str, Any] = {}
     for key, value in (source if isinstance(source, dict) else {}).items():
         text = " ".join(sanitize(value).splitlines()) if isinstance(value, str) else value
@@ -441,10 +444,6 @@ def _link(candidate: dict[str, Any]) -> str:
     return f"commit {sha}" if isinstance(sha, str) and sha else ""
 
 
-def _quote(text: str) -> str:
-    return "\n".join(f"> {line}" if line else ">" for line in text.split("\n"))
-
-
 def _context(candidate: dict[str, Any]) -> str:
     reason = candidate.get("reason")
     excerpt = (candidate.get("excerpt") or "").strip()
@@ -454,7 +453,8 @@ def _context(candidate: dict[str, Any]) -> str:
     said = f"{reason} (stated in commit {cited})" if cited else reason
     parts = [f"The reason given at the time: {said}" if reason else NO_REASON]
     if excerpt:
-        parts.append(f"From the source {noun}:\n\n{_quote(excerpt)}")
+        quoted = "\n".join(f"> {line}" if line else ">" for line in excerpt.split("\n"))
+        parts.append(f"From the source {noun}:\n\n{quoted}")
     return "\n\n".join(parts)
 
 
@@ -469,7 +469,7 @@ def render(style: Style, number: int, candidate: dict[str, Any], status: str) ->
     """The ADR text. Headings come from ``style``; the caller has cleaned the candidate."""
     day = iso_day(candidate.get("date"))
     kinds = [section_kind(heading) for heading in style.headings]
-    lines = [render_h1(style.h1_form, number, candidate["title"]), ""]
+    lines = [render_h1(style.h1_form, number, _plain(candidate["title"])), ""]
     header = ([f"Date: {day}"] if day and "date" not in kinds else []) + (
         [f"Status: {status}"] if "status" not in kinds else []
     )
