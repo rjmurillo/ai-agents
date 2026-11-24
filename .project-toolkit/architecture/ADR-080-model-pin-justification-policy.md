@@ -57,7 +57,7 @@ plus `scripts/eval/_model_sweep_core.py`) and #2902 completed the pricing table.
 harness is **agent-shaped**: it builds child arguments only for `--agent`,
 `--fixtures`, `--model`, `--n-runs` (`scripts/eval/eval-model-sweep.py:160-186`) and the <!-- citation-freshness: ignore -- lines 160-186 hold build_child_argv, an exact match for 158-184 at citing commit d65e0e956; the gate pairs the next citation's anchor templates/agents/{agent}.shared.md with this range -->
 base evaluator reads `templates/agents/{agent}.shared.md`
-(`scripts/eval/eval-agent-vs-baseline.py:122,397-409`). It cannot evaluate a skill or a
+(`scripts/eval/eval-agent-vs-baseline.py:124,399-411`). It cannot evaluate a skill or a
 command.
 
 Grounding the consequence: only **1 of 74 pinned skills** and **17 of 31

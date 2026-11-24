@@ -139,9 +139,9 @@ touched.
 |-------------|-----|-----|
 | ADR-052:146 | `generate_agent_catalog.py:159-172` | `158-171` |
 | ADR-059:464 | `copilot_body_translation.py:395` | `392` |
-| ADR-080:60 | `eval-agent-vs-baseline.py:118,394-406` | `122,397-409` |
-| ADR-102:221 | `git_hook_policy.py:2774` | `2763` |
-| ADR-102:355 | `git_hook_policy.py:2774` | `2763` |
+| ADR-080:60 | `eval-agent-vs-baseline.py:118,394-406` | `124,399-411` (round 6) |
+| ADR-102:221 | `git_hook_policy.py:2774` | `2785` (round 6) |
+| ADR-102:355 | `git_hook_policy.py:2774` | `2785` (round 6) |
 | ADR-108:27 | `copilot_body_translation.py` `:140` | `:151` |
 | ADR-108:201 | `copilot_body_translation.py` `:140` | `:151` |
 | ADR-108:201 | `build_all.py:793` and `:2226` | `:1036` and `:2454` |
@@ -162,3 +162,53 @@ and are out of scope for this change:
 - ADR-099:31 cites `git_hook_policy.py` lines 6062-6073 for a comment that is
   not in that file.
 - ADR-102:227 and :242 cite `validate_session_json.py:1647` and `qa_report.py:182`.
+
+## Round 6 Summary
+
+Commits after round 5 moved two cited files again. `git_hook_policy.py` grew,
+so its lines sit 11 below base. The eval runner gained a two-line comment, so
+its lines sit 6 below base. The decision-rigor review axis found the round 5
+values stale at the new head.
+
+### Method
+
+Each new number maps the base line through the hunks of
+`git diff -U0 <base> HEAD` for the target file. The cited line then holds the
+same text it held at base. A citation that was already wrong at base keeps its
+base text, so this branch does not own it.
+
+### Agent Positions
+
+| Agent | Position |
+|-------|----------|
+| architect | Block on ADR-102:112, then the remedy it named was applied; Accept on the other three ADR lines |
+| critic | Block on five lines already wrong at base and one missed citation, then both remedies were applied |
+
+### Key Issues Addressed
+
+- ADR-102:112 cited a docstring at base, not the mode flag line. It keeps its
+  base text.
+- FAIL-OPEN-INVENTORY:121 and :151, REQ-023:48 and :275, and TASK-026:51 were
+  wrong at base. Earlier rounds had shifted them. They now keep their base text.
+- The critic found one missed citation. The probe toolkit's `provenance.md:16`
+  now cites `eval-agent-vs-baseline.py:452-480`.
+- The critic confirmed the other round 5 rows still hold at head.
+
+### Final Diff (round 6)
+
+| Citing line | Round 5 | Round 6 |
+|-------------|---------|---------|
+| ADR-080:60 | `122,397-409` | `124,399-411` |
+| ADR-102:221 | `2763` | `2785` |
+| ADR-102:355 | `2763` | `2785` |
+
+The same commit re-anchors these non-ADR citations: FAIL-OPEN-INVENTORY:103 and
+:116 to :120, `check_push_lock_before_commit.py:49`, and
+`citation_head_state.py:91`.
+
+### Next Steps
+
+These lines were wrong at base and stay out of scope: ADR-102:112,
+FAIL-OPEN-INVENTORY:93, :121 and :151, REQ-023:48 and :275, TASK-026:51, and
+ADR-100:31, :37 and :250.
+
