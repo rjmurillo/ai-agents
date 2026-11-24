@@ -286,9 +286,14 @@ Bounds: 30 s per call, 600 s of fallback time per run.
 ## Eval method (before anyone builds)
 
 1. **Measure the band.** Run the heuristic over the 90-day comment set. Record the count and share at 0.4 to 0.6, and the share at exactly 0.5 with no matched pattern. No model needed.
+   - Unit: production scores every comment node in a thread, replies included (`update_reviewer_signal_stats.py:212-245`). Report the band share split into thread openers and replies.
+   - Window: the fetch filters on PR `updatedAt`, not comment time (`scripts/github_core/api.py:1366`). State this in the result.
+   - Loss: `reviewThreads(first: 100)` and `comments(first: 50)` request no `pageInfo` (`api.py:1313-1317`). Count PRs and threads that hit either limit and report the loss. Do not present a partial read as the full set.
 2. **Build a labeled corpus.** Sample 200 comments, stratified: 100 from the band, 100 outside it, across every reviewer in the signal table.
+   - Unit: the eval scores the same unit production scores, with thread position recorded per row.
    - Labeler: Richard or a maintainer he names. A second labeler double-labels 50 items, and the report states the agreement rate.
-   - Labelers see the comment and the diff it points at. They do not see thread replies, heuristic scores, or any arm's output.
+   - Labelers see the comment, its file path, and the diff hunk it points at. The current fetch has no hunk, so the corpus builder fetches it separately. They do not see thread replies, heuristic scores, or any arm's output.
+   - Hold out 40 band items as a dev split for prompt work. Freeze the prompt, provider, and model, and commit them, before the other 160 items are scored.
    - Labels must not come from thread replies. The heuristic already reads replies, so reply-derived labels make it grade itself.
    - Store as JSONL under `evals/comment-actionability/` with the label rubric.
 3. **Score three arms** on band items, then on all items:
@@ -298,7 +303,10 @@ Bounds: 30 s per call, 600 s of fallback time per run.
 4. **Report** accuracy, precision, and recall per arm, per-call p50 and p95 latency for arm C, and a paired bootstrap 95 percent CI on the accuracy gap between C and the better of A and B, over band items.
 5. **Reuse first.** `scripts/eval/eval-prompt-change.py` already runs scenario files with an `expected_verdict`. Check whether it scores this corpus with no new code before writing a runner.
 
-Pass bar: C beats the better of A and B on band items by at least 10 points of accuracy, with the CI lower bound above 0.
+6. **Run arm C on an HTTP transport** with the model CI would use. CLI-cell results count for accuracy only, since CLI spawn time does not transfer to CI latency.
+
+Pass bar: C beats the better of A and B on held-out band items by at least 10 points of accuracy, with the CI lower bound above 0.
+Before scoring, compute the smallest gap the held-out band size can detect. If the CI straddles 0 and the point gap is at least 10 points, the result is inconclusive, not a kill. Label 100 more band items once, then decide.
 
 ## Kill criteria
 
@@ -308,7 +316,7 @@ Drop the model fallback, and delete `scripts/llm_classification`, if any holds:
 2. Arm C fails the pass bar against arm B. A one-character tie-break rule would do the job.
 3. The signal table's reviewer ranking is the same under A and C. Nobody downstream would act differently.
 4. No transport is reachable in CI without a new paid secret, and the owner declines to add one.
-5. After one warm cache run, the chosen CI transport still caps out: `fallback_capped` above 10 percent of `band_total` under the 600 s budget at measured p95.
+5. At steady state, the chosen CI transport still caps out: `fallback_capped` above 10 percent of `band_total` under the 600 s budget at measured p95. Steady state starts after `band_total / min(LLM_FALLBACK_MAX_CALLS, 600 / p50)` daily runs, or after one backfill run with the caps raised. The M1 decision record projects that run count.
 
 ## Failure modes
 
