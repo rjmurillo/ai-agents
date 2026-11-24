@@ -9,9 +9,13 @@ notification channel that `docs/agent-readiness.md` names as the alert path.
 The script reads the event payload file and nothing else from the run. It does
 not read logs, artifacts, or secrets, and it sends nothing outside GitHub.
 
+With `--classify`, the script only decides eligibility. It prints the reason
+and writes `eligible=true` or `eligible=false` to GITHUB_OUTPUT.
+
 EXIT CODES (ADR-035):
   0 - nothing to alert on, or the alert issue was created or updated
-  2 - configuration error: no event file, unreadable payload, no RUNNER_TEMP
+  2 - configuration error: no event file, unreadable payload, no RUNNER_TEMP,
+      or with --classify a missing or unwritable GITHUB_OUTPUT
   3 - the issue operation failed
   4 - GitHub authentication failed
 """

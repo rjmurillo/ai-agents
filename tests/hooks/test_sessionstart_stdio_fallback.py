@@ -26,7 +26,14 @@ HOOKS_DIR = Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "Session
 HOOK_NAMES = ["invoke_context_loader", "invoke_checkout_freshness_check"]
 
 
+def _isolate_plugin_root(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Resolve the hook lib from the checkout, not a plugin root the shell inherited."""
+    monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+    monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+
+
 def _load(name: str, monkeypatch: pytest.MonkeyPatch) -> ModuleType:
+    _isolate_plugin_root(monkeypatch)
     monkeypatch.syspath_prepend(str(HOOKS_DIR))
     spec = importlib.util.spec_from_file_location(f"{name}_stdio", HOOKS_DIR / f"{name}.py")
     assert spec is not None and spec.loader is not None
@@ -48,6 +55,7 @@ def test_hooks_use_the_shared_stdio_helpers(name: str, monkeypatch: pytest.Monke
 def test_missing_protocol_output_fails_open(
     name: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    _isolate_plugin_root(monkeypatch)
     monkeypatch.syspath_prepend(str(HOOKS_DIR))
     monkeypatch.setitem(sys.modules, "hook_utilities.protocol_output", None)
     monkeypatch.setattr(sys, "stdin", io.StringIO(""))

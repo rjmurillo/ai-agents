@@ -14,7 +14,7 @@ uv run python scripts/validation/check_duplicate_code.py --base-ref origin/main
 
 Run `npm ci --ignore-scripts` to install the integrity-locked detector.
 Without that installation, the checker exits with a configuration error.
-Set `JSCPD_BIN` to use another binary.
+The checker runs only the locked `node_modules/jscpd` runner and ignores the environment.
 
 ## What is scanned
 

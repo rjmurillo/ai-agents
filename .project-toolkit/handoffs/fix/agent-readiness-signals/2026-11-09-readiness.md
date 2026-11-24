@@ -8,11 +8,17 @@ It reported 524 blocking findings before the repairs below.
 The owner recorded two more decisions on 2026-11-23:
 
 - D-SDK1 A: clear doc accuracy by repairing documents, not by building the ADR-124 bundle.
-  Twenty-five example-heavy docs now carry the documented `external-sdk` marker.
+  The decision covers the class of example-heavy docs, not a fixed list.
+  Twenty-five source docs carry the documented `external-sdk` marker in total.
+  Twenty came first (`ffc7e470a`), and five followed the revert below.
   One template example no longer calls an undeclared helper.
-- D-SDK2: the owner approved the 136 code-quality score regressions again.
-  The rows match the earlier approval by path and score.
-  Evidence and approval sit on issue #7512, comments 7119150449 and 7119195568.
+  Cost: a marker silences `unresolved_symbol` for its whole file.
+  It also hides future drift of this repository's own symbols in those docs.
+  Exit: remove the markers when ADR-124 proof lands (issue #7501).
+- D-SDK2: the owner approved the code-quality score regressions again.
+  The set is 137 rows: the 136 approved at `6c809ace` plus one test coupling row.
+  The approval binds a commit pair, so each new head needs a fresh comment on #7512.
+  Issue #7525 tracks replacing that per-commit approval.
 
 Commit `e7a70a4ce` reverted `0cdd2e8b6`.
 That commit cleared C# types through a hand-kept `using` allowlist.
@@ -22,14 +28,14 @@ The revert left 23 `System` findings in five docs, now marked as well.
 Commit `f8eb91a96` split three files that crossed 500 lines.
 The taste count ratchet then passed.
 
-Review round 1 ran at `e9c2fdca1` against `main` at `d02754546`.
-All 16 axes returned WARN or PASS, none CRITICAL_FAIL.
-The fix round addresses the findings in one batch.
-The ledger is in the review scratch directory and is not committed.
+Review round 1 ran at `e9c2fdca1` and round 2 at `6c2ddab78`.
+No axis returned CRITICAL_FAIL. All six security slices returned PASS in round 2.
+Round 2 left a stale doc line, a test that read the shell's plugin root, and a mypy regression.
+The ledgers live in the review scratch directory and are not committed.
 
-ADR-124 stays Proposed. Round 2 inputs from review go to issue #7501.
-Issue #7525 tracks replacing the per-commit code-quality approval.
-Main is red on four Renovate tests from #7521. PR #7524 fixes them.
+ADR-124 stays Proposed. Round 2 inputs from review went to issue #7501.
+`doc_accuracy.py` grew from 2,592 to 4,423 lines on this branch.
+Review asks to move its binding lexer into a sibling module after merge.
 
 D11's duplicate-repair worktree remains preserved until merge.
 Its path is `/home/richard/worktrees/ai-agents4/fix-readiness-d11-dupli-a60624f87ff01c00`.
