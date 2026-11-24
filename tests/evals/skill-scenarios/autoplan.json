@@ -167,7 +167,7 @@
       "expected_gate": "route-memory-retain",
       "expected_route": ["memory"],
       "forbidden_routes": ["memory-search", "memory-reflexion", "orchestrator"],
-      "rationale": "The memory skill owns durable fact retention. Search and episode extraction serve different requests."
+      "rationale": "The memory skill owns durable fact retention. memory-search serves lookup and memory-reflexion serves episode extraction, so neither fits, and one skill needs no orchestrator."
     },
     {
       "id": "R16",
@@ -178,7 +178,7 @@
       "expected_gate": "route-memory-search",
       "expected_route": ["memory-search"],
       "forbidden_routes": ["memory-reflexion", "orchestrator"],
-      "rationale": "The focused skill handles lookup when it is installed."
+      "rationale": "The focused memory-search skill handles lookup when it is installed. memory-reflexion extracts episodes, and one skill needs no orchestrator."
     },
     {
       "id": "R17",
@@ -189,7 +189,7 @@
       "expected_gate": "route-memory-recall-fallback",
       "expected_route": ["memory"],
       "forbidden_routes": ["memory-search", "memory-reflexion", "orchestrator"],
-      "rationale": "The router supplies a recall procedure when the focused skill is absent."
+      "rationale": "The memory router supplies a recall procedure when memory-search is absent. memory-reflexion extracts episodes, and one skill needs no orchestrator."
     }
   ]
 }

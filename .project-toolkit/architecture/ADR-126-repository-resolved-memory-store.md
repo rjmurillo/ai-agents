@@ -84,11 +84,10 @@ either folder with no server. Corpus maintenance scripts that edit the indexed
 Serena layout stay Serena-layout tools: `memory_git_targets.py`,
 `supersession_sweep.py`, `improve_memory_graph_density.py`,
 `convert_memory_references.py`, `convert_index_table_links.py`,
-`invoke_memory_cross_reference.py`, `test_memory_size.py`, and
+the memory skill's cross-reference script, `test_memory_size.py`, and
 `measure_memory_performance.py`. They default to `.serena/memories`.
-The `memory-consolidate` and `curating-memories` skills drive
-`memory_git_targets.py` and `supersession_sweep.py`, so they are Serena-layout
-skills too.
+`memory-consolidate` drives `memory_git_targets.py` and `curating-memories`
+drives `supersession_sweep.py`, so both are Serena-layout skills too.
 
 **3. Identity is the path under the resolved folder.** This amends ADR-106
 Decision 5. In this repository the resolved folder is `.serena/memories/`, so

@@ -49,8 +49,9 @@ These rules apply to every change in the active host repository.
    waste tokens and hide the content. If a script emits one, delete the emitter.
 6. Worktrees MUST remain available for the duration of the handoff and follow
    the host's path rules.
-7. MUST NOT rely on an optional memory store alone to persist a convention
-   other harnesses or contributors must obey. It is a retrieval complement.
+7. MUST NOT rely on an optional memory service alone to persist a convention
+   that other harnesses or contributors must obey. Optional memory services
+   are retrieval complements, not the cross-harness binding.
 8. MUST NOT cite an operator preference as a repository rule. State the durable
    source or state the advice without project attribution.
 9. MUST NOT assert an absence from a single probe. It mirrors item 8: a cited
@@ -59,8 +60,10 @@ These rules apply to every change in the active host repository.
    the active host checkout and cite the search, or narrow the claim to the
    scope actually searched.
 
-10. Long-running work MUST keep its state in a durable handoff, not only in
-    an optional memory store. Session log creation is discontinued.
+10. **Session continuity**. Long-running work MUST preserve its current state in
+    the host workflow's durable handoff surface. Session log creation is
+    discontinued. Optional memory services are retrieval aids, not the only
+    record of required work.
 
 11. MUST NOT mutate a host-owned memory or handoff store from a linked worktree
     when it resolves to another checkout. Route the write through the owning

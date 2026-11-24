@@ -43,3 +43,8 @@ The post-consensus hardening from debate log 3 now has a recorded round.
 The round 2 `/review` decision-rigor axis found two Decision 7 claims with no named test.
 A new test covers the `.git` file case; the nested case already had a parity layout.
 Confirmation now names both. No decision changed.
+
+The full local test run then found Decision 2 named a skill script whose
+`invoke_` prefix a hook-claims test reads as a hook. The list now describes it
+as the memory skill's cross-reference script. The two-skill sentence now pairs
+each skill with its own script. No decision changed.

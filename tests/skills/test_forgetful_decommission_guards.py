@@ -216,7 +216,7 @@ def test_memory_documentary_states_no_memory_system_count(
 ) -> None:
     """No count may qualify "MCP server" or "memory system".
 
-    Forgetful's removal took the count from four to three. ADR-126 then made the
+    Retiring the fourth backend took the count from four to three. ADR-126 then made the
     sources depend on what each repository provides, so any fixed count is now
     wrong somewhere. The skill names its sources by kind instead.
 

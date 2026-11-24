@@ -77,8 +77,8 @@ The agent lists the derived topics explicitly in the Step 0.5 preamble before ru
 Invoke the two skills in order. Each emits content into a named subsection of the PriorArtBlock.
 
 1. **chestertons-fence (frame)**. Invoke `Skill(skill="chestertons-fence")` with `target` set to the Q3 system path and `change` set to the Q4 wedge description. The skill runs git archaeology, PR/ADR search, and dependency analysis on the target. Output (PRESERVE | MODIFY | REPLACE | REMOVE recommendation plus rationale) feeds the `### Direct prior art from memory` subsection.
-2. **Project memory (point search).** Use `memory-search` or the `memory` skill's
-   recall procedure. When neither is available, try a scoped recall tool.
+2. **Project memory (point search).** Use `memory-search`, or the `memory`
+   skill's recall procedure through `Skill(skill="memory")`. When neither is available, try a scoped recall tool.
    Check repository memory with the helper or file tools for missing context.
    Use at least three distinct query variants per topic. Cite relevant
    results in the direct prior-art subsection. Record each source and gap.
