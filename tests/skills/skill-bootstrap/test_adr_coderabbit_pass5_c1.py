@@ -283,7 +283,8 @@ def test_c14_each_batch_is_classified_before_the_next_is_read(
 
     def read(root: Path, shas: list[str]) -> list[adr_commits.CommitRecord]:
         events.append("read")
-        return real_read(root, shas)
+        records: list[adr_commits.CommitRecord] = real_read(root, shas)
+        return records
 
     def shape(subject: str, body: str) -> adr_shape.CommitShape:
         events.append("classify")

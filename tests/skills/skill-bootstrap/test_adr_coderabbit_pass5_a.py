@@ -18,7 +18,8 @@ def _reason(body: str, title: str = "Adopt X for parsing") -> str | None:
 
 
 def _rationale(body: str, subject: str = "Use a queue for background jobs") -> bool:
-    return adr_shape.has_stated_rationale(subject, body)
+    stated: bool = adr_shape.has_stated_rationale(subject, body)
+    return stated
 
 
 # A1: a release title with a decision after its version reaches the rationale gate
