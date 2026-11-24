@@ -24,6 +24,7 @@ The full-index ADR patch has SHA-256 `431f1f3b7b42f10292112ce6a8d213a8ffff2bbae0
 | Round 1 | `da74d6c746589934380c8042230d8e99c322992c` |
 | Round 2 | `da74d6c746589934380c8042230d8e99c322992c` |
 | Round 3 | `e1e3aeb35d09aa3edfb975403cf3b49b7812291b` |
+| Round 4 | `c1e79358afdbc5a48091e5c734e5377aae1e2851` |
 
 ## Round 1
 
@@ -68,3 +69,20 @@ Both reservations predate this repair and stay outside its scope.
 Editing line 37 made the gate re-check its `:6727` citation.
 That line cited `_check_commit_limit`, which #5893 deleted with the size ceilings.
 A `citation-freshness: ignore` comment above line 37 marks it as history, as ADR-101 line 188 does.
+
+## Round 4
+
+The merge of #7537 added two lines near the top of `git_hook_policy.py`.
+Line 37 cited code that now sits two lines lower.
+The repair changes `:6854` to `:6856` and `:6870` to `:6872`.
+It changes both the prose and the existing ignore comment.
+Both lines hold the quoted code. No decision text changed.
+
+| Reviewer | Verdict | Review receipt ID |
+| --- | --- | --- |
+| Architect | Accept | not issued |
+| Critic | Accept | not issued |
+
+The critic first blocked an unrepaired `:2787` citation in ADR-102.
+That repair is in the ADR-102 debate log, and the critic then accepted.
+Citations that were already stale before the merge stay outside this repair.

@@ -8,7 +8,7 @@ allowed-tools:
   - Glob
   - Grep
 description: "Scaffold project documentation (README, ARCHITECTURE, API, CODE_COMMENTS) from templates with documented standards. Use when bootstrapping docs for a new or under-documented codebase."
-license: MIT
+license: Apache-2.0
 metadata:
   routing:
     role: conditional-adjunct

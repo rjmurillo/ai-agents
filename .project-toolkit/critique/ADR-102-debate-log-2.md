@@ -23,6 +23,7 @@ The full-index ADR patch has SHA-256 `431f1f3b7b42f10292112ce6a8d213a8ffff2bbae0
 | Base | `eb2ad213137ea15297912722ed4ea776ed5c47b8` |
 | Round 1 | `f4828813289dc9822f5952e5ab0216d1353d220d` |
 | Round 2 | `c9ca60728189261c818704f68ff8c86d2f638d1e` |
+| Round 3 | `5302ee361272ce37ccd15d5d151227ab44e1f10a` |
 
 ## Round 1
 
@@ -54,3 +55,19 @@ Older citation anchors on ADR lines 87, 227, and 298 remain outside scope.
 | --- | --- | --- |
 | Architect | Accept | `c71a5fc7-4d61-4ea6-9650-c8c9c6654ecd` |
 | Critic | Accept | `c5b49daf-681f-44c9-837b-73faefd1d63c` |
+
+## Round 3
+
+The merge of #7537 added two lines near the top of `git_hook_policy.py`.
+Lines 221 and 355 cited the pre-commit mode-flag line at `:2787`.
+That line now sits at `:2789`, and both citations point there.
+No decision text changed.
+
+| Reviewer | Verdict | Review receipt ID |
+| --- | --- | --- |
+| Architect | Accept | not issued |
+| Critic | Accept | not issued |
+
+The critic first blocked because line 355 still cited `:2787`, and then accepted the fix.
+Line 112 cites `:2781`, which was already stale before the merge.
+It stays outside this repair.

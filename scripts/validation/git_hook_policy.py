@@ -95,6 +95,7 @@ ROOT_SCRATCH_ALLOWLIST = frozenset(
         "CLAUDE.md",
         "CONTRIBUTING.md",
         "LICENSE",
+        "NOTICE",
         "README.md",
         "RELEASING.md",
         "SECURITY.md",
@@ -151,6 +152,7 @@ ALLOWED_REPO_ROOT_ENTRIES = frozenset(
         "CLAUDE.md",
         "CONTRIBUTING.md",
         "LICENSE",
+        "NOTICE",
         "README.md",
         "RELEASING.md",
         # GitHub and the HOL plugin scanner read the security policy only here.

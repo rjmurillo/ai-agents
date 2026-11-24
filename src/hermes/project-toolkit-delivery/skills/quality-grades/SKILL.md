@@ -2,7 +2,7 @@
 name: quality-grades
 version: 1.0.0
 description: Grade each product domain and architectural layer with A-F scoring and gap tracking. Produces markdown or JSON reports showing grades, file counts, gaps, and trends. Use when you ask "grade quality", "audit domain quality", "show quality gaps", "domain quality report", or "run quality grades" across a repo. Use for repo-wide A-F domain grading and trend tracking. Do NOT use for single-file maintainability scoring (use code-qualities-assessment) or a pre-merge review (use review).
-license: MIT
+license: Apache-2.0
 ---
 
 # Quality Grades

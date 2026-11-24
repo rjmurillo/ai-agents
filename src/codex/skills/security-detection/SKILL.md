@@ -1,7 +1,7 @@
 ---
 name: security-detection
 description: Detect infrastructure and security-critical file changes to trigger security agent review recommendations ensuring proper security oversight for sensitive modifications. Use when you ask "did I touch security-critical files", "should the security agent review this". Detection only. Do NOT use to scan source for injection patterns (use security-scan).
-license: MIT
+license: Apache-2.0
 metadata:
   routing:
     role: front-door

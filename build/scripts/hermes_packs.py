@@ -76,7 +76,7 @@ def _plugin_json(pack: PackSpec) -> bytes:
         "name": pack.dir_name,
         "description": pack.description,
         "author": {"name": "rjmurillo"},
-        "license": "MIT",
+        "license": "Apache-2.0",
     }
     return (json.dumps(manifest, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
 

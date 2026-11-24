@@ -7,7 +7,7 @@ description: Tier 2 episode extraction, the reflexion write path split out of th
   `extract episode from session`, `record what happened this session`, or
   `re-extract this episode`. Do NOT use for Tier 1 lookups (use memory-search),
   for adding citations (use memory-enhancement), or to capture a correction or lesson (use reflect).
-license: MIT
+license: Apache-2.0
 metadata:
   adr: ADR-038, ADR-063, ADR-089, ADR-103, ADR-106
   capability:
