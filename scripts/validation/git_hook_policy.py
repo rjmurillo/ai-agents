@@ -46,6 +46,7 @@ from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
 from scripts.ci import diff_line_scope
 from scripts.ci.run_pytest_partition import PYTEST_DIST_MODE
+from scripts.hook_utilities.frontmatter_block import decode_frontmatter_yaml, split_frontmatter
 from scripts.hook_utilities.utilities import recent_host_session_dates
 from scripts.validation import (
     cli_smoke_paths,
@@ -175,6 +176,7 @@ ALLOWED_REPO_ROOT_ENTRIES = frozenset(
     }
 )
 ADR_ID_RE = re.compile(r"ADR-\d+", re.IGNORECASE)
+FRONTMATTER_FIELD_RE = re.compile(r"^([A-Za-z0-9_-]+):(.*)$")
 # Issue #5205: thresholds calibrated against the 86 debate logs in
 # .project-toolkit/critique on main. All 86 clear these; the smallest is 454 bytes.
 DEBATE_LOG_MIN_BYTES = 300
@@ -278,7 +280,6 @@ DEBATE_LOG_VERDICT_LABEL_RE = re.compile(
     re.IGNORECASE,
 )
 DEBATE_LOG_HEADING_RE = re.compile(r"(?m)^#{1,6} \S")
-FRONTMATTER_FIELD_RE = re.compile(r"^([A-Za-z0-9_-]+):(.*)$")
 # `type: ignore` is excluded because this gate owns security suppressions.
 # Issue #4039 tracks separate enforcement for typing suppressions.
 SECURITY_SUPPRESSION_RE = re.compile(
@@ -1569,21 +1570,24 @@ def _session_log_for_current_branch(sessions_dir: Path, repo_root: Path) -> Path
 
 
 def _split_frontmatter(content: bytes) -> tuple[bytes, bytes]:
-    """Split a document into its frontmatter and its body, without decoding.
+    """Split a document into its frontmatter and its body, byte for byte.
 
-    The body is what callers compare for "unchanged", and that question is
-    about bytes. Decoding first with ``errors="replace"`` maps every byte the
-    decoder cannot read to the same replacement character, so two bodies
-    holding different invalid bytes came back equal and a real body edit rode
-    in under a metadata change.
+    The fence rule is ``scripts/hook_utilities/frontmatter_block.py``'s. The
+    body is what callers compare for "unchanged", and that question is about
+    bytes. ``errors="surrogateescape"`` maps each byte UTF-8 cannot read to its
+    own code point and back, so two bodies holding different invalid bytes
+    still compare unequal. ``errors="replace"`` would map them all to one
+    replacement character and let a real body edit ride in under a metadata
+    change. The body starts right after the closing fence line, so a blank line
+    added there is a body change.
     """
-    lines = content.splitlines(keepends=True)
-    if not lines or lines[0].strip() != b"---":
+    text = content.decode("utf-8", "surrogateescape")
+    split = split_frontmatter(text)
+    if not split.found:
         return b"", content
-    for index in range(1, len(lines)):
-        if lines[index].strip() == b"---":
-            return b"".join(lines[1:index]), b"".join(lines[index + 1 :])
-    return b"", content
+    frontmatter = text[text.index("\n") + 1 : split.raw_end]  # keep tab-only lines
+    body = text[split.fence_end :]
+    return frontmatter.encode("utf-8", "surrogateescape"), body.encode("utf-8", "surrogateescape")
 
 
 def _has_duplicate_frontmatter_keys(frontmatter: str) -> bool:
@@ -1602,10 +1606,17 @@ def _has_duplicate_frontmatter_keys(frontmatter: str) -> bool:
 
 
 def _parse_frontmatter(frontmatter: str) -> dict[str, object] | None:
+    """Load one block's text, cut by ``_split_frontmatter``, as a mapping.
+
+    A repeated top-level key is refused; nested mappings keep YAML's
+    last-one-wins, so merge keys and nested repeats load as they always have.
+    An empty or comment-only block is ``{}``. A block that is malformed or not
+    a mapping is ``None``. The YAML load goes through the shared decoder.
+    """
     if _has_duplicate_frontmatter_keys(frontmatter):
         return None
     try:
-        loaded = yaml.safe_load(frontmatter)
+        loaded = decode_frontmatter_yaml(frontmatter, yaml, allow_duplicate_keys=True)
     except yaml.YAMLError:
         return None
     if loaded is None:

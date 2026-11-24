@@ -228,11 +228,16 @@ def test_taste_names_the_added_file_first_among_many_touched_existing_offenders(
     init_repo(repo)
     linter = repo / _LINTER_RELATIVE
     linter.parent.mkdir(parents=True)
-    shutil.copy(Path(__file__).resolve().parents[2] / _LINTER_RELATIVE, linter)
-    shutil.copytree(
-        Path(__file__).resolve().parents[2] / ".claude/lib/ai_review_common",
-        repo / ".claude/lib/ai_review_common",
-    )
+    repo_root = Path(__file__).resolve().parents[2]
+    shutil.copy(repo_root / _LINTER_RELATIVE, linter)
+    # The linter imports ai_review_common.scan_rules, and its ADR-047
+    # bootstrap imports hook_utilities, both from <root>/lib.
+    for package in ("ai_review_common", "hook_utilities"):
+        shutil.copytree(
+            repo_root / ".claude" / "lib" / package,
+            repo / ".claude" / "lib" / package,
+            ignore=shutil.ignore_patterns("__pycache__"),
+        )
     marker = repo / "scripts" / "ci" / "taste_count_ratchet.py"
     marker.parent.mkdir(parents=True)
     marker.write_text("# bootstrap marker for base_derived_ratchet\n", encoding="utf-8")

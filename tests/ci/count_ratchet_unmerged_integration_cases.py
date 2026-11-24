@@ -22,16 +22,20 @@ def _install_linter(repo: Path) -> None:
 
     ``taste_count_ratchet`` runs the linter as ``cwd=repo_root`` plus a
     repo-relative path, so a scratch repository needs its bundled library too.
+    The linter imports ``ai_review_common`` and, through the ADR-047
+    bootstrap, ``hook_utilities.frontmatter_block`` from ``<root>/lib``.
     """
     source = Path(__file__).resolve().parents[2] / _LINTER_RELATIVE
     assert source.is_file(), f"the taste linter moved: {source}"
     destination = repo / _LINTER_RELATIVE
     destination.parent.mkdir(parents=True)
     shutil.copy(source, destination)
-    shutil.copytree(
-        source.parents[3] / "lib" / "ai_review_common",
-        destination.parents[3] / "lib" / "ai_review_common",
-    )
+    for package in ("ai_review_common", "hook_utilities"):
+        shutil.copytree(
+            source.parents[3] / "lib" / package,
+            destination.parents[3] / "lib" / package,
+            ignore=shutil.ignore_patterns("__pycache__"),
+        )
 
 
 def _oversized(marker: str) -> str:

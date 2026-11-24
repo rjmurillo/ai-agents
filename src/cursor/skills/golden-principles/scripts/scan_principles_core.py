@@ -19,8 +19,29 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+import sys
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
+
+# ADR-047 keeps this bootstrap inline because imports need sys.path first.
+# This file's own plugin lib wins when it holds the shared frontmatter parser,
+# so a foreign or older plugin root in the environment cannot shadow it. The
+# environment root is the fallback for a script copied outside its plugin.
+_PLUGIN_ROOT = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+_LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+if _PLUGIN_ROOT and not os.path.isfile(_LIB_DIR / "hook_utilities" / "frontmatter_block.py"):
+    _LIB_DIR = Path(_PLUGIN_ROOT) / "lib"
+
+if not os.path.isdir(_LIB_DIR):
+    raise RuntimeError(
+        "Expected portability helper lib directory not found: "
+        f"{_LIB_DIR}. Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT to the "
+        "plugin root, or run from an ai-agents checkout."
+    )
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from hook_utilities.frontmatter_block import FrontmatterStatus, split_frontmatter  # noqa: E402
 
 __all__ = [
     "EXIT_SUCCESS",
@@ -51,6 +72,8 @@ __all__ = [
     "repo_adopts_principles",
     "base_adopts_principles",
     "as_advisory",
+    "FrontmatterStatus",
+    "split_frontmatter",
 ]
 
 EXIT_SUCCESS = 0
@@ -528,8 +551,8 @@ def check_agent_definition(filepath: str, lines: list[str]) -> list[Violation]:
     if has_suppression(lines, "agent-definition"):
         return []
 
-    content = "".join(lines)
-    if not content.startswith("---"):
+    split = split_frontmatter("".join(lines))
+    if split.status is FrontmatterStatus.ABSENT:
         return [
             Violation(
                 rule="agent-definition",
@@ -549,11 +572,10 @@ def check_agent_definition(filepath: str, lines: list[str]) -> list[Violation]:
             )
         ]
 
-    parts = content.split("---", 2)
-    if len(parts) < 3:
+    if not split.found:
         return []
 
-    frontmatter = parts[1]
+    frontmatter = split.raw
     missing = [f for f in AGENT_REQUIRED_SECTIONS if f"{f}:" not in frontmatter]
     if missing:
         return [

@@ -25,6 +25,12 @@ from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
 
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.hook_utilities.frontmatter_block import split_frontmatter  # noqa: E402
+
 
 class HealthLevel(Enum):
     """Overall health status level."""
@@ -253,18 +259,14 @@ def compute_memory_health(memories_dir: Path) -> list[ComponentHealth]:
             parse_errors += 1
             continue
 
-        # Check for valid YAML frontmatter
-        if not content.startswith("---"):
-            parse_errors += 1
-            continue
-
-        parts = content.split("---", 2)
-        if len(parts) < 3:
+        # A file without a closed frontmatter block counts as a parse error
+        block = split_frontmatter(content)
+        if not block.found:
             parse_errors += 1
             continue
 
         # Check for staleness indicators in frontmatter
-        frontmatter = parts[1]
+        frontmatter = block.raw
         if re.search(r"^\s*(?:stale|deprecated):\s*true", frontmatter, re.MULTILINE):
             stale_count += 1
 

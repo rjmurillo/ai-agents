@@ -25,6 +25,7 @@ from __future__ import annotations
 import hashlib
 import os
 import subprocess
+import sys
 from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -35,6 +36,12 @@ from _runtime_parity import (
     safe_workspace_file,
 )
 from _runtime_path_local import install_path_local, resolve_cwd
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.hook_utilities.frontmatter_block import split_frontmatter  # noqa: E402
 
 SENTINEL = "PARITY_PROFILE_SENTINEL_4853"
 GIT_CONTEXT_VARIABLES = (
@@ -58,22 +65,21 @@ def _installed_agent_bytes(source: Path) -> bytes:
     """
     with source.open(encoding="utf-8", newline="") as source_file:
         text = source_file.read()
-    lines = text.splitlines(keepends=True)
-    if not lines or lines[0].strip() != "---":
+    block = split_frontmatter(text)
+    if not block.found:
         raise ParityConfigError(f"{source} has no frontmatter block")
+    # Splice inside the block only, so every other byte round-trips exactly.
+    lines = block.raw.splitlines(keepends=True)
     renamed = False
-    for index in range(1, len(lines)):
-        stripped = lines[index].strip()
-        if stripped == "---":
-            break
-        if lines[index].startswith("name:"):
-            line_ending = lines[index][len(lines[index].rstrip("\r\n")) :]
+    for index, line in enumerate(lines):
+        if line.startswith("name:"):
+            line_ending = line[len(line.rstrip("\r\n")) :]
             lines[index] = f"name: {AGENT_NAME}{line_ending}"
             renamed = True
             break
     if not renamed:
         raise ParityConfigError(f"{source} frontmatter has no name field")
-    return "".join(lines).encode("utf-8")
+    return (text[: block.raw_start] + "".join(lines) + text[block.raw_end :]).encode("utf-8")
 
 
 def hash_installed_agent(source: Path) -> str:

@@ -5,9 +5,13 @@
 **Date**: 2026-09-16
 **Driving issue**: [#5275](https://github.com/rjmurillo/ai-agents/issues/5275) (Three ADR frontmatter parsers disagree on closing-fence strictness)
 **Depth tier**: Quick (Phase 0 of `buy-vs-build-framework`)
-**Status**: Recommended and executed for the four parsers issue #5275 names.
-Steps 1 to 4 and 6 of the rollout below have landed; step 5 (the remaining
-contracts) is tracked separately.
+**Status**: Superseded. The owner directed one parser for the whole
+repository, not one per packaging side. `scripts/hook_utilities/frontmatter_block.py`
+is stdlib-only, so it ships in the plugin lib trees and serves both sides. It
+uses this evaluation's fence rule, `python-frontmatter`'s `FM_BOUNDARY`, and the
+library stays installed as the test oracle. `frontmatter_contract.py`,
+`yaml_utils.py` and `frontmatter_split.py` are deleted. The record below is kept
+as the evidence trail for the fence rule.
 
 ## Executive Summary
 

@@ -24,6 +24,26 @@ import sys
 from pathlib import Path
 from typing import Any
 
+# ADR-047 keeps this bootstrap inline because imports need sys.path first.
+# This file's own plugin lib wins when it holds the shared frontmatter parser,
+# so a foreign or older plugin root in the environment cannot shadow it. The
+# environment root is the fallback for a script copied outside its plugin.
+_PLUGIN_ROOT = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+_LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+if _PLUGIN_ROOT and not os.path.isfile(_LIB_DIR / "hook_utilities" / "frontmatter_block.py"):
+    _LIB_DIR = Path(_PLUGIN_ROOT) / "lib"
+
+if not os.path.isdir(_LIB_DIR):
+    raise RuntimeError(
+        "Expected portability helper lib directory not found: "
+        f"{_LIB_DIR}. Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT to the "
+        "plugin root, or run from an ai-agents checkout."
+    )
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from hook_utilities.frontmatter_block import FrontmatterStatus, parse_frontmatter, split_frontmatter  # noqa: E402
+
 # Shared CWE-22 containment and CLI parsing, same module quick_validate.py uses.
 # Same fallback as package_skill.py: put this file's directory on sys.path when it
 # is loaded from elsewhere.
@@ -145,33 +165,35 @@ class SkillValidator:
             return False
 
     def parse_frontmatter(self) -> bool:
-        """Parse YAML frontmatter from skill file."""
-        # Handle both LF and CRLF line endings
-        match = re.match(r"^---\r?\n(.*?)\r?\n---", self.content, re.DOTALL)
-        if not match:
+        """Parse YAML frontmatter from skill file.
+
+        The block comes from ``hook_utilities.frontmatter_block``. Without
+        PyYAML, the basic reader runs over the block text.
+        """
+        split = split_frontmatter(self.content)
+        if not split.found:
             self.errors.append("Missing YAML frontmatter")
             return False
-
-        frontmatter_text = match.group(1)
 
         try:
             import yaml
 
-            parsed = yaml.safe_load(frontmatter_text)
-            # Guard against None or non-dict returns from yaml.safe_load
-            if parsed is None:
-                self.frontmatter = {}
-            elif not isinstance(parsed, dict):
+            result = parse_frontmatter(self.content, yaml, allow_duplicate_keys=True)
+            error = result.error or ""
+            if result.status is FrontmatterStatus.NOT_A_MAPPING:
                 self.errors.append(
-                    f"Frontmatter must be a YAML dictionary, got {type(parsed).__name__}"
+                    f"Frontmatter must be a YAML dictionary, got {result.value_type}"
                 )
                 return False
-            else:
-                self.frontmatter = parsed
+            if result.status is FrontmatterStatus.MALFORMED:
+                detail = error.removeprefix("invalid YAML frontmatter: ")
+                self.errors.append(f"Failed to parse frontmatter: {detail}")
+                return False
+            self.frontmatter = result.metadata or {}
             return True
         except ImportError:
             # Parse basic fields without yaml library (handles folded scalars)
-            self._parse_frontmatter_fallback(frontmatter_text)
+            self._parse_frontmatter_fallback(split.raw.strip("\r\n"))
             return True
         except Exception as e:
             self.errors.append(f"Failed to parse frontmatter: {e}")
@@ -714,7 +736,8 @@ class SkillValidator:
     def validate_structure(self):
         """Validate overall document structure."""
         # Check for H1 title
-        has_h1 = bool(re.match(r"---.*?---\s*\n#\s+", self.content, re.DOTALL))
+        split = split_frontmatter(self.content)
+        has_h1 = split.found and bool(re.match(r"#\s+", split.body))
         self.check("structure.h1_title", has_h1, "Missing H1 title after frontmatter")
 
         # Check for tables (should prefer tables over prose)
@@ -751,8 +774,8 @@ class SkillValidator:
         except ImportError:
             BODY_TOKEN_BUDGET = 5000  # noqa: N806
             CHARS_PER_TOKEN_ESTIMATE = 4  # noqa: N806
-        match = re.match(r"---\r?\n.*?\r?\n---\r?\n?", self.content, re.DOTALL)
-        body = self.content[match.end() :] if match else self.content
+        split = split_frontmatter(self.content)
+        body = self.content[split.fence_end :] if split.found else self.content
         estimate = len(body) // CHARS_PER_TOKEN_ESTIMATE
         self.check(
             "structure.body_token_budget",

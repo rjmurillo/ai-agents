@@ -43,6 +43,7 @@ from scan_principles_core import (  # noqa: E402
     REQUIRED_SKILL_FIELDS,
     SHA_PIN_PATTERN,
     TAG_PIN_PATTERN,
+    FrontmatterStatus,
     ScanResult,
     Violation,
     _check_skill_model_adr080,
@@ -59,6 +60,7 @@ from scan_principles_core import (  # noqa: E402
     is_safe_path,
     read_file_lines,
     repo_adopts_principles,
+    split_frontmatter,
 )
 
 
@@ -75,8 +77,8 @@ def check_skill_frontmatter(filepath: str, lines: list[str]) -> list[Violation]:
     if has_suppression(lines, "skill-frontmatter"):
         return []
 
-    content = "".join(lines)
-    if not content.startswith("---"):
+    split = split_frontmatter("".join(lines))
+    if split.status is FrontmatterStatus.ABSENT:
         return [
             Violation(
                 rule="skill-frontmatter",
@@ -97,8 +99,7 @@ def check_skill_frontmatter(filepath: str, lines: list[str]) -> list[Violation]:
             )
         ]
 
-    parts = content.split("---", 2)
-    if len(parts) < 3:
+    if not split.found:
         return [
             Violation(
                 rule="skill-frontmatter",
@@ -113,7 +114,7 @@ def check_skill_frontmatter(filepath: str, lines: list[str]) -> list[Violation]:
             )
         ]
 
-    frontmatter = parts[1]
+    frontmatter = split.raw
     missing = [f for f in REQUIRED_SKILL_FIELDS if f"{f}:" not in frontmatter]
     if missing:
         return [

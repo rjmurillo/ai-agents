@@ -22,10 +22,17 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.hook_utilities.frontmatter_block import split_frontmatter  # noqa: E402
 
 ROLES = (
     "architect",
@@ -284,10 +291,8 @@ def parse_phase1_prompts(prompts_md: str) -> dict[str, str]:
 
 
 def strip_frontmatter(text: str) -> str:
-    if not text.startswith("---\n"):
-        return text
-    end = text.find("\n---\n", 4)
-    return text if end < 0 else text[end + 5 :].lstrip("\n")
+    block = split_frontmatter(text)
+    return block.body.lstrip("\n") if block.found else text
 
 
 def build_user_prompt(template: str, claim_block: str, adr_text: str, evidence: str) -> str:

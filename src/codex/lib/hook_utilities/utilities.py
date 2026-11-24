@@ -14,7 +14,7 @@ import re
 import sys
 import warnings
 from collections.abc import Callable
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import IO, Any
 
@@ -243,7 +243,9 @@ def get_recent_session_log(sessions_dir: str) -> Path | None:
         return None
 
     host_dates = recent_host_session_dates()
-    now_utc = datetime.now(tz=UTC)
+    # `timezone.utc`, not the 3.11 `datetime.UTC` alias: skill scripts import
+    # this package under the host interpreter, which can be 3.10.
+    now_utc = datetime.now(tz=timezone.utc)
     utc_dates = (
         now_utc.strftime(_ISO_DATE),
         (now_utc - timedelta(days=1)).strftime(_ISO_DATE),

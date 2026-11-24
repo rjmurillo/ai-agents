@@ -85,7 +85,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from pathlib import Path
 
@@ -94,6 +93,9 @@ import yaml
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
+_REPO_ROOT = _SCRIPT_DIR.parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
 import agent_capabilities  # noqa: E402
 import agent_templates  # noqa: E402
@@ -117,6 +119,11 @@ from detect_agent_drift import (  # noqa: E402
     get_markdown_section_list,
     normalize_content,
     remove_yaml_frontmatter,
+)
+
+from scripts.hook_utilities.frontmatter_block import (  # noqa: E402
+    FrontmatterStatus,
+    parse_frontmatter,
 )
 
 __all__ = ["KIND_CHANGED", "KIND_DIVERGED", "KIND_MISSING", "KIND_STALE", "Finding", "Key"]
@@ -156,23 +163,21 @@ CAPABILITY_KEYS: dict[str, tuple[tuple[str, str, str], ...]] = {
     ),
 }
 
-_FRONTMATTER_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n", re.DOTALL)
-
 
 class ConfigError(Exception):
     """The gate could not run: a tree, template, or baseline is unusable."""
 
 
 def _frontmatter(text: str) -> dict[str, object]:
-    """Return the parsed frontmatter mapping, empty when there is none."""
-    match = _FRONTMATTER_RE.match(text.replace("\r\n", "\n"))
-    if match is None:
-        return {}
-    try:
-        parsed = yaml.safe_load(match.group(1))
-    except yaml.YAMLError as exc:
-        raise ConfigError(f"invalid YAML frontmatter: {exc}") from exc
-    return parsed if isinstance(parsed, dict) else {}
+    """Return the parsed frontmatter mapping, empty when there is none.
+
+    Uses ``scripts/hook_utilities/frontmatter_block.py``; a repeated key keeps
+    the last value, as ``yaml.safe_load`` does.
+    """
+    result = parse_frontmatter(text.replace("\r\n", "\n"), yaml, allow_duplicate_keys=True)
+    if result.status is FrontmatterStatus.MALFORMED:
+        raise ConfigError(result.error or "invalid YAML frontmatter")
+    return result.metadata if result.status is FrontmatterStatus.VALID and result.metadata else {}
 
 
 def _shared_value(frontmatter: dict[str, object], key: str) -> str:

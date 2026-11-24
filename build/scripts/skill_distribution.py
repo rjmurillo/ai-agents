@@ -25,11 +25,17 @@ source), else ``.claude/skills/<name>/SKILL.md``.
 from __future__ import annotations
 
 import os
-import re
+import sys
 from pathlib import Path
 
 import yaml
 from yaml_text_cache import load_yaml_text
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.hook_utilities.frontmatter_block import split_frontmatter  # noqa: E402
 
 DISTRIBUTION_KEY = "distribution"
 REPO_LOCAL = "repo-local"
@@ -37,7 +43,6 @@ SHIPPED = "shipped"
 ALLOWED_VALUES = frozenset({REPO_LOCAL})
 
 _TEMPLATE_SUFFIX = ".SKILL.md.tmpl"
-_FRONTMATTER = re.compile(r"\A---\s*\n(.*?)\n---\s*(?:\n|\Z)", re.DOTALL)
 
 
 _PROBLEM_CAP = 80
@@ -78,13 +83,15 @@ def distribution_of_text(text: str, source: str) -> str:
     """Return ``"repo-local"`` or ``"shipped"`` for one SKILL.md or template body.
 
     ``source`` names the file in error messages. Text with no frontmatter, no
-    ``metadata`` mapping, or no ``distribution`` key is ``"shipped"``.
+    ``metadata`` mapping, or no ``distribution`` key is ``"shipped"``. The block
+    is located by ``scripts/hook_utilities/frontmatter_block.py``; its YAML goes
+    through ``load_yaml_text``, which memoizes the parse (issue #6734).
     """
-    match = _FRONTMATTER.match(text)
-    if match is None:
+    split = split_frontmatter(text)
+    if not split.found:
         return SHIPPED
     try:
-        frontmatter = load_yaml_text(match.group(1))
+        frontmatter = load_yaml_text(split.raw.removeprefix("\n").removesuffix("\n"))
     except yaml.YAMLError as exc:
         raise SkillDistributionError(
             f"{source}: unparseable frontmatter{_yaml_where(exc)}"

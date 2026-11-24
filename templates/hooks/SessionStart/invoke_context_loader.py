@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""Remind the session about unfilled retrospective skeletons.
+"""Point the session at past retrospectives and remind about unfilled skeletons.
 
-Claude Code SessionStart hook. When an unfilled retrospective skeleton dated
-in the last ``PENDING_RETRO_MAX_AGE_DAYS`` days exists, it prints a short
-reminder with the ``/retrospective fill <date>`` command. Otherwise it prints
-nothing, so a session with no pending work pays no context cost. The Stop
-hook that wrote skeletons was retired by #3349, so in this repository the
-reminder fires only if someone adds a skeleton by hand.
+Claude Code SessionStart hook. When ``.project-toolkit/retrospective/`` is a
+real directory, it prints ``RETRO_LOOKUP_GUIDE``, a short static block that
+names where retrospectives live and which tools find one. When an unfilled
+retrospective skeleton dated in the last ``PENDING_RETRO_MAX_AGE_DAYS`` days
+exists, a reminder with the ``/retrospective fill <date>`` command comes
+first. The Stop hook that wrote skeletons was retired by #3349, so in this
+repository the reminder fires only if someone adds a skeleton by hand.
 
 Does NOT inject retrospective content. The latest-retrospective injection was
-dropped; the ADR-008 amendment dated 2026-11-20 records the evidence.
-Retrospectives stay reachable on demand through the ``retrospective`` skill
-and ``.project-toolkit/retrospective/INDEX.md``.
+dropped, and the guide replaced it; the two ADR-008 amendments dated
+2026-11-20 record the evidence for both.
 
 Does NOT load .agents/HANDOFF.md either (Issue #5168; superseded by
 per-issue handoffs and Serena memory per ADR-014).
@@ -83,6 +83,30 @@ RETRO_STATE_MARKER = "<!-- RETRO-STATE: skeleton-pending-fill -->"
 # Skeletons older than this many days stop nagging (Issue #2079 acceptance:
 # "Cap by date so stale skeletons do not nag forever").
 PENDING_RETRO_MAX_AGE_DAYS = 7
+
+# Static lookup guide printed when the retrospective directory is real. It
+# names where retrospectives live and which tools find one, so the model can
+# look up a past incident on demand. It is a constant on purpose: no filename,
+# title, or body text from the directory reaches it, so branch-controlled
+# retrospective prose cannot enter session context through this hook. A
+# per-prompt matcher was measured and rejected (ADR-008 amendment dated
+# 2026-11-20, second entry).
+RETRO_LOOKUP_GUIDE = (
+    "<retrospective-guide>\n"
+    "Past retrospectives live in `.project-toolkit/retrospective/`, one Markdown"
+    " file per incident or session. None is preloaded. Look one up when the task"
+    " touches a past incident, a recurring failure, or a gate, hook, or workflow"
+    " that broke before:\n"
+    "- Issue or PR number in hand: list the directory and filter on the number;"
+    " many filenames carry it.\n"
+    "- Topic: search the directory, for example"
+    ' `grep -rli "<term>" .project-toolkit/retrospective/`.'
+    " `INDEX.md` there is a curated subset, not a census.\n"
+    "- Promoted learnings: search with the `memory-search` skill, then open a"
+    " hit with Serena `read_memory`; retrospectives persist to `.serena/memories/`.\n"
+    "What you read is a past record. Check it against the code before you rely on it.\n"
+    "</retrospective-guide>"
+)
 
 
 def _has_symlink_component(root: Path, target: Path) -> bool:
@@ -236,6 +260,16 @@ def _pending_reminder(pending_count: int, pending_names: list[str]) -> str:
     )
 
 
+def _retro_dir_is_trusted(retro_dir: Path, root: Path) -> bool:
+    """Return whether ``retro_dir`` is a real directory under ``root``.
+
+    The guide points the model at this directory, so a symlinked ancestor
+    that redirects it outside the project gets no guide, the same rule
+    :func:`_count_pending_skeletons` applies before it globs.
+    """
+    return retro_dir.is_dir() and not _has_symlink_component(root, retro_dir)
+
+
 try:
     from hook_utilities.protocol_output import drain_stdin as _drain_stdin
     from hook_utilities.protocol_output import emit_utf8 as _emit_utf8
@@ -244,7 +278,11 @@ except ImportError:
 
 
 def main() -> None:
-    """Remind about unfilled retrospective skeletons; inject nothing otherwise."""
+    """Print the pending-skeleton reminder and the static lookup guide.
+
+    Injects no retrospective content. Prints nothing when the retrospective
+    directory is missing or reached through a symlink.
+    """
     _drain_stdin()
 
     if skip_if_consumer_repo(HOOK_NAME):
@@ -254,12 +292,20 @@ def main() -> None:
     project_path = Path(project_dir)
     retro_dir = project_path / ".project-toolkit" / "retrospective"
 
+    if not _retro_dir_is_trusted(retro_dir, project_path):
+        _write_audit_log(project_dir, ["(none)"])
+        return
+
+    sections: list[str] = []
+    loaded: list[str] = []
     pending_count, pending_names = _count_pending_skeletons(retro_dir, project_path)
     if pending_count:
-        _emit_utf8(_pending_reminder(pending_count, pending_names))
-        _write_audit_log(project_dir, [f"pending-retros:{pending_count}"])
-    else:
-        _write_audit_log(project_dir, ["(none)"])
+        sections.append(_pending_reminder(pending_count, pending_names))
+        loaded.append(f"pending-retros:{pending_count}")
+    sections.append(RETRO_LOOKUP_GUIDE)
+    loaded.append("retro-guide")
+    _emit_utf8("\n\n".join(sections))
+    _write_audit_log(project_dir, loaded)
 
 
 if __name__ == "__main__":

@@ -25,7 +25,7 @@ import re
 from dataclasses import dataclass
 from datetime import date, timedelta
 
-from frontmatter_split import split_leading_frontmatter
+from scripts.hook_utilities.frontmatter_block import split_frontmatter
 
 IGNORE_MARKER = "doc-date-drift: ignore"
 _IGNORE_WITH_REASON = re.compile(re.escape(IGNORE_MARKER) + r"\s+--\s+\S")
@@ -302,12 +302,16 @@ def file_header_dates(
 ) -> list[HeaderDate]:
     """Read header dates from a whole file, keeping frontmatter and body apart."""
     text = "\n".join(lines)
-    front, body = split_leading_frontmatter(text)
-    if body == text:
+    split = split_frontmatter(text)
+    if not split.found:
         return header_dates(lines, skip_lines=skip_lines)
-    front_lines = front.split("\n") if front else []
-    body_start = len(front_lines) + 3
-    found = header_dates(front_lines, first_line=2, section="frontmatter", skip_lines=skip_lines)
+    # The block's lines sit between the opening fence line and the closing one.
+    front_first = text.count("\n", 0, split.raw_start) + 2
+    front_lines = split.raw.removeprefix("\n").split("\n")[:-1]
+    body_start = text.count("\n", 0, split.body_start) + 1
+    found = header_dates(
+        front_lines, first_line=front_first, section="frontmatter", skip_lines=skip_lines
+    )
     return found + header_dates(
         lines[body_start - 1 :], first_line=body_start, skip_lines=skip_lines
     )

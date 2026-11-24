@@ -65,6 +65,10 @@ from scripts.ci._wiki_links import SourceError as SourceError  # noqa: E402  (re
 from scripts.ci._wiki_links import rewrite_links as rewrite_links  # noqa: E402  (re-export)
 from scripts.ci._wiki_links import safe as safe  # noqa: E402  (re-export)
 from scripts.ci._wiki_links import split_fenced as split_fenced  # noqa: E402  (re-export)
+from scripts.hook_utilities.frontmatter_block import (  # noqa: E402
+    FrontmatterStatus,
+    split_frontmatter,
+)
 
 EXIT_OK, EXIT_LOGIC, EXIT_CONFIG, EXIT_EXTERNAL, EXIT_AUTH = 0, 1, 2, 3, 4
 
@@ -133,7 +137,7 @@ def validate_source(source: Path) -> list[str]:
         except UnicodeDecodeError:
             problems.append(f"{name}: not valid UTF-8")
             continue
-        if head.startswith("---"):
+        if split_frontmatter(head).status is not FrontmatterStatus.ABSENT:
             problems.append(f"{name}: YAML front matter is not allowed, the wiki shows it as text")
         if "\x00" in head:
             problems.append(f"{name}: contains a NUL character, the link masker reserves it")
