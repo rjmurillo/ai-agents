@@ -139,9 +139,9 @@ touched.
 |-------------|-----|-----|
 | ADR-052:146 | `generate_agent_catalog.py:159-172` | `158-171` |
 | ADR-059:464 | `copilot_body_translation.py:395` | `392` |
-| ADR-080:60 | `eval-agent-vs-baseline.py:118,394-406` | `124,399-411` (round 6) |
-| ADR-102:221 | `git_hook_policy.py:2774` | `2785` (round 6) |
-| ADR-102:355 | `git_hook_policy.py:2774` | `2785` (round 6) |
+| ADR-080:60 | `eval-agent-vs-baseline.py:118,394-406` | `122,397-409` |
+| ADR-102:221 | `git_hook_policy.py:2774` | `2763` |
+| ADR-102:355 | `git_hook_policy.py:2774` | `2763` |
 | ADR-108:27 | `copilot_body_translation.py` `:140` | `:151` |
 | ADR-108:201 | `copilot_body_translation.py` `:140` | `:151` |
 | ADR-108:201 | `build_all.py:793` and `:2226` | `:1036` and `:2454` |
@@ -190,10 +190,12 @@ base text, so this branch does not own it.
   base text.
 - FAIL-OPEN-INVENTORY:121 and REQ-023:275 were wrong at base. They keep their
   base text.
-- FAIL-OPEN-INVENTORY:151, REQ-023:48 and TASK-026:51 were also wrong at base.
-  The reverse-pass gate refuses their base numbers because the base text moved.
-  They map through the diff, so each still points at the same text as at base.
-  The mapping neither fixes nor worsens them.
+- FAIL-OPEN-INVENTORY:151, REQ-023:48 and TASK-026:51 were also wrong at base,
+  and the reverse-pass gate refuses their base numbers. The analyst review axis
+  noted that a line this branch edits owns its citations. FAIL-OPEN:151 now
+  cites the real `check_branch_context` range. REQ-023:48 and TASK-026:51 record
+  a check dated 2026-09-10 of code that no longer exists, so they keep their
+  base number with an ignore marker that gives the reason.
 - The critic found one missed citation: the probe toolkit's `provenance.md:16`
   cites `eval-agent-vs-baseline.py:447-475`, now 5 lines low. It stays as it is.
   Its row mixes shell commands with paths, so the added-lines gate misreads the

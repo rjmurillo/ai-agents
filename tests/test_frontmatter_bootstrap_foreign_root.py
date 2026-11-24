@@ -116,7 +116,8 @@ def test_own_plugin_lib_wins_over_a_stale_plugin_root(tmp_path: Path, script: st
 
     assert result.returncode == 0, result.stderr
     loaded = Path(result.stdout.strip().splitlines()[-1]).resolve()
-    assert not loaded.is_relative_to(stale.resolve()), loaded
+    own = (REPO_ROOT / script).resolve().parents[3] / "lib" / "hook_utilities"
+    assert loaded == (own / "frontmatter_block.py").resolve(), loaded
 
 
 @pytest.mark.parametrize("script", _SCRIPTS)
@@ -127,3 +128,24 @@ def test_script_imports_with_a_plugin_root_lacking_the_parser(tmp_path: Path, sc
     result = _run(["-c", _LOAD, script], foreign)
 
     assert result.returncode == 0, result.stderr
+
+
+def test_script_outside_its_plugin_falls_back_to_the_plugin_root(tmp_path: Path) -> None:
+    """A copied script whose own lib lacks the parser uses the environment root."""
+    source = REPO_ROOT / "src/claude/skills/skillforge/scripts/frontmatter.py"
+    copied = tmp_path / "loose" / "skills" / "skillforge" / "scripts" / "frontmatter.py"
+    copied.parent.mkdir(parents=True)
+    copied.write_bytes(source.read_bytes())
+    (tmp_path / "loose" / "lib").mkdir()
+    assert not (tmp_path / "loose" / "lib" / "hook_utilities").exists()
+    plugin_root = REPO_ROOT / "src" / "claude"
+
+    without_root = _run(["-c", _LOAD, str(copied)], None)
+    with_root = _run(["-c", _LOAD, str(copied)], plugin_root)
+
+    assert without_root.returncode != 0, without_root.stdout
+    assert "hook_utilities" in without_root.stderr, without_root.stderr
+    assert with_root.returncode == 0, with_root.stderr
+    loaded = Path(with_root.stdout.strip().splitlines()[-1]).resolve()
+    expected = plugin_root / "lib" / "hook_utilities" / "frontmatter_block.py"
+    assert loaded == expected.resolve(), loaded
