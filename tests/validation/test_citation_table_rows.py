@@ -73,3 +73,15 @@ def test_a_claim_cell_anchor_in_the_same_row_still_counts(
     code, _out = _run(root, capsys)
 
     assert code == 1
+
+
+@pytest.mark.parametrize(("token", "expected"), [("magic_token", 0), ("no_such_token", 1)])
+def test_an_anchor_only_in_the_command_cell_counts(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], token: str, expected: int
+) -> None:
+    root = _repo(tmp_path)
+    _add_doc(root, "docs/table.md", _table(f"| Token helper | `{TARGET}:3` | `{token}` |"))
+
+    code, out = _run(root, capsys)
+
+    assert code == expected, out
