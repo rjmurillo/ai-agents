@@ -166,6 +166,7 @@ The non-redundancy admission applies to every consumer with no opt-out.
 A non-redundancy drop of any size passes when no line gained a copy.
 Ordinary runs read the branch's own config, so an `importRoots` edit needs review.
 The approval verifier reads the config from the integration commit instead.
+Retired by the last amendment: the verifier is deleted.
 Base imports resolve against the head tree, so a renamed file can misjudge a base import.
 Removing `firstPartyCouplingAdmission` reverses the coupling rule.
 Reversing the non-redundancy rule takes a code change.

@@ -52,3 +52,6 @@ Ten axes found the index row showed the pointer, not the decision; the pointer n
 The correctness pass found two retired passages with no pointer; both now carry one.
 Four axes noted the review control is unenforced; Consequences now say it is advisory.
 No decision changed, so no new round was opened.
+
+Round 2 of `/review` found one more retired line, on the verifier reading config, with no pointer.
+It now carries one. No decision changed.
