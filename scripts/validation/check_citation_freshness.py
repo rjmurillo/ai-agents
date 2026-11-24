@@ -60,16 +60,15 @@ from citation_anchors import (  # noqa: E402
     _URL,
     _anchor_candidates,
     _anchor_matches,
-    _atx_heading,
     _basename_index,
     _citation_aliases,
     _context_lines,
     _continuation_quote,
     _expand_adr_citations,
     _expand_continuations,
+    _markdown_unit,
     _range_misses_distinctive_anchors,
     _same_line_segment,
-    _table_row,
 )
 from citation_exemptions import _is_exempt_citing_file  # noqa: E402
 from citation_head_state import (  # noqa: E402
@@ -183,9 +182,7 @@ def _citation_anchors(
     # A Markdown heading or table row is a complete unit (see _context_lines),
     # so one ending in a colon never harvests the indented line below it as a
     # continuation quote either.
-    if citing_lines is not None and not (
-        markdown and (_atx_heading(line_text) or _table_row(citing_lines, line_index))
-    ):
+    if citing_lines is not None and not (markdown and _markdown_unit(citing_lines, line_index)):
         quote = _continuation_quote(citing_lines, line_index)
         if quote is not None:
             anchors.append(quote)

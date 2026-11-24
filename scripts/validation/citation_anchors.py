@@ -36,7 +36,7 @@ from citation_continuations import (
 from citation_continuations import (
     _unique_move as _unique_move,
 )
-from citation_tables import table_row as _table_row
+from citation_tables import table_row
 from stale_script_refs import HISTORICAL_ROOTS
 
 # A citation: a repo path with a known extension, then :N or :N-M. The
@@ -166,6 +166,11 @@ def _atx_heading(line: str) -> bool:
     return bool(_ATX_HEADING.match(line))
 
 
+def _markdown_unit(lines: list[str], index: int) -> bool:
+    """Return whether a Markdown line is a complete unit: a heading or a table row."""
+    return _atx_heading(lines[index]) or table_row(lines, index)
+
+
 def _hash_prefixed(line: str) -> bool:
     """Return whether a line's first non-blank character is a hash marker."""
     return line.lstrip().startswith("#")
@@ -247,7 +252,7 @@ def _context_lines(
     context = [segment]
     if citing_lines is None:
         return context
-    if markdown and (_atx_heading(line_text) or _table_row(citing_lines, line_index)):
+    if markdown and _markdown_unit(citing_lines, line_index):
         # A Markdown heading is a complete unit: it never wraps into any
         # neighbor, another heading included (an equal-prefix rule would
         # let adjacent headings pool anchors). A table row is one too: it
@@ -264,7 +269,7 @@ def _context_lines(
         # continue into comment lines and never into code.
         neighbor = citing_lines[index]
         if markdown:
-            return _atx_heading(neighbor) or _table_row(citing_lines, index)
+            return _markdown_unit(citing_lines, index)
         return _hash_prefixed(neighbor) != own_hash
 
     for offset in (1, 2):
