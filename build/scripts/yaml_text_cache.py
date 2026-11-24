@@ -21,14 +21,23 @@ mutates the result cannot change what a later caller sees.
 from __future__ import annotations
 
 import copy
+import sys
 from functools import lru_cache
+from pathlib import Path
 
 import yaml
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.hook_utilities.frontmatter_block import decode_frontmatter_yaml  # noqa: E402
 
 
 @lru_cache(maxsize=4096)
 def _parse(text: str) -> object:
-    return yaml.safe_load(text)
+    # Last-one-wins ``SafeLoader``: the same load ``yaml.safe_load`` performs.
+    return decode_frontmatter_yaml(text, yaml, allow_duplicate_keys=True)
 
 
 def load_yaml_text(text: str) -> object:

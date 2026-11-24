@@ -253,13 +253,20 @@ def _install_linter(repo: Path) -> None:
 
     ``taste_count_ratchet`` runs the linter as ``cwd=repo_root`` plus a
     repo-relative path, so a scratch repository needs its own copy. The linter
-    is a single stdlib-only file, so copying it introduces no import graph.
+    imports ``hook_utilities.frontmatter_block`` from ``<root>/lib`` through the
+    ADR-047 bootstrap, so the scratch repository carries that package too.
     """
-    source = Path(__file__).resolve().parents[2] / _LINTER_RELATIVE
+    repo_root = Path(__file__).resolve().parents[2]
+    source = repo_root / _LINTER_RELATIVE
     assert source.is_file(), f"the taste linter moved: {source}"
     destination = repo / _LINTER_RELATIVE
     destination.parent.mkdir(parents=True)
     shutil.copy(source, destination)
+    shutil.copytree(
+        repo_root / ".claude" / "lib" / "hook_utilities",
+        repo / ".claude" / "lib" / "hook_utilities",
+        ignore=shutil.ignore_patterns("__pycache__"),
+    )
 
 
 def _oversized(marker: str) -> str:

@@ -23,6 +23,10 @@ _EVAL_RUN_RECORD = re.compile(
     # durable-outcome-live run reports hold the same raw replies (issue #5768).
     r"|^evals/durable-outcome-live/.+/report[^/]*\.json$"
     r"|^evals/docs-review-catch-rate/[^/]+/results/.+\.json$"
+    # sol-loop run logs record each finding's file:line at the reviewed head.
+    # The skill commits them with the branch, and JSON cannot carry an ignore
+    # marker, so a later fix that moves the cited code would block the branch.
+    r"|^\.project-toolkit/metrics/sol-loop/[^/]+\.json$"
 )
 
 # Historical trees this gate exempts beyond stale_script_refs's tuple:

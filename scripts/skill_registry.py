@@ -30,6 +30,7 @@ _SKILLS_DIR = _PROJECT_ROOT / ".claude" / "skills"
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
+from scripts.hook_utilities.frontmatter_block import split_frontmatter  # noqa: E402
 from scripts.utils.path_validation import validate_safe_path  # noqa: E402
 
 
@@ -51,7 +52,7 @@ class SkillMetadata:
 def parse_frontmatter(skill_md: Path) -> dict[str, str]:
     """Extract YAML frontmatter fields from a SKILL.md file.
 
-    Parses the region between the opening and closing '---' delimiters.
+    Reads the block found by `scripts/hook_utilities/frontmatter_block.py`.
     Returns a flat dict of key-value pairs (no nested parsing).
 
     Args:
@@ -60,20 +61,9 @@ def parse_frontmatter(skill_md: Path) -> dict[str, str]:
     Returns:
         Dict of frontmatter key-value pairs.
     """
-    text = skill_md.read_text(encoding="utf-8")
-    lines = text.splitlines()
-    if not lines or lines[0].strip() != "---":
-        return {}
-
-    try:
-        end_index = next(
-            index for index, line in enumerate(lines[1:], start=1) if line.strip() == "---"
-        )
-    except StopIteration:
-        return {}
-
+    split = split_frontmatter(skill_md.read_text(encoding="utf-8"))
     frontmatter: dict[str, str] = {}
-    for line in lines[1:end_index]:
+    for line in split.raw.splitlines():
         stripped = line.strip()
         if ":" in stripped and not stripped.startswith("-"):
             key, _, value = stripped.partition(":")

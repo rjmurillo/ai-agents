@@ -262,3 +262,37 @@ def test_an_adr_field_hidden_behind_undecodable_bytes_is_not_unchanged(monkeypat
     new = b"---\nimplemented: true\nnote: \xfe\n---\n"
     _patch_blobs(monkeypatch, old + _BODY.encode(), new + _BODY.encode())
     assert ghp._is_frontmatter_only_metadata_change(_ADR, tmp_path) is False
+
+
+def test_a_blank_line_added_after_the_fence_is_a_body_change(monkeypatch, tmp_path):
+    """The body starts right after the closing fence line, so a blank line there counts."""
+    old = _doc("name: example\nmodel: sonnet\ndescription: x\n", _BODY)
+    new = _doc("name: example\nmodel: haiku\ndescription: x\n", "\n" + _BODY)
+    _patch_blobs(monkeypatch, old, new)
+    assert ghp._is_skill_frontmatter_only_change(_SKILL, tmp_path) is False
+
+
+def test_a_tab_only_first_frontmatter_line_refuses_the_exemption(monkeypatch, tmp_path):
+    """The fence match absorbs whitespace-only lines; the payload must not."""
+    old = _doc("\t\nname: example\nmodel: sonnet\ndescription: x\n", _BODY)
+    new = _doc("\t\nname: example\nmodel: haiku\ndescription: x\n", _BODY)
+    _patch_blobs(monkeypatch, old, new)
+    assert ghp._is_skill_frontmatter_only_change(_SKILL, tmp_path) is False
+    clean = _doc("name: example\nmodel: sonnet\ndescription: x\n", _BODY)
+    _patch_blobs(monkeypatch, clean, clean.replace(b"sonnet", b"haiku"))
+    assert ghp._is_skill_frontmatter_only_change(_SKILL, tmp_path) is True
+
+
+def test_an_unchanged_nested_repeat_or_merge_keeps_the_pin_exemption():
+    """Only a repeated top-level key is refused; nested YAML loads last-one-wins."""
+    nested = "name: example\nmodel: sonnet\nmetadata: {label: a, label: b}\n"
+    merge = "base: &b {x: 1}\nmodel: sonnet\nother:\n  <<: *b\n"
+    for old in (nested, merge):
+        assert ghp._only_model_pin_fields_changed(old, old.replace("sonnet", "haiku")) is True
+
+
+def test_a_repeated_top_level_key_refuses_the_exemption():
+    # Changing the last value moves the effective pin, so only the duplicate
+    # scan can refuse this; without it last-one-wins would grant the exemption.
+    old = "name: example\nmodel: sonnet\nmodel: opus\n"
+    assert ghp._only_model_pin_fields_changed(old, old.replace("opus", "haiku")) is False
