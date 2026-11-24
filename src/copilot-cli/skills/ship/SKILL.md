@@ -153,7 +153,7 @@ Delegate to `devops` (Claude Code Task, Copilot CLI task, Codex spawn_agent, Mus
 ## Process
 
 1. Run all 4 pre-flight checks, branching by `host`, `mode`, and `pr`.
-2. Report any blocking failure and stop. A deferred pipeline check can continue.
+2. If a blocking check fails: report what failed, why, and how to fix. Stop. `Pipeline: DEFERRED` is not a failure.
 3. If no blocking check failed:
    - `mode=owner`, `host=github`: run /validate-pr-description to validate PR metadata, then run /push-pr to commit, push, and open the GitHub PR.
 

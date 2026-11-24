@@ -50,7 +50,8 @@ These rules apply to every change in the active host repository.
    waste tokens and hide the content. If a script emits one, delete the emitter.
 6. Worktrees MUST remain available for the duration of the handoff and follow
    the host's path rules.
-7. Optional memory stores are retrieval complements, not the cross-harness binding.
+7. MUST NOT rely on an optional memory store alone to persist a convention
+   other harnesses or contributors must obey. It is a retrieval complement.
 8. MUST NOT cite an operator preference as a repository rule. State the durable
    source or state the advice without project attribution.
 9. MUST NOT assert an absence from a single probe. It mirrors item 8: a cited

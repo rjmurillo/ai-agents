@@ -1,7 +1,7 @@
 ---
 name: memory-documentary
 version: 1.0.0
-description: Generate evidence-based documentary reports by searching across all 3
+description: Generate evidence-based documentary reports by searching across
   available project memory, reference sources, repository artifacts, and
   GitHub issues. Produces investigative journalism-style analysis with full citation
   chains. Use when you ask for an "evidence-based report", "investigate across all
