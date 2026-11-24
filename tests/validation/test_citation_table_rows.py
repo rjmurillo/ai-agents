@@ -184,7 +184,10 @@ def test_a_prose_line_starting_with_a_pipe_still_wraps(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], prefix: str
 ) -> None:
     root = _repo(tmp_path)
-    doc = f"{prefix}The helper `no_such_token` lives in\n{prefix}| piped prose {TARGET}:3 for callers\n"
+    doc = (
+        f"{prefix}The helper `no_such_token` lives in\n"
+        f"{prefix}| piped prose {TARGET}:3 for callers\n"
+    )
     _add_doc(root, "docs/prose.md", doc)
 
     code, out = _run(root, capsys)
