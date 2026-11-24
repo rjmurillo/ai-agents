@@ -200,9 +200,14 @@ def _strict_loader(yaml: ModuleType) -> type:
         if id(node) in checked:
             return
         checked.add(id(node))
-        seen: list[Any] = []
+        # A quoted `"<<"` constructs to the same string as a merge, so each entry
+        # records whether it was a merge. Only like compares with like. The keys
+        # compare with bare `==`, never as tuples: tuple equality tests identity
+        # first, which would make PyYAML's shared NaN a duplicate here.
+        seen: list[tuple[bool, Any]] = []
         for key_node, value_node in node.value:
-            if key_node.tag == "tag:yaml.org,2002:merge":
+            is_merge = key_node.tag == "tag:yaml.org,2002:merge"
+            if is_merge:
                 # construct_mapping flattens `<<` without this constructor, so an
                 # inline merged mapping is checked here or not at all. A second
                 # `<<` at one level is a repeated key like any other.
@@ -215,11 +220,11 @@ def _strict_loader(yaml: ModuleType) -> type:
                         reject_repeats(loader, source)
             else:
                 key = loader.construct_object(key_node, deep=True)
-            if any(key == earlier for earlier in seen):
+            if any(is_merge == merge and key == earlier for merge, earlier in seen):
                 raise yaml.constructor.ConstructorError(
                     None, None, f"duplicate key {key!r} in frontmatter mapping", key_node.start_mark
                 )
-            seen.append(key)
+            seen.append((is_merge, key))
 
     def no_duplicate_keys(loader: Any, node: Any) -> dict[Any, Any]:  # noqa: ANN401 - yaml is untyped here
         reject_repeats(loader, node)
