@@ -19,8 +19,9 @@ that ref, intersected with the working-tree baseline. A branch that hand-edits
 the baseline to cover its own new duplication still fails (same loophole closed
 as ``check_nl_structural_debt.py``, issue #6506).
 
-The jscpd runner is ``JSCPD_BIN`` (shell-quoted command) or the locked npm
-package's JavaScript entry point. The checker never downloads tools.
+The jscpd runner is the locked npm package's JavaScript entry point under the
+repository's ``node_modules``. The environment cannot choose the executable
+(CWE-426); tests patch ``resolve_runner``. The checker never downloads tools.
 
 Exit codes (ADR-035):
     0 - Success (no new duplication and no stale baseline entry)
@@ -34,7 +35,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import shlex
 import subprocess
 import sys
 import tempfile
@@ -115,9 +115,7 @@ def _clean_env() -> dict[str, str]:
 
 
 def resolve_runner(root: Path) -> list[str]:
-    override = os.environ.get("JSCPD_BIN", "").strip()
-    if override:
-        return shlex.split(override)
+    """Return the repo-local jscpd command; nothing outside ``root`` is consulted."""
     local = root / "node_modules" / "jscpd" / "run-jscpd.js"
     if local.is_file():
         return ["node", str(local)]
@@ -230,8 +228,10 @@ def show_new_clones(root: Path, runner: list[str], ceiling: Fingerprints) -> str
             root,
         )
         report = Path(tmp) / "jscpd-report.json"
-        if result.returncode != 0 or not report.is_file():
-            return ""
+        if result.returncode != 0:
+            raise GateError(f"jscpd diagnostics rerun exited {result.returncode}", 3)
+        if not report.is_file():
+            raise GateError("jscpd diagnostics rerun wrote no report", 3)
         return _clone_report(report.read_text(encoding="utf-8"))
 
 

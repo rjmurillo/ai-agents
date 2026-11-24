@@ -1068,7 +1068,14 @@ def run_same_pr(
             checklist_regions.setdefault(path, []).append(CodeRegion(path, line, symbol))
     entries = _checklist(prose_by_file, checklist_regions, notes, flagged)
     entries += unchanged_references(
-        target, tracked_files or [], ranges, regions, removed_symbols or {}, is_unsafe
+        target,
+        tracked_files or [],
+        ranges,
+        regions,
+        removed_symbols or {},
+        is_unsafe,
+        changed_files=changed_files,
+        normalize=normalize,
     )
     examined = {
         "changed_files": len(changed_files),
@@ -1146,8 +1153,18 @@ def unchanged_references(
     regions: dict[str, list[CodeRegion]],
     removed: dict[str, list[dict[str, Any]]],
     is_unsafe: Callable[[Path], bool],
+    *,
+    changed_files: set[str],
+    normalize: Callable[[str], str],
 ) -> list[dict[str, Any]]:
-    """List unchanged prose naming changed symbols, flags, or deleted headings."""
+    """List unchanged prose naming changed symbols, flags, or deleted headings.
+
+    A path in ``changed_files`` with no parsed hunk (binary, mode-only) is
+    changed in full, as ``doc_accuracy._get_changed_diff`` documents, so none of
+    its lines count as unchanged. A tracked path outside ``changed_files`` has
+    no changed line.
+    """
+    changed_keys = {normalize(path) for path in changed_files}
     aliases: dict[str, list[dict[str, Any]]] = {}
     for path, changes in regions.items():
         for region in changes:
@@ -1171,7 +1188,9 @@ def unchanged_references(
         if text is None:
             continue
         lines = text.splitlines()
-        changed = changed_line_numbers(ranges.get(rel, []), len(lines))
+        key = normalize(rel)
+        file_ranges = ranges.get(key) or ([] if key not in changed_keys else None)
+        changed = changed_line_numbers(file_ranges, len(lines))
         rel_tree = _reference_tree(rel)
         local_nonword = tree_nonword.get(rel_tree, [])
         for line in _markdown_prose(rel, lines, set(range(1, len(lines) + 1)) - changed):

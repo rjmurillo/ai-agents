@@ -59,8 +59,7 @@ jobs:
 
       - name: Classify with the alert policy
         id: classify
-        run: |
-          python3 -c 'import json, os; from pathlib import Path; from scripts.ci.workflow_failure_alert import FailedRun, parse_event; print("eligible=" + str(isinstance(parse_event(json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))), FailedRun)).lower())' >> "$GITHUB_OUTPUT"
+        run: python3 scripts/ci/workflow_failure_alert.py --classify
 
   alert:
     name: Alert on failed workflow

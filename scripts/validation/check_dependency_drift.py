@@ -42,7 +42,6 @@ from __future__ import annotations
 import argparse
 import importlib
 import json
-import re
 import sys
 from collections import defaultdict
 from dataclasses import dataclass
@@ -55,10 +54,13 @@ from packaging.specifiers import InvalidSpecifier, SpecifierSet
 from packaging.version import InvalidVersion, Version
 
 try:
+    from scripts.validation import dependency_names as names
     from scripts.validation import python_dependency_constraints as constraints
 except ModuleNotFoundError:
+    names = importlib.import_module("dependency_names")
     constraints = importlib.import_module("python_dependency_constraints")
 
+normalize = names.normalize
 satisfiable = constraints.satisfiable
 
 EXIT_OK = 0
@@ -68,16 +70,11 @@ EXIT_CONFIG = 2
 DEFAULT_POLICY = Path(".github") / "dependency-hygiene" / "policy.toml"
 PYTHON = "python"
 
-_NORMALIZE_RE = re.compile(r"[-_.]+")
 _NPM_TABLES = ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies")
 
 
 class DriftConfigError(Exception):
     """The policy or a manifest is missing or malformed."""
-
-
-def normalize(name: str) -> str:
-    return _NORMALIZE_RE.sub("-", name).lower()
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,10 +112,7 @@ class Drift:
 
 
 def _table(data: dict[str, Any], key: str, where: str) -> dict[str, Any]:
-    value = data.get(key, {})
-    if not isinstance(value, dict):
-        raise DriftConfigError(f"{where}: '{key}' must be a table")
-    return value
+    return names.table(data, key, where, DriftConfigError)
 
 
 def _list(data: dict[str, Any], key: str, where: str) -> list[Any]:
@@ -168,6 +162,8 @@ def load_policy(path: Path) -> Policy:
 
 
 def _requirement(text: str, manifest: str, origin: str) -> Declaration:
+    # Strict, unlike names.requirement_name: drift compares specifiers, so a
+    # requirement packaging rejects must fail the gate, not fall back to a regex.
     try:
         req = Requirement(text)
     except InvalidRequirement as exc:
@@ -255,6 +251,8 @@ def python_declarations(root: Path, manifest: str) -> list[Declaration]:
     found.extend(_group_declarations(_table(data, "dependency-groups", manifest), manifest))
     tool = _table(data, "tool", manifest)
     uv = _table(tool, "uv", f"{manifest}: tool")
+    # Drift counts uv pins because they constrain versions across manifests;
+    # dependency_manifest.declared_packages(include_uv_pins=True) is the same set of names.
     for key in ("override-dependencies", "constraint-dependencies"):
         found.extend(_dependency_array(uv.get(key, []), manifest, f"tool.uv.{key}"))
     return found + _python_version(project, manifest)

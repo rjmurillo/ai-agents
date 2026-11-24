@@ -14,15 +14,14 @@ from typing import Any
 
 import tomllib
 
-_NORMALIZE_RE = re.compile(r"[-_.]+")
+try:
+    from scripts.validation.dependency_names import normalize
+except ModuleNotFoundError:  # run as a script or loaded by path: the sibling is on sys.path
+    from dependency_names import normalize
 
 
 class PolicyError(Exception):
     """The policy file or a manifest it names is unusable."""
-
-
-def normalize(name: str) -> str:
-    return _NORMALIZE_RE.sub("-", name).lower()
 
 
 @dataclass(frozen=True, slots=True)

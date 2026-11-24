@@ -214,13 +214,42 @@ def load_payload(environ: Mapping[str, str]) -> tuple[int, Any]:
         return EXIT_CONFIG, None
 
 
+def classify(payload: object, environ: Mapping[str, str]) -> int:
+    """Print why a completion is or is not eligible and write the `eligible` output.
+
+    The eligibility job's `if:` reads `eligible=true|false` from GITHUB_OUTPUT.
+    The printed reason lands in the step log, so a red run that filed no issue
+    says why.
+    """
+    parsed = parse_event(payload)
+    if isinstance(parsed, str):
+        print(f"Skip: {parsed}.")
+    else:
+        print(f"Eligible: {parsed.name} ended {parsed.conclusion} on {parsed.event}: {parsed.url}")
+    output_path = environ.get("GITHUB_OUTPUT")
+    if not output_path:
+        print("::error::GITHUB_OUTPUT is required", file=sys.stderr)
+        return EXIT_CONFIG
+    line = f"eligible={str(not isinstance(parsed, str)).lower()}\n"
+    try:
+        with Path(output_path).open("a", encoding="utf-8") as handle:
+            handle.write(line)
+    except OSError as exc:
+        print(f"::error::cannot write GITHUB_OUTPUT: {exc}", file=sys.stderr)
+        return EXIT_CONFIG
+    return EXIT_OK
+
+
 def main(argv: list[str] | None = None) -> int:
-    if argv:
-        print("usage: workflow_failure_alert.py (takes no arguments)", file=sys.stderr)
+    args = argv or []
+    if args not in ([], ["--classify"]):
+        print("usage: workflow_failure_alert.py [--classify]", file=sys.stderr)
         return EXIT_CONFIG
     rc, payload = load_payload(os.environ)
     if rc != EXIT_OK:
         return rc
+    if args:
+        return classify(payload, os.environ)
     return run(payload)
 
 

@@ -109,8 +109,13 @@ def _repo(tmp_path: Path, baseline: dict[str, int]) -> Path:
     return repo
 
 
+def _use_runner(monkeypatch: pytest.MonkeyPatch, command: list[str]) -> None:
+    """Inject the scanner command. The environment cannot choose it (CWE-426)."""
+    monkeypatch.setattr(gate, "resolve_runner", lambda _root: command)
+
+
 def _run(repo: Path, runner: str, *args: str, monkeypatch: pytest.MonkeyPatch) -> int:
-    monkeypatch.setenv("JSCPD_BIN", runner)
+    _use_runner(monkeypatch, shlex.split(runner))
     return gate.main([str(repo), *args])
 
 
@@ -189,7 +194,7 @@ def test_bad_diagnostics_preserve_duplication_failure(
 ) -> None:
     """AC3: Optional diagnostic corruption cannot replace the primary verdict."""
     repo = _repo(tmp_path, {})
-    monkeypatch.setenv("JSCPD_BIN", "fake-jscpd")
+    _use_runner(monkeypatch, ["fake-jscpd"])
     monkeypatch.setattr(gate.subprocess, "run", partial(_diagnostic_runner, report))
 
     assert gate.main([str(repo)]) == 1
@@ -204,7 +209,6 @@ def test_bad_diagnostics_preserve_duplication_failure(
 @pytest.mark.parametrize(
     "report",
     [
-        None,
         '{"duplicates": []}',
         '{"duplicates": ' + json.dumps([_diagnostic_clone(isNew=False)]) + "}",
     ],
@@ -213,7 +217,7 @@ def test_absent_or_old_diagnostics_preserve_failure_without_corruption_warning(
     report, tmp_path, monkeypatch, capsys
 ) -> None:
     repo = _repo(tmp_path, {})
-    monkeypatch.setenv("JSCPD_BIN", "fake-jscpd")
+    _use_runner(monkeypatch, ["fake-jscpd"])
     monkeypatch.setattr(gate.subprocess, "run", partial(_diagnostic_runner, report))
     assert gate.main([str(repo)]) == 1
     captured = capsys.readouterr()
@@ -221,10 +225,40 @@ def test_absent_or_old_diagnostics_preserve_failure_without_corruption_warning(
     assert captured.err == ""
 
 
+def test_missing_diagnostics_report_warns_and_preserves_failure(tmp_path, monkeypatch, capsys):
+    repo = _repo(tmp_path, {})
+    _use_runner(monkeypatch, ["fake-jscpd"])
+    monkeypatch.setattr(gate.subprocess, "run", partial(_diagnostic_runner, None))
+    assert gate.main([str(repo)]) == 1
+    captured = capsys.readouterr()
+    assert "FAIL: 1 duplicated block(s) are new" in captured.out
+    assert "WARNING: clone diagnostics unavailable: jscpd diagnostics rerun wrote no report" in (
+        captured.err
+    )
+
+
+def test_failed_diagnostics_rerun_warns_with_exit_code(tmp_path, monkeypatch, capsys):
+    repo = _repo(tmp_path, {})
+    _use_runner(monkeypatch, ["fake-jscpd"])
+
+    def rerun_fails(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        if "--update-baseline" in cmd:
+            return _diagnostic_runner(None, cmd, **kwargs)
+        return subprocess.CompletedProcess(cmd, 3, "", "boom")
+
+    monkeypatch.setattr(gate.subprocess, "run", rerun_fails)
+    assert gate.main([str(repo)]) == 1
+    captured = capsys.readouterr()
+    assert "FAIL: 1 duplicated block(s) are new" in captured.out
+    assert "WARNING: clone diagnostics unavailable: jscpd diagnostics rerun exited 3" in (
+        captured.err
+    )
+
+
 @pytest.mark.parametrize("error", [OSError("unavailable"), subprocess.TimeoutExpired("jscpd", 1)])
 def test_diagnostic_process_errors_preserve_primary_failure(error, tmp_path, monkeypatch, capsys):
     repo = _repo(tmp_path, {})
-    monkeypatch.setenv("JSCPD_BIN", "fake-jscpd")
+    _use_runner(monkeypatch, ["fake-jscpd"])
     monkeypatch.setattr(gate.subprocess, "run", partial(_diagnostic_runner, error))
     assert gate.main([str(repo)]) == 1
     captured = capsys.readouterr()
@@ -236,7 +270,7 @@ def test_diagnostic_process_errors_preserve_primary_failure(error, tmp_path, mon
 def test_valid_diagnostics_render_bounded_locations(count, tmp_path, monkeypatch, capsys):
     repo = _repo(tmp_path, {})
     report = json.dumps({"duplicates": [_diagnostic_clone()] * count})
-    monkeypatch.setenv("JSCPD_BIN", "fake-jscpd")
+    _use_runner(monkeypatch, ["fake-jscpd"])
     monkeypatch.setattr(gate.subprocess, "run", partial(_diagnostic_runner, report))
     assert gate.main([str(repo)]) == 1
     captured = capsys.readouterr()
@@ -265,7 +299,6 @@ class TestEntryPoint:
         self, tmp_path, monkeypatch, capsys
     ) -> None:
         repo = _repo(tmp_path, {})
-        monkeypatch.delenv("JSCPD_BIN", raising=False)
 
         runner = Mock(side_effect=AssertionError("a missing scanner must not launch an installer"))
         monkeypatch.setattr(gate.subprocess, "run", runner)
@@ -273,8 +306,18 @@ class TestEntryPoint:
         runner.assert_not_called()
         assert "npm ci --ignore-scripts" in capsys.readouterr().err
 
-    def test_locked_runner_is_resolved_locally(self, tmp_path, monkeypatch) -> None:
-        monkeypatch.delenv("JSCPD_BIN", raising=False)
+    def test_locked_runner_is_resolved_locally(self, tmp_path) -> None:
+        binary = tmp_path / "node_modules" / "jscpd" / "run-jscpd.js"
+        binary.parent.mkdir(parents=True)
+        binary.write_text("locked scanner", encoding="utf-8")
+        assert gate.resolve_runner(tmp_path) == ["node", str(binary)]
+
+    def test_environment_cannot_choose_the_runner(self, tmp_path, monkeypatch) -> None:
+        """CWE-426: JSCPD_BIN must not select the executable, present or absent."""
+        monkeypatch.setenv("JSCPD_BIN", "/tmp/attacker-jscpd")
+        with pytest.raises(gate.GateError) as missing:
+            gate.resolve_runner(tmp_path)
+        assert missing.value.code == 2
         binary = tmp_path / "node_modules" / "jscpd" / "run-jscpd.js"
         binary.parent.mkdir(parents=True)
         binary.write_text("locked scanner", encoding="utf-8")
@@ -400,8 +443,34 @@ class TestRealJscpd:
 
     BLOCK = "".join(f"def f{i}(a, b):\n    return a * {i} + b - {i}\n\n" for i in range(12))
 
+    @staticmethod
+    def _real_runner() -> list[str]:
+        """The locked jscpd command, or a clean skip when 'npm ci' has not run."""
+        try:
+            return gate.resolve_runner(REPO_ROOT)
+        except gate.GateError:
+            pytest.skip("locked jscpd is not installed (run 'npm ci --ignore-scripts')")
+
+    def test_deleted_recorded_clone_is_stale_and_prune_clears_it(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        """--update-baseline rewrites to current clones only, so a removed clone is stale."""
+        _use_runner(monkeypatch, self._real_runner())
+        repo = tmp_path / "repo"
+        (repo / "scripts").mkdir(parents=True)
+        shutil.copy(REPO_ROOT / ".jscpd.json", repo / ".jscpd.json")
+        for name in ("first.py", "second.py"):
+            (repo / "scripts" / name).write_text(self.BLOCK, encoding="utf-8")
+        (repo / "scripts" / "other.py").write_text("print('x')\n" * 3, encoding="utf-8")
+        assert gate.main([str(repo), "--init"]) == 0
+        assert gate.main([str(repo)]) == 0
+        (repo / "scripts" / "second.py").unlink()
+        assert gate.main([str(repo)]) == 1
+        assert gate.main([str(repo), "--prune"]) == 0
+        assert gate.main([str(repo)]) == 0
+
     def test_injected_copy_is_caught_and_ignored_mirror_is_not(self, tmp_path, monkeypatch) -> None:
-        runner = shlex.join(gate.resolve_runner(REPO_ROOT))
+        _use_runner(monkeypatch, self._real_runner())
         repo = tmp_path / "repo"
         (repo / "scripts").mkdir(parents=True)
         (repo / "src" / "codex").mkdir(parents=True)
@@ -412,7 +481,6 @@ class TestRealJscpd:
         bundled.mkdir(parents=True)
         (bundled / "metrics_writer.py").write_text(self.BLOCK, encoding="utf-8")
         (repo / "scripts" / "other.py").write_text("print('x')\n" * 3, encoding="utf-8")
-        monkeypatch.setenv("JSCPD_BIN", runner)
         assert gate.main([str(repo), "--init"]) == 0
         assert gate.main([str(repo)]) == 0
         (repo / "scripts" / "copy.py").write_text(self.BLOCK, encoding="utf-8")

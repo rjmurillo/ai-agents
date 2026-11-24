@@ -28,6 +28,9 @@ from typing import cast
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from skill_bootstrap import ensure_plugin_paths
 
+# Never resolve the lib from GITHUB_WORKSPACE. pr-maintenance runs this script
+# from a trusted copy (.trusted-helper) while the workspace may hold a PR head.
+# Passing no workspace fallback keeps resolution on this script's own tree.
 ensure_plugin_paths(__file__)
 
 from github_core.api import resolve_repo_params

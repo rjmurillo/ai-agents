@@ -3,18 +3,21 @@
 Split from the checker so manifest parsing stays apart from the scan logic.
 A manifest that cannot be read or has the wrong shape raises ``PolicyError``,
 which the checker reports as exit 2 instead of a traceback.
+
+Name rules (normalization, requirement parsing, table reads) live in
+``dependency_names.py``, shared with ``check_dependency_drift.py``.
 """
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from typing import Any
 
 import tomllib
-from dependency_hygiene_policy import PolicyError, normalize
+from dependency_hygiene_policy import PolicyError
+from dependency_names import normalize, requirement_name, table
 
-_REQ_NAME_RE = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)")
+_UV_PIN_KEYS = ("override-dependencies", "constraint-dependencies")
 
 
 def _load_pyproject(pyproject: Path) -> dict[str, Any]:
@@ -26,10 +29,7 @@ def _load_pyproject(pyproject: Path) -> dict[str, Any]:
 
 
 def _table(data: dict[str, Any], key: str, where: str) -> dict[str, Any]:
-    value = data.get(key, {})
-    if not isinstance(value, dict):
-        raise PolicyError(f"{where}: '{key}' must be a table")
-    return value
+    return table(data, key, where, PolicyError)
 
 
 def _requirements(value: object, where: str) -> list[str]:
@@ -45,8 +45,14 @@ def project_name(pyproject: Path) -> str | None:
     return normalize(name) if isinstance(name, str) and name.strip() else None
 
 
-def declared_packages(pyproject: Path) -> set[str]:
-    """Return the normalized names of every dependency a pyproject declares."""
+def declared_packages(pyproject: Path, *, include_uv_pins: bool = False) -> set[str]:
+    """Return the normalized names of every dependency a pyproject declares.
+
+    ``include_uv_pins`` adds ``[tool.uv]`` override and constraint entries.
+    ``check_dependency_drift.py`` compares those pins across manifests, so it
+    counts them. The unused-dependency scan leaves them out: a pin is not a
+    package the code must import.
+    """
     data = _load_pyproject(pyproject)
     where = str(pyproject)
     project = _table(data, "project", where)
@@ -55,9 +61,9 @@ def declared_packages(pyproject: Path) -> set[str]:
         requirements.extend(_requirements(group, f"{where}: optional-dependencies.{name}"))
     for name, group in _table(data, "dependency-groups", where).items():
         requirements.extend(_requirements(group, f"{where}: dependency-groups.{name}"))
-    names = set()
-    for requirement in requirements:
-        match = _REQ_NAME_RE.match(requirement)
-        if match:
-            names.add(normalize(match.group(1)))
-    return names
+    if include_uv_pins:
+        uv = _table(_table(data, "tool", where), "uv", f"{where}: tool")
+        for key in _UV_PIN_KEYS:
+            requirements.extend(_requirements(uv.get(key, []), f"{where}: tool.uv.{key}"))
+    names = (requirement_name(requirement) for requirement in requirements)
+    return {name for name in names if name}

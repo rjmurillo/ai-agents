@@ -316,6 +316,8 @@ def test_alert_concurrency_is_behind_canonical_eligibility() -> None:
     assert classifier["outputs"] == {"eligible": "${{ steps.classify.outputs.eligible }}"}
     job = doc["jobs"]["alert"]
     assert job["needs"] == "eligibility"
+    classify_step = next(s for s in classifier["steps"] if s.get("id") == "classify")
+    assert classify_step["run"] == "python3 scripts/ci/workflow_failure_alert.py --classify"
     assert job["if"] == "${{ needs.eligibility.outputs.eligible == 'true' }}"
     assert job["concurrency"] == {
         "group": "workflow-failure-alert-${{ github.event.workflow_run.name }}",
@@ -387,3 +389,98 @@ def test_repeated_overlaps_keep_only_eligible_same_workflow_keys(tmp_path) -> No
         )
         assert active[name.casefold()] == sequence
     assert len(active) == len(alert.WATCHED)
+
+
+def _classify(payload: object, tmp_path: Path) -> tuple[int, str, str]:
+    event = tmp_path / "event.json"
+    output = tmp_path / "output"
+    event.write_text(json.dumps(payload), encoding="utf-8")
+    output.write_text("", encoding="utf-8")
+    env = {"PATH": "/usr/bin:/bin", "GITHUB_EVENT_PATH": str(event), "GITHUB_OUTPUT": str(output)}
+    result = subprocess.run(
+        [sys.executable, "-I", str(SCRIPT), "--classify"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+        check=False,
+    )
+    return result.returncode, result.stdout, output.read_text(encoding="utf-8")
+
+
+def test_classify_eligible_run_prints_reason_and_writes_output(tmp_path: Path) -> None:
+    rc, stdout, written = _classify(_payload(), tmp_path)
+
+    assert rc == 0
+    assert stdout.startswith("Eligible: Agent Metrics ended failure on schedule: https://")
+    assert written == "eligible=true\n"
+
+
+@pytest.mark.parametrize(
+    ("overrides", "reason"),
+    [
+        ({"conclusion": "success"}, "conclusion 'success' does not raise an alert"),
+        ({"name": "not watched"}, "workflow 'not watched' is not watched"),
+        ({"event": "push"}, "trigger 'push' does not raise an alert for Agent Metrics"),
+        ({"head_branch": "feature/x"}, "run was on branch 'feature/x', not"),
+        ({"html_url": "https://example.com/run"}, "run has no valid repository run URL"),
+    ],
+)
+def test_classify_skip_prints_reason_and_writes_false(
+    overrides: dict[str, Any], reason: str, tmp_path: Path
+) -> None:
+    rc, stdout, written = _classify(_payload(**overrides), tmp_path)
+
+    assert rc == 0
+    assert stdout.startswith("Skip: ")
+    assert reason in stdout
+    assert written == "eligible=false\n"
+
+
+def test_classify_skip_when_payload_has_no_workflow_run(tmp_path: Path) -> None:
+    rc, stdout, written = _classify({}, tmp_path)
+
+    assert rc == 0
+    assert "Skip: payload has no workflow_run object." in stdout
+    assert written == "eligible=false\n"
+
+
+def test_classify_appends_to_existing_github_output(tmp_path: Path) -> None:
+    output = tmp_path / "output"
+    output.write_text("other=1\n", encoding="utf-8")
+
+    rc = alert.classify(_payload(), {"GITHUB_OUTPUT": str(output)})
+
+    assert rc == 0
+    assert output.read_text(encoding="utf-8") == "other=1\neligible=true\n"
+
+
+def test_classify_exits_config_without_github_output() -> None:
+    assert alert.classify(_payload(), {}) == alert.EXIT_CONFIG
+
+
+def test_classify_exits_config_when_output_unwritable(tmp_path: Path) -> None:
+    missing = tmp_path / "no-such-dir" / "output"
+
+    assert alert.classify(_payload(), {"GITHUB_OUTPUT": str(missing)}) == alert.EXIT_CONFIG
+
+
+def test_main_classify_never_publishes(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    event = tmp_path / "event.json"
+    output = tmp_path / "output"
+    event.write_text(json.dumps(_payload()), encoding="utf-8")
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event))
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+    publisher = Mock(return_value=3)
+    monkeypatch.setattr(alert, "publish_issue_alert", publisher)
+
+    assert alert.main(["--classify"]) == 0
+    publisher.assert_not_called()
+    assert output.read_text(encoding="utf-8") == "eligible=true\n"
+
+
+def test_main_classify_exits_config_without_event_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("GITHUB_EVENT_PATH", raising=False)
+
+    assert alert.main(["--classify"]) == alert.EXIT_CONFIG

@@ -186,13 +186,7 @@ try:
     from hook_utilities.protocol_output import drain_stdin as _drain_stdin
     from hook_utilities.protocol_output import emit_utf8 as _emit_utf8
 except ImportError:
-
-    def _drain_stdin() -> None:
-        if not sys.stdin.isatty():
-            sys.stdin.read()
-
-    def _emit_utf8(text: str) -> None:
-        print(text, flush=True)
+    pass  # No copy here: main() raises NameError and __main__ fails open.
 
 
 def main() -> None:
