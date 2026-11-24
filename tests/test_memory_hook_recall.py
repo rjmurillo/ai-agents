@@ -14,9 +14,11 @@ from memory_enhancement.hooks.user_prompt_submit_memory import (
     _extract_query,
     _find_repo_root,
     _format_memory_context,
+    _project_dir,
     _read_user_input,
     _search_and_format,
     main,
+    recall_block,
 )
 from memory_enhancement.search import SearchResult
 
@@ -126,6 +128,53 @@ class TestFindRepoRoot:
         with patch.object(Path, "exists", return_value=False):
             result = _find_repo_root(tmp_path)
             assert result is None
+
+
+class TestProjectDirSearchStart:
+    """recall_block starts its repository search at CLAUDE_PROJECT_DIR (issue #7493)."""
+
+    @staticmethod
+    def _repo_with_memory(root: Path) -> None:
+        (root / ".git").mkdir(parents=True)
+        memories = root / ".serena" / "memories"
+        memories.mkdir(parents=True)
+        (memories / "gateway-cutover.md").write_text(
+            "# Gateway cutover\n\nMove every service behind the gateway.\n", encoding="utf-8"
+        )
+
+    @pytest.mark.unit
+    def test_project_dir_wins_over_a_cwd_outside_the_repository(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        repo = tmp_path / "repo"
+        elsewhere = tmp_path / "elsewhere"
+        elsewhere.mkdir()
+        self._repo_with_memory(repo)
+        monkeypatch.chdir(elsewhere)
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(repo))
+
+        assert "<memory-context>" in recall_block("gateway cutover")
+
+    @pytest.mark.unit
+    def test_cwd_is_used_when_project_dir_is_unset(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Negative control: the same prompt finds nothing from a cwd outside the repository."""
+        repo = tmp_path / "repo"
+        elsewhere = tmp_path / "elsewhere"
+        elsewhere.mkdir()
+        self._repo_with_memory(repo)
+        monkeypatch.chdir(elsewhere)
+        monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+
+        assert recall_block("gateway cutover") == ""
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("blank", ["", "   "])
+    def test_blank_project_dir_means_unset(self, monkeypatch: pytest.MonkeyPatch, blank: str):
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", blank)
+
+        assert _project_dir() is None
 
 
 class TestFormatMemoryContext:

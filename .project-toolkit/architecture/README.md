@@ -124,9 +124,9 @@ These bind today.
 | [ADR-063](ADR-063-memory-skill-decomposition.md) | Decompose the Memory Skill Into Focused Sub-Skills | 2026-07-27 | Decompose the monolithic `memory` skill into focused sub-skills split by operation, keep `memory` as a thin router that delegates, and preserve the `memory` skill name so existing callers do not... |
 | [ADR-064](ADR-064-commands-to-skills-migration.md) | Retire `.claude/commands/` as a Canonical Authoring Surface; Skills Are the Single User-Invocable Surface | 2026-06-01 | Retire `.claude/commands/` as a canonical authoring surface. |
 | [ADR-066](ADR-066-hook-fail-open-reconciliation.md) | Hook Fail-Open Reconciliation (Prevention-First, Fail-Closed-and-Loud) | 2026-07-19 | Chosen option: 3 - prevention-first, fail-closed-and-loud, because the #2205 incident proved that launcher-level fail-open does not protect users. |
-| [ADR-068](ADR-068-consolidated-hook-dispatcher.md) | Consolidated Per-Event Hook Dispatcher | 2026-11-04 | Generate one dispatcher host entry per active, safely consolidatable Copilot hook event. |
+| [ADR-068](ADR-068-consolidated-hook-dispatcher.md) | Consolidated Per-Event Hook Dispatcher | 2026-11-20 | Generate one dispatcher host entry per active, safely consolidatable Copilot hook event. |
 | [ADR-069](ADR-069-context-corpus-is-the-product.md) | The Curated Context Corpus IS the Product, Orchestration Is Plumbing | 2026-11-20 | Adopt the principle that the curated context corpus is the product and orchestration is plumbing. |
-| [ADR-071](ADR-071-plugin-hook-runtime-contract-verification.md) | Plugin Hook Runtime-Contract Verification | 2026-11-04 | Anchor every plugin hook command to the plugin root. |
+| [ADR-071](ADR-071-plugin-hook-runtime-contract-verification.md) | Plugin Hook Runtime-Contract Verification | 2026-11-22 | Anchor every plugin hook command to the plugin root. |
 | [ADR-072](ADR-072-jtbd-plugin-architecture.md) | JTBD-Based Plugin Architecture with Per-Harness Emission | 2026-06-09 | Adopt two coupled changes. |
 | [ADR-073](ADR-073-adr-lifecycle-frontmatter.md) | Machine-Readable ADR Lifecycle Frontmatter | 2026-06-19 | Adopt a queryable lifecycle frontmatter schema as the machine-readable source of truth for ADR state, keeping a human-readable `## Status` prose section as an optional secondary rendering, present... |
 | [ADR-074](ADR-074-security-review-quick-pass-mode.md) | Bounded Security-Review Quick-Pass Mode | 2026-06-17 | Add a bounded quick-pass mode to security review, governed by a diff-scope classifier, a caller-enforced deadline, and an extended verdict taxonomy. |
@@ -149,15 +149,15 @@ These bind today.
 | [ADR-105](ADR-105-terminal-state-completion-contract.md) | Terminal-State Completion Contract | 2026-09-03 | Put the whole completion contract on the always-on rule path, and keep exactly one operational procedure delegated to the skill that already owned it. |
 | [ADR-106](ADR-106-serena-only-memory-architecture.md) | Serena-Only Memory Architecture | 2026-09-08 | The memory-first principle survives unchanged. |
 | [ADR-108](ADR-108-template-owned-skill-files.md) | Template-Owned Skill Files Under `.claude/skills/` | 2026-09-11 | Adopt one new artifact class and amend the three texts that forbid it: REQ-003-010, REQ-003 decision D4, and ADR-107 property 1. |
-| [ADR-109](ADR-109-template-first-plugin-distribution.md) | Template-First Plugin Distribution | 2026-11-09 | Adopt template-first distribution for every artifact class the plugins ship, with one stated exception for imported Python library code, and supersede ADR-052 with an inverted direction. |
+| [ADR-109](ADR-109-template-first-plugin-distribution.md) | Template-First Plugin Distribution | 2026-11-22 | Adopt template-first distribution for every artifact class the plugins ship, with one stated exception for imported Python library code, and supersede ADR-052 with an inverted direction. |
 | [ADR-111](ADR-111-skill-model-pins-project-per-harness.md) | Skill Model Pins Project Per Harness | 2026-10-29 | Default every skill, agent, and command to the harness-inherited model. |
 | [ADR-113](ADR-113-promotion-gate-evidence-and-exceptions.md) | Promotion Gate Evidence, Artifact Binding, and Governed Exceptions | 2026-09-30 | One aggregator, one manifest. |
 | [ADR-117](ADR-117-state-conflation-failure-mode.md) | Add FM-13, State Conflation in a Boolean Guard, to the Failure Taxonomy | 2026-10-13 | Add one class to `FAILURE-MODES.md`, FM-13, State Conflation in a Boolean Guard. |
 | [ADR-118](ADR-118-widen-fm-11-to-hand-authored-cross-harness-instructions.md) | Widen FM-11 to Cover Hand-Authored Cross-Harness Instructions | 2026-10-13 | Widen FM-11. |
 | [ADR-120](ADR-120-completion-gate-unknown-verdict.md) | The Completion Gate Reports a Refused Session as Unknown | 2026-11-04 | `fail_open` stays false. |
-| [ADR-122](ADR-122-scoped-parser-dependency-admission.md) | Admit the C# Parser Dependencies Without Hiding Their Coupling | 2026-11-18 | Add one fixed `csharpParserDependencyAdmission` record to `.qualityrc.json`. |
+| [ADR-122](ADR-122-scoped-parser-dependency-admission.md) | Admit the C# Parser Dependencies Without Hiding Their Coupling | 2026-11-22 | Add one fixed `csharpParserDependencyAdmission` record to `.qualityrc.json`. |
 | [ADR-123](ADR-123-skill-artifact-flow-declarations.md) | Skills Declare the Artifacts They Read and Write | 2026-11-19 | `metadata.outputs` and `metadata.inputs` become mappings keyed by artifact name. |
-| [ADR-125](ADR-125-exact-code-quality-review-approvals.md) | Require Exact Approval of Code-Quality Review Findings | 2026-11-21 | Keep the assessor's scores, output, configuration, and exit behavior. |
+| [ADR-125](ADR-125-exact-code-quality-review-approvals.md) | Require Exact Approval of Code-Quality Review Findings | 2026-11-24 | Keep the assessor's scores, output, configuration, and exit behavior. |
 
 ## Proposed
 

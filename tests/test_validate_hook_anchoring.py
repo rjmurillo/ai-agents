@@ -197,11 +197,12 @@ def test_copilot_direct_session_start_requires_shell_suppression(tmp_path: Path)
 
 def test_claude_real_file_is_anchored() -> None:
     # ADR-097 retired every tool-call hook. REQ-048 TASK-006 then added one
-    # advisory Stop command hook (ADR-084 rule 2a), so the real manifest
-    # registers exactly one command hook, and it must be anchored.
+    # advisory Stop command hook (ADR-084 rule 2a). Issue #7493 added the
+    # UserPromptSubmit memory recall group. The real manifest registers
+    # exactly two command hooks, and both must be anchored.
     checked, violations, config = gate._check_claude(REPO_ROOT)
     assert config == 0
-    assert checked == 1
+    assert checked == 2
     assert not violations
 
 
