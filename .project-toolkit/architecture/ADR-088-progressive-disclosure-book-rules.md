@@ -1,7 +1,7 @@
 ---
 id: ADR-088
 status: proposed
-date: 2026-11-24
+date: 2026-07-27
 decision-makers: []
 supersedes: []
 superseded-by: null
@@ -251,8 +251,8 @@ tight headroom is intentional for a non-regression ratchet, though a routine
 rule addition may trip the gate.
 
 Consequences and monitoring: `build/references/rule-code-quality.md` is excluded
-from the Hermes delivery pack (`templates/platforms/hermes.yaml`, 397 of 400
-files) because the pack is near its 400-file cap; Hermes users stay on the base
+from the Hermes delivery pack (`templates/platforms/hermes.yaml`, 398 of 400
+files as of 2026-11-24) because the pack is near its 400-file cap; Hermes users stay on the base
 arm (4.44 vs 4.44 full). All eight context-diet moved references (`ci-scripts`,
 `code-quality`, `csharp`, `efficiency`, `generated-artifacts`,
 `lossless-queue-reads`, `lsp-first`, `powershell`) carry reference-mode

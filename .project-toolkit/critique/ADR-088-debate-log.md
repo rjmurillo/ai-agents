@@ -145,6 +145,7 @@ and ratchets existing byte ceilings downward without changing enforcement hooks.
 - Architect & Critic P1 (eval provenance and limits): amendment now explicitly cites the PR #7541 2026-11-24 eval table (noting raw run JSON is not committed), `n=4` scenarios in `code-quality.json`, one repeat, one judge per call, target-only routing, and `MIN_ACTIVATION_SCORE = 3.5` alongside PR #7541's 0.6 keep floor.
 - Critic P1 (always-on criterion): amendment now explains directly why `code-quality` no longer needs always-on loading (4.44 base matches 4.44 full, so losing passive load carries no measured baseline regression).
 - Architect & Critic P2: named all eight context-diet references inline (`ci-scripts`, `code-quality`, `csharp`, `efficiency`, `generated-artifacts`, `lossless-queue-reads`, `lsp-first`, `powershell`) and recorded the tight ratchet headroom (`.py` 3,745 B, `.cs`/`.ps1` 4,144 B) as an intentional cost.
+- Post-review alignment (`/review` Round 3): restored frontmatter `date` and `README.md` row to the original decision date `2026-07-27` (matching `## Date` and ADR-062), and updated the Hermes delivery pack count from 397 to 398 of 400 files as of 2026-11-24 after merging `origin/main` (`#7540`).
 
 ### Convergence
 
