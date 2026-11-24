@@ -234,9 +234,10 @@ def test_a_file_over_one_mebibyte_is_skipped_and_counted(tmp_path: Path) -> None
     repo = new_repo(tmp_path / "r")
     _adr(repo, "docs/adr/0001-small.md", "# small\n")
     _adr(repo, "docs/adr/0002-big.md", "x" * (adr_locate.MAX_READ_BYTES + 1))
-    texts, skipped = adr_locate.read_adr_texts(repo)
+    tally = adr_locate.AdrTally()
+    texts = list(adr_locate.read_adr_texts(repo, tally=tally))
     assert [path for path, _ in texts] == ["docs/adr/0001-small.md"]
-    assert skipped == 1
+    assert tally.skipped == 1
 
 
 @pytest.mark.parametrize(

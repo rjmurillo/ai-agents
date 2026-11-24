@@ -7,11 +7,10 @@
 #   src/lib/first-run-pr-import.ts (isBot, the selection loop of read, dropCoveredCommits and
 #                                   dropCommitsOfStoredPrs, lines 73-130 and 160-207)
 # Not ported: unquoteGitPath, because the port reads no per-commit file lists.
-# Extension E3, breaking_change, has no upstream source.
 # Sibling ports: adr_shape.py, adr_reason.py, adr_commits.py, adr_docs.py, adr_locate.py,
-# adr_scan.py, bootstrap_adr.py.
+# adr_render.py, adr_scan.py, bootstrap_adr.py.
 # MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align
-"""Commit records, text helpers, pull request selection, and the breaking-change flag.
+"""Commit records, text helpers, pull request selection, and commit links.
 
 No I/O, no subprocess, standard library only. The reader in ``adr_scan.py`` lists commit
 SHAs with ``git rev-list``, feeds them to ``git cat-file --batch``, and passes each raw
@@ -31,7 +30,6 @@ Departures from the upstream source, each pinned by a test:
   ASCII letter or digit gives ``""``, and the caller falls back to ``decision-<sha7>``.
 - ``iso_day`` accepts only a real calendar day, as upstream does, and returns the day.
 - ``hash_tokens`` reads hex words whole, so ``abc1234`` inside a longer word is not a SHA.
-- ``breaking_change`` is new (extension E3, Conventional Commits 1.0.0).
 - The commit/PR dedup matches both the merge SHA and a subject ending ``(#N)``. Upstream
   used the SHA for a fresh read and ``(#N)`` for stored rows.
 
@@ -62,7 +60,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlsplit
 
-from adr_reason import extract_reason
+from adr_reason import breaking_change, extract_reason
 from adr_shape import is_release_or_bump_subject
 
 __all__ = [
@@ -89,6 +87,7 @@ __all__ = [
     "trailing_pr_number",
     "without_merge_lines",
     "urls_in",
+    "web_base",
     "word_tokens",
 ]
 
@@ -188,41 +187,6 @@ def parse_commit_object(sha: str, raw: bytes) -> CommitRecord:
     author, date = _author_fields(author_text)
     subject, body = _subject_and_body(_decode(message, headers.get(b"encoding")))
     return CommitRecord(sha, subject, author, date, body)
-
-
-# ---------------------------------------------------------------------------
-# E3: breaking-change signal (extension, Conventional Commits 1.0.0)
-# ---------------------------------------------------------------------------
-
-_BREAKING_SUBJECT = re.compile(r"^[a-z]+(?:\([^)]*\))?!:", _I)
-# The token is uppercase by the specification. BREAKING-CHANGE is its synonym.
-_BREAKING_FOOTER = re.compile(r"^BREAKING[ -]CHANGE:[ \t]+\S", re.MULTILINE | _A)
-_FOOTER_LINE = re.compile(r"^[A-Za-z][A-Za-z0-9-]*:[ \t]+\S", _A)
-_BLANK_LINES = re.compile(r"\n[ \t]*\n", _A)
-
-
-def breaking_change(subject: str, body: str) -> bool:
-    """Does the commit mark itself as a breaking change?
-
-    True for a ``type!:`` or ``type(scope)!:`` subject, and for a ``BREAKING CHANGE:``
-    or ``BREAKING-CHANGE:`` line that begins a line in the footer. The footer is the
-    last paragraph, or an earlier one when only trailer paragraphs (such as
-    ``Co-Authored-By``) follow it. The phrase in mid-body prose does not count.
-    """
-    if _BREAKING_SUBJECT.search(subject.strip()):
-        return True
-    paragraphs = _BLANK_LINES.split(body.replace("\r\n", "\n").strip())
-    for paragraph in reversed(paragraphs):
-        if _BREAKING_FOOTER.search(paragraph):
-            return True
-        if not _is_trailer_paragraph(paragraph):
-            return False
-    return False
-
-
-def _is_trailer_paragraph(paragraph: str) -> bool:
-    lines = [line for line in paragraph.split("\n") if line.strip()]
-    return bool(lines) and all(_FOOTER_LINE.match(line) for line in lines)
 
 
 # ---------------------------------------------------------------------------
@@ -395,7 +359,9 @@ def select_prs(items: list[Any], dropped: dict[str, int], base: str | None = Non
     ``pr_no_reason``. ``base`` is the web address of this repository's origin. A row whose URL
     is not under ``<base>/pull/``, compared without regard to case, is another repository's, so
     it is dropped and covers no commit. With no known origin (``base`` is None) the export
-    cannot be checked and every complete row is kept.
+    cannot be checked and every complete row is kept. A GitLab origin matches no row, because
+    its merge request URLs are not under ``/pull/``, so a GitLab export is dropped whole. The
+    export must come from the repository's own origin.
     """
     rows: list[PrRow] = []
     for item in items:
@@ -438,6 +404,32 @@ def excerpt(title: str, body: str) -> str:
     body = body[: EXCERPT_CHARS * 4]
     body = _BLANK_RUN.sub("\n\n", _TASK_LINE.sub("", _HTML_COMMENT.sub("", body)))
     return sanitize(f"{title}\n\n{body}".strip(), EXCERPT_CHARS)
+
+
+_URL_REMOTE = re.compile(
+    r"(?:https?|ssh|git)://(?:[^@/]*@)?(?P<host>[A-Za-z0-9.-]+)(?::[0-9]+)?/(?P<path>.+)\Z",
+    re.ASCII,
+)
+_SCP_REMOTE = re.compile(r"(?:[^@/:]+@)?(?P<host>[A-Za-z0-9.-]+):(?P<path>[^/].*)\Z", re.ASCII)
+_REPO_PATH = re.compile(r"[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+\Z", re.ASCII)
+_HOSTED = re.compile(r"(?:github|gitlab)\.[a-z0-9.-]+\Z", re.ASCII)
+
+
+def web_base(remote: str) -> tuple[str, str] | None:
+    """``(kind, https base)`` for an https or ssh GitHub or GitLab remote, else None.
+
+    Only the host and the repository path are kept, so a ``user:token@`` in the remote
+    never reaches the result. ``kind`` is ``github`` or ``gitlab``.
+    """
+    text = remote.strip()
+    match = _URL_REMOTE.fullmatch(text) or _SCP_REMOTE.fullmatch(text)
+    if match is None:
+        return None
+    host = match["host"].lower()
+    path = match["path"].strip("/").removesuffix(".git").strip("/")
+    if not _HOSTED.fullmatch(host) or not _REPO_PATH.fullmatch(path):
+        return None
+    return ("github" if host.startswith("github.") else "gitlab"), f"https://{host}/{path}"
 
 
 def commit_urls(

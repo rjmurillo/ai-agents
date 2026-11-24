@@ -6,7 +6,7 @@
 #   src/lib/adr-writer.ts (writeAdr, lines 137-148; renderAdr and slug live in adr_locate.py
 #                          and adr_commits.py. The trailing "Drafted by" comment is not ported.)
 # Sibling ports: adr_shape.py, adr_reason.py, adr_commits.py, adr_docs.py, adr_locate.py,
-# adr_scan.py, bootstrap_adr.py.
+# adr_render.py, adr_scan.py, bootstrap_adr.py.
 # MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align
 """Find the decisions in a repository that have no ADR, and draft one ADR for each you accept.
 
@@ -62,17 +62,14 @@ from typing import Any
 from adr_commits import one_line, sanitize, slugify
 from adr_locate import (
     MAX_READ_BYTES,
-    NOT_RECORDED,
     Style,
     adr_files,
-    adr_title,
-    clean_source,
     folder_style,
     is_draft_target,
     locate,
     locate_folders,
-    render,
 )
+from adr_render import NOT_RECORDED, adr_title, clean_source, render
 from adr_scan import (
     ConfigError,
     GitError,

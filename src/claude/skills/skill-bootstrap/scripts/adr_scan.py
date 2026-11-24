@@ -7,7 +7,7 @@
 #   src/lib/git.ts                     (replaced here by the raw-object commit reader)
 # Extensions E1 (decision-log candidates) and E3 (breaking-change signal) have no upstream source.
 # Sibling ports: adr_shape.py, adr_reason.py, adr_commits.py, adr_docs.py, adr_locate.py,
-# adr_scan.py, bootstrap_adr.py.
+# adr_render.py, adr_scan.py, bootstrap_adr.py.
 # MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align
 """List the decisions in a repository that have no ADR yet. Read-only, no network.
 
@@ -58,10 +58,11 @@ from adr_commits import (
     parse_commit_object,
     sanitize,
     select_prs,
+    web_base,
     without_merge_lines,
 )
 from adr_docs import DROP_KEYS, ExistingAdrs, log_candidates
-from adr_locate import locate_folders, read_adr_texts
+from adr_locate import AdrTally, locate_folders, read_adr_texts
 from adr_reason import extract_reason
 from adr_shape import (
     CommitShape,
@@ -75,7 +76,9 @@ from adr_shape import (
 __all__ = [
     "DROP_KEYS",
     "GIT_TIMEOUT_S",
+    "MAX_BATCH_BYTES",
     "MAX_COMMITS",
+    "MAX_COMMIT_BYTES",
     "ConfigError",
     "ExistingAdrs",
     "GitError",
@@ -223,13 +226,13 @@ def scan(
     if not 1 <= max_commits <= MAX_COMMITS:
         raise ConfigError(f"max commits must be from 1 to {MAX_COMMITS}, not {max_commits}")
     head = resolve_rev(root, rev)
-    records, truncated = read_commits(root, head, max_commits, since)
     dropped = dict.fromkeys(DROP_KEYS, 0)
+    records, truncated = read_commits(root, head, max_commits, since, dropped)
     web = origin_web_base(root)
     pr_rows = select_prs(prs or [], dropped, web[1] if web else None)
     folders, walk_truncated = locate_folders(root)
-    texts, skipped = read_adr_texts(root, folders)
-    existing = ExistingAdrs(texts)
+    tally = AdrTally()
+    existing = ExistingAdrs(read_adr_texts(root, folders, tally))
     pending, kept_prs = _pr_pending(pr_rows, dropped)
     commits, carried = _commit_candidates(records, covering_numbers(kept_prs), web, dropped)
     for item in pending:
@@ -250,11 +253,12 @@ def scan(
         "truncated": truncated,
         "shallow": is_shallow(root),
         "walk_truncated": walk_truncated,
+        "adr_corpus_truncated": tally.cut,
         "examined": {
             "commits": len(records),
             "prs": len(prs or []),
-            "adr_files": len(texts),
-            "adr_files_skipped": skipped,
+            "adr_files": tally.read,
+            "adr_files_skipped": tally.skipped,
             "log_files": log_files,
             "log_files_skipped": log_skipped,
         },
@@ -270,7 +274,11 @@ def scan(
 
 GIT_TIMEOUT_S = 30
 BATCH_SHAS = 500
+MAX_COMMIT_BYTES = 1024 * 1024
+MAX_BATCH_BYTES = 16 * 1024 * 1024
 _SHA = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}", re.ASCII)
+_CHECK_ROW = re.compile(rb"([0-9a-f]{40}|[0-9a-f]{64}) commit ([0-9]+)\n", re.ASCII)
+_CHECK_REPLY = re.compile(rb"(?:(?:[0-9a-f]{40}|[0-9a-f]{64}) commit [0-9]+\n)*", re.ASCII)
 _BATCH_HEADER = re.compile(rb"([0-9a-f]{40}|[0-9a-f]{64}) ([a-z]+) ([0-9]+)\n", re.ASCII)
 
 
@@ -286,26 +294,10 @@ class GitError(Exception):
 # Hard-coded so no extra git call is spent. Any of them in the parent environment would point the
 # child at another repository, or hide the work tree around a folder, whatever ``-C`` says.
 _LOCAL_GIT_ENV = frozenset(
-    {
-        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-        "GIT_CEILING_DIRECTORIES",
-        "GIT_COMMON_DIR",
-        "GIT_CONFIG",
-        "GIT_CONFIG_COUNT",
-        "GIT_CONFIG_PARAMETERS",
-        "GIT_DIR",
-        "GIT_DISCOVERY_ACROSS_FILESYSTEM",
-        "GIT_GRAFT_FILE",
-        "GIT_IMPLICIT_WORK_TREE",
-        "GIT_INDEX_FILE",
-        "GIT_NAMESPACE",
-        "GIT_NO_REPLACE_OBJECTS",
-        "GIT_OBJECT_DIRECTORY",
-        "GIT_PREFIX",
-        "GIT_REPLACE_REF_BASE",
-        "GIT_SHALLOW_FILE",
-        "GIT_WORK_TREE",
-    }
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_CEILING_DIRECTORIES GIT_COMMON_DIR GIT_CONFIG "
+    "GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS GIT_DIR GIT_DISCOVERY_ACROSS_FILESYSTEM "
+    "GIT_GRAFT_FILE GIT_IMPLICIT_WORK_TREE GIT_INDEX_FILE GIT_NAMESPACE GIT_NO_REPLACE_OBJECTS "
+    "GIT_OBJECT_DIRECTORY GIT_PREFIX GIT_REPLACE_REF_BASE GIT_SHALLOW_FILE GIT_WORK_TREE".split()
 )
 
 
@@ -405,6 +397,45 @@ def rev_list(root: Path, sha: str, max_count: int, since: str | None) -> list[st
     return shas
 
 
+def _sizes(root: Path, shas: list[str]) -> list[int]:
+    """The object size of each SHA from ``git cat-file --batch-check``.
+
+    The reply gets the same strict check as the batch read: one ``<sha> commit <size>`` line per
+    SHA, in order, and nothing else.
+    """
+    if not shas:
+        return []
+    stdin = ("\n".join(shas) + "\n").encode("ascii")
+    proc = git_bytes(root, "cat-file", "--batch-check", stdin=stdin)
+    if proc.returncode != 0:
+        raise GitError(f"git cat-file --batch-check failed: {stderr_text(proc)}")
+    rows = _CHECK_ROW.findall(proc.stdout)
+    if not _CHECK_REPLY.fullmatch(proc.stdout) or [row[0].decode("ascii") for row in rows] != shas:
+        raise GitError("git cat-file --batch-check did not return the requested commits")
+    return [int(row[1]) for row in rows]
+
+
+def _batches(shas: list[str], sizes: list[int], dropped: dict[str, int]) -> list[list[str]]:
+    """The SHAs to read, in order, grouped into batches.
+
+    A batch holds at most ``BATCH_SHAS`` SHAs and ``MAX_BATCH_BYTES`` of objects, but one object
+    always forms a batch of its own. A commit over ``MAX_COMMIT_BYTES`` is counted under
+    ``commit_too_large`` and left out.
+    """
+    batches: list[list[str]] = []
+    total = 0
+    for sha, size in zip(shas, sizes, strict=True):
+        if size > MAX_COMMIT_BYTES:
+            dropped["commit_too_large"] = dropped.get("commit_too_large", 0) + 1
+        elif batches and len(batches[-1]) < BATCH_SHAS and total + size <= MAX_BATCH_BYTES:
+            batches[-1].append(sha)
+            total += size
+        else:
+            batches.append([sha])
+            total = size
+    return batches
+
+
 def _read_batch(root: Path, shas: list[str]) -> list[CommitRecord]:
     proc = git_bytes(root, "cat-file", "--batch", stdin=("\n".join(shas) + "\n").encode("ascii"))
     if proc.returncode != 0:
@@ -426,32 +457,6 @@ def _read_batch(root: Path, shas: list[str]) -> list[CommitRecord]:
     return records
 
 
-_URL_REMOTE = re.compile(
-    r"(?:https?|ssh|git)://(?:[^@/]*@)?(?P<host>[A-Za-z0-9.-]+)(?::[0-9]+)?/(?P<path>.+)\Z",
-    re.ASCII,
-)
-_SCP_REMOTE = re.compile(r"(?:[^@/:]+@)?(?P<host>[A-Za-z0-9.-]+):(?P<path>[^/].*)\Z", re.ASCII)
-_REPO_PATH = re.compile(r"[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+\Z", re.ASCII)
-_HOSTED = re.compile(r"(?:github|gitlab)\.[a-z0-9.-]+\Z", re.ASCII)
-
-
-def web_base(remote: str) -> tuple[str, str] | None:
-    """``(kind, https base)`` for an https or ssh GitHub or GitLab remote, else None.
-
-    Only the host and the repository path are kept, so a ``user:token@`` in the remote
-    never reaches the result. ``kind`` is ``github`` or ``gitlab``.
-    """
-    text = remote.strip()
-    match = _URL_REMOTE.fullmatch(text) or _SCP_REMOTE.fullmatch(text)
-    if match is None:
-        return None
-    host = match["host"].lower()
-    path = match["path"].strip("/").removesuffix(".git").strip("/")
-    if not _HOSTED.fullmatch(host) or not _REPO_PATH.fullmatch(path):
-        return None
-    return ("github" if host.startswith("github.") else "gitlab"), f"https://{host}/{path}"
-
-
 def origin_web_base(root: Path) -> tuple[str, str] | None:
     """``web_base`` of the ``origin`` remote. A repository with no origin gives None."""
     proc = git_text(root, "config", "--get", "remote.origin.url", ok=(0, 1))
@@ -464,13 +469,21 @@ def is_shallow(root: Path) -> bool:
 
 
 def read_commits(
-    root: Path, sha: str, max_commits: int, since: str | None = None
+    root: Path,
+    sha: str,
+    max_commits: int,
+    since: str | None = None,
+    dropped: dict[str, int] | None = None,
 ) -> tuple[list[CommitRecord], bool]:
-    """Read up to ``max_commits`` commits from ``sha``. The flag is True when more exist."""
+    """Read up to ``max_commits`` commits from ``sha``. The flag is True when more exist.
+
+    Object sizes are read first, so no batch holds more than ``MAX_BATCH_BYTES``. A commit over
+    ``MAX_COMMIT_BYTES`` is counted in ``dropped`` and not read.
+    """
     shas = rev_list(root, sha, max_commits + 1, since)
     truncated = len(shas) > max_commits
     shas = shas[:max_commits]
     records: list[CommitRecord] = []
-    for start in range(0, len(shas), BATCH_SHAS):
-        records.extend(_read_batch(root, shas[start : start + BATCH_SHAS]))
+    for batch in _batches(shas, _sizes(root, shas), {} if dropped is None else dropped):
+        records.extend(_read_batch(root, batch))
     return records, truncated

@@ -9,6 +9,7 @@ from typing import Any
 
 import adr_commits
 import adr_locate
+import adr_render
 import bootstrap_adr
 import pytest
 from adr_helpers import commit, new_repo, write
@@ -70,7 +71,7 @@ def test_draft_refuses_an_rfc_folder_in_the_repository(tmp_path: Path) -> None:
     ],
 )
 def test_the_adr_title_drops_commit_syntax_only(kind: str, title: str, expected: str) -> None:
-    assert adr_locate.adr_title(kind, title) == expected
+    assert adr_render.adr_title(kind, title) == expected
 
 
 def test_a_draft_h1_and_file_name_use_the_cleaned_title(tmp_path: Path) -> None:

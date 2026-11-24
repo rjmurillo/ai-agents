@@ -7,7 +7,7 @@
 #   src/lib/adr-writer.ts                 (linkedFromAdrs, lines 100-120: ExistingAdrs)
 # Extension E1, log_candidates, has no upstream source.
 # Sibling ports: adr_shape.py, adr_reason.py, adr_commits.py, adr_docs.py, adr_locate.py,
-# adr_scan.py, bootstrap_adr.py.
+# adr_render.py, adr_scan.py, bootstrap_adr.py.
 # MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align
 """Rule sections of README, CONTRIBUTING and changelog, decision logs, and ADR suppression.
 
@@ -34,6 +34,7 @@ Regex notes: see the module docstring of ``adr_shape.py``; they apply to every m
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, NamedTuple
@@ -57,6 +58,7 @@ __all__ = [
     "README_FILES",
     "DocKind",
     "ExistingAdrs",
+    "MAX_LOG_CANDIDATES",
     "LogEntry",
     "RuleSection",
     "entry_date",
@@ -206,6 +208,8 @@ DROP_KEYS = (
     "pr_no_reason",
     "pr_not_decision_shaped",
     "log_no_id",
+    "log_over_limit",
+    "commit_too_large",
 )
 
 
@@ -400,7 +404,7 @@ class ExistingAdrs:
 
     _MIN_SHA_PREFIX = 7
 
-    def __init__(self, texts: list[tuple[str, str]]) -> None:
+    def __init__(self, texts: Iterable[tuple[str, str]]) -> None:
         self.words: set[str] = set()
         self.hashes: set[str] = set()
         self.urls: set[str] = set()
@@ -430,39 +434,53 @@ class ExistingAdrs:
         return ident.lower() in self.words
 
 
+MAX_LOG_CANDIDATES = 1000
+
+
+def _log_candidate(rel: str, entry: LogEntry, ident: str) -> dict[str, Any]:
+    rest = entry.text.split("\n", 1)[1] if "\n" in entry.text else ""
+    return {
+        "id": ident,
+        "kind": "decision-log",
+        "title": sanitize(entry.title).strip(),
+        "reason": extract_reason(entry.title, rest),
+        "excerpt": sanitize(entry.text, EXCERPT_CHARS),
+        "date": entry_date(entry.text),
+        "source": {"file": rel, "entry_id": entry.id},
+        "signals": [],
+    }
+
+
 def log_candidates(
     root: Path, existing: ExistingAdrs, dropped: dict[str, int]
 ) -> tuple[list[dict[str, Any]], int, int]:
     """E1: ``(candidates, log files, log files skipped)``.
 
-    A decision-log entry that has an id and is named by no ADR is a candidate.
+    A decision-log entry that has an id and is named by no ADR is a candidate. A log file yields
+    at most ``MAX_LOG_CANDIDATES``, and the rest count under ``log_over_limit``. A repeated id
+    gets the suffix ``.2``, ``.3`` and so on, from one counter per id.
     """
     found: list[dict[str, Any]] = []
     taken: set[str] = set()
+    seen: dict[str, int] = {}
+    per_file: dict[str, int] = {}
     entries, files, skipped = read_log_entries(root)
     for rel, entry in entries:
         if entry.id is None:
             dropped["log_no_id"] += 1
         elif existing.names_id(entry.id):
             dropped["already_documented"] += 1
+        elif per_file.get(rel, 0) >= MAX_LOG_CANDIDATES:
+            dropped["log_over_limit"] += 1
         else:
-            ident = f"log-{entry.id}"
-            suffix = 1
-            while ident in taken:
-                suffix += 1
-                ident = f"log-{entry.id}.{suffix}"
+            per_file[rel] = per_file.get(rel, 0) + 1
+            count = seen.get(entry.id, 0)
+            while True:
+                count += 1
+                ident = f"log-{entry.id}" if count == 1 else f"log-{entry.id}.{count}"
+                if ident not in taken:
+                    break
+            seen[entry.id] = count
             taken.add(ident)
-            rest = entry.text.split("\n", 1)[1] if "\n" in entry.text else ""
-            found.append(
-                {
-                    "id": ident,
-                    "kind": "decision-log",
-                    "title": sanitize(entry.title).strip(),
-                    "reason": extract_reason(entry.title, rest),
-                    "excerpt": sanitize(entry.text, EXCERPT_CHARS),
-                    "date": entry_date(entry.text),
-                    "source": {"file": rel, "entry_id": entry.id},
-                    "signals": [],
-                }
-            )
+            found.append(_log_candidate(rel, entry, ident))
     return found, files, skipped

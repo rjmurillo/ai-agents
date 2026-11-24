@@ -1,17 +1,16 @@
 # Port of aligndottech/align-cli at commit 8d758e9899677b61442b08ffda74b74887bfc42a
 # Ported upstream files:
-#   src/lib/adr-writer.ts          (adrDirFor and nextAdrNumber, lines 14-41; renderAdr, slug
-#                                   and the section kinds, lines 52-84, used by draft)
+#   src/lib/adr-writer.ts          (adrDirFor and nextAdrNumber, lines 14-41; renderAdr is in
+#                                   adr_render.py)
 #   src/lib/fetchers/docs.ts       (ADR_DIR_CANDIDATES, lines 43-48; title and heading
 #                                   reading of the ADR files, lines 70-110)
 # Sibling ports: adr_shape.py, adr_reason.py, adr_commits.py, adr_docs.py, adr_locate.py,
-# adr_scan.py, bootstrap_adr.py.
+# adr_render.py, adr_scan.py, bootstrap_adr.py.
 # MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align
 """Find the repository's ADR folders and read their naming and heading style.
 
 Reads the working tree only: directory listings and the newest ADR of each folder, never
-a file over 1 MiB. Standard library only. Also holds the draft renderer, which fills the
-newest ADR's headings from a scan candidate.
+a file over 1 MiB. Standard library only.
 
 Departures from the upstream source, each pinned by a test:
 
@@ -32,35 +31,35 @@ from __future__ import annotations
 
 import os
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from adr_commits import iso_day, one_line, sanitize
-
 __all__ = [
     "ADR_EXTENSIONS",
     "KNOWN_FOLDERS",
+    "MAX_ADR_BYTES",
+    "MAX_ADR_FILES",
     "MAX_READ_BYTES",
-    "NOT_RECORDED",
     "NYGARD_HEADINGS",
     "AdrFile",
+    "AdrTally",
     "Style",
     "adr_files",
-    "adr_title",
-    "clean_source",
     "folder_style",
     "is_draft_target",
     "locate",
     "locate_folders",
     "read_adr_texts",
     "read_bounded",
-    "render",
     "render_h1",
 ]
 
 ADR_EXTENSIONS = (".md", ".mdx", ".adoc")
 MAX_READ_BYTES = 1024 * 1024
+MAX_ADR_FILES = 2000
+MAX_ADR_BYTES = 32 * 1024 * 1024
 MIN_SCAN_FILES = 3
 _MAX_WALK_DIRS = 20000
 _MAX_WALK_DEPTH = 8
@@ -349,150 +348,39 @@ def locate(root: Path) -> dict[str, Any]:
     }
 
 
+@dataclass
+class AdrTally:
+    """What ``read_adr_texts`` did, filled in as the stream runs.
+
+    ``read`` files gave text, ``skipped`` were unreadable, over ``MAX_READ_BYTES``, or left
+    unread after a cap, and ``cut`` is True when a cap left at least one file unread.
+    """
+
+    read: int = 0
+    skipped: int = 0
+    cut: bool = False
+
+
 def read_adr_texts(
-    root: Path, folders: list[tuple[str, str]] | None = None
-) -> tuple[list[tuple[str, str]], int]:
-    """``(relative path, text)`` of every ADR-named file in every folder, and how many were skipped.
+    root: Path, folders: list[tuple[str, str]] | None = None, tally: AdrTally | None = None
+) -> Iterator[tuple[str, str]]:
+    """Yield ``(relative path, text)`` of the ADR-named files, one file at a time.
 
-    ``folders`` is the result of ``locate_folders(root)`` when the caller already has it.
-    A file over ``MAX_READ_BYTES`` or unreadable is skipped and counted.
+    ``folders`` is the result of ``locate_folders(root)`` when the caller already has it. Reading
+    stops after ``MAX_ADR_FILES`` files or ``MAX_ADR_BYTES`` characters. A file not read for that
+    reason, and a file unreadable or over ``MAX_READ_BYTES``, is counted in ``tally.skipped``.
     """
-    texts: list[tuple[str, str]] = []
-    skipped = 0
+    tally = tally if tally is not None else AdrTally()
+    root = root.resolve()
+    total = 0
     for rel, _source in locate_folders(root)[0] if folders is None else folders:
-        for item in adr_files(root.resolve() / rel):
-            text = read_bounded(root.resolve() / rel / item.name)
+        for item in adr_files(root / rel):
+            if tally.read >= MAX_ADR_FILES or total >= MAX_ADR_BYTES:
+                tally.skipped, tally.cut = tally.skipped + 1, True
+                continue
+            text = read_bounded(root / rel / item.name)
             if text is None:
-                skipped += 1
-            else:
-                texts.append((f"{rel}/{item.name}", text))
-    return texts, skipped
-
-
-# ---------------------------------------------------------------------------
-# Draft rendering (src/lib/adr-writer.ts, renderAdr)
-# ---------------------------------------------------------------------------
-
-NOT_RECORDED = "Not recorded in the source."
-NO_REASON = "The source states no reason."
-_TYPE_PREFIX = re.compile(r"\A[a-z]+(?:\([^)]*\))?!?:[ \t]+", re.IGNORECASE | re.ASCII)
-_PR_SUFFIX = re.compile(r"\(#[0-9]+\)\Z", re.ASCII)
-_URL = re.compile(r"https://[^\s<>`\"']+\Z", re.ASCII)
-_SHA = re.compile(r"[0-9A-Fa-f]{40}|[0-9A-Fa-f]{64}", re.ASCII)
-# A mark that starts a heading, quote, list, fence, rule or table, or a list number.
-_MD_LEAD = re.compile(r"[#>+*=`~|-]|[0-9]+[.)](?=[ \t]|\Z)", re.ASCII)
-_SECTIONS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
-    (re.compile(pattern, re.IGNORECASE | re.ASCII), kind)
-    for pattern, kind in (
-        (r"\bstatus\b", "status"),
-        (r"\bdate\b", "date"),
-        (
-            r"\b(?:drivers?|options?|consequences?|confirmation|pros|cons|information|related"
-            r"|links?|notes?)\b",
-            "",
-        ),
-        (r"\b(?:context|background|problem|motivation|situation)\b", "context"),
-        (r"\b(?:decision|outcome|chosen|resolution)\b", "decision"),
-    )
-)
-
-
-def clean_source(source: object) -> dict[str, Any]:
-    """The source fields the draft quotes, each string on one line.
-
-    A ``sha`` that is not 40 or 64 hex digits is dropped, and so is a ``url`` or ``pr_url`` that
-    is not one ``https://`` word, so no source field can add a line to the draft.
-    """
-    cleaned: dict[str, Any] = {}
-    for key, value in (source if isinstance(source, dict) else {}).items():
-        text = one_line(sanitize(value)) if isinstance(value, str) else value
-        pattern = {"sha": _SHA, "url": _URL, "pr_url": _URL}.get(key)
-        if pattern is None or (isinstance(text, str) and pattern.fullmatch(text)):
-            cleaned[key] = text
-    return cleaned
-
-
-def _plain(text: str) -> str:
-    """One line of ``text`` that cannot start Markdown structure: a backslash goes in front of a
-    leading mark, so ``## x`` or a code fence shows as text."""
-    return f"\\{text}" if _MD_LEAD.match(text) else text
-
-
-def _link(candidate: dict[str, Any]) -> str:
-    source = candidate.get("source")
-    source = source if isinstance(source, dict) else {}
-    url = source.get("url")
-    if isinstance(url, str) and _URL.fullmatch(url):
-        return url
-    if candidate["kind"] == "decision-log":
-        entry = str(source.get("entry_id") or "")
-        return f"{source.get('file') or ''} (entry {entry})".strip()
-    sha = source.get("sha")
-    return f"commit {sha}" if isinstance(sha, str) and sha else ""
-
-
-def _quote(text: str) -> str:
-    return "\n".join(f"> {line}" if line else ">" for line in text.split("\n"))
-
-
-def _context(candidate: dict[str, Any]) -> str:
-    reason = candidate.get("reason")
-    excerpt = (candidate.get("excerpt") or "").strip()
-    noun = {"pr": "pull request", "decision-log": "decision log entry"}.get(
-        candidate["kind"], "commit"
-    )
-    parts = [f"The reason given at the time: {reason}" if reason else NO_REASON]
-    if excerpt:
-        parts.append(f"From the source {noun}:\n\n{_quote(excerpt)}")
-    return "\n\n".join(parts)
-
-
-def _decision(candidate: dict[str, Any]) -> str:
-    link = _link(candidate)
-    return f"{_plain(candidate['title'])}\n\n" + (
-        f"Decided in {link}" if link else "Where it was decided was not recorded."
-    )
-
-
-def _section_kind(heading: str) -> str:
-    return next((kind for pattern, kind in _SECTIONS if pattern.search(heading)), "")
-
-
-def render(style: Style, number: int, candidate: dict[str, Any], status: str) -> str:
-    """The ADR text. Headings come from ``style``; an unfilled heading says so.
-
-    The candidate's text fields must already be cleaned by the caller.
-    """
-    day = iso_day(candidate.get("date"))
-    kinds = [_section_kind(heading) for heading in style.headings]
-    lines = [render_h1(style.h1_form, number, candidate["title"]), ""]
-    header = ([f"Date: {day}"] if day and "date" not in kinds else []) + (
-        [f"Status: {status}"] if "status" not in kinds else []
-    )
-    if header:
-        lines += [*header, ""]
-    filled = {
-        "status": status,
-        "date": day or NOT_RECORDED,
-        "context": _context(candidate),
-        "decision": _decision(candidate),
-    }
-    # The source text must always land somewhere: a folder whose newest ADR has no context or
-    # decision heading gets one appended. Only the first heading of each kind is filled.
-    sections = list(zip(style.headings, kinds, strict=True))
-    sections += [(name.capitalize(), name) for name in ("context", "decision") if name not in kinds]
-    used: set[str] = set()
-    for heading, kind in sections:
-        text = filled.get(kind, NOT_RECORDED) if kind not in used else NOT_RECORDED
-        used.add(kind)
-        lines += [f"## {heading}", "", text, ""]
-    return "\n".join(lines)
-
-
-def adr_title(kind: str, title: str) -> str:
-    """The ADR title for a source title: a commit or pull request loses its conventional
-    ``type(scope)!:`` prefix and its trailing ``(#N)``. Upstream keeps both."""
-    if kind == "decision-log":
-        return title
-    cleaned = _PR_SUFFIX.sub("", _TYPE_PREFIX.sub("", title, count=1)).strip()
-    return cleaned[:1].upper() + cleaned[1:] if cleaned else title
+                tally.skipped += 1
+                continue
+            tally.read, total = tally.read + 1, total + len(text)
+            yield f"{rel}/{item.name}", text

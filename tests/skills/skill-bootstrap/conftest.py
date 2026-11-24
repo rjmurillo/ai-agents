@@ -20,6 +20,7 @@ try:
     import adr_helpers  # noqa: F401
     import adr_locate  # noqa: F401
     import adr_reason  # noqa: F401
+    import adr_render  # noqa: F401
     import adr_scan  # noqa: F401
     import adr_shape  # noqa: F401
     import bootstrap_adr  # noqa: F401

@@ -5,11 +5,12 @@
 #   src/lib/git.ts                   (hasStatedRationale, isReasonBearingLine, resolveCommitShape,
 #                                     isDecisionCommit)
 #   src/lib/context-from-graph.ts    (the title filter of decisionShapedRows, lines 84-109)
+#   src/lib/adr-writer.ts            (the section kinds of renderAdr, lines 52-84)
 #   src/lib/reason-extract.ts        (stripTrailers, stripImporterMetadata, hasImporterMetadata,
 #                                     and the patterns they use). The sentence scoring lives in
 #                                     adr_reason.py.
 # Sibling ports: adr_shape.py, adr_reason.py, adr_commits.py, adr_docs.py, adr_locate.py,
-# adr_scan.py, bootstrap_adr.py.
+# adr_render.py, adr_scan.py, bootstrap_adr.py.
 # MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align
 """Pure classifiers for commit subjects: is this one a decision, and does it say why?
 
@@ -55,6 +56,7 @@ __all__ = [
     "is_release_or_bump_subject",
     "mechanical_subject_regex",
     "resolve_commit_shape",
+    "section_kind",
     "states_numeric_bound",
     "states_subject_rule",
     "strip_importer_metadata",
@@ -465,3 +467,26 @@ def is_decision_shaped_title(title: str) -> bool:
     if prefix and _FIX_SHAPED.search(prefix.group(1)):
         return False
     return not _FIX_SHAPED.search(rest) and bool(_DECISION_SHAPED.search(rest))
+
+
+# Draft headings (src/lib/adr-writer.ts, the section kinds)
+
+_SECTIONS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
+    (re.compile(pattern, re.IGNORECASE | re.ASCII), kind)
+    for pattern, kind in (
+        (r"\bstatus\b", "status"),
+        (r"\bdate\b", "date"),
+        (
+            r"\b(?:drivers?|options?|consequences?|confirmation|pros|cons|information|related"
+            r"|links?|notes?)\b",
+            "",
+        ),
+        (r"\b(?:context|background|problem|motivation|situation)\b", "context"),
+        (r"\b(?:decision|outcome|chosen|resolution)\b", "decision"),
+    )
+)
+
+
+def section_kind(heading: str) -> str:
+    """What a draft heading asks for: ``status``, ``date``, ``context`` or ``decision``, else ``""``."""
+    return next((kind for pattern, kind in _SECTIONS if pattern.search(heading)), "")

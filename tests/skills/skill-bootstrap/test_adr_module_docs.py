@@ -15,6 +15,7 @@ MODULES = (
     "adr_commits",
     "adr_docs",
     "adr_locate",
+    "adr_render",
     "adr_scan",
     "bootstrap_adr",
 )
@@ -33,7 +34,7 @@ def _sibling_list(name: str) -> list[str]:
 
 
 @pytest.mark.parametrize("name", MODULES)
-def test_every_header_lists_all_seven_modules_in_the_same_order(name: str) -> None:
+def test_every_header_lists_all_eight_modules_in_the_same_order(name: str) -> None:
     assert _sibling_list(name) == [f"{module}.py" for module in MODULES]
 
 

@@ -3,8 +3,9 @@
 # helpers they use). Trailer and importer-text handling (stripTrailers, stripImporterMetadata,
 # hasImporterMetadata) lives in adr_shape.py.
 # Not ported: withReasons, which shapes align's search JSON and has no consumer here.
+# Extension E3, breaking_change, has no upstream source.
 # Sibling ports: adr_shape.py, adr_reason.py, adr_commits.py, adr_docs.py, adr_locate.py,
-# adr_scan.py, bootstrap_adr.py.
+# adr_render.py, adr_scan.py, bootstrap_adr.py.
 # MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align
 """The stated reason behind a decision, pulled out of its own text with no model.
 
@@ -17,6 +18,9 @@ Picks up to two sentences of a commit body that SAY why. Rules, all deterministi
   tables, code, HTML comments and URLs are never reasons.
 - A sentence that only repeats the title is dropped.
 - None when nothing qualifies. A wrong reason is worse than none.
+
+``breaking_change`` is new (extension E3, Conventional Commits 1.0.0). It sits here because a
+breaking commit skips the rationale gate that this module feeds.
 
 Regex notes: see the module docstring of ``adr_shape.py``; they apply to every module here.
 """
@@ -36,7 +40,7 @@ from adr_shape import (
     strip_trailers,
 )
 
-__all__ = ["REASON_MAX_CHARS", "commit_sha_of", "extract_reason"]
+__all__ = ["REASON_MAX_CHARS", "breaking_change", "commit_sha_of", "extract_reason"]
 
 # Per-sentence cap, cut at a word boundary. A display choice.
 REASON_MAX_CHARS = 180
@@ -56,9 +60,11 @@ _DUMP_HEADING = re.compile(
     r"|^\s{0,3}#{1,6}\s*\[?v?\d+\.\d+",
     _I | re.MULTILINE,
 )
+# ``[ \t]*`` after a line anchor, never ``\s*``: ``\s*`` also eats newlines, so every line start
+# of a long run of blank lines would rescan the rest of the run.
 _BUMP_BODY = re.compile(
-    r"^\s*(?:bumps?|updates?|upgrades?)\s+(?:\[?`?[\w@/.-]+`?\]?(?:\([^)]*\))?\s+)?(?:from|to)\b"
-    r"|this pr contains the following updates|^\s*dependabot will resolve",
+    r"^[ \t]*(?:bumps?|updates?|upgrades?)\s+(?:\[?`?[\w@/.-]+`?\]?(?:\([^)]*\))?\s+)?(?:from|to)\b"
+    r"|this pr contains the following updates|^[ \t]*dependabot will resolve",
     _I | re.MULTILINE,
 )
 
@@ -145,11 +151,14 @@ _HTML_TAG = re.compile(
 _DANGLING_LINK = re.compile(
     r"(?:\b(?:because of|due to|of|to|by|with|from|for|on|in|and|or)|,)\s*\ue000", _A
 )
-_HOLE_BEFORE_PUNCT = re.compile(r"\s*\ue000\s*([.,;:!?])", _A)
-_HOLE = re.compile(r"\s*\ue000\s*", _A)
+# ``(?<!\s)`` lets a match start only where a whitespace run begins. Search takes the leftmost
+# match, which already starts there, so results are unchanged, and a long run of blanks that
+# no hole follows is scanned once instead of once per position.
+_HOLE_BEFORE_PUNCT = re.compile(r"(?<!\s)\s*\ue000\s*([.,;:!?])", _A)
+_HOLE = re.compile(r"(?<!\s)\s*\ue000\s*", _A)
 
 _COMMENT = re.compile(r"<!--[\s\S]*?(?:-->|\Z)", _A)
-_FENCE = re.compile(r"^\s*(```|~~~)[\s\S]*?(?:^\s*\1|\Z)", _A | re.MULTILINE)
+_FENCE = re.compile(r"^[ \t]*(```|~~~)[\s\S]*?(?:^[ \t]*\1|\Z)", _A | re.MULTILINE)
 _COMMIT_SHA = re.compile(r"(?:/commit/|^git://commit/)([0-9a-f]{7,40})(?:[/?#]|\Z)", _A)
 
 _QUOTE_MARK = re.compile(r"^\s*>+\s?", _A)
@@ -432,3 +441,38 @@ def extract_reason(title: str, body: str | None) -> str | None:
         return None
     best = sorted(scored, key=lambda s: (-s.score, s.pos))[:_MAX_SENTENCES]
     return " ".join(s.text for s in sorted(best, key=lambda s: s.pos))
+
+
+# ---------------------------------------------------------------------------
+# E3: breaking-change signal (extension, Conventional Commits 1.0.0)
+# ---------------------------------------------------------------------------
+
+_BREAKING_SUBJECT = re.compile(r"^[a-z]+(?:\([^)]*\))?!:", _I)
+# The token is uppercase by the specification. BREAKING-CHANGE is its synonym.
+_BREAKING_FOOTER = re.compile(r"^BREAKING[ -]CHANGE:[ \t]+\S", re.MULTILINE | _A)
+_FOOTER_LINE = re.compile(r"^[A-Za-z][A-Za-z0-9-]*:[ \t]+\S", _A)
+_BLANK_LINES = re.compile(r"\n[ \t]*\n", _A)
+
+
+def breaking_change(subject: str, body: str) -> bool:
+    """Does the commit mark itself as a breaking change?
+
+    True for a ``type!:`` or ``type(scope)!:`` subject, and for a ``BREAKING CHANGE:``
+    or ``BREAKING-CHANGE:`` line that begins a line in the footer. The footer is the
+    last paragraph, or an earlier one when only trailer paragraphs (such as
+    ``Co-Authored-By``) follow it. The phrase in mid-body prose does not count.
+    """
+    if _BREAKING_SUBJECT.search(subject.strip()):
+        return True
+    paragraphs = _BLANK_LINES.split(body.replace("\r\n", "\n").strip())
+    for paragraph in reversed(paragraphs):
+        if _BREAKING_FOOTER.search(paragraph):
+            return True
+        if not _is_trailer_paragraph(paragraph):
+            return False
+    return False
+
+
+def _is_trailer_paragraph(paragraph: str) -> bool:
+    lines = [line for line in paragraph.split("\n") if line.strip()]
+    return bool(lines) and all(_FOOTER_LINE.match(line) for line in lines)
