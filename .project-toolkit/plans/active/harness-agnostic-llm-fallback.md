@@ -80,7 +80,7 @@ Sizes are complexity, not time: S one concern, M several concerns or a new modul
 |---|---|---|---|---|
 | M1-T1 | Ask the owner G0 (CI secret) | Question sent; answer slot in decision record | S | none |
 | M1-T2 | Measure the heuristic band | Script under `scripts/eval/` reuses `get_comments_by_reviewer` (`update_reviewer_signal_stats.py:179`) and `get_actionability_score` (`:250`); prints band count and share, share at exactly 0.5 with no matched reason, split by thread position; tests with mocked `gh` | M | none |
-| M1-T3 | Count fetch truncation | Same script counts PRs at 100 threads and threads at 50 comments (`scripts/github_core/api.py:1313-1317`); reports them; test with a truncated fixture | S | M1-T2 |
+| M1-T3 | Count fetch truncation | Same script counts PRs at 100 threads and threads at 50 comments (`scripts/github_core/api.py:1313-1317`); reports them; test with a truncated fixture | S | M1-T2 <!-- citation-freshness: ignore -- anchors here are command strings from another column; cited lines re-read 2026-11-24 --> |
 | M1-T4 | Commit the band result alone | Result file with SHA, date, window semantics, and loss counts; exit criterion 5 diff guard empty | S | M1-T3 |
 | M1-T5 | Apply kill criterion 1 | Share recorded; under 5 percent triggers M-K | S | M1-T4 |
 | M1-T6 | Write the labeling rubric | Defines the unit (comment node, with thread position), actionable vs not, edge examples; states whether thread `isOutdated` is shown | M | M1-T5 |

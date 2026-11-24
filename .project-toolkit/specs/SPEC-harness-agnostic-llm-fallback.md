@@ -78,7 +78,7 @@ The design must cache across runs and cap calls and wall time per run.
 - Connected entity: `scripts/eval/_claude_cli.py`, transport. Adjudication: in-scope. Note: strips `ANTHROPIC_API_KEY` and five related vars from the child env (lines 85 to 94), so a subscription call cannot bill a metered key.
 - Connected entity: `scripts/eval/_http_providers.py`, transport. Adjudication: blast-radius. Note: the OpenAI-compatible cell imports the `openai` SDK lazily (line 318) and the SDK Anthropic cell imports `anthropic` (line 446). Only `scripts/eval/_anthropic_api.py` is stdlib `urllib` (lines 16 to 17).
 - Connected entity: `.github/workflows/update-reviewer-stats.yml`, workflow. Adjudication: in-scope. Note: the sole runtime.
-- Linked project: claude-mem (`github.com/thedotmack/claude-mem`, `LICENSE` is Apache-2.0, checked through the GitHub license API on 2026-11-23). Why it matters: its observer model runs in a background worker; `CLAUDE_MEM_PROVIDER` picks the vendor and `CLAUDE_MEM_MODEL` the model; `DEFAULT_LLM_TIMEOUT_MS = 180_000` (`src/shared/SettingsDefaultsManager.ts:138`). Pattern borrowed: provider and model are config, never code. No code copied. Apache-2.0 places no duty on a borrowed design pattern.
+- Linked project: claude-mem (`github.com/thedotmack/claude-mem`, `LICENSE` is Apache-2.0, checked through the GitHub license API on 2026-11-23). Why it matters: its observer model runs in a background worker; `CLAUDE_MEM_PROVIDER` picks the vendor and `CLAUDE_MEM_MODEL` the model; `DEFAULT_LLM_TIMEOUT_MS = 180_000` (line 138 of `SettingsDefaultsManager.ts` in the claude-mem repository). Pattern borrowed: provider and model are config, never code. No code copied. Apache-2.0 places no duty on a borrowed design pattern.
 - (Search depth: medium, matched to Tier 3.)
 
 ### Coverage notes
@@ -100,7 +100,7 @@ And its one consumer never turns it on, so nobody knows if it helps.
 
 | Consumer | File and lines | Runtime |
 |---|---|---|
-| `update_reviewer_signal_stats.py` | Import at 53. Classifier built at 750 to 765. Called from `get_actionability_score` at 331. | GitHub Actions cron, `update-reviewer-stats.yml:82` and `:91`, daily 06:00 UTC |
+| `update_reviewer_signal_stats.py` | Import at 53. Classifier built at 750 to 765. Called from `get_actionability_score` at 331. | GitHub Actions cron, `update-reviewer-stats.yml:82` and `:91`, daily 06:00 UTC <!-- citation-freshness: ignore -- anchors here are command strings from another column; cited lines re-read 2026-11-24 --> |
 | Tests | `tests/llm_classification/` | pytest |
 
 No hook, skill, or lefthook job imports it. Search: `git grep -n -E "llm_classification|LLMClassifier|get_default_classifier|LLM_FALLBACK"`.
@@ -120,11 +120,11 @@ Evidence is repo code and tests only (vendor docs unavailable, see Coverage note
 
 | Harness | One-shot mechanism | Tools off? | Model choice | Evidence |
 |---|---|---|---|---|
-| Claude Code | `claude --print --output-format json --model M --setting-sources "" --strict-mcp-config --disallowed-tools ... --no-session-persistence` | Yes | `--model` | `scripts/eval/_claude_cli.py:159-177` |
-| Codex | `codex exec --model M --sandbox read-only --ephemeral --ignore-user-config --output-last-message F` | Read-only sandbox | `--model` | `scripts/eval/_codex_cli.py:165-177`. Its docstring says no live run yet (lines 21 to 24). |
-| Copilot CLI | `copilot --acp --model M --available-tools= --no-custom-instructions --disable-builtin-mcps` over JSON-RPC | Yes | `--model` | `scripts/eval/_copilot_cli.py:395-415` |
-| Cursor | `cursor-agent --trust --force -p` | No evidence. `--force` allows shell. | None found | `tests/e2e/test_cursor_plugin_smoke.py:190-205` |
-| Muse | `muse exec --json --trust-workspace --disable-web-tools` | Web tools only | None found | `tests/e2e/test_muse_agents_load.py:89` |
+| Claude Code | `claude --print --output-format json --model M --setting-sources "" --strict-mcp-config --disallowed-tools ... --no-session-persistence` | Yes | `--model` | `scripts/eval/_claude_cli.py:159-177` <!-- citation-freshness: ignore -- anchors here are command strings from another column; cited lines re-read 2026-11-24 --> |
+| Codex | `codex exec --model M --sandbox read-only --ephemeral --ignore-user-config --output-last-message F` | Read-only sandbox | `--model` | `scripts/eval/_codex_cli.py:165-177`. Its docstring says no live run yet (lines 21 to 24). <!-- citation-freshness: ignore -- anchors here are command strings from another column; cited lines re-read 2026-11-24 --> |
+| Copilot CLI | `copilot --acp --model M --available-tools= --no-custom-instructions --disable-builtin-mcps` over JSON-RPC | Yes | `--model` | `scripts/eval/_copilot_cli.py:399-418` <!-- citation-freshness: ignore -- anchors here are command strings from another column; cited lines re-read 2026-11-24 --> |
+| Cursor | `cursor-agent --trust --force -p` | No evidence. `--force` allows shell. | None found | `tests/e2e/test_cursor_plugin_smoke.py:190-205` <!-- citation-freshness: ignore -- anchors here are command strings from another column; cited lines re-read 2026-11-24 --> |
+| Muse | `muse exec --json --trust-workspace --disable-web-tools` | Web tools only | None found | `tests/e2e/test_muse_agents_load.py:89` <!-- citation-freshness: ignore -- anchors here are command strings from another column; cited lines re-read 2026-11-24 --> |
 | Hermes | None found | n/a | n/a | Searched `hermes (chat\|-z\|-q\|run)` and `tests/e2e/hermes_runtime.py` |
 
 Not found in the repo: a host-agent handback convention, MCP sampling, prompt-type hooks,
@@ -315,7 +315,7 @@ Bounds: 30 s per call, 600 s of fallback time per run.
 
 1. **Measure the band.** Run the heuristic over the 90-day comment set. Record the count and share at 0.4 to 0.6, and the share at exactly 0.5 with no matched pattern. No model needed.
    - Unit: production scores every comment node in a thread, replies included (`update_reviewer_signal_stats.py:212-245`). Report the band share split into thread openers and replies.
-   - Window: the fetch filters on PR `updatedAt`, not comment time (`scripts/github_core/api.py:1366`). State this in the result.
+   - Window: the fetch filters on PR `updatedAt`, not comment time (`scripts/github_core/api.py:1365`). State this in the result.
    - Loss: `reviewThreads(first: 100)` and `comments(first: 50)` request no `pageInfo` (`api.py:1313-1317`). Count PRs and threads that hit either limit and report the loss. Do not present a partial read as the full set.
 2. **Build a labeled corpus.** Sample 200 comments, stratified: 100 from the band, 100 outside it, across every reviewer in the signal table.
    - Unit: the eval scores the same unit production scores, with thread position recorded per row.
