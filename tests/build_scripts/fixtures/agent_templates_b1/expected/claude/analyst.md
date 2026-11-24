@@ -213,7 +213,7 @@ If a tool or service is unavailable, do not halt on first failure or retry indef
 
 | Primary Tool | Fallback | If Fallback Also Fails |
 |--------------|----------|------------------------|
-| Memory Router (`search_memory.py`) | Read `.serena/memories/` directly with Read tool | Proceed without memory context, note gap in handoff |
+| Memory search (`search_memory.py`) | Read the repository memory folder directly with Read tool | Proceed without memory context, note gap in handoff |
 | Serena read failure | Retry once; note unavailable symbol/memory in findings | Continue with reduced scope, flag in handoff |
 | MCP servers (Context7, DeepWiki) | Retry once; note unavailable docs in findings | Proceed with available information, document unverified claims |
 | Shell, command, or unrestricted web context | Return [BLOCKED] only when the missing evidence is load-bearing; otherwise list the gap | N/A |
@@ -242,7 +242,7 @@ Consider these when the problem structure matches:
 | **Five Whys** | Root cause analysis for incidents |
 | **CAP Theorem** | Distributed system trade-offs |
 
-Query Serena for full framework details when relevant: call `mcp__serena__read_memory` with `memory_file_name="knowledge/cynefin-framework"`. If the Serena MCP is unavailable, fall back to reading `.serena/memories/knowledge/cynefin-framework.md` directly.
+Query Serena for full framework details when relevant: call `mcp__serena__read_memory` with `memory_file_name="knowledge/cynefin-framework"`. If the Serena MCP is unavailable, fall back to reading `knowledge/cynefin-framework.md` in the memory folder.
 
 ## Output Length Bounds
 

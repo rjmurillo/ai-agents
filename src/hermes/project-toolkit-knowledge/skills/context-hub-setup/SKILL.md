@@ -22,7 +22,7 @@ skills the single user-invocable surface.
 
 Context Hub requires these plugins to be installed:
 
-1. **Serena** - Symbol-level code analysis and the `.serena/memories/` store (required for `using-serena-symbols` and the memory skills)
+1. **Serena** - Symbol-level code analysis (required for `using-serena-symbols`). The memory skills work without it (ADR-126)
 2. **Context7** - Framework documentation (recommended for `/context-gather`)
 
 ## Process

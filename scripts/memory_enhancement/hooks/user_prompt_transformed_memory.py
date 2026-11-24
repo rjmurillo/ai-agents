@@ -8,7 +8,7 @@ channel is ``userPromptTransformed``: this hook prints one
 selects the host.
 
 The only environment check skips recall inside the Copilot cloud agent. That
-agent runs unattended with pre-approved tools and reads .serena/memories from
+agent runs unattended with pre-approved tools and reads repository memory from
 a checked-out branch (ADR-068 amendment for issue #4727).
 
 Hook Type: userPromptTransformed (Copilot CLI). Imported by

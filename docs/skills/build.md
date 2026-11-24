@@ -36,6 +36,10 @@ Hand-off (ADR-123): Writes `implementation-change` and `validation-record`. Next
 
 ## Advanced use
 
+Before changing existing behavior, reuse the spec's prior-art evidence when
+it covers the same scope. Use [memory-gate](memory-gate.md) or the
+[memory](memory.md) recall procedure for gaps.
+
 **Phases.**
 
 | Phase | What happens |

@@ -69,6 +69,9 @@ End the Q2 answer with one sentence recording the outcome: `Reframing: skipped (
 
 **Bound the search.** If three tool calls have not surfaced anything useful, stop searching and switch to first-principles reasoning. Document what you tried (which tool, what query, what came back) so the user can extend the search if the answer matters more than your time budget suggests.
 
+Use the prior-art gate to search memory. Record sources and coverage gaps in
+the PriorArtBlock.
+
 Runs after Step 0 and before Step 1. It searches prior art before any new spec
 work, halts when the blast-radius count meets the mode threshold (2 in human
 mode, 3 in auto mode) or a risky change type has no prior record or citation,

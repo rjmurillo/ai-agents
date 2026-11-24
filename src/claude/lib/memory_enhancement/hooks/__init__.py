@@ -2,6 +2,6 @@
 
 from __future__ import annotations
 
-from .. import find_repo_root
+from ..stores import find_memory_root, repository_memory_dir
 
-__all__ = ["find_repo_root"]
+__all__ = ["find_memory_root", "repository_memory_dir"]

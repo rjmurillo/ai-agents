@@ -18,6 +18,14 @@ from .models import (
     VerificationResult,
 )
 
+__all__ = [
+    "STALE_REASON_MARKERS",
+    "VerificationResult",
+    "find_stale_citations",
+    "verify_all_citations",
+    "verify_citation",
+]
+
 STALE_REASON_MARKERS: tuple[str, ...] = ("exceeds", "not found in file")
 
 # Exhaustiveness check: every SourceType must have a verifier registered.
