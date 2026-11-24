@@ -219,16 +219,25 @@ def test_draft_into_an_ignored_path_exits_two(tmp_path: Path) -> None:
     assert sorted(p.name for p in (repo / "docs" / "adr").iterdir()) == ["0001-first.md"]
 
 
-@pytest.mark.parametrize("args", [["--id", "c-nope"], ["--id", "c-1", "--status", "A\nB"]])
+@pytest.mark.parametrize(
+    ("args", "message"),
+    [
+        (["--id", "c-nope"], "no candidate with id 'c-nope'"),
+        (["--status", "A\nB"], "--status 'A\\nB' must be one of"),
+    ],
+)
 def test_draft_with_an_unknown_id_or_a_bad_status_exits_two(
-    tmp_path: Path, args: list[str]
+    tmp_path: Path, args: list[str], message: str
 ) -> None:
     repo = _decision_repo(tmp_path)
     _scan(repo, tmp_path)
+    scan = tmp_path / "scan.json"
+    ident = json.loads(scan.read_text(encoding="utf-8"))["candidates"][0]["id"]
     code, payload = run_cli(
-        "draft", "--scan", str(tmp_path / "scan.json"), *args, "--out", str(tmp_path / "out")
+        "draft", "--scan", str(scan), "--id", ident, *args, "--out", str(tmp_path / "out")
     )
     assert code == 2 and payload["error"] == "config" and not (tmp_path / "out").exists()
+    assert message in payload["message"]
 
 
 def test_git_missing_exits_three_with_a_git_error(tmp_path: Path) -> None:

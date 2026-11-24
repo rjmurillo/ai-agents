@@ -176,11 +176,13 @@ def test_since_and_rev_limit_the_history_read(tmp_path: Path) -> None:
     old = commit(
         repo, f"Adopt the old way instead of none\n\n{WHY}\n", date="2020-01-01T00:00:00+00:00"
     )
-    commit(
+    new = commit(
         repo, f"Adopt the new way instead of the old\n\n{WHY}\n", date="2026-06-01T00:00:00+00:00"
     )
-    assert len(_scan(repo, since="2025-01-01")["candidates"]) == 1
-    assert len(_scan(repo, rev=old)["candidates"]) == 1
+    assert [item["source"]["sha"] for item in _scan(repo, since="2025-01-01")["candidates"]] == [
+        new
+    ]
+    assert [item["source"]["sha"] for item in _scan(repo, rev=old)["candidates"]] == [old]
     assert _scan(repo, rev=old)["head"] == old
 
 

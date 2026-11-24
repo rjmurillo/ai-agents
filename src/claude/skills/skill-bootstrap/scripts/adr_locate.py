@@ -410,15 +410,13 @@ _LIST_NUMBER = re.compile(r"\A([0-9]+)([.)])(?=[ \t]|\Z)", re.ASCII)
 
 
 def clean_source(source: object) -> dict[str, Any]:
-    """The source fields the draft quotes, each string on one line.
-
-    A ``sha`` that is not 40 or 64 hex digits is dropped, and so is a ``url`` or ``pr_url`` that
-    is not one ``https://`` word, so no source field can add a line to the draft.
-    """
+    """The source fields the draft quotes, each string on one line. A ``sha`` or ``*_sha`` (such as
+    ``reason_sha``) not of 40 or 64 hex digits, or a ``url`` or ``*_url`` (``pr_url``,
+    ``reason_url``) not one ``https://`` word, is dropped, so no field can add a draft line."""
     cleaned: dict[str, Any] = {}
     for key, value in (source if isinstance(source, dict) else {}).items():
         text = flat(sanitize(value)) if isinstance(value, str) else value
-        pattern = {"sha": FULL_SHA, "url": _URL, "pr_url": _URL}.get(key)
+        pattern = {"sha": FULL_SHA, "url": _URL}.get(key.split("_")[-1])
         if pattern is None or (isinstance(text, str) and pattern.fullmatch(text)):
             cleaned[key] = text
     return cleaned
@@ -451,7 +449,10 @@ def _context(candidate: dict[str, Any]) -> str:
     reason = candidate.get("reason")
     excerpt = (candidate.get("excerpt") or "").strip()
     noun = _KIND_NOUN.get(candidate["kind"], "commit")
-    parts = [f"The reason given at the time: {reason}" if reason else NO_REASON]
+    source = candidate.get("source") or {}  # cleaned, so a dict
+    cited = source.get("reason_url") or source.get("reason_sha")  # a PR's reason from a commit
+    said = f"{reason} (stated in commit {cited})" if cited else reason
+    parts = [f"The reason given at the time: {said}" if reason else NO_REASON]
     if excerpt:
         parts.append(f"From the source {noun}:\n\n{_quote(excerpt)}")
     return "\n\n".join(parts)
@@ -480,8 +481,7 @@ def render(style: Style, number: int, candidate: dict[str, Any], status: str) ->
         "context": _context(candidate),
         "decision": _decision(candidate),
     }
-    # The source text always lands: a missing context or decision heading is appended. Only the
-    # first heading of each kind is filled.
+    # Context and decision always land (appended when missing); only a kind's first heading fills.
     sections = list(zip(style.headings, kinds, strict=True))
     sections += [(name.capitalize(), name) for name in ("context", "decision") if name not in kinds]
     used: set[str] = set()
