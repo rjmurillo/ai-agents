@@ -228,6 +228,9 @@ A `serena_path` of `None` resolves the store on each call with
 `memory_core.memory_store.resolve_memory_store`, starting from `CLAUDE_PROJECT_DIR`, else the current
 directory.
 
+`get_memory_router_status` keys its store entry `RepositoryNotes` when the
+resolved store is the notes folder.
+
 The leading underscore marks it private; prefer the CLI `--serena-path` and
 `--episodes-path` flags over mutating it.
 

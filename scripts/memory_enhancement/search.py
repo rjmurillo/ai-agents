@@ -323,7 +323,7 @@ def _search_with_ripgrep(
         return None
 
     if result.returncode not in (0, 1):
-        _warn_search_failure(cmd[0], result.returncode, result.stderr)
+        _warn_search_failure(cmd[0], result.returncode, result.stderr, "falling back to grep")
         return None
 
     return _parse_file_list(result.stdout, memories_dir)
@@ -373,17 +373,17 @@ def _search_with_grep(
         return None
 
     if result.returncode not in (0, 1):
-        _warn_search_failure(cmd[0], result.returncode, result.stderr)
+        _warn_search_failure(cmd[0], result.returncode, result.stderr, "recall skipped")
         return None
 
     return _parse_file_list(result.stdout, memories_dir)
 
 
-def _warn_search_failure(tool: str, returncode: int, stderr: str) -> None:
-    """Report a failed store search on stderr so empty recall is not silent."""
+def _warn_search_failure(tool: str, returncode: int, stderr: str, outcome: str) -> None:
+    """Report a failed store search on stderr so a fallback or empty recall is not silent."""
     detail = stderr.strip().splitlines()[0] if stderr.strip() else "no stderr"
     print(
-        f"memory search: {Path(tool).name} exited {returncode}; recall skipped ({detail})",
+        f"memory search: {Path(tool).name} exited {returncode}; {outcome} ({detail})",
         file=sys.stderr,
     )
 

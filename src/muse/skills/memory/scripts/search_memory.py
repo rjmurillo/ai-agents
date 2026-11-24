@@ -31,7 +31,6 @@ if str(_SCRIPT_DIR) not in sys.path:
 
 from store_resolution import (  # noqa: E402
     Stores,
-    find_memory_root,
     resolve_stores,
 )
 
@@ -93,12 +92,13 @@ def estimate_tokens(file_path: Path) -> int:
 
 
 def _corpus_files(corpus: Path) -> list[Path]:
+    # A linked memory must resolve inside its own store, so a committed link
+    # cannot surface another file in the repository, such as `.env`.
     resolved = corpus.resolve()
-    scope = find_memory_root(resolved) or resolved
     return [
         path
         for path in corpus.rglob("*.md")
-        if path.is_file() and (not path.is_symlink() or path.resolve().is_relative_to(scope))
+        if path.is_file() and (not path.is_symlink() or path.resolve().is_relative_to(resolved))
     ]
 
 
@@ -170,9 +170,9 @@ def search_episodes(
 
     keywords = query_keywords(query)
     results: list[dict[str, Any]] = []
-    scope = find_memory_root(episodes_path.resolve()) or episodes_path.resolve()
+    scope = episodes_path.resolve()
     for episode_file in sorted(episodes_path.glob("episode-*.json")):
-        # Same rule as _corpus_files: a linked episode must stay in the checkout.
+        # Same rule as _corpus_files: a linked episode must stay in its store.
         if episode_file.is_symlink() and not episode_file.resolve().is_relative_to(scope):
             continue
         try:
@@ -378,14 +378,14 @@ def main(argv: list[str] | None = None) -> int:
         if not results:
             print(f"No results found for: {query}")
         else:
-            print(f"{'Name':<40} {'Source':<10} {'Score':<8} {'Tokens':<10} Preview")
+            print(f"{'Name':<40} {'Source':<15} {'Score':<8} {'Tokens':<10} Preview")
             print("-" * 100)
             for r in results:
                 preview = r.get("Content", "")
                 if len(preview) > 60:
                     preview = preview[:57] + "..."
                 print(
-                    f"{r['Name']:<40} {r['Source']:<10} "
+                    f"{r['Name']:<40} {r['Source']:<15} "
                     f"{r['Score']:<8} {r.get('TokenEstimate', 0):<10} "
                     f"{preview}",
                 )

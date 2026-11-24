@@ -19,6 +19,7 @@ Exit Codes:
 
 from __future__ import annotations
 
+import os
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -31,7 +32,8 @@ from ..stores import find_memory_root, repository_memory_dir, shadowed_notes_dir
 
 def main() -> int:
     """Entry point for the session_end hook."""
-    repo_root = _find_repo_root()
+    project_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
+    repo_root = _find_repo_root(Path(project_dir) if project_dir else None)
     if repo_root is None:
         return 0
 

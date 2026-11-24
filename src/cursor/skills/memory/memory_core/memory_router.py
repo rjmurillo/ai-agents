@@ -127,7 +127,13 @@ def _get_memory_files(memory_path: str) -> tuple[list[Path], list[str]]:
 
     mem_dir = Path(memory_path)
     try:
-        files = sorted(mem_dir.rglob("*.md"))
+        # A linked memory must resolve inside the store, as in search_memory.py.
+        root = mem_dir.resolve()
+        files = sorted(
+            f
+            for f in mem_dir.rglob("*.md")
+            if not f.is_symlink() or f.resolve().is_relative_to(root)
+        )
     except OSError as exc:
         logger.warning("Failed to enumerate memory files in '%s': %s", memory_path, exc)
         return [], []
@@ -198,7 +204,7 @@ def invoke_serena_search(
             if not skip_content:
                 try:
                     content = current_file.read_text(encoding="utf-8")
-                except OSError as exc:
+                except (OSError, UnicodeDecodeError) as exc:
                     logger.warning("Failed to read memory file '%s': %s", current_file, exc)
                     continue
                 content_hash = get_content_hash(content or "")
@@ -234,11 +240,14 @@ def get_memory_router_status() -> dict[str, Any]:
     that probe's 30-second result cache.
 
     Returns:
-        Dict with Serena and Configuration status.
+        Dict keyed by the store found (`Serena` or `RepositoryNotes`), plus
+        `Configuration`.
     """
     store = _store_path()
+    # Name the store that was found, as search_memory.py's Diagnostic does.
+    is_notes = store is not None and Path(store).resolve().parts[-3:] == STORE_DIRS[1].parts
     return {
-        "Serena": {
+        "RepositoryNotes" if is_notes else "Serena": {
             "Available": store is not None and Path(store).is_dir(),
             "Path": store or "",
         },

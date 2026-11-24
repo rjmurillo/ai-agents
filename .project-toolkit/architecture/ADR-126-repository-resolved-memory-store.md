@@ -125,7 +125,8 @@ does what, not where the store lives, so it is not amended.
 **7. The prompt recall hook keeps ADR-109's trust boundary.** The hook ships to
 Claude plugin installs under ADR-109's 2026-11-20 amendment, which treats memory
 as untrusted repository content. It finds its root with Decision 4's rule, then
-recalls only when a `.git` exists at or above that root. It refuses, with a
+recalls only when that root itself holds `.git`, so an untracked memory folder
+nested inside a work tree recalls nothing. It refuses, with a
 note, a Serena folder that resolves outside the repository, and then recalls
 nothing, even when a notes folder exists. Otherwise its store follows Decision
 1, so a consumer with only the notes folder gets recall from it. This amends by
@@ -180,9 +181,12 @@ that visible instead of silent.
 ADR-106's Security Considerations apply to `.project-toolkit/memory/notes/`
 unchanged. Notes are committed files a branch can change, so recalled text is
 untrusted data. A store the resolver finds that resolves outside the repository
-root is ignored by all three store-rule copies. The recall hook is stricter: an
-escaping Serena folder stops recall entirely (Decision 7). A path the caller
-passes explicitly, such as `--serena-path`, is trusted as given.
+root is ignored by all three store-rule copies. A linked memory file counts only
+when it resolves inside its own store, in the search script, the router, and the
+loader the hook uses, so a committed link cannot surface another repository file
+such as `.env`. The recall hook is stricter still: an escaping Serena folder
+stops recall entirely (Decision 7). A path the caller passes explicitly, such as
+`--serena-path`, is trusted as given.
 
 ## Confirmation
 

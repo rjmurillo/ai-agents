@@ -44,3 +44,14 @@ exists.
 ## Verdict
 
 Consensus: critic Accept; architect Accept on its stated condition, now met.
+
+## Post-consensus hardening
+
+The early `/review` security and correctness axes, run before the full review,
+found two exposures. First, the hook accepted a `.git` anywhere above the
+memory root, so an untracked folder nested in a work tree could feed recall.
+Decision 7 now requires the root itself to hold `.git`. Second, a linked note
+could point at any repository file, such as `.env`. Links now count only inside
+their own store, in all three readers. Both changes narrow behavior the panel
+accepted; neither widens it. Ledger rows 20 and 24 carry the evidence.
+

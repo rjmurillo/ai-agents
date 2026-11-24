@@ -148,20 +148,14 @@ def load_memory(
 
     ``memories_dir`` path-qualifies ``memory_id`` (``workflows/foo``, the form
     ``verify --memory-id`` expects; the bare stem without it) and keeps a
-    symlinked file inside its repository. ``max_bytes`` skips larger files.
+    symlinked file inside that store. ``max_bytes`` skips larger files.
     Returns None when the file cannot be read or parsed.
     """
     if not file_path.is_file():
         return None
+    # A linked memory must resolve inside its own store, never elsewhere in the repo.
     if memories_dir is not None and file_path.is_symlink():
-        corpus = memories_dir.resolve()
-        stores = (".serena/memories", ".project-toolkit/memory/notes")
-        scopes = [
-            p
-            for p in (corpus, *corpus.parents)
-            if (p / ".git").exists() or corpus in {(p / s).resolve() for s in stores}
-        ]
-        if not file_path.resolve().is_relative_to(scopes[0] if scopes else corpus):
+        if not file_path.resolve().is_relative_to(memories_dir.resolve()):
             return None
 
     try:

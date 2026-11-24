@@ -25,14 +25,15 @@ round 2 revision; rows 4, 5, 8, and 16 to 18 after the module move; rows 10, 11,
 | 17 | Every `test_*` name cited in ADR-126 exists | path | `grep -rq "def <name>"` over `tests/` for each backticked `test_*` name | VERIFIED on 2026-11-23 after renaming two stale citations; an earlier VERIFIED here missed one |
 | 18 | The shipped lib bootstrap fails when `CLAUDE_PLUGIN_ROOT` names another plugin | behavior | pytest run with the context-mode plugin root exported, 2026-11-23 | VERIFIED: `RuntimeError: Expected portability helper lib directory not found` |
 | 19 | ADR-109's 2026-11-20 amendment treats consumer memory as untrusted repository content and says a repository without `.serena/memories/` gets no output | quote | `git show origin/main:` ADR-109, "Trust boundary." and "Consumer impact." paragraphs | VERIFIED on 2026-11-23 at `a6ccc9e6` |
-| 20 | The recall hook shares the root rule and recalls only under a `.git` at or above that root; it notes an escaping Serena folder | behavior | `test_hook_and_skill_choose_the_same_root` (hook column), `test_hook_recalls_notes_only_inside_a_checkout`, and the two `test_memory_recall_limits.py` tests | VERIFIED: all pass with and without `CLAUDE_PROJECT_DIR` set; removing the checkout check fails 4 |
+| 20 | The recall hook shares the root rule and recalls only when that root holds `.git`; it notes an escaping Serena folder | behavior | `test_hook_and_skill_choose_the_same_root` (hook column), `test_hook_recalls_notes_only_inside_a_checkout`, and the two `test_memory_recall_limits.py` tests | VERIFIED: all pass with and without `CLAUDE_PROJECT_DIR`; widening the check to any ancestor `.git` fails 1 test |
 | 21 | `memory_enhancement` with `stores.py` ships in the Claude plugin lib | path | `ls src/claude/lib/memory_enhancement/` | VERIFIED: `stores.py` present |
 | 22 | ADR-109 carries an `**Amended by**:` footer naming ADR-126 | path | `tail` of ADR-109 | VERIFIED on 2026-11-23 |
 | 23 | Besides `src/claude`, the memory skill ships to five trees with no `memory_enhancement` package: `src/codex`, `src/copilot-cli`, `src/cursor`, `src/muse`, and `src/hermes/project-toolkit-knowledge` | path | `ls -d src/*/skills/memory src/hermes/*/skills/memory`; `ls src/*/lib/memory_enhancement` | VERIFIED on 2026-11-23 |
+| 24 | Linked memory files count only inside their own store, in the search script, router, and loader | behavior | `tests/skills/memory/test_memory_store_containment.py` and `test_repository_corpus_links.py` | VERIFIED: removing the router filter fails 1 test; removing the loader bound fails 7 |
 
 ## Gate results
 
-- Claims ledger: VERIFIED, 23 rows, 3 corrected after review.
+- Claims ledger: VERIFIED, 24 rows, 3 corrected after review.
 - Self-consistency: VERIFIED. Decision 1 (one store) agrees with Decision 6
   (ADR-106 Decision 3 stands), with Decision 2's list of Serena-layout scripts,
   and with the Negative consequences on shadowed notes.

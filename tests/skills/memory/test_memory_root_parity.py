@@ -71,9 +71,9 @@ def test_hook_and_skill_choose_the_same_root(tmp_path: Path, layout: str) -> Non
     assert find_memory_root(start) == expected.resolve()
     assert memory_store.find_memory_root(start.resolve()) == expected.resolve()
     assert store_resolution.find_memory_root(start.resolve()) == expected.resolve()
-    # The recall hook shares the root and adds ADR-109's trust boundary: a .git
-    # at or above the root, or no recall at all.
-    in_checkout = layout in ("git-only", "notes-nested-in-outer-git")
+    # The recall hook shares the root and adds ADR-109's trust boundary: the
+    # root must itself hold .git, so an untracked nested store recalls nothing.
+    in_checkout = layout == "git-only"
     assert recall_hook._find_repo_root(start) == (expected.resolve() if in_checkout else None)
 
 
@@ -157,7 +157,7 @@ def test_router_searches_notes_when_no_serena_store(
     results = memory_router.search_memory("retry policy")
     assert {r.name for r in results} == {"retry-policy"}
     assert {r.source for r in results} == {"RepositoryNotes"}
-    assert memory_router.get_memory_router_status()["Serena"]["Path"] == str(
+    assert memory_router.get_memory_router_status()["RepositoryNotes"]["Path"] == str(
         (tmp_path / NOTES).resolve()
     )
 
@@ -298,7 +298,7 @@ class TestSearchMemoryContainment:
         bare.mkdir()
         monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
         monkeypatch.chdir(bare)
-        monkeypatch.setattr(search_memory, "find_memory_root", lambda start: None)
+        monkeypatch.setattr(store_resolution, "find_memory_root", lambda start: None)
 
         assert search_memory.main(["retry"]) == 0
 
@@ -444,3 +444,4 @@ def test_router_prefers_the_project_directory_over_the_current_directory(
     monkeypatch.chdir(other)
 
     assert memory_store.resolve_memory_store() == (project / NOTES).resolve()
+    assert memory_router.get_memory_router_status()["RepositoryNotes"]["Available"] is True
