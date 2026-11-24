@@ -2,7 +2,7 @@
 name: decision-question
 version: 1.0.0
 description: Ask the user to choose only when blocked on a decision they own, with the smallest complete decision brief. Use when you say `ask the user to choose`, `do I need a user decision here`, or `present a decision brief`. Do NOT use to review a decision already made (use decision-critic) or to surface project risks (use pre-mortem).
-license: MIT
+license: Apache-2.0
 metadata:
   capability:
     kind: reusable-primitive

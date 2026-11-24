@@ -10,7 +10,7 @@ description: Reflective consolidation pass over Serena memory files. Separates
   Serena memory`, `merge memory files`, or `tidy the memory index`. Do NOT use
   for in-file supersession markers (use curating-memories) or health, token, or
   size checks (use memory-maintenance).
-license: MIT
+license: Apache-2.0
 ---
 
 # Memory Consolidate

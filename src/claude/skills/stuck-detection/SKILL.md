@@ -10,7 +10,7 @@ description: >-
   looping", "check failure loop", or "reset stuck history". Do NOT use
   for semantic similarity checks or multi-turn intent tracking; use a richer
   evaluation tool for those.
-license: MIT
+license: Apache-2.0
 metadata:
   routing:
     role: conditional-adjunct

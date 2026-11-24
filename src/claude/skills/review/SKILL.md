@@ -5,7 +5,7 @@ description: Review before merge. Stage-1 spec-compliance gate, then risk-select
 argument-hint: branch-or-pr-number
 allowed-tools: Task, Skill, Read, Glob, Grep, Bash(*)
 user-invocable: true
-license: MIT
+license: Apache-2.0
 metadata:
   inputs:
     implementation-change:

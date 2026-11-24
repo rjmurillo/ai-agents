@@ -9,7 +9,7 @@ description: >-
   clone setup`, or you hit `ModuleNotFoundError yaml`. Do NOT use for the
   generation pipeline (use `ai-agents-generation-and-release`) or CI gate
   evidence rules (use `ai-agents-validation-and-qa`).
-license: MIT
+license: Apache-2.0
 metadata:
   distribution: repo-local
   routing:

@@ -8,7 +8,7 @@ description: Work the review threads on one pull request. Gathers every comment,
   Do NOT use for several PRs at once or a completion-gate verdict (use pr-review), for a
   single known reply (use post_pr_comment_reply.py directly), for a full pre-merge review
   (use review), or to run the local quality gates before pushing (use pr-quality).
-license: MIT
+license: Apache-2.0
 argument-hint: Specify the PR number or review comments to address
 user-invocable: true
 metadata:

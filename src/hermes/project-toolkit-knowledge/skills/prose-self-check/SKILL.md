@@ -7,7 +7,7 @@ description: Pre-emit AI-vernacular self-check an agent runs on its OWN prose
   Use when you say `prose self-check`, `audit my writing for AI tells`, `does
   this read as AI-written`, or before emitting any prose artifact. Do NOT use
   for code style (use style-enforcement) or to rewrite human-authored text.
-license: MIT
+license: Apache-2.0
 ---
 
 # Prose Self-Check
