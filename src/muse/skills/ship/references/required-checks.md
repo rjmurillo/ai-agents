@@ -27,8 +27,9 @@ PASS needs all three:
 - `Data.RequiredState == "SUCCESS"`.
 - `Data.AllPassing == true`.
 
-A PR with no checks exits 0 with `AllPassing: false` and `RequiredState: UNKNOWN`.
-That is not green.
+A PR with no checks is never green: `AllPassing: false` and
+`RequiredState: UNKNOWN`. It exits 0 when the ruleset requires nothing, and 1
+(or 7 under `--wait` inside the grace window) when the ruleset names a check.
 
 ## Edge cases
 
@@ -36,7 +37,7 @@ That is not green.
 |---|---|---|
 | Exit 7 | Required checks still pending when the budget ran out | Re-run the same command. Keep `--timeout-seconds` at or below 570 |
 | `RequiredState` is `UNKNOWN` | The ruleset or merge ref could not prove the required set | FAIL. Name the reason from `MergeStateWarning` or the error |
-| Exit 3, ruleset read failed | The branch rules could not be read; the flag does not matter | FAIL. Report the error; a re-run will not clear it |
+| Exit 3, ruleset read failed | The branch rules could not be read; the flag does not matter | Re-run once; a timeout or rate limit can clear. FAIL on a repeat and report the error. Dropping the flag does not help |
 | Exit 3 under `--required-only`, REST fallback | GraphQL was rate limited and the ruleset lists no required checks | Re-run without `--required-only` and require `AllPassing == true` |
 | Exit 0, `Data.Checks` is empty, `RequiredState` is `SUCCESS` | The ruleset requires no checks; the wait settles at once. Classic branch protection, which the ruleset lookup cannot see, may still require one | Re-run without `--required-only` and require `AllPassing == true` |
 | A required check is missing | The ruleset names a check that never reported | FAIL after the grace window. Do not wait longer |

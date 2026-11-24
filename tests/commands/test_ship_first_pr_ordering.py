@@ -356,6 +356,7 @@ class TestWaitsOnRequiredChecksOnly:
             "src/claude/skills/github/references/patterns.md",
             "src/claude/skills/github/references/examples.md",
             "src/claude/skills/github/fix-ci.md",
+            "src/claude/skills/github/references/gate-script-usage.md",
         ],
     )
     def test_github_examples_wait_on_required_only(self, relative: str) -> None:
