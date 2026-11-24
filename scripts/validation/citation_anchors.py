@@ -21,9 +21,7 @@ import re
 from pathlib import PurePosixPath
 
 from check_adr_links import ADR_BASENAME, adr_number
-from citation_continuations import (
-    _EXTENSIONS as _EXTENSIONS,
-)
+from citation_continuations import _EXTENSIONS, _unique_move
 from citation_continuations import (
     _basename_index as _basename_index,
 )
@@ -32,9 +30,6 @@ from citation_continuations import (
 )
 from citation_continuations import (
     _range_misses_distinctive_anchors as _range_misses_distinctive_anchors,
-)
-from citation_continuations import (
-    _unique_move as _unique_move,
 )
 from citation_tables import table_row
 from stale_script_refs import HISTORICAL_ROOTS

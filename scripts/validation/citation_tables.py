@@ -19,14 +19,24 @@ _QUOTE_MARKERS = re.compile(r"^(?: {0,3}> ?)*")
 # A GFM table delimiter cell: dashes with optional alignment colons.
 _DELIMITER_CELL = re.compile(r"^\s*:?-+:?\s*$")
 _CELL_PIPE = re.compile(r"(?<!\\)\|")
-# Block starts that end a table (and the paragraph before it) in GFM: an
-# ATX heading, a code fence, a thematic break, or a list item.
+# Block starts that end a table in GFM: an ATX heading (the blockquote-free
+# form of citation_anchors._ATX_HEADING), a code fence (a backtick fence's
+# info string holds no backtick, so a row opening with ```x``` stays a row),
+# a thematic break, a list item, or an HTML block of GFM types 1 to 6.
 _INTERRUPTER = re.compile(
     r"""^\ {0,3}(?:
-        \#{1,6}(?:[\ \t]|$)              # ATX heading
-        | `{3,} | ~{3,}                  # code fence
-        | (?:(?:-[\ \t]*){3,}|(?:\*[\ \t]*){3,}|(?:_[\ \t]*){3,})$  # thematic break
-        | (?:[-+*]|\d{1,9}[.)])(?:[\ \t]|$)  # list item
+        \#{1,6}(?:\s|$)
+        | `{3,}[^`]*$ | ~{3,}
+        | (?:(?:-[\ \t]*){3,}|(?:\*[\ \t]*){3,}|(?:_[\ \t]*){3,})\s*$
+        | (?:[-+*]|\d{1,9}[.)])(?:\s|$)
+        | (?i:<(?:script|pre|style|textarea)(?:\s|>|$))
+        | <!-- | <\? | <![A-Za-z] | <!\[CDATA\[
+        | (?i:</?(?:address|article|aside|base|basefont|blockquote|body|caption|center
+            |col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure
+            |footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li
+            |link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|search
+            |section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)
+            (?:\s|/?>|$))
     )""",
     re.VERBOSE,
 )
@@ -77,10 +87,34 @@ def _interrupts(body: str) -> bool:
     return bool(_INTERRUPTER.match(body)) and _delimiter_cells(body) is None
 
 
-def _in_block(depth: int, line: str) -> bool:
-    """Return whether a line continues a block at this blockquote depth."""
-    line_depth, body = _quote_split(line)
-    return line_depth == depth and bool(body.strip()) and not _interrupts(body)
+def _table_rows(lines: list[str]) -> list[bool]:
+    """Classify every line in one pass: True where it is a GFM table row."""
+    split = [_quote_split(line) for line in lines]
+    open_line = [bool(body.strip()) and not _interrupts(body) for _, body in split]
+    rows = [False] * len(lines)
+    start = 0
+    while start < len(lines):
+        if not open_line[start]:
+            start += 1
+            continue
+        depth = split[start][0]
+        end = start
+        while end + 1 < len(lines) and open_line[end + 1] and split[end + 1][0] == depth:
+            end += 1
+        # The first header and delimiter pair opens the table, which then
+        # runs to the end of the block.
+        for delimiter in range(start + 1, end + 1):
+            if _opens_table(split[delimiter - 1][1], split[delimiter][1]):
+                rows[delimiter - 1 : end + 1] = [True] * (end - delimiter + 2)
+                break
+        start = end + 1
+    return rows
+
+
+# The last file classified. The gate asks about many lines of one file in a
+# row, so one entry turns repeat calls into lookups. The entry holds the list
+# itself, so an identity match can never point at a different, reused list.
+_LAST_CLASSIFIED: list[tuple[list[str], int, list[bool]]] = []
 
 
 def table_row(lines: list[str], index: int) -> bool:
@@ -88,28 +122,18 @@ def table_row(lines: list[str], index: int) -> bool:
 
     A table is a block: a header row and a delimiter row with equal cell
     counts open it. A blank line, a change in blockquote depth, or another
-    block start (heading, fence, thematic break, list item) ends it. The
-    leading pipe is optional, and the block may sit inside a blockquote.
-    A line that only starts with `|` is prose when no header and delimiter
-    pair opens its block, so it still wraps like prose.
+    block start (heading, fence, thematic break, list item, HTML block) ends
+    it. The leading pipe is optional, and the block may sit inside a
+    blockquote. A line that only starts with `|` is prose when no header and
+    delimiter pair opens its block, so it still wraps like prose.
 
-    Each call walks back to its block start, so the cost per call is the
-    block length. Blocks end at blank lines, which keeps that short.
+    The first call for a file classifies all its lines in one linear pass;
+    later calls for the same list are lookups.
     """
-    depth = _quote_split(lines[index])[0]
-    if not _in_block(depth, lines[index]):
-        return False
-    start = index
-    while start > 0 and _in_block(depth, lines[start - 1]):
-        start -= 1
-    # Candidate delimiter rows run from one line below the block start up to
-    # one line below this line, the case where this line is the header.
-    max_delimiter = index
-    if index + 1 < len(lines) and _in_block(depth, lines[index + 1]):
-        max_delimiter = index + 1
-    for delimiter_index in range(max_delimiter, start, -1):
-        header = _quote_split(lines[delimiter_index - 1])[1]
-        delimiter = _quote_split(lines[delimiter_index])[1]
-        if _opens_table(header, delimiter):
-            return True
-    return False
+    if not (
+        _LAST_CLASSIFIED
+        and _LAST_CLASSIFIED[0][0] is lines
+        and _LAST_CLASSIFIED[0][1] == len(lines)
+    ):
+        _LAST_CLASSIFIED[:] = [(lines, len(lines), _table_rows(lines))]
+    return _LAST_CLASSIFIED[0][2][index]
