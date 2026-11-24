@@ -425,18 +425,6 @@ module = "chevron.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-# Pre-existing type debt (arg-type at serena_integration.py:251,
-# return-value at :326) unrelated to the atomic-write hardening. Scoped
-# here rather than suppressed in-file so the debt stays visible and
-# tracked separately. The importer that first surfaced it,
-# scripts.memory_sync, is gone; the debt in the module itself is not.
-module = [
-    "memory_enhancement.serena_integration",
-    "scripts.memory_enhancement.serena_integration",
-]
-disable_error_code = ["arg-type", "return-value"]
-
-[[tool.mypy.overrides]]
 # Pre-existing type debt surfaced by the pre-push per-file mypy gate (#2876).
 # This test dynamically loads the eval scripts via importlib (their filenames
 # are hyphenated, e.g. eval-agent-vs-baseline.py, so they cannot be imported
@@ -744,8 +732,8 @@ root_packages = ["scripts", "memory_enhancement", "tests"]
 # Third-party packages join the graph so a forbidden contract can name them.
 include_external_packages = true
 
-# build/scripts/lib_mirror.py ships these four packages into every plugin lib
-# tree (ADR-109 B5). Its IMPORT_CONVERSIONS rewrite turns any
+# build/scripts/lib_mirror.py ships these packages into the plugin lib trees
+# (ADR-109 B5; memory_enhancement into the Claude tree only). Its IMPORT_CONVERSIONS rewrite turns any
 # `from scripts.<pkg> import` into `from . import`, so an import of a sibling
 # package would resolve inside the importing package in the shipped copy.
 # shipped-lib-self-contained below also forbids every `scripts.*` import, so it
@@ -761,9 +749,10 @@ modules = [
     "scripts.github_core",
     "scripts.ai_review_common",
     "scripts.failure_classifier",
+    "scripts.memory_enhancement",
 ]
 
-# lib_mirror.py copies these four packages plus one sidecar file,
+# lib_mirror.py copies these packages plus one sidecar file,
 # scripts/validation/validate_review_marker.py (ADR-109 B5). No contract covers
 # the sidecar. The rest of scripts/, memory_enhancement/, and tests/ never ship,
 # so an import of them would dangle in every plugin install.
@@ -777,6 +766,7 @@ source_modules = [
     "scripts.github_core",
     "scripts.ai_review_common",
     "scripts.failure_classifier",
+    "scripts.memory_enhancement",
 ]
 forbidden_modules = ["scripts.*", "memory_enhancement", "tests"]
 
@@ -788,6 +778,12 @@ forbidden_modules = ["scripts.*", "memory_enhancement", "tests"]
 # The ignores are existing debt. They may only shrink: delete an entry in the
 # change that removes its import, and lint-imports fails on an entry that no
 # longer matches an import.
+# scripts.memory_enhancement also ships (lib_mirror.py, Claude plugin only,
+# ADR-109 amendment 2026-11-20) but is not a source module here: its
+# frontmatter_reader module imports frontmatter and yaml behind
+# `except ImportError` guards. Adding it would need ignore entries, and this
+# list is a shrink-only baseline. The blocked-import test
+# tests/hooks/test_memory_recall_closure_blocked_imports.py enforces the guards.
 # An ignore removes one edge, not the modules that import the ignored module.
 # tests/test_import_linter_source_scans.py pins the set of modules that fail
 # without PyYAML, now empty, and checks it against a real import with yaml blocked.

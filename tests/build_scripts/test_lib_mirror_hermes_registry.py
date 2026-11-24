@@ -16,4 +16,7 @@ from scripts.ci import hermes_mirror  # noqa: E402
 
 
 def test_lib_mirror_packages_match_the_lib_mirror_registry() -> None:
-    assert set(hermes_mirror.LIB_MIRROR_PACKAGES) == set(lib_mirror.PACKAGES)
+    # A package with a root override (memory_enhancement, Claude plugin only)
+    # never reaches a Hermes pack, so no Hermes copy of it can exist.
+    hermes_packages = set(lib_mirror.PACKAGES) - set(lib_mirror.PACKAGE_ROOTS)
+    assert set(hermes_mirror.LIB_MIRROR_PACKAGES) == hermes_packages

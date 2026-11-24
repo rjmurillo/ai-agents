@@ -249,9 +249,25 @@ def _repo_relative_hook_path_exists(candidate: str) -> bool:
 
 def _candidate_hook_paths(hook_path: str) -> list[str]:
     candidate = _normal_hook_token(hook_path.removeprefix("./"))
+    # The token regex starts a match after "templates/" in a path such as
+    # `templates/hooks/invoke_dispatch_claude.py`, so the "hooks/" segment
+    # names the hooks root itself, not a subdirectory of it.
+    stems = (
+        [candidate, candidate.removeprefix("hooks/")]
+        if candidate.startswith("hooks/")
+        else [candidate]
+    )
     if candidate.endswith(".py"):
-        return [candidate]
-    return [f"{candidate}.py", candidate]
+        return stems
+    return [form for stem in stems for form in (f"{stem}.py", stem)]
+
+
+def test_a_templates_hooks_path_resolves_to_the_hooks_root() -> None:
+    assert _resolves("hooks/invoke_dispatch_claude.py")
+
+
+def test_a_hooks_prefixed_path_to_a_missing_hook_still_fails() -> None:
+    assert not _resolves("hooks/invoke_not_a_real_hook.py")
 
 
 def _normal_hook_token(hook_path: str) -> str:
