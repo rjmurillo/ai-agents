@@ -448,7 +448,7 @@ _BREAKING_SUBJECT = re.compile(r"^[a-z]+(?:\([^)]*\))?!:", _I)
 # The token is uppercase by the specification. BREAKING-CHANGE is its synonym.
 _BREAKING_FOOTER = re.compile(r"^BREAKING[ -]CHANGE:[ \t]+\S", re.MULTILINE | _A)
 # Both Conventional Commits separators: ``Key: value`` and ``Key #value``.
-_FOOTER_LINE = re.compile(r"^[A-Za-z][A-Za-z0-9-]*(?::[ \t]+|[ \t]+#)\S", _A)
+_FOOTER_LINE = re.compile(r"[A-Za-z][A-Za-z0-9-]*(?::[ \t]+\S|[ \t]+#\S+[ \t]*\Z)", _A)
 _BLANK_LINES = re.compile(r"\n[ \t]*\n", _A)
 _FENCE_LINE = re.compile(r"[ \t]{0,3}(`{3,}|~{3,})(.*)", _A)
 
@@ -492,6 +492,9 @@ def _outside_fences(text: str) -> str:
 
 
 def _is_trailer_paragraph(paragraph: str) -> bool:
-    """A paragraph that opens with a footer line. Later lines continue its value."""
+    """Every line is a footer, or an indented continuation of a footer's value."""
     lines = [line for line in paragraph.split("\n") if line.strip()]
-    return bool(lines) and _FOOTER_LINE.match(lines[0]) is not None
+    first, rest = (lines[0], lines[1:]) if lines else ("", [])
+    return bool(_FOOTER_LINE.match(first)) and all(
+        line[:1] in (" ", "\t") or _FOOTER_LINE.match(line) for line in rest
+    )

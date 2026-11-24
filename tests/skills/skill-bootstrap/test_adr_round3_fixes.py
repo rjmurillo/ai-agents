@@ -122,11 +122,12 @@ def test_log_files_past_the_cap_are_counted_not_read(
     for n in range(4):
         write(tmp_path, f"docs/decisions-{n}-ledger.md", f"## D-{n}: Adopt x number {n}\n\nText.\n")
     opened: list[Path] = []
-    real = adr_log.read_bounded
+    real = adr_locate.read_bounded
 
     def spy(path: Path) -> str | None:
         opened.append(path)
-        return real(path)
+        text: str | None = real(path)
+        return text
 
     monkeypatch.setattr(adr_log, "read_bounded", spy)
 

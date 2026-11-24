@@ -183,7 +183,7 @@ def test_work_trees_falls_back_when_git_has_no_z(
 ) -> None:
     repo = new_repo(tmp_path / "main")
     commit(repo, "Initial work")
-    real = adr_write.git_text
+    real = adr_scan.git_text
 
     def old_git(root: Path, *args: str, ok: tuple[int, ...] = (0,)) -> Any:
         if "-z" in args:
@@ -316,3 +316,25 @@ def test_a_bare_promisor_key_marks_a_partial_clone(
 
     with pytest.raises(adr_scan.ConfigError, match="partial clone"):
         bootstrap_adr._refuse_lazy_fetch(repo)
+
+
+@pytest.mark.parametrize(
+    "closing",
+    [
+        "See #12 for the details.",
+        "PR #88 made this possible.",
+        "Testing: ran the suite\nand it passed.",
+    ],
+)
+def test_closing_prose_does_not_reach_back_to_an_earlier_breaking_line(closing: str) -> None:
+    body = f"Body.\n\nBREAKING CHANGE: the old name is gone.\n\nMore prose here.\n\n{closing}"
+
+    assert not adr_reason.breaking_change("feat: rename the field", body)
+
+
+def test_a_trailer_paragraph_may_continue_a_value_on_an_indented_line() -> None:
+    body = (
+        "Body.\n\nBREAKING CHANGE: the old name is gone.\n\nRefs: #12\n  and #13\nSigned-off-by: a"
+    )
+
+    assert adr_reason.breaking_change("feat: rename the field", body)
