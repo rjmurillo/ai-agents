@@ -171,6 +171,8 @@ line-length = 100
 exclude = [
     "tests/validation/test_git_hook_policy_causal_restore.py",
     ".project-toolkit/security/benchmarks/vulnerable_samples/**",
+    # Spike-only vendored upstream code; see the VENDORED.md beside it.
+    ".project-toolkit/prototypes/nocap-spike/vendor/**",
 ]
 
 [tool.ruff.lint]
@@ -219,6 +221,9 @@ max-complexity = 15
 # invokes semgrep with --x-ignore-semgrepignore-files, so that file is
 # deliberately ignored and cannot scope this gate.
 ".project-toolkit/security/benchmarks/vulnerable_samples/**/*.py" = ["RUF100", "I001", "E501"]
+# Spike-only vendored upstream code, kept byte-close to upstream for license
+# and diff review. See .project-toolkit/prototypes/nocap-spike/VENDORED.md.
+".project-toolkit/prototypes/nocap-spike/vendor/**/*.py" = ["ALL"]
 # sys.path manipulation required before imports for plugin-context path resolution
 ".claude/skills/github/scripts/**/*.py" = ["E402"]
 "src/claude/skills/github/scripts/**/*.py" = ["E402"]
