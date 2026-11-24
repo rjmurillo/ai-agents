@@ -193,17 +193,28 @@ def _strict_loader(yaml: ModuleType) -> type:
     if cached is not None:
         return cached
 
-    def no_duplicate_keys(loader: Any, node: Any) -> dict[Any, Any]:  # noqa: ANN401 - yaml is untyped here
+    def reject_repeats(loader: Any, node: Any) -> None:  # noqa: ANN401 - yaml is untyped here
         seen: list[Any] = []
-        for key_node, _value_node in node.value:
+        for key_node, value_node in node.value:
             if key_node.tag == "tag:yaml.org,2002:merge":
-                continue  # `<<` merges are flattened by construct_mapping below
+                # construct_mapping flattens `<<` without this constructor, so an
+                # inline merged mapping is checked here or not at all.
+                merged = (
+                    value_node.value if isinstance(value_node, yaml.SequenceNode) else [value_node]
+                )
+                for source in merged:
+                    if isinstance(source, yaml.MappingNode):
+                        reject_repeats(loader, source)
+                continue
             key = loader.construct_object(key_node, deep=True)
             if any(key == earlier for earlier in seen):
                 raise yaml.constructor.ConstructorError(
                     None, None, f"duplicate key {key!r} in frontmatter mapping", key_node.start_mark
                 )
             seen.append(key)
+
+    def no_duplicate_keys(loader: Any, node: Any) -> dict[Any, Any]:  # noqa: ANN401 - yaml is untyped here
+        reject_repeats(loader, node)
         mapping: dict[Any, Any] = loader.construct_mapping(node, deep=True)
         return mapping
 

@@ -49,6 +49,13 @@ def test_a_merge_key_keeps_status_detection(tmp_path: Path) -> None:
     assert mod._get_adr_status(adr) == "accepted"
 
 
+def test_a_status_repeated_inside_an_inline_merge_is_refused() -> None:
+    """`construct_mapping` flattens `<<` without the strict constructor (PR #7531 review)."""
+    for merge in ("<<: {status: accepted, status: proposed}\n", "<<: [{status: a, status: b}]\n"):
+        assert mod._parse_frontmatter(f"---\n{merge}---\n# Body\n") is None
+    assert mod._parse_frontmatter("---\n<<: [{status: a}, {status: b}]\n---\n") == {"status": "a"}
+
+
 def test_a_repeated_status_key_still_reads_unknown(tmp_path: Path) -> None:
     adr = tmp_path / "ADR-001.md"
     adr.write_text("---\nstatus: proposed\nstatus: accepted\n---\n# Title\n", encoding="utf-8")
