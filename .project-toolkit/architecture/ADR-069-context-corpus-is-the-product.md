@@ -1,12 +1,12 @@
 ---
 id: ADR-069
-status: proposed
-date: 2026-05-02
+status: accepted
+date: 2026-11-20
 decision-makers: [architect, user]
 supersedes: []
 superseded-by: null
 explainer: null
-implemented: false
+implemented: true
 consulted:
 - analyst
 - critic
@@ -19,6 +19,10 @@ informed:
 ---
 
 # ADR-069: The Curated Context Corpus IS the Product, Orchestration Is Plumbing
+
+## Status
+
+Accepted. A reduced panel (architect, critic) reached consensus on 2026-11-20. The debate logs are `.project-toolkit/critique/ADR-069-debate-log.md` and `.project-toolkit/critique/ADR-069-debate-log-2.md`.
 
 ## Context and Problem Statement
 
@@ -38,7 +42,9 @@ Today these artifacts live across many locations with no unified theory of why t
 - `CLAUDE.md`, `AGENTS.md`, root entry-point context
 - `scripts/memory/`, `scripts/memory_sync/`: index maintenance
 
-This catalog is descriptive, not prescriptive. It names the territory as it currently exists. **This ADR does not propose reorganizing any of it.**
+This catalog is descriptive, not prescriptive. It names the territory as it existed on 2026-05-02. **This ADR does not propose reorganizing any of it.**
+
+The list is that snapshot, not a current inventory, except one entry. PR #5887 (merged 2026-09-23) rewrote `.agents/architecture/` to `.project-toolkit/architecture/`. As of 2026-11-20 (origin/main 15c13340a), four entries no longer exist: `.agents/HANDOFF.md`, `.agents/SESSION-PROTOCOL.md`, `.baseline/`, and `scripts/memory_sync/`. PR #5179 removed the session protocol on 2026-08-20 (see ADR-050). That drift is part of the evidence for this ADR's open questions. Issue #7468 closed on 2026-11-20. Implementation Notes item 1 names the instruction-corpus inventory. Retrieval surfaces have none.
 
 ## Frame: LLMs as Ghosts, Not Animals
 
@@ -56,7 +62,7 @@ That property has a sharp consequence: every architectural improvement that does
 
 ## Decision
 
-Adopt the following architectural principle:
+Adopt the principle that the curated context corpus is the product and orchestration is plumbing.
 
 > **The curated context corpus IS the product. Orchestration is plumbing.**
 
@@ -70,7 +76,7 @@ Concretely, this ADR:
    - **Assembly-layer prototype**: What does a context-assembly layer look like in practice (RAG, rule-based, agent-mediated, hybrid)? Likely needs prototyping before deciding.
    - **Telemetry-of-influence**: What signal would prove a given artifact actually influenced output, beyond "it was in the prompt window"?
    - **Curation cadence**: What is the cadence and ownership for pruning stale artifacts, refreshing summaries, and retiring obsolete patterns?
-4. **Does not prescribe** answers to any of the above. Each becomes a separate, appropriately-sized issue **after** this ADR merges.
+4. **Does not prescribe** answers to any of the above. Each becomes a separate, appropriately-sized issue **after** this ADR merges. The ADR merged on 2026-05-10, but the issues were not filed until 2026-11-20: #7468 (corpus catalog), #7469 (schema spike), #7470 (assembly-layer prototype), #7471 (telemetry-of-influence), and #7472 (curation cadence). All five closed on 2026-11-20 with research verdicts. Implementation Notes records each outcome.
 
 ### What This ADR Is NOT
 
@@ -95,7 +101,7 @@ Concretely, this ADR:
 
 ### Why Change Now
 
-- **Has the original problem changed?** Yes. The corpus has grown to 459+ memory files, 50+ ADRs, dozens of skills and instruction files. Without a principle, contributors continue to optimize orchestration (the cheap, visible layer) instead of curation (the durable, valuable layer).
+- **Has the original problem changed?** Yes. The corpus has grown to 459+ memory files, 50+ ADRs, dozens of skills and instruction files (as of 2026-05-02). Without a principle, contributors continue to optimize orchestration (the cheap, visible layer) instead of curation (the durable, valuable layer).
 - **Is there a better solution now?** Stating the principle is the better solution. Building the catalog/schema/assembly/telemetry stack *without* the principle would be premature; building it *with* the principle aligns downstream effort.
 - **What are the risks of change?** Low. This ADR adds a principle and a vocabulary. It does not move files, change schemas, or break workflows.
 
@@ -107,7 +113,7 @@ Concretely, this ADR:
 |-------------|------|------|----------------|
 | Status quo (no ADR) | Zero cost; nothing breaks | Contributors continue investing in the wrong layer; no shared vocabulary for "context is the product" | Status quo is the problem this ADR addresses |
 | ADR + immediate canonical schema | Forces consistency; enables tooling | Schema-first kills the corpus before the principle lands; existing artifacts revolt against retrofit | Premature; better to prototype assembly before locking schema |
-| ADR + immediate catalog + schema + assembly + telemetry + cadence (the original issue scope) | Comprehensive | A 12-month roadmap dressed as one decision; high blast radius; mixes principle with implementation | Per the issue's edit log, this scope was explicitly stripped |
+| ADR + immediate catalog + schema + assembly + telemetry + cadence (the original issue scope) | Covers all five questions at once | A 12-month roadmap dressed as one decision; high blast radius; mixes principle with implementation | Per the issue's edit log, this scope was explicitly stripped |
 | Principle-only ADR with named open questions (this ADR) | Establishes vocabulary; preserves optionality; downstream issues can be sized appropriately | Doesn't deliver any tooling itself | Chosen: matches the issue's deliverable scope and protects the corpus from premature schema |
 
 ### Trade-offs
@@ -147,24 +153,30 @@ Concretely, this ADR:
 
 ## Implementation Notes
 
-This ADR is documentation-only. There is no code change, no schema change, no migration, and no validation gate associated with it.
+This ADR is documentation-only. The ADR itself changed no code, schema, or migration. Follow-up PR #7489 added a gate (see item 5).
 
-**Post-merge follow-ups** (to be filed as separate issues, per the originating issue's Deliverable section):
+**Post-merge follow-ups** (filed 2026-11-20 as separate issues, per the originating issue's Deliverable section). All five closed on 2026-11-20 with research verdicts read at main `b12beeae6`:
 
-1. Corpus catalog: authoritative inventory of context artifacts.
-2. Schema spike: investigate whether a canonical or per-type schema is desirable, with explicit attention to the schema-first risk.
-3. Assembly-layer prototype: explore RAG / rule-based / hybrid context assembly.
-4. Telemetry-of-influence: define signal that an artifact actually influenced output.
-5. Curation cadence: define ownership and cadence for pruning, refreshing, retiring.
+1. Corpus catalog, issue #7468, closed completed. Partly answered: `scripts/validation/instruction_bytes.py --format json` (PR #5999, issue #5400) is the machine-readable inventory of the instruction corpus. Retrieval surfaces have no inventory, and no measured need for one was found. PR #7475 closed unmerged.
+2. Schema spike, issue #7469, closed not planned. No canonical schema is needed. Main uses per-type contracts, plus cross-type slices owned by ADR-110 and ADR-111.
+3. Assembly-layer prototype, issue #7470, closed completed. No prototype is needed. Context assembly already runs as a hybrid of `paths:` rule scoping, skill progressive disclosure, and lexical memory recall.
+4. Telemetry-of-influence, issue #7471, closed completed. The influence signal is a counterfactual delta. Main measures it with `scripts/eval/eval-rule-activation.py`, `scripts/eval/eval_control_ablation.py`, and `scripts/eval/eval-knowledge-integration.py`. The closest test of this ADR's thesis is the 2026-09-28 control ablation (`.project-toolkit/metrics/control-ablation-v0.7.0.md`). It compared the 6 always-loaded files (40,324 bytes) against no files and returned `MIXED`. The empty arm accepted 9 of 15 runs durably (5 tasks, 3 repeats each), against 10 of 15, at 47 percent lower cost per accepted task. That test is small: one task set, one model, and no pre-declared N or variance controls. It falls short of the Program 1 milestone below, so it neither confirms nor falsifies this record. This record is accepted as a principle, and its effect is not established.
+5. Curation cadence, issue #7472, closed not planned. Main curates on events, not a calendar. `scripts/validation/check_adr_lifecycle.py`, `scripts/validation/check_rule_adr_citations.py`, and `scripts/validation/check_skill_adr_bindings.py` run in the pre-PR sequence (`scripts/validation/pre_pr.py`), which the pre-push hook runs. No CI workflow calls `scripts/validation/pre_pr.py`. Two merged changes came from this thread: PR #7482 fixed a stale ADR citation in ADR-107, and PR #7489 added `scripts/validation/check_adr_supersession_citations.py`.
 
-None of the above are part of this ADR's acceptance criteria.
+None of the above were part of this ADR's acceptance criteria.
+
+**Revisit condition.** Revisit this record if the falsifiable milestone in the `ai-agents-research-frontier` skill (`templates/skills/ai-agents-research-frontier.SKILL.md.tmpl`, Program 1, Falsifiable milestone) returns a negative result. That skill defines a negative result as a gated corpus that, under its pre-registered controls, shows no measurable difference from an ungated one or does measurably worse. It says either outcome would falsify the strong form of this ADR. A negative result requires a superseding record, because `implemented` is true.
+
+**Why filing was late.** Issue #1859 listed the five issues as its second acceptance item. PR #1869 closed #1859 with that item unchecked, so nothing tracked the follow-ups. Issue #702 found this record ready for review on 2026-06-17, then closed on 2026-06-19 without reviewing it.
+
+**Why `implemented` is true.** ADR-073 defines `implemented` as flipping true at the first merged change. The ADR-073 Phase 2 backfill debate log (`.project-toolkit/critique/ADR-073-phase2-backfill-debate-log.md`) applied an artifact test instead: does the thing the decision called for exist? On that test it set this record false, before any follow-up issue existed. Decision items 1 to 3 are this document. Item 4 called for the five follow-up issues. Each issue closed with a recorded verdict, listed above. So the artifact test is met, and it is the whole basis for `true`. Under ADR-073, `true` means a later material change to this decision needs a superseding record, not an amendment. PR #7489 merged from the #7472 thread. PR #7482 cites this record only to exclude it. Neither PR is part of the basis for `true`.
 
 ## Related Decisions
 
 - **ADR-007** (Memory-First Architecture): establishes that retrieval precedes reasoning; ADR-069 generalizes the principle from "memory" to "the entire curated corpus."
 - **ADR-017** (Tiered Memory Index Architecture): provides one concrete realization of corpus organization within `.serena/memories/`.
 - **ADR-030** (Skills Pattern Superiority): skills are one corpus surface among several.
-- **ADR-050** (ADR Protocol Sync): governs how this ADR is propagated and discovered.
+- **ADR-050** (ADR Protocol Sync, deprecated 2026-10-13): governed how this ADR was propagated when it was written. PR #5179 deleted both halves of that decision, so nothing now syncs this record.
 - **ADR-053** (ADR Exception Criteria): clarifies when ADRs are required; this ADR is in-scope.
 
 ## References
