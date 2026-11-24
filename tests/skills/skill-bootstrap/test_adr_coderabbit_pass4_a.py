@@ -16,7 +16,8 @@ REASON = "We adopt X because the old parser leaked memory on large inputs."
 
 
 def _reason(body: str, title: str = "Adopt X for parsing") -> str | None:
-    return adr_reason.extract_reason(title, body)
+    reason: str | None = adr_reason.extract_reason(title, body)
+    return reason
 
 
 # Thread PRRT_kwDOQoWRls67QJRG: a body that opens with the title and then gives a reason

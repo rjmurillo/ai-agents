@@ -230,3 +230,32 @@ def test_a_long_issue_list_footer_line_costs_flat_memory() -> None:
     result = adr_reason.breaking_change("feat: x", body)
 
     assert result is False and time.process_time() - start < 2.0
+
+
+# Round 14 review findings
+
+
+def test_a_comma_before_and_never_makes_fixes_only_backtrack() -> None:
+    line = "fixes " + "https://x,and " * 200 + "prose"
+
+    start = time.process_time()
+    matched = adr_shape.FIXES_ONLY.match(line)
+
+    assert matched is None and time.process_time() - start < 0.5
+    assert adr_shape.FIXES_ONLY.match("fixes https://x/a,and https://y/b")
+
+
+def test_a_heading_decision_keeps_its_subsection_after_a_peer_section() -> None:
+    log = "# Log\n\n## Overview\n\nText.\n\n## D-3 - Keep Postgres\n\n### Rationale\n\nBecause the team knows it.\n"
+
+    (entry,) = [e for e in adr_log.split_decision_log(log) if e.id]
+
+    assert entry.id == "D-3" and "team knows it" in entry.text
+
+
+def test_a_long_issue_list_footer_still_reaches_the_breaking_line() -> None:
+    refs = " ".join(f"#{n}" for n in range(101))
+
+    assert adr_reason.breaking_change(
+        "feat: x", f"Body.\n\nCloses {refs}\nBREAKING CHANGE: drop v1\n"
+    )

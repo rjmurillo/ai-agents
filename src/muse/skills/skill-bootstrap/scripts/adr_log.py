@@ -176,7 +176,7 @@ def _blocks(content: str) -> list[_Block]:
             and not found
             and blocks
             and blocks[-1].id
-            and max(blocks[-1].level, outer + 1) < level
+            and (blocks[-1].level or outer + 1) < level
         ):
             # A sub-heading stays with its decision: deeper than a ``## D-7`` heading, or for a
             # ledger record (level 0) deeper than the section around it. A peer section ends it.

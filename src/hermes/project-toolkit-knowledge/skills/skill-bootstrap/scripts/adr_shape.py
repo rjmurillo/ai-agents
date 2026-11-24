@@ -355,7 +355,9 @@ TRAILER = re.compile(
 )
 # A URL keeps a comma or semicolon unless a blank or another reference follows it, and ``&``
 # separates only after a blank, so a list splits one way and a failed match stays linear.
-_URL_REF = r"https?://(?:[^\s,;]|[,;](?![\s#\d]|https?://|gh-|[\w.-]+/[\w.-]+#|[A-Z][A-Z0-9]+-\d))+"
+_URL_REF = (
+    r"https?://(?:[^\s,;]|[,;](?![\s#\d]|and\s|https?://|gh-|[\w.-]+/[\w.-]+#|[A-Z][A-Z0-9]+-\d))+"
+)
 _ISSUE_REF = r"(?:#\d+|gh-\d+|[\w.-]+/[\w.-]+#\d+|" + _URL_REF + ")"
 _REF_SEP = r"(?:\s*[,;]\s*|\s+(?:&\s*)?)(?:and\s+)?"
 FIXES_ONLY = re.compile(
