@@ -123,7 +123,7 @@ def test_a_pull_request_title_is_cut_at_1000_and_its_body_at_64_kib() -> None:
     assert len(rows[0].body) == 64 * 1024
 
 
-def test_prs_json_over_16_mib_is_refused_without_reading_it(
+def test_prs_json_over_16_mib_is_refused_as_too_large(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     repo = new_repo(tmp_path / "r")
@@ -138,9 +138,16 @@ def test_prs_json_over_16_mib_is_refused_without_reading_it(
     assert code == 2 and out["error"] == "config" and "too large" in out["message"]
 
 
-def test_prs_json_at_the_cap_is_still_read(tmp_path: Path) -> None:
-    prs = write(tmp_path, "prs.json", "[]")
-    assert bootstrap_adr._read_prs(str(prs)) == []
+def test_prs_json_exactly_at_the_limit_is_read_and_one_byte_over_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(bootstrap_adr, "MAX_JSON_BYTES", 64)
+    at_limit = write(tmp_path, "at.json", "[]" + " " * 62)
+    over = write(tmp_path, "over.json", "[]" + " " * 63)
+    assert at_limit.stat().st_size == 64 and over.stat().st_size == 65
+    assert bootstrap_adr._read_prs(str(at_limit)) == []
+    with pytest.raises(bootstrap_adr.ConfigError, match="too large"):
+        bootstrap_adr._read_prs(str(over))
 
 
 # ---------------------------------------------------------------------------

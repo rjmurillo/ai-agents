@@ -59,8 +59,13 @@ def test_a_ceiling_at_the_repository_does_not_turn_an_in_repo_folder_into_scratc
 BIG = "Adopt Redis instead of Memcached\n\n" + "Because the team already runs it. " * 40
 
 
-def _spy(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, ...]]:
-    """Record the ``cat-file`` calls, in order, and let them run."""
+def _spy(
+    monkeypatch: pytest.MonkeyPatch, stdins: list[bytes | None] | None = None
+) -> list[tuple[str, ...]]:
+    """Record the ``cat-file`` calls, in order, and let them run.
+
+    When ``stdins`` is given, the stdin of each recorded call is appended to it.
+    """
     real = adr_scan.git_bytes
     calls: list[tuple[str, ...]] = []
 
@@ -69,6 +74,8 @@ def _spy(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, ...]]:
     ) -> subprocess.CompletedProcess[bytes]:
         if args[0] == "cat-file":
             calls.append(args)
+            if stdins is not None:
+                stdins.append(stdin)
         result: subprocess.CompletedProcess[bytes] = real(repo, *args, stdin=stdin)
         return result
 
@@ -119,9 +126,12 @@ def test_the_size_check_runs_before_the_batch_read_on_the_same_shas(
     for n in range(3):
         commit(repo, f"Decision number {n}")
     head = git(repo, "rev-parse", "HEAD").strip()
-    calls = _spy(monkeypatch)
+    stdins: list[bytes | None] = []
+    calls = _spy(monkeypatch, stdins)
     adr_scan.read_commits(repo, head, 10)
     assert [call[1] for call in calls] == ["--batch-check", "--batch"]
+    checked, read = (stdin.split() for stdin in stdins if stdin is not None)
+    assert checked == read == git(repo, "rev-list", head).encode().split()
 
 
 def test_a_batch_holds_at_most_the_byte_limit_of_objects(

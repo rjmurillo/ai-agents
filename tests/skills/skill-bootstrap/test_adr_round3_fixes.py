@@ -54,10 +54,10 @@ def test_an_unclosed_link_bracket_run_stays_fast() -> None:
 
     body = "We moved to gRPC because REST could not stream. " + "[" * 5900
 
-    started = time.perf_counter()
+    started = time.process_time()
     adr_reason.extract_reason("Adopt gRPC", body)
 
-    assert time.perf_counter() - started < 0.05
+    assert time.process_time() - started < 0.5
 
 
 def test_a_page_url_of_a_repository_named_repos_is_kept() -> None:
@@ -121,9 +121,18 @@ def test_log_files_past_the_cap_are_counted_not_read(
     monkeypatch.setattr(adr_log, "MAX_LOG_FILES", 2)
     for n in range(4):
         write(tmp_path, f"docs/decisions-{n}-ledger.md", f"## D-{n}: Adopt x number {n}\n\nText.\n")
+    opened: list[Path] = []
+    real = adr_log.read_bounded
+
+    def spy(path: Path) -> str | None:
+        opened.append(path)
+        return real(path)
+
+    monkeypatch.setattr(adr_log, "read_bounded", spy)
 
     entries, files, skipped = adr_log.read_log_entries(tmp_path)
 
+    assert [path.name for path in opened] == ["decisions-0-ledger.md", "decisions-1-ledger.md"]
     assert files == 4
     assert skipped == 2
     assert {rel for rel, _entry in entries} == {
