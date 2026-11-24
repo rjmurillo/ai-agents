@@ -101,3 +101,27 @@ def test_skill_md_keeps_frontmatter_that_names_an_excluded_file() -> None:
     out = hermes_packs.drop_excluded_pointer_lines(text, "alpha", ["alpha/references/r.md"])
 
     assert out == "---\nname: alpha\ndescription: Holds references/r.md for authors.\n---\nbody\n"
+
+
+def test_skill_md_keeps_frontmatter_with_indented_dashes_in_block_scalar() -> None:
+    text = (
+        "---\nname: alpha\ndescription: |\n  section\n  ---\n  Holds references/r.md.\n---\n"
+        "Read [r](references/r.md).\nbody\n"
+    )
+
+    out = hermes_packs.drop_excluded_pointer_lines(text, "alpha", ["alpha/references/r.md"])
+
+    assert out == (
+        "---\nname: alpha\ndescription: |\n  section\n  ---\n  Holds references/r.md.\n---\nbody\n"
+    )
+
+
+def test_skill_md_keeps_four_dash_frontmatter_fence() -> None:
+    text = (
+        "----\nname: alpha\ndescription: Holds references/r.md.\n----\n"
+        "Read [r](references/r.md).\nbody\n"
+    )
+
+    out = hermes_packs.drop_excluded_pointer_lines(text, "alpha", ["alpha/references/r.md"])
+
+    assert out == "----\nname: alpha\ndescription: Holds references/r.md.\n----\nbody\n"

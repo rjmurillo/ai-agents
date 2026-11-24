@@ -249,21 +249,13 @@ class TestRuleScenarioFiles:
         assert has_positive, f"{rule_id}: no positive scenario"
         assert has_negative, f"{rule_id}: no negative scenario"
 
-    @pytest.mark.parametrize("rule_id", ["code-quality"])
-    def test_code_quality_reference_scenario_points_to_existing_files(self, rule_id):
+    @pytest.mark.parametrize("rule_id", ["code-quality", "pragmatic-programmer"])
+    def test_reference_scenario_points_to_existing_files(self, rule_id):
+        """Folded book/code-quality rules use skill reference scenarios (issue #5951, PR #7541)."""
         path = RULE_SCENARIOS_DIR / f"{rule_id}.json"
         data = json.loads(path.read_text(encoding="utf-8"))
         for key in ("skill_path", "reference_path"):
             assert (REPO_ROOT / data[key]).exists(), f"{key} {data[key]!r} does not exist"
-
-    def test_pragmatic_programmer_reference_scenario_points_to_existing_files(self):
-        """Issue #5951: pragmatic-programmer is now a skill reference scenario."""
-        path = RULE_SCENARIOS_DIR / "pragmatic-programmer.json"
-        data = json.loads(path.read_text(encoding="utf-8"))
-        skill_path = REPO_ROOT / data["skill_path"]
-        reference_path = REPO_ROOT / data["reference_path"]
-        assert skill_path.exists(), f"skill_path {data['skill_path']!r} does not exist"
-        assert reference_path.exists(), f"reference_path {data['reference_path']!r} does not exist"
 
     def test_issue_5392_has_all_recovery_fixtures(self):
         """R1-R8 moved to universal.json (issue #5951): the recovery contract lives

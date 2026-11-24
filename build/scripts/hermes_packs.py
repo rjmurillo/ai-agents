@@ -41,7 +41,10 @@ from atomic_write import (  # noqa: E402
     read_bytes_no_redirect,
     reject_symlinked_ancestors,
 )
-from frontmatter_key_drop import drop_keys_from_skill_md  # noqa: E402
+from frontmatter_key_drop import (  # noqa: E402
+    drop_keys_from_skill_md,
+    split_fenced_frontmatter,
+)
 from hermes_pack_checks import (  # noqa: E402
     PackFile,
     check_assignment,
@@ -106,18 +109,16 @@ def drop_excluded_pointer_lines(text: str, skill: str, excluded_files: Iterable[
         owner, _, rel = entry.partition("/")
         if rel:
             targets.append((owner, rel))
-    lines = text.splitlines(keepends=True)
-    body_start = 0
-    if lines and lines[0].strip() == "---":
-        closing = next((i for i in range(1, len(lines)) if lines[i].strip() == "---"), None)
-        if closing is not None:
-            body_start = closing + 1
-    kept = lines[:body_start]
-    for line in lines[body_start:]:
-        if any(rel in line and (owner == skill or f"`{owner}`" in line) for owner, rel in targets):
-            continue
-        kept.append(line)
-    return "".join(kept)
+    parts = split_fenced_frontmatter(text)
+    frontmatter, body = parts if parts is not None else ("", text)
+    kept = [
+        line
+        for line in body.splitlines(keepends=True)
+        if not any(
+            rel in line and (owner == skill or f"`{owner}`" in line) for owner, rel in targets
+        )
+    ]
+    return frontmatter + "".join(kept)
 
 
 def _skill_pack_files(source_root: Path, skill: str, config: HermesConfig) -> dict[str, PackFile]:

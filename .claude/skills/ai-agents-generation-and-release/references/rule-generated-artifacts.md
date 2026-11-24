@@ -30,8 +30,10 @@ environment: plugin manifests and `hooks.json`, copied hook scripts, agent and
 skill files a CLI loads, MCP configs, instruction mirrors. It does not bind
 artifacts consumed only inside this repo's own CI.
 
-The `paths` globs cover every authoring, generated, and verification surface, so
-future work loads the settled harness contract before changing any artifact class.
+The former `paths` globs covered every authoring, generated, and verification
+surface; this text now loads as a skill reference of
+`ai-agents-generation-and-release` so future work loads the settled harness
+contract before changing any artifact class.
 
 ## The runtime contract is part of the artifact
 
@@ -101,9 +103,8 @@ as load-bearing as the artifact's bytes.
 
 ### MUST NOT
 
-1. **Self-referential tests do not count.** See the sibling rule file
-   `canonical-source-mirror.md` (mirrored across trees under different names;
-   look it up by name in whichever tree you're reading this from), Anti-patterns
+1. **Self-referential tests do not count.** See `.claude/rules/canonical-source-mirror.md`
+   (mirrored across trees under different names), Anti-patterns
    section ("Self-referential test that mirrors the producer's own output"), for
    the full rule and the PR #2205 example. Applied here: a test asserting the
    generator produces a specific string, then checking the generator produced that
