@@ -92,18 +92,12 @@ class TestStillBlocked:
         assert result.public_ids == 0
 
     @pytest.mark.parametrize("length", [33, 36, 41, 64])
-    def test_a_longer_run_after_a_known_prefix_blocks_unless_it_is_a_git_id(
-        self, length: int
-    ) -> None:
+    def test_a_longer_run_after_a_known_prefix_blocks(self, length: int) -> None:
         """Only exactly 32 is a public id. Other lengths follow the ordinary hex rules."""
         result = _scan(f"pr-review-job-{'a' * length}")
 
         assert result.public_ids == 0
-        if length == 64:
-            assert result.blocking == {}
-            assert result.hex_reported == ["R"]
-        else:
-            assert result.blocking == {"R": ["hex-secret"]}
+        assert result.blocking == {"R": ["hex-secret"]}
 
     def test_a_public_id_does_not_excuse_a_second_unprefixed_run_in_the_row(self) -> None:
         """Each run is judged alone."""
@@ -138,10 +132,9 @@ class TestStillBlocked:
 
 
 class TestGitIdsUnchanged:
-    @pytest.mark.parametrize("length", [40, 64])
-    def test_a_git_sha_is_reported_not_blocked_and_not_a_public_id(self, length: int) -> None:
-        """Group 4 behavior is intact: 40 and 64 hex runs are reported for review."""
-        result = _scan(f"see commit {'c' * length}")
+    def test_a_git_sha_is_reported_not_blocked_and_not_a_public_id(self) -> None:
+        """Group 4 behavior is intact: a 40 hex run is reported for review."""
+        result = _scan(f"see commit {'c' * 40}")
 
         assert result.blocking == {}
         assert result.hex_reported == ["R"]

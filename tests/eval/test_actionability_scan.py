@@ -127,21 +127,20 @@ class TestRedactCiSinkReasons:
 
 
 class TestHexRules:
-    @pytest.mark.parametrize("length", [40, 64])
-    def test_git_sha_lengths_are_reported_not_blocked(self, length: int) -> None:
-        """Plan M1-T9, premortem R4: a 40 or 64 hex run is a git object id."""
-        result = scan.scan_secrets([_row("R", f"see commit {'a' * length}")])
+    def test_a_40_hex_git_sha_is_reported_not_blocked(self) -> None:
+        """Plan M1-T9, premortem R4: only a 40 hex run counts as a git object id."""
+        result = scan.scan_secrets([_row("R", f"see commit {'a' * 40}")])
 
         assert result.blocking == {}
         assert result.hex_reported == ["R"]
 
-    @pytest.mark.parametrize("length", [32, 33, 39, 41, 63, 65, 128])
+    @pytest.mark.parametrize("length", [32, 33, 39, 41, 63, 64, 65, 128])
     def test_other_hex_lengths_block(self, length: int) -> None:
         """Plan M1-T9: any other 32+ hex run is blocked."""
         assert _reasons(f"value {'b' * length}") == ["hex-secret"]
 
     def test_one_odd_run_blocks_a_row_that_also_holds_a_sha(self) -> None:
-        """Plan M1-T9: every hex run must be 40 or 64."""
+        """Plan M1-T9: every hex run must be exactly 40."""
         assert _reasons(f"{'a' * 40} and {'c' * 33}") == ["hex-secret"]
 
     def test_allow_list_lets_a_named_row_through_and_reports_it(self) -> None:

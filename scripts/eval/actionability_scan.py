@@ -11,15 +11,17 @@ A row is blocked when any of these fire:
 * A pattern in ``BLOCKING_PATTERNS``: vendor token shapes the base redactor lacks,
   and GitHub token families that follow an underscore, where the base rule's
   ``\\b`` does not match.
-* A 32+ hex run whose length is not 40 or 64, unless the row id is named in
-  ``--allow-hex-rows``.
+* A 32+ hex run whose length is not exactly 40, unless the row id is named in
+  ``--allow-hex-rows``. A 64 character run is the length of a SHA-256 digest or a hex
+  encoded key, so it blocks like any other length.
 
-Hex runs of exactly 40 or 64 characters are git object ids. They never block and
-are reported by row id for review. A 32-hex run right after a known reviewer-bot
-prefix is a public identifier and is counted, not reported (``_PUBLIC_HEX_ID_PREFIXES``).
+Hex runs of exactly 40 characters are git object ids. They never block and are reported
+by row id for review. A row that ``--allow-hex-rows`` excuses is reported the same way.
+A 32-hex run right after a known reviewer-bot prefix is a public identifier and is
+counted, not reported (``_PUBLIC_HEX_ID_PREFIXES``).
 
 Stricter than ``redact_secrets.redact``: that function flags every 32+ hex run, so
-it fires on each quoted commit SHA. This scan allows the two git lengths.
+it fires on each quoted commit SHA. This scan allows the one git object id length.
 """
 
 from __future__ import annotations
@@ -33,7 +35,7 @@ from typing import Any
 from scripts.redact_secrets import redact_ci_sink
 
 HEX_SECRET_REASON = "hex-secret"
-HEX_ALLOWED_LENGTHS = frozenset({40, 64})
+HEX_ALLOWED_LENGTHS = frozenset({40})
 
 # Public identifiers that reviewer bots embed in their comments. A hex run counts only
 # when it is exactly this long and the text right before it ends with one of these
