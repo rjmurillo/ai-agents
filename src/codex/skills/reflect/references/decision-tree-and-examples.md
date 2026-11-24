@@ -20,10 +20,8 @@ User says "reflect" or similar?
 │   │       │       │
 │   │       │       ├─► YES → Present findings, await approval
 │   │       │       │   │
-│   │       │       │   ├─► User says Y → Update memory file
+│   │       │       │   ├─► User says Y → Save through the memory skill
 │   │       │       │   │   │
-│   │       │       │   │   ├─► Serena available? → Use MCP write
-│   │       │       │   │   └─► Serena unavailable? → Use Git fallback
 │   │       │       │   │
 │   │       │       │   ├─► User says n → Ask for feedback
 │   │       │       │   │   │

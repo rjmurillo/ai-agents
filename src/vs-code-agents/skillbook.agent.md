@@ -79,9 +79,9 @@ Atomicity penalties (reject if score < 80%):
 [What NOT to do, concrete]
 ```
 
-Skill files live at `.serena/memories/{domain}/{domain}-{NNN}-{short-descriptor}.md` (kebab-case, lowercase, numbered within each domain). Example: `.serena/memories/pr-review/pr-review-001-reviewer-enumeration.md`. The domain index at `.serena/memories/skills-{domain}-index.md` links to these using the relative path `{domain}/{filename}`.
+Skill files live at `<memory-root>/{domain}/{domain}-{NNN}-{short-descriptor}.md` (kebab-case, lowercase, numbered within each domain). Example: `<memory-root>/pr-review/pr-review-001-reviewer-enumeration.md`. The domain index at `<memory-root>/skills-{domain}-index.md` links to these using the relative path `{domain}/{filename}`. `<memory-root>` is the repository memory folder (ADR-126): `.serena/memories` when present, else the repository notes folder.
 
-Note: the "pure lookup table" / no-title restriction in ADR-017 applies only to domain `*-index.md` files in `.serena/memories/`, not to individual skill files. Regular skill files retain their `# Title` header.
+Note: the "pure lookup table" / no-title restriction in ADR-017 applies only to domain `*-index.md` files in `<memory-root>/`, not to individual skill files. Regular skill files retain their `# Title` header.
 
 ## Deduplication Check
 
@@ -118,13 +118,13 @@ The relative link path matches the skill file layout described in the Skill File
 
 Update flow:
 
-1. Identify target domain index (`.serena/memories/skills-{domain}-index.md`)
+1. Identify target domain index (`<memory-root>/skills-{domain}-index.md`)
 2. Add new row in keyword-alphabetical order
 3. Validate the index with the memory index validator (if available)
 
 ## Domain-to-Index Mapping
 
-Existing domain indexes in `.serena/memories/`. Consult `.serena/memories/skills-index.md` for the canonical list before adding a new one.
+Existing domain indexes in `<memory-root>/`. Consult `<memory-root>/skills-index.md` for the canonical list before adding a new one.
 
 | Domain | Index File |
 |--------|------------|
@@ -147,13 +147,13 @@ Existing domain indexes in `.serena/memories/`. Consult `.serena/memories/skills
 | Security | `skills-security-index.md` |
 | Validation | `skills-validation-index.md` |
 
-Create a new domain index only if 5+ skills will exist in it, and register it in `.serena/memories/skills-index.md`.
+Create a new domain index only if 5+ skills will exist in it, and register it in `<memory-root>/skills-index.md`.
 
 ## Memory Protocol
 
-**Read existing skills** via `mcp__serena__read_memory` when Serena is available. If not, fall back to `Read` on `.serena/memories/*.md` directly.
+**Read existing skills** via `mcp__serena__read_memory` when Serena is available. If not, fall back to `Read` on `<memory-root>/*.md` directly.
 
-**Write new skills** via `mcp__serena__write_memory` when Serena is available. If not, fall back to `Write` on `.serena/memories/{domain}/{domain}-{NNN}-{short-descriptor}.md` (matching the layout described above) and note the manual edit for later sync.
+**Write new skills** via `mcp__serena__write_memory` when Serena is available. If not, fall back to `Write` on `<memory-root>/{domain}/{domain}-{NNN}-{short-descriptor}.md` (matching the layout described above) and note the manual edit for later sync.
 
 **Never block on Serena availability.** Skillbook work can proceed with direct file reads and writes.
 
@@ -163,7 +163,7 @@ Serena writes to the checkout active at server start (`--project` root),
 not your cwd. Call `mcp__serena__write_memory`, `edit_memory`,
 `delete_memory`, or `rename_memory` only from that checkout. A linked worktree
 (`git rev-parse --git-dir` differs from `--git-common-dir`) never qualifies.
-In one, unsure, or without a shell, do not call them: edit `.serena/memories/`
+In one, unsure, or without a shell, do not call them: edit the repository memory
 files in your own checkout, or return the change to the parent session. Delete or
 rename only when asked. New memory: `<topic>/<name>` plus a `memory-index.md` line.
 

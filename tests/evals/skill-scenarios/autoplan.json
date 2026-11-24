@@ -157,6 +157,39 @@
       "expected_route": ["adr-generator"],
       "forbidden_routes": ["orchestrator"],
       "rationale": "Miss 2026-11-19: a session approved a plan that needed ADR-123, then wrote the ADR by hand after copying ADR-122's format. The table row 'Document a decision, or a plan needs an ADR' maps this to Skill: adr-generator, which then hands off to adr-review. Handing a single ADR to the orchestrator selected an adjacent route and fails."
+    },
+    {
+      "id": "R15",
+      "family": "high-traffic-direct",
+      "desc": "Retaining a project decision routes to memory",
+      "input": "Remember this project decision. We cap client retries at three to avoid request spikes. State the route you would use without writing any files.",
+      "expected_signals": ["memory"],
+      "expected_gate": "route-memory-retain",
+      "expected_route": ["memory"],
+      "forbidden_routes": ["memory-search", "memory-reflexion", "orchestrator"],
+      "rationale": "The memory skill owns durable fact retention. memory-search serves lookup and memory-reflexion serves episode extraction, so neither fits, and one skill needs no orchestrator."
+    },
+    {
+      "id": "R16",
+      "family": "high-traffic-direct",
+      "desc": "Direct recall uses the focused search skill when installed",
+      "input": "Recall prior context on the retry policy. Both memory and memory-search are installed. State which skill you would use without making changes.",
+      "expected_signals": ["memory-search"],
+      "expected_gate": "route-memory-search",
+      "expected_route": ["memory-search"],
+      "forbidden_routes": ["memory-reflexion", "orchestrator"],
+      "rationale": "The focused memory-search skill handles lookup when it is installed. memory-reflexion extracts episodes, and one skill needs no orchestrator."
+    },
+    {
+      "id": "R17",
+      "family": "high-traffic-direct",
+      "desc": "Direct recall uses the memory router on a host missing memory-search",
+      "input": "Recall prior context on the retry policy. Only the memory router is installed. State which skill and procedure you would use without making changes.",
+      "expected_signals": ["memory", "recall"],
+      "expected_gate": "route-memory-recall-fallback",
+      "expected_route": ["memory"],
+      "forbidden_routes": ["memory-search", "memory-reflexion", "orchestrator"],
+      "rationale": "The memory router supplies a recall procedure when memory-search is absent. memory-reflexion extracts episodes, and one skill needs no orchestrator."
     }
   ]
 }

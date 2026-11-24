@@ -1,5 +1,5 @@
 [AGENTS]
-|Serena|active at start (`.mcp.json --project`)|`initial_instructions` once|co... (see: .project-toolkit/context/AGENTS-details/agents.md)
+|Memory|recall: `memory-search`|change: `memory-gate`|retain: `memory`|use a s... (see: .project-toolkit/context/AGENTS-details/agents.md)
 [Routing]
 |Routing|named skill wins|else `/autoplan` (ADR-078; table in its SKILL.md)|re... (see: .project-toolkit/context/AGENTS-details/routing.md)
 [Standards]

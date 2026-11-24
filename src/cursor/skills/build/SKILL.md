@@ -139,6 +139,12 @@ project's tech stack, coding patterns, and test conventions by reading the
 codebase. Build in thin vertical slices. Test-first when the project has tests.
 Commit atomically.
 
+Before changing existing behavior, reuse the spec's prior-art evidence for
+the same scope. If it leaves a gap, use `memory-gate` or the `memory` skill's
+recall procedure. When both are absent, try a scoped recall tool. Search
+repository memory and Git history for missing rationale.
+Verify recalled constraints in current code before changing behavior.
+
 For each slice:
 
 1. Read the spec AC for this slice. Every test must trace to an AC number from
@@ -312,11 +318,11 @@ Writes: `implementation-change`, `validation-record`. Next: `/test`.
 ## Guardrails
 
 - Atomic commits. Each commit is one logical change, rollback-safe.
-- Read existing patterns, memory (Serena, else `Grep`/`Read`), and canonical source before writing code that touches them.
+- Follow the Phase 3 memory check for existing rationale.
 - No feature flags or compat shims when you can change the code. Validate only at boundaries.
 - No generated headers, timestamps, or "do not edit" banners in any file. If a script emits one, delete the emitter.
 - .NET projects: target net10.0 (C# 14 implied; do not pin LangVersion). Use central package management, global.json to pin the SDK, and standard .editorconfig, .gitattributes, and .gitignore files.
-- Before changing the behavior of a validator, hook, ADR constraint, or shared infrastructure, invoke `Skill(skill="memory-gate")`. If it returns findings, address or acknowledge them in the plan or issue handoff first.
+- Apply the Phase 3 memory check before changing validators, hooks, ADR constraints, or shared infrastructure. Record findings in the plan or handoff.
 - Favor delegation over inheritance. A makes B, or A uses B. Never both.
 - Verify CLI flags and argparse patterns against live output before committing.
 - Use the real repo as the integration test bed. Run new scripts against an open or recent PR before declaring done. Synthetic fixtures can only validate the wrapper; real data validates the semantic.

@@ -67,33 +67,9 @@ After user approval:
 2. **Append new learnings** with timestamp and session reference
 3. **Preserve existing content** - never remove without explicit request
 4. **Extract code citations** (Phase 4 Enhancement - see below)
-5. **Write to file**: `.serena/memories/{skill-name}-observations.md`
-
-**Storage Strategy**:
-
-1. **Serena MCP (canonical)**:
-
-   > Serena writes to the checkout active at server start, not your current
-   > directory. In a linked git worktree, or when you cannot tell, do not call
-   > Serena memory mutation tools. Make the same change to this checkout's
-   > `.serena/memories/` files, or return it to the parent session
-   > (`universal.md` MUST NOT 11, issue #5061).
-
-   ```text
-   mcp__serena__write_memory(memory_file_name="{name}-observations", memory_content="...")
-   ```
-
-2. **If Serena unavailable** (contingency):
-
-   ```bash
-   path=".serena/memories/{name}-observations.md"
-   # Append new learnings to existing file (create if missing)
-   echo "$newLearnings" >> "$path"
-   git add "$path"
-   git commit -m "chore(memory): update {name} skill sidecar learnings"
-   ```
-
-   Record the manual edit in the session log so Serena MCP can replay the update when the service is available again.
+5. **Save through the `memory` skill** in the authorized project scope.
+   Use the existing skill observations record if one exists. For a new
+   Markdown record, use the descriptive name `<skill-name>-observations.md`.
 
 **Memory Format**:
 
@@ -148,15 +124,16 @@ citation is markdown you write.
    Valid `source_type` values are `file`, `function`, `issue`, `pr`, `adr`,
    `memory`, `url`. A `citations:` list in YAML frontmatter is not parsed.
 
-4. **Verify what you wrote**:
+4. **Check the cited source.** When the repository citation verifier is
+   available for a Markdown entry, pass its corpus and the entry's ID:
 
    ```bash
-   python -m memory_enhancement verify --memory-id <memory-id>
+   python -m memory_enhancement --memories-dir <corpus> verify --memory-id <memory-id>
    ```
 
-   The memory id is the path under `.serena/memories/` without `.md`, so a
-   memory at `.serena/memories/testing/foo.md` has the id `testing/foo`. Exit
-   code 1 means a citation did not resolve.
+   Use the path relative to the corpus, without `.md`. For example, a note
+   named `testing/foo.md` has ID `testing/foo`. Exit 1 means verification failed.
+   For hosted records or without the verifier, open the cited sources directly.
 
 **Detection Patterns**:
 
@@ -184,13 +161,13 @@ target format outright and is reported broken. Both make `health` exit 1.
 
 **Integration Point**:
 
-After user approves learnings (step 4 above), before writing to Serena:
+After the user approves the observations:
 
 1. Parse learning text for code references using patterns above
 2. For each reference found, append a `[cite:...]` line to the memory body
 3. If no code reference is found, proceed without citations (non-blocking)
-4. Proceed with normal Serena MCP write
-5. Run `verify --memory-id <memory-id>` and report any `[FAIL]` line
+4. Save through the `memory` skill in the authorized project scope
+5. Verify the saved record and its citations
 
 **Example**:
 
@@ -205,4 +182,4 @@ Learning text: "The bug was in `scripts/health.py` line 45, where we forgot to h
    [cite:file](scripts/health.py) - line 45 missed the None case
    ```
 
-3. Write learning to Serena, then verify it resolves
+3. Save the observation through `memory`, then verify its citation

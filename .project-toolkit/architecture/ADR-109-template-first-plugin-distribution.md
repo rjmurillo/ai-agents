@@ -358,3 +358,9 @@ Consumers drop the hook at their next plugin update.
 - `.project-toolkit/specs/requirements/REQ-003-multi-tool-artifact-build.md` D4, D8, D9 (decision table) and REQ-003-010 (the `.claude/` read-only requirement, as amended by ADR-108).
 - `.agents/governance/GENERATOR-FILES.md`, the generated-trees and hand-maintained-sibling-copy tables this record's migration PRs each add a row to.
 - `.claude-plugin/marketplace.json`, `.github/plugin/marketplace.json` (read verbatim in this worktree).
+
+---
+
+**Amended by**:
+
+- 2026-11-23: [ADR-126: Repository-Resolved Memory Store](./ADR-126-repository-resolved-memory-store.md) lets the shipped recall hook read `.project-toolkit/memory/notes/` when a repository has no `.serena/memories/`, inside the same trust boundary. It amends the 2026-11-20 amendment's no-output statement by reference; the body is preserved.

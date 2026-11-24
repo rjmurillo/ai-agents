@@ -21,10 +21,10 @@ from typing import Any
 from .confidence import update_confidence_scores
 from .graph import build_memory_graph, traverse
 from .health import format_report, format_report_text, generate_health_report
-from .models import VerificationResult
 from .search import search_memories
 from .serena_integration import load_memories
-from .verification import verify_all_citations
+from .stores import MEMORY_STORE_DIRS, repository_memory_dir
+from .verification import VerificationResult, verify_all_citations
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -63,7 +63,10 @@ def _build_parser() -> argparse.ArgumentParser:
         "--memories-dir",
         type=Path,
         default=None,
-        help="Memories directory (default: <repo-root>/.serena/memories)",
+        help=(
+            "Memories directory (default: <repo-root>/.serena/memories when present,"
+            " else <repo-root>/.project-toolkit/memory/notes)"
+        ),
     )
 
     subparsers = parser.add_subparsers(title="commands")
@@ -166,7 +169,8 @@ def _resolve_memories_dir(args: argparse.Namespace) -> Path:
             )
             sys.exit(1)
         return memories_dir
-    return repo_root / ".serena" / "memories"
+    # No store yet: name the folder a first memory is created in (ADR-126).
+    return repository_memory_dir(repo_root) or repo_root / MEMORY_STORE_DIRS[1]
 
 
 def _cmd_verify(args: argparse.Namespace) -> int:
