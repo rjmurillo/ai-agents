@@ -72,22 +72,24 @@ def test_a_title_that_starts_with_a_quote_mark_is_not_a_block_quote(tmp_path: Pa
 
 
 @pytest.mark.parametrize(
-    "title",
+    ("title", "escaped"),
     [
-        "- adopt x",
-        "+ adopt x",
-        "* adopt x",
-        "=== adopt x",
-        "| adopt | x |",
-        "12. adopt x",
-        "3) adopt x",
+        ("- adopt x", "\\- adopt x"),
+        ("+ adopt x", "\\+ adopt x"),
+        ("* adopt x", "\\* adopt x"),
+        ("=== adopt x", "\\=== adopt x"),
+        ("| adopt | x |", "\\| adopt | x |"),
+        ("12. adopt x", "12\\. adopt x"),
+        ("3) adopt x", "3\\) adopt x"),
     ],
 )
-def test_every_leading_control_character_is_escaped(tmp_path: Path, title: str) -> None:
+def test_every_leading_control_character_is_escaped(
+    tmp_path: Path, title: str, escaped: str
+) -> None:
     repo = _adr_repo(tmp_path / "r")
     text = _text(_draft(tmp_path, repo, title=title))
     decision = text.split("## Decision\n\n", 1)[1]
-    assert decision.startswith("\\" + title)
+    assert decision.startswith(escaped)
 
 
 @pytest.mark.parametrize(
