@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .confidence import update_confidence_scores_with_memories
@@ -161,7 +161,7 @@ def apply_confidence_decay(
         List of memory IDs that exceed the age threshold.
     """
     memories = load_memories(memories_dir)
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
     decayed: list[str] = []
 
     for memory in memories:
