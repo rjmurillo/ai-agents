@@ -25,6 +25,14 @@ sys.path.insert(0, str(SCRIPTS))
 
 import search_memory
 
+SKILL_DIR = SCRIPTS.parent
+sys.path.insert(0, str(SKILL_DIR))
+
+from memory_core import memory_router
+
+from memory_enhancement import repository_memory_dir, shadowed_notes_dir
+from memory_enhancement.hooks.session_end_memory import main as session_end_main
+
 NOTES = Path(".project-toolkit", "memory", "notes")
 SERENA = Path(".serena", "memories")
 
@@ -58,6 +66,120 @@ def test_hook_and_script_choose_the_same_root(tmp_path: Path, layout: str) -> No
 
     assert find_memory_root(start) == expected.resolve()
     assert search_memory._find_checkout(start.resolve()) == expected.resolve()
+    assert memory_router._find_memory_root(start.resolve()) == expected.resolve()
+
+
+def _both_stores(tmp_path: Path) -> Path:
+    """A repository holding both folders, each with a matching memory."""
+    (tmp_path / ".git").mkdir()
+    for relative, name in ((SERENA, "serena-retry-policy"), (NOTES, "notes-retry-policy")):
+        (tmp_path / relative).mkdir(parents=True)
+        (tmp_path / relative / f"{name}.md").write_text(
+            f"# {name}\n\nRetry policy details.\n", encoding="utf-8"
+        )
+    return tmp_path
+
+
+def test_search_reads_only_serena_and_reports_shadowed_notes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = _both_stores(tmp_path)
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(repo))
+
+    assert search_memory.main(["retry policy"]) == 0
+
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+    assert {r["Name"] for r in output["Results"]} == {"serena-retry-policy"}
+    assert output["Diagnostic"]["RepositoryNotes"]["Shadowed"] is True
+    assert output["Diagnostic"]["RepositoryNotes"]["MemoryCount"] == 1
+    assert "holds notes this search skips" in captured.err
+
+
+def test_search_with_notes_only_reports_no_shadow(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (tmp_path / ".git").mkdir()
+    (tmp_path / NOTES).mkdir(parents=True)
+    (tmp_path / NOTES / "retry-policy.md").write_text("# Retry policy\n", encoding="utf-8")
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+
+    assert search_memory.main(["retry policy"]) == 0
+
+    captured = capsys.readouterr()
+    assert "Shadowed" not in json.loads(captured.out)["Diagnostic"]["RepositoryNotes"]
+    assert captured.err == ""
+
+
+def test_recall_hook_reads_only_serena_when_both_exist(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = _both_stores(tmp_path)
+    monkeypatch.chdir(repo)
+
+    block = recall_hook.recall_block("what is the retry policy here")
+
+    assert "serena-retry-policy" in block
+    assert "notes-retry-policy" not in block
+
+
+def test_router_reads_only_serena_when_both_exist(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = _both_stores(tmp_path)
+    monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+    monkeypatch.chdir(repo)
+    memory_router.reset_caches()
+
+    names = {r.name for r in memory_router.search_memory("retry policy")}
+
+    assert names == {"serena-retry-policy"}
+
+
+def test_router_searches_notes_when_no_serena_store(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / NOTES).mkdir(parents=True)
+    (tmp_path / NOTES / "retry-policy.md").write_text("# Retry policy\n", encoding="utf-8")
+    monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+    monkeypatch.chdir(tmp_path)
+    memory_router.reset_caches()
+
+    results = memory_router.search_memory("retry policy")
+    assert {r.name for r in results} == {"retry-policy"}
+    assert {r.source for r in results} == {"RepositoryNotes"}
+    assert memory_router.get_memory_router_status()["Serena"]["Path"] == str(
+        (tmp_path / NOTES).resolve()
+    )
+
+
+def test_router_returns_nothing_without_a_store(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / ".git").mkdir()
+    monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+    monkeypatch.chdir(tmp_path)
+    memory_router.reset_caches()
+
+    assert memory_router.search_memory("retry policy") == []
+
+
+def test_session_end_names_shadowed_notes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = _both_stores(tmp_path)
+    monkeypatch.chdir(repo)
+
+    assert shadowed_notes_dir(repo) == (repo / NOTES).resolve()
+    assert session_end_main() == 0
+    assert "git mv .project-toolkit/memory/notes/* .serena/memories/" in capsys.readouterr().err
+
+
+def test_empty_notes_folder_is_not_reported_as_shadowed(tmp_path: Path) -> None:
+    (tmp_path / SERENA).mkdir(parents=True)
+    (tmp_path / NOTES).mkdir(parents=True)
+
+    assert shadowed_notes_dir(tmp_path) is None
 
 
 def test_hook_recalls_notes_in_a_repo_without_git(
@@ -85,6 +207,12 @@ def test_cli_defaults_to_notes_when_no_serena_corpus(tmp_path: Path) -> None:
     args = SimpleNamespace(repo_root=str(tmp_path), memories_dir=None)
 
     assert _resolve_memories_dir(args) == (tmp_path / NOTES).resolve()
+
+
+def test_cli_defaults_to_notes_when_no_store_exists(tmp_path: Path) -> None:
+    args = SimpleNamespace(repo_root=str(tmp_path), memories_dir=None)
+
+    assert _resolve_memories_dir(args) == tmp_path.resolve() / NOTES
 
 
 def test_cli_prefers_serena_corpus_when_present(tmp_path: Path) -> None:
@@ -192,3 +320,100 @@ class TestSearchMemoryContainment:
         status = json.loads(capsys.readouterr().out)["SearchStatus"]
         assert status["EpisodesQueried"] is False
         assert status["EpisodesSucceeded"] is False
+
+
+STORE_LAYOUTS = ["serena-only", "notes-only", "both", "empty-serena-with-notes", "none"]
+
+
+def _store_layout(tmp_path: Path, name: str) -> Path | None:
+    """Build a store layout and return the store every picker must choose."""
+    (tmp_path / ".git").mkdir()
+    serena, notes = tmp_path / SERENA, tmp_path / NOTES
+    if name in ("serena-only", "both", "empty-serena-with-notes"):
+        serena.mkdir(parents=True)
+    if name in ("notes-only", "both", "empty-serena-with-notes"):
+        notes.mkdir(parents=True)
+        (notes / "retry-policy.md").write_text("# Retry policy\n", encoding="utf-8")
+    if name == "both":
+        (serena / "retry-policy.md").write_text("# Retry policy\n", encoding="utf-8")
+    if name == "none":
+        return None
+    return (serena if serena.is_dir() else notes).resolve()
+
+
+def _script_store(repo: Path, monkeypatch: pytest.MonkeyPatch) -> Path | None:
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(repo))
+    args = search_memory.build_parser().parse_args(["retry"])
+    stores = search_memory._resolve_stores(args)
+    return stores.serena or stores.notes
+
+
+@pytest.mark.parametrize("layout", STORE_LAYOUTS)
+def test_every_picker_chooses_the_same_store(
+    tmp_path: Path, layout: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    expected = _store_layout(tmp_path, layout)
+
+    assert repository_memory_dir(tmp_path) == expected
+    assert memory_router.resolve_memory_store(tmp_path) == expected
+    assert _script_store(tmp_path, monkeypatch) == expected
+
+
+def test_every_picker_ignores_a_serena_link_outside_the_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = tmp_path / "repo"
+    (repo / ".git").mkdir(parents=True)
+    (repo / NOTES).mkdir(parents=True)
+    outside = tmp_path / "foreign"
+    outside.mkdir()
+    (repo / ".serena").mkdir()
+    try:
+        (repo / SERENA).symlink_to(outside, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"directory symlinks unavailable: {exc}")
+    expected = (repo / NOTES).resolve()
+
+    assert repository_memory_dir(repo) == expected
+    assert memory_router.resolve_memory_store(repo) == expected
+    assert _script_store(repo, monkeypatch) == expected
+
+
+def test_empty_serena_folder_shadows_notes_on_every_entry_point(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _store_layout(tmp_path, "empty-serena-with-notes")
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
+    memory_router.reset_caches()
+
+    assert search_memory.main(["retry policy"]) == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["Results"] == []
+    assert output["Diagnostic"]["RepositoryNotes"]["Shadowed"] is True
+    assert recall_hook.recall_block("what is the retry policy here") == ""
+    assert memory_router.search_memory("retry policy") == []
+
+
+def test_search_names_the_git_mv_step_for_shadowed_notes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _store_layout(tmp_path, "both")
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+
+    assert search_memory.main(["retry policy"]) == 0
+
+    assert "git mv .project-toolkit/memory/notes/* .serena/memories/" in capsys.readouterr().err
+
+
+def test_router_prefers_the_project_directory_over_the_current_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = tmp_path / "project"
+    other = tmp_path / "other"
+    (project / NOTES).mkdir(parents=True)
+    (other / SERENA).mkdir(parents=True)
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(project))
+    monkeypatch.chdir(other)
+
+    assert memory_router.resolve_memory_store() == (project / NOTES).resolve()

@@ -185,7 +185,7 @@ banner.
 
 Persist learnings to memory and evaluate the retrospective itself.
 
-- Persist learnings with atomicity at or above 70 percent to Serena memory (ADR-037). Search
+- Persist learnings with atomicity at or above 70 percent to repository memory with the `memory` skill (ADR-126). Search
   for existing patterns before creating new entries to avoid duplicates: see
   [diagnosis-and-actions.md, Memory Protocol](references/diagnosis-and-actions.md#memory-protocol).
 - Close with **+/Delta**, **ROTI**, and **Helped, Hindered, Hypothesis**: see

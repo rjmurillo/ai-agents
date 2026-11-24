@@ -410,7 +410,7 @@ before the discontinuation, or cherry-picked from an older one):
 
 ### With Memory Router
 
-`memory_router.search_memory` covers Serena only. The episode store is searched by the CLI wrapper:
+`memory_router.search_memory` covers the repository memory store only. The episode store is searched by the CLI wrapper:
 
 ```bash
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/search_memory.py "routing decision"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )

@@ -18,10 +18,10 @@ You have direct access to:
 - **Grep/Glob**: Find relevant files
 - **TodoWrite**: Track generation progress
 - **Bash**: github skill scripts, used only when the user explicitly asks you to file the tasks as GitHub issues: `new_issue.py` to file (with `--source human`, since that request selected the work), then `set_issue_relationship.py` to link each issue to its parent and blockers. Without that request, keep the tasks in the plan file and flag them to the owner
-- **Memory Router** (ADR-037): Search across `.serena/memories/`
+- **Memory search** (ADR-126): the `memory-search` skill over the repository memory folder the `memory-search` skill resolves (ADR-126)
   - `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/search_memory.py "topic"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`
   - Keyword match on memory filenames; no semantic or graph search
-- **Serena write tools**: Memory persistence in `.serena/memories/`
+- **Memory writes**: the `memory` skill; Serena write tools when Serena is active
   - `mcp__serena__write_memory`: Create new memory
   - `mcp__serena__edit_memory`: Update existing memory
 
@@ -77,7 +77,7 @@ TASK-001 → TASK-002 → TASK-003
 
 ## Memory Protocol
 
-Use Memory Router for search and Serena tools for persistence (ADR-037):
+Use the `memory-search` skill for search and the `memory` skill for persistence (ADR-126). Serena tools apply when Serena is active:
 
 **Before breakdown (retrieve context):**
 
@@ -95,7 +95,7 @@ content: "# Estimation: [Feature]\n\n**Statement**: ...\n\n**Evidence**: ...\n\n
 
 {{> serena-worktree-write-guard}}
 
-> **Fallback**: If Serena is unavailable, read `.serena/memories/` directly with the Read tool.
+> **Fallback**: If Serena is unavailable, read the repository memory folder the `memory-search` skill resolves (ADR-126) directly with the Read tool.
 
 {{> task-decomposer-memory-protocol}}
 

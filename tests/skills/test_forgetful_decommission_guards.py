@@ -211,8 +211,14 @@ def test_memory_consolidate_boundary_names_the_live_sibling_contract(
 
 @pytest.mark.parametrize("skills_root", TREE_ROOTS)
 @pytest.mark.parametrize("relative_path", MEMORY_DOCUMENTARY_FILES)
-def test_every_memory_system_count_says_three(skills_root: Path, relative_path: str) -> None:
-    """Every count qualifying "MCP server" or "memory system" must read three.
+def test_memory_documentary_states_no_memory_system_count(
+    skills_root: Path, relative_path: str
+) -> None:
+    """No count may qualify "MCP server" or "memory system".
+
+    Forgetful's removal took the count from four to three. ADR-126 then made the
+    sources depend on what each repository provides, so any fixed count is now
+    wrong somewhere. The skill names its sources by kind instead.
 
     The first version of this guard pinned three hand-picked strings, so it proved
     the edits that were made and nothing about the ones that were missed. Devin
@@ -225,58 +231,40 @@ def test_every_memory_system_count_says_three(skills_root: Path, relative_path: 
     surface added later is covered without editing this test.
     """
     content = _read(skills_root / relative_path)
-    wrong = [
-        match.group(0)
-        for match in _MEMORY_COUNT_RE.finditer(content)
-        if _COUNT_WORDS[match.group("count").lower()] != 3
-    ]
-    assert not wrong, f"{relative_path} states a memory-system count that is not three: {wrong}"
+    counts = [match.group(0) for match in _MEMORY_COUNT_RE.finditer(content)]
+    assert not counts, f"{relative_path} states a fixed memory-system count: {counts}"
 
 
 def test_memory_system_count_scan_is_not_vacuous() -> None:
-    """Negative control: the scan above passes because counts are right, not absent.
+    """Negative control: the scan above passes because counts are absent, not unseen.
 
-    Without this, deleting every count-bearing sentence would turn the guard green.
+    The pattern must catch every count form the skill once carried, including
+    across the line wrap that YAML frontmatter puts in the description.
     """
-    content = _read(CANONICAL_ROOT / "memory-documentary" / "SKILL.md")
-    matches = list(_MEMORY_COUNT_RE.finditer(content))
-    assert len(matches) >= 3, (
-        f"expected at least 3 count-bearing phrases in the skill, found {len(matches)}; "
-        "if the wording changed, update the pattern rather than deleting this guard"
-    )
-
-    # The pattern must actually catch a wrong count, including across the line
-    # wrap that YAML frontmatter puts in the description.
-    for probe in ("Memory Systems (4 MCP servers)", "all 4\n  memory systems"):
+    for probe in (
+        "Memory Systems (4 MCP servers)",
+        "all 4\n  memory systems",
+        "Memory Systems (3 MCP servers)",
+        "across all three memory systems",
+    ):
         found = _MEMORY_COUNT_RE.search(probe)
         assert found is not None, f"pattern no longer matches {probe!r}"
-        assert _COUNT_WORDS[found.group("count").lower()] == 4
+        assert found.group("count").lower() in _COUNT_WORDS
 
 
 @pytest.mark.parametrize("skills_root", TREE_ROOTS)
-def test_memory_systems_heading_count_matches_the_list_beneath_it(
+def test_memory_documentary_names_sources_by_availability(
     skills_root: Path,
 ) -> None:
-    """Structural check: the declared server count equals the servers listed.
+    """Structural check: sources are named by kind, not as a counted server list.
 
-    This is the check that would have caught the miss directly. The heading and
-    the list it introduces sat five lines apart and disagreed by one, because the
-    Forgetful bullet was deleted from the list and the heading was not updated.
+    The old "Memory Systems (N MCP servers)" block drifted from the list beneath
+    it when Forgetful was removed. ADR-126 removed the fixed list, so the block
+    must stay gone and the description must name sources by availability.
     """
     content = _read(skills_root / "memory-documentary" / "SKILL.md")
-    block = re.search(
-        r"\*\*Memory Systems \((?P<count>\d+) MCP servers\)\*\*:\n\n(?P<items>(?:- .*\n)+)",
-        content,
-    )
-    assert block is not None, (
-        "the Memory Systems block changed shape; update this guard alongside it "
-        "rather than letting it pass vacuously"
-    )
-    declared = int(block.group("count"))
-    listed = sum(1 for line in block.group("items").splitlines() if line.startswith("- "))
-    assert declared == listed, (
-        f"heading declares {declared} MCP servers but {listed} are listed beneath it"
-    )
+    assert "**Memory Systems (" not in content
+    assert "available project memory" in content
 
 
 def test_build_and_env_server_table_matches_mcp_json() -> None:

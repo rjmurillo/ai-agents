@@ -46,10 +46,10 @@ You have direct access to:
 
 - **Read/Grep/Glob**: Analyze execution artifacts
 - **Bash**: `git log`, `gh pr view` for context
-- **Memory Router** (ADR-037): Search across `.serena/memories/`
+- **Memory search** (ADR-126): the `memory-search` skill over the repository memory folder the `memory-search` skill resolves (ADR-126)
   - `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/search_memory.py "topic"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`
   - Keyword match on memory filenames; no semantic or graph search
-- **Serena write tools**: Memory persistence in `.serena/memories/`
+- **Memory writes**: the `memory` skill; Serena write tools when Serena is active
   - `mcp__serena__write_memory`: Create new memory
   - `mcp__serena__edit_memory`: Update existing memory
 - **TodoWrite**: Track analysis
@@ -197,14 +197,14 @@ Evaluate the retrospective itself. Write the results into the artifact's closing
 
 ## Memory Protocol
 
-Use Memory Router for search and Serena tools for persistence (ADR-037).
+Use the `memory-search` skill for search and the `memory` skill for persistence (ADR-126). Serena tools apply when Serena is active.
 
 - **Search before you create**: `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/search_memory.py "{domain} {description} skill patterns"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`
 - **Create a skill**: `mcp__serena__write_memory` with `memory_file_name: "skills/{domain}-{description}"` and content of statement, evidence, and details.
 - **Create a root cause pattern**: `mcp__serena__write_memory` with `memory_file_name: "retrospective/rootcause-{category}-{nnn}"`. The template is in `diagnosis-and-actions.md`.
 - **Add an observation**: `mcp__serena__edit_memory` on the existing memory.
 
-> **Fallback**: If Serena is unavailable, read `.serena/memories/` directly with the Read tool.
+> **Fallback**: If Serena is unavailable, read the repository memory folder the `memory-search` skill resolves (ADR-126) directly with the Read tool.
 
 ### Serena memory writes: check the checkout first
 
@@ -212,7 +212,7 @@ Serena writes to the checkout active at server start (`--project` root),
 not your cwd. Call `mcp__serena__write_memory`, `edit_memory`,
 `delete_memory`, or `rename_memory` only from that checkout. A linked worktree
 (`git rev-parse --git-dir` differs from `--git-common-dir`) never qualifies.
-In one, unsure, or without a shell, do not call them: edit `.serena/memories/`
+In one, unsure, or without a shell, do not call them: edit the repository memory
 files in your own checkout, or return the change to the parent session. Delete or
 rename only when asked. New memory: `<topic>/<name>` plus a `memory-index.md` line.
 
@@ -246,7 +246,7 @@ When retrospective is complete:
 | **milestone-planner** | Process improvement | Update approach |
 | **architect** | Design insight | Update guidance |
 
-**Note**: Use Serena write tools directly (ADR-037) to persist skills and observations. No delegation to memory agent required.
+**Note**: Persist skills and observations with the `memory` skill, or Serena write tools when Serena is active (ADR-126). No delegation to memory agent required.
 
 ---
 
@@ -263,18 +263,20 @@ When retrospective is complete:
 |----------|-----------|-----------|-----------|--------|
 | {domain}-{description} | [Atomic statement - max 15 words] | [%] | ADD/UPDATE/TAG/REMOVE | [Memory file if UPDATE] |
 
+`<memory-root>` is the repository memory folder the `memory` skill resolves (ADR-126): `.serena/memories` when that folder exists, else the repository notes folder.
+
 ### Memory Updates
 
 | Entity | Type | Content | File |
 |--------|------|---------|------|
-| [Entity name] | Skill/Learning/Pattern | [Observation to add] | `.serena/memories/[file].md` |
+| [Entity name] | Skill/Learning/Pattern | [Observation to add] | `<memory-root>/[file].md` |
 
 ### Git Operations
 
 | Operation | Path | Reason |
 |-----------|------|--------|
-| git add | `.serena/memories/skills-[topic].md` | [New/updated skills] |
-| git add | `.serena/memories/[other].md` | [Reason] |
+| git add | `<memory-root>/skills-[topic].md` | [New/updated skills] |
+| git add | `<memory-root>/[other].md` | [Reason] |
 | git add | `.project-toolkit/retrospective/[file].md` | Retrospective artifact |
 
 ### Findings for the owner
@@ -286,7 +288,7 @@ When retrospective is complete:
 ### Handoff Summary
 
 - **Skills to persist**: [N] candidates (atomicity >= 70%)
-- **Memory files touched**: [List of .serena/memories/*.md files]
+- **Memory files touched**: [List of <memory-root>/*.md files]
 - **Blockers for the owner**: [N] (0 when the findings table has no Blocker rows)
 - **Recommended next**: skillbook (if skills) | memory (if entities) | git add (if files)
 ````
@@ -294,7 +296,7 @@ When retrospective is complete:
 ### Handoff Output Rules
 
 1. **Skill Candidates**: Only include skills with atomicity >= 70%
-2. **Memory Updates**: Specify exact file paths in `.serena/memories/`
+2. **Memory Updates**: Specify exact file paths in `<memory-root>/`
 3. **Git Operations**: List ALL files that need `git add` for persistence
 4. **Findings for the owner**: Copy the artifact's table, Blocker rows first. An empty table is valid. Do not route a finding to an issue; the owner decides.
 5. **Handoff Summary**: Orchestrator uses this to determine routing

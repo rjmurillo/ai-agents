@@ -65,9 +65,9 @@ evidence than an absent one.
 |-------|----------|
 | Source system | Yes |
 | Direct quote | Yes |
-| Observation ID | Claude-Mem only. Serena memories are files and have no id. |
-| Memory file name | Serena only. It is the retrieval key, so it plays the id's role. |
-| Timestamp | Claude-Mem supplies it directly. For a Serena file, read the last commit date from git rather than guessing. |
+| Observation ID | Claude-Mem only. Repository memories are files and have no id. |
+| Memory file name | Repository memory files only. It is the retrieval key, so it plays the id's role. |
+| Timestamp | Claude-Mem supplies it directly. For a repository memory file, read the last commit date from git rather than guessing. |
 
 ### Thread 2: Project Artifacts
 

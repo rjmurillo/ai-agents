@@ -146,7 +146,7 @@ Serena writes to the checkout active at server start (`--project` root),
 not your cwd. Call `mcp__serena__write_memory`, `edit_memory`,
 `delete_memory`, or `rename_memory` only from that checkout. A linked worktree
 (`git rev-parse --git-dir` differs from `--git-common-dir`) never qualifies.
-In one, unsure, or without a shell, do not call them: edit `.serena/memories/`
+In one, unsure, or without a shell, do not call them: edit the repository memory
 files in your own checkout, or return the change to the parent session. Delete or
 rename only when asked. New memory: `<topic>/<name>` plus a `memory-index.md` line.
 
@@ -339,7 +339,7 @@ Invoke via the portable root form:
 | `memory-reflexion` | Tier 2 episode extraction (ADR-063) |
 | `memory-gate` | Memory-First Gate and Chesterton's Fence protocol (ADR-063) |
 | `memory-maintenance` | Health, token count, size, benchmark, density (ADR-063) |
-| `memory-consolidate` | Periodic durable/dated consolidation, merge, index tidy |
+| `memory-consolidate` | Periodic durable/dated consolidation, overlap merge, index tidy |
 | `memory-enhancement` | Add citations, verify code references, track confidence |
 | `memory-documentary` | Narrative cross-system memory reports |
 | `curating-memories` | In-file obsolete-marking (supersession markers) |

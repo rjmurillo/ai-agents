@@ -102,7 +102,7 @@ def search_memories(
         memories_dir: Directory containing memory .md files.
         max_results: Maximum number of results to return.
         repo_root: Repository root for citation verification.
-                   Defaults to detected repo root via find_repo_root.
+                   Defaults to detected repo root via find_memory_root.
         min_relevance: Drop results whose query relevance (fraction of query
             terms naming the memory, see ``query_relevance``) is below this.
             Applied before the ``max_results`` cut. 0.0 keeps every match.

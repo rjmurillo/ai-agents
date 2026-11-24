@@ -207,8 +207,8 @@ targets.
 
 ## References
 
-- ADR-007: Memory-first architecture (canonical store, local-only posture)
-- ADR-037: Memory router architecture (the router this sub-skill delegates from)
+- ADR-106: Memory-first principle and single store (superseded ADR-007)
+- ADR-126: Repository-resolved memory store (amends ADR-106, which superseded ADR-037)
 - ADR-063: Memory skill decomposition (this extraction)
 - [references/benchmarking.md](references/benchmarking.md): benchmark method,
   query set, and target ratios

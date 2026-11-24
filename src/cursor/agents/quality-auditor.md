@@ -38,10 +38,10 @@ You have access to:
 - **Read/Search**: Scan repository structure and file contents
 - **Bash**: Run `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/quality-grades/scripts/grade_domains.py; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`
 - **Write/Edit**: Generate quality reports
-- **Memory Router** (ADR-037): Search across `.serena/memories/`
+- **Memory search** (ADR-126): the `memory-search` skill over the repository memory folder the `memory-search` skill resolves (ADR-126)
   - `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/search_memory.py "topic"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )`
   - Keyword match on memory filenames; no semantic or graph search
-- **Serena write tools**: Memory persistence in `.serena/memories/`
+- **Memory writes**: the `memory` skill; Serena write tools when Serena is active
   - `serena/write_memory`: Create new memory
   - `serena/edit_memory`: Update existing memory
 
@@ -51,7 +51,7 @@ Serena writes to the checkout active at server start (`--project` root),
 not your cwd. Call `mcp__serena__write_memory`, `edit_memory`,
 `delete_memory`, or `rename_memory` only from that checkout. A linked worktree
 (`git rev-parse --git-dir` differs from `--git-common-dir`) never qualifies.
-In one, unsure, or without a shell, do not call them: edit `.serena/memories/`
+In one, unsure, or without a shell, do not call them: edit the repository memory
 files in your own checkout, or return the change to the parent session. Delete or
 rename only when asked. New memory: `<topic>/<name>` plus a `memory-index.md` line.
 

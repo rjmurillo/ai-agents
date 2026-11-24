@@ -15,6 +15,7 @@ from pathlib import Path
 import frontmatter
 import yaml
 
+from . import MEMORY_STORE_DIRS
 from .code_masking import mask_code, original_context, sub_outside_code
 from .models import (
     Citation,
@@ -165,8 +166,7 @@ def load_memory(file_path: Path, memories_dir: Path | None = None) -> MemoryWith
                 parent
                 for parent in (corpus, *corpus.parents)
                 if (parent / ".git").exists()
-                or (parent / ".serena/memories").resolve() == corpus
-                or (parent / ".project-toolkit/memory/notes").resolve() == corpus
+                or any((parent / store).resolve() == corpus for store in MEMORY_STORE_DIRS)
             ),
             corpus,
         )

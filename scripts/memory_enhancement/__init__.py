@@ -21,15 +21,6 @@ MEMORY_STORE_DIRS = (
 _TOOLKIT_MEMORY_DIR = Path(".project-toolkit", "memory")
 
 
-def find_repo_root(start: Path | None = None) -> Path | None:
-    """Walk up from start directory looking for .git to find repo root."""
-    current = start or Path.cwd()
-    for parent in [current, *current.parents]:
-        if (parent / ".git").exists():
-            return parent
-    return None
-
-
 def find_memory_root(start: Path | None = None) -> Path | None:
     """Return the nearest ancestor that is a checkout or holds a memory store.
 
@@ -45,6 +36,23 @@ def find_memory_root(start: Path | None = None) -> Path | None:
         ):
             return parent
     return None
+
+
+def shadowed_notes_dir(repo_root: Path) -> Path | None:
+    """Return the notes folder when it holds memories the Serena store hides.
+
+    ADR-126 reads one store. Once ``.serena/memories`` exists, notes written
+    earlier are no longer searched, so callers report them instead.
+    """
+    root = repo_root.resolve()
+    store = repository_memory_dir(root)
+    notes = root / MEMORY_STORE_DIRS[1]
+    if store is None or not notes.is_dir():
+        return None
+    resolved = notes.resolve()
+    if resolved == store or not resolved.is_relative_to(root):
+        return None
+    return resolved if any(resolved.rglob("*.md")) else None
 
 
 def repository_memory_dir(repo_root: Path) -> Path | None:

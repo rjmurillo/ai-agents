@@ -189,8 +189,8 @@ with equal safety. Never proceed with the change before the search is logged.
 
 ## References
 
-- ADR-007: Memory-first architecture (the posture this gate enforces)
-- ADR-037: Memory router architecture (the router this sub-skill delegates from)
+- ADR-106: Memory-first principle, carried forward from ADR-007 (the posture this gate enforces)
+- ADR-126: Repository-resolved memory store (amends ADR-106, which superseded ADR-037)
 - ADR-063: Memory skill decomposition (this extraction)
 - ADR-070: Gate semantics (why the gate is BLOCKING, not advisory)
 - [references/agent-integration.md](references/agent-integration.md): multi-agent

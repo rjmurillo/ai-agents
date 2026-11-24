@@ -26,7 +26,7 @@ from pathlib import Path
 from ..confidence import update_confidence_scores_with_memories
 from ..models import HealthReport
 from ..reflection import apply_confidence_decay, extract_session_facts
-from . import find_memory_root, repository_memory_dir
+from . import find_memory_root, repository_memory_dir, shadowed_notes_dir
 
 
 def main() -> int:
@@ -43,7 +43,21 @@ def main() -> int:
     if summary:
         print(summary, file=sys.stderr)
 
+    shadowed = shadowed_notes_dir(repo_root)
+    if shadowed is not None:
+        print(_shadowed_notes_warning(shadowed, repo_root), file=sys.stderr)
+
     return 0
+
+
+def _shadowed_notes_warning(notes: Path, repo_root: Path) -> str:
+    """Name the hidden notes folder and the manual migration (ADR-126)."""
+    relative = notes.relative_to(repo_root.resolve())
+    return (
+        f"Memory: {relative} holds notes that recall no longer searches, because"
+        " .serena/memories now exists. Move them with"
+        f" `git mv {relative}/* .serena/memories/`."
+    )
 
 
 def _find_repo_root(start: Path | None = None) -> Path | None:
