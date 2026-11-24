@@ -24,7 +24,7 @@ from html import escape
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from . import find_repo_root, repository_memory_dir
+from . import find_memory_root, repository_memory_dir
 
 if TYPE_CHECKING:
     from ..search import SearchResult
@@ -171,8 +171,8 @@ def _strip_punctuation(word: str) -> str:
 
 
 def _find_repo_root(start: Path | None = None) -> Path | None:
-    """Walk up from start to find repo root. Delegates to shared utility."""
-    return find_repo_root(start)
+    """Walk up from start to the checkout or memory-store root."""
+    return find_memory_root(start)
 
 
 def _search_and_format(query: str, memories_dir: Path, repo_root: Path) -> str:
@@ -204,7 +204,12 @@ def _search_and_format(query: str, memories_dir: Path, repo_root: Path) -> str:
 
 
 def _format_recall_field(value: str) -> str:
-    """Keep excerpts short and escape any markup in the stored text."""
+    """Keep excerpts short, on one line, and escape any markup in the stored text.
+
+    Collapsing whitespace stops a note body from printing its own heading or
+    ``Source:`` line inside the block and faking a verified citation.
+    """
+    value = " ".join(value.split())
     if len(value) > _MAX_RECALL_FIELD_LENGTH:
         value = value[: _MAX_RECALL_FIELD_LENGTH - 3] + "..."
     return escape(value, quote=False)
@@ -235,7 +240,7 @@ def _format_memory_context(results: list[SearchResult]) -> str:
         lines.append(_format_recall_field(result.snippet))
         relative_path = result.file_path
         try:
-            repo_root = find_repo_root(result.file_path)
+            repo_root = find_memory_root(result.file_path)
             if repo_root is not None:
                 relative_path = result.file_path.relative_to(repo_root)
         except ValueError:

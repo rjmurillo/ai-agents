@@ -10,10 +10,11 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import find_repo_root
+from . import find_memory_root
 from .confidence import calculate_confidence
 from .models import VerificationResult
 from .serena_integration import load_memory
@@ -115,7 +116,7 @@ def search_memories(
     if not memories_dir.is_dir():
         return []
 
-    effective_root = repo_root or find_repo_root(memories_dir) or memories_dir.parent.parent
+    effective_root = repo_root or find_memory_root(memories_dir) or memories_dir.parent.parent
 
     paths = _search_with_ripgrep(query, memories_dir)
     if paths is None:
@@ -222,6 +223,7 @@ def _search_with_ripgrep(query: str, memories_dir: Path) -> list[Path] | None:
         return None
 
     if result.returncode not in (0, 1):
+        _warn_search_failure(cmd[0], result.returncode, result.stderr)
         return None
 
     return _parse_file_list(result.stdout, memories_dir)
@@ -258,9 +260,19 @@ def _search_with_grep(query: str, memories_dir: Path) -> list[Path] | None:
         return None
 
     if result.returncode not in (0, 1):
+        _warn_search_failure(cmd[0], result.returncode, result.stderr)
         return None
 
     return _parse_file_list(result.stdout, memories_dir)
+
+
+def _warn_search_failure(tool: str, returncode: int, stderr: str) -> None:
+    """Report a failed store search on stderr so empty recall is not silent."""
+    detail = stderr.strip().splitlines()[0] if stderr.strip() else "no stderr"
+    print(
+        f"memory search: {Path(tool).name} exited {returncode}; recall skipped ({detail})",
+        file=sys.stderr,
+    )
 
 
 def _parse_file_list(stdout: str, memories_dir: Path) -> list[Path]:

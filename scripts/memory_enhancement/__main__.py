@@ -18,6 +18,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from . import repository_memory_dir
 from .confidence import update_confidence_scores
 from .graph import build_memory_graph, traverse
 from .health import format_report, format_report_text, generate_health_report
@@ -63,7 +64,10 @@ def _build_parser() -> argparse.ArgumentParser:
         "--memories-dir",
         type=Path,
         default=None,
-        help="Memories directory (default: <repo-root>/.serena/memories)",
+        help=(
+            "Memories directory (default: <repo-root>/.serena/memories when present,"
+            " else <repo-root>/.project-toolkit/memory/notes)"
+        ),
     )
 
     subparsers = parser.add_subparsers(title="commands")
@@ -166,7 +170,7 @@ def _resolve_memories_dir(args: argparse.Namespace) -> Path:
             )
             sys.exit(1)
         return memories_dir
-    return repo_root / ".serena" / "memories"
+    return repository_memory_dir(repo_root) or repo_root / ".serena" / "memories"
 
 
 def _cmd_verify(args: argparse.Namespace) -> int:

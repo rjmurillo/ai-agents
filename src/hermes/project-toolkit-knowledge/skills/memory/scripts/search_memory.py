@@ -159,7 +159,11 @@ def search_episodes(
 
     keywords = query_keywords(query)
     results: list[dict[str, Any]] = []
+    scope = _find_checkout(episodes_path.resolve()) or episodes_path.resolve()
     for episode_file in sorted(episodes_path.glob("episode-*.json")):
+        # Same rule as _corpus_files: a linked episode must stay in the checkout.
+        if episode_file.is_symlink() and not episode_file.resolve().is_relative_to(scope):
+            continue
         try:
             episode = json.loads(episode_file.read_text(encoding="utf-8"))
         except (OSError, ValueError):
@@ -235,7 +239,11 @@ examples:
 exit codes:
   0  search ran (results may be empty)
   1  query failed validation (1-500 characters)
-  2  a store path contains '..', or AI_AGENTS_REPO_ROOT is not a directory
+  2  a store path contains '..'
+
+environment:
+  CLAUDE_PROJECT_DIR  project to search; defaults to the checkout holding the
+                      current directory
 """
 
 
@@ -325,9 +333,9 @@ def main(argv: list[str] | None = None) -> int:
     # Keep the consumer checkout ahead of the installed plugin directory.
     project_dir = os.environ.get("CLAUDE_PROJECT_DIR")
     repo_root = _find_checkout(Path(project_dir).resolve()) if project_dir else None
-    repo_root = (
-        repo_root or _find_checkout(Path.cwd().resolve()) or Path(__file__).resolve().parents[4]
-    )
+    # No checkout found: search the current directory, never the installed
+    # plugin's own tree, so the report names the user's project.
+    repo_root = repo_root or _find_checkout(Path.cwd().resolve()) or Path.cwd().resolve()
     declared_corpora = (repo_root / relative for relative in (SERENA_REL, NOTES_REL))
     resolved_corpora = {
         path.relative_to(repo_root): path.resolve() for path in declared_corpora if path.is_dir()
@@ -338,10 +346,16 @@ def main(argv: list[str] | None = None) -> int:
         if path != repo_root and path.is_relative_to(repo_root)
     }
     serena_path = args.serena_path.resolve() if args.serena_path else corpora.get(SERENA_REL)
-    episodes_path = args.episodes_path.resolve() if args.episodes_path else repo_root / EPISODES_REL
+    # A linked default episode store that leaves the checkout is not this
+    # project's, so it is not queried.
+    episodes_path: Path | None = (repo_root / EPISODES_REL).resolve()
+    if args.episodes_path:
+        episodes_path = args.episodes_path.resolve()
+    elif not episodes_path.is_relative_to(repo_root):
+        episodes_path = None
     notes_path = corpora.get(NOTES_REL) if serena_path is None else None
 
-    results = search_episodes(query, episodes_path, max_results)
+    results = search_episodes(query, episodes_path, max_results) if episodes_path else []
     if serena_path is not None:
         results = search_serena(query, serena_path, max_results) + results
     if notes_path is not None:
@@ -393,8 +407,8 @@ def main(argv: list[str] | None = None) -> int:
         search_status = {
             "SerenaQueried": serena_path is not None,
             "SerenaSucceeded": serena_path is not None and serena_path.is_dir(),
-            "EpisodesQueried": True,
-            "EpisodesSucceeded": episodes_path.is_dir(),
+            "EpisodesQueried": episodes_path is not None,
+            "EpisodesSucceeded": episodes_path is not None and episodes_path.is_dir(),
         }
         if notes_path is not None:
             search_status.update(RepositoryNotesQueried=True, RepositoryNotesSucceeded=True)
