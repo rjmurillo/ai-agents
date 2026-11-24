@@ -10,7 +10,8 @@
     "dist/",
     "bundle/assets/",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "NOTICE"
   ],
   "scripts": {
     "build": "bun build src/cli.ts --outdir dist --target node",
