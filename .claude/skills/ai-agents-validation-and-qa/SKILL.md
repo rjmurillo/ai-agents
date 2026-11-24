@@ -1,6 +1,6 @@
 ---
 name: ai-agents-validation-and-qa
-description: What counts as evidence in ai-agents, how to produce it, and the contract for authoring CI workflows, composite actions, and validation scripts. Covers TESTING-RIGOR pos+neg+edge, test layout, coverage proof, runtime-contract tests, ADR-034 QA skips, and CI script rules (references/rule-ci-scripts.md). Use when you say `what counts as evidence`, `how do I test this change`, `run skill tests`, `can I skip QA`, or when authoring or editing a CI workflow, composite action, or validation script. Do NOT use for CI failure triage (use `ai-agents-debugging-playbook`) or measurement tooling (use `ai-agents-diagnostics-toolkit`).
+description: What counts as evidence in ai-agents, how to produce it, and the contract for authoring CI workflows, composite actions, validation scripts, and CI ratchet baselines. Covers TESTING-RIGOR pos+neg+edge, test layout, coverage proof, runtime-contract tests, ADR-034 QA skips, and CI script rules (references/rule-ci-scripts.md). Use when you say `what counts as evidence`, `how do I test this change`, `run skill tests`, `can I skip QA`, or when editing a CI workflow, composite action, validation script, or CI ratchet baseline file. Do NOT use for general CI failure triage (use `ai-agents-debugging-playbook`) or measurement tooling (use `ai-agents-diagnostics-toolkit`).
 version: 1.0.0
 license: Apache-2.0
 metadata:
@@ -21,7 +21,7 @@ Audience: a zero-context contributor (human or model) about to write, run, or sk
 
 ## Triggers
 
-Before authoring or editing a CI workflow, composite action, or validation script, read [ci-scripts](references/rule-ci-scripts.md).
+Before authoring or editing a CI workflow, composite action, validation script, or CI ratchet baseline file, read [ci-scripts](references/rule-ci-scripts.md).
 
 - `what counts as evidence`
 - `how do I test this change`
@@ -32,7 +32,7 @@ Before authoring or editing a CI workflow, composite action, or validation scrip
 
 | You want | Use instead |
 |----------|-------------|
-| Triage a red CI check or a blocked push | `ai-agents-debugging-playbook` |
+| Triage a red CI check or blocked push (other than editing a CI script or ratchet baseline) | `ai-agents-debugging-playbook` |
 | Measure drift, budgets, telemetry, coverage trends | `ai-agents-diagnostics-toolkit` |
 | Probe an external tool's runtime behavior empirically | `ai-agents-empirical-probe-toolkit` |
 | Understand which gates a change class triggers | `ai-agents-change-control` |
