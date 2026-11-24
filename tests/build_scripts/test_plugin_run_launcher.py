@@ -183,7 +183,11 @@ def test_every_tree_that_ships_lib_ships_a_byte_identical_resolver() -> None:
     trees = _trees_with_lib()
     names = {t.parent.name for t in trees}
     assert {"claude", "codex", "copilot-cli", "cursor", "muse"} <= names
-    assert {"project-toolkit-delivery", "project-toolkit-knowledge"} <= names
+    assert {
+        "project-toolkit-delivery",
+        "project-toolkit-knowledge",
+        "project-toolkit-authoring",
+    } <= names
     canonical = RESOLVER_SOURCE.read_bytes()
     drifted = [
         str(lib.relative_to(REPO_ROOT))

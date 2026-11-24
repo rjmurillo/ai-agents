@@ -425,7 +425,7 @@ def test_locate_runs_from_every_plugin_root(tmp_path: Path, script: Path) -> Non
 
 def test_locate_runs_from_the_hermes_mirror_path(tmp_path: Path) -> None:
     script = (
-        REPO_ROOT / "src" / "hermes" / "project-toolkit-knowledge" / "skills" / "skill-bootstrap"
+        REPO_ROOT / "src" / "hermes" / "project-toolkit-authoring" / "skills" / "skill-bootstrap"
         / "scripts" / "bootstrap_adr.py"
     )  # fmt: skip
     repo = _decision_repo(tmp_path)
