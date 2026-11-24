@@ -1410,7 +1410,7 @@ def _apply_rule_admissions(
 ) -> None:
     """Admit coupling and non-redundancy drops that add no dependency or duplicate."""
     import_roots = _first_party_import_roots(config)
-    # The index can change between runs in one process; read it fresh per run.
+    # HEAD can move between runs in one process (tests commit); read it fresh per run.
     _tracked_python_paths.cache_clear()
     revision: str | None = None
     for comparison in comparisons:

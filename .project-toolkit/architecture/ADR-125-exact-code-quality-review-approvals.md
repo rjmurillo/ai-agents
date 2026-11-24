@@ -126,6 +126,9 @@ ADR-122 records name one file and one score transition, authorized by a person.
 These admissions are rules instead; they hold for any file whose change meets them.
 The adapter checks each record's own numbers against its rule.
 For non-redundancy it sees only totals; the assessor enforces the per-line rule.
+ADR-122 item 10 change records (`change_admissions`) and these rule admissions never share a comparison.
+The assessor skips the rule pass on a comparison change records admitted.
+The adapter returns UNKNOWN for a comparison that carries both kinds.
 
 ### Alternatives
 

@@ -207,6 +207,23 @@ def test_both_admission_kinds_on_one_comparison_are_unknown() -> None:
     assert _verdict(comparison) == "UNKNOWN"
 
 
+def test_change_and_rule_admissions_on_one_comparison_are_unknown() -> None:
+    # A valid change record must not vouch for a rule record the adapter never
+    # checked (issue #7525 rule admissions use a separate field).
+    comparison = _comparison(_LIB_MIRROR, {"coupling": (8.0, 7.0)})
+    assert _verdict(comparison) == "WARN"
+    comparison["rule_admissions"] = {
+        "coupling": {
+            "issue": 7525,
+            "rule": "no_new_third_party_import",
+            "baseThirdParty": [],
+            "headThirdParty": [],
+        }
+    }
+
+    assert _verdict(comparison) == "UNKNOWN"
+
+
 def test_a_null_change_admissions_field_keeps_the_old_behavior() -> None:
     comparison = _comparison(_LIB_MIRROR, {"coupling": (8.0, 7.0)}, change_admissions=None)
 

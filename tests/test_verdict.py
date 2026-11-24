@@ -1306,7 +1306,7 @@ class TestGetVerdictEmoji:
 _CQ_AXIS = "code-qualities-assessment"
 
 
-def _cq_change_payload(regressions: list[object], admissions: object, **extra: object) -> str:
+def _cq_rule_payload(regressions: list[object], admissions: object, **extra: object) -> str:
     quality = {"value": 9.0, "confidence": 0.6, "reasons": []}
     entry = {"file_path": "a.py", "category": "authored", "scoring_failed": False}
     entry.update(
@@ -1411,13 +1411,13 @@ _CQ_NON_REDUNDANCY = {
         "unadmittable-quality-null-rule",
         "unadmittable-quality-no-rule",
         "unhashable-regression",
-        "parser-and-change-record",
+        "parser-and-rule-record",
     ],
 )
-def test_review_adapter_checks_every_change_admission(
+def test_review_adapter_checks_every_rule_admission(
     regressions: list[object], admissions: object, extra: dict[str, object], verdict: str
 ) -> None:
-    payload = _cq_change_payload(regressions, admissions, **extra)
+    payload = _cq_rule_payload(regressions, admissions, **extra)
 
     assert adapt_local_axis_verdict(_CQ_AXIS, payload, 0) == verdict
 

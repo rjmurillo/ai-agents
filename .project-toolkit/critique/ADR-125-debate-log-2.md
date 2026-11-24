@@ -96,3 +96,9 @@ PR #7523 landed on main with its own `changeAdmissions` records (ADR-122 item 10
 Those records use the JSON field `change_admissions`, which this amendment had also used.
 This amendment's field is now `rule_admissions`, and its reference page is `rule-admissions.md`.
 Change item 4 now names `rule_admissions`. The decision is unchanged, so no new round was opened.
+
+## Post-merge review wording edit
+
+The `/review` on head `4f1d378eca` asked the amendment to state how rule admissions coexist with ADR-122 item 10 change records.
+"Relation to ADR-122" now says the two kinds never share a comparison, and names the assessor skip and the adapter UNKNOWN.
+Both behaviors existed in the merge; tests now cover them. No decision changed, so no new round was opened.

@@ -409,3 +409,24 @@ def test_staged_but_uncommitted_module_is_not_first_party(
 
     assert rc == 10
     assert _comparison(capsys.readouterr().out, "tools/caller.py")["rule_admissions"] is None
+
+
+def test_rule_pass_skips_a_comparison_change_records_admitted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Fixed change records (ADR-122 item 10) and rule admissions never share
+    # a comparison, so the adapter sees one kind of record per file.
+    _repo(tmp_path, monkeypatch, {"tools/body.py": _body(12, 3)}, {"tools/body.py": _body(2, 3)})
+    record = {"issue": 7493, "quality": "non_redundancy"}
+    comparison = _mod.FileComparison(
+        "tools/body.py", False, [], ["non_redundancy"], [], "tools/body.py", "M", None
+    )
+    comparison.change_admissions = [record]
+    control = _mod.FileComparison(
+        "tools/body.py", False, [], ["non_redundancy"], [], "tools/body.py", "M", None
+    )
+
+    _mod._apply_rule_admissions([comparison, control], {}, "main")
+
+    assert comparison.rule_admissions is None
+    assert control.rule_admissions is not None
