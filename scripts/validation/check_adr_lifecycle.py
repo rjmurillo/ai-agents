@@ -310,7 +310,7 @@ def _split_frontmatter(text: str) -> tuple[str | None, str]:
     Delegates to ``scripts/hook_utilities/frontmatter_block.parse_frontmatter``,
     the repository's one parser. This function used to
     carry its own boundary arithmetic, taken from
-    ``_parse_yaml_frontmatter`` in ``scripts/validation/yaml_utils.py``::
+    ``_parse_yaml_frontmatter`` in the deleted ``scripts/validation/yaml_utils.py``::
 
         end_index = text.find("\n---", 3)
 

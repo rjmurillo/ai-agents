@@ -31,8 +31,11 @@ Entry points, one fence rule:
   unusable.
 - :func:`load_frontmatter` returns only the mapping, or ``None``.
 
-Duplicate keys are rejected by default. A caller whose contract is
-last-one-wins passes ``allow_duplicate_keys=True``.
+``parse_frontmatter`` and ``decode_frontmatter_yaml`` reject duplicate keys
+by default. ``load_frontmatter`` allows them by default, because its callers
+were last-one-wins. A caller whose contract is last-one-wins passes
+``allow_duplicate_keys=True``. The duplicate-key loader also rejects YAML
+merge keys (``<<: *anchor``); a caller that needs merges allows duplicates.
 
 EXIT CODES: none. This module raises or returns; callers own their exit codes
 per ADR-035.
