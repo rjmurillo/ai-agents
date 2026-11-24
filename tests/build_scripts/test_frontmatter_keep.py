@@ -12,7 +12,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 
 import generate_skills  # noqa: E402
-from frontmatter_key_drop import keep_frontmatter_keys, keep_skill_frontmatter  # noqa: E402
+from frontmatter_key_drop import (  # noqa: E402
+    drop_frontmatter_keys,
+    keep_frontmatter_keys,
+    keep_skill_frontmatter,
+)
 from skill_support_mirror import GenerateSkillsError  # noqa: E402
 
 KEEP = frozenset({"name", "description", "metadata"})
@@ -187,3 +191,10 @@ def test_committed_cursor_skills_carry_only_allowed_keys() -> None:
         assert keys <= allowed, skill
         assert {"name", "description"} <= keys, skill
         assert skill.parent.name == yaml.safe_load(skill.read_text().split("---")[1])["name"]
+
+
+def test_dropping_a_key_keeps_a_tab_only_first_line_byte_for_byte() -> None:
+    """The fence match can swallow a whitespace-only line; the cut must not."""
+    fm = "---\n\t\nname: x\nmodel: y\n---\n"
+
+    assert drop_frontmatter_keys(fm, frozenset({"model"})) == "---\n\t\nname: x\n---\n"
