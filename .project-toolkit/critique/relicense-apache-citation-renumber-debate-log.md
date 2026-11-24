@@ -54,6 +54,10 @@ The same change fixes these non-ADR citations:
 - `scripts/validation/citation_head_state.py:91`
 - `scripts/validation/check_push_lock_before_commit.py:49`
 - `.agents/governance/FAIL-OPEN-INVENTORY.md:103`, `:116`, `:119` and `:151`
+- `.agents/governance/FAIL-OPEN-INVENTORY.md:117`, `:118` and `:120`, found by
+  the round 3 `/review` axes after this panel closed. Each row carries a
+  `citation-freshness: ignore` marker, so neither gate flagged it. Each span
+  moved by 2, and each marker's verification date now reads 2026-11-23.
 
 ## Round 2 Summary
 
@@ -79,6 +83,12 @@ The same change fixes these non-ADR citations:
   Both were checked by hand at HEAD. Lines 45, 256 and 436 already accept the
   same tradeoff. The gate works per line, not per citation; changing that is a
   separate decision.
+- The round 3 decision-rigor axis asked why the historical clause was not
+  moved onto its own line, which would keep `:6854` and `:6870` gated. The
+  author did not weigh that option before the panel. Splitting would reflow an
+  ADR paragraph for a tooling limit and would diverge from lines 45, 256 and
+  436, which keep mixed citations on one line. This note records the
+  alternative; neither seat was asked about it.
 
 ### Next Steps
 
