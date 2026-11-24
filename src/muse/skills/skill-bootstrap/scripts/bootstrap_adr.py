@@ -328,7 +328,7 @@ _NO_LAZY_FETCH_BACKPORTS = {(2, 39): 4, (2, 40): 2, (2, 41): 1, (2, 42): 2, (2, 
 # A line of ``git config --get-regexp`` that makes the repository a partial clone.
 _PROMISOR = re.compile(
     r"(?:extensions\.partialclone|remote\..*\.partialclonefilter) \S"
-    r"|remote\..*\.promisor (?!false|no|off|0\b)\S"
+    r"|remote\..*\.promisor(?:\Z| (?!false|no|off|0\b)\S)"  # a bare key means true
 )
 
 

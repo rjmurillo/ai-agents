@@ -61,8 +61,7 @@ _DUMP_HEADING = re.compile(
     r"|^\s{0,3}#{1,6}\s*\[?v?\d+\.\d+",
     _I | re.MULTILINE,
 )
-# ``[ \t]*`` after a line anchor, never ``\s*``: ``\s*`` also eats newlines, so every line start
-# of a long run of blank lines would rescan the rest of the run.
+# ``[ \t]*`` after a line anchor, never ``\s*``, which eats newlines and rescans blank runs.
 _BUMP_BODY = re.compile(
     r"^[ \t]*(?:bumps?|updates?|upgrades?)\s+(?:\[?`?[\w@/.-]+`?\]?(?:\([^)]*\))?\s+)?(?:from|to)\b"
     r"|this pr contains the following updates|^[ \t]*dependabot will resolve",
@@ -81,8 +80,7 @@ _STRONG = [
         r"\bas a result\b",
         r"\bwas causing\b",
         r"\bcaused by\b",
-        # "since" as a cause starts a clause ("since it is..."); as a date or version
-        # it does not ("since node 16", "since pnpm/pnpm#1234", "since the first release").
+        # "since" as a cause ("since it is"), not a date or version ("since node 16").
         r"\bsince\s+(?:(?:the|it|its|we|they|this|that|there|a|an|our|these|those|you|i|all"
         r"|both|each|every|no|not|only|one|most|many)\b"
         r"(?!\s+(?:last|first|previous|beginning|start|release|version|v?\d))"
@@ -91,8 +89,7 @@ _STRONG = [
         r"|reads?|runs?|returns?|calls?|makes?|requires?|works?|handles?|treats?)\b)",
     )
 ]
-# These words DESCRIBE a change as often as they explain it, so they count only next
-# to a word that names a problem.
+# These words DESCRIBE a change as often as they explain it: they need a word naming a problem.
 _MEDIUM = [
     re.compile(p, _I)
     for p in (
@@ -142,8 +139,7 @@ _NOISE_SENTENCE = re.compile(
     _I,
 )
 
-# A removed URL leaves a marker, so a reason whose OBJECT was the link ("because of
-# <url>") is dropped rather than printed with a hole in it.
+# A removed URL leaves a marker, so "because of <url>" is dropped, never shown with a hole.
 _URL_HOLE = "\ue000"
 _HTML_TAG = re.compile(
     r"</?(?:a|p|em|strong|b|i|u|code|pre|br|hr|h[1-6]|ul|ol|li|details|summary|blockquote"
@@ -153,8 +149,7 @@ _HTML_TAG = re.compile(
 _DANGLING_LINK = re.compile(
     r"(?:\b(?:because of|due to|of|to|by|with|from|for|on|in|and|or)|,)\s*\ue000", _A
 )
-# Applied to flat text only (``_sentence_hit`` flattens first), where a whitespace run is one
-# space, so ``\s?`` matches what ``\s*`` did, in linear time, and two holes in a row both go.
+# On flat text (``_sentence_hit`` flattens) ``\s?`` matches what ``\s*`` did, in linear time.
 _HOLE_BEFORE_PUNCT = re.compile(r"\s?\ue000\s?([.,;:!?])", _A)
 _HOLE = re.compile(r"\s?\ue000\s?", _A)
 
@@ -171,8 +166,7 @@ _LINE_END_PUNCT = re.compile(r"[.!?:;,]\Z", _A)
 _CAPITAL_START = re.compile(r"[A-Z]", _A)
 _QUESTION_END = re.compile(r"\?\Z", _A)
 
-# Fixed-width stand-in for the source's variable-width lookbehind: the abbreviation
-# test runs on the text before the whitespace, after the split point is found.
+# Fixed-width stand-in for upstream's lookbehind: the abbreviation test runs after the split.
 _SENTENCE_BREAK = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9\"'(`\[])", _A)
 _ABBREVIATION_END = re.compile(
     r"(?<![A-Za-z0-9_])(?:e\.g|i\.e|etc|vs|cf|[Mm]r|[Mm]rs|[Mm]s|[Dd]r|Inc|Ltd|[Jj]r|[Ss]r|St)\.\Z",
@@ -201,8 +195,7 @@ def commit_sha_of(source_url: str | None) -> str | None:
 
 
 def _strip_markup(text: str) -> str:
-    # One level of balanced parentheses in the URL (``wiki/Raft_(algorithm)``). Each branch stops
-    # at the next parenthesis, so an unclosed ``[`` or ``(`` run stays linear.
+    # One level of balanced parentheses (``Raft_(algorithm)``); an unclosed run stays linear.
     out = re.sub(r"!?\[([^\[\]]*)\]\((?:[^()]|\([^()]*\))*\)", r"\1", text)
     out = _HTML_TAG.sub(" ", out)
     out = re.sub(r"https?://\S+", f" {_URL_HOLE} ", out)
@@ -229,8 +222,7 @@ def _repeats_title(sentence: str, title_words: list[str], title_body_words: list
     in_title = set(title_words)
     if sum(1 for w in sw if w in in_title) / len(sw) >= 0.8:
         return True
-    # The importer cuts a long title at 80 characters, so a body that opens with the
-    # whole subject continues past where the title stops. Same words up to the cut.
+    # The importer cuts a long title at 80 characters; a body opening with it continues it.
     head = title_body_words[:-1]
     return len(head) >= 3 and all(i < len(sw) and sw[i] == w for i, w in enumerate(head))
 
@@ -268,11 +260,8 @@ def _marker_end(sentence: str) -> int | None:
 
 
 def _fit(sentence: str, labelled: bool) -> str | None:
-    """The text to show for a qualifying sentence.
-
-    A long one is cut at the cap, which can hide the marker that qualified it, so a
-    sentence whose marker lies past the cap is dropped rather than shown as a fragment.
-    """
+    """The text to show for a qualifying sentence. A long one is cut at the cap, so a sentence
+    whose marker would be cut away is dropped rather than shown as a fragment."""
     shown = _cap(sentence)
     if len(sentence) <= REASON_MAX_CHARS or labelled:
         return shown
@@ -338,10 +327,7 @@ def _to_units(text: str) -> list[_Unit]:
 
 
 def _split_sentences(text: str) -> list[str]:
-    """Split after . ! ? and whitespace before a capital, digit, quote or bracket.
-
-    No split after an abbreviation (e.g., i.e., vs., etc., Mr., Dr., Inc., ...).
-    """
+    """Split after . ! ? and a blank before a capital, digit, quote or bracket, not after e.g."""
     pieces: list[str] = []
     last = 0
     for match in _SENTENCE_BREAK.finditer(text):
@@ -405,8 +391,7 @@ def _sentence_hit(
         return None
     if _repeats_title(s, title_words, title_body_words) or _QUESTION_END.search(s):
         return None
-    # Score what the author asserts: not text in quotation marks (someone else's claim),
-    # not a file name that happens to contain a marker word, not a negated "because".
+    # Score the author's own claims: not quoted text, not a file name, not a negated "because".
     asserted = _FILE_TOKEN.sub(" ", _QUOTED.sub(" ", s))
     if _NEGATED.search(asserted):
         return None
@@ -457,9 +442,7 @@ def extract_reason(title: str, body: str | None) -> str | None:
     return " ".join(s.text for s in sorted(best, key=lambda s: s.pos))
 
 
-# ---------------------------------------------------------------------------
-# E3: breaking-change signal (extension, Conventional Commits 1.0.0)
-# ---------------------------------------------------------------------------
+# --- E3: breaking-change signal (extension, Conventional Commits 1.0.0) ---
 
 _BREAKING_SUBJECT = re.compile(r"^[a-z]+(?:\([^)]*\))?!:", _I)
 # The token is uppercase by the specification. BREAKING-CHANGE is its synonym.
@@ -467,27 +450,45 @@ _BREAKING_FOOTER = re.compile(r"^BREAKING[ -]CHANGE:[ \t]+\S", re.MULTILINE | _A
 # Both Conventional Commits separators: ``Key: value`` and ``Key #value``.
 _FOOTER_LINE = re.compile(r"^[A-Za-z][A-Za-z0-9-]*(?::[ \t]+|[ \t]+#)\S", _A)
 _BLANK_LINES = re.compile(r"\n[ \t]*\n", _A)
+_FENCE_LINE = re.compile(r"[ \t]{0,3}(`{3,}|~{3,})(.*)", _A)
 
 
 def breaking_change(subject: str, body: str) -> bool:
-    """Does the commit mark itself as a breaking change?
-
-    True for a ``type!:`` or ``type(scope)!:`` subject, and for a ``BREAKING CHANGE:``
-    or ``BREAKING-CHANGE:`` line that begins a line in the footer. The footer is the
-    last paragraph, or an earlier one when only trailer paragraphs (such as
-    ``Co-Authored-By`` or ``Refs #1``) follow it. The phrase in mid-body prose or inside
-    a fenced example does not count.
-    """
+    """Does the commit mark itself as a breaking change? True for a ``type!:`` subject, and for
+    a ``BREAKING CHANGE:`` or ``BREAKING-CHANGE:`` line opening a line of the footer: the last
+    paragraph, or an earlier one when only trailer paragraphs (``Co-Authored-By``, ``Refs #1``)
+    follow it. The phrase in mid-body prose or inside a closed fenced example does not count."""
     if _BREAKING_SUBJECT.search(subject.strip()):
         return True
-    unfenced = _FENCE.sub("\n", body.replace("\r\n", "\n"))
-    paragraphs = _BLANK_LINES.split(unfenced.strip())
+    paragraphs = _BLANK_LINES.split(_outside_fences(body.replace("\r\n", "\n")).strip())
     for paragraph in reversed(paragraphs):
         if _BREAKING_FOOTER.search(paragraph):
             return True
         if not _is_trailer_paragraph(paragraph):
             return False
     return False
+
+
+def _outside_fences(text: str) -> str:
+    """``text`` without its closed fenced blocks. A fence closes on its own mark, as long or
+    longer, alone on the line. Inline code opens none, and an unclosed fence stays as text."""
+    out: list[str] = []
+    held: list[str] = []
+    fence = ""
+    for line in text.split("\n"):
+        mark = _FENCE_LINE.match(line)
+        if fence and mark and mark[1][0] == fence[0] and len(mark[1]) >= len(fence) > 0:
+            if not mark[2].strip():
+                fence, held = "", []
+            else:
+                held.append(line)
+        elif fence:
+            held.append(line)
+        elif mark and not (mark[1][0] == "`" and "`" in mark[2]):
+            fence, held = mark[1], [line]
+        else:
+            out.append(line)
+    return "\n".join(out + held)
 
 
 def _is_trailer_paragraph(paragraph: str) -> bool:

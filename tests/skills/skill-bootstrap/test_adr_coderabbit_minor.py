@@ -11,6 +11,7 @@ from typing import Any
 import adr_commits
 import adr_docs
 import adr_log
+import adr_reason
 import adr_scan
 import adr_shape
 import adr_write
@@ -280,3 +281,38 @@ def test_a_dotted_id_cited_as_a_file_name_is_named() -> None:
     existing = adr_docs.ExistingAdrs([("a.md", "See auth.session.md for the decision.")])
 
     assert existing.names_id("auth.session") and existing.names_id("auth")
+
+
+# Round 10 review findings
+
+FOOTER = "BREAKING CHANGE: the old name is gone."
+
+
+@pytest.mark.parametrize(
+    ("body", "breaking"),
+    [
+        (f"Body.\n\n{FENCE3}old{FENCE3} is renamed to {FENCE3}new{FENCE3}.\n{FOOTER}", True),
+        (f"Body.\n\n{FENCE4}\n{FENCE3}\n{FENCE4}\n\n{FOOTER}", True),
+        (f"Body.\n\n{FENCE3}\nls\n{FENCE3}bash\nmore\n{FENCE3}\n\n{FOOTER}", True),
+        (f"Body.\n\n{FENCE3}\nexample\n{FOOTER}", True),
+        (f"Body.\n\n{FENCE3}\nBREAKING CHANGE: demo only\n{FENCE3}", False),
+    ],
+)
+def test_only_a_closed_fence_hides_a_breaking_footer(body: str, breaking: bool) -> None:
+    assert adr_reason.breaking_change("feat: rename the field", body) is breaking
+
+
+def test_a_bare_promisor_key_marks_a_partial_clone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = new_repo(tmp_path / "r")
+    commit(repo, "Initial work")
+    (repo / ".git" / "config").write_text(
+        (repo / ".git" / "config").read_text(encoding="utf-8")
+        + '[remote "origin"]\n\turl = https://example.invalid/o/r.git\n\tpromisor\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(bootstrap_adr, "_git_version", lambda _root: (2, 45, 0))
+
+    with pytest.raises(adr_scan.ConfigError, match="partial clone"):
+        bootstrap_adr._refuse_lazy_fetch(repo)
