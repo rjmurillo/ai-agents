@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from scripts.validation import citation_tables
 from scripts.validation.citation_tables import table_row
 
 
@@ -34,7 +35,32 @@ def _rows(text: str) -> list[bool]:
         pytest.param("Title | x\n---", [False, False], id="setext"),
         pytest.param("# a | b\n---|---", [False, False], id="heading-header"),
         pytest.param("| a |\r\n|---|\r\n| x |", [True, True, True], id="crlf"),
+        pytest.param("| a |\r\n|---|\r\n---\r\nx", [True, True, False, False], id="crlf-break"),
+        pytest.param("| a |\n|---|\n<div>\nx", [True, True, False, False], id="html-div"),
+        pytest.param("| a |\n|---|\n</details>\nx", [True, True, False, False], id="html-close"),
+        pytest.param("| a |\n|---|\n<!-- c -->\nx", [True, True, False, False], id="html-comment"),
+        pytest.param("| a |\n|---|\n<b>x</b> | y", [True, True, True], id="inline-html-row"),
+        pytest.param("| a |\n|---|\n```x``` | y", [True, True, True], id="backtick-code-row"),
+        pytest.param("| a |\n|---|\n~~~\nx", [True, True, False, False], id="tilde-fence"),
     ],
 )
 def test_table_row_truth_table(text: str, expected: list[bool]) -> None:
     assert _rows(text) == expected
+
+
+def test_one_file_is_classified_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Repeat calls for one file are lookups, so cost stays linear in its length."""
+    calls: list[int] = []
+    real = citation_tables._table_rows
+
+    def counting(lines: list[str]) -> list[bool]:
+        calls.append(len(lines))
+        return real(lines)
+
+    monkeypatch.setattr(citation_tables, "_table_rows", counting)
+    lines = ["| a | b |", "|---|---|", *(f"| row {n} | x |" for n in range(5000))]
+    assert all(table_row(lines, index) for index in range(len(lines)))
+    assert calls == [len(lines)]
+    other = ["prose", "| piped prose"]
+    assert not table_row(other, 1)
+    assert calls == [len(lines), 2]
