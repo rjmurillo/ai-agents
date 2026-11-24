@@ -17,7 +17,8 @@ from scripts.validation import check_citation_freshness as freshness
 from scripts.validation.citation_anchors import _CITATION
 
 RULE_TEMPLATE = (
-    Path(__file__).resolve().parents[2] / "templates" / "rules" / "canonical-source-mirror.md"
+    Path(__file__).resolve().parents[2]
+    / "src/claude/skills/review/references/rule-canonical-source-mirror.md"
 )
 
 

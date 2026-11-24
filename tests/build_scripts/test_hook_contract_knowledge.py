@@ -436,7 +436,15 @@ def test_stop_hook_is_registered_only_as_the_local_reflect_nudge() -> None:
 
 def test_reference_preserves_single_structured_output_boundary() -> None:
     sidecar = _normalized_text(OFFICIAL_SOURCES)
-    rule = (REPO_ROOT / ".claude" / "rules" / "generated-artifacts.md").read_text(encoding="utf-8")
+    rule = (
+        REPO_ROOT
+        / "src"
+        / "claude"
+        / "skills"
+        / "generator-pipeline"
+        / "references"
+        / "rule-generated-artifacts.md"
+    ).read_text(encoding="utf-8")
 
     assert "performs one `JSON.parse`" in sidecar
     assert "Two final JSON objects concatenate into invalid JSON and are ignored." in sidecar
@@ -471,7 +479,15 @@ def test_authoring_surfaces_route_to_settled_contract() -> None:
         assert "agent-harness-reference" in text, path
         assert "ai-agents-portability-campaign" in text, path
 
-    rule = (REPO_ROOT / ".claude" / "rules" / "generated-artifacts.md").read_text(encoding="utf-8")
+    rule = (
+        REPO_ROOT
+        / "src"
+        / "claude"
+        / "skills"
+        / "generator-pipeline"
+        / "references"
+        / "rule-generated-artifacts.md"
+    ).read_text(encoding="utf-8")
     assert "references/official-hook-contracts.md" in rule
     assert "Do not infer one harness from another." in rule
 

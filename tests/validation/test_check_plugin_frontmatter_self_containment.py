@@ -666,11 +666,15 @@ class TestRootAwareness:
     def test_a_cross_root_reference_is_flagged_even_when_the_target_exists(self) -> None:
         """MUST-3. The roots install separately, so neither may reach the other."""
         root = Path(__file__).resolve().parents[2]
-        text = _frontmatter("Mirrors .claude/rules/plugin-self-containment.md.")
-        assert (root / ".claude/rules/plugin-self-containment.md").is_file()
+        text = _frontmatter(
+            "Mirrors .claude/skills/skillforge/references/rule-plugin-self-containment.md."
+        )
+        assert (
+            root / ".claude/skills/skillforge/references/rule-plugin-self-containment.md"
+        ).is_file()
         ships = gate.reference_shipper(root, "src/copilot-cli", root / "src/copilot-cli/skills/x")
         assert [ref for _, _, ref in gate.scan_file(Path("x.md"), text, ships)] == [
-            ".claude/rules/plugin-self-containment.md"
+            ".claude/skills/skillforge/references/rule-plugin-self-containment.md"
         ]
 
 

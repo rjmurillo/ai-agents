@@ -9,7 +9,15 @@ import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-RULE = REPO_ROOT / "templates" / "rules" / "lossless-queue-reads.md"
+RULE = (
+    REPO_ROOT
+    / "src"
+    / "claude"
+    / "skills"
+    / "pr-comment-responder"
+    / "references"
+    / "rule-lossless-queue-reads.md"
+)
 CLUSTER = (
     REPO_ROOT
     / "src"

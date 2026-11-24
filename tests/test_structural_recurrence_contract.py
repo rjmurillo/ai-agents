@@ -41,7 +41,7 @@ from tests.eval._runtime_parity_test_support import runtime_parity
 from tests.structural_recurrence_support import REPO_ROOT, flat, missing
 
 RECURRENCE_SURFACES = (
-    Path("templates/rules/code-quality.md"),
+    Path("src/claude/skills/build/references/rule-code-quality.md"),
     Path(".claude/rules/code-quality.md"),
     Path("src/claude/rules/code-quality.md"),
     Path(".github/instructions/code-quality.instructions.md"),
@@ -50,7 +50,7 @@ RECURRENCE_SURFACES = (
 )
 
 TESTING_SURFACES = (
-    Path("templates/rules/testing.md"),
+    Path("src/claude/skills/test/references/rule-testing.md"),
     Path(".claude/rules/testing.md"),
     Path("src/claude/rules/testing.md"),
     Path("src/cursor/rules/testing.mdc"),
@@ -340,11 +340,15 @@ def test_activation_negative_control_writes_no_test_file(fixture_id: str) -> Non
 
 def test_recurrence_clause_loads_on_source_paths_and_not_only_on_tests() -> None:
     """Review thread PRRT_kwDOQoWRls6tpCo9: the owner rule must match a source-only edit."""
-    head = (REPO_ROOT / "templates/rules/code-quality.md").read_text(encoding="utf-8")
+    head = (REPO_ROOT / "src/claude/skills/build/references/rule-code-quality.md").read_text(
+        encoding="utf-8"
+    )
     head = head.split("---")[1]
     assert '"**/*.py"' in head
     assert not any(glob in head for glob in ('"tests/**"', "Tests.ps1"))
-    assert "defect class that returns" not in flat(Path("templates/rules/testing.md"))
+    assert "defect class that returns" not in flat(
+        Path("src/claude/skills/test/references/rule-testing.md")
+    )
     for fixture_id in ACTIVATION_FIXTURE_IDS:
         assert "dates.py" in _structural()[fixture_id].setup_files
 
