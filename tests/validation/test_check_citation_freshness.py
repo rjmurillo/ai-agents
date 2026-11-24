@@ -38,6 +38,20 @@ def test_generated_project_toolkit_artifacts_are_exempt(path: str) -> None:
 @pytest.mark.parametrize(
     ("path", "exempt"),
     (
+        (".project-toolkit/metrics/sol-loop/20261124T013251Z-branch-r1-ok.json", True),
+        (".project-toolkit/metrics/sol-loop/README.md", False),
+        (".project-toolkit/metrics/sol-loop/nested/run.json", False),
+        (".project-toolkit/metrics/other/run.json", False),
+    ),
+)
+def test_sol_loop_run_logs_are_point_in_time_records(path: str, exempt: bool) -> None:
+    """A sol-loop log pins each finding to the reviewed head, so later fixes move its lines."""
+    assert checker._is_exempt_citing_file(path) is exempt
+
+
+@pytest.mark.parametrize(
+    ("path", "exempt"),
+    (
         ("src/hermes/project-toolkit-delivery/skills/github/fix-ci.md", True),
         ("src/hermes/project-toolkit-delivery/lib/github_core/output.py", True),
         ("src/hermes/README.md", True),
