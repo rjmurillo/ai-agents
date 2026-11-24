@@ -7,7 +7,7 @@
 | ADR | ADR-047-plugin-mode-hook-behavior.md |
 | Date | 2026-11-19 |
 | Prior debate log | [Original debate](ADR-047-debate-log.md) |
-| Round | 1 of 10 |
+| Round | 2 of 10 |
 | Status | Consensus |
 | Outcome | Accept the bounded amendment |
 | Open blockers | P0: 0. P1: 0. |
