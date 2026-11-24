@@ -178,6 +178,7 @@ def test_session_end_names_shadowed_notes(
 ) -> None:
     repo = _both_stores(tmp_path)
     monkeypatch.chdir(repo)
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(repo))
 
     assert shadowed_notes_dir(repo) == (repo / NOTES).resolve()
     assert session_end_main() == 0
