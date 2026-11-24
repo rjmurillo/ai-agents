@@ -155,11 +155,12 @@ def _index_env(repo_root: Path, scratch: Path) -> dict[str, str]:
     so pointing `GIT_WORK_TREE` at an empty directory is enough to ask the
     question the scope means. Two properties follow, and both matter.
 
-    It writes nothing. `.claude/rules/ci-scripts.md` MUST-7 governs a script
-    that resolves a root and then writes to it, and read-only mode runs before
-    any worktree-identity check, so the index scope must not write at all.
-    Measured: the object count under the git directory is unchanged across
-    repeated scans.
+    It writes nothing.
+    `.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`
+    MUST-7 governs a script that resolves a root and then writes to it, and
+    read-only mode runs before any worktree-identity check, so the index scope
+    must not write at all. Measured: the object count under the git directory is
+    unchanged across repeated scans.
 
     It is also stable, which the obvious alternative is not. `git write-tree`
     names the tree the index would commit and looks like the symmetric partner
@@ -344,10 +345,11 @@ def _print_paste_command(
 def refuses_write_from_outside(repo_root: Path) -> bool:
     """True when the process is not standing inside the tree git will write to.
 
-    ``.claude/rules/ci-scripts.md`` MUST-7: a script that resolves the
-    repository root and then writes to it MUST confirm the current directory
-    is inside the resolved root before the first write, and the rule names the
-    comparison verbatim as ``Path.cwd().resolve().is_relative_to(top_level)``.
+    ``.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md``
+    MUST-7: a script that resolves the repository root and then writes to it
+    MUST confirm the current directory is inside the resolved root before the
+    first write, and the rule names the comparison verbatim as
+    ``Path.cwd().resolve().is_relative_to(top_level)``.
     ``--fix`` stages into whatever tree git decides on, so without this a
     mistyped root renormalizes a checkout nobody was looking at and leaves
     staged changes there for someone else to find.

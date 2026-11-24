@@ -255,8 +255,9 @@ The generated instruction trees preserve the difference between always-on and
 path-scoped rules. Use the generated mirrors to answer membership questions.
 Use the source rules to answer content questions.
 
-No book rule loads on every file now. `code-quality.md` loads on code files.
-`unified-software-engineering.md` also loads on source files, trimmed to a
+No book rule loads on every file now. `code-quality.md` was folded into the
+`build` skill (`references/rule-code-quality.md`).
+`unified-software-engineering.md` still loads on source files, trimmed to a
 tiebreaker (issue #5951 moved its forbidden-patterns blocklist and the whole
 of `pragmatic-programmer.md` into the `software-engineering-library` skill as
 on-demand references). Their scenario files do not prove scored results.
