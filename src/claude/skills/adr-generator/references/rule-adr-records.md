@@ -1,4 +1,5 @@
 <!-- Folded from the `adr-records` path rule. Former `paths:` scope: `.project-toolkit/architecture/**`. -->
+<!-- vendor-portability: declared. This folded path rule is maintainer guidance for the ai-agents repository and cites repository paths a consumer install does not have: .project-toolkit/architecture, .project-toolkit/architecture/README.md, build/scripts/generate_adr_index.py. -->
 
 # ADR Record Rules
 

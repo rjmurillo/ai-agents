@@ -130,6 +130,7 @@ extra (`mypy`, `semgrep`, `bandit`, `pip-audit`, `ruff`, `pytest*`, `lefthook`,
    `scripts/validation/validate_seed_parity.py` is deliberately caller-free (its
    docstring reads "This is a FORENSIC TOOL, not a regression gate. Do NOT add
    it to CI") and is excluded from the count.
+<!-- citation-freshness: ignore -- historical citation: the session-logs rule was removed by the 2026-11-23 context diet; the line cites it as it stood then. -->
 5. `.claude/rules/session-logs.md:9`: "Session log creation is discontinued: do
    not create a new `.project-toolkit/sessions/*.json` file." The 1,467 existing logs are
    frozen history. An earlier draft said 1,538, which is every tracked file under

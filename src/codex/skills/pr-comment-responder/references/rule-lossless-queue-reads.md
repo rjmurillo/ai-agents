@@ -1,4 +1,5 @@
 <!-- Folded from the `lossless-queue-reads` path rule. Former `paths:` scope: `**`. -->
+<!-- vendor-portability: declared. This folded path rule is maintainer guidance for the ai-agents repository and cites repository paths a consumer install does not have: src/claude/skills/pr-comment-responder/scripts/cluster_threads.py. -->
 
 # Lossless Work-Queue Reads
 

@@ -1,4 +1,6 @@
 <!-- Folded from the `knowledge-persistence` path rule. Former `paths:` scope: `.claude/rules/**`, `.serena/memories/**`, `.github/instructions/**`, `src/copilot-cli/instructions/**`, `templates/rules/**`. -->
+<!-- vendor-portability-exec: declared. This folded path rule shows commands that run only in an ai-agents repository checkout. -->
+<!-- vendor-portability: declared. This folded path rule is maintainer guidance for the ai-agents repository and cites repository paths a consumer install does not have: scripts/validation/check_memory_placement.py. -->
 
 # Knowledge Persistence Rule
 

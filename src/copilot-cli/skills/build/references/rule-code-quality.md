@@ -184,8 +184,7 @@ Before you mark work complete, walk this list:
 - [ ] Names tell the reader what the code does without comments.
 - [ ] Each function does one thing. Cyclomatic complexity is 10 or lower. Length is 60 lines or fewer.
 - [ ] No commented-out code. No dead branches.
-- [ ] Guard clauses are at the top. The happy path is on the leftmost column.
-- [ ] Inputs are validated at the boundary, not at every layer.
+- [ ] Guard clauses are at the top, the happy path is on the leftmost column, and inputs are validated at the boundary, not at every layer.
 - [ ] Long branching uses tables when shapes match; polymorphism when they do not.
 - [ ] Tests describe behavior, follow Arrange/Act/Assert, and would catch a regression.
 - [ ] Variables live in the narrowest scope that satisfies their use.

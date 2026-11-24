@@ -2,8 +2,7 @@
 
 # Security File Rules
 
-<!-- vendor-portability: upstream scope globs (issue #5298). Paths: .project-toolkit/security,
-     scripts/validation/git_hook_policy.py -->
+<!-- vendor-portability: upstream scope globs (issue #5298). Paths: .project-toolkit/security, .project-toolkit/security/benchmarks. -->
 
 These paths hold threat models, benchmarks, workflows, and hooks that protect the supply chain. Changes need evidence, not opinion.
 

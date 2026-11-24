@@ -1,4 +1,5 @@
 <!-- Folded from the `canonical-source-mirror` path rule. Former `paths:` scope: `.claude/hooks/**`, `.claude/rules/**`, `scripts/validation/**`, `build/scripts/**`, `.claude/skills/**`, `.github/prompts/**`, `.agents/governance/**`, `.project-toolkit/retrospective/**`. -->
+<!-- vendor-portability-exec: declared. This folded path rule shows commands that run only in an ai-agents repository checkout. -->
 
 # Canonical Source Mirror Rule
 
@@ -12,7 +13,7 @@
      .project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md,
      build/scripts, build/scripts/generate_rules.py, scripts/validate_session_json.py,
      scripts/validation, scripts/validation/check_placeholder_identity.py,
-     templates/agents/implementer.shared.md, templates/platforms/copilot-cli.yaml -->
+     templates/agents/implementer.shared.md, templates/platforms/copilot-cli.yaml Folded-rule paths: scripts/validation/check_citation_freshness.py, scripts/validation/check_rule_scope_keys.py, scripts/validation/citation_anchors.py, scripts/validation/citation_reverse_pass.py. -->
 
 When a component's docstring, comment, or README claims to "match", "mirror", "align with", or "extend" an existing source (a regex, a schema, a function signature, a set of exit codes, a JSON contract), the claim is a load-bearing assertion. The reader trusts it. So does the reviewer. So does the next maintainer who replays the contract from your code instead of from the source.
 

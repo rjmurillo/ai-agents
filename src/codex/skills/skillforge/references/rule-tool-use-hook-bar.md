@@ -5,7 +5,7 @@
 <!-- vendor-portability: contributor-facing rule for the rjmurillo/ai-agents repo
      itself; it cites the upstream ADR tree and the dispatcher generator, neither of
      which exists in a consumer install (issue #5778). Paths:
-     .project-toolkit/architecture, build/scripts/generate_dispatcher.py -->
+     .project-toolkit/architecture, build/scripts/generate_dispatcher.py Folded-rule paths: .project-toolkit/architecture/ADR-085-cross-harness-permission-surface-asymmetry.md. -->
 
 Operative rule for ADR-084 rule 6. The ADR carries the decision and its
 evidence; this file is what to do at the authoring seam.

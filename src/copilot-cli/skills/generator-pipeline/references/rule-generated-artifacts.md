@@ -1,9 +1,10 @@
 <!-- Folded from the `generated-artifacts` path rule. Former `paths:` scope: `.claude/agents/**`, `build/scripts/**`, `templates/**`, `src/copilot-cli/**`, `.github/agents/**`, `.github/prompts/**`, `.github/skills/**`, `.github/instructions/**`, `.claude/hooks/**`, `.claude/rules/**`, `.claude/skills/**`, `tests/build_scripts/**`, `tests/e2e/**`, `src/claude/**`. -->
+<!-- vendor-portability-exec: declared. This folded path rule shows commands that run only in an ai-agents repository checkout. -->
 
 # Customer-Facing Generated Artifacts
 
 <!-- vendor-portability: upstream build scope glob and lib trees (issue #5298). Paths:
-     build/scripts, .claude/lib -->
+     build/scripts, .claude/lib Folded-rule paths: build/scripts/build_all.py, build/scripts/lib_mirror.py, build/scripts/plugin_run_launcher.py. -->
 
 This rule exists because of a P0 incident. A generator produced the Copilot CLI
 plugin's `hooks.json` with a bare `./hooks/...` command path and explicit
@@ -48,13 +49,10 @@ as load-bearing as the artifact's bytes.
    contradiction. Do not infer one harness from another. Record a new result
    with its tool version, date, official source, and negative control.
 
-2. **Ship a runtime-contract test.** The artifact MUST have a test that executes
-   it under the verified contract: set the cwd the host sets (for a plugin hook,
-   a directory that is NOT the plugin root), set the env vars the host exports,
-   run the command, and assert the intended effect (the script is found and
-   runs). Include a negative control that proves the test fails when the artifact
-   is wrong (a bare relative path must fail the same harness). See
-   `tests/build_scripts/test_generate_hooks_runtime_contract.py`.
+2. **Ship a runtime-contract test.** The artifact MUST have a test that runs it
+   under the verified host contract, with a negative control. The repo-local
+   `ai-agents-validation-and-qa` skill owns the full requirement (item 2,
+   "Runtime-contract tests for generated artifacts").
 
 3. **Gate the shipped artifact, not only the generator.** A test that exercises
    the generator on a fixture is necessary but not sufficient; a hand-edit or a

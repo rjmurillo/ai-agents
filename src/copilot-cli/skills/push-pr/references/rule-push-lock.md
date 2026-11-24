@@ -1,4 +1,6 @@
 <!-- Folded from the `push-lock` path rule. Former `paths:` scope: `.agents/governance/**`, `.serena/memories/**`, `.claude/**`. -->
+<!-- vendor-portability-exec: declared. This folded path rule shows commands that run only in an ai-agents repository checkout. -->
+<!-- vendor-portability: declared. This folded path rule is maintainer guidance for the ai-agents repository and cites repository paths a consumer install does not have: .agents/governance/GOTCHAS.md, .project-toolkit/retrospective, scripts/validation/check_push_lock_before_commit.py, scripts/validation/check_push_lock_paths.py. -->
 
 # One Push Lock Path
 

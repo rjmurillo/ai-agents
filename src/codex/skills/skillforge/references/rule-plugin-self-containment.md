@@ -1,10 +1,11 @@
 <!-- Folded from the `plugin-self-containment` path rule. Former `paths:` scope: `.claude/**`, `src/claude/**`, `src/copilot-cli/**`, `templates/agents/**`. -->
+<!-- vendor-portability-exec: declared. This folded path rule shows commands that run only in an ai-agents repository checkout. -->
 
 # Plugin Self-Containment
 
 <!-- vendor-portability: contributor-facing rule for the rjmurillo/ai-agents repo itself;
      it must name upstream-only paths because naming them is the subject of the rule
-     (issue #2050) -->
+     (issue #2050) Folded-rule paths: .claude/lib, .project-toolkit/architecture/ADR-045-framework-extraction-via-plugin-marketplace.md, .project-toolkit/architecture/ADR-071-plugin-hook-runtime-contract-verification.md, .project-toolkit/architecture/ADR-083-copilot-dogfood-surface-separation.md, build/scripts/build_all.py, build/scripts/plugin_run_fix.py, build/scripts/plugin_run_launcher.py, scripts/validation, templates/agents, templates/agents/security.shared.md, templates/platforms. -->
 
 ## The boundary
 
@@ -84,7 +85,7 @@ silence a reference you should have fixed.
 
 ## Known coverage gap
 
-`check_skill_md_portability.py` flags `.agents/`, `.claude/lib/`, `.claude/review-axes/`, `build/`, `scripts/`, `templates/agents/`, and `templates/platforms/` in prose. The remaining prose gap is `docs/`, which no pattern matches; see "What is gated, and what is not" below for why that mattered.
+`check_skill_md_portability.py` flags `.agents/`, `.claude/lib/`, the retired review-axes directory under `.claude/`, `build/`, `scripts/`, `templates/agents/`, and `templates/platforms/` in prose. The remaining prose gap is `docs/`, which no pattern matches; see "What is gated, and what is not" below for why that mattered.
 
 The two `templates/` patterns are deliberately narrow. Do not widen them to a bare `templates/`. The directory name is overloaded three ways, and only the first is a defect:
 

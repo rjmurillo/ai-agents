@@ -1,4 +1,5 @@
 <!-- Folded from the `templates` path rule. Former `paths:` scope: `templates/**`. -->
+<!-- vendor-portability-exec: declared. This folded path rule shows commands that run only in an ai-agents repository checkout. -->
 
 # Template File Rules
 
@@ -8,7 +9,7 @@
 commands (`build/generate_agents.py`, `build/scripts/build_all.py`) under the
 upstream-only `build/` tree, absent from every vendored plugin install. A
 consumer never runs either; the mentions are dev workflow, not runtime
-instructions the shipped skill would execute. Issue #2050. -->
+instructions the shipped skill would execute. Issue #2050. Folded-rule paths: build/generate_agents.py, .agents/governance/GENERATOR-FILES.md, .agents/steering/agent-prompts.md, .project-toolkit/architecture/ADR-111-skill-model-pins-project-per-harness.md, build/scripts/agent_templates.py, build/scripts/detect_agent_drift.py. -->
 
 ## MUST
 
