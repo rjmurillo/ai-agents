@@ -82,6 +82,10 @@ class TestDistributionOfText:
     def test_repo_local_value_is_repo_local(self) -> None:
         assert skill_distribution.distribution_of_text(LOCAL.format(name="x"), "x") == "repo-local"
 
+    def test_a_folded_final_value_is_repo_local(self) -> None:
+        text = "---\nname: x\nmetadata:\n  distribution: >\n    repo-local\n---\n# Body\n"
+        assert skill_distribution.distribution_of_text(text, "x") == "repo-local"
+
     def test_absent_field_means_shipped(self) -> None:
         assert skill_distribution.distribution_of_text(SHIPPED.format(name="x"), "x") == "shipped"
 

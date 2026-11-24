@@ -58,7 +58,7 @@ class TestScriptUsesTheCore:
             and node.module == "hook_utilities.frontmatter_block"
             for alias in node.names
         }
-        assert {"parse_frontmatter", "split_frontmatter"} <= imported
+        assert {"decode_frontmatter_yaml", "split_frontmatter"} <= imported
 
     def test_keeps_no_fence_pattern_of_its_own(self) -> None:
         source = _script_source()

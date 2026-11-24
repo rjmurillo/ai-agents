@@ -18,6 +18,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.test_push_pr_interpreter_floor import PYTHON310, requires_python310
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 _PROBES = (
     "from hook_utilities.frontmatter_block import",
@@ -158,3 +160,26 @@ def test_script_outside_its_plugin_falls_back_to_the_plugin_root(
     loaded = Path(with_root.stdout.strip().splitlines()[-1]).resolve()
     expected = plugin_root / "lib" / "hook_utilities" / "frontmatter_block.py"
     assert loaded == expected.resolve(), loaded
+
+
+@requires_python310
+@pytest.mark.parametrize("script", _SCRIPTS)
+def test_script_imports_on_the_python310_floor(script: str) -> None:
+    """Skill scripts run on the host interpreter, which can be 3.10.
+
+    The shared parser's package must not import a 3.11+ name such as
+    ``datetime.UTC`` (PR #7531 review). Executing the module body catches it.
+    """
+    assert PYTHON310 is not None
+    result = subprocess.run(
+        [PYTHON310, "-I", "-c", _LOAD, str(REPO_ROOT / script)],
+        cwd=REPO_ROOT,
+        env=_env(None),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=120,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr

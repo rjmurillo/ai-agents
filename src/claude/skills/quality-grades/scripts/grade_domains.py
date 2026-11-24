@@ -17,7 +17,7 @@ import json
 import os
 import sys
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 # ADR-047 keeps this bootstrap inline because imports need sys.path first.
@@ -450,7 +450,7 @@ def format_markdown(grades: list[DomainGrade], trends: dict[str, str]) -> str:
     lines = [
         "# Quality Grades",
         "",
-        f"Last updated: {datetime.now(UTC).strftime('%Y-%m-%d')}",
+        f"Last updated: {datetime.now(timezone.utc).strftime('%Y-%m-%d')}",
         "Grading agent: quality-auditor",
         "",
     ]
@@ -491,7 +491,7 @@ def format_markdown(grades: list[DomainGrade], trends: dict[str, str]) -> str:
 def format_json(grades: list[DomainGrade], trends: dict[str, str]) -> str:
     """Format grades as JSON report."""
     data = {
-        "generated_at": datetime.now(UTC).isoformat(),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
         "grading_agent": "quality-auditor",
         "domains": [
             {

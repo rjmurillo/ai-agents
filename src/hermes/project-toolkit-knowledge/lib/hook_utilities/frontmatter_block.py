@@ -34,8 +34,8 @@ Entry points, one fence rule:
 ``parse_frontmatter`` and ``decode_frontmatter_yaml`` reject duplicate keys
 by default. ``load_frontmatter`` allows them by default, because its callers
 were last-one-wins. A caller whose contract is last-one-wins passes
-``allow_duplicate_keys=True``. The duplicate-key loader also rejects YAML
-merge keys (``<<: *anchor``); a caller that needs merges allows duplicates.
+``allow_duplicate_keys=True``. YAML merge keys (``<<: *anchor``) load under
+both policies; only explicitly repeated keys count as duplicates.
 
 EXIT CODES: none. This module raises or returns; callers own their exit codes
 per ADR-035.
@@ -196,6 +196,8 @@ def _strict_loader(yaml: ModuleType) -> type:
     def no_duplicate_keys(loader: Any, node: Any) -> dict[Any, Any]:  # noqa: ANN401 - yaml is untyped here
         seen: list[Any] = []
         for key_node, _value_node in node.value:
+            if key_node.tag == "tag:yaml.org,2002:merge":
+                continue  # `<<` merges are flattened by construct_mapping below
             key = loader.construct_object(key_node, deep=True)
             if any(key == earlier for earlier in seen):
                 raise yaml.constructor.ConstructorError(

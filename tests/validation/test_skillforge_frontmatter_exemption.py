@@ -272,6 +272,17 @@ def test_a_blank_line_added_after_the_fence_is_a_body_change(monkeypatch, tmp_pa
     assert ghp._is_skill_frontmatter_only_change(_SKILL, tmp_path) is False
 
 
+def test_a_tab_only_first_frontmatter_line_refuses_the_exemption(monkeypatch, tmp_path):
+    """The fence match absorbs whitespace-only lines; the payload must not."""
+    old = _doc("\t\nname: example\nmodel: sonnet\ndescription: x\n", _BODY)
+    new = _doc("\t\nname: example\nmodel: haiku\ndescription: x\n", _BODY)
+    _patch_blobs(monkeypatch, old, new)
+    assert ghp._is_skill_frontmatter_only_change(_SKILL, tmp_path) is False
+    clean = _doc("name: example\nmodel: sonnet\ndescription: x\n", _BODY)
+    _patch_blobs(monkeypatch, clean, clean.replace(b"sonnet", b"haiku"))
+    assert ghp._is_skill_frontmatter_only_change(_SKILL, tmp_path) is True
+
+
 def test_an_unchanged_nested_repeat_or_merge_keeps_the_pin_exemption():
     """Only a repeated top-level key is refused; nested YAML loads last-one-wins."""
     nested = "name: example\nmodel: sonnet\nmetadata: {label: a, label: b}\n"

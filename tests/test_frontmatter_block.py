@@ -152,16 +152,16 @@ class TestDuplicateKeys:
         assert result.status is FrontmatterStatus.VALID
         assert result.metadata == {"id": "B"}
 
-    def test_merge_key_needs_duplicates_allowed(self) -> None:
-        """The strict loader has no merge constructor; the docstring states this limit."""
-        text = "---\nbase: &b {x: 1}\nchild:\n  <<: *b\n---\nBody.\n"
+    def test_merge_key_loads_strict_but_a_repeated_explicit_key_does_not(self) -> None:
+        """`<<` is a merge, not a repeated key; an explicit override of a merged key is fine."""
+        text = "---\nbase: &b {x: 1}\nchild:\n  <<: *b\n  x: 2\n---\nBody.\n"
 
-        strict = parse(text)
-        lenient = parse(text, allow_duplicate_keys=True)
+        merged = parse(text)
+        repeated = parse(text.replace("  x: 2\n", "  x: 2\n  x: 3\n"))
 
-        assert strict.status is FrontmatterStatus.MALFORMED
-        assert lenient.status is FrontmatterStatus.VALID
-        assert lenient.metadata == {"base": {"x": 1}, "child": {"x": 1}}
+        assert merged.status is FrontmatterStatus.VALID
+        assert merged.metadata == {"base": {"x": 1}, "child": {"x": 2}}
+        assert repeated.status is FrontmatterStatus.MALFORMED
 
     def test_unhashable_key_does_not_raise_typeerror(self) -> None:
         """`? [a, b]` builds a list key. A set-based duplicate check raises

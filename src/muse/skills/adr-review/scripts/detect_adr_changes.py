@@ -27,7 +27,7 @@ import os
 import re
 import subprocess
 import sys
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 # ADR-047 keeps this bootstrap inline because imports need sys.path first.
@@ -50,7 +50,7 @@ if str(_LIB_DIR) not in sys.path:
 
 from hook_utilities.frontmatter_block import (  # noqa: E402
     FrontmatterStatus,
-    parse_frontmatter,
+    decode_frontmatter_yaml,
     split_frontmatter,
 )
 
@@ -130,8 +130,8 @@ _NON_DECISION_FRONTMATTER_KEYS = frozenset({"implemented"})
 def _parse_frontmatter(content: str) -> dict[str, object] | None:
     """Parse the leading frontmatter block of ``content`` into a mapping.
 
-    Uses ``hook_utilities.frontmatter_block.parse_frontmatter``, the one
-    repository frontmatter parser, so the fence rule and the YAML load are the
+    Uses ``split_frontmatter`` and ``decode_frontmatter_yaml`` from
+    ``hook_utilities.frontmatter_block``, so the fence rule and the YAML load are the
     ones every other gate uses. Returns ``None`` when the block is absent,
     unterminated, malformed, not a mapping, or repeats a key at any mapping
     depth, so callers fail closed (the gate still fires). An empty block is
@@ -146,8 +146,17 @@ def _parse_frontmatter(content: str) -> dict[str, object] | None:
     """
     if not _HAVE_YAML:
         return None
-    result = parse_frontmatter(content, yaml)
-    return result.metadata if result.ok else None
+    split = split_frontmatter(content)
+    if not split.found:
+        return None
+    # From the physical opening line: the fence match absorbs whitespace-only lines.
+    try:
+        loaded = decode_frontmatter_yaml(content[content.index("\n") + 1 : split.raw_end], yaml)
+    except yaml.YAMLError:
+        return None
+    if loaded is None:
+        return {}
+    return loaded if isinstance(loaded, dict) else None
 
 
 def _only_non_decision_fields_changed(old_content: str, new_content: str) -> bool:
@@ -433,7 +442,7 @@ def main(argv: list[str] | None = None) -> int:
             # count as actionable ADR changes for adr-review triggering.
             "HasChanges": len(created) + len(substantive_modified) + len(deleted) > 0,
             "RecommendedAction": recommended_action,
-            "Timestamp": datetime.now(UTC).isoformat(),
+            "Timestamp": datetime.now(timezone.utc).isoformat(),
             "SinceCommit": args.since_commit,
         }
 

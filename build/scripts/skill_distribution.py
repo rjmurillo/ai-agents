@@ -91,7 +91,7 @@ def distribution_of_text(text: str, source: str) -> str:
     if not split.found:
         return SHIPPED
     try:
-        frontmatter = load_yaml_text(split.raw.removeprefix("\n"))
+        frontmatter = load_yaml_text(split.raw.removeprefix("\n").removesuffix("\n"))
     except yaml.YAMLError as exc:
         raise SkillDistributionError(
             f"{source}: unparseable frontmatter{_yaml_where(exc)}"
