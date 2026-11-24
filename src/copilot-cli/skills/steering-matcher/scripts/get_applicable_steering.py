@@ -17,14 +17,12 @@ import sys
 from pathlib import Path
 
 # ADR-047 keeps this bootstrap inline because imports need sys.path first.
-# A plugin root from the environment wins only when its lib holds the shared
-# frontmatter parser, so a root naming a different plugin falls back to this
-# file's own plugin lib instead of failing the import.
+# This file's own plugin lib wins when it holds the shared frontmatter parser,
+# so a foreign or older plugin root in the environment cannot shadow it. The
+# environment root is the fallback for a script copied outside its plugin.
 _PLUGIN_ROOT = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
-if _PLUGIN_ROOT and os.path.isfile(
-    Path(_PLUGIN_ROOT) / "lib" / "hook_utilities" / "frontmatter_block.py"
-):
+if _PLUGIN_ROOT and not os.path.isfile(_LIB_DIR / "hook_utilities" / "frontmatter_block.py"):
     _LIB_DIR = Path(_PLUGIN_ROOT) / "lib"
 
 if not os.path.isdir(_LIB_DIR):
