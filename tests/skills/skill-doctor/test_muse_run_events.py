@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from collect_sessions import parse_muse_session
+from session_common import collect_diagnostics, collection_issue_counts
 from session_test_helpers import write_jsonl
 
 EPOCH_MICROS = 1795376976000000  # 2026-11-22T19:49:36Z
@@ -321,6 +322,143 @@ class MuseRunEventTests(unittest.TestCase):
 
             self.assertEqual(stats["tool_calls"], 2)
             self.assertEqual(stats["assistant_turns"], 0)
+
+    def test_non_list_containers_do_not_abort_session(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            session_dir = Path(tmp) / "sessions" / "2026" / "11" / "23" / "session-bad-lists"
+            path = session_dir / "session.jsonl"
+            write_jsonl(
+                path,
+                [
+                    muse_record(
+                        "runtime.session.metadata",
+                        {"kind": "metadata", "record": {"workspace_root": "/tmp/repo"}},
+                    ),
+                    muse_record(
+                        "runtime.user_intent.accepted",
+                        {"model_messages": [{"content": [{"kind": "text", "text": "Go"}]}]},
+                        1000000,
+                    ),
+                    muse_record(
+                        "runtime.session",
+                        {
+                            "kind": "run",
+                            "run_id": "run-1",
+                            "event": {"kind": "assistant_tool_calls_committed", "tool_calls": 5},
+                        },
+                        2000000,
+                    ),
+                    muse_record(
+                        "runtime.session",
+                        {
+                            "kind": "run",
+                            "run_id": "run-1",
+                            "event": {"kind": "tool_result_batch_committed", "results": "oops"},
+                        },
+                        3000000,
+                    ),
+                    muse_record(
+                        "runtime.session",
+                        {
+                            "kind": "run",
+                            "run_id": "run-2",
+                            "event": {
+                                "kind": "assistant_tool_calls_committed",
+                                "tool_calls": [
+                                    {"name": "bash", "args": '{"x": 1}', "call_id": "c-1"}
+                                ],
+                            },
+                        },
+                        4000000,
+                    ),
+                    muse_record(
+                        "tool_batch.effect.started",
+                        {"run_id": "run-2", "record": {"tool_name": "bash", "call_id": "c-1"}},
+                        5000000,
+                    ),
+                ],
+            )
+
+            with collect_diagnostics():
+                result = parse_muse_session(path, set(), False)
+                issues = collection_issue_counts()
+
+            self.assertIsNotNone(result)
+            _meta, stats, entries, _skills = result
+            self.assertEqual(issues, {"malformed_records": 2})
+            self.assertEqual(stats["assistant_turns"], 1)
+            self.assertEqual(stats["tool_calls"], 1)
+            self.assertTrue(
+                any(role == "tool:bash" and '{"x": 1}' in text for role, text in entries)
+            )
+
+    def test_commit_run_id_survives_started_dedupe(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            session_dir = Path(tmp) / "sessions" / "2026" / "11" / "23" / "session-run-kept"
+            path = session_dir / "session.jsonl"
+            write_jsonl(
+                path,
+                [
+                    muse_record(
+                        "runtime.session.metadata",
+                        {"kind": "metadata", "record": {"workspace_root": "/tmp/repo"}},
+                    ),
+                    muse_record(
+                        "tool_batch.effect.started",
+                        {"record": {"tool_name": "bash", "call_id": "c-1"}},
+                        1000000,
+                    ),
+                    muse_record(
+                        "runtime.session",
+                        {
+                            "kind": "run",
+                            "run_id": "run-1",
+                            "event": {
+                                "kind": "assistant_tool_calls_committed",
+                                "tool_calls": [
+                                    {"name": "bash", "args": '{"x": 1}', "call_id": "c-1"}
+                                ],
+                            },
+                        },
+                        2000000,
+                    ),
+                ],
+            )
+
+            result = parse_muse_session(path, set(), False)
+
+            self.assertIsNotNone(result)
+            _meta, stats, entries, _skills = result
+            self.assertEqual(stats["assistant_turns"], 1)
+            self.assertEqual(stats["tool_calls"], 1)
+            self.assertEqual(sum(1 for role, _ in entries if role == "tool:bash"), 1)
+
+    def test_repeated_started_id_emits_once(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            session_dir = Path(tmp) / "sessions" / "2026" / "11" / "23" / "session-dup-start"
+            path = session_dir / "session.jsonl"
+            started = muse_record(
+                "tool_batch.effect.started",
+                {"run_id": "run-1", "record": {"tool_name": "bash", "call_id": "s-1"}},
+                1000000,
+            )
+            write_jsonl(
+                path,
+                [
+                    muse_record(
+                        "runtime.session.metadata",
+                        {"kind": "metadata", "record": {"workspace_root": "/tmp/repo"}},
+                    ),
+                    started,
+                    started,
+                ],
+            )
+
+            _meta, stats, entries, _skills = parse_muse_session(path, set(), False)
+
+            self.assertEqual(stats["assistant_turns"], 1)
+            self.assertEqual(stats["tool_calls"], 1)
+            self.assertEqual(sum(1 for role, _ in entries if role == "tool:bash"), 1)
 
 
 if __name__ == "__main__":

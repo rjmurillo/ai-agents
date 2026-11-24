@@ -15,8 +15,11 @@ names and outcomes; the parser emits each call once, enriched with arguments
 when a run record names the same ``call_id``, so journals without run records
 still yield tool names. ``assistant_turns`` counts distinct run ids. A session
 is scoreable only when it has at least one assistant turn and at least one
-tool call. ``call_id`` values that are not strings or integers are malformed
-and counted as such; their records never abort parsing of the session.
+tool call. ``call_id`` values that are not strings or integers, and list
+fields (``children``, ``model_messages``, ``tool_calls``, ``results``) that
+hold any other type, are malformed and counted as such; their records never
+abort parsing of the session. A call id repeated across started records
+emits once.
 
 Copyright (c) 2026 Denver Technologies, Inc. MIT license, see ../LICENSE.
 """
@@ -56,7 +59,7 @@ def _muse_records(path: Path) -> Any:
     for obj in iter_jsonl_records(path):
         if obj.get("payload_type"):
             yield obj
-        for child in obj.get("children") or []:
+        for child in _list_field(obj, "children"):
             if not isinstance(child, dict):
                 continue
             raw = child.get("record_json")
@@ -75,7 +78,7 @@ def _muse_records(path: Path) -> Any:
 
 def _intent_text(payload: Any) -> str:
     parts = []
-    for message in payload.get("model_messages") or []:
+    for message in _list_field(payload, "model_messages"):
         if not isinstance(message, dict):
             continue
         content = message.get("content")
@@ -102,6 +105,16 @@ def _record_cwd(payload: Any) -> Any:
     return record.get("workspace_root") or record.get("cwd")
 
 
+def _list_field(container: dict[str, Any], key: str, report: bool = True) -> list[Any]:
+    """Return a list field, treating any other present value as malformed."""
+    value = container.get(key)
+    if isinstance(value, list):
+        return value
+    if value is not None and report:
+        record_collection_issue("malformed_records")
+    return []
+
+
 def _valid_record_id(value: Any) -> bool:
     """Call and run ids are strings; tolerate integers as hashable identifiers."""
     return isinstance(value, str) or (isinstance(value, int) and not isinstance(value, bool))
@@ -124,7 +137,8 @@ def _add_run(runs: set[Any], run_id: Any) -> None:
 def _run_calls(records: list[dict[str, Any]]) -> dict[Any, str]:
     """Map tool ``call_id`` to ``name args`` text from run commit records.
 
-    Invalid ids are skipped here; the emission site counts the record once.
+    Invalid ids and containers are skipped here; the emission site counts
+    each malformed record once.
     """
     calls: dict[Any, str] = {}
     for obj in records:
@@ -136,7 +150,7 @@ def _run_calls(records: list[dict[str, Any]]) -> dict[Any, str]:
         event = payload.get("event")
         if not isinstance(event, dict) or event.get("kind") != "assistant_tool_calls_committed":
             continue
-        for call in event.get("tool_calls") or []:
+        for call in _list_field(event, "tool_calls", report=False):
             if not isinstance(call, dict) or not _valid_call_id(call.get("call_id")):
                 continue
             name = str(call.get("name") or "unknown")
@@ -178,7 +192,7 @@ def _muse_run_event(state: SessionState, payload: dict[str, Any], runs: set[Any]
     elif kind == "assistant_message_committed":
         state.text("assistant", event.get("text") or "")
     elif kind == "tool_result_batch_committed":
-        for result in event.get("results") or []:
+        for result in _list_field(event, "results"):
             if isinstance(result, dict) and result.get("text"):
                 state.output(str(result["text"]))
 
@@ -193,22 +207,27 @@ def _emit_commit_only_call(
 ) -> None:
     """Emit run-commit calls that no batch started record names, counting the turn.
 
-    Each call id emits once no matter how often commits repeat it.
+    Each call id emits once no matter how often commits repeat it. A commit
+    with a valid call registers its run even when a started record already
+    emitted the call, so deduplication never drops the turn.
     """
     event = payload.get("event")
     if not isinstance(event, dict) or event.get("kind") != "assistant_tool_calls_committed":
         return
-    for call in event.get("tool_calls") or []:
+    has_valid_call = False
+    for call in _list_field(event, "tool_calls"):
         if not isinstance(call, dict):
             continue
         call_id = call.get("call_id")
         if not _valid_call_id(call_id):
             record_collection_issue("malformed_records")
             continue
+        has_valid_call = True
         if call_id in started_ids or call_id not in calls or call_id in emitted:
             continue
         state.tool(str(call.get("name") or "unknown"), calls[call_id])
         emitted.add(call_id)
+    if has_valid_call:
         _add_run(runs, payload.get("run_id"))
 
 
@@ -246,8 +265,9 @@ def _muse_event(
         if not _valid_call_id(call_id):
             record_collection_issue("malformed_records")
             state.tool(name, "call_id invalid")
-        else:
+        elif call_id not in emitted:
             state.tool(name, calls.get(call_id, f"call_id {call_id}".strip()))
+            emitted.add(call_id)
     elif kind == "tool_batch.effect.terminal":
         record = _record(payload)
         outcome = record.get("outcome") or {}
