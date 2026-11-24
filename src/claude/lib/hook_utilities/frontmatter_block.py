@@ -98,6 +98,9 @@ class FrontmatterSplit:
     The offsets index the source text, so a caller that needs original bytes or
     a line number slices the source instead of re-finding a fence:
 
+    - ``open_end``: just past the opening fence line. The fence match can run on
+      over whitespace-only lines, so ``text[open_end:raw_end]`` is the full
+      payload, tab-only lines included, for a caller that must see them.
     - ``raw_start``: where ``raw`` begins (the end of the opening fence match).
     - ``raw_end``: where ``raw`` ends, which is the start of the closing fence.
     - ``fence_end``: just past the closing fence line and its newline, before
@@ -115,6 +118,7 @@ class FrontmatterSplit:
     raw_start: int = 0
     raw_end: int = 0
     fence_end: int = 0
+    open_end: int = 0
 
     @property
     def found(self) -> bool:
@@ -175,21 +179,26 @@ def split_frontmatter(text: str) -> FrontmatterSplit:
         raw_start=opening.end(),
         raw_end=closing.start(),
         fence_end=fence_end,
+        open_end=text.index("\n") + 1,
     )
 
 
-_STRICT_LOADERS: dict[int, type] = {}
+_STRICT_LOADERS: dict[ModuleType, type] = {}
+
+# Marks a `<<` merge key, so a quoted "<<" string key never matches it.
+_MERGE_KEY = object()
 
 
 def _strict_loader(yaml: ModuleType) -> type:
     """Return a ``SafeLoader`` subclass that rejects a repeated mapping key.
 
-    Built from the caller's ``yaml`` module so this file never imports it.
-    Keys are compared with ``==`` in a list, not a set, because a YAML key need
-    not be hashable (``? [a, b]`` builds a list key). A ``TypeError`` there
-    would escape the caller's ``yaml.YAMLError`` handling.
+    Built from the caller's ``yaml`` module so this file never imports it, and
+    cached per module object. Hashable keys go in a set. A YAML key need not be
+    hashable (``? [a, b]`` builds a list key), so those are compared with ``==``
+    in a list instead: a ``TypeError`` would escape the caller's
+    ``yaml.YAMLError`` handling.
     """
-    cached = _STRICT_LOADERS.get(id(yaml))
+    cached = _STRICT_LOADERS.get(yaml)
     if cached is not None:
         return cached
 
@@ -200,13 +209,14 @@ def _strict_loader(yaml: ModuleType) -> type:
         if id(node) in checked:
             return
         checked.add(id(node))
-        seen: list[Any] = []
+        seen: set[Any] = set()
+        unhashable: list[Any] = []
         for key_node, value_node in node.value:
             if key_node.tag == "tag:yaml.org,2002:merge":
                 # construct_mapping flattens `<<` without this constructor, so an
                 # inline merged mapping is checked here or not at all. A second
                 # `<<` at one level is a repeated key like any other.
-                key: Any = "<<"
+                key: Any = _MERGE_KEY
                 merged = (
                     value_node.value if isinstance(value_node, yaml.SequenceNode) else [value_node]
                 )
@@ -215,11 +225,17 @@ def _strict_loader(yaml: ModuleType) -> type:
                         reject_repeats(loader, source)
             else:
                 key = loader.construct_object(key_node, deep=True)
-            if any(key == earlier for earlier in seen):
+            try:
+                repeated = key in seen
+                seen.add(key)
+            except TypeError:
+                repeated = any(key == earlier for earlier in unhashable)
+                unhashable.append(key)
+            if repeated:
+                shown = "<<" if key is _MERGE_KEY else repr(key)
                 raise yaml.constructor.ConstructorError(
-                    None, None, f"duplicate key {key!r} in frontmatter mapping", key_node.start_mark
+                    None, None, f"duplicate key {shown} in frontmatter mapping", key_node.start_mark
                 )
-            seen.append(key)
 
     def no_duplicate_keys(loader: Any, node: Any) -> dict[Any, Any]:  # noqa: ANN401 - yaml is untyped here
         reject_repeats(loader, node)
@@ -231,7 +247,7 @@ def _strict_loader(yaml: ModuleType) -> type:
     built: Any = type("StrictFrontmatterLoader", (yaml.SafeLoader,), {})
     built.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, no_duplicate_keys)
     strict: type = built
-    _STRICT_LOADERS[id(yaml)] = strict
+    _STRICT_LOADERS[yaml] = strict
     return strict
 
 

@@ -256,7 +256,7 @@ def parse_frontmatter(content: str) -> FrontmatterResult:
     # fence. The fence rule lets the opening fence absorb whitespace-only lines,
     # so slice from the first newline instead of using ``split.raw``: a
     # tab-only line there must still reach the tab check and the YAML load.
-    frontmatter_content = content[content.find("\n") + 1 : split.raw_end].removesuffix("\n")
+    frontmatter_content = content[split.open_end : split.raw_end].removesuffix("\n")
 
     # Check for tab characters
     if "\t" in frontmatter_content:

@@ -1583,7 +1583,7 @@ def _split_frontmatter(content: bytes) -> tuple[bytes, bytes]:
     split = split_frontmatter(text)
     if not split.found:
         return b"", content
-    frontmatter = text[text.index("\n") + 1 : split.raw_end]  # keep tab-only lines
+    frontmatter = text[split.open_end : split.raw_end]  # keep tab-only lines
     body = text[split.fence_end :]
     return frontmatter.encode("utf-8", "surrogateescape"), body.encode("utf-8", "surrogateescape")
 
