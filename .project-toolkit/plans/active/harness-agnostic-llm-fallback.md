@@ -150,7 +150,7 @@ Under option B: drop M2-T1, T2, T4, T5; add one task to wire the `sys.path` impo
 | M3-T9 | Replace the SDK call in `classifier.py` | No `anthropic` import; calls `Transport`; test conformance of real clients | M | M3-T4, M2-T9 (A) or M2 option tasks (B, C) |
 | M3-T10 | Update old-contract tests | `tests/llm_classification/` asserts the new contract | M | M3-T9 |
 | M3-T11 | Wire the fallback into scoring | Runs only when a transport resolves; three call sites in `update_reviewer_signal_stats.py` | L | M3-T6, M3-T8, M3-T9 |
-| M3-T12 | Exit 3 on a configured, unreachable transport | Stats and summary written first; test reads the exit code | M | M3-T11 |
+| M3-T12 | Implement the secret-presence truth table | All nine spec cases: status, exit 0, 2, 3, or 4, annotation level; stats written first in every case; empty env value treated as absent; empty `OPENAI_BASE_URL` never selects an endpoint; one `main(argv)` test per case with inherited model keys stripped; a planted key value never appears in output | L | M3-T11 |
 | M3-T13 | Print counters in the step summary | Counters and the unconfigured line present; test | S | M3-T11, M3-T1 |
 | M3-T14 | Prove default off leaves stats unchanged | Unconfigured stats table byte-equal to baseline | S | M3-T11 |
 | M3-T15 | Add the AC 2 literal scan and AC 7 CLI tests | Scan fails on a `claude-`, `gpt-`, `gemini-` default; CLI cells checked for tools-off argv and stripped env | S | M3-T9 |
@@ -162,7 +162,7 @@ M3-T1 to T8 build against the fake transport, so they run alongside M2.
 
 | ID | Task | Done when | Size | Deps |
 |---|---|---|---|---|
-| M4-T1 | Add the secret and env lines | Step at `update-reviewer-stats.yml:77` | S | G0 accepted, M3-T16 |
+| M4-T1 | Map the existing `agent-claude` key into the stats step | `ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}` added to the step env at `update-reviewer-stats.yml:77`; no `LLM_FALLBACK_PROVIDER` set, so a fork lands in case 2, not case 4; a parsed-YAML test pins both | S | G0 accepted, M3-T16 |
 | M4-T2 | Add the cross-run cache step | Per-run key, prefix restore, SHA-pinned | S | M4-T1 |
 | M4-T3 | Run pre-PR validation | `pre_pr.py` passes | S | M4-T2 |
 | M4-T4 | Add the `/review` marker commit | Marker on the tip before push | S | M4-T3 |
@@ -222,6 +222,7 @@ Parallel tracks after M1-T5: labeling (T6 to T12) and runner (T13 to T15).
 | 2026-11-23 | G0 (CI secret) moved before G1 | Kill criterion 4 needs the answer; asking after M3 risks wasted build work | Ask at M4 |
 | 2026-11-24 | G0 answered: a CI secret is acceptable if the eval passes | Owner decision; kill criterion 4 cleared conditionally | No secret (fires criterion 4) |
 | 2026-11-24 | Labels will not be hand-made; owner suggests an LLM council; method decided later | Owner decision | Owner labels 200 by hand |
+| 2026-11-24 | Secrets are optional; absence is never an error and never silent; a present key that fails is always an error | Owner asked for no false positives and no false negatives. The job already runs under `agent-claude`, which holds `ANTHROPIC_API_KEY` (names listed 2026-11-24) | Fail when the key is absent (false alarms on forks); stay silent (today's false negative) |
 | 2026-11-24 | Build only M1-T2 to M1-T5 now | Owner decision; band share alone could kill the effort | Stop at plan; build all of M1 |
 
 ## Progress Log

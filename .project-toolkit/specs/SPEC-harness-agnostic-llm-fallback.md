@@ -25,6 +25,10 @@ That workflow passes no `ANTHROPIC_API_KEY` (lines 77 to 79, read 2026-11-23).
 No commit ever added it there (`git log -S ANTHROPIC_API_KEY` on that file, empty on 2026-11-23).
 `LLMFallbackConfig.from_env()` then sets `enabled=False` (`config.py:53-61`).
 So the fallback does not run in that workflow, and its history shows it never did.
+
+The job already runs under `environment: agent-claude` (`update-reviewer-stats.yml:57`, since `d73c0cf0fe`, 2026-11-05).
+That environment holds `ANTHROPIC_API_KEY` and `CLAUDE_CODE_OAUTH_TOKEN` (secret names listed by `gh api`, 2026-11-24).
+The secrets are optional: a fork, a `gh act` run, or another repository has none. The step just never maps them in.
 The heuristic alone decides every comment.
 
 ### Q3 Desperate Specificity
@@ -62,7 +66,7 @@ The design must cache across runs and cap calls and wall time per run.
 
 - ADR-111 ("Skill Model Pins Project Per Harness", accepted): default to the harness-inherited model; no versioned id in skills. Relevance: the fallback must not hard-code a model id. Decision: honor.
 - ADR-006 ("Thin workflows, testable modules"): logic lives in Python, not YAML. Relevance: transport choice and cache keys live in the module. Decision: honor.
-- ADR-035 ("Exit code standardization"): 0 ok, 1 logic, 2 config, 3 external, 4 auth (lines 54 to 58). Relevance: an unreachable configured transport is exit 3. Decision: honor.
+- ADR-035 ("Exit code standardization"): 0 ok, 1 logic, 2 config, 3 external, 4 auth (lines 54 to 58). Relevance: the Secret presence truth table maps its cases to 2, 3, and 4. Decision: honor.
 - ADR-021 ("AI Review Model Routing Strategy", accepted 2025-12-23): names `claude-haiku-4.5` as a JSON-extraction fallback for CI review. Relevance: covers CI review routing, not this utility, and predates ADR-111. Decision: not binding here.
 - `.claude/rules/plugin-self-containment.md` MUST 4: a shipped plugin script stays stdlib-only at import time. Relevance: applies if this module ever ships in a plugin. Decision: honor by design.
 - `pyproject.toml` import-linter contract `shipped-lib-no-runtime-dependencies`: forbids `anthropic` in `scripts.hook_utilities`, `scripts.github_core`, `scripts.ai_review_common`, `scripts.failure_classifier`. Relevance: it does not cover `scripts.llm_classification` today. The "no vendor SDK" rule here comes from the owner ruling, not this contract. Decision: adapt (a new test enforces it, AC 1).
@@ -192,9 +196,9 @@ Rank depends on the runtime. The only consumer today runs in CI, which has no ho
 
 | Rank | Transport | Failure mode |
 |---|---|---|
-| 1 | Operator-configured OpenAI-compatible HTTP endpoint (`OPENAI_BASE_URL` plus a key from a CI secret). Covers CLIProxyAPI, Azure OpenAI, and any gateway. | Secret missing: `unconfigured`. Endpoint down or 5xx: `unavailable`. 401 or 403: `auth`. |
-| 2 | Anthropic Messages API through the stdlib path in `scripts/eval/_anthropic_api.py` | Same, with `ANTHROPIC_API_KEY`. |
-| Ruled out | A vendor CLI on the runner | CI has no subscription login. |
+| 1 | Anthropic Messages API through the stdlib path in `scripts/eval/_anthropic_api.py`, keyed by the `agent-claude` environment's `ANTHROPIC_API_KEY` | No new secret needed. Secret empty: `unconfigured`. Endpoint down or 5xx: `unavailable`. 401 or 403: `auth`. |
+| 2 | Operator-configured OpenAI-compatible HTTP endpoint (non-empty `OPENAI_BASE_URL` plus `OPENAI_API_KEY`). Covers CLIProxyAPI, Azure OpenAI, and any gateway. | Same states. Needs a new secret. |
+| Deferred | `claude-cli` cell with the environment's `CLAUDE_CODE_OAUTH_TOKEN` | The token exists, but the runner would need the `claude` binary and the nested-session question (Open question 4) answered. |
 
 The existing OpenAI-compatible cell imports the `openai` SDK (`_http_providers.py:318`).
 Rank 1 needs a stdlib `urllib` client to meet the no-vendor-SDK rule. See Open question 1.
@@ -218,23 +222,46 @@ Whether it re-fires the parent's hooks is untested (Open question 4).
 `LLM_FALLBACK_PROVIDER` names a cell: `openai`, `anthropic`, `claude-cli`, `codex-cli`, `copilot-cli`, or `none`.
 With no value, auto-detect HTTP only, in this order:
 
-1. `OPENAI_BASE_URL` and `OPENAI_API_KEY` both set: `openai`.
-2. `ANTHROPIC_API_KEY` set: `anthropic`.
+1. `ANTHROPIC_API_KEY` set: `anthropic`.
+2. `OPENAI_BASE_URL` and `OPENAI_API_KEY` both set: `openai`.
 3. Otherwise `none`.
+
+"Set" means non-empty after stripping whitespace. An unmapped GitHub secret renders as an empty string, so an empty value is the same as absent.
+This matters for `OPENAI_BASE_URL`: the eval cell treats set-but-empty as "use the default OpenAI endpoint" (`scripts/eval/_providers.py:150-158`). The fallback must not inherit that, or an empty variable silently routes comments to a third-party endpoint.
 
 Auto-detect never picks a CLI cell. Harness detection is Open question 3.
 
-### When no model is reachable
+### Secret presence: no false positives, no false negatives
 
-Keep today's outcome: the heuristic result stands. Change how it is reported.
+The CI secrets are optional. Two errors to rule out:
 
-- Each run counts `fallback_used`, `fallback_cached`, `fallback_unavailable`, `fallback_capped`, and `band_total`.
-- The counts go to the step summary that `_write_step_summary` already writes (`update_reviewer_signal_stats.py:575`).
-- If `LLM_FALLBACK_PROVIDER` is set and its transport is unreachable, the script writes the stats and the summary first, then exits 3 (ADR-035). An operator who asked for a model and got none sees red, and loses no data.
-- If nothing is configured, exit 0 and print `fallback: unconfigured, N comments in band`.
+- **False negative (silent pass):** the fallback was meant to run, did not, and the run looks the same as a run where it worked. This is today's state: the key is never mapped, `enabled` goes `False`, and nothing says so.
+- **False positive (false alarm):** the run goes red, or warns, when nothing is wrong. A fork, a `gh act` run, or another repository has no secret by design. Failing them is noise that trains people to ignore the signal.
 
-Why keep the heuristic as the floor: the stats job is a report, not a gate.
-Writing the report before the non-zero exit keeps the data and still shows the fault.
+The rule: absence of a key is never an error, but it is never silent. A key that is present and does not work is always an error.
+
+| Case | Inputs | Fallback status | Exit | Signal |
+|---|---|---|---|---|
+| 1 | `LLM_FALLBACK_ENABLED=false` | `disabled` | 0 | Summary line `fallback: disabled`. No annotation. |
+| 2 | No provider named, no key (empty or unset) | `unconfigured` | 0 | Summary line `fallback: unconfigured, N comments in band kept the heuristic` and one `::notice::` annotation. |
+| 3 | No provider named, key present, calls succeed | `active` | 0 | Summary counters. |
+| 4 | Provider named, its key empty | `misconfigured` | 2 | Stats written first. `::error::` names the missing variable, never its value. |
+| 5 | Key present, a call returns 401 or 403 | `auth_failed` | 4 | Stats written first. Stop calling after the first refusal. |
+| 6 | Key present, more than half of attempted calls fail (network, 5xx, timeout, bad reply) | `degraded` | 3 | Stats written first. `::error::` with the failure counts. |
+| 7 | Key present, some calls fail, at most half | `partial` | 0 | `::warning::` with `fallback_unavailable` and attempted counts. |
+| 8 | Key present, band empty | `active` | 0 | Summary shows 0 calls, so a zero is distinguishable from "never ran". |
+| 9 | `OPENAI_BASE_URL` empty, `OPENAI_API_KEY` present, no Anthropic key | `unconfigured` | 0 | As case 2. The empty URL never selects the default endpoint. |
+
+Why these exits: ADR-035 assigns 2 to configuration, 3 to external failure, 4 to auth. Case 4 is a config error only when someone named a provider on purpose, so the workflow must never set `LLM_FALLBACK_PROVIDER`. It maps the key only, and auto-detect picks it up. A fork then lands in case 2, not case 4.
+
+The 50 percent line in cases 6 and 7 is `LLM_FALLBACK_MAX_FAILURE_RATE`, default 0.5. It needs at least 5 attempted calls before it can fire, so one flaky call on a small band cannot turn a run red.
+
+Every case writes the stats table before it exits. The heuristic stays the floor, because the stats job is a report, not a gate.
+
+Each run also counts `fallback_used`, `fallback_cached`, `fallback_unavailable`, `fallback_capped`, and `band_total`.
+They go to the step summary that `_write_step_summary` already writes (`update_reviewer_signal_stats.py:575`), with the status from the table.
+
+Logging never prints a key, a key prefix, or a key length. It prints only `present` or `absent`.
 
 ## Harness agnosticism
 
@@ -258,12 +285,13 @@ Writing the report before the non-zero exit keeps the data and still shows the f
 | `LLM_FALLBACK_MAX_CALLS` | n/a | New. Default 200. |
 | `LLM_FALLBACK_BUDGET_SECONDS` | n/a | New. Default 600. |
 | `LLM_FALLBACK_TIMEOUT` | n/a | New. Default 30. |
+| `LLM_FALLBACK_MAX_FAILURE_RATE` | n/a | New. Default 0.5, with at least 5 attempted calls. Above it the run is `degraded` and exits 3. |
 | `ANTHROPIC_API_KEY` | Sole enable signal | Read only by the `anthropic` transport and auto-detect step 2. |
 
 Migration: one consumer, one workflow, and nothing sets these in CI today.
 So the change is additive. A local setup with only `ANTHROPIC_API_KEY` set
 auto-detects the `anthropic` transport and keeps working. An old `LLM_FALLBACK_MODEL` value still passes through.
-To turn the fallback on in CI, add one secret and two env lines to the step at `update-reviewer-stats.yml:77`.
+To turn the fallback on in CI, map the existing `agent-claude` secret `ANTHROPIC_API_KEY` into the step at `update-reviewer-stats.yml:77`. No new secret, and no `LLM_FALLBACK_PROVIDER` line.
 
 ## Cost and latency per call
 
@@ -315,15 +343,14 @@ Drop the model fallback, and delete `scripts/llm_classification`, if any holds:
 1. Fewer than 5 percent of comments land in the band (eval step 1). The fallback would move nothing.
 2. Arm C fails the pass bar against arm B. A one-character tie-break rule would do the job.
 3. The signal table's reviewer ranking is the same under A and C. Nobody downstream would act differently.
-4. No transport is reachable in CI without a new paid secret, and the owner declines to add one.
+4. The `agent-claude` environment's `ANTHROPIC_API_KEY` cannot reach a model from the CI runner, and no other transport is configured. (Owner, 2026-11-24: a CI secret is acceptable if the eval passes. The secret already exists.)
 5. At steady state, the chosen CI transport still caps out: `fallback_capped` above 10 percent of `band_total` under the 600 s budget at measured p95. Steady state starts after `band_total / min(LLM_FALLBACK_MAX_CALLS, 600 / p50)` daily runs, or after one backfill run with the caps raised. The M1 decision record projects that run count.
 
 ## Failure modes
 
 | Failure | Effect | Handling |
 |---|---|---|
-| Transport unconfigured | No calls | Heuristic stands. Exit 0. Summary prints the band count. |
-| Configured transport down, auth refused, or binary missing | No calls | Heuristic stands. Stats written. Exit 3. |
+| Transport unconfigured, disabled, misconfigured, refused, degraded, or partial | Some or no calls | See the Secret presence truth table. Stats always written first. |
 | Malformed or non-JSON reply | One comment unclassified | `None`, counted `fallback_unavailable`, heuristic stands. |
 | Call or wall budget spent | Rest of band unclassified | Counted `fallback_capped`, heuristic stands. |
 | Prompt injection in comment text | Model returns a forced verdict | Tools are off and output is three typed fields, so the blast radius is one wrong label. Eval arm C measures label quality. |
@@ -358,7 +385,7 @@ Promoting it (Open question 1, option A) is an architecture change and needs an 
 1. `scripts/llm_classification` shall import with `anthropic` and `openai` blocked in `sys.modules`. A test proves it.
 2. `scripts/llm_classification` shall hold no default model id. A test fails on a `claude-`, `gpt-`, or `gemini-` literal in the module.
 3. When a model reply lacks a bool `is_actionable`, the classifier shall return `None` and count `fallback_unavailable`, never a verdict.
-4. When `LLM_FALLBACK_PROVIDER` is set and its transport is unreachable, `main` shall write the stats and summary, then return 3. With nothing configured, `main` shall return 0 and print the band count.
+4. For each of the nine cases in the Secret presence truth table, a test shall drive `main(argv)` with an env built for that case, with inherited model keys stripped, and assert the exit code, the status line, and that the stats table was written. A key value placed in the env shall not appear in captured stdout, stderr, or the summary file.
 5. When the same comments are scored a second time with the cache file present, the run shall make 0 model calls.
 6. Calls per run shall not exceed `LLM_FALLBACK_MAX_CALLS`, and no call shall start after `LLM_FALLBACK_BUDGET_SECONDS`. Skipped comments keep the heuristic verdict and count as `fallback_capped`.
 7. Each CLI transport shall run with tools disabled and metered-billing env vars stripped, inherited from its `EvalProvider` cell.
@@ -369,7 +396,7 @@ Promoting it (Open question 1, option A) is an architecture change and needs an 
 1. Eval steps 1 to 4. No library code. Decide against the kill criteria.
 2. If the eval passes: owner decides Open question 1. Write the ADR if option A.
 3. Build the transport, the contract, the cache, and the counters, with tests for AC 1 to 7.
-4. Add the CI secret and env lines to `update-reviewer-stats.yml`. Watch one run's summary.
+4. Map the `agent-claude` environment's `ANTHROPIC_API_KEY` into the stats step of `update-reviewer-stats.yml`. Set no `LLM_FALLBACK_PROVIDER` there. Watch one run's summary.
 
 ## Out of scope
 
@@ -388,7 +415,7 @@ Promoting it (Open question 1, option A) is an architecture change and needs an 
 2. Should the summary publish fallback counts per reviewer, or only per run?
 3. Should auto-detect pick the user's harness CLI? The only harness marker with repo evidence is `CLAUDECODE` (`scripts/validation/run_workflow_local_test.py:126`). No Codex or Copilot marker is evidenced. Current answer: no, CLI is opt-in.
 4. Does a `claude --print` child started inside a Claude Code session re-fire the parent's hooks? The eval cell passes `--setting-sources ""` to avoid loading settings, but no test proves hooks stay quiet.
-5. Is a CI secret for an OpenAI-compatible endpoint acceptable for this job? Kill criterion 4 depends on it.
+5. Answered 2026-11-24: a CI secret is acceptable if the eval passes. The `agent-claude` environment already holds `ANTHROPIC_API_KEY`, so no new secret is needed for CI rank 1.
 
 ## Noticed, outside this spec
 
