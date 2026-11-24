@@ -41,6 +41,11 @@ Changing the frontmatter from MIT to Apache-2.0 adds 7 bytes and crosses the cap
 Why the idiomatic fix is deferred: moving reference sections into references/
 is a skill content change, and the relicense PR is limited to license metadata.
 Remove this exception when the body moves into references/.
+
+Preserved invariant: The skill body is unchanged by the relicense; only the frontmatter license value grew.
+Behavioral tests: `tests/skills/github/test_skill_md_contract.py`
+Review trigger: Revisit when the body moves into references/ and every rendered copy measures under 24576 bytes.
+vendor-portability: upstream-only. The test path references an rjmurillo/ai-agents contributor test; installed plugin consumers do not have it.
 -->
 
 Use these scripts instead of raw `gh` commands for consistent error handling and structured output.
