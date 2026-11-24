@@ -15,9 +15,9 @@ The vendored name and marks belong to their author. This spike does not use them
 
 Apache-2.0 section 4(b) asks that modified files say so. Each change is listed here.
 
-1. `claims.py` lines 68 and 374: four literal dash characters (code points U+2014 and U+2013) became
+1. `claims.py` lines 69 and 375 (68 and 374 upstream): four literal dash characters (code points U+2014 and U+2013) became
    Python Unicode escape sequences. The repo bans those bytes in `.py` files. The compiled regex and token
-   set are unchanged.
+   set are unchanged. Line 1 of `claims.py` now carries a one-line modification notice.
 2. No vendored `.py` file carries a lint suppression comment. Instead `pyproject.toml` sets
    `per-file-ignores = ["ALL"]` and a `ruff format` exclude for `vendor/**`. The pre-commit hook runs
    `ruff check --fix`, which would otherwise rewrite upstream code.
@@ -25,5 +25,5 @@ Apache-2.0 section 4(b) asks that modified files say so. Each change is listed h
 ## Check that the changes are behavior-neutral
 
 Upstream's own tests ran against the modified files in a scratch copy of the upstream checkout.
-Result on 2026-11-23: `156 passed` for `test_claims.py`, `test_evidence.py`, `test_claim_regressions.py`,
+Result on 2026-11-23, rerun on the committed files after the notice line was added: `156 passed` for `test_claims.py`, `test_evidence.py`, `test_claim_regressions.py`,
 `test_cross_turn.py`, `test_verdict.py`, and `test_suite_tamper.py`.

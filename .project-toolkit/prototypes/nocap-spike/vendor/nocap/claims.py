@@ -1,3 +1,4 @@
+# Modified for an ai-agents spike: lines 69 and 375 spell two dash characters as escapes. See VENDORED.md.
 """Find checkable claims in a final reply. Deterministic, stdlib only. English here; Chinese, Thai and Spanish for
 tests / push / merge / deploy in lang.py.
 
