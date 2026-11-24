@@ -275,17 +275,26 @@ _CSHARP_COMMENT_RE = re.compile(r"(?s)//[^\n]*|/\*.*?(?:\*/|\Z)")
 # expression) is not detected, so its named arguments are still reported.
 _CSHARP_ATTRIBUTE_CONTEXT = frozenset(";{}(,")
 
-# After the closing "]", the next code must start a declaration: a name, "@",
-# "[", "(" (a tuple return type), "~" (a finalizer), or the snippet end. A
-# collection expression or list pattern is followed by ")", ",", ";", ".",
-# "=", "=>", an operator, or a keyword such as "is" or "when", so it does not
-# qualify. A list pattern can also be followed by a designation name. The
-# "after" group captures what follows that name so the caller can reject it;
-# see _is_attribute_follower.
+# After the closing "]", the next code must start a declaration: a name
+# (with or without "@"), "[", "(" (a tuple return type), "~" (a finalizer),
+# or the snippet end. A collection expression or list pattern is followed by
+# ")", ",", ";", ".", "=", "=>", an operator, or a keyword such as "is" or
+# "when", so it does not qualify. A list pattern can also be followed by a
+# designation name, "@" escaped or not. The "after" group captures what
+# follows that name so the caller can reject it; see _is_attribute_follower.
 _CSHARP_ATTRIBUTE_FOLLOWER_RE = re.compile(
-    r"\s*(?:\Z|[@\[(~]|(?!(?:is|as|when|and|or|not|with|switch)\b)"
-    r"(?P<name>[A-Za-z_]\w*)\b(?P<after>\s*(?:=>|(?:when|and|or)\b|[,)]))?)"
+    r"\s*(?:(?P<end>\Z)|[\[(~]|(?!(?:is|as|when|and|or|not|with|switch)\b)"
+    r"(?P<name>@?[A-Za-z_]\w*)\b(?P<after>\s*(?:=>|(?:when|and|or)\b|[,)]))?)"
 )
+
+# A section at the very end of a snippet may be a trailing collection
+# expression, so it counts as an attribute only with an explicit target.
+_CSHARP_ATTRIBUTE_TARGET_RE = re.compile(
+    r"\s*(?:assembly|module|field|event|method|param|property|return|type|typevar)\s*:(?!:)"
+)
+
+# The word before a "{" that opens a switch expression's arms.
+_CSHARP_SWITCH_BRACE_RE = re.compile(r"\bswitch\s*$")
 
 # Accessors may be expression-bodied, so "get =>" still ends an attribute.
 _CSHARP_ACCESSOR_NAMES = frozenset({"get", "set", "init", "add", "remove"})
@@ -294,7 +303,7 @@ _CSHARP_ACCESSOR_NAMES = frozenset({"get", "set", "init", "add", "remove"})
 # names a property or parameter that the attribute's own type defines. A
 # ternary operand follows "?" and a lambda parameter precedes "=>", so both
 # stay visible.
-_CSHARP_ATTRIBUTE_NAMED_ARG_RE = re.compile(r"[(,]\s*([A-Za-z_]\w*)(?=\s*(?:=(?![=>])|:(?!:)))")
+_CSHARP_ATTRIBUTE_NAMED_ARG_RE = re.compile(r"[(,]\s*(@?[A-Za-z_]\w*)(?=\s*(?:=(?![=>])|:(?!:)))")
 
 
 def _csharp_attribute_section_end(code: str, start: int) -> tuple[int, bool]:
@@ -318,41 +327,47 @@ def _csharp_attribute_section_end(code: str, start: int) -> tuple[int, bool]:
     return len(code), False
 
 
-def _is_attribute_follower(view: str, stop: int, enclosing: str) -> bool:
-    """Whether the code after the "]" at ``stop`` starts a declaration.
+def _is_attribute_follower(view: str, start: int, stop: int, opener: int) -> bool:
+    """Whether the section from ``start`` to the "]" at ``stop`` is an attribute.
 
-    ``enclosing`` is the innermost open bracket around the section, or "" at
-    the top level. A section directly inside "[" is treated as a nested list
-    pattern or collection element, never an attribute; a lambda attribute
-    there is the one accepted miss, and it only over-reports. A name followed
-    by "when", "and" or "or" is a pattern designation. A name followed by
-    "=>" is one too, unless it is an accessor. A lone name followed by ","
-    or ")" inside parentheses is a designation in a tuple or positional
-    pattern; inside braces it is an enum member.
+    ``opener`` is the index of the innermost open bracket around the
+    section, or -1 at the top level. A section directly inside "[" is
+    treated as a nested list pattern or collection element, never an
+    attribute; a lambda attribute there is the one accepted miss, and it
+    only over-reports. At the snippet end a section needs an explicit
+    target such as ``assembly:``. A name followed by "when", "and" or "or"
+    is a pattern designation. A name followed by "=>" is one too, unless it
+    is an accessor outside a switch expression's braces. A lone name
+    followed by "," or ")" inside parentheses is a designation in a tuple or
+    positional pattern; inside braces it is an enum member.
     """
+    enclosing = view[opener] if opener >= 0 else ""
     if enclosing == "[":
         return False
     follower = _CSHARP_ATTRIBUTE_FOLLOWER_RE.match(view, stop + 1)
     if follower is None:
         return False
+    if follower.group("end") is not None:
+        return _CSHARP_ATTRIBUTE_TARGET_RE.match(view, start) is not None
     after = (follower.group("after") or "").strip()
     if after in ("when", "and", "or"):
         return False
     if after == "=>":
-        return follower.group("name") in _CSHARP_ACCESSOR_NAMES
+        in_switch = enclosing == "{" and _CSHARP_SWITCH_BRACE_RE.search(view, 0, opener)
+        return follower.group("name") in _CSHARP_ACCESSOR_NAMES and not in_switch
     return not (after in (",", ")") and enclosing == "(")
 
 
-def _enclosing_brackets(view: str) -> list[str]:
-    """For each index, the innermost bracket open before it, or ""."""
+def _enclosing_brackets(view: str) -> list[int]:
+    """For each index, where the innermost bracket open before it is, or -1."""
     closers = {")": "(", "]": "[", "}": "{"}
-    stack: list[str] = []
+    stack: list[int] = []
     enclosing = []
-    for char in view:
-        enclosing.append(stack[-1] if stack else "")
+    for index, char in enumerate(view):
+        enclosing.append(stack[-1] if stack else -1)
         if char in "([{":
-            stack.append(char)
-        elif char in closers and stack and stack[-1] == closers[char]:
+            stack.append(index)
+        elif char in closers and stack and view[stack[-1]] == closers[char]:
             stack.pop()
     return enclosing
 
@@ -388,7 +403,9 @@ def blank_csharp_attribute_named_args(code: str) -> str:
             continue
         stop, closed = _csharp_attribute_section_end(view, opening.end())
         scanned_to = stop
-        if not closed or not _is_attribute_follower(view, stop, enclosing[opening.start()]):
+        if not closed or not _is_attribute_follower(
+            view, opening.end(), stop, enclosing[opening.start()]
+        ):
             continue
         attribute_closes.add(stop)
         for named in _CSHARP_ATTRIBUTE_NAMED_ARG_RE.finditer(view, opening.end(), stop):

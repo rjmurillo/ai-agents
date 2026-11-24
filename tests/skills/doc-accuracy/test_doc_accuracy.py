@@ -401,6 +401,9 @@ class TestCsharpLiteralAndAttributeArguments:
         ("var c = '\\\nvar w = new FakeWidget(); var d = 'x';", "FakeWidget"),
         ('var s = $"{F("}")} tail"; var w = new FakeWidget();', "FakeWidget"),
         ("Run([Build(Size: 3)]);", "Size"),
+        ("var r = xs switch { [Point(MissingX: 1)] @rest => 1, _ => 0 };", "MissingX"),
+        ("var r = xs switch { [Point(MissingY: 1)] get => 1, _ => 0 };", "MissingY"),
+        ("[1, Build(MissingSize: 3)]", "MissingSize"),
         ("Use([Pick(flag ? FakeType : other)]);", "FakeType"),
         ("List<object> l =\n[\n    Make(flag ? MadeUpType : null),\n];", "MadeUpType"),
         ("Run(\n    [Build(Size: 3)],\n    other);", "Size"),
@@ -480,6 +483,10 @@ class TestCsharpLiteralAndAttributeArguments:
     # Real attribute sections whose named arguments are blanked.
     ATTRIBUTE_FORMS = (
         ('[DllImport("k", EntryPoint = "B")] /* x */ static extern void F();', "DllImport"),
+        ('[DllImport("k", @EntryPoint = "B")]\nstatic extern void G();', "DllImport"),
+        ('[assembly: Marker(EntryPoint = "B")]', "Marker"),
+        ("int P { [Attr(EntryPoint = 1)] get => 1; }", "Attr"),
+        ("[Attr(EntryPoint = 1)] @event E;", "Attr"),
         ("[Benchmark(EntryPoint = true)]\n(int, int) Compute() {}", "Benchmark"),
         ("class C {\n    [Attr(EntryPoint = 1)]\n    ~C() {}\n}", "Attr"),
         ("// leading comment\n[Attr(EntryPoint = 1)]\npublic void M() {}", "Attr"),
@@ -2894,7 +2901,9 @@ class TestMain:
     def _csharp_attribute_repo(tmp_path: Path, body: str) -> None:
         TestMain._csharp_repo(tmp_path, body)
         (tmp_path / "Marker.cs").write_text(
-            "namespace Demo;\npublic class Marker : Attribute\n{\n}\n",
+            "namespace Demo;\npublic class Marker : Attribute\n{\n"
+            "    public Marker(string symbol) { }\n"
+            "    public string Label { get; set; }\n}\n",
             encoding="utf-8",
         )
 
@@ -2904,8 +2913,11 @@ class TestMain:
         """Names that sit only in literals or attribute arguments are data."""
         self._csharp_attribute_repo(
             tmp_path,
-            '[Marker("DEBUG", Label = "MadeUpLabel")]\n'
-            'var w = new RealWidget();\nvar s = "Hello WidgetFactory";',
+            "public class Demo\n{\n"
+            '    [Marker("DEBUG", Label = "MadeUpLabel")]\n'
+            "    public void Run()\n    {\n"
+            '        var w = new RealWidget();\n        var s = "Hello WidgetFactory";\n'
+            "    }\n}",
         )
 
         rc = main(["--target", str(tmp_path), "--format", "json"])
@@ -2921,8 +2933,11 @@ class TestMain:
         """Control: a made-up type in real code in the same block still fails."""
         self._csharp_attribute_repo(
             tmp_path,
-            '[Marker("DEBUG", Label = "MadeUpLabel")]\n'
-            'var w = new FakeWidget();\nvar s = "Hello WidgetFactory";',
+            "public class Demo\n{\n"
+            '    [Marker("DEBUG", Label = "MadeUpLabel")]\n'
+            "    public void Run()\n    {\n"
+            '        var w = new FakeWidget();\n        var s = "Hello WidgetFactory";\n'
+            "    }\n}",
         )
 
         rc = main(["--target", str(tmp_path), "--format", "json"])
