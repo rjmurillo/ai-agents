@@ -55,10 +55,29 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     _commit(target, "Duplicate setup")
     _git(target, "update-ref", gate.INTEGRATION_REF, "HEAD")
     _git(target, "switch", "--quiet", "-c", "candidate")
-    _write(target, "second.py", "from first import ready\n\n\ndef check():\n    return ready()\n")
-    _commit(target, "Extract shared setup")
+    # A new third-party import is a regression the issue #7525 admission
+    # refuses, so it still needs an owner approval.
+    _write(target, "second.py", "import requests\n\n\ndef check():\n    return requests.get\n")
+    _commit(target, "Add a third-party dependency")
     monkeypatch.chdir(target)
     return target
+
+
+def test_shared_helper_extraction_needs_no_approval(repo, capsys):
+    _git(repo, "reset", "--quiet", "--hard", gate.INTEGRATION_REF)
+    _write(repo, "second.py", "from first import ready\n\n\ndef check():\n    return ready()\n")
+    _commit(repo, "Extract shared setup")
+
+    rc = _run(repo)
+
+    output = capsys.readouterr()
+    assert rc != 0
+    assert json.loads(output.out)["raw_exit"] == 0
+    assert "approval does not apply to assessor exit 0" in output.err
+    raw = json.loads((repo.parent / "raw.json").read_text(encoding="utf-8"))
+    comparison = next(c for c in raw["comparisons"] if c["file_path"] == "second.py")
+    assert comparison["regressions"] == ["coupling"]
+    assert comparison["rule_admissions"]["coupling"]["rule"] == "no_new_third_party_import"
 
 
 def _run(repo: Path, *args: str) -> int:
@@ -88,6 +107,25 @@ def _approval(digest: object) -> dict[str, object]:
 
 def _verify(repo: Path) -> int:
     return _run(repo, "--issue", str(_ISSUE), "--comment", str(_COMMENT))
+
+
+def test_inventory_lists_only_rows_the_assessor_did_not_admit(repo, capsys):
+    _git(repo, "switch", "--quiet", "--detach", gate.INTEGRATION_REF)
+    _write(repo, "third.py", "def ready():\n    return True\n")
+    _commit(repo, "Add a third duplicate")
+    _git(repo, "update-ref", gate.INTEGRATION_REF, "HEAD")
+    _git(repo, "switch", "--quiet", "-c", "mixed")
+    _write(repo, "second.py", "import requests\n\n\ndef check():\n    return requests.get\n")
+    _write(repo, "third.py", "from first import ready\n\n\ndef check():\n    return ready()\n")
+    _commit(repo, "Add a dependency and extract shared setup")
+
+    inventory = _inventory(repo, capsys)
+
+    raw = json.loads((repo.parent / "raw.json").read_text(encoding="utf-8"))
+    third = next(c for c in raw["comparisons"] if c["file_path"] == "third.py")
+    assert third["regressions"] == ["coupling"]
+    assert third["rule_admissions"]["coupling"]["rule"] == "no_new_third_party_import"
+    assert [row["path"] for row in inventory["regressions"]] == ["second.py"]
 
 
 def test_trusted_approval_keeps_raw_scores_and_reports_warn(repo, capsys, monkeypatch):
