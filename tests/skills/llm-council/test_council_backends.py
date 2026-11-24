@@ -217,8 +217,10 @@ def test_call_model_needs_a_token_for_github_models():
     ("model", "on_path", "expected"),
     [
         ("claude-opus-5.5", {"claude"}, "claude"),
-        ("gpt-6-sol", {"codex"}, "codex"),
-        ("gpt-6-sol", set(), "copilot"),
+        ("gpt-6.2-sol", {"codex"}, "codex"),
+        ("gpt-6.2-astra", set(), "copilot"),
+        ("grok-4.7", {"claude", "codex"}, "copilot"),
+        ("gemini-4-argon", {"claude", "codex"}, "copilot"),
         ("claude-sonnet-5", {"codex"}, "copilot"),
         ("openai/gpt-4.1", {"claude", "codex"}, "github-models"),
     ],

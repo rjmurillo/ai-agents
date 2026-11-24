@@ -153,7 +153,7 @@ ADR-007:202-206 named three mechanisms that verified the memory-first rule. Two
 are gone; the third is live under a different filename. "SESSION-PROTOCOL Phase
 2" no longer exists as a blocking gate, and session-log creation is discontinued
 per the session-logs rule. The pre-commit hook, however, still runs on every
-commit: `lefthook.yml:101-103` defines the `session-policy` job as
+commit: `lefthook.yml:115-117` defines the `session-policy` job as
 `uv run --frozen python scripts/validation/git_hook_policy.py session
 {staged_files}`, and that subcommand invokes
 `scripts/validate_session_json.py`, which exists. Only the PowerShell name

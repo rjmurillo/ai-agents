@@ -31,21 +31,21 @@ from pathlib import Path
 from typing import TypeGuard
 
 # ADR-080 rule 2: a KEEP_PIN sweep must cover "at least 8 shared fixtures"
-# (.project-toolkit/architecture/ADR-080-model-pin-justification-policy.md:90).
+# (.project-toolkit/architecture/ADR-080-model-pin-justification-policy.md:91).
 MIN_SHARED_FIXTURES = 8
 
-# Mirrors scripts/eval/_model_sweep_core.py:62 (DEFAULT_MIN_EFFECT = 0.05)
+# Mirrors scripts/eval/_model_sweep_core.py:44 (DEFAULT_MIN_EFFECT = 0.05)
 # verbatim; the qualification formula it feeds
 # (``qualifies = delta >= min_effect and ci_low > 0.0``) is at that module's
-# line 306. Not imported: _model_sweep_core.py:35 does
+# line 291. Not imported: _model_sweep_core.py:37 does
 # ``from _report_aggregator import (...)``, a bare module-relative import
 # that requires scripts/eval on sys.path, the exact sys.path mutation
 # build/model_pin_manifest.py's own docstring already avoids for
 # check_model_pins.py's load_manifest.
 MIN_RECALL_DELTA = 0.05
 
-# Mirrors scripts/eval/_model_sweep_core.py:61 (SCHEMA_VERSION = "1")
-# verbatim. build_report's own docstring (lines 469-474) says this field
+# Mirrors scripts/eval/_model_sweep_core.py:43 (SCHEMA_VERSION = "1")
+# verbatim. build_report's own docstring (lines 598-604) says this field
 # "gates future shape changes"; a report missing it, or carrying a
 # different value, has not committed to the field set this module reads.
 SWEEP_REPORT_SCHEMA_VERSION = "1"
@@ -54,7 +54,7 @@ SWEEP_REPORT_SCHEMA_VERSION = "1"
 def _normalize_id(model_id: str) -> str:
     """Collapse dots to hyphens so dotted and hyphenated ids compare equal.
 
-    Mirrors ``scripts/validation/check_model_pins.py:119-125``
+    Mirrors ``scripts/validation/check_model_pins.py:133-139``
     (``_normalize_id``) verbatim: ``copilot-cli.yaml`` spells ids with dots
     (``claude-opus-4.6``); the manifest and pricing table use hyphens
     (``claude-opus-4-6``).
@@ -65,10 +65,10 @@ def _normalize_id(model_id: str) -> str:
 def _agent_name_from_unit(unit: object) -> str | None:
     """Derive the agent name ``build_report`` would have recorded for this unit.
 
-    Mirrors ``build/generate_agents.py:303``
+    Mirrors ``build/generate_agents.py:383``
     (``agent_name = shared_file.stem.replace(".shared", "")``) verbatim: the
     unit is ``templates/agents/<name>.shared.md``, and
-    ``scripts/eval/_model_sweep_core.py:481``'s ``build_report`` writes that
+    ``scripts/eval/_model_sweep_core.py:609``'s ``build_report`` writes that
     same ``<name>`` into the report's ``agent`` field. Without this check, a
     sweep report for one agent could justify a manifest entry for a
     different one whenever winner, ``fixtures_sha``, and ``default_model``

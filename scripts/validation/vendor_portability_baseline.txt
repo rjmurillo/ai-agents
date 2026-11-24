@@ -52,5 +52,13 @@ src/claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py
 src/claude/skills/orphan-ref-validator/scripts/scan.py
 src/claude/skills/quality-grades/scripts/grade_domains.py
 src/claude/skills/skill-doctor/scripts/adr_corpus.py
+# skill-doctor session_discovery.py reads the consumer's shared agents home
+# (Path.home() / ".agents") to discover user skills. That is a consumer data
+# path, not this repository's upstream .agents/ layout.
+src/claude/skills/skill-doctor/scripts/session_discovery.py
+src/codex/skills/skill-doctor/scripts/session_discovery.py
+src/copilot-cli/skills/skill-doctor/scripts/session_discovery.py
+src/cursor/skills/skill-doctor/scripts/session_discovery.py
+src/muse/skills/skill-doctor/scripts/session_discovery.py
 src/claude/skills/steering-matcher/scripts/get_applicable_steering.py
 src/claude/skills/taste-lints/scripts/taste_lints.py
