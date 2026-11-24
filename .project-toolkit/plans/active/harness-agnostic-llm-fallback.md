@@ -4,7 +4,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Status** | In Progress (M1-T1 to M1-T10 and M1-T13 to M1-T15 built; labeling method open) |
+| **Status** | In Progress (M1-T1 to M1-T10 and M1-T13 to M1-T15 built; council labeler M1-T11 not built) |
 | **Created** | 2026-11-23 |
 | **Owner** | Richard Murillo (plan drafted by Claude) |
 | **Complexity** | Medium |
@@ -97,7 +97,7 @@ Sizes are complexity, not time: S one concern, M several concerns or a new modul
 | M1-T17 | Run the eval on held-out items | Results committed with provider, model, SHA, date | M | M1-T12, M1-T15, M1-T16 |
 | M1-T18 | Rank reviewers under A and C on the full set | Arm C over band comments within the 200-call cap; ranking diff recorded for criterion 3 | M | M1-T17 |
 | M1-T19 | Project steady state for criterion 5 | Run count from `band_total`, p50, caps | S | M1-T17 |
-| M1-T20 | Write the decision record | Five criteria marked with evidence; inconclusive branch applied if the CI straddles 0 | M | M1-T18, M1-T19, M1-T1 |
+| M1-T20 | Write the decision record | Five criteria marked with evidence; on a look-1 `inconclusive` verdict, label 100 more band items and score with `--look 2` | M | M1-T18, M1-T19, M1-T1 |
 
 `eval-prompt-change.py` is not reused: it scores before and after prompt pass rates and cannot model the 0.7 apply rule or three arms.
 
@@ -108,9 +108,10 @@ Sizes are complexity, not time: S one concern, M several concerns or a new modul
 | MK-T1 | Capture the heuristic golden output | Stats table for a fixed input saved before any change | S | M1-T5 or M1-T20 (whichever fires) |
 | MK-T2 | Record the pre-removal reference search | Command and hits logged | S | MK-T1 |
 | MK-T3 | Remove the wiring | Import at `:53`, setup at `:750-765`, `llm_classifier` params at `:253`, `:417`, `:441`, fallback block at `:329-351` | M | MK-T2 |
-| MK-T4 | Delete the module and its tests | `scripts/llm_classification/` and `tests/llm_classification/` gone | S | MK-T3 |
+| MK-T4 | Delete the module and its tests | `scripts/llm_classification/` and `tests/llm_classification/` gone | S | MK-T3, MK-T7 |
 | MK-T5 | Remove any M4 workflow additions | Secret, env lines, cache step gone; `/review` marker if the workflow changed | S | MK-T3 |
-| MK-T6 | Prove the heuristic unchanged and references gone | Equals MK-T1 golden; suite passes; post-removal search has zero hits | S | MK-T4, MK-T5 |
+| MK-T6 | Prove the heuristic unchanged and references gone | Equals MK-T1 golden; suite passes; post-removal search has zero hits | S | MK-T4, MK-T5, MK-T7 |
+| MK-T7 | Retire the eval tooling | Keep `band-measurement.json` and the M1 decision record as evidence. Delete `scripts/eval/actionability_*.py`, `measure_actionability_band.py`, their `tests/eval/` files, and the rest of `evals/comment-actionability/`. `test_actionability_band.py` imports `LLMFallbackConfig`, so it must go before MK-T4 or the suite breaks | S | MK-T3 |
 
 ### G1
 
@@ -226,6 +227,7 @@ Parallel tracks after M1-T5: labeling (T6 to T12) and runner (T13 to T15).
 | 2026-11-24 | Verdict: fail only when the CI upper bound is under 0.10; else inconclusive unless pass; one extension at a 97.5 percent interval, then inconclusive is final | At 60 items the detectable gap (about 0.11 to 0.20) exceeds the 0.10 bar, so noise could fire kill criterion 2 | Keep "gap under 0.10 fails" |
 | 2026-11-24 | Secret scan: 64-char hex blocks unless allow-listed; 40-char SHAs still pass | Closes the 256-bit key path to the model API | Report 64-hex only |
 | 2026-11-24 | After these changes: full review round 2, then open a PR | Owner decision | Review with no PR; stop |
+| 2026-11-24 | Both looks use the 97.5 percent interval; the bootstrap resamples PRs | Review round 2: 95 then 97.5 spent about 0.075, not 0.05; correlated comments in one PR made the interval too narrow | Look 1 at 95 percent; row bootstrap |
 | 2026-11-24 | Secrets are optional; absence is never an error and never silent; a present key that fails is always an error | Owner asked for no false positives and no false negatives. The job already runs under `agent-claude`, which holds `ANTHROPIC_API_KEY` (names listed 2026-11-24) | Fail when the key is absent (false alarms on forks); stay silent (today's false negative) |
 | 2026-11-24 | Build only M1-T2 to M1-T5 now | Owner decision; band share alone could kill the effort | Stop at plan; build all of M1 |
 

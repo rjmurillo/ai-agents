@@ -344,7 +344,8 @@ Verdict rule (owner decision, 2026-11-24). The gap is C minus the better of A an
 Why: at 60 held-out items the smallest gap the eval can detect is about 11 to 20 points, depending on how often C and the baseline disagree. Under the old rule, noise alone could fire kill criterion 2.
 
 On a look-1 inconclusive, label 100 more band items once, then score all held-out band items together (look 2).
-Look 2 uses a 97.5 percent interval, which splits the error budget over the two looks.
+Both looks use a 97.5 percent interval, which splits the 5 percent error budget over the two looks.
+The bootstrap resamples whole PRs, not single comments, because comments on one PR are correlated.
 A look-2 inconclusive is final. Kill criterion 2 does not fire, and the owner decides.
 
 ## Kill criteria
