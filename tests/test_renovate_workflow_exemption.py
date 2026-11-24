@@ -42,12 +42,13 @@ def test_workflow_file_updates_automerge(config: dict[str, Any]) -> None:
     """A bump to .github/workflows/** or .github/cli-smoke/** automerges (PR #7521).
 
     The rule must stay unnarrowed. A `matchUpdateTypes` or `matchManagers` key
-    would leave some workflow bumps on whatever an earlier rule decided.
+    would leave some workflow bumps on whatever an earlier rule decided. The
+    lookup names the two Renovate globs, not `_EXEMPT_FILE_GLOBS`, so adding a
+    Dependabot-only directory there does not break this test.
     """
     rules = config["packageRules"]
-    matches = [
-        i for i, rule in enumerate(rules) if rule.get("matchFileNames") == _EXEMPT_FILE_GLOBS
-    ]
+    renovate_globs = [_WORKFLOW_FILE_GLOB, _CLI_SMOKE_FILE_GLOB]
+    matches = [i for i, rule in enumerate(rules) if rule.get("matchFileNames") == renovate_globs]
     assert matches, "no packageRules entry targets the workflow file globs"
     rule = rules[matches[-1]]
     assert rule["automerge"] is True
