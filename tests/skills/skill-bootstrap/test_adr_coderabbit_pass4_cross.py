@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import os
 import time
+from pathlib import Path
+from typing import Any
 
 import adr_commits
 import adr_locate
 import adr_shape
+import adr_write
 import pytest
 
 F3 = "`" * 3
@@ -108,3 +112,85 @@ def test_an_ampersand_joined_url_list_before_prose_is_rejected_quickly() -> None
 @pytest.mark.parametrize("value", ["#1, #2 and #3.", "12 & 13", "ABC-12; 13", "https://x?a=1&b=2"])
 def test_reference_lists_still_count_as_references(value: str) -> None:
     assert adr_shape._REFERENCES_ONLY.search(value)
+
+
+def test_no_reader_sees_a_partial_file_before_it_is_published(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "docs" / "0002-x.md"
+    data = b"# 2. X\n" * 1000
+    real_link = os.link
+    seen: list[tuple[bool, bytes]] = []
+
+    def watching(source: str, name: Path) -> None:
+        seen.append((Path(name).exists(), Path(source).read_bytes()))
+        real_link(source, name)
+
+    monkeypatch.setattr(os, "link", watching)
+    adr_write.create_new(target, data)
+
+    assert seen == [(False, data)] and target.read_bytes() == data
+    assert [p.name for p in target.parent.iterdir()] == ["0002-x.md"]
+
+
+def test_without_hard_links_the_file_is_written_in_place(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "0002-x.md"
+
+    def no_links(source: str, name: Path) -> None:
+        raise PermissionError(1, "Operation not permitted")
+
+    monkeypatch.setattr(os, "link", no_links)
+    adr_write.create_new(target, b"body")
+
+    assert target.read_bytes() == b"body" and [p.name for p in tmp_path.iterdir()] == ["0002-x.md"]
+
+
+def test_a_failed_publish_leaves_neither_the_target_nor_a_temporary_file(tmp_path: Path) -> None:
+    target = tmp_path / "0002-x.md"
+    data: Any = "not bytes"
+
+    with pytest.raises(TypeError):
+        adr_write.create_new(target, data)
+
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX file modes")
+def test_a_published_file_has_the_mode_open_would_give(tmp_path: Path) -> None:
+    target = tmp_path / "0002-x.md"
+    umask = os.umask(0)
+    os.umask(umask)
+
+    adr_write.create_new(target, b"body")
+
+    assert target.stat().st_mode & 0o777 == 0o666 & ~umask
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "fixes https://example.com/path,a",
+        "fixes https://a/b,https://c/d",
+        "fixes https://x/y,o/r#4",
+        "fixes https://a/b?x=1&y=2, https://c/d",
+    ],
+)
+def test_a_url_keeps_a_comma_that_starts_no_other_reference(line: str) -> None:
+    assert adr_shape.FIXES_ONLY.match(line)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "https://x,1,1," * 14 + " prose",
+        "https://x,AB-1," * 14 + " prose",
+        "https://x,a," * 16 + " prose",
+    ],
+)
+def test_url_commas_never_make_the_reference_list_backtrack(value: str) -> None:
+    start = time.process_time()
+    matched = adr_shape._REFERENCES_ONLY.search(value)
+
+    assert matched is None and time.process_time() - start < 0.5

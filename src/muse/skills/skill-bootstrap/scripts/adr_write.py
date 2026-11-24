@@ -3,12 +3,13 @@
 Standard library only. No upstream source: align-cli wrote its ADR where it was told and
 replaced any file there. ``scan --out`` must resolve outside every work tree of the scanned
 repository. ``draft --out`` must be a located ADR folder of the work tree around it, or a
-folder outside any work tree. Every file is created with mode ``x``, so none is replaced.
+folder outside any work tree. Every file is published create-only, so none is replaced.
 """
 
 from __future__ import annotations
 
 import os
+import tempfile
 from pathlib import Path
 
 from adr_locate import is_draft_target, locate_folders
@@ -144,12 +145,35 @@ def encode(text: str, target: Path) -> bytes:
 
 
 def create_new(target: Path, data: bytes) -> None:
-    """Create ``target`` with mode ``x``, and its folder if needed. FileExistsError if it exists.
+    """Publish ``data`` at ``target`` only once complete, never over a file that exists.
 
-    A failed write or close removes the file it created, so a retry never meets a partial one.
-    The open stays outside the ``try``: a file that was already there is never removed.
+    The bytes go to a hidden temporary file in the same folder, which a hard link then names
+    ``target``. ``os.link`` refuses an existing name with FileExistsError, so publication is atomic
+    and create-only, and no reader sees a partial file. Where the file system has no hard links,
+    the file is created with mode ``x`` and removed if the write or close fails. The temporary
+    file is always removed.
     """
     target.parent.mkdir(parents=True, exist_ok=True)
+    fd, temp = tempfile.mkstemp(dir=target.parent, prefix=f".{target.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(data)
+        umask = os.umask(0)
+        os.umask(umask)
+        os.chmod(temp, 0o666 & ~umask)  # the mode ``open`` would give, not mkstemp's 0600
+        try:
+            os.link(temp, target)
+        except FileExistsError:
+            raise
+        except OSError:  # no hard links on this file system (FAT, some network shares)
+            _write_in_place(target, data)
+    finally:
+        Path(temp).unlink(missing_ok=True)
+
+
+def _write_in_place(target: Path, data: bytes) -> None:
+    """Create ``target`` with mode ``x``; a failed write or close removes it. The open stays
+    outside the ``try``, so a file that was already there is never removed."""
     handle = open(target, "xb")
     try:
         with handle:

@@ -23,7 +23,7 @@ Standard library only. Subcommands:
     repository. ``--prs-json`` is an offline export (see ``adr_commits.py`` for its shape).
 
 ``draft --scan FILE --id ID --out DIR [--status Proposed]``
-    Create one ADR from a candidate with mode ``x``, never replacing a file. Its text comes
+    Create one ADR from a candidate, published create-only, never replacing a file. Its text comes
     from the source: title, stated reason, excerpt, and a link back. Inside a work tree, DIR
     must be a located ADR folder of that tree and the file must not be ignored by git.
 
@@ -39,7 +39,7 @@ Departures from the upstream source, each pinned by a test:
   prefix and padding. Upstream wrote ``# 123. Title`` and a bare number.
 - The headings follow the newest ADR in the folder. A heading the source does not fill says
   ``Not recorded in the source.`` Upstream wrote fixed Nygard headings.
-- The number is taken at write time and the file created with mode ``x``. A name that
+- The number is taken at write time and the file published create-only. A name that
   exists is reported, never retried with another number. Past ``MAX_ADR_NUMBER`` the draft is
   refused, because the locator reads only one to six digits.
 - A title with no ASCII letter or digit gives the slug ``decision-<sha7>`` (or the id), not ``""``.

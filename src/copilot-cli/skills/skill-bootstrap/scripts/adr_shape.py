@@ -114,13 +114,9 @@ STATED_WHY = re.compile(
 
 
 def is_release_or_bump_subject(subject: str) -> bool:
-    """A release or version-bump subject with no stated reason.
-
-    After any ``type(scope):`` and ``(#N)`` are removed, it is housekeeping when it is
-    only a version, or the word bump/release alone or with a dotted version, or a
-    bump/update/upgrade of something from or to a version, unless it states why.
-    Dependency replacements ("replace a with b") are decisions and never match.
-    """
+    """A release or version-bump subject that states no reason and has no ``type!:`` mark. Past
+    ``type(scope):`` and ``(#N)`` it is only a version, bump/release alone or with a dotted
+    version, or a bump/update/upgrade from or to a version. "Replace a with b" never matches."""
     if (head := CONVENTIONAL_PREFIX.match(subject.strip())) and head.group(0).rstrip()[-2:] == "!:":
         return False  # ``type!:`` marks a breaking change, a decision, as a stated reason does
     body = CONVENTIONAL_PREFIX.sub("", subject.strip(), count=1)
@@ -357,9 +353,10 @@ TRAILER = re.compile(
     r"|reported-by|suggested-by|helped-by|change-id|pr-url|cc|bug|jira|issue)\s*:",
     _I,
 )
-# A URL holds no space, comma or semicolon, and ``&`` separates only after a space, so a list
-# splits one way; the tail reads a blank run once. Overlapping tokens were exponential.
-_ISSUE_REF = r"(?:#\d+|gh-\d+|[\w.-]+/[\w.-]+#\d+|https?://[^\s,;]+)"
+# A URL keeps a comma or semicolon unless a blank or another reference follows it, and ``&``
+# separates only after a blank, so a list splits one way and a failed match stays linear.
+_URL_REF = r"https?://(?:[^\s,;]|[,;](?![\s#\d]|https?://|gh-|[\w.-]+/[\w.-]+#|[A-Z][A-Z0-9]+-\d))+"
+_ISSUE_REF = r"(?:#\d+|gh-\d+|[\w.-]+/[\w.-]+#\d+|" + _URL_REF + ")"
 _REF_SEP = r"(?:\s*[,;]\s*|\s+(?:&\s*)?)(?:and\s+)?"
 FIXES_ONLY = re.compile(
     r"^\s*(?:fix(?:e[sd])?|close[sd]?|resolve[sd]?|refs?|see|related to|part of)\b:?\s*"
