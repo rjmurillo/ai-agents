@@ -2,7 +2,7 @@
 name: review
 version: 1.0.0
 description: Review before merge. Stage-1 spec-compliance gate, then risk-selected Stage-2 review axes from the canonical set. analyst always runs, callers can pin extra always-on axes, and explicit deep review runs every canonical axis. Run after /test. Do NOT invoke code-qualities-assessment, doc-accuracy, golden-principles, or taste-lints directly for a full review; review can select them when requested or when deep review is explicit. Do NOT use to answer PR review comments (use pr-review) or as the pre-push gate (use pr-quality).
-license: MIT
+license: Apache-2.0
 metadata:
   inputs:
     implementation-change:

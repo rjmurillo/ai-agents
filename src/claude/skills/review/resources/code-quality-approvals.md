@@ -7,6 +7,8 @@
 This procedure applies to the ai-agents repository and its main branch.
 It keeps the raw assessor output and uses one trusted run for review.
 Use it only for an owner-approved exit 10 with comparable regressions.
+The assessor admits a shared-module import or a shorter file on its own (issue #7525).
+Those runs exit 0, so this procedure does not apply to them.
 This procedure pins review scope from step 1 through marker creation.
 Its assessment and verdict replace the code-quality parts of steps 5 and 6.
 

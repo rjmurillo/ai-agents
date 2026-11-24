@@ -2,7 +2,7 @@
 name: repository-pr-recovery
 version: 1.0.0
 description: Attribute blocked ai-agents PRs, missing checks, and cancelled baselines. Do NOT use for completion proof (use repository-completion-proof).
-license: MIT
+license: Apache-2.0
 metadata:
   distribution: repo-local
   capability:

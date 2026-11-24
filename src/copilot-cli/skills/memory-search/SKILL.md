@@ -7,7 +7,7 @@ description: Tier 1 semantic memory search across the Serena corpus with
   `what do we know about X`, or `recall prior context`. Do NOT use to extract
   session episodes (use memory-reflexion) or add citations (use
   memory-enhancement).
-license: MIT
+license: Apache-2.0
 metadata:
   adr: ADR-038, ADR-063, ADR-103, ADR-106
   capability:

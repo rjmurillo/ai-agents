@@ -8,7 +8,7 @@ description: Memory-First Gate (BLOCKING) and the Chesterton's Fence investigati
   `search memory before changing`, or `chesterton fence check`. Do NOT use for
   plain Tier 1 lookups (use memory-search) or recording a session (use
   memory-reflexion).
-license: MIT
+license: Apache-2.0
 metadata:
   adr: ADR-063, ADR-070, ADR-106
   capability:

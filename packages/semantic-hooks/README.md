@@ -169,4 +169,4 @@ memory.import_from_serena()
 
 ## License
 
-MIT
+Apache-2.0
