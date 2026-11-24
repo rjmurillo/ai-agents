@@ -268,7 +268,7 @@ Always-on status uses the supported scope form in this tree:
 |---|---|
 | `applyTo: '**'` | none today |
 | `alwaysApply: true` | none today |
-| `paths: ["**"]` | `builder-ethos`, `lossless-queue-reads`, `universal`, `voice` |
+| `paths: ["**"]` | `builder-ethos`, `voice` |
 
 Legacy scope forms caused the earlier drift. Claude Code honors `paths:` and
 ignores `applyTo:`, `globs:`, and `alwaysApply:`. The generator remaps,

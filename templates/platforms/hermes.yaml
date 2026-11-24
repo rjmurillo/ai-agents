@@ -48,7 +48,7 @@ artifacts:
            pr-autofix, pr-babysit, pr-comment-responder, pr-review,
            push-pr, quality-grades, research, reviewer-findings, security-review, slo-designer, sol-loop,
            steering-matcher, style-enforcement, sync, takeover, taste-lints,
-           technical-writing, test, threat-modeling,
+           generator-pipeline, technical-writing, test, threat-modeling,
            validate-pr-description, validation-authority, windows-image-updater]
       knowledge:
         description: "Project Toolkit skills for memory, context, decisions, requirements, strategy, and documentation."
@@ -85,4 +85,15 @@ artifacts:
     # A file of a packed skill that no pack carries. The key is
     # `<skill>/<path inside the skill>`. A key that matches no file fails the build.
     excludedFiles:
+      pr-comment-responder/references/rule-lossless-queue-reads.md: "A folded path rule. Hermes never shipped rules, and the delivery pack is at the 400-file cap."
+      test/references/rule-testing.md: "A folded path rule. Hermes never shipped rules, and the delivery pack is at the 400-file cap."
+      pipeline-validator/references/rule-ci-scripts.md: "A folded path rule. Hermes never shipped rules, and the delivery pack is at the 400-file cap."
+      build/references/rule-code-quality.md: "A folded path rule. Hermes never shipped rules, and the delivery pack is at the 400-file cap."
+      build/references/rule-powershell.md: "A folded path rule. Hermes never shipped rules, and the delivery pack is at the 400-file cap."
+      build/references/rule-python.md: "A folded path rule. Hermes never shipped rules, and the delivery pack is at the 400-file cap."
+      build/references/rule-csharp.md: "A folded path rule. Hermes never shipped rules, and the delivery pack is at the 400-file cap."
+      push-pr/references/rule-push-lock.md: "A folded path rule. Hermes never shipped rules, and the delivery pack is at the 400-file cap."
+      security-review/references/rule-security.md: "A folded path rule. Hermes never shipped rules, and the delivery pack is at the 400-file cap."
+      generator-pipeline/references/rule-generated-artifacts.md: "A folded path rule. Hermes never shipped rules, and the delivery pack is at the 400-file cap."
+      generator-pipeline/references/rule-templates.md: "A folded path rule. Hermes never shipped rules, and the delivery pack is at the 400-file cap."
       retrospective/scripts/copilot_journal.py: "Needs the skill-doctor parser, which Hermes does not ship, so --journal always reports unavailable there."

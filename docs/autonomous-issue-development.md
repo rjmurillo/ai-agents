@@ -454,4 +454,3 @@ git push
 
 - [Autonomous PR Monitor](./autonomous-pr-monitor.md) - Monitoring and fixing open PRs
 - [AGENTS.md](../AGENTS.md) - Agent system documentation
-- [`.claude/rules/session-logs.md`](../.claude/rules/session-logs.md) - Session log mechanics

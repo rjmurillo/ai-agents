@@ -108,5 +108,5 @@ as [SECURITY.md](../../SECURITY.md) describes. Do not open a public issue.
 ## Links
 
 - [SECURITY.md](../../SECURITY.md)
-- [Secret redaction rule](../../.claude/rules/secret-redaction.md)
+- [Secret redaction rule](../../src/claude/skills/spec/references/rule-secret-redaction.md)
 - [ADR-114: agent workflow environments](../../.project-toolkit/architecture/ADR-114-agent-workflows-approval-and-non-blocking.md)

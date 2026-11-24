@@ -228,3 +228,5 @@ Before the retrospective is complete, confirm:
   auto-retro skeletons, including the untrusted-data rules for their filenames and bodies.
 - `.claude/agents/retrospective.md`: the agent that loads these references. The references
   are the canonical home of the rubrics; the agent keeps only the gates and load conditions.
+
+Folded rules, read before editing what they govern: [retros](references/rule-retros.md).

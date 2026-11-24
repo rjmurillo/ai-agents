@@ -190,3 +190,5 @@ and an installed-plugin run cannot disagree.
   a project that searches prior art differently edits that file, not the process.
 - **Additional output section.** The Output list is the PRD schema. Adding a
   section there is what makes downstream skills able to rely on it.
+
+Folded rules, read before editing what they govern: [secret-redaction](references/rule-secret-redaction.md).

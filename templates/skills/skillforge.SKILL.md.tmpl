@@ -398,3 +398,5 @@ skill-composer (orchestrate created skills), claude-authoring-guide (deeper patt
 ## Extension Points
 
 Add thinking models, panel agents, architecture patterns, or script patterns via the matching `references/*.md`; add domain templates in `assets/templates/`.
+
+Folded rules, read before editing what they govern: [plugin-self-containment](references/rule-plugin-self-containment.md), [claude-agents](references/rule-claude-agents.md), [tool-use-hook-bar](references/rule-tool-use-hook-bar.md).

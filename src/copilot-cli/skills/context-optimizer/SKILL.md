@@ -55,6 +55,8 @@ eliminating retrieval decisions.
 | `distill_artifact.py` | Distill a log, diff, or long text once into a cached digest with line citations; no model call | 0=success, 2=config, 3=external |
 | `path_validation.py` | Shared CWE-22 repo-root-anchored path validation | N/A (library module) |
 
+Run a command you expect to print thousands of lines (full test run, build, log dump) through `scripts/run_with_receipt.py` when the checkout ships it. The full redacted output lands in a file and you read a bounded receipt.
+
 ## Prerequisites
 
 Python 3.12+ with `tiktoken` for local token counting:

@@ -218,3 +218,5 @@ that length cap.
 - `.claude/skills/security-scan/` (CWE-78 regex scanner)
 - `.claude/skills/threat-modeling/` (OWASP STRIDE workflow)
 - ADR-058 (prompt behavioral evaluation)
+
+Folded rules, read before editing what they govern: [security](references/rule-security.md).

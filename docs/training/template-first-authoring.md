@@ -225,7 +225,7 @@ If a check fails, find the row:
 | `--check` exits 2 with only `STALENESS DETECTED` | You rendered but did not commit. | Commit the template and the output together. |
 | `--check` exits 3 | Git could not answer, or an audit rule tripped. Regenerating does not help. | Read the message. Run the command inside a normal Git worktree. |
 | Activation check exits 1 | A rule or skill has no scenario. | Add `tests/evals/rule-scenarios/<name>.json` for a rule, or a file under `tests/evals/skill-scenarios/` for a skill. |
-| A real rule fails `Rule Lossless Fixtures` or an Instruction Bytes gate | A real rule adds bytes to a corpus with a fixed ceiling. | Follow MUST 6 in [templates.md](../../templates/rules/templates.md). This page's rule is not real, so you skip it. |
+| A real rule fails `Rule Lossless Fixtures` or an Instruction Bytes gate | A real rule adds bytes to a corpus with a fixed ceiling. | Follow MUST 6 in [rule-templates.md](../../src/claude/skills/generator-pipeline/references/rule-templates.md). This page's rule is not real, so you skip it. |
 
 `uv run python build/scripts/build_all.py --help` lists every exit code. For a real change, run `uv run python scripts/validation/pre_pr.py` before you push. It includes the staleness and template drift rows.
 

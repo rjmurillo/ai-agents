@@ -1,7 +1,7 @@
 ---
 name: pipeline-validator
 version: 1.0.0
-description: Discovers, triggers, and monitors Azure DevOps pipelines (PR, Buddy Build, Buddy Release) for the current repo and branch. Auto-diagnoses failures from build logs, applies fixes, commits, pushes, and re-triggers until all pipelines pass or max retries reached. Validates PR existence and description completeness. Invoke explicitly; Azure DevOps only, not for GitHub PRs.
+description: Discovers, triggers, and monitors Azure DevOps pipelines (PR, Buddy Build, Buddy Release) for the current repo and branch. Auto-diagnoses failures from build logs, applies fixes, commits, pushes, and re-triggers until all pipelines pass or max retries reached. Validates PR existence and description completeness. Also holds the authoring rules for CI workflows and validation scripts (references/rule-ci-scripts.md); load it when you write or edit those files. Invoke explicitly for pipeline runs; Azure DevOps only, not for GitHub PRs.
 license: MIT
 metadata:
   capability:
@@ -12,7 +12,7 @@ metadata:
   routing:
     role: explicit-only
     invoker: user
-    trigger: a user, or an Azure DevOps change-making skill listed under Integration with Other Skills, asks to validate Azure DevOps pipelines for a branch or PR
+    trigger: a user, or an Azure DevOps change-making skill listed under Integration with Other Skills, asks to validate Azure DevOps pipelines for a branch or PR; or an agent authors or edits a CI workflow or validation script and needs the folded ci-scripts rules
     user-facing: true
     rationale: Automatic routing would be unsafe. It defaults to a single Azure DevOps org and commits and pushes fixes without confirmation. The Integration with Other Skills table is the only sanctioned skill-to-skill path. ship checks GitHub CI through get_pr_checks.py instead.
 ---
@@ -478,3 +478,5 @@ After complete execution:
 - [Error Patterns Catalog](references/error-patterns.md): Complete error diagnosis patterns with fixes
 - [Azure DevOps CLI: Pipelines](https://learn.microsoft.com/en-us/cli/azure/pipelines)
 - [Azure DevOps CLI: Build logs](https://learn.microsoft.com/en-us/cli/azure/devops)
+
+Folded rules, read before editing what they govern: [ci-scripts](references/rule-ci-scripts.md).

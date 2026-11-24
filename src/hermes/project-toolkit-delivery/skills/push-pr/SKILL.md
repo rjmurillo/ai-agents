@@ -204,3 +204,5 @@ for one-run PR body files. It is not an upstream repository dependency. -->
 
 <!-- vendor-portability-exec: step 5 runs scripts/validation/pr_description.py, an upstream-only validator the plugin install does not ship. Step 5 states the fallback. -->
 <!-- vendor-portability: step 5 reads scripts/validation/pr_description.py only when the consumer checkout carries it, and reports the step as not run otherwise. -->
+
+Folded rules, read before editing what they govern: [push-lock](references/rule-push-lock.md).

@@ -35,35 +35,8 @@ from skill_template_grammar import render  # noqa: E402
 # TASK-032 Acceptance Criteria 1).
 EXPECTED_RULES = frozenset(
     {
-        "adr-records",
-        "agent-skill-docs",
         "builder-ethos",
-        "canonical-source-mirror",
-        "ci-scripts",
-        "claude-agents",
-        "code-quality",
-        "csharp",
-        "efficiency",
-        "generated-artifacts",
         "governance",
-        "knowledge-persistence",
-        "lossless-queue-reads",
-        "lsp-first",
-        "plugin-self-containment",
-        "plugin-version-bump",
-        "powershell",
-        "push-lock",
-        "python",
-        "retros",
-        "secret-redaction",
-        "security",
-        "session-logs",
-        "templates",
-        "testing",
-        "token-economy",
-        "tool-use-hook-bar",
-        "unified-software-engineering",
-        "universal",
         "voice",
     }
 )
@@ -159,11 +132,16 @@ class TestLosslessRendering:
         installed = {p.stem for p in (_REPO_ROOT / ".claude" / "rules").glob("*.md")}
         assert installed == EXPECTED_RULES
 
-    def test_testing_rule_uses_the_literal_brace_escape(self) -> None:
-        """testing.md templates its GitHub Actions example through the escape."""
-        template = (_REPO_ROOT / "templates" / "rules" / "testing.md").read_text(encoding="utf-8")
-        rendered = (_REPO_ROOT / ".claude" / "rules" / "testing.md").read_text(encoding="utf-8")
-        assert "$\\{{ a && b }}" in template
+    def test_literal_brace_escape_renders_a_github_actions_expression(self, tmp_path: Path) -> None:
+        """A rule template writes a literal ``{{`` as ``\\{{``; the render drops the backslash.
+
+        No live rule carries the escape after the testing rule moved into the
+        test skill, so a synthetic template keeps the grammar covered.
+        """
+        template = tmp_path / "escape.md"
+        template.write_text("Run `$\\{{ a && b }}` in a step.\n", encoding="utf-8")
+        partials_dir = _REPO_ROOT / "templates" / "rules" / "partials"
+        rendered = render(template, partials_dir)
         assert "${{ a && b }}" in rendered
         assert "\\{{" not in rendered
 
