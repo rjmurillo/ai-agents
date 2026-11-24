@@ -62,7 +62,12 @@ if str(_SCRIPT_DIR) not in sys.path:
 import yaml  # noqa: E402
 from instruction_budget_globs import (  # noqa: E402
     UnsupportedApplyToError,
-    load_unique_frontmatter,
+    _UniqueKeySafeLoader,
+)
+
+from scripts.hook_utilities.frontmatter_block import (  # noqa: E402
+    decode_frontmatter_yaml,
+    split_frontmatter,
 )
 
 RULES_SUBDIR = Path(".claude") / "rules"
@@ -79,14 +84,22 @@ def _frontmatter(text: str) -> dict[str, object]:
     duplicate the same way, and if it takes the first the rule is unscoped
     while this gate reports it clean. That is the exact source-versus-loader
     divergence the gate exists to prevent, so a duplicate key is a violation
-    rather than a coin flip. Reuses `load_unique_frontmatter` from the
-    mirror-side budget parser, which reads the block through
-    `scripts/hook_utilities/frontmatter_block.py` and rejects this class.
+    rather than a coin flip. Reuses `_UniqueKeySafeLoader` from the
+    mirror-side budget parser, which already rejects this class; a second
+    implementation would be a second thing to keep in step. The block comes
+    from `scripts/hook_utilities/frontmatter_block.py`.
 
-    Raises `UnsupportedApplyToError` for a duplicate key or unparsable YAML.
-    The caller turns it into a finding, not a crash.
+    Raises `UnsupportedApplyToError` for a duplicate key and `yaml.YAMLError`
+    for unparsable YAML. The caller turns both into a finding, not a crash.
     """
-    return load_unique_frontmatter(text)
+    split = split_frontmatter(text)
+    if not split.found:
+        return {}
+    # Drop the fence newlines so YAML error marks match what this gate has
+    # always reported: line 1 is the block's first line.
+    raw = split.raw.removeprefix("\n").removesuffix("\n")
+    data = decode_frontmatter_yaml(raw, yaml, loader=_UniqueKeySafeLoader)
+    return data if isinstance(data, dict) else {}
 
 
 def _scope_value_defect(value: object) -> str | None:

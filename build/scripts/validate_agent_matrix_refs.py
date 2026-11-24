@@ -145,6 +145,7 @@ if str(_REPO_ROOT) not in sys.path:
 
 from scripts.hook_utilities.frontmatter_block import (  # noqa: E402
     FrontmatterStatus,
+    decode_frontmatter_yaml,
     split_frontmatter,
 )
 
@@ -392,11 +393,12 @@ def agent_frontmatter(path: Path, reasons: list[str] | None = None) -> dict[str,
     split = split_frontmatter(text)
     if not split.found:
         return None
-    # The loader runs here rather than through ``parse_frontmatter``: its MALFORMED
-    # result keeps only a message, and ``DuplicateFrontmatterKey`` carries the line
+    # The loader runs through ``decode_frontmatter_yaml``, not ``parse_frontmatter``:
+    # the latter's MALFORMED result keeps only a message, and
+    # ``DuplicateFrontmatterKey`` carries the line
     # numbers the reason below reports.
     try:
-        block = yaml.load(split.raw, Loader=FrontmatterLoader)
+        block = decode_frontmatter_yaml(split.raw, yaml, loader=FrontmatterLoader)
     except DuplicateFrontmatterKey as exc:
         # Marks are zero-based within the block text, which starts where the
         # opening fence ends, so file line = lines before the block + mark + 1.
@@ -567,7 +569,7 @@ def _frontmatter_is_broken(path: Path) -> bool:
     if not split.found:
         return True
     try:
-        block = yaml.load(split.raw, Loader=FrontmatterLoader)
+        block = decode_frontmatter_yaml(split.raw, yaml, loader=FrontmatterLoader)
     except (DuplicateFrontmatterKey, yaml.YAMLError):
         return True
     return not isinstance(block, dict)

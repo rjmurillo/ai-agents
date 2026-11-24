@@ -170,6 +170,7 @@ from checks_common import (  # noqa: E402
 
 from scripts.hook_utilities.frontmatter_block import (  # noqa: E402
     FrontmatterStatus,
+    decode_frontmatter_yaml,
     load_frontmatter,
 )
 from scripts.hook_utilities.frontmatter_block import (  # noqa: E402
@@ -457,7 +458,7 @@ def _duplicate_key(raw: str | None) -> str | None:
     if raw is None:
         return None
     try:
-        yaml.load(raw, Loader=_StrictLoader)
+        decode_frontmatter_yaml(raw, yaml, loader=_StrictLoader)
     except _DuplicateKey as exc:
         return exc.key if isinstance(exc.key, str) else repr(exc.key)
     except yaml.YAMLError:
