@@ -56,8 +56,8 @@
         ".github/workflows/**",
         ".github/cli-smoke/**"
       ],
-      "description": "A workflow file can hold secrets or write tokens, so a bump to it needs a human approval (#6506 review-gates-15). The CLI smoke pins moved from the workflow into .github/cli-smoke/, and those CLIs run beside the smoke credentials, so they keep the same approval. Renovate applies rules in order, so this rule sits after every rule that enables automerge.",
-      "automerge": false
+      "description": "A workflow file can hold secrets or write tokens, and the CLI smoke pins in .github/cli-smoke/ run beside the smoke credentials, so bumps to them used to need a human approval (#6506 review-gates-15). Richard directed automerge for all Renovate updates on 2026-11-23, with CI as the gate, so these updates automerge like the rest. Renovate applies rules in order, so this rule sits after every rule that enables automerge.",
+      "automerge": true
     },
     {
       "matchUpdateTypes": [
@@ -66,16 +66,15 @@
       "matchFileNames": [
         ".github/cli-smoke/**"
       ],
-      "description": "The weekly lock file refresh of the CLI smoke lockfiles needs a human approval, like their version bumps. A separate branch keeps the other lock file refreshes (the repo root) on the automerge path, because Renovate automerges a branch only when every update in it allows it.",
-      "branchTopic": "cli-smoke-lock-file-maintenance",
-      "automerge": false
+      "description": "The weekly lock file refresh of the CLI smoke lockfiles. This refresh used to need a human approval and a separate branch. Richard directed automerge for all Renovate updates on 2026-11-23, with CI as the gate, so these refreshes automerge on the shared lock file maintenance path like the repo root refreshes.",
+      "automerge": true
     },
     {
       "matchManagers": [
         "devcontainer"
       ],
-      "description": "A feature or image bump must refresh devcontainer-lock.json in the same PR. Automerge would land the bump alone and leave the lock stale, so these updates stay reviewable. This rule sits last on purpose: Renovate applies rules in order, and no rule after it may re-enable automerge.",
-      "automerge": false
+      "description": "A feature or image bump must refresh devcontainer-lock.json in the same PR. These updates used to stay reviewable so the bump could not land alone and leave the lock stale. Richard directed automerge for all Renovate updates on 2026-11-23, with CI as the gate, so these updates automerge like the rest. This rule stays last on purpose: Renovate applies rules in order.",
+      "automerge": true
     }
   ],
   "platformAutomerge": true,
