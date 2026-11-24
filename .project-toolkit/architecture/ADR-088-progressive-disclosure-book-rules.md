@@ -228,7 +228,7 @@ committed). Panel: reduced (architect, critic); see `.project-toolkit/critique/A
 
 `templates/rules/code-quality.md` moves from the always-on-on-code-files
 baseline into the `build` skill at `references/rule-code-quality.md` (with a
-pointer at `src/claude/skills/build/SKILL.md:70`), and the rule template plus its generated rule
+pointer in `src/claude/skills/build/SKILL.md`), and the rule template plus its generated rule
 mirrors are deleted. ADR-088 originally kept `code-quality.md` always-on under
 the assumption that routine edits lose those checks without passive context.
 In the 2026-11-24 eval (`code-quality.json`, n=4 scenarios), `code-quality`
