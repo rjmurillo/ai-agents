@@ -1,0 +1,1 @@
+../../src/copilot-cli/instructions/unified-software-engineering.instructions.md

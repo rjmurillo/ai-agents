@@ -18,17 +18,14 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-_PSC = "src/claude/skills/skillforge/references/rule-plugin-self-containment.md"
-_TPL = "src/claude/skills/generator-pipeline/references/rule-templates.md"
-
 RETIRED = {
-    _TPL: (
+    "templates/rules/templates.md": (
         "are hand-maintained",
         "no shipped agent template defines it",
         "over an 18-section allowlist",
         "`python3 build/scripts/detect_agent_drift.py`",
     ),
-    _PSC: (
+    "templates/rules/plugin-self-containment.md": (
         "### Agent files are not scanned at all",
         "Issue #3465 tracks widening the ratchet",
         "It also scans three extra roots",
@@ -53,8 +50,8 @@ RETIRED = {
 }
 
 ANCHORS = {
-    _TPL: "agent_templates.py",
-    _PSC: "### Agent files are scanned in part",
+    "templates/rules/templates.md": "agent_templates.py",
+    "templates/rules/plugin-self-containment.md": "### Agent files are scanned in part",
     "build/scripts/check_agent_content_parity.py": "binplace",
     ".agents/governance/FAIL-OPEN-INVENTORY.md": "Check plugin manifest parity and description",
     ".serena/memories/unicode-dash-guard-scope-gap.md": "`_branch_scan_files`",
@@ -87,7 +84,7 @@ SCAN_ROOT_ANCHORS = (
 
 @pytest.mark.parametrize("anchor", SCAN_ROOT_ANCHORS)
 def test_scan_root_claims_match_the_validator(anchor: str) -> None:
-    assert anchor in _read(_PSC)
+    assert anchor in _read("templates/rules/plugin-self-containment.md")
 
 
 def test_rule_names_every_extra_scan_root_the_validator_scans() -> None:

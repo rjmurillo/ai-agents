@@ -51,7 +51,6 @@ owns that content.
 ### Q3 Desperate Specificity
 
 `orchestration/orchestration-validation-gate.md` requires a Session End
-<!-- citation-freshness: ignore -- historical citation: the session-logs rule was removed by the 2026-11-23 context diet; the line cites it as it stood then. -->
 checklist. `.claude/rules/session-logs.md:9` states "Session log creation is
 discontinued". An agent that retrieves the memory runs a checklist against an
 artifact class the repository retired, and the memory outranks nothing, so the

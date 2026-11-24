@@ -1,6 +1,10 @@
 {
   "cardinality": {},
-  "cohesion": {},
+  "cohesion": {
+    "templates/rules/canonical-source-mirror.md": 6,
+    "templates/rules/knowledge-persistence.md": 5,
+    "templates/rules/security.md": 26
+  },
   "duplicate_blocks": {
     ".agents/governance/spec-schemas.md|.claude/skills/spec-generator/references/spec-schemas.md": 92,
     ".claude/skills/adr-review/references/issue-resolution.md|.claude/skills/memory-documentary/references/execution-protocol.md": 1,

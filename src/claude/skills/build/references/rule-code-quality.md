@@ -55,7 +55,7 @@ Bail on the unhappy path first. Keep the happy path on the leftmost indent level
 Commented-out code rots. Remove it; version control is the archive.
 
 - Delete unreachable branches, unused imports, and stale parameters.
-- Delete TODOs that have outlived their context. Open an issue if the work still matters.
+- Delete TODOs that have outlived their context. Flag the work to its owner if it still matters.
 - Delete commented-out blocks. If you are unsure, run a search across the repo first; then delete.
 - Delete unused public APIs once you confirm no internal callers exist. External consumers belong behind a deprecation notice.
 

@@ -21,15 +21,7 @@ import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-RULE_PATH = (
-    REPO_ROOT
-    / "src"
-    / "claude"
-    / "skills"
-    / "review"
-    / "resources"
-    / "rule-canonical-source-mirror.md"
-)
+RULE_PATH = REPO_ROOT / ".claude" / "rules" / "canonical-source-mirror.md"
 
 
 def _parse_frontmatter(text: str) -> dict:

@@ -220,7 +220,7 @@ never have to uninstall to recover from an artifact we generated.
 - `.claude/skills/agent-harness-reference/SKILL.md`. Operational contract.
 - `.claude/skills/agent-harness-reference/references/official-hook-contracts.md`. Official sources and refresh procedure.
 - `.claude/skills/ai-agents-portability-campaign/SKILL.md` (in the ai-agents repository only). Contract change workflow.
-- `.claude/rules/canonical-source-mirror.md`. Self-referential test anti-pattern.
+- the `review` skill's `resources/rule-canonical-source-mirror.md`. Self-referential test anti-pattern.
 - The `software-engineering-library` skill's `release-it.md` reference. Fail fast and loud; bound the blast radius by prevention, not by silently swallowing failures.
 - `validate_hook_anchoring.py` (script). The committed-artifact gate.
 - `build/scripts/lib_mirror.py`. Renders `scripts/{hook_utilities,github_core,ai_review_common}/` into every lib plugin tree; the `sync_plugin_lib.py` shim is retired (issue #5790).

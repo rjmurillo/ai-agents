@@ -274,6 +274,7 @@ python3 scripts/validate_memory_tier.py --path .serena/memories
 
 ## Related Documents
 
+- [`.claude/rules/session-logs.md`](../.claude/rules/session-logs.md) - Session log mechanics
 - [Retrospective: PR #226](../.project-toolkit/retrospective/2025-12-22-pr-226-premature-merge-failure.md) - Failure analysis
 - [Issue #230](https://github.com/rjmurillo/ai-agents/issues/230) - Implementation tracking
 - [usage-mandatory.md](../.serena/memories/usage-mandatory.md) - Skill usage policy

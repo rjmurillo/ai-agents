@@ -27,7 +27,7 @@ The source file to edit, the build command, and a check that the output is curre
 
 ## Advanced use
 
-Two references hold the full rules. [`rule-generated-artifacts.md`](../../src/claude/skills/generator-pipeline/references/rule-generated-artifacts.md) covers customer-facing artifacts and their runtime contract. [`rule-templates.md`](../../src/claude/skills/generator-pipeline/references/rule-templates.md) covers template grammar and generated output.
+[`rule-generated-artifacts.md`](../../src/claude/skills/generator-pipeline/references/rule-generated-artifacts.md) holds the full rule for customer-facing artifacts and their runtime contract. Template grammar stays in the `templates` path rule.
 
 ## Where it runs
 

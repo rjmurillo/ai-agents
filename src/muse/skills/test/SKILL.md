@@ -341,5 +341,3 @@ Writes: `test-gate-report`. Next: `/review`.
   new row, not new prose.
 - **Different synthesis.** Process step 5 delegates to `quality-grades`. A
   project scoring differently swaps that one call.
-
-Folded rules, read before editing what they govern: [testing](references/rule-testing.md).

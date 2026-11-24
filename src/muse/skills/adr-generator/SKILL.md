@@ -389,5 +389,3 @@ Before delivering, confirm all items in the [quality checklist](references/quali
 - [AD Quality Frameworks](references/ad-quality-frameworks.md): ASR Test, START (DoR), ecADR (DoD), anti-patterns, review checklist (Zimmermann)
 - [ADR Best Practices](references/adr-best-practices.md): Writing guidance, lifecycle, naming conventions, teamwork advice
 - [Quality Checklist](references/quality-checklist.md): Validation checklist for Phase G4
-
-Folded rules, read before editing what they govern: [adr-records](references/rule-adr-records.md).

@@ -1,5 +1,6 @@
 {
-  "rule_path": ".claude/rules/lossless-queue-reads.md",
+  "skill_path": ".claude/skills/pr-comment-responder/SKILL.md",
+  "reference_path": ".claude/skills/pr-comment-responder/references/rule-lossless-queue-reads.md",
   "rule_id": "lossless-queue-reads",
   "scenarios": [
     {

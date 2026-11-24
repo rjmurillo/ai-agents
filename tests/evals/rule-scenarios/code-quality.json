@@ -1,5 +1,6 @@
 {
-  "rule_path": ".claude/rules/code-quality.md",
+  "skill_path": ".claude/skills/build/SKILL.md",
+  "reference_path": ".claude/skills/build/references/rule-code-quality.md",
   "rule_id": "code-quality",
   "scenarios": [
     {

@@ -23,15 +23,7 @@ DOCTRINE = (
     / "model-context-doctrine.md"
 )
 LIBRARY_SKILL = REPO_ROOT / ".claude" / "skills" / "software-engineering-library" / "SKILL.md"
-CANONICAL_MIRROR_RULE = (
-    REPO_ROOT
-    / "src"
-    / "claude"
-    / "skills"
-    / "review"
-    / "resources"
-    / "rule-canonical-source-mirror.md"
-)
+CANONICAL_MIRROR_RULE = REPO_ROOT / "templates" / "rules" / "canonical-source-mirror.md"
 MEMBERSHIP_MEMORY = (
     REPO_ROOT
     / ".serena"
@@ -40,9 +32,7 @@ MEMBERSHIP_MEMORY = (
     / "always-on-membership-lives-in-the-mirror.md"
 )
 
-# The book rules moved into skill references (build, review), so no rule
-# carries a book on any turn or file type.
-BOOK_RULES: frozenset[str] = frozenset()
+BOOK_RULES = frozenset({"unified-software-engineering"})
 
 _TABLE_HEADER = "| Form | Rules |"
 _ROW_NAME = re.compile(r"`([a-z0-9-]+)`")
@@ -57,7 +47,7 @@ _MEMBERSHIP_TABLE_ROW = re.compile(
 )
 
 CORPUS_PROSE_DOCS = (
-    ("canonical-source-mirror reference", CANONICAL_MIRROR_RULE),
+    ("canonical-source-mirror rule", CANONICAL_MIRROR_RULE),
     ("always-on-membership memory", MEMBERSHIP_MEMORY),
 )
 

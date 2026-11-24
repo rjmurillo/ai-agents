@@ -29,9 +29,7 @@ _PINNED_REPO_ONLY = frozenset(
         "adr-records",
         "agent-skill-docs",
         "canonical-source-mirror",
-        "ci-scripts",
         "claude-agents",
-        "generated-artifacts",
         "governance",
         "knowledge-persistence",
         "plugin-self-containment",
@@ -115,7 +113,7 @@ def test_live_repo_only_set_matches_what_copilot_skips() -> None:
     assert templates - shipped == _PINNED_REPO_ONLY
 
 
-_ALWAYS_ON = frozenset({"builder-ethos", "lossless-queue-reads", "universal", "voice"})
+_ALWAYS_ON = frozenset({"builder-ethos", "universal", "voice"})
 
 
 def _template_names() -> set[str]:
@@ -167,7 +165,7 @@ def test_always_on_rules_are_unchanged_and_ship() -> None:
 
 
 @pytest.mark.parametrize(
-    "name", ["testing", "token-economy", "retros", "security", "python", "lsp-first"]
+    "name", ["testing", "retros", "security", "python", "unified-software-engineering"]
 )
 def test_rules_with_a_consumer_shaped_glob_keep_shipping(name: str) -> None:
     """Generic ``tests/`` and ``scripts/`` globs never flip a rule by themselves."""
@@ -256,3 +254,29 @@ def test_repo_only_rule_turning_shipped_moves_to_plugin_tree(tmp_path: Path) -> 
     assert rule_distribution.render_target(
         root, "flip", root / "templates" / "rules" / "flip.md"
     ) == (root / "src" / "claude" / "rules" / "flip.md")
+
+
+_FOLDED_RULES = {
+    "ci-scripts": "pipeline-validator",
+    "code-quality": "build",
+    "csharp": "build",
+    "efficiency": "programming-advisor",
+    "generated-artifacts": "generator-pipeline",
+    "lossless-queue-reads": "pr-comment-responder",
+    "lsp-first": "using-serena-symbols",
+    "powershell": "build",
+}
+
+
+@pytest.mark.parametrize("name", sorted(_FOLDED_RULES))
+def test_folded_rule_lives_in_a_skill_reference_not_templates_rules(name: str) -> None:
+    """A folded rule has no template, and its skill reference keeps the former scope."""
+    assert name not in _template_names()
+    assert name not in _PINNED_REPO_ONLY
+    skill = _FOLDED_RULES[name]
+    ref = _REPO_ROOT / "src" / "claude" / "skills" / skill / "references" / f"rule-{name}.md"
+    assert ref.is_file(), ref
+    first = ref.read_text(encoding="utf-8").splitlines()[0]
+    assert first.startswith("<!--") and "paths" in first, first
+    tmpl = _REPO_ROOT / "templates" / "skills" / f"{skill}.SKILL.md.tmpl"
+    assert f"rule-{name}.md" in tmpl.read_text(encoding="utf-8")

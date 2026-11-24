@@ -248,7 +248,7 @@ PR #5498 reduced `voice`.
 Issue #5404 added completion guidance to `builder-ethos` and `voice`.
 Epic #5456 M4 moved model patches and search guidance into skills.
 It also moved much of `voice` into skills with narrower activation.
-Issue #5256 added `lossless-queue-reads`: a repo-specific completeness rule
+Issue #5256 added `lossless-queue-reads` (since folded into the `pr-comment-responder` skill): a repo-specific completeness rule
 that no skill description would surface at the moment of a `head` or a limit.
 
 The generated instruction trees preserve the difference between always-on and
@@ -268,7 +268,7 @@ Always-on status uses the supported scope form in this tree:
 |---|---|
 | `applyTo: '**'` | none today |
 | `alwaysApply: true` | none today |
-| `paths: ["**"]` | `builder-ethos`, `voice` |
+| `paths: ["**"]` | `builder-ethos`, `universal`, `voice` |
 
 Legacy scope forms caused the earlier drift. Claude Code honors `paths:` and
 ignores `applyTo:`, `globs:`, and `alwaysApply:`. The generator remaps,

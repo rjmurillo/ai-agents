@@ -230,18 +230,15 @@ class TestRuleScenarioFiles:
         assert "scenarios" in data
         assert isinstance(data["scenarios"], list)
         assert len(data["scenarios"]) >= 2, "Need at least 2 scenarios"
-        if rule_id == "pragmatic-programmer":
-            # Issue #5951: pragmatic-programmer moved out of .claude/rules/
-            # into an ADR-088 progressive-disclosure reference scenario
-            # (skill_path + reference_path, no rule_path); see
-            # check_rule_activation_coverage.py's _is_reference_scenario,
-            # which requires exactly this shape to exclude the scenario from
-            # both the rule and skill activation-coverage ratchets.
-            assert "skill_path" in data
-            assert "reference_path" in data
-            assert "rule_path" not in data
-        else:
-            assert "rule_path" in data
+        # Issue #5951 moved pragmatic-programmer, and the context diet moved
+        # code-quality, out of the rule tree into ADR-088 progressive-disclosure
+        # reference scenarios (skill_path + reference_path, no rule_path); see
+        # check_rule_activation_coverage.py's _is_reference_scenario, which
+        # requires exactly this shape to exclude the scenario from both the
+        # rule and skill activation-coverage ratchets.
+        assert "skill_path" in data
+        assert "reference_path" in data
+        assert "rule_path" not in data
 
     @pytest.mark.parametrize("rule_id", ["code-quality", "pragmatic-programmer"])
     def test_scenarios_have_positive_and_negative(self, rule_id):
@@ -253,11 +250,11 @@ class TestRuleScenarioFiles:
         assert has_negative, f"{rule_id}: no negative scenario"
 
     @pytest.mark.parametrize("rule_id", ["code-quality"])
-    def test_rule_path_points_to_existing_file(self, rule_id):
+    def test_code_quality_reference_scenario_points_to_existing_files(self, rule_id):
         path = RULE_SCENARIOS_DIR / f"{rule_id}.json"
         data = json.loads(path.read_text(encoding="utf-8"))
-        rule_path = REPO_ROOT / data["rule_path"]
-        assert rule_path.exists(), f"rule_path {data['rule_path']!r} does not exist"
+        for key in ("skill_path", "reference_path"):
+            assert (REPO_ROOT / data[key]).exists(), f"{key} {data[key]!r} does not exist"
 
     def test_pragmatic_programmer_reference_scenario_points_to_existing_files(self):
         """Issue #5951: pragmatic-programmer is now a skill reference scenario."""

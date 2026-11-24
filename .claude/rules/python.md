@@ -1,0 +1,1 @@
+../../src/claude/rules/python.md

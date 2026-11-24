@@ -23,7 +23,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PYTHON_RULE = REPO_ROOT / "src" / "claude" / "skills" / "build" / "references" / "rule-python.md"
+PYTHON_RULE = REPO_ROOT / ".claude" / "rules" / "python.md"
 
 # Shell form (`ruff format`, including `uv run ... ruff format`) and the
 # subprocess list form (`["ruff", "format", ...]`) that a Python runner uses.
@@ -114,9 +114,7 @@ def test_force_exclude_is_scoped_to_the_format_hook_not_to_lint() -> None:
 
 def test_documented_format_command_forces_the_format_excludes() -> None:
     """Without a top-level force-exclude, a named excluded fixture gets rewritten."""
-    rule = (
-        REPO_ROOT / "src" / "claude" / "skills" / "build" / "references" / "rule-python.md"
-    ).read_text(encoding="utf-8")
+    rule = (REPO_ROOT / "templates" / "rules" / "python.md").read_text(encoding="utf-8")
 
     commands = re.findall(r"`(uv run [^`]*ruff format(?! --check)[^`]*)`", rule)
     assert commands

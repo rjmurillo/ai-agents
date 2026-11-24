@@ -1,0 +1,32 @@
+{
+  "skill_path": ".claude/skills/generator-pipeline/SKILL.md",
+  "skill_id": "generator-pipeline",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "An agent wants to fix a typo in a generated SKILL.md",
+      "input": "There is a typo in src/claude/skills/build/SKILL.md. How do I fix it? Answer in 4 short bullets. Do not run anything.",
+      "expected_signals": [
+        "template",
+        "templates/skills",
+        "build_all.py",
+        "generated"
+      ],
+      "expected_gate": "generator-pipeline-edit-source",
+      "rationale": "The skill says generated files are never hand-edited: edit the template source and run build_all.py. A response that routes the fix to the template and the build is attributable to the skill."
+    },
+    {
+      "id": "S2",
+      "desc": "An agent finished a template edit and wants to commit",
+      "input": "I edited templates/skills/test.SKILL.md.tmpl. What must I do before I commit? Answer in 4 short bullets. Do not run anything.",
+      "expected_signals": [
+        "build_all.py",
+        "run it again",
+        "git status",
+        "commit the template and its output together"
+      ],
+      "expected_gate": "generator-pipeline-generation-clean",
+      "rationale": "The skill requires running build_all.py, running it a second time to prove the output is clean, and committing template and output together. A response naming that sequence is attributable to the skill."
+    }
+  ]
+}

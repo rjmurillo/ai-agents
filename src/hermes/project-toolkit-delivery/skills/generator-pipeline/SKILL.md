@@ -27,7 +27,7 @@ Use this skill when the user says:
 ## Process
 
 1. Find the source. Read [rule-generated-artifacts.md](references/rule-generated-artifacts.md) for the output-to-source map.
-2. Edit the template. Read [rule-templates.md](references/rule-templates.md) for template grammar and escaping.
+2. Edit the template. The `templates` path rule covers template grammar and escaping.
 3. Run `build_all.py`.
 4. Run it again. Confirm `git status --porcelain` shows no new changes.
 
@@ -35,4 +35,4 @@ Use this skill when the user says:
 
 - The pre-PR runner (`pre_pr.py`) reports `Generated Artifact Staleness` as passed.
 
-Folded rules, read before editing what they govern: [generated-artifacts](references/rule-generated-artifacts.md), [templates](references/rule-templates.md).
+Folded rules, read before editing what they govern: [generated-artifacts](references/rule-generated-artifacts.md).

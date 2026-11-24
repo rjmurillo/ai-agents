@@ -22,7 +22,6 @@ DOC = REPO_ROOT / ".agents" / "governance" / "agent-design-principles.md"
 AGENTS_MD = REPO_ROOT / "AGENTS.md"
 HEADING = "## Operating Objective: System Capability, Not Model Competence"
 FOUR_PARTS = ("Base model", "Agent system", "External state", "Measurable outcomes")
-CLAUDE_MD = REPO_ROOT / "CLAUDE.md"
 ROUTING_DETAIL = REPO_ROOT / ".project-toolkit" / "context" / "AGENTS-details" / "routing.md"
 POINTER_FILES = (AGENTS_MD, ROUTING_DETAIL)
 DOCTRINE_SENTENCES = (
@@ -182,13 +181,27 @@ def test_rule_paths_parses_block_list_and_ignores_missing_frontmatter() -> None:
     assert _rule_paths("---\npriority: high\n---\nbody") == []
 
 
-def test_discovery_includes_lossless_queue_reads() -> None:
-    assert "lossless-queue-reads.md" in {rule.name for rule in ALWAYS_ON_RULES}
+def test_discovery_excludes_the_folded_lossless_queue_reads_rule() -> None:
+    """lossless-queue-reads left the always-on set when it folded into a skill reference."""
+    names = {rule.name for rule in ALWAYS_ON_RULES}
+    assert "lossless-queue-reads.md" not in names
+    assert {"builder-ethos.md", "universal.md", "voice.md"} <= names
+    folded = (
+        REPO_ROOT
+        / "src"
+        / "claude"
+        / "skills"
+        / "pr-comment-responder"
+        / "references"
+        / "rule-lossless-queue-reads.md"
+    )
+    assert folded.is_file()
 
 
 def test_claude_md_keeps_orchestrator_default_for_non_trivial_work() -> None:
-    text = CLAUDE_MD.read_text(encoding="utf-8")
-    assert 'Task(subagent_type="orchestrator")` by default for non-trivial work' in text
+    # The Claude Code Specifics section of CLAUDE.md merged into AGENTS.md (context diet).
+    text = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    assert "\nDelegate|orchestrator|" in text
 
 
 @pytest.mark.parametrize("rule", ALWAYS_ON_RULES, ids=lambda p: p.name)
