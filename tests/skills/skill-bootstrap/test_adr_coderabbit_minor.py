@@ -327,7 +327,7 @@ def test_a_bare_promisor_key_marks_a_partial_clone(
     ],
 )
 def test_closing_prose_does_not_reach_back_to_an_earlier_breaking_line(closing: str) -> None:
-    body = f"Body.\n\nBREAKING CHANGE: the old name is gone.\n\nMore prose here.\n\n{closing}"
+    body = f"Body.\n\nBREAKING CHANGE: the old name is gone.\n\n{closing}"
 
     assert not adr_reason.breaking_change("feat: rename the field", body)
 
@@ -352,7 +352,7 @@ def test_a_footer_may_name_several_issues(closing: str) -> None:
 
 @pytest.mark.parametrize("closing", ["Refs #12,#13", "Refs #12 #13 later"])
 def test_an_issue_list_with_trailing_prose_is_not_a_footer(closing: str) -> None:
-    body = f"Body.\n\nBREAKING CHANGE: the old name is gone.\n\nMore prose.\n\n{closing}"
+    body = f"Body.\n\nBREAKING CHANGE: the old name is gone.\n\n{closing}"
 
     assert not adr_reason.breaking_change("feat: rename the field", body)
 
