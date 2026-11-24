@@ -85,3 +85,19 @@ def test_an_anchor_only_in_the_command_cell_counts(
     code, out = _run(root, capsys)
 
     assert code == expected, out
+
+
+def test_a_row_ending_in_a_colon_takes_no_continuation_quote(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A table row is a complete unit for the continuation-quote reader too."""
+    root = _repo(tmp_path)
+    doc = _table(
+        f"| Helper | `{TARGET}:3` | Note:",
+        "  | Other | No citation | Unrelated |",
+    )
+    _add_doc(root, "docs/table.md", doc)
+
+    code, out = _run(root, capsys)
+
+    assert code == 0, out
