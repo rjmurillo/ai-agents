@@ -2,7 +2,7 @@
 
 ## Summary
 
-- **Rounds**: 1 of 10
+- **Rounds**: 2 of 10
 - **Prior debate log**: frontmatter-one-parser-citation-renumber-debate-log.md
 - **Outcome**: Consensus
 - **Final Status**: accepted
@@ -54,6 +54,26 @@ The same change fixes these non-ADR citations:
 - `scripts/validation/citation_head_state.py:91`
 - `scripts/validation/check_push_lock_before_commit.py:49`
 - `.agents/governance/FAIL-OPEN-INVENTORY.md:103`, `:116`, `:119` and `:151`
+
+## Round 2 Summary
+
+### Agent Positions
+
+| Agent | Position |
+|-------|----------|
+| architect | Accept, unchanged; the marker restates facts both seats verified in round 1 |
+| critic | Accept, unchanged; round 1 already named this citation as historical |
+
+### Key Issues Addressed
+
+- The reverse-pass gate treats a line this branch edits as owning all its
+  citations. ADR-100:37 also cites the deleted `_check_commit_limit` at
+  `:6727`, which was already wrong at base.
+- That citation is history, the same case ADR-100:256 handles. It now carries
+  the same kind of inline `citation-freshness: ignore` marker, naming the
+  commit where the line matched and the commit that deleted the gate.
+- `git show 72f0e6309:scripts/validation/git_hook_policy.py` line 6727 reads
+  `def _check_commit_limit(`, and 23ad6e429 (2026-09-22) deleted the gate.
 
 ### Next Steps
 
