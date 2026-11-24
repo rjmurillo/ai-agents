@@ -1,5 +1,5 @@
 """An untouched citation that was stale at the merge base stays debt.
-
+citation-freshness: ignore -- historical: the next lines describe PR #7482 as it stood.
 PR #7482 was blocked by ADR-109 line 96. That line cited ADR-107 line 663.
 The quoted bullet already sat at line 725 on main, so the citation was
 wrong before the branch. The branch added three lines above the bullet.
