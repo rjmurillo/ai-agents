@@ -2336,13 +2336,13 @@ def _scan_c_family(
 
 
 # Characters and keywords after which ``/`` starts a regex, not a division.
-_JS_REGEX_PRECEDERS = frozenset("(,=:[!&|?{;+-*/%~^") | {"=>", "control-end", "statement-end"}
+_JS_REGEX_PRECEDERS = frozenset("(,=:[!&|?{;+-*/%~^") | {"=>", _JS_CONTROL_END, _JS_STATEMENT_END}
 _JS_REGEX_KEYWORDS = frozenset(
     {"return", "typeof", "instanceof", "in", "new", "delete", "void", "throw", "case", "do", "else"}
 )
 _JS_CONTROL_HEADS = frozenset({"if", "for", "while", "with", "switch", "catch"})
 _JS_STATEMENT_BLOCK_PRECEDERS = frozenset(
-    {"", "control-end", "statement-end", ";", "try", "else", "finally", "do"}
+    {"", _JS_CONTROL_END, _JS_STATEMENT_END, ";", "try", "else", "finally", "do"}
 )
 _JS_KEYWORDS = _JS_REGEX_KEYWORDS | _JS_CONTROL_HEADS | _JS_STATEMENT_BLOCK_PRECEDERS
 _JS_SCAN_TOKEN = re.compile(r"[\w$]+|=>|\+\+|--|\?\.|[^\s]")
