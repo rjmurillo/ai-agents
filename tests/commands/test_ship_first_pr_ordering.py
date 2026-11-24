@@ -304,14 +304,20 @@ class TestCheckStatusWaitTimeout:
         assert command < validator
 
 
-def waits_on_optional_checks(text: str) -> list[str]:
-    """Return each backticked `get_pr_checks.py --wait` command that lacks `--required-only`.
+def commands_waiting_on_all_checks(text: str) -> list[str]:
+    """Return each `get_pr_checks.py --wait` command that lacks `--required-only`.
 
     Without `--required-only`, `--wait` polls every check, and an optional job
-    waiting on an environment approval never settles, so ship stalls.
+    waiting on an environment approval never settles, so ship stalls. Reads
+    inline code spans (odd segments between backticks) and fenced-code lines.
     """
-    commands = re.findall(r"`([^`]*get_pr_checks\.py[^`]*)`", text)
-    return [c for c in commands if "--wait" in c and "--required-only" not in c]
+    spans = text.split("`")[1::2]
+    candidates = spans + text.splitlines()
+    return [
+        c
+        for c in candidates
+        if "get_pr_checks.py" in c and "--wait" in c and "--required-only" not in c
+    ]
 
 
 class TestWaitsOnRequiredChecksOnly:
@@ -321,23 +327,41 @@ class TestWaitsOnRequiredChecksOnly:
         with_pr = [b for b in github_bullets(pipeline_item) if "`pr=#<number>`" in b]
         assert len(with_pr) == 1
         assert "get_pr_checks.py" in with_pr[0]
-        assert waits_on_optional_checks(with_pr[0]) == []
+        assert commands_waiting_on_all_checks(with_pr[0]) == []
         assert 'RequiredState == "SUCCESS"' in with_pr[0]
         assert "AllPassing" in with_pr[0]
 
     def test_discharge_waits_on_required_only(self, ship_text: str) -> None:
         discharge = numbered_item(section(ship_text, "Process"), "Discharge a deferred")
         assert "get_pr_checks.py" in discharge
-        assert waits_on_optional_checks(discharge) == []
+        assert commands_waiting_on_all_checks(discharge) == []
         assert 'RequiredState == "SUCCESS"' in discharge
 
     def test_detector_flags_a_wait_on_every_check(self) -> None:
         """Negative control: the plain --wait form that stalled must be caught."""
         stalled = '`python3 "$S/pr/get_pr_checks.py" --pull-request 1 --wait --timeout-seconds 300`'
-        assert waits_on_optional_checks(stalled) != []
+        assert commands_waiting_on_all_checks(stalled) != []
 
     def test_detector_ignores_a_read_without_wait(self) -> None:
-        assert waits_on_optional_checks("`get_pr_checks.py --pull-request 1`") == []
+        assert commands_waiting_on_all_checks("`get_pr_checks.py --pull-request 1`") == []
+
+    def test_detector_reads_a_span_after_unquoted_prose(self) -> None:
+        """A bare mention before the span must not hide the real command."""
+        text = "Run get_pr_checks.py first. Then `get_pr_checks.py --pull-request 1 --wait`."
+        assert commands_waiting_on_all_checks(text) != []
+
+    @pytest.mark.parametrize(
+        "relative",
+        [
+            "src/claude/skills/github/references/patterns.md",
+            "src/claude/skills/github/references/examples.md",
+            "src/claude/skills/github/fix-ci.md",
+        ],
+    )
+    def test_github_examples_wait_on_required_only(self, relative: str) -> None:
+        text = (REPO_ROOT / relative).read_text(encoding="utf-8")
+        assert "get_pr_checks.py" in text
+        assert commands_waiting_on_all_checks(text) == []
 
 
 class TestProcessDischargesTheDeferral:

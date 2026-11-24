@@ -1,7 +1,12 @@
 # Required Versus Optional PR Checks
 
-Only a required check blocks a merge decision. An optional check never does.
-This page says which is which and how an agent treats each kind.
+Only a required check blocks a merge decision. An agent never waits on an
+optional check. This page says which is which and how an agent treats each
+kind.
+
+One case needs an action but never a wait: a failed optional check whose
+workflow is not in the advisory list. A repository's readiness gate can ask
+for a recorded disposition for it. Record it, or fix the check.
 
 ## Which checks are required
 
@@ -12,6 +17,7 @@ Never copy check names into prose, because a copied list drifts.
 |---|---|
 | Are the required checks green? | `get_pr_checks.py --pull-request N --required-only` and read `Data.RequiredState` |
 | Wait for required checks only | Add `--wait --timeout-seconds 300` to the command above |
+| Does the branch require any check? | Exit 0 with empty `Data.Checks` under `--required-only` means no. Re-run without the flag and require `AllPassing` |
 | Can this PR merge? | `test_pr_merge_ready.py --pull-request N` and read `CanMerge` and `CIPassing` |
 | Why is this PR blocked? | `why_pr_blocked.py --pull-request N` |
 

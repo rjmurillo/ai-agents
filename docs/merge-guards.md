@@ -14,13 +14,12 @@ The repository currently has:
 - ✅ Pre-commit hooks (session-log validation if present, skill detection, test coverage)
 - ✅ CI validation (PR description, tests, CodeQL, and deterministic validators)
 - ✅ Active ruleset with required status-check contexts
+- ✅ Required review-thread resolution and squash-only merging
 
 The live required list is the `main` ruleset, not this page. The check names
 in the recipes below are examples. Read the live list with the github skill:
 `get_pr_checks.py --pull-request <N> --required-only`. Agents treat optional
 checks per the github skill reference `required-vs-optional-checks.md`.
-
-- ✅ Required review-thread resolution and squash-only merging
 
 ## Recommended Branch Protection Rules
 

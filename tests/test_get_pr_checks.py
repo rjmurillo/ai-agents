@@ -1075,6 +1075,93 @@ class TestMain:
         assert output["Data"]["ChecksIncomplete"] is True
         assert output["Data"]["RequiredState"] == "UNKNOWN"
 
+    @staticmethod
+    def _optional_only_gql() -> dict:
+        return {
+            "repository": {
+                "pullRequest": {
+                    "mergeable": "MERGEABLE",
+                    "mergeStateStatus": "UNSTABLE",
+                    "baseRefName": "main",
+                    "number": 42,
+                    "commits": {
+                        "nodes": [
+                            {
+                                "commit": {
+                                    "statusCheckRollup": {
+                                        "state": "PENDING",
+                                        "contexts": {
+                                            "nodes": [
+                                                {
+                                                    "__typename": "CheckRun",
+                                                    "name": "smoke",
+                                                    "status": "WAITING",
+                                                    "conclusion": None,
+                                                    "detailsUrl": "",
+                                                    "isRequired": False,
+                                                },
+                                            ],
+                                        },
+                                    },
+                                },
+                            },
+                        ],
+                    },
+                },
+            },
+        }
+
+    def _run_required_only_wait(self, ruleset: list[str], capsys) -> tuple[int, dict, object]:
+        with (
+            patch("get_pr_checks.assert_gh_authenticated"),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("get_pr_checks.gh_graphql", return_value=self._optional_only_gql()),
+            patch("get_pr_checks.fetch_ruleset_required_contexts", return_value=ruleset),
+            patch("get_pr_checks.time.monotonic", side_effect=[0.0, 999.0]),
+            patch("get_pr_checks.time.sleep") as sleep_mock,
+        ):
+            rc = main(
+                [
+                    "--pull-request",
+                    "42",
+                    "--wait",
+                    "--required-only",
+                    "--timeout-seconds",
+                    "10",
+                    "--output-format",
+                    "json",
+                ]
+            )
+        return rc, json.loads(capsys.readouterr().out)["Data"], sleep_mock
+
+    def test_required_only_wait_settles_when_branch_requires_no_checks(self, capsys):
+        """A waiting optional check must not stall --wait --required-only.
+
+        With no required check, the filtered list is empty by design, not a
+        rollup race, so the wait settles at once with an empty required set.
+        """
+        rc, data, sleep_mock = self._run_required_only_wait([], capsys)
+
+        assert rc == 0
+        sleep_mock.assert_not_called()
+        assert data["Checks"] == []
+        assert data["ChecksIncomplete"] is False
+        assert data["RequiredState"] == "SUCCESS"
+        assert data["AllPassing"] is False
+
+    def test_required_only_wait_still_reports_a_missing_required_check(self, capsys):
+        """Control: when the ruleset requires a check that never reported, the
+        settled empty set is not green."""
+        rc, data, _ = self._run_required_only_wait(["build"], capsys)
+
+        assert data["Checks"] == []
+        assert data["RequiredState"] in ("PENDING", "FAILURE")
+        assert data["AllPassing"] is False
+        assert rc != 0
+
     def test_wait_genuine_no_checks_settles_immediately(self, capsys):
         """#2304: --wait settles missing rollups as real no-check PRs."""
         no_checks_gql = {

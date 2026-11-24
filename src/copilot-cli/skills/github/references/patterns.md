@@ -196,6 +196,8 @@ failed_count=$(echo "$checks" | jq '.Data.FailedCount')
 
 if [ "$merge_ref_usable" = "false" ]; then
     echo "BLOCKED: PR merge ref cannot be built, so CI status is incomplete"
+elif [ "$required_state" = "SUCCESS" ] && [ "$(echo "$checks" | jq '.Data.Checks | length')" -eq 0 ]; then
+    echo "The branch requires no checks; re-run without --required-only to judge CI"
 elif [ "$required_state" = "SUCCESS" ]; then
     echo "All required CI checks passing"
 elif [ "$failed_count" -gt 0 ]; then
@@ -237,7 +239,12 @@ fi
 
 checks=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_checks.py --pull-request 50 --wait --required-only; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) )
 required_state=$(echo "$checks" | jq -r '.Data.RequiredState')
-if [ "$required_state" = "SUCCESS" ]; then
+all_passing=$(echo "$checks" | jq -r '.Data.AllPassing')
+# AllPassing is false when the branch requires no checks; then re-run without
+# --required-only before merging. RequiredState alone is SUCCESS there.
+if [ "$required_state" = "SUCCESS" ] && [ "$all_passing" = "true" ]; then
     ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/merge_pr.py --pull-request 50 --strategy squash; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+else
+    echo "Not merging: RequiredState=$required_state AllPassing=$all_passing $(echo "$checks" | jq -r '.Data.MergeStateWarning')"
 fi
 ```
