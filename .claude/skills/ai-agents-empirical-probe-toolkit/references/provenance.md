@@ -12,12 +12,12 @@ Verified 2026-07-03 against the working tree.
 | Plugin-root env contract, Copilot CLI 1.0.57 | `.serena/memories/decision-copilot-cli-hook-plugin-root-contract.md` | `cat .serena/memories/decision-copilot-cli-hook-plugin-root-contract.md` |
 | Payload casing contract, CLI 1.0.58 | `.project-toolkit/retrospective/2026-06-02-issue-2290-copilot-hook-payload-format.md:33,47,71` | `grep -n "toolArgs" .project-toolkit/retrospective/2026-06-02-issue-2290-copilot-hook-payload-format.md` |
 | M4 threshold 6 vs max 4; last-5-PRs rule | `.project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md:70-73,153` | `grep -n "Threshold = 6" .project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md` |
-| #1887 Phase-6 audit 0/35 | `.project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md:199,230` | `grep -n "Total preventable" .project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md` |
+| #1887 Phase-6 audit 0/35 | `.project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md:199,230` | `grep -n "Total preventable" .project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md` <!-- citation-freshness: ignore -- the re-verify command quotes the second cited line, and the gate checks only the first --> |
 | Eval commands and flags | `scripts/eval/eval-prompt-change.py:1-60`, `scripts/eval/eval-agent-vs-baseline.py:472-573` | `uv run python scripts/eval/eval-prompt-change.py --help` |
 | Scenario/fixture locations | `tests/evals/`, `evals/` | `ls tests/evals/ evals/` |
 | Verbatim-quote rule (7 fix commits) | `.claude/rules/canonical-source-mirror.md` | `sed -n '1,30p' .claude/rules/canonical-source-mirror.md` |
 | CONTRIBUTING pwsh commands were dead | PR #2871 repointed them to Python; no tracked `.ps1` or `.psm1` | `git ls-files '*.ps1' '*.psm1'` |
-| Reproduce-on-main rule (PR #1361) | `.serena/memories/ci-infrastructure-observations.md:8` | `sed -n '8p' .serena/memories/ci-infrastructure-observations.md` |
+| Reproduce-on-main rule (PR #1361) | `.serena/memories/ci-infrastructure-observations.md:8` | `sed -n '8p' .serena/memories/ci-infrastructure-observations.md` <!-- citation-freshness: ignore -- the re-verify command is a shell call, not text at the cited line; the line holds the reproduce-on-main rule --> |
 | Runtime-contract exemplar passes (29 test functions at 42e409325) | `tests/build_scripts/test_generate_hooks_runtime_contract.py` | `uv run pytest tests/build_scripts/test_generate_hooks_runtime_contract.py -q` |
 | Failure mode 9 and 11 index rows (names, not FM-N ids; row 9 is `Confident-incorrectness recurrence`) | `.agents/governance/FAILURE-MODES.md:27-29` | `sed -n '27,29p' .agents/governance/FAILURE-MODES.md` |
 
