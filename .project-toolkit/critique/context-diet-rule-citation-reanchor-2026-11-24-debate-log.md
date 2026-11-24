@@ -101,6 +101,21 @@ text, along with the architecture README row for ADR-093.
 | architect | Accept. All 13 lines are citation-only and true. |
 | critic | Block on the ADR-062 sentence, then accept once it was fixed. |
 
+## Round 5 Summary
+
+### Key Issues Addressed
+
+- The added-lines citation check also scans unchanged lines near an edit. ADR-102 line 327
+  sits two lines above an edited line. Its bare `:160-168` was written for the resolver path,
+  but the checker binds it to `TESTING-RIGOR.md`, the last path on the line.
+- The line gains a reasoned `citation-freshness: ignore` marker. Its text is unchanged.
+
+### Agent Positions
+
+| Agent | Position |
+|-------|----------|
+| critic | See final verdicts. |
+
 ## Final Verdicts
 
 | Agent | Verdict |
