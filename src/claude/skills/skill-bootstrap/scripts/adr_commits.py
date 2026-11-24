@@ -182,7 +182,7 @@ def parse_commit_object(sha: str, raw: bytes) -> CommitRecord:
     head, message = _split_object(raw)
     headers = _header_values(head)
     author_text = _decode(headers.get(b"author", b""), headers.get(b"encoding"))
-    author, date = _author_fields(author_text[: MAX_SUBJECT_CHARS * 4])
+    author, date = _author_fields(author_text)  # the date sits at the end, so read it all
     author = author[:MAX_SUBJECT_CHARS]
     subject, body = _subject_and_body(_decode(message, headers.get(b"encoding")))
     return CommitRecord(sha, subject, author, date, body)

@@ -211,9 +211,9 @@ class ExistingAdrs:
             for run in _ID_RUN.findall(text):
                 token = run.strip(".").lower()
                 self.ids.add(token)
-                end = _ID_END.search(token)  # one prefix per token, so memory stays linear
-                if end:
-                    self.ids.add(token[: end.start()])
+                ends = [m.start() for m in _ID_END.finditer(token)]
+                if ends:  # first and last only, so memory stays linear: auth.session.md
+                    self.ids.update((token[: ends[0]], token[: ends[-1]]))
             self.hashes |= hash_tokens(text)
             self.urls |= urls_in(text)
             self.numbers |= issue_numbers(text)

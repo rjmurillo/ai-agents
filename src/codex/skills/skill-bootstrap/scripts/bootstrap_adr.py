@@ -321,21 +321,34 @@ def _check_since(since: str | None) -> str | None:
     return since if len(since) > 10 else f"{since}T00:00:00"
 
 
-# GIT_NO_LAZY_FETCH, which stops a partial clone fetching a missing object, came in git 2.45.1.
+# GIT_NO_LAZY_FETCH, which stops a partial clone fetching a missing object, came in git 2.45.1
+# and the May 2024 security releases of 2.39 to 2.44.
 _NO_LAZY_FETCH_GIT = (2, 45, 1)
+_NO_LAZY_FETCH_BACKPORTS = {(2, 39): 4, (2, 40): 2, (2, 41): 1, (2, 42): 2, (2, 43): 4, (2, 44): 1}
+# A line of ``git config --get-regexp`` that makes the repository a partial clone.
+_PROMISOR = re.compile(
+    r"(?:extensions\.partialclone|remote\..*\.partialclonefilter) \S"
+    r"|remote\..*\.promisor (?!false|no|off|0\b)\S"
+)
 
 
-def _git_version(root: Path) -> tuple[int, ...]:
+def _git_version(root: Path) -> tuple[int, int, int]:
     found = re.match(r"git version ([0-9]+)\.([0-9]+)\.([0-9]+)", git_text(root, "version").stdout)
-    return tuple(int(part) for part in found.groups()) if found else (0, 0, 0)
+    major, minor, patch = (int(part) for part in found.groups()) if found else (0, 0, 0)
+    return major, minor, patch
 
 
 def _refuse_lazy_fetch(root: Path) -> None:
     """Refuse a partial clone on a git that may fetch, so ``scan`` never reaches the network."""
-    partial = git_text(root, "config", "--get", "extensions.partialClone", ok=(0, 1)).stdout
-    if partial.strip() and _git_version(root) < _NO_LAZY_FETCH_GIT:
+    keys = r"^(extensions\.partialclone|remote\..*\.(promisor|partialclonefilter))$"
+    config = git_text(root, "config", "--get-regexp", keys, ok=(0, 1)).stdout.lower()
+    version = _git_version(root)
+    floor = _NO_LAZY_FETCH_BACKPORTS.get((version[0], version[1]))
+    honored = version >= _NO_LAZY_FETCH_GIT or (floor is not None and version[2] >= floor)
+    if not honored and any(_PROMISOR.match(line) for line in config.splitlines()):
         raise ConfigError(
-            "this is a partial clone, and git before 2.45.1 may fetch a missing commit;"
+            "this is a partial clone, and a git without GIT_NO_LAZY_FETCH (before 2.45.1 or"
+            " its May 2024 backports) may fetch a missing commit;"
             " upgrade git or scan a full clone"
         )
 
@@ -350,7 +363,7 @@ def _cmd_scan(args: argparse.Namespace) -> dict[str, Any]:
     if len(text) > MAX_SCAN_BYTES:
         raise ConfigError(f"scan report over {MAX_SCAN_BYTES >> 20} MiB; narrow --max-commits")
     data = encode(text, target)
-    out_outside_repo(root, args.out)  # again: a work tree may have been added during the scan
+    out_outside_repo(root, str(target))  # again: a work tree may have been added meanwhile
     try:
         create_new(target, data)
     except FileExistsError as exc:
@@ -365,6 +378,10 @@ def _cmd_draft(args: argparse.Namespace) -> dict[str, Any]:
 class _Parser(argparse.ArgumentParser):
     """A bad argument raises ConfigError, so it prints JSON and exits 2 like any other input
     error. ``--help`` still prints text and exits 0. Subparsers inherit this class."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        kwargs.setdefault("allow_abbrev", False)  # --ou must not mean --out
+        super().__init__(*args, **kwargs)
 
     def error(self, message: str) -> NoReturn:
         raise ConfigError(message)

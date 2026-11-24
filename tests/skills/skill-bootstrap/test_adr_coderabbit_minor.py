@@ -137,7 +137,7 @@ def test_a_long_dotted_token_costs_linear_memory() -> None:
     start = time.perf_counter()
     existing = adr_docs.ExistingAdrs([("a.md", "a" + ".a" * 200_000)])
 
-    assert time.perf_counter() - start < 2.0 and len(existing.ids) <= 2
+    assert time.perf_counter() - start < 2.0 and len(existing.ids) <= 3
 
 
 def test_a_filtered_covered_commit_still_hides_its_pull_request(tmp_path: Path) -> None:
@@ -219,3 +219,64 @@ def test_a_pr_url_with_a_unicode_blank_is_incomplete() -> None:
     }
 
     assert adr_commits.select_prs([row], dropped) == [] and dropped["pr_incomplete"] == 1
+
+
+# Round 9 review findings
+
+
+def test_an_abbreviated_out_flag_is_refused(tmp_path: Path) -> None:
+    repo = new_repo(tmp_path / "r")
+    commit(repo, "Initial work")
+    out = tmp_path / "abbr.json"
+
+    code, payload = run_cli("scan", "--repo", str(repo), "--ou", str(out))
+
+    assert code == 2 and payload["error"] == "config" and not out.exists()
+
+
+@pytest.mark.parametrize(
+    ("version", "refused"),
+    [((2, 39, 3), True), ((2, 39, 4), False), ((2, 44, 1), False), ((2, 45, 0), True)],
+)
+def test_a_promisor_remote_alone_marks_a_partial_clone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, version: tuple[int, int, int], refused: bool
+) -> None:
+    repo = new_repo(tmp_path / "r")
+    commit(repo, "Initial work")
+    git(repo, "config", "remote.origin.url", "https://example.invalid/o/r.git")
+    git(repo, "config", "remote.origin.promisor", "true")
+    monkeypatch.setattr(bootstrap_adr, "_git_version", lambda _root: version)
+
+    if refused:
+        with pytest.raises(adr_scan.ConfigError, match="partial clone"):
+            bootstrap_adr._refuse_lazy_fetch(repo)
+    else:
+        bootstrap_adr._refuse_lazy_fetch(repo)
+
+
+def test_a_promisor_set_to_false_is_not_a_partial_clone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = new_repo(tmp_path / "r")
+    commit(repo, "Initial work")
+    git(repo, "config", "remote.origin.promisor", "false")
+    monkeypatch.setattr(bootstrap_adr, "_git_version", lambda _root: (2, 30, 0))
+
+    bootstrap_adr._refuse_lazy_fetch(repo)
+
+
+def test_a_long_author_name_keeps_its_date() -> None:
+    name = b"a" * 4100
+    raw = b"tree " + b"0" * 40 + b"\nauthor " + name + b" <a@b> 1700000000 +0000\n\nAdopt Rust\n"
+
+    record = adr_commits.parse_commit_object("1" * 40, raw)
+
+    assert (
+        record.date.startswith("2023-11-14") and len(record.author) <= adr_commits.MAX_SUBJECT_CHARS
+    )
+
+
+def test_a_dotted_id_cited_as_a_file_name_is_named() -> None:
+    existing = adr_docs.ExistingAdrs([("a.md", "See auth.session.md for the decision.")])
+
+    assert existing.names_id("auth.session") and existing.names_id("auth")
