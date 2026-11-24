@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from tests.eval._actionability_arms_test_support import aa, make_prediction, make_row, pm
+from tests.eval._actionability_arms_test_support import aa, make_prediction, make_row, pm, vm
 
 _SCRIPT = Path(aa.__file__)
 
@@ -139,7 +139,7 @@ class TestParseVerdict:
         """Plan M1-T14: the happy path."""
         verdict = pm.parse_verdict('{"is_actionable": true, "confidence": 0.82, "reason": "x"}')
 
-        assert verdict == pm.Verdict(is_actionable=True, confidence=0.82, reason="x")
+        assert verdict == vm.Verdict(is_actionable=True, confidence=0.82, reason="x")
 
     def test_false_is_a_real_verdict(self) -> None:
         """Plan M1-T14: False is a value, not a parse failure."""

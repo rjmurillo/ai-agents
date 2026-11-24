@@ -23,14 +23,12 @@ import hashlib
 import importlib
 import json
 import logging
-import math
 import os
 import re
 import secrets
 import sys
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TextIO, cast
 
@@ -62,6 +60,7 @@ from scripts.eval.actionability_validate import (  # noqa: E402
     RecordError,
     validate_records,
 )
+from scripts.eval.actionability_verdict import parse_verdict  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -71,12 +70,15 @@ PROMPT_PATH = REPO_ROOT / "evals" / "comment-actionability" / "prompt-v1.md"
 MAX_BODY_CHARS = 4000
 MAX_REPLIES = 3
 MAX_REPLY_CHARS = 500
-MAX_REASON_CHARS = 100
 MAX_OUTPUT_TOKENS = 100
 
 # Premortem R2: below this many calls a failure rate says nothing. A run with no ok
 # row at all fails regardless of this minimum.
 MIN_ATTEMPTS_FOR_FAILURE_EXIT = 5
+
+# Premortem R2: this many call_error results in a row mean the transport is down. Stop
+# calling instead of failing the rest of the corpus one request at a time.
+MAX_CONSECUTIVE_CALL_ERRORS = 5
 
 API_KEY_ENV = "ANTHROPIC_API_KEY"
 PROVENANCE_FIELDS = ("provider", "model", "prompt_sha256")
@@ -87,7 +89,6 @@ EXIT_CONFIG = 2
 EXIT_FAILURES = 3
 EXIT_AUTH = 4
 
-_FENCE = re.compile(r"\A```(?:json)?[ \t]*\n(.*)\n```\Z", re.DOTALL)
 # `scripts/eval/_eval_common.py` `safe_http_error_message` builds
 # "<surface> returned HTTP <status>: error=<category>; ..." and `_http_category`
 # maps 401 and 403 to "auth". tests/eval/test_actionability_predict_durability.py
@@ -100,65 +101,6 @@ Sink = Callable[[dict[str, Any]], None]
 
 class OutputError(Exception):
     """The existing ``--output`` cannot be resumed from. Maps to exit code 2."""
-
-
-@dataclass(frozen=True, slots=True)
-class Verdict:
-    """A parsed model verdict."""
-
-    is_actionable: bool
-    confidence: float
-    reason: str
-
-
-def _reject_constant(name: str) -> None:
-    raise ValueError(f"non-finite JSON constant {name}")
-
-
-def _clean_confidence(value: object) -> float | None:
-    """Return ``value`` clamped to [0, 1], or None when it is not a finite real number."""
-    if isinstance(value, bool) or not isinstance(value, int | float):
-        return None
-    try:
-        number = float(value)
-    except OverflowError:
-        return None
-    if not math.isfinite(number):
-        return None
-    return min(1.0, max(0.0, number))
-
-
-def _strip_one_fence(text: str) -> str:
-    stripped = text.strip()
-    match = _FENCE.match(stripped)
-    return match.group(1).strip() if match else stripped
-
-
-def parse_verdict(text: str) -> Verdict | None:
-    """Parse a model reply into a Verdict, or None when it breaks the contract.
-
-    Stricter than ``scripts/llm_classification/classifier.py``, which defaults a
-    missing ``is_actionable`` to False and ``confidence`` to 0.5 (spec Call
-    contract, Output). Here a malformed reply is a failure, not a verdict.
-    ``reason`` is not part of the verdict, so a missing or non-string one
-    becomes the empty string.
-    """
-    try:
-        data = json.loads(_strip_one_fence(text), parse_constant=_reject_constant)
-    except (ValueError, RecursionError):
-        return None
-    if not isinstance(data, dict):
-        return None
-    flag = data.get("is_actionable")
-    confidence = _clean_confidence(data.get("confidence"))
-    if not isinstance(flag, bool) or confidence is None:
-        return None
-    reason = data.get("reason")
-    return Verdict(
-        is_actionable=flag,
-        confidence=confidence,
-        reason=reason[:MAX_REASON_CHARS] if isinstance(reason, str) else "",
-    )
 
 
 def is_auth_failure(exc: BaseException) -> bool:
@@ -224,6 +166,14 @@ def _failure_outcome(status: str, exc: BaseException, latency: float) -> dict[st
     }
 
 
+def _breaker_tripped(records: list[dict[str, Any]]) -> bool:
+    """True when the newest records are ``MAX_CONSECUTIVE_CALL_ERRORS`` call_error in a row."""
+    tail = records[-MAX_CONSECUTIVE_CALL_ERRORS:]
+    return len(tail) == MAX_CONSECUTIVE_CALL_ERRORS and all(
+        r["status"] == STATUS_CALL_ERROR for r in tail
+    )
+
+
 def _predict_one(
     row: dict[str, Any], complete: Complete, clock: Callable[[], float]
 ) -> dict[str, Any]:
@@ -266,9 +216,10 @@ def predict_rows(
     """Call ``complete`` once per row and return one record per row attempted.
 
     ``sink`` receives each record as soon as it exists. The loop stops after the
-    first ``auth_error``: the next call would fail the same way.
+    first ``auth_error``, and after ``MAX_CONSECUTIVE_CALL_ERRORS`` call_error results
+    in a row: the next call would fail the same way.
     """
-    records = []
+    records: list[dict[str, Any]] = []
     for row in rows:
         outcome = _predict_one(row, complete, clock)
         record = {
@@ -286,7 +237,7 @@ def predict_rows(
         records.append(record)
         if sink is not None:
             sink(record)
-        if record["status"] == STATUS_AUTH_ERROR:
+        if record["status"] == STATUS_AUTH_ERROR or _breaker_tripped(records):
             break
     return records
 
@@ -360,14 +311,24 @@ def _make_sink(handle: TextIO) -> Sink:
     return sink
 
 
-def _exit_code(records: list[dict[str, Any]], max_rate: float) -> int:
-    """Decide the exit code from every record of the selected rows, carried ones included."""
+def _exit_code(records: list[dict[str, Any]], max_rate: float, tripped: bool = False) -> int:
+    """Decide the exit code from every record of the selected rows, carried ones included.
+
+    ``tripped`` is the consecutive call_error breaker, judged on this run's new records only.
+    """
     attempted = len(records)
     ok = sum(1 for r in records if r["status"] == STATUS_OK)
     failures = attempted - ok
     if any(r["status"] == STATUS_AUTH_ERROR for r in records):
         print("authentication failed (HTTP 401 or 403); stopped calling", file=sys.stderr)
         return EXIT_AUTH
+    if tripped:
+        print(
+            f"stopped after {MAX_CONSECUTIVE_CALL_ERRORS} consecutive call_error; "
+            "rerun to retry the rest",
+            file=sys.stderr,
+        )
+        return EXIT_FAILURES
     if attempted >= 1 and ok == 0:
         print(f"no ok prediction in {attempted} attempted", file=sys.stderr)
         return EXIT_FAILURES
@@ -380,14 +341,16 @@ def _exit_code(records: list[dict[str, Any]], max_rate: float) -> int:
     return 0
 
 
-def _summary_line(records: list[dict[str, Any]]) -> str:
+def _summary_line(records: list[dict[str, Any]], selected: int, tripped: bool = False) -> str:
     counts = {s: sum(1 for r in records if r["status"] == s) for s in STATUSES}
     line = (
-        f"attempted {len(records)}: ok {counts[STATUS_OK]}, "
+        f"attempted {len(records)} of {selected} selected: ok {counts[STATUS_OK]}, "
         f"parse_error {counts[STATUS_PARSE_ERROR]}, call_error {counts[STATUS_CALL_ERROR]}"
     )
     if counts[STATUS_AUTH_ERROR]:
         line += f", auth_error {counts[STATUS_AUTH_ERROR]}"
+    if tripped:
+        line += f"; stopped after {MAX_CONSECUTIVE_CALL_ERRORS} consecutive call_error"
     return line
 
 
@@ -469,8 +432,9 @@ def cmd_predict(args: argparse.Namespace) -> int:
     done_ids = {r["id"] for r in carried}
     new_records = _run_pending([r for r in selected if r["id"] not in done_ids], args, api_key, run)
     final = [r for r in carried if r["id"] in selected_ids] + new_records
-    print(_summary_line(final))
-    return _exit_code(final, args.max_failure_rate)
+    tripped = _breaker_tripped(new_records)
+    print(_summary_line(final, len(selected), tripped))
+    return _exit_code(final, args.max_failure_rate, tripped)
 
 
 def register_predict_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
