@@ -291,10 +291,10 @@ FOOTER = "BREAKING CHANGE: the old name is gone."
 @pytest.mark.parametrize(
     ("body", "breaking"),
     [
-        (f"Body.\n\n{FENCE3}old{FENCE3} is renamed to {FENCE3}new{FENCE3}.\n{FOOTER}", True),
+        (f"Body.\n\n{FENCE3}old{FENCE3} is renamed to {FENCE3}new{FENCE3}.\n\n{FOOTER}", True),
         (f"Body.\n\n{FENCE4}\n{FENCE3}\n{FENCE4}\n\n{FOOTER}", True),
         (f"Body.\n\n{FENCE3}\nls\n{FENCE3}bash\nmore\n{FENCE3}\n\n{FOOTER}", True),
-        (f"Body.\n\n{FENCE3}\nexample\n{FOOTER}", True),
+        (f"Body.\n\n{FENCE3}\nexample\n\n{FOOTER}", True),
         (f"Body.\n\n{FENCE3}\nBREAKING CHANGE: demo only\n{FENCE3}", False),
     ],
 )
