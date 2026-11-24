@@ -1,7 +1,7 @@
 ---
 name: curating-memories
 description: Maintain Serena memory files in place. Mark superseded content, keep current truth visible inline, and run the supersession sweep that proposes a disposition per file without editing it. Use when you say "how do I mark a memory obsolete", "how do I supersede a memory", or "run the supersession sweep". Do NOT use for merging or deleting Serena files or tidying Serena indexes; use memory-consolidate.
-license: MIT
+license: Apache-2.0
 version: 2.0.0
 ---
 

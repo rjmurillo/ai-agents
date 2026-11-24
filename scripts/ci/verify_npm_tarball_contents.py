@@ -31,6 +31,7 @@ REQUIRED_FILES = (
     "package/package.json",
     "package/README.md",
     "package/LICENSE",
+    "package/NOTICE",
     "package/dist/cli.js",
 )
 # ``init`` copies these three trees. A bundle that holds only top-level files

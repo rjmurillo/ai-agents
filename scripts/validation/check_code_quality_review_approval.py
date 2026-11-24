@@ -88,7 +88,12 @@ def _regressions(report: dict[str, Any]) -> list[dict[str, object]]:
     for comparison in report["comparisons"]:
         if comparison["evidence_loss"]:
             raise UnapprovedError("the assessor reported lost evidence")
+        # Rows the trusted assessor admitted (issue #7525) still sit in the raw
+        # report but need no owner decision, so they stay out of the inventory.
+        admitted = comparison.get("rule_admissions") or {}
         for quality in comparison["regressions"]:
+            if quality in admitted:
+                continue
             matches = [delta for delta in comparison["deltas"] if delta["quality"] == quality]
             path = comparison["file_path"]
             key = path, quality

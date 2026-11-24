@@ -7,7 +7,7 @@ description: Rules for editing generated artifacts and their templates. Agents,
   generator, or a file that a generator writes. Do NOT use to run
   CI pipelines (use pipeline-validator) or to author a skill's content (use
   skillforge).
-license: MIT
+license: Apache-2.0
 metadata:
   adr: ADR-109, ADR-119
   capability:

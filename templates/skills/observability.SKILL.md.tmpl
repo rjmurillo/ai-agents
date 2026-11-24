@@ -4,7 +4,7 @@ version: 1.0.0
 model: haiku
 model-rationale: cost. The 'haiku' rolling alias resolves via the platform model_tiers map to a tier priced below the sonnet-tier harness default; this unit is routing/mechanical work where the cheaper tier suffices (ADR-080 rule 3).
 description: Use when you say `query agent logs`, `find slow tool calls`, `show agent errors`, or `what to log`. Query and analyze agent JSONL event logs for debugging, performance analysis, and decision tracing.
-license: MIT
+license: Apache-2.0
 metadata:
   capability:
     kind: reusable-primitive

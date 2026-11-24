@@ -1,7 +1,7 @@
 ---
 name: prompt-engineer
 description: Optimize system prompts for Claude Code agents using proven prompt engineering patterns. Use when users request prompt improvement, optimization, or refinement for agent workflows, tool instructions, or system behaviors. Use when you say "optimize this prompt", "improve this system prompt", or "review my agent prompt". Do NOT use for eval-gated prompt tuning (use skillopt) or context placement (use context-optimizer).
-license: MIT
+license: Apache-2.0
 version: 1.0.0
 ---
 

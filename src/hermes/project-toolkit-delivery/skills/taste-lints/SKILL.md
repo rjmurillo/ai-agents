@@ -2,7 +2,7 @@
 name: taste-lints
 version: 1.0.0
 description: Use when you say `run taste lints`, `check file size`, or `lint taste invariants`. Custom lints with agent-readable remediation instructions for file size, naming conventions, structured logging, and complexity.
-license: MIT
+license: Apache-2.0
 ---
 
 # Taste Lints
