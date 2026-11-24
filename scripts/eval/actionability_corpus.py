@@ -51,13 +51,17 @@ from scripts.eval.actionability_labels import (  # noqa: E402
     SPLIT_OUTSIDE,
     VALID_LABELS,
 )
+from scripts.eval.actionability_scan import (  # noqa: E402
+    add_allow_hex_argument,
+    report_scan,
+    scan_secrets,
+)
 from scripts.eval.measure_actionability_band import (  # noqa: E402
     UNKNOWN_POSITION,
     is_in_band,
     thread_position,
 )
 from scripts.github_core.api import gh_graphql  # noqa: E402
-from scripts.redact_secrets import redact  # noqa: E402
 from scripts.update_reviewer_signal_stats import (  # noqa: E402
     CommentData,
     get_actionability_score,
@@ -67,7 +71,6 @@ from scripts.update_reviewer_signal_stats import (  # noqa: E402
 logger = logging.getLogger(__name__)
 
 DEFAULT_SEED = 20261124
-HEX_SECRET_REASON = "hex-secret"
 
 
 MAX_NAMED_ROWS = 10
@@ -218,31 +221,6 @@ def assign_splits(
         row["split"] = SPLIT_OUTSIDE
 
 
-def _scannable_texts(row: dict[str, Any]) -> list[str]:
-    hunk = row.get("diff_hunk")
-    return [row["body"], *row["thread_replies"], *([hunk] if hunk is not None else [])]
-
-
-def scan_secrets(rows: list[dict[str, Any]]) -> tuple[dict[str, list[str]], list[str]]:
-    """Scan bodies, replies, and diff hunks. Return (non-hex hits by row id, hex-only ids).
-
-    Only reason names are returned, never the matched text. A null ``diff_hunk``
-    is skipped, so the same scan serves ``sample`` and ``fetch-hunks``.
-    """
-    failures: dict[str, list[str]] = {}
-    hex_only: list[str] = []
-    for row in rows:
-        reasons: set[str] = set()
-        for text in _scannable_texts(row):
-            reasons.update(redact(text).reasons)
-        non_hex = sorted(reasons - {HEX_SECRET_REASON})
-        if non_hex:
-            failures[row["id"]] = non_hex
-        elif reasons:
-            hex_only.append(row["id"])
-    return failures, hex_only
-
-
 def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
     text = "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows)
     atomic_write_text(path, text)
@@ -254,16 +232,6 @@ def _warn_shortfall(name: str, available: int, requested: int) -> None:
             f"warning: {name} stratum has {available} rows, {requested} requested; taking all",
             file=sys.stderr,
         )
-
-
-def _report_secret_scan(rows: list[dict[str, Any]]) -> bool:
-    """Print scan results to stderr. Return True when the corpus may be written."""
-    failures, hex_only = scan_secrets(rows)
-    for row_id, reasons in sorted(failures.items()):
-        print(f"secret scan: row {row_id}: {', '.join(reasons)}", file=sys.stderr)
-    if hex_only:
-        print(f"review: hex-like strings in rows {', '.join(hex_only)}", file=sys.stderr)
-    return not failures
 
 
 def _sample_args_valid(args: argparse.Namespace) -> bool:
@@ -293,7 +261,7 @@ def cmd_sample(args: argparse.Namespace) -> int:
     assign_splits(band, outside, args.dev_count, rng)
     corpus = band + outside
 
-    if not _report_secret_scan(corpus):
+    if not report_scan(scan_secrets(corpus, allow_hex_rows=args.allow_hex_rows)):
         return 1
     write_jsonl(args.output, corpus)
     print(
@@ -335,7 +303,7 @@ def cmd_fetch_hunks(args: argparse.Namespace) -> int:
             no_hunk += 1
         else:
             fetched += 1
-    if not _report_secret_scan(rows):
+    if not report_scan(scan_secrets(rows, allow_hex_rows=args.allow_hex_rows)):
         return 1
     write_jsonl(args.output, rows)
     print(f"fetched {fetched}, no_hunk {no_hunk}, of {len(rows)} rows")
@@ -433,11 +401,13 @@ def _build_parser() -> argparse.ArgumentParser:
     sample.add_argument("--outside-count", type=int, default=100)
     sample.add_argument("--dev-count", type=int, default=40)
     sample.add_argument("--output", type=Path, required=True, help="Corpus JSONL to write")
+    add_allow_hex_argument(sample)
     sample.set_defaults(handler=cmd_sample)
 
     hunks = sub.add_parser("fetch-hunks", help="Fetch the diff hunk for each row")
     hunks.add_argument("--corpus", type=Path, required=True, help="Corpus JSONL from sample")
     hunks.add_argument("--output", type=Path, required=True, help="Corpus JSONL to write")
+    add_allow_hex_argument(hunks)
     hunks.set_defaults(handler=cmd_fetch_hunks)
 
     sheet = sub.add_parser("sheet", help="Write the blinded labeling sheet")
