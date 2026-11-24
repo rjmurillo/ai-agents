@@ -1423,6 +1423,31 @@ def _is_act_base_ref_fetch_limitation(text: str) -> bool:
     return all(any(name in line for name in _ACT_BASE_REF_FAILURE_LINES) for line in failures)
 
 
+# duplicate-code.yml hits the same synthetic ``master`` default branch: its
+# BASE_REF falls back to github.event.repository.default_branch, and
+# check_duplicate_code.py exits 3 when git cannot name a fork point with
+# origin/master. Pinned the same three ways as the rule above: this job's
+# label, adjacency of the step's own ``| ERROR`` line and act's ``Failure``
+# line, and no other ``Failure - Main`` line anywhere in the log.
+_ACT_DUPLICATE_BASE_JOB_LABEL = r"\[Duplicate Code Detection/Python duplication ratchet\]"
+_ACT_DUPLICATE_BASE_STEP = "Check Python duplication against the baseline"
+_ACT_DUPLICATE_BASE_PATTERN = re.compile(
+    rf"^[ \t]*(?P<job>{_ACT_DUPLICATE_BASE_JOB_LABEL})[ \t]+\| "
+    r"ERROR: git cannot name a fork point with 'origin/master'[ \t]*\n"
+    rf"[ \t]*(?P=job)[ \t]+\S+[ \t]+Failure - Main {_ACT_DUPLICATE_BASE_STEP}\b",
+    re.MULTILINE,
+)
+
+
+def _is_act_duplicate_base_limitation(text: str) -> bool:
+    """True when the duplicate gate's master fork-point failure is the only failure."""
+    if not _ACT_DUPLICATE_BASE_PATTERN.search(text):
+        return False
+    failures = [line for line in text.splitlines() if _ACT_MAIN_FAILURE_MARKER in line]
+    expected = f"{_ACT_MAIN_FAILURE_MARKER}{_ACT_DUPLICATE_BASE_STEP}"
+    return all(expected in line for line in failures)
+
+
 # act stages a cached action into the container at /var/run/act/actions/<ref>/
 # and copies it with `docker cp`. Recent dockerd rejects that destination with
 # "path escapes from parent" before the action's own code runs, so the step
@@ -1545,6 +1570,14 @@ _ACT_LIMITATION_RULES: tuple[tuple[str | None, Callable[[str], bool], str], ...]
         "act's synthetic event payload resolves the default branch to master, so "
         "the count-ratchet job cannot fetch its base ref. GitHub populates the "
         "real default branch, so this fails only in local act, not in CI.",
+    ),
+    (
+        None,
+        _is_act_duplicate_base_limitation,
+        "act's synthetic event payload resolves the default branch to master, so "
+        "the duplicate-code job cannot name a fork point with origin/master. "
+        "GitHub populates the real default branch, so this fails only in local "
+        "act, not in CI.",
     ),
     (
         None,
