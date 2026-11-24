@@ -18,7 +18,7 @@ from scripts.validation.citation_anchors import _CITATION
 
 RULE_TEMPLATE = (
     Path(__file__).resolve().parents[2]
-    / "src/claude/skills/review/references/rule-canonical-source-mirror.md"
+    / "src/claude/skills/review/resources/rule-canonical-source-mirror.md"
 )
 
 

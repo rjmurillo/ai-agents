@@ -27,7 +27,7 @@ RULE_PATH = (
     / "claude"
     / "skills"
     / "review"
-    / "references"
+    / "resources"
     / "rule-canonical-source-mirror.md"
 )
 

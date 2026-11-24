@@ -211,4 +211,4 @@ A re-run after PASS writes another marker, which is safe.
 
 <!-- vendor-portability: declared. This skill body cites .claude/lib/ai_review_common/verdict.py (ships in the vendor install; the skill names the plugin-root-relative lib/ai_review_common/verdict.py fallback for the vendored layout) and mentions .agents/ only to assert that /review needs no .agents/ access. Also cites .claude/skills/github/scripts/pr/check_pr_round_cap.py as canonical-source-mirror evidence: a sibling in-plugin script cited for its contract, not resolved or run by /review. The optional ai-agents owner approval uses the verifier from the pinned integration commit. -->
 
-Folded rules: [index](references/folded-rules.md).
+Folded rules: [index](resources/folded-rules.md).
