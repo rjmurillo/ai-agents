@@ -2,7 +2,7 @@
 name: push-pr
 version: 1.0.0
 description: Commit the working tree, push the branch, and open a pull request with the repository template filled in from the real diff. Use when you say `push and open a PR`, `open a pull request`, or `push this branch`. Do NOT use to run the pre-ship review gates (use ship), and do NOT use to validate PR metadata alone (use validate-pr-description).
-license: MIT
+license: Apache-2.0
 # Security note: python3 -I is the identity-hardened form.
 # The Edit entry above is scoped to the secure allocator's output file only.
 # The Bash tool executor must sanitize arguments to prevent command injection (CWE-78).

@@ -95,6 +95,7 @@ ROOT_SCRATCH_ALLOWLIST = frozenset(
         "CLAUDE.md",
         "CONTRIBUTING.md",
         "LICENSE",
+        "NOTICE",
         "README.md",
         "RELEASING.md",
         "SECURITY.md",
@@ -149,6 +150,7 @@ ALLOWED_REPO_ROOT_ENTRIES = frozenset(
         "CLAUDE.md",
         "CONTRIBUTING.md",
         "LICENSE",
+        "NOTICE",
         "README.md",
         "RELEASING.md",
         # GitHub and the HOL plugin scanner read the security policy only here.
@@ -1583,7 +1585,7 @@ def _split_frontmatter(content: bytes) -> tuple[bytes, bytes]:
     split = split_frontmatter(text)
     if not split.found:
         return b"", content
-    frontmatter = text[text.index("\n") + 1 : split.raw_end]  # keep tab-only lines
+    frontmatter = text[split.open_end : split.raw_end]  # keep tab-only lines
     body = text[split.fence_end :]
     return frontmatter.encode("utf-8", "surrogateescape"), body.encode("utf-8", "surrogateescape")
 

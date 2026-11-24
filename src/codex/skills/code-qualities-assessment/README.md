@@ -110,4 +110,4 @@ Language-agnostic design ensures longevity.
 
 ## License
 
-MIT
+Apache-2.0

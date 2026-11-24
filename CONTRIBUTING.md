@@ -1178,7 +1178,7 @@ license attribution in `THIRD-PARTY-NOTICES.TXT`.
 
 ### Adding a New Third-Party Component
 
-1. Verify the license is compatible with MIT (see `docs/third-party-license-attribution.md`)
+1. Verify the license is compatible with Apache-2.0 (see `docs/third-party-license-attribution.md`)
 2. Add the component to `FORKED_COMPONENTS` or `RUNTIME_DEPENDENCIES` in
    `scripts/generate_third_party_notices.py`
 3. Run `uv run python3 scripts/generate_third_party_notices.py` to regenerate

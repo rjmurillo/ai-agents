@@ -2,7 +2,7 @@
 name: ai-agents-change-control
 description: Change control for this repo. Classify a change (docs-only, investigation-only, code, plugin content, hook, workflow, ADR governance), map each class to the gates it triggers, and hold the non-negotiables with the incident behind each rule. Use when you say `classify this change`, `what gates does this change trigger`, `which rules are non-negotiable`. Do NOT use for producing test evidence (use `ai-agents-validation-and-qa`) or incident history (use `ai-agents-failure-archaeology`).
 version: 1.0.0
-license: MIT
+license: Apache-2.0
 metadata:
   distribution: repo-local
   routing:

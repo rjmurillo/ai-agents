@@ -69,6 +69,7 @@ from citation_anchors import (  # noqa: E402
     _expand_continuations,
     _range_misses_distinctive_anchors,
     _same_line_segment,
+    _table_row,
 )
 from citation_exemptions import _is_exempt_citing_file  # noqa: E402
 from citation_head_state import (  # noqa: E402
@@ -179,10 +180,11 @@ def _citation_anchors(
         _context_lines(citing_lines, line_index, line_text, segment, markdown),
         citation_text,
     )
-    # A Markdown heading is a complete unit (see _context_lines), so a
-    # heading ending in a colon never harvests the indented body below
-    # it as a continuation quote either.
-    if citing_lines is not None and not (markdown and _atx_heading(line_text)):
+    # A Markdown heading or table row is a complete unit (see _context_lines),
+    # so one ending in a colon never harvests the indented line below it as a
+    # continuation quote either.
+    complete_unit = markdown and (_atx_heading(line_text) or _table_row(line_text))
+    if citing_lines is not None and not complete_unit:
         quote = _continuation_quote(citing_lines, line_index)
         if quote is not None:
             anchors.append(quote)

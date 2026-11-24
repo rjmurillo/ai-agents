@@ -3,7 +3,7 @@ name: fix-ci
 description: Autonomously inspect failing GitHub Actions CI checks, fetch logs, analyze
   failures, and implement fixes without user approval. Integrates with get_pr_check_logs.py
   for log retrieval. Use for "fix ci", "why is ci failing", "debug ci failures".
-license: MIT
+license: Apache-2.0
 version: 1.0.0
 metadata:
   domains:
