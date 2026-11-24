@@ -246,7 +246,10 @@ def test_a_comma_before_and_never_makes_fixes_only_backtrack() -> None:
 
 
 def test_a_heading_decision_keeps_its_subsection_after_a_peer_section() -> None:
-    log = "# Log\n\n## Overview\n\nText.\n\n## D-3 - Keep Postgres\n\n### Rationale\n\nBecause the team knows it.\n"
+    log = (
+        "# Log\n\n## Overview\n\nText.\n\n## D-3 - Keep Postgres\n\n"
+        "### Rationale\n\nBecause the team knows it.\n"
+    )
 
     (entry,) = [e for e in adr_log.split_decision_log(log) if e.id]
 
