@@ -56,6 +56,20 @@ def test_a_status_repeated_inside_an_inline_merge_is_refused() -> None:
     assert mod._parse_frontmatter("---\n<<: [{status: a}, {status: b}]\n---\n") == {"status": "a"}
 
 
+def test_two_merge_keys_at_one_level_are_refused() -> None:
+    text = "---\n<<: {status: accepted}\n<<: {status: proposed}\n---\n"
+    assert mod._parse_frontmatter(text) is None
+
+
+def test_a_self_referencing_merge_loads_instead_of_recursing() -> None:
+    assert mod._parse_frontmatter("---\na: &x {<<: *x}\n---\n") == {"a": {}}
+
+
+def test_a_merge_chain_through_an_overriding_mapping_loads() -> None:
+    text = "---\nb: &b {x: 1}\nm: &m {<<: *b, x: 2}\nleaf: {<<: *m}\n---\n"
+    assert mod._parse_frontmatter(text) == {"b": {"x": 1}, "m": {"x": 2}, "leaf": {"x": 2}}
+
+
 def test_a_repeated_status_key_still_reads_unknown(tmp_path: Path) -> None:
     adr = tmp_path / "ADR-001.md"
     adr.write_text("---\nstatus: proposed\nstatus: accepted\n---\n# Title\n", encoding="utf-8")

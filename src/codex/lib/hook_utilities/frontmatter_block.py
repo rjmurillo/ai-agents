@@ -194,19 +194,27 @@ def _strict_loader(yaml: ModuleType) -> type:
         return cached
 
     def reject_repeats(loader: Any, node: Any) -> None:  # noqa: ANN401 - yaml is untyped here
+        # Each mapping node is checked once per load, before PyYAML flattens it in
+        # place. That also stops a self-referencing merge (`a: &x {<<: *x}`).
+        checked: set[int] = loader.__dict__.setdefault("_frontmatter_checked", set())
+        if id(node) in checked:
+            return
+        checked.add(id(node))
         seen: list[Any] = []
         for key_node, value_node in node.value:
             if key_node.tag == "tag:yaml.org,2002:merge":
                 # construct_mapping flattens `<<` without this constructor, so an
-                # inline merged mapping is checked here or not at all.
+                # inline merged mapping is checked here or not at all. A second
+                # `<<` at one level is a repeated key like any other.
+                key: Any = "<<"
                 merged = (
                     value_node.value if isinstance(value_node, yaml.SequenceNode) else [value_node]
                 )
                 for source in merged:
                     if isinstance(source, yaml.MappingNode):
                         reject_repeats(loader, source)
-                continue
-            key = loader.construct_object(key_node, deep=True)
+            else:
+                key = loader.construct_object(key_node, deep=True)
             if any(key == earlier for earlier in seen):
                 raise yaml.constructor.ConstructorError(
                     None, None, f"duplicate key {key!r} in frontmatter mapping", key_node.start_mark
