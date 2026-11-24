@@ -423,7 +423,7 @@ module = "chevron.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-# Pre-existing type debt (arg-type at serena_integration.py:246,
+# Pre-existing type debt (arg-type at serena_integration.py:251,
 # return-value at :326) unrelated to the atomic-write hardening. Scoped
 # here rather than suppressed in-file so the debt stays visible and
 # tracked separately. The importer that first surfaced it,
@@ -613,7 +613,6 @@ module = [
     "scripts.validate_agent_matrix_refs",
     "scripts.validate_workflows",
     "scripts.validation.check_adr_lifecycle",
-    "scripts.validation.frontmatter_contract",
     "scripts.validation.instruction_budget_globs",
 ]
 disallow_subclassing_any = false

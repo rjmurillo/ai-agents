@@ -64,14 +64,7 @@ class TestFailsClosedWithoutPyYaml:
     def test_parse_reports_cannot_parse(self, tree: str, monkeypatch: pytest.MonkeyPatch) -> None:
         detector = self._without_yaml(tree, monkeypatch)
 
-        assert detector._parse_frontmatter("status: proposed\n") is None
-
-    def test_duplicate_key_check_does_not_vouch_for_the_block(
-        self, tree: str, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        detector = self._without_yaml(tree, monkeypatch)
-
-        assert detector._has_duplicate_keys("status: proposed\n") is True
+        assert detector._parse_frontmatter("---\nstatus: proposed\n---\n") is None
 
     def test_status_is_unknown_not_proposed(
         self, tree: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -86,7 +79,8 @@ class TestFailsClosedWithoutPyYaml:
         detector = self._without_yaml(tree, monkeypatch)
 
         exempt = detector._only_non_decision_fields_changed(
-            "status: accepted\nimplemented: false\n", "status: accepted\nimplemented: true\n"
+            "---\nstatus: accepted\nimplemented: false\n---\n",
+            "---\nstatus: accepted\nimplemented: true\n---\n",
         )
 
         assert exempt is False
@@ -97,7 +91,8 @@ class TestFailsClosedWithoutPyYaml:
         detector = import_skill_script(tree)
 
         exempt = detector._only_non_decision_fields_changed(
-            "status: accepted\nimplemented: false\n", "status: accepted\nimplemented: true\n"
+            "---\nstatus: accepted\nimplemented: false\n---\n",
+            "---\nstatus: accepted\nimplemented: true\n---\n",
         )
 
         assert exempt is True

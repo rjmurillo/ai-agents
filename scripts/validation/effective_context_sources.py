@@ -29,16 +29,13 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
-import yaml
-
 from scripts.validation.instruction_budget_globs import (
     _ALL_FILES_FORMS,
-    _FRONTMATTER_RE,
     UnsupportedApplyToError,
     _glob_to_regex,
     _iter_applyto_globs,
-    _UniqueKeySafeLoader,
     _vscode_effective_glob,
+    load_unique_frontmatter,
 )
 
 __all__ = [
@@ -402,15 +399,8 @@ def parse_scope_patterns(text: str, key: str) -> set[str] | None:
     Raises ``UnsupportedApplyToError`` on malformed YAML, a duplicate
     top-level key, or a value that is neither a string nor a list of strings.
     """
-    fm_match = _FRONTMATTER_RE.match(text)
-    if fm_match is None:
-        return None
-    try:
-        data = yaml.load(fm_match.group(1), Loader=_UniqueKeySafeLoader)
-    except yaml.YAMLError as exc:
-        msg = f"frontmatter is not valid YAML: {exc}"
-        raise UnsupportedApplyToError(msg) from exc
-    if not isinstance(data, dict) or key not in data:
+    data = load_unique_frontmatter(text)
+    if key not in data:
         return None
     return {p.strip() for p in _iter_applyto_globs(data[key]) if p.strip()}
 

@@ -43,7 +43,7 @@ import yaml
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
 
-from scripts.validation.frontmatter_split import split_leading_frontmatter  # noqa: E402
+from scripts.hook_utilities.frontmatter_block import load_frontmatter  # noqa: E402
 
 EXIT_OK = 0
 EXIT_OVER_BUDGET = 1
@@ -64,18 +64,10 @@ def extract_frontmatter(text: str) -> dict[str, object] | None:
     block does not parse to a mapping. A malformed block is a skip, not a crash:
     the instrument degrades gracefully over a corpus it does not control.
 
-    The fence search is shared with the other stdlib-only scripts through
-    `split_leading_frontmatter`; this function only adds the YAML load, because
-    this script already depends on PyYAML and the CI step installs nothing else.
+    Uses `scripts/hook_utilities/frontmatter_block.py`, the one shared parser.
+    Duplicate keys are last-one-wins, as with `yaml.safe_load`.
     """
-    block, _ = split_leading_frontmatter(text)
-    if not block:
-        return None
-    try:
-        parsed = yaml.safe_load(block)
-    except yaml.YAMLError:
-        return None
-    return parsed if isinstance(parsed, dict) else None
+    return load_frontmatter(text, yaml, allow_duplicate_keys=True)
 
 
 @dataclass(frozen=True)

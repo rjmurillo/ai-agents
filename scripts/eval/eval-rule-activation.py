@@ -96,6 +96,11 @@ from _eval_common import (
 # ---------------------------------------------------------------------------
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.hook_utilities.frontmatter_block import split_frontmatter  # noqa: E402
+
 RATE_LIMIT_SLEEP_SEC = 1.0
 MECHANISMS = ("baseline", "description", "full")
 # Opt-in contrast arm (#5405). Not a member of MECHANISMS: no gate, ranking, or
@@ -170,12 +175,13 @@ def parse_rule(rule_path: Path) -> dict[str, str]:
 def _parse_markdown_artifact(path: Path) -> dict[str, str]:
     """Split a Markdown artifact into frontmatter description and body."""
     text = path.read_text(encoding="utf-8")
-    fm_match = re.match(r"^---\n(.*?)\n---\n(.*)$", text, re.DOTALL)
-    if not fm_match:
+    block = split_frontmatter(text)
+    if not block.found:
         return {"description": "", "body": text, "frontmatter": ""}
 
-    frontmatter = fm_match.group(1)
-    body = fm_match.group(2)
+    frontmatter = block.raw.strip("\n")
+    # block.body drops blank lines after the closing fence; the prompt keeps them.
+    body = text[block.fence_end :]
 
     desc_match = re.search(r"^description:\s*(.+?)$", frontmatter, re.MULTILINE)
     description = desc_match.group(1).strip() if desc_match else ""

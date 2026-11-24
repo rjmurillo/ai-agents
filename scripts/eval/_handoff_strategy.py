@@ -18,7 +18,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-import re
+import sys
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -26,6 +26,12 @@ from typing import Any
 
 import _control_ablation_history as history
 from _control_ablation_tasks import ControlAblationConfigError, Task
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.hook_utilities.frontmatter_block import split_frontmatter  # noqa: E402
 
 SCHEMA_VERSION = 3
 ARM_CONTINUE = "continue_analyst"
@@ -174,8 +180,11 @@ def load_tasks(payload: Mapping[str, Any], repo_root: Path, python: str) -> Hand
 def role_text(repo_root: Path, arm: str) -> str:
     """The existing role definition body, frontmatter stripped, injected verbatim."""
     text = (repo_root / ROLE_FILES[arm]).read_text(encoding="utf-8")
-    match = re.match(r"---\n.*?\n---\n", text, flags=re.DOTALL)
-    return text[match.end() :] if match else text
+    block = split_frontmatter(text)
+    if not block.found:
+        return text
+    # block.body drops blank lines after the closing fence; keep them, this text is hashed.
+    return text[block.fence_end :]
 
 
 def command_text(task: Task) -> str:

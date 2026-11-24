@@ -10,15 +10,11 @@ This is that test, widened to the ten fence shapes the buy-vs-build evaluation
 measured (`.project-toolkit/analysis/frontmatter-parser-build-vs-buy.md`). Before the
 migration the three disagreed on six of them.
 
-It spans a packaging boundary on purpose. `detect_adr_changes.py` ships inside a
-plugin root and may import only the standard library and yaml
-(`.claude/rules/plugin-self-containment.md`), so it mirrors
-`python-frontmatter`'s boundary rather than importing it, while the other two
-delegate to `scripts/validation/frontmatter_contract.py`. Two implementations,
-one contract. This test is what proves they agree; the parity test in
-`tests/skills/adr-review/test_detect_adr_changes.py` is what proves the mirrored
-pattern has not drifted. Neither substitutes for the other: a pattern can match
-and the surrounding logic still differ.
+All three now call `scripts/hook_utilities/frontmatter_block.py`, the
+repository's one parser. `detect_adr_changes.py` ships inside a plugin root and
+reaches it through the plugin `lib` tree, while the other two import it from
+`scripts/`. This test proves the three callers still agree end to end: one
+parser underneath does not stop a caller from wrapping it differently.
 """
 
 from __future__ import annotations

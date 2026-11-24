@@ -93,6 +93,14 @@ class TestParseFrontmatter:
 # ---------------------------------------------------------------------------
 
 
+class TestTabOnlyFirstLine:
+    def test_tab_only_first_payload_line_is_reported(self) -> None:
+        """The opening fence must not absorb a tab-only line before the checks."""
+        result = parse_frontmatter("---\n\t\nname: demo\ndescription: Example use case.\n---\n")
+        assert any("tabs not allowed" in error for error in result.errors)
+        assert any("YAML parse error" in error for error in result.errors)
+
+
 class TestValidateName:
     """Tests for name field validation."""
 

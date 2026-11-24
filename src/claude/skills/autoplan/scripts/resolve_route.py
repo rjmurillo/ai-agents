@@ -94,10 +94,34 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+# ADR-047 keeps this bootstrap inline because imports need sys.path first.
+# This file's own plugin lib wins when it holds the shared frontmatter parser,
+# so a foreign or older plugin root in the environment cannot shadow it. The
+# environment root is the fallback for a script copied outside its plugin.
+_PLUGIN_ROOT = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+_LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+if _PLUGIN_ROOT and not os.path.isfile(_LIB_DIR / "hook_utilities" / "frontmatter_block.py"):
+    _LIB_DIR = Path(_PLUGIN_ROOT) / "lib"
+
+if not os.path.isdir(_LIB_DIR):
+    raise RuntimeError(
+        "Expected portability helper lib directory not found: "
+        f"{_LIB_DIR}. Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT to the "
+        "plugin root, or run from an ai-agents checkout."
+    )
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from hook_utilities.frontmatter_block import (  # noqa: E402
+    decode_frontmatter_yaml,
+    split_frontmatter,
+)
 
 try:
     import yaml
@@ -105,8 +129,6 @@ except ImportError:
     yaml = None
 
 __all__ = ["main", "resolve", "Root", "Skill"]
-
-_FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 
 _WORD_RE = re.compile(r"[a-z0-9]+")
 
@@ -276,6 +298,10 @@ def _default_namespace(root: Path) -> str:
 def _read_frontmatter(path: Path) -> dict[str, object]:
     """Best-effort YAML frontmatter parse. Returns `{}` on any defect.
 
+    Finds the block with `hook_utilities.frontmatter_block.split_frontmatter`
+    and loads it with `decode_frontmatter_yaml`, last-one-wins on a repeated
+    key as `yaml.safe_load` was.
+
     The resolver is not a validator: `check_skill_routing_roles.py` already
     refuses a malformed routing block before this script ever runs against a
     real catalog. A skill this resolver cannot parse simply contributes no
@@ -285,11 +311,13 @@ def _read_frontmatter(path: Path) -> dict[str, object]:
         text = path.read_text(encoding="utf-8")
     except OSError:
         return {}
-    match = _FRONTMATTER_RE.match(text)
-    if match is None:
+    split = split_frontmatter(text)
+    if not split.found:
         return {}
     try:
-        data = yaml.safe_load(match.group(1))
+        data = decode_frontmatter_yaml(
+            split.raw.removeprefix("\n").removesuffix("\n"), yaml, allow_duplicate_keys=True
+        )
     except yaml.YAMLError as exc:
         # Foreign plugin roots never pass the routing-role gate, so say which
         # skill dropped out instead of skipping it silently.

@@ -46,10 +46,22 @@ from __future__ import annotations
 
 import difflib
 import re
+import sys
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TextIO
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.hook_utilities.frontmatter_block import (  # noqa: E402
+    FrontmatterStatus,
+)
+from scripts.hook_utilities.frontmatter_block import (  # noqa: E402
+    split_frontmatter as _split_block,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,35 +128,19 @@ def transformed_body(source_body: str, transforms: Iterable[Transform]) -> str:
     return source_body
 
 
-def _opens_frontmatter(text: str) -> bool:
-    """True when the text starts with a line that is exactly `---`.
-
-    A file whose entire content is `---` opens a block with no newline after
-    it. Requiring the newline would classify that file as having no
-    frontmatter, and `--write` would then replace the whole thing with the
-    source body instead of refusing it.
-    """
-    return text.startswith("---\n") or text == "---"
-
-
 def _frontmatter_end(text: str) -> int | None:
-    """Return the index just past the closing `---` line, or None if absent.
+    """Return the index just past the closing fence line, or None if absent.
 
-    The search starts at the newline that closes the opening delimiter, not
-    past it, so an empty block (`---` on one line and `---` on the next) is
-    terminated rather than unterminated. A closing delimiter that ends the
-    file with no trailing newline counts too. Both shapes are legal
-    frontmatter, and the CLI now rejects an unterminated block outright, so
-    misreading either one would refuse to sync a valid file.
+    The block is located by ``scripts/hook_utilities/frontmatter_block.py``.
+    ``fence_end`` stops right after the closing fence line, before any blank
+    line, so a sync returns the fence line and every byte after it untouched. A
+    closing fence that ends the file with no trailing newline counts, and so
+    does an empty block.
     """
-    if not _opens_frontmatter(text):
+    block = _split_block(text)
+    if not block.found:
         return None
-    end = text.find("\n---\n", 3)
-    if end != -1:
-        return end + len("\n---\n")
-    if text.endswith("\n---"):
-        return len(text)
-    return None
+    return block.fence_end
 
 
 def split_frontmatter(text: str) -> tuple[str, str]:
@@ -164,7 +160,7 @@ def split_frontmatter(text: str) -> tuple[str, str]:
 
 def has_unterminated_frontmatter(text: str) -> bool:
     """True when the text opens a `---` block that never closes."""
-    return _opens_frontmatter(text) and _frontmatter_end(text) is None
+    return _split_block(text).status is FrontmatterStatus.UNTERMINATED
 
 
 def rendered_content(source_body: str, target_text: str) -> str:

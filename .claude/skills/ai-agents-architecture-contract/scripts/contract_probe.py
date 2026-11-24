@@ -17,10 +17,31 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from pathlib import Path
 from typing import Any
+
+# ADR-047 keeps this bootstrap inline because imports need sys.path first.
+# This file's own plugin lib wins when it holds the shared frontmatter parser,
+# so a foreign or older plugin root in the environment cannot shadow it. The
+# environment root is the fallback for a script copied outside its plugin.
+_PLUGIN_ROOT = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+_LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+if _PLUGIN_ROOT and not os.path.isfile(_LIB_DIR / "hook_utilities" / "frontmatter_block.py"):
+    _LIB_DIR = Path(_PLUGIN_ROOT) / "lib"
+
+if not os.path.isdir(_LIB_DIR):
+    raise RuntimeError(
+        "Expected portability helper lib directory not found: "
+        f"{_LIB_DIR}. Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT to the "
+        "plugin root, or run from an ai-agents checkout."
+    )
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from hook_utilities.frontmatter_block import split_frontmatter  # noqa: E402
 
 SKILL = "ai-agents-architecture-contract"
 ADR_DIR = ".project-toolkit/architecture"
@@ -30,14 +51,15 @@ FIELDS = ("status", "superseded-by", "implemented", "date")
 
 
 def parse_frontmatter(text: str) -> dict[str, str]:
-    """Return key/value pairs from the first `---` block. Comments are skipped."""
-    lines = text.splitlines()
-    if not lines or lines[0].strip() != "---":
+    """Return key/value pairs from the leading frontmatter block. Comments are skipped.
+
+    The block comes from ``hook_utilities.frontmatter_block``.
+    """
+    split = split_frontmatter(text)
+    if not split.found:
         return {}
     out: dict[str, str] = {}
-    for line in lines[1:]:
-        if line.strip() == "---":
-            break
+    for line in split.raw.splitlines():
         if line.lstrip().startswith("#") or ":" not in line:
             continue
         key, _, value = line.partition(":")

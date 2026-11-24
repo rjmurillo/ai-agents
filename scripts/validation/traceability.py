@@ -33,6 +33,8 @@ _repo_root_candidate = Path(__file__).resolve().parent.parent.parent
 if str(_repo_root_candidate) not in sys.path:
     sys.path.insert(0, str(_repo_root_candidate))
 
+from scripts.hook_utilities.frontmatter_block import split_frontmatter  # noqa: E402
+
 _SPEC_ID_RE = r"[A-Z]+-[A-Za-z0-9]+"
 _RELATED_ID_RE = re.compile(rf"\b{_SPEC_ID_RE}\b")
 
@@ -93,19 +95,24 @@ class AllSpecs:
 def parse_yaml_front_matter(file_path: Path) -> SpecInfo | None:
     """Extract YAML front matter from a markdown file.
 
-    Uses simple regex parsing (not a YAML library) to match the PowerShell
-    implementation behavior.
+    The block is found by ``scripts/hook_utilities/frontmatter_block.py``. The
+    field values are read with line regexes, not a YAML library, so this module
+    stays stdlib-only: the governance docs show it run under a bare ``python3``,
+    and a quoted ``id`` keeps its quotes, as before.
     """
     try:
         content = file_path.read_text(encoding="utf-8")
     except OSError:
         return None
 
-    match = re.match(r"^---\r?\n(.+?)\r?\n---", content, re.DOTALL)
-    if not match:
+    split = split_frontmatter(content)
+    if not split.found:
         return None
 
-    yaml_text = match.group(1)
+    # ``raw`` opens with the newline that ends the opening fence line.
+    yaml_text = "\n".join(split.raw.splitlines()[1:])
+    if not yaml_text:
+        return None
     spec = SpecInfo(file_path=str(file_path))
 
     # Parse type

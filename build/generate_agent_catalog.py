@@ -27,7 +27,6 @@ This generator follows the conventions in build/generate_agents.py.
 from __future__ import annotations
 
 import argparse
-import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -42,14 +41,14 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _SCRIPT_DIR.parent
 
 sys.path.insert(0, str(_SCRIPT_DIR / "scripts"))
+sys.path.insert(0, str(_REPO_ROOT))
 
 from atomic_write import publish_bytes_preserving_mode  # noqa: E402
 
-# Frontmatter delimiter regex. Mirrors build/generate_agents_common.py:
-#   _FRONTMATTER_RE = re.compile(r"^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$")
-# Same contract: capture the YAML block between the leading and the second
-# ``---`` fence, then the body. Quoted verbatim per canonical-source-mirror.md.
-_FRONTMATTER_RE = re.compile(r"^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$")
+from scripts.hook_utilities.frontmatter_block import (  # noqa: E402
+    FrontmatterStatus,
+    parse_frontmatter,
+)
 
 _TEMPLATE_GLOB = "*.shared.md"
 _OUTPUT_RELATIVE = Path("docs") / "agent-catalog.md"
@@ -127,21 +126,21 @@ def _count_loc(content: str) -> int:
 def _parse_frontmatter(content: str, template: Path) -> dict[str, object]:
     """Extract and parse the YAML frontmatter block.
 
+    Uses ``scripts/hook_utilities/frontmatter_block.py`` for the fence and the
+    YAML load; a repeated key keeps the last value, as ``yaml.safe_load`` does.
+
     Raises CatalogError if the file has no frontmatter, the YAML is invalid,
     or required catalog fields are malformed.
     """
-    match = _FRONTMATTER_RE.match(content.replace("\r\n", "\n"))
-    if match is None:
+    result = parse_frontmatter(content.replace("\r\n", "\n"), yaml, allow_duplicate_keys=True)
+    if result.status in (FrontmatterStatus.ABSENT, FrontmatterStatus.UNTERMINATED):
         raise CatalogError(f"no YAML frontmatter found in {template}")
-    try:
-        parsed = yaml.safe_load(match.group(1))
-    except yaml.YAMLError as exc:
-        raise CatalogError(f"invalid YAML frontmatter in {template}: {exc}") from exc
-    if parsed is None:
-        return {}
-    if not isinstance(parsed, dict):
+    if result.status is FrontmatterStatus.MALFORMED:
+        detail = (result.error or "").removeprefix("invalid YAML frontmatter: ")
+        raise CatalogError(f"invalid YAML frontmatter in {template}: {detail}")
+    if result.status is FrontmatterStatus.NOT_A_MAPPING:
         raise CatalogError(f"frontmatter in {template} is not a mapping")
-    return parsed
+    return result.metadata or {}
 
 
 def _require_frontmatter_string(frontmatter: dict[str, object], key: str, template: Path) -> str:

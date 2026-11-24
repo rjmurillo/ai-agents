@@ -23,6 +23,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 import scripts.validation.instruction_budget as ib
+from scripts.validation.instruction_budget_globs import load_unique_frontmatter
 
 
 def _write_rule(root: Path, name: str, apply_to: str, body: str = "body\n") -> int:
@@ -108,6 +109,47 @@ def test_parse_applyto_unhashable_key_raises() -> None:
     text = "---\napplyTo: '**/*.py'\n? [a, b]\n: c\n---\nbody\n"
     with pytest.raises(ib.UnsupportedApplyToError):
         ib.parse_applyto(text)
+
+
+def test_duplicate_and_unhashable_key_wording_matches_base() -> None:
+    # Exact messages from the f9d788bd8 loader, raised by the loader policy and
+    # not rewrapped as "frontmatter is not valid YAML".
+    with pytest.raises(ib.UnsupportedApplyToError) as dup:
+        ib.parse_applyto("---\napplyTo: '**/*.py'\napplyTo: tests/**\n---\nbody\n")
+    assert str(dup.value) == "duplicate key 'applyTo' in frontmatter"
+    with pytest.raises(ib.UnsupportedApplyToError) as unhashable:
+        ib.parse_applyto("---\napplyTo: '**/*.py'\n? [a, b]\n: c\n---\nbody\n")
+    # Shallow construction leaves the complex key's list empty when it is reported.
+    assert str(unhashable.value) == "unhashable key in frontmatter: []"
+
+
+def test_repeated_nan_key_is_a_duplicate() -> None:
+    # Base used dict key semantics: PyYAML reuses one NaN object, so a repeated
+    # '.nan' key is found by identity. '==' comparison would miss it.
+    with pytest.raises(ib.UnsupportedApplyToError) as exc:
+        load_unique_frontmatter("---\n.nan: 1\n.nan: 2\n---\nbody\n")
+    assert str(exc.value) == "duplicate key nan in frontmatter"
+
+
+def test_recursive_sequence_value_loads_with_shallow_construction() -> None:
+    # Base built values shallow, so a self-referencing sequence loaded. A deep
+    # construct raises ConstructorError for the recursive node instead.
+    data = load_unique_frontmatter("---\napplyTo: '**/*.py'\nloop: &a [*a]\n---\nbody\n")
+    loop = data["loop"]
+    assert isinstance(loop, list)
+    assert loop[0] is loop
+    assert ib.parse_applyto("---\napplyTo: '**/*.py'\nloop: &a [*a]\n---\nbody\n") == {"**/*.py"}
+
+
+def test_loader_policy_does_not_change_the_shared_parser_default() -> None:
+    # The shared duplicate-key loader is untouched: it still treats repeated
+    # '.nan' as distinct, so only this module carries the dict-key policy.
+    import yaml
+
+    from scripts.hook_utilities.frontmatter_block import parse_frontmatter
+
+    result = parse_frontmatter("---\n.nan: 1\n.nan: 2\n---\nbody\n", yaml)
+    assert result.ok
 
 
 def test_parse_applyto_keeps_brace_group_intact() -> None:

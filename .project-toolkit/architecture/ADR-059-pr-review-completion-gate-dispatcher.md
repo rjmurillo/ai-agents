@@ -461,7 +461,7 @@ Negative:
   body. Second, the command strings are bounded by config
   trust: compared with the trusted ref, install-trusted, or
   human-approved. The Copilot copy gets `--harness copilot` at build time
-  (`build/scripts/copilot_body_translation.py:395`). Other copies rely on
+  (`build/scripts/copilot_body_translation.py:392`). Other copies rely on
   the agent to fill `{harness}`
   (`templates/skills/pr-review.SKILL.md.tmpl:146`, guidance at `:150`).
   The `claude_code` map has no unverifiable token, so the launcher exposure
