@@ -10,7 +10,7 @@ Spec the open-ended version. This document is a spec only. It changes no code.
 ### Q1 Demand Reality
 
 `scripts/update_reviewer_signal_stats.py` scores PR review comments as actionable or not.
-The reviewer signal table in `.serena/memories/pr-review/pr-comment-responder-skills.md` comes from it.
+It writes the reviewer signal table in `.serena/memories/pr-review/pr-comment-responder-skills.md`.
 The `pr-comment-responder` skill reads that table to rank reviewers.
 A wrong score there misranks reviewers for every agent that triages PR comments.
 
@@ -18,18 +18,20 @@ A wrong score there misranks reviewers for every agent that triages PR comments.
 
 The heuristic scores each comment. Scores from 0.4 to 0.6 go to
 `scripts/llm_classification/classifier.py`. That module calls the Anthropic SDK with a
-hard-coded Haiku model and `ANTHROPIC_API_KEY`.
+hard-coded Haiku model id and `ANTHROPIC_API_KEY`.
 
 The only runtime is the daily cron in `.github/workflows/update-reviewer-stats.yml`.
 That workflow passes no `ANTHROPIC_API_KEY` (lines 77 to 79, read 2026-11-23).
+No commit ever added it there (`git log -S ANTHROPIC_API_KEY` on that file, empty on 2026-11-23).
 `LLMFallbackConfig.from_env()` then sets `enabled=False` (`config.py:53-61`).
-So the fallback has never run in production. The heuristic alone decides every comment.
+So the fallback does not run in that workflow, and its history shows it never did.
+The heuristic alone decides every comment.
 
 ### Q3 Desperate Specificity
 
 The person hurt is the agent or maintainer who trusts the reviewer signal table.
 On 2026-11-13 (`637b60d749`) it showed `devin-ai-integration` at 348 of 349 actionable
-and `coderabbitai` at 265 of 270. Those rates are likely inflated (INFERRED, see Q5).
+and `coderabbitai` at 265 of 270. Those rates look inflated (INFERRED, see Q5).
 
 ### Q4 Narrowest Wedge
 
@@ -42,8 +44,8 @@ If it does, add one transport-neutral call contract with one CI transport.
 `get_actionability_score` starts every score at 0.5 (`update_reviewer_signal_stats.py:274`).
 A comment that matches no regex stays at 0.5. That is inside the fallback band.
 `is_actionable` is `score >= 0.5`, so a comment with no evidence counts as actionable.
-This likely explains the 98 to 100 percent signal rates (INFERRED, not measured).
-The share of comments that land in the band is unknown. Eval step 1 measures it.
+This may explain the 98 to 100 percent signal rates (INFERRED, not measured).
+The share of comments in the band is unknown. Eval step 1 measures it.
 
 The model prompt sends only the comment body (`classifier.py:96-101`).
 The heuristic also reads thread replies. So the model sees less than the heuristic it overrides.
@@ -52,20 +54,34 @@ The heuristic also reads thread replies. So the model sees less than the heurist
 
 At ten times the comments, a per-comment paid call with an in-process cache does not scale.
 The cache dies with the process, so every daily run pays again.
-The design must cache across runs and cap calls per run.
+The design must cache across runs and cap calls and wall time per run.
 
 ## Prior Art / Constraints
 
-| Source | What it says | Effect on this spec |
-|---|---|---|
-| ADR-111 (accepted) | Default to the harness-inherited model. No versioned id in skills. | The model comes from the host or config. No hard-coded model id. |
-| `.claude/rules/plugin-self-containment.md` MUST 4 | A shipped script stays stdlib-only at import time. | Library code imports no vendor SDK. |
-| `pyproject.toml` import-linter contract `shipped-lib-no-runtime-dependencies` | Shipped lib packages may not import `anthropic`. | Same as above, enforced by a linter. |
-| ADR-006 | Workflow logic lives in testable modules. | Transport choice lives in Python, not YAML. |
-| ADR-021 (accepted 2025-12-23) | Names `claude-haiku-4.5` as a JSON-extraction fallback for CI review. | Governs CI review routing, not this utility. It predates ADR-111. Not binding here. |
-| `scripts/eval/_providers.py:104` `EvalProvider` | One `complete(messages, system, model, max_tokens, ...) -> str` protocol. Seven provider cells across Claude, Codex, Copilot, API and subscription billing. | The repo already owns a transport seam. Reuse it, do not write a second one. |
-| `scripts/eval/_claude_cli.py:85-94` | Strips `ANTHROPIC_API_KEY` and related vars from the child env. | Subscription transports must not silently bill a metered key. |
-| claude-mem (`github.com/thedotmack/claude-mem`, Apache-2.0) | Observer model runs in a background worker. `CLAUDE_MEM_PROVIDER` picks the vendor, `CLAUDE_MEM_MODEL` picks the model, 180 s timeout. | Pattern borrowed: provider and model are config, never code. No code copied. Apache-2.0 places no duty on a borrowed pattern. |
+### Direct prior art from memory
+
+- ADR-111 ("Skill Model Pins Project Per Harness", accepted): default to the harness-inherited model; no versioned id in skills. Relevance: the fallback must not hard-code a model id. Decision: honor.
+- ADR-006 ("Thin workflows, testable modules"): logic lives in Python, not YAML. Relevance: transport choice and cache keys live in the module. Decision: honor.
+- ADR-035 ("Exit code standardization"): 0 ok, 1 logic, 2 config, 3 external, 4 auth (lines 54 to 58). Relevance: an unreachable configured transport is exit 3. Decision: honor.
+- ADR-021 ("AI Review Model Routing Strategy", accepted 2025-12-23): names `claude-haiku-4.5` as a JSON-extraction fallback for CI review. Relevance: covers CI review routing, not this utility, and predates ADR-111. Decision: not binding here.
+- `.claude/rules/plugin-self-containment.md` MUST 4: a shipped plugin script stays stdlib-only at import time. Relevance: applies if this module ever ships in a plugin. Decision: honor by design.
+- `pyproject.toml` import-linter contract `shipped-lib-no-runtime-dependencies`: forbids `anthropic` in `scripts.hook_utilities`, `scripts.github_core`, `scripts.ai_review_common`, `scripts.failure_classifier`. Relevance: it does not cover `scripts.llm_classification` today. The "no vendor SDK" rule here comes from the owner ruling, not this contract. Decision: adapt (a new test enforces it, AC 1).
+- `scripts/eval/_providers.py:104` `EvalProvider`: one `complete(messages, system, model, max_tokens, ...) -> str` protocol over six billing-matrix cells (`_billing_matrix.py:122-244`, read 2026-11-23): Claude, Codex, and Copilot, each with API and subscription billing. Relevance: the repo already owns a transport seam. Decision: adapt (see Open question 1).
+- (chestertons-fence recommendation: REPLACE `classifier.py` transport, PRESERVE the band, the 0.7 apply threshold, the JSON verdict shape, and the cache normalization in `cache.py`.)
+
+### Connected context from prior-art search
+
+- Connected entity: `scripts/eval/_claude_cli.py`, transport. Adjudication: in-scope. Note: strips `ANTHROPIC_API_KEY` and five related vars from the child env (lines 85 to 94), so a subscription call cannot bill a metered key.
+- Connected entity: `scripts/eval/_http_providers.py`, transport. Adjudication: blast-radius. Note: the OpenAI-compatible cell imports the `openai` SDK lazily (line 318) and the SDK Anthropic cell imports `anthropic` (line 446). Only `scripts/eval/_anthropic_api.py` is stdlib `urllib` (lines 16 to 17).
+- Connected entity: `.github/workflows/update-reviewer-stats.yml`, workflow. Adjudication: in-scope. Note: the sole runtime.
+- Linked project: claude-mem (`github.com/thedotmack/claude-mem`, `LICENSE` is Apache-2.0, checked through the GitHub license API on 2026-11-23). Why it matters: its observer model runs in a background worker; `CLAUDE_MEM_PROVIDER` picks the vendor and `CLAUDE_MEM_MODEL` the model; `DEFAULT_LLM_TIMEOUT_MS = 180_000` (`src/shared/SettingsDefaultsManager.ts:138`). Pattern borrowed: provider and model are config, never code. No code copied. Apache-2.0 places no duty on a borrowed design pattern.
+- (Search depth: medium, matched to Tier 3.)
+
+### Coverage notes
+
+- Topic `llm_classification` consumers: searched module, class, factory, and env names with `git grep`; results: 1 runtime consumer, 4 test files (2026-11-23). Confidence: high.
+- Topic per-harness model access: searched repo code, tests, and skill prose. Vendor docs not checked: the web search API returned HTTP 401 on 2026-11-23. Confidence: low for Cursor, Muse, and Hermes.
+- Topic host-agent handback or MCP sampling: searched `host agent`, `agent-in-the-loop`, `return the prompt`, `sampling/createMessage`; results: 0. Confidence: high.
 
 ## Problem statement
 
@@ -81,7 +97,7 @@ And its one consumer never turns it on, so nobody knows if it helps.
 | Consumer | File and lines | Runtime |
 |---|---|---|
 | `update_reviewer_signal_stats.py` | Import at 53. Classifier built at 750 to 765. Called from `get_actionability_score` at 331. | GitHub Actions cron, `update-reviewer-stats.yml:82` and `:91`, daily 06:00 UTC |
-| Tests | `tests/llm_classification/` (4 files) | pytest |
+| Tests | `tests/llm_classification/` | pytest |
 
 No hook, skill, or lefthook job imports it. Search: `git grep -n -E "llm_classification|LLMClassifier|get_default_classifier|LLM_FALLBACK"`.
 
@@ -96,12 +112,12 @@ No hook, skill, or lefthook job imports it. Search: `git grep -n -E "llm_classif
 
 ### Model access per harness
 
-Evidence is repo code and tests only. A vendor-doc check failed on 2026-11-23 (search API returned HTTP 401).
+Evidence is repo code and tests only (vendor docs unavailable, see Coverage notes).
 
 | Harness | One-shot mechanism | Tools off? | Model choice | Evidence |
 |---|---|---|---|---|
 | Claude Code | `claude --print --output-format json --model M --setting-sources "" --strict-mcp-config --disallowed-tools ... --no-session-persistence` | Yes | `--model` | `scripts/eval/_claude_cli.py:159-177` |
-| Codex | `codex exec --model M --sandbox read-only --ephemeral --ignore-user-config --output-last-message F` | Read-only sandbox | `--model` | `scripts/eval/_codex_cli.py:165-177` |
+| Codex | `codex exec --model M --sandbox read-only --ephemeral --ignore-user-config --output-last-message F` | Read-only sandbox | `--model` | `scripts/eval/_codex_cli.py:165-177`. Its docstring says no live run yet (lines 21 to 24). |
 | Copilot CLI | `copilot --acp --model M --available-tools= --no-custom-instructions --disable-builtin-mcps` over JSON-RPC | Yes | `--model` | `scripts/eval/_copilot_cli.py:395-415` |
 | Cursor | `cursor-agent --trust --force -p` | No evidence. `--force` allows shell. | None found | `tests/e2e/test_cursor_plugin_smoke.py:190-205` |
 | Muse | `muse exec --json --trust-workspace --disable-web-tools` | Web tools only | None found | `tests/e2e/test_muse_agents_load.py:89` |
@@ -113,8 +129,8 @@ and any CLIProxyAPI reference. `OPENAI_BASE_URL` is an operator-set endpoint (`_
 ## User stories
 
 1. As the reviewer-stats cron, I classify an ambiguous comment with whatever model the operator configured, so the stats do not depend on one vendor.
-2. As a maintainer running the script on a laptop under any harness, I get the same verdict shape from my own login, with no API key.
-3. As the owner, I see in the run summary how many comments used the fallback and how many fell back to the heuristic, so a silent no-op cannot hide.
+2. As a maintainer running the script on a laptop under any harness, I opt in to my own CLI login and get the same verdict shape, with no API key.
+3. As the owner, I see in the run summary how many comments used the fallback and how many kept the heuristic, so a silent no-op cannot hide.
 
 ## Call contract
 
@@ -124,7 +140,7 @@ and any CLIProxyAPI reference. `OPENAI_BASE_URL` is an operator-set endpoint (`_
 |---|---|---|
 | `comment_body` | `str` | Untrusted text. Truncate to 4,000 characters. |
 | `thread_replies` | `list[str]` | New. Up to 3 replies, each truncated to 500 characters. Closes the gap in Q5. |
-| `heuristic_score` | `float` | Logged only. Not sent to the model, so it cannot anchor the answer. |
+| `heuristic_score` | `float` | In the contract and logged per call. Deliberately not sent to the model, so it cannot anchor the answer. |
 
 ### Output
 
@@ -150,17 +166,23 @@ The caller keeps its current rule: apply the verdict only when `confidence >= 0.
 |---|---|---|
 | Output tokens | 100 | Current value. The JSON fits in about 40. |
 | Input tokens | about 1,500 | 4,000-character body plus replies plus a 250-token system prompt |
-| Per-call timeout | 60 s | A CLI cold start dominates. Eval transports default to 900 s, too long for a cron. |
-| Retries | 1 on a transient error only | Current code retries twice. Auth, missing binary, and parse failures do not retry. |
-| Calls per run | `LLM_FALLBACK_MAX_CALLS`, default 200 | Hard cap. Past it, the heuristic stands and the summary says so. |
-| Wall time per run | 15 min | Matches the `timeout-minutes: 15` already on the sibling step. |
+| Per-call timeout | 30 s | Small-model HTTP calls return in seconds. A slow call is a failed call here. |
+| Retries | 1, on a transient error only | Current code retries twice. Auth, missing binary, and parse failures do not retry. |
+| Calls per run | `LLM_FALLBACK_MAX_CALLS`, default 200 | Hard cap. |
+| Fallback wall time per run | `LLM_FALLBACK_BUDGET_SECONDS`, default 600 | Checked before each call. Once spent, no new call starts. |
+
+A comment skipped by either cap keeps its heuristic verdict and counts as `fallback_capped`.
+Worst case per run: the wall budget plus one in-flight call, about 11 minutes.
+That fits inside the 15-minute step budget the sibling step already uses (`update-reviewer-stats.yml:88`).
 
 ### Caching
 
-- Key: SHA-256 of the normalized comment plus replies (keep `cache.py` normalization), plus prompt version, plus provider and model.
-- A prompt or model change invalidates the cache by key, with no manual purge.
-- Store: a JSON file under the runner cache in CI (`actions/cache`, keyed on prompt version) and under `.project-toolkit/cache/` locally. The in-memory LRU stays as the first tier.
-- A cached verdict never expires on time. A comment body does not change its meaning.
+- Key: SHA-256 of the normalized comment plus replies (keep `cache.py` normalization), plus prompt version, provider, and model.
+- A verdict stored under a key never expires on time. A new reply, prompt, or model makes a new key, and so one new call.
+- In-memory LRU stays as the first tier. A JSON file is the second tier.
+- Local: the file lives under `.project-toolkit/cache/`.
+- CI: `actions/cache` entries are immutable per key, so save under `llm-fallback-v<prompt_version>-<run_id>` and restore with the prefix `llm-fallback-v<prompt_version>-`. Each run restores the newest file and saves a new one.
+- The file stores keys and verdicts only, never raw comment text or secrets.
 
 ## Transport options, ranked
 
@@ -170,38 +192,49 @@ Rank depends on the runtime. The only consumer today runs in CI, which has no ho
 
 | Rank | Transport | Failure mode |
 |---|---|---|
-| 1 | Operator-configured OpenAI-compatible HTTP endpoint (`OPENAI_BASE_URL` plus key from a secret). Stdlib `urllib`. Covers CLIProxyAPI, Azure OpenAI, and any gateway. | Secret missing: transport reports `unconfigured`. Endpoint down: `unavailable`. |
-| 2 | `anthropic` cell of `EvalProvider` (stdlib urllib path, not the SDK) | Same as above with `ANTHROPIC_API_KEY`. |
-| 3 | A vendor CLI on the runner | Not viable. CI has no subscription login. Listed to rule it out. |
+| 1 | Operator-configured OpenAI-compatible HTTP endpoint (`OPENAI_BASE_URL` plus a key from a CI secret). Covers CLIProxyAPI, Azure OpenAI, and any gateway. | Secret missing: `unconfigured`. Endpoint down or 5xx: `unavailable`. 401 or 403: `auth`. |
+| 2 | Anthropic Messages API through the stdlib path in `scripts/eval/_anthropic_api.py` | Same, with `ANTHROPIC_API_KEY`. |
+| Ruled out | A vendor CLI on the runner | CI has no subscription login. |
+
+The existing OpenAI-compatible cell imports the `openai` SDK (`_http_providers.py:318`).
+Rank 1 needs a stdlib `urllib` client to meet the no-vendor-SDK rule. See Open question 1.
 
 ### Inside a harness (local runs)
 
 | Rank | Transport | Failure mode |
 |---|---|---|
-| 1 | The CLI of the harness the user is in, through the matching `EvalProvider` cell: `claude-cli`, `codex-cli`, or `copilot-cli` | Binary missing or not logged in: `unavailable`. Must run with tools off and metered env stripped, as the eval cells already do. |
-| 2 | The HTTP endpoint from CI rank 1, if configured | As above. |
-| Excluded | Cursor, Muse | No evidence of a tool-less one-shot mode. The comment text is untrusted, so a mode with shell access is a prompt-injection path. Re-admit when a probe proves tools are off. |
+| 1 | Either HTTP transport above, when configured | As above. |
+| 2 | The user's CLI, by explicit opt-in only: `claude-cli`, `codex-cli`, or `copilot-cli` cell | Binary missing or not logged in: `unavailable`. Runs with tools off and metered env stripped, as those cells already do. Spends the login's quota. |
+| Excluded | Cursor, Muse | No evidence of a tool-less one-shot mode. Comment text is untrusted, so a mode with shell access is a prompt-injection path. Re-admit when a probe proves tools are off. |
 | Excluded | Hermes | No one-shot mechanism found. |
 | Rejected | Hand the prompt back to the host agent | No repo convention, and the only consumer has no agent in the loop. |
 
+CLI transports are opt-in for two reasons. They spend the user's subscription quota.
+And a `claude --print` child started from inside a Claude Code session is a nested session.
+Whether it re-fires the parent's hooks is untested (Open question 4).
+
 ### Selection
 
-`LLM_FALLBACK_PROVIDER` names a cell (`openai`, `anthropic`, `claude-cli`, `codex-cli`, `copilot-cli`, `none`).
-With no value, auto-detect in this order: configured HTTP endpoint, then the CLI of the
-detected harness (`CLAUDECODE`, `CODEX_*`, `COPILOT_*` env markers), then `none`.
+`LLM_FALLBACK_PROVIDER` names a cell: `openai`, `anthropic`, `claude-cli`, `codex-cli`, `copilot-cli`, or `none`.
+With no value, auto-detect HTTP only, in this order:
+
+1. `OPENAI_BASE_URL` and `OPENAI_API_KEY` both set: `openai`.
+2. `ANTHROPIC_API_KEY` set: `anthropic`.
+3. Otherwise `none`.
+
+Auto-detect never picks a CLI cell. Harness detection is Open question 3.
 
 ### When no model is reachable
 
 Keep today's outcome: the heuristic result stands. Change how it is reported.
 
-- Each run counts `fallback_used`, `fallback_cached`, `fallback_unavailable`, and `fallback_capped`.
-- The counts go to the step summary that `_write_step_summary` already writes.
-- If `LLM_FALLBACK_PROVIDER` is set and the transport is unreachable, exit 3 (external error, ADR-035).
-  An operator who asked for a model and got none should see red.
+- Each run counts `fallback_used`, `fallback_cached`, `fallback_unavailable`, `fallback_capped`, and `band_total`.
+- The counts go to the step summary that `_write_step_summary` already writes (`update_reviewer_signal_stats.py:575`).
+- If `LLM_FALLBACK_PROVIDER` is set and its transport is unreachable, the script writes the stats and the summary first, then exits 3 (ADR-035). An operator who asked for a model and got none sees red, and loses no data.
 - If nothing is configured, exit 0 and print `fallback: unconfigured, N comments in band`.
 
 Why keep the heuristic as the floor: the stats job is a report, not a gate.
-Failing the whole report because a tiebreaker is down loses all the data to protect a small slice.
+Writing the report before the non-zero exit keeps the data and still shows the fault.
 
 ## Harness agnosticism
 
@@ -209,8 +242,9 @@ Failing the whole report because a tiebreaker is down loses all the data to prot
   `complete(system: str, user: str, model: str | None, max_tokens: int, timeout: float) -> str`.
 - The model id comes from `LLM_FALLBACK_MODEL` or the transport default. Code holds no model id.
   `None` means "the CLI's own default", which inherits the harness model per ADR-111.
-- Transports reuse the `EvalProvider` cells. Their argv, env stripping, and billing guards already exist and are tested.
-- The `anthropic` package leaves this module's import graph. A test asserts the module imports with `anthropic` blocked.
+- CLI transports reuse the `EvalProvider` cells for argv, env stripping, and billing guards.
+  The Claude and Copilot cells are code-verified. The Codex cell has no live run yet.
+- The `anthropic` package leaves this module's import graph. A test asserts the module imports with `anthropic` and `openai` blocked.
 
 ## Config surface
 
@@ -222,12 +256,14 @@ Failing the whole report because a tiebreaker is down loses all the data to prot
 | `LLM_FALLBACK_CACHE_SIZE` | 100 | Keep for the in-memory tier. |
 | `LLM_FALLBACK_PROVIDER` | n/a | New. Names the transport cell. |
 | `LLM_FALLBACK_MAX_CALLS` | n/a | New. Default 200. |
-| `LLM_FALLBACK_TIMEOUT` | n/a | New. Default 60 s. |
-| `ANTHROPIC_API_KEY` | Sole enable signal | Read only by the `anthropic` cell. |
+| `LLM_FALLBACK_BUDGET_SECONDS` | n/a | New. Default 600. |
+| `LLM_FALLBACK_TIMEOUT` | n/a | New. Default 30. |
+| `ANTHROPIC_API_KEY` | Sole enable signal | Read only by the `anthropic` transport and auto-detect step 2. |
 
-Migration: one consumer, one workflow. Today nothing sets any of these in CI.
-So the migration is additive. An old local setup with only `ANTHROPIC_API_KEY` set
-auto-detects the `anthropic` cell and keeps working. An old `LLM_FALLBACK_MODEL` value still passes through.
+Migration: one consumer, one workflow, and nothing sets these in CI today.
+So the change is additive. A local setup with only `ANTHROPIC_API_KEY` set
+auto-detects the `anthropic` transport and keeps working. An old `LLM_FALLBACK_MODEL` value still passes through.
+To turn the fallback on in CI, add one secret and two env lines to the step at `update-reviewer-stats.yml:77`.
 
 ## Cost and latency per call
 
@@ -240,72 +276,116 @@ Rates from `scripts/eval/_eval_common.py` (read 2026-11-23). About 1,500 input a
 | Sonnet 5 | $0.002 | $0.010 | about $0.0036 |
 
 At the 200-call cap, one run costs at most about $0.72 on Sonnet 5 and $0.36 on Haiku 4.5.
-The cross-run cache drops repeat runs to near zero, since most comments in a 90-day window repeat daily.
+The cross-run cache drops repeat runs toward zero, since a 90-day window repeats most comments daily.
 A subscription CLI cell has no per-call charge but counts against the login's quota.
 
-Latency: no single-classification latency is measured in this repo.
-HTTP calls to a small model are expected under 3 s. CLI calls add process start, expected 5 to 20 s (INFERRED).
-Eval step 2 measures both. Bound: 60 s per call, 15 min per run.
+Latency: this repo has no measured single-classification latency.
+Expected: under 3 s per HTTP call to a small model, 5 to 20 s per CLI call (INFERRED, eval step 4 measures it).
+Bounds: 30 s per call, 600 s of fallback time per run.
 
 ## Eval method (before anyone builds)
 
 1. **Measure the band.** Run the heuristic over the 90-day comment set. Record the count and share at 0.4 to 0.6, and the share at exactly 0.5 with no matched pattern. No model needed.
 2. **Build a labeled corpus.** Sample 200 comments, stratified: 100 from the band, 100 outside it, across every reviewer in the signal table.
-   Label each actionable or not by hand, from the comment and the diff it points at.
-   Labels must not come from thread replies. The heuristic already reads replies, so reply-derived labels make it grade itself.
-   Store as JSONL under `evals/comment-actionability/` with the label rubric.
-3. **Score three arms** on the band items, then on all items:
+   - Labeler: Richard or a maintainer he names. A second labeler double-labels 50 items, and the report states the agreement rate.
+   - Labelers see the comment and the diff it points at. They do not see thread replies, heuristic scores, or any arm's output.
+   - Labels must not come from thread replies. The heuristic already reads replies, so reply-derived labels make it grade itself.
+   - Store as JSONL under `evals/comment-actionability/` with the label rubric.
+3. **Score three arms** on band items, then on all items:
    - A: heuristic as shipped (`>= 0.5` is actionable).
    - B: heuristic with the tie broken the other way (`> 0.5`). A deterministic baseline with no model.
    - C: heuristic plus model fallback, per transport and model tried.
-4. **Report** accuracy, precision, and recall for each arm, with a paired bootstrap 95 percent CI on the C minus best-of(A, B) accuracy difference over band items.
+4. **Report** accuracy, precision, and recall per arm, per-call p50 and p95 latency for arm C, and a paired bootstrap 95 percent CI on the accuracy gap between C and the better of A and B, over band items.
 5. **Reuse first.** `scripts/eval/eval-prompt-change.py` already runs scenario files with an `expected_verdict`. Check whether it scores this corpus with no new code before writing a runner.
 
-Pass bar: C beats the better of A and B on band items by at least 10 points of accuracy, CI lower bound above 0.
+Pass bar: C beats the better of A and B on band items by at least 10 points of accuracy, with the CI lower bound above 0.
 
 ## Kill criteria
 
 Drop the model fallback, and delete `scripts/llm_classification`, if any holds:
 
 1. Fewer than 5 percent of comments land in the band (eval step 1). The fallback would move nothing.
-2. Arm C fails the pass bar against arm B. A one-character tie-break rule would then do the job.
-3. The signal table's reviewer ranking does not change between A and C. Nobody downstream would act differently.
+2. Arm C fails the pass bar against arm B. A one-character tie-break rule would do the job.
+3. The signal table's reviewer ranking is the same under A and C. Nobody downstream would act differently.
 4. No transport is reachable in CI without a new paid secret, and the owner declines to add one.
-5. Measured p95 per-call latency over 60 s on the chosen CI transport.
+5. After one warm cache run, the chosen CI transport still caps out: `fallback_capped` above 10 percent of `band_total` under the 600 s budget at measured p95.
 
-## Acceptance criteria
+## Failure modes
 
-1. `scripts/llm_classification` imports with `anthropic` blocked from `sys.modules`. A test proves it.
-2. No string matching `claude-|gpt-|gemini-` appears as a default in `scripts/llm_classification`. A test greps the module.
-3. A malformed model reply (missing `is_actionable`) yields `None` and increments `fallback_unavailable`, never a verdict.
-4. With `LLM_FALLBACK_PROVIDER` set and the transport down, `main` returns 3. With nothing configured, `main` returns 0 and the summary prints the band count.
-5. A second run over the same comments makes 0 model calls (cross-run cache hit).
-6. Calls per run never exceed `LLM_FALLBACK_MAX_CALLS`. Comments past the cap keep the heuristic verdict and count as `fallback_capped`.
-7. Each CLI transport runs with tools disabled and metered-billing env vars stripped, inherited from the `EvalProvider` cell.
-8. The eval report from the method above is committed before AC 1 to 7 are built.
+| Failure | Effect | Handling |
+|---|---|---|
+| Transport unconfigured | No calls | Heuristic stands. Exit 0. Summary prints the band count. |
+| Configured transport down, auth refused, or binary missing | No calls | Heuristic stands. Stats written. Exit 3. |
+| Malformed or non-JSON reply | One comment unclassified | `None`, counted `fallback_unavailable`, heuristic stands. |
+| Call or wall budget spent | Rest of band unclassified | Counted `fallback_capped`, heuristic stands. |
+| Prompt injection in comment text | Model returns a forced verdict | Tools are off and output is three typed fields, so the blast radius is one wrong label. Eval arm C measures label quality. |
+| Cache file corrupt or unreadable | Cold cache | Log a warning, start empty, overwrite on save. |
+
+## Observability
+
+- Step summary: `band_total`, `fallback_used`, `fallback_cached`, `fallback_unavailable`, `fallback_capped`, provider, model, total fallback seconds.
+- Log line per call at DEBUG: cache key prefix, heuristic score, verdict, confidence, latency. Never the comment text.
+- The reviewer table gains no new column (Open question 2).
 
 ## Security
 
 - Comment text is untrusted. It goes in the user message only, never the system prompt.
 - No transport may run with tools, shell, or file write enabled. This is why Cursor and Muse are excluded today.
 - The reply is parsed as JSON into three typed fields. Nothing in it is executed or used as a path.
-- Secrets stay in env vars and CI secrets. The cache file stores verdicts and hashes, never keys or raw comment text.
+- Secrets stay in env vars and CI secrets. The cache stores verdicts and hashes, never keys or raw text.
+
+## Buy-vs-build decision
+
+Reuse, do not buy. The repo owns `EvalProvider` and three CLI cells with billing guards.
+claude-mem solves a different problem (a long-lived observer worker) and is a TypeScript service.
+Build only the stdlib HTTP client and the cross-run cache, and only after the eval passes.
+
+## Complexity classification
+
+Tier 3. One consumer, but the transport seam is shared with `scripts/eval`.
+Promoting it (Open question 1, option A) is an architecture change and needs an ADR.
+
+## Acceptance criteria
+
+1. `scripts/llm_classification` shall import with `anthropic` and `openai` blocked in `sys.modules`. A test proves it.
+2. `scripts/llm_classification` shall hold no default model id. A test fails on a `claude-`, `gpt-`, or `gemini-` literal in the module.
+3. When a model reply lacks a bool `is_actionable`, the classifier shall return `None` and count `fallback_unavailable`, never a verdict.
+4. When `LLM_FALLBACK_PROVIDER` is set and its transport is unreachable, `main` shall write the stats and summary, then return 3. With nothing configured, `main` shall return 0 and print the band count.
+5. When the same comments are scored a second time with the cache file present, the run shall make 0 model calls.
+6. Calls per run shall not exceed `LLM_FALLBACK_MAX_CALLS`, and no call shall start after `LLM_FALLBACK_BUDGET_SECONDS`. Skipped comments keep the heuristic verdict and count as `fallback_capped`.
+7. Each CLI transport shall run with tools disabled and metered-billing env vars stripped, inherited from its `EvalProvider` cell.
+8. The eval report from the Eval method section shall be committed before work on AC 1 to 7 starts.
+
+## Plan
+
+1. Eval steps 1 to 4. No library code. Decide against the kill criteria.
+2. If the eval passes: owner decides Open question 1. Write the ADR if option A.
+3. Build the transport, the contract, the cache, and the counters, with tests for AC 1 to 7.
+4. Add the CI secret and env lines to `update-reviewer-stats.yml`. Watch one run's summary.
 
 ## Out of scope
 
-- Fixing the heuristic's 0.5 tie-break (Q5). The eval arm B measures it. The fix is its own change and the owner's call.
+- Fixing the heuristic's 0.5 tie-break (Q5). Eval arm B measures it. The fix is its own change and the owner's call.
 - The other direct model calls in the recon table. They have their own runtimes and owners.
 - Adding Cursor, Muse, or Hermes transports. Each needs a probe that proves a tool-less mode first.
+- Updating `.project-toolkit/specs/STATUS.md`, last updated 2026-01-21.
 
 ## Open questions
 
-1. **Where does the transport seam live?** `EvalProvider` loads its siblings with bare imports (`from _claude_cli import`, `_providers.py:20-28`). So `scripts.llm_classification` cannot import it without putting `scripts/eval` on `sys.path`. Options:
-   - A. Promote `_providers.py` and its cells to a package such as `scripts/model_transport/`, and repoint `scripts/eval`. One seam for both. Wider change, touches eval tests.
-   - B. Have `llm_classification` add `scripts/eval` to `sys.path` and import `resolve_provider`. Smallest diff, couples a CI utility to private eval modules.
-   - C. Write a thin stdlib HTTP transport inside `llm_classification` and skip CLI cells. Smallest scope, gives up local-harness support.
+1. **Where does the transport seam live?** `EvalProvider` loads its cells with bare sibling imports (`from _claude_cli import`, `_providers.py:59-67`). `scripts.llm_classification` cannot import it without putting `scripts/eval` on `sys.path`. Its OpenAI-compatible cell also imports the `openai` SDK. Options:
+   - A. Promote the protocol and cells to a package such as `scripts/model_transport/`, add a stdlib OpenAI-compatible client, and repoint `scripts/eval`. One seam for both. Wider change, touches eval tests.
+   - B. Add `scripts/eval` to `sys.path` in `llm_classification` and call `resolve_provider`. Smallest diff. Couples a CI utility to private eval modules, and pulls in the `openai` SDK.
+   - C. Write a small stdlib HTTP transport inside `llm_classification` and skip CLI cells. Smallest scope. Gives up local CLI support.
    Recommendation: A, if the eval passes. It is an architecture change, so it needs an ADR and the owner's decision.
-2. Is a CI secret for an OpenAI-compatible endpoint acceptable for this job? Kill criterion 4 depends on it.
-3. Should the summary table publish the fallback counts per reviewer, or only per run?
+2. Should the summary publish fallback counts per reviewer, or only per run?
+3. Should auto-detect pick the user's harness CLI? The only harness marker with repo evidence is `CLAUDECODE` (`scripts/validation/run_workflow_local_test.py:126`). No Codex or Copilot marker is evidenced. Current answer: no, CLI is opt-in.
+4. Does a `claude --print` child started inside a Claude Code session re-fire the parent's hooks? The eval cell passes `--setting-sources ""` to avoid loading settings, but no test proves hooks stay quiet.
+5. Is a CI secret for an OpenAI-compatible endpoint acceptable for this job? Kill criterion 4 depends on it.
+
+## Noticed, outside this spec
+
+- `update_reviewer_signal_stats.py:11-14` documents exit 2 for an external error. ADR-035 assigns 3. Recorded for the owner's decision.
+- `.project-toolkit/specs/STATUS.md` was last updated 2026-01-21. It lists 1 of the 10 `SPEC-*.md` files present on 2026-11-23.
 
 ## Requirement-to-section map
 
