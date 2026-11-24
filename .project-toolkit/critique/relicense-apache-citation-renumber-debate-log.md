@@ -61,8 +61,8 @@ The same change fixes these non-ADR citations:
 
 | Agent | Position |
 |-------|----------|
-| architect | Accept, unchanged; the marker restates facts both seats verified in round 1 |
-| critic | Accept, unchanged; round 1 already named this citation as historical |
+| architect | Accept; the marker matches git history and the precedent on lines 45, 256 and 436, at the cost that `:6854` and `:6870` lose automated drift checks |
+| critic | Accept; the marker facts check out against git, it matches line 256, and `:6854` and `:6870` were hand-checked at HEAD |
 
 ### Key Issues Addressed
 
@@ -74,6 +74,11 @@ The same change fixes these non-ADR citations:
   commit where the line matched and the commit that deleted the gate.
 - `git show 72f0e6309:scripts/validation/git_hook_policy.py` line 6727 reads
   `def _check_commit_limit(`, and 23ad6e429 (2026-09-22) deleted the gate.
+- Both seats named one cost. The marker covers the whole line, so the live
+  citations `:6854` and `:6870` on ADR-100:37 are no longer checked by the gate.
+  Both were checked by hand at HEAD. Lines 45, 256 and 436 already accept the
+  same tradeoff. The gate works per line, not per citation; changing that is a
+  separate decision.
 
 ### Next Steps
 
