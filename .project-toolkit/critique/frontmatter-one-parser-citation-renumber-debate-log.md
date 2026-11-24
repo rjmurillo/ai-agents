@@ -194,8 +194,10 @@ base text, so this branch does not own it.
   The reverse-pass gate refuses their base numbers because the base text moved.
   They map through the diff, so each still points at the same text as at base.
   The mapping neither fixes nor worsens them.
-- The critic found one missed citation. The probe toolkit's `provenance.md:16`
-  now cites `eval-agent-vs-baseline.py:452-480`.
+- The critic found one missed citation: the probe toolkit's `provenance.md:16`
+  cites `eval-agent-vs-baseline.py:447-475`, now 5 lines low. It stays as it is.
+  Its row mixes shell commands with paths, so the added-lines gate misreads the
+  row, and its neighbor rows were already stale at base.
 - The critic confirmed the other round 5 rows still hold at head.
 
 ### Final Diff (round 6)
