@@ -165,6 +165,15 @@ def _atx_heading(line: str) -> bool:
     return bool(_ATX_HEADING.match(line))
 
 
+# A Markdown table row: its cells end in `|`, never in sentence punctuation.
+_TABLE_ROW = re.compile(r"^ {0,3}\|")
+
+
+def _table_row(line: str) -> bool:
+    """Return whether a line is a Markdown table row."""
+    return bool(_TABLE_ROW.match(line))
+
+
 def _hash_prefixed(line: str) -> bool:
     """Return whether a line's first non-blank character is a hash marker."""
     return line.lstrip().startswith("#")
@@ -246,10 +255,11 @@ def _context_lines(
     context = [segment]
     if citing_lines is None:
         return context
-    if markdown and _atx_heading(line_text):
+    if markdown and (_atx_heading(line_text) or _table_row(line_text)):
         # A Markdown heading is a complete unit: it never wraps into any
         # neighbor, another heading included (an equal-prefix rule would
-        # let adjacent headings pool anchors).
+        # let adjacent headings pool anchors). A table row is one too: it
+        # ends in `|`, so the punctuation rule would join every neighbor row.
         return context
     own_indent = _indent_width(line_text)
     own_hash = _hash_prefixed(line_text)
@@ -260,7 +270,7 @@ def _context_lines(
         # comment marker must match on both sides, so comment lines
         # continue into comment lines and never into code.
         if markdown:
-            return _atx_heading(neighbor)
+            return _atx_heading(neighbor) or _table_row(neighbor)
         return _hash_prefixed(neighbor) != own_hash
 
     for offset in (1, 2):
@@ -314,8 +324,9 @@ def _same_line_segment(line: str, matches: list[re.Match[str]], index: int) -> s
     check on the same line. Neighbor lines stay shared: a wrapped sentence's
     anchor legitimately serves every citation it describes.
     """
+    lo, hi = _cell_bounds(line, matches[index].start()) if _table_row(line) else (0, len(line))
     if len(matches) == 1:
-        return line
+        return line[lo:hi]
     if index == 0:
         start = 0
     else:
@@ -324,7 +335,24 @@ def _same_line_segment(line: str, matches: list[re.Match[str]], index: int) -> s
         end = len(line)
     else:
         end = _gap_split(line, matches[index].end(), matches[index + 1].start())
-    return line[start:end]
+    return line[max(start, lo) : min(end, hi)]
+
+
+def _cell_bounds(line: str, point: int) -> tuple[int, int]:
+    """Return the table cell around ``point``: a row's other cells assert nothing.
+
+    A pipe inside a backtick span or escaped as ``\\|`` does not split a cell.
+    """
+    pipes: list[int] = []
+    in_code = False
+    for i, char in enumerate(line):
+        if char == "`":
+            in_code = not in_code
+        elif char == "|" and not in_code and (i == 0 or line[i - 1] != "\\"):
+            pipes.append(i)
+    lo = max((p + 1 for p in pipes if p < point), default=0)
+    hi = min((p for p in pipes if p >= point), default=len(line))
+    return lo, hi
 
 
 def _relocated_range(

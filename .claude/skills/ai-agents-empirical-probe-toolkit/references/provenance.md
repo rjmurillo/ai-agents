@@ -12,8 +12,8 @@ Verified 2026-07-03 against the working tree.
 | Plugin-root env contract, Copilot CLI 1.0.57 | `.serena/memories/decision-copilot-cli-hook-plugin-root-contract.md` | `cat .serena/memories/decision-copilot-cli-hook-plugin-root-contract.md` |
 | Payload casing contract, CLI 1.0.58 | `.project-toolkit/retrospective/2026-06-02-issue-2290-copilot-hook-payload-format.md:33,47,71` | `grep -n "toolArgs" .project-toolkit/retrospective/2026-06-02-issue-2290-copilot-hook-payload-format.md` |
 | M4 threshold 6 vs max 4; last-5-PRs rule | `.project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md:70-73,153` | `grep -n "Threshold = 6" .project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md` |
-| #1887 Phase-6 audit 0/35 | `.project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md:199,230` | `grep -n "Total preventable" .project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md` <!-- citation-freshness: ignore -- verified at the cited lines; the gate reads the next row's shell command as an anchor --> |
-| Eval commands and flags | `scripts/eval/eval-prompt-change.py:1-60`, `scripts/eval/eval-agent-vs-baseline.py:472-573` | `uv run python scripts/eval/eval-prompt-change.py --help` <!-- citation-freshness: ignore -- verified at the cited range; the gate reads earlier rows' shell commands as anchors --> |
+| #1887 Phase-6 audit 0/35 | `.project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md:199,230` | `grep -n "Total preventable" .project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md` |
+| Eval commands and flags | `scripts/eval/eval-prompt-change.py:1-60`, `scripts/eval/eval-agent-vs-baseline.py:472-573` | `uv run python scripts/eval/eval-prompt-change.py --help` |
 | Scenario/fixture locations | `tests/evals/`, `evals/` | `ls tests/evals/ evals/` |
 | Verbatim-quote rule (7 fix commits) | `.claude/rules/canonical-source-mirror.md` | `sed -n '1,30p' .claude/rules/canonical-source-mirror.md` |
 | CONTRIBUTING pwsh commands were dead | PR #2871 repointed them to Python; no tracked `.ps1` or `.psm1` | `git ls-files '*.ps1' '*.psm1'` |
