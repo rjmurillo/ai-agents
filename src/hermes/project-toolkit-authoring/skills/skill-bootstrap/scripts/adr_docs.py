@@ -127,13 +127,27 @@ def fence_after(fence: str | None, line: str, any_indent: bool = False) -> str |
     An opener is three or more backticks or tildes after at most three spaces, or any indent
     when ``any_indent``. A backtick opener's info string holds no backtick, so a line that is
     only a code span opens nothing. A closer uses the opener's mark, at least as many times,
-    with nothing after it, so a three-backtick line inside a four-backtick fence is text.
+    with only spaces or tabs after it, so a three-backtick line inside a four-backtick fence is
+    text, and so is a closer followed by a nonbreaking space.
     """
     mark = _FENCE.match(line.lstrip() if any_indent else line)
     if fence is None:
         return mark[1] if mark and (mark[1][0] == "~" or "`" not in mark[2]) else None
-    closes = mark and mark[1][0] == fence[0] and len(mark[1]) >= len(fence) and not mark[2].strip()
+    closes = (
+        mark and mark[1][0] == fence[0] and len(mark[1]) >= len(fence) and not mark[2].strip(" \t")
+    )
     return None if closes else fence
+
+
+def _trim_blank_lines(text: str) -> str:
+    """``text`` without its leading and trailing blank lines. Unlike ``str.strip``, the first
+    line keeps its indent: four spaces before a backtick line keep it from opening a fence."""
+    lines = text.split("\n")
+    start = next((index for index, line in enumerate(lines) if line.strip(" \t")), len(lines))
+    end = len(lines)
+    while end > start and not lines[end - 1].strip(" \t"):
+        end -= 1
+    return "\n".join(lines[start:end]).rstrip()
 
 
 def lines_outside_fences(text: str) -> list[str]:
@@ -160,9 +174,9 @@ def section_body(kind: DocKind, body: str) -> str:
     fence: str | None = None
     for index, line in enumerate(lines):
         if fence is None and _TOP_HEADING.match(line):
-            return "\n".join(lines[:index]).strip()
+            return _trim_blank_lines("\n".join(lines[:index]))
         fence = fence_after(fence, line)
-    return body.strip()
+    return _trim_blank_lines(body)
 
 
 def is_rule_section(kind: DocKind, heading: str, body: str) -> bool:
@@ -198,7 +212,7 @@ def split_into_sections(content: str) -> list[tuple[str | None, str]]:
         else:
             sections[-1][1].append(line)
         fence = fence_after(fence, line)
-    return [(heading, "\n".join(lines).strip()) for heading, lines in sections]
+    return [(heading, _trim_blank_lines("\n".join(lines))) for heading, lines in sections]
 
 
 def _without_trailing_rule(body: str) -> str:
@@ -218,7 +232,7 @@ def rule_sections(kind: DocKind, markdown: str) -> list[RuleSection]:
     for heading, raw in split_into_sections(markdown):
         if not heading:
             continue
-        body = _without_trailing_rule(section_body(kind, raw)).strip()
+        body = _trim_blank_lines(_without_trailing_rule(section_body(kind, raw)))
         if is_rule_section(kind, heading, body):
             found.append(RuleSection(heading, body))
     return found
@@ -245,16 +259,23 @@ DROP_KEYS = (
 
 
 def _url_identity(url: str) -> str:
-    """``url`` without a trailing slash; a pull request page also loses its query and fragment,
-    and keeps its scheme, host and repository path. Other URLs compare as written."""
+    """``url`` without a trailing slash. A pull request page also loses its query, fragment and
+    user info, and compares as ``adr_commits.select_prs`` does: host and path without regard to
+    case, and ``:443`` as the default port, but only for ``https``. Other URLs compare as written.
+    """
     url = url.rstrip("/")
     try:
         parts = urlsplit(url)
-    except ValueError:
+        port = parts.port
+    except ValueError:  # a port that is not a number, or over 65535
         return url
     if not _PR_PAGE.fullmatch(parts.path):
         return url
-    return f"{parts.scheme}://{parts.netloc}{parts.path.rstrip('/')}"
+    host = parts.hostname or ""
+    host = f"[{host}]" if ":" in host else host  # an IPv6 address keeps its brackets
+    default = port is None or (port == 443 and parts.scheme == "https")
+    suffix = "" if default else f":{port}"
+    return f"{parts.scheme}://{host}{suffix}{parts.path.rstrip('/').lower()}"
 
 
 class ExistingAdrs:

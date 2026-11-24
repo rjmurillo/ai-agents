@@ -86,14 +86,14 @@ def _admin_trees(root: Path) -> list[Path]:
     """The work trees from the files git keeps, for a git with no ``worktree list -z``.
 
     Without ``-z`` git prints a path literally, so a path holding a newline would cut a record
-    and lose the real root. Instead the main tree is the common dir without its ``/.git`` (the
-    common dir itself when bare). Each linked tree comes from ``worktrees/<id>/gitdir`` in the
-    common dir, which holds the absolute path of that tree's ``.git`` file (gitrepository-layout).
+    and lose the real root. The main tree comes from ``_main_tree``. Each linked tree comes from
+    ``worktrees/<id>/gitdir`` in the common dir, which holds the absolute path of that tree's
+    ``.git`` file (gitrepository-layout).
     """
     common = _git_path(root, "--git-common-dir")
     if common is None:
         raise ConfigError(f"git reports no common dir for {root}; cannot list its work trees")
-    trees = [common.parent if common.name == ".git" else common]
+    trees = [_main_tree(root, common)]
     try:
         for record in sorted((common / "worktrees").glob("*/gitdir")):
             trees.append(
@@ -102,6 +102,23 @@ def _admin_trees(root: Path) -> list[Path]:
     except OSError as exc:
         raise ConfigError(f"cannot read the work trees of {root}: {exc}") from exc
     return trees
+
+
+def _main_tree(root: Path, common: Path) -> Path:
+    """The main work tree: the parent of a ``.git`` common dir, ``root`` when its own git dir is
+    the common dir (``--separate-git-dir``), or the common dir of a bare repository. Else
+    ConfigError: no file in the common dir names the main tree of a separate git dir."""
+    if common.name == ".git":
+        return common.parent
+    git_dir = _git_path(root, "--git-dir")
+    if git_dir is not None and same_file(git_dir, common):
+        return root
+    if git_text(common, "rev-parse", "--is-bare-repository").stdout.strip() == "true":
+        return common
+    raise ConfigError(
+        f"cannot find the main work tree of {root} (its git dir {common} is kept apart);"
+        " scan from the main work tree"
+    )
 
 
 def gate_target(out_dir: Path) -> tuple[Path | None, Path]:
@@ -144,48 +161,69 @@ def encode(text: str, target: Path) -> bytes:
         raise ConfigError(f"text for {target} cannot be written as UTF-8: {exc.reason}") from exc
 
 
-def create_new(target: Path, data: bytes) -> None:
-    """Publish ``data`` at ``target`` only once complete, never over a file that exists.
+def create_new(target: Path, data: bytes) -> Path | None:
+    """Publish ``data`` at ``target``, never over a file that exists. Return None, or the
+    temporary file that stayed behind after ``target`` was published.
 
     The bytes go to a hidden temporary file in the same folder, which a hard link then names
-    ``target``. ``os.link`` refuses an existing name with FileExistsError, so publication is atomic
-    and create-only, and no reader sees a partial file. Where the file system has no hard links,
-    the file is created with mode ``x`` and removed if the write or close fails. The temporary
-    file is always removed.
+    ``target``. ``os.link`` refuses an existing name with FileExistsError, so this path is atomic
+    and create-only. Where the file system has no hard links, ``target`` is created with mode
+    ``x`` and written in place, so a reader can see it empty or partial; a failed write or close
+    removes it. The temporary name is short, so a target name near the 255-byte limit fits.
+    Removing the temporary file is a separate outcome: its failure never raises once ``target``
+    exists, and never replaces an error that stopped publication.
     """
     target.parent.mkdir(parents=True, exist_ok=True)
-    fd, temp = tempfile.mkstemp(dir=target.parent, prefix=f".{target.name}.", suffix=".tmp")
+    fd, temp = tempfile.mkstemp(dir=target.parent, prefix=".adr-", suffix=".tmp")
     try:
-        with os.fdopen(fd, "wb") as handle:
-            handle.write(data)
-        umask = os.umask(0)
-        os.umask(umask)
-        os.chmod(temp, 0o666 & ~umask)  # the mode ``open`` would give, not mkstemp's 0600
-        try:
-            os.link(temp, target)
-        except FileExistsError:
-            raise
-        except OSError:  # no hard links on this file system (FAT, some network shares)
-            _write_in_place(target, data)
-    finally:
-        Path(temp).unlink(missing_ok=True)
+        _publish(fd, temp, target, data)
+    except BaseException:
+        _discard(temp)
+        raise
+    return None if _discard(temp) else Path(temp)
+
+
+def _publish(fd: int, temp: str, target: Path, data: bytes) -> None:
+    with os.fdopen(fd, "wb") as handle:
+        handle.write(data)
+    umask = os.umask(0)
+    os.umask(umask)
+    os.chmod(temp, 0o666 & ~umask)  # the mode ``open`` would give, not mkstemp's 0600
+    try:
+        os.link(temp, target)
+    except FileExistsError:
+        raise
+    except OSError:  # no hard links on this file system (FAT, some network shares)
+        _write_in_place(target, data)
+
+
+def _discard(path: str) -> bool:
+    """Remove ``path``; True when it is gone. A failure is returned, never raised."""
+    try:
+        os.unlink(path)
+    except FileNotFoundError:
+        return True
+    except OSError:
+        return False
+    return True
 
 
 def _write_in_place(target: Path, data: bytes) -> None:
-    """Create ``target`` with mode ``x``; a failed write or close removes it. The open stays
-    outside the ``try``, so a file that was already there is never removed."""
+    """Create ``target`` with mode ``x``; a failed write or close removes it, and a failed
+    removal never hides that error. The open stays outside the ``try``, so a file that was
+    already there is never removed."""
     handle = open(target, "xb")
     try:
         with handle:
             handle.write(data)
     except BaseException:
-        target.unlink(missing_ok=True)
+        _discard(str(target))
         raise
 
 
 def out_outside_repo(root: Path, out: str) -> Path:
-    """Resolve ``--out`` once and refuse a path inside any work tree of the scanned repository,
-    a directory, or an existing file."""
+    """Resolve ``--out`` and return it, or refuse a path inside any work tree of the scanned
+    repository, a directory, or an existing file."""
     target = Path(out).resolve()
     inside = any(tree == target or tree in target.parents for tree in (root, *work_trees(root)))
     if not inside:

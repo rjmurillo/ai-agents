@@ -43,13 +43,16 @@ __all__ = [
     "REASON_CONVENTIONAL_PREFIX",
     "STATED_WHY",
     "TRAILER",
+    "CODE_BLOCK",
     "FENCED_BLOCK",
+    "FENCE_MARK_LINE",
     "CommitShape",
     "flat",
     "has_importer_metadata",
     "has_stated_rationale",
     "is_decision_commit",
     "is_decision_shaped_title",
+    "is_known_trailer",
     "is_one_off_change_title",
     "is_reason_bearing_line",
     "is_release_or_bump_subject",
@@ -85,14 +88,14 @@ MIN_DECISION_SUBJECT_CHARS = 20
 
 def mechanical_subject_regex(prefixes: Iterable[str]) -> re.Pattern[str]:
     """The predicate's regex, built from the list with every prefix escaped. Anchored and
-    case-insensitive. A prefix such as ``c++`` is matched literally."""
+    case-insensitive. A prefix such as ``c++`` is matched literally, and only as a whole word:
+    ``(?!\\w)``, not ``\\b``, so ``c++:`` matches and ``Mergeable`` does not."""
     escaped = "|".join(re.escape(p) for p in prefixes)
-    return re.compile(f"^({escaped})", _I)
+    return re.compile(f"^({escaped})(?!\\w)", _I)
 
 
 CONVENTIONAL_PREFIX = re.compile(r"^[a-z]+(?:\([^)]*\))?!?:\s*", _I)
-# No leading ``\s*`` and a bounded tail: both would make ``sub`` quadratic on a long run of
-# spaces or of ``(#1``. Callers strip the result, so the gap a removal leaves is harmless.
+# No leading ``\s*`` and a bounded tail, or ``sub`` is quadratic on spaces or ``(#1`` runs.
 _PR_REFERENCE = re.compile(r"\(#\d+[^)]{0,100}\)", _A)
 # "v5.9.0", "5.11.2", "Version 6.0.0-alpha.1": a subject that is only a version.
 _VERSION_ONLY = re.compile(r"^(?:v(?:ersion)?\s*)?\d+\.\d+(?:\.\d+)?(?:[-+.][\w.-]+)?\Z", _I)
@@ -116,18 +119,17 @@ STATED_WHY = re.compile(
 def is_release_or_bump_subject(subject: str) -> bool:
     """A release or version-bump subject that states no reason and has no ``type!:`` mark. Past
     ``type(scope):`` and ``(#N)`` it is only a version, bump/release alone or with a dotted
-    version, or a bump/update/upgrade from or to a version. "Replace a with b" never matches."""
+    version and no decision word after it, or a bump/update/upgrade from or to a version.
+    "Replace a with b" never matches."""
     if (head := CONVENTIONAL_PREFIX.match(subject.strip())) and head.group(0).rstrip()[-2:] == "!:":
         return False  # ``type!:`` marks a breaking change, a decision, as a stated reason does
     body = CONVENTIONAL_PREFIX.sub("", subject.strip(), count=1)
     body = _PR_REFERENCE.sub("", body).strip()
     if STATED_WHY.search(body):
         return False
-    return bool(
-        _VERSION_ONLY.search(body)
-        or _BARE_BUMP_OR_RELEASE.search(body)
-        or _DEPENDENCY_MOVE.search(body)
-    )
+    if bump := _BARE_BUMP_OR_RELEASE.search(body):  # "Release 2.4 under the canary policy"
+        return not _DECISION_SHAPED.search(body, bump.end())
+    return bool(_VERSION_ONLY.search(body) or _DEPENDENCY_MOVE.search(body))
 
 
 _POLICY_WORD = re.compile(
@@ -172,12 +174,8 @@ _SUBJECT_RULE = re.compile(
 
 
 def states_subject_rule(title: str) -> bool:
-    """Does a commit title state a rule on its own, with no body to say why?
-
-    A prohibition or obligation ("do not force close ..."), a deprecation, or a
-    replacement ("use X instead of Y"). Docs, test, chore, ci, style and build commits
-    never count.
-    """
+    """Does a title state a rule on its own: a prohibition or obligation, a deprecation, or a
+    replacement ("use X instead of Y")? Docs, test, chore, ci, style and build never count."""
     t = _PR_REFERENCE.sub("", title.strip()).strip()
     prefix = _TYPE_PREFIX.match(t)
     if prefix and prefix.group(1).lower() in _RULE_EXEMPT_TYPES:
@@ -186,12 +184,9 @@ def states_subject_rule(title: str) -> bool:
 
 
 def is_one_off_change_title(title: str) -> bool:
-    """Is this a title-only change note: a one-off lead with nothing that makes it a decision?
-
-    A one-off lead (add, fix, rename, ... or a fix/test/refactor/chore/ci/docs/style/build
-    type) is rescued by a stated purpose, a policy word, a sweeping quantifier, or a
-    numeric bound. Anything that does not lead like that is not one-off.
-    """
+    """A title-only change note: a one-off lead (add, fix, rename, ... or a fix, test, refactor,
+    chore, ci, docs, style or build type) not rescued by a stated purpose, a policy word, a
+    sweeping quantifier, or a numeric bound?"""
     t = _PR_REFERENCE.sub("", title.strip()).strip()
     prefix = _TYPE_PREFIX.match(t)
     if prefix:
@@ -211,13 +206,22 @@ def is_one_off_change_title(title: str) -> bool:
 
 # P4: commit rationale gate (src/lib/git.ts)
 
-# A fenced code block (CommonMark): closed by a run of its own mark at least as long, alone on
-# its line, or else by the end of the text. A backtick opener holds no other backtick.
+# A fenced code block (CommonMark 0.31.2): a mark after at most three spaces, closed by a run
+# of its own mark at least as long, alone on its line, or else by the end of the text. A
+# backtick opener holds no other backtick. A fence in a one-level blockquote (``> ```...``)
+# also ends where the quote ends; a nested ``> >`` quote is not read.
+_Q = r"^ {0,3}> {0,4}"
 FENCED_BLOCK = re.compile(
-    r"^[ \t]*(?:(`{3,})(?=[^`\n]*$)[\s\S]*?(?:^[ \t]*\1`*[ \t]*$|\Z)"
-    r"|(~{3,})[\s\S]*?(?:^[ \t]*\2~*[ \t]*$|\Z))",
+    r"^ {0,3}(?:(`{3,})(?=[^`\n]*$)[\s\S]*?(?:^ {0,3}\1`*[ \t]*$|\Z)"
+    r"|(~{3,})[\s\S]*?(?:^ {0,3}\2~*[ \t]*$|\Z))"
+    rf"|{_Q}(?:(`{{3,}})(?=[^`\n]*$)[\s\S]*?(?:{_Q}\3`*[ \t]*$|^(?! {{0,3}}>)|\Z)"
+    rf"|(~{{3,}})[\s\S]*?(?:{_Q}\4~*[ \t]*$|^(?! {{0,3}}>)|\Z))",
     _A | re.MULTILINE,
 )
+# Code and comments in source order: the one that opens first holds the other's markers.
+CODE_BLOCK = re.compile(rf"{FENCED_BLOCK.pattern}|<!--[\s\S]*?(?:-->|\Z)", _A | re.MULTILINE)
+# A bare fence mark that opens nothing (indented four columns) is not a reason either.
+FENCE_MARK_LINE = re.compile(r"\A(?:`{3,}|~{3,})[^\s`]*\Z", _A)
 # A line that IS a git trailer, not a sentence that mentions one of these words mid-line.
 _TRAILER_LINE = re.compile(
     r"^(co-authored-by|signed-off-by|reviewed-by|acked-by|helped-by|cc|refs?|closes?|fixes?"
@@ -249,11 +253,8 @@ def _normalize_for_echo(text: str) -> str:
 
 
 def is_reason_bearing_line(line: str) -> bool:
-    """A plain line is evidence of a reason.
-
-    A squash bullet is evidence only when it says why or is long enough to be a
-    sentence. A bullet in ``type(scope): ...`` form is a subject however long it is.
-    """
+    """A plain line is evidence of a reason. A squash bullet is when it says why or is a
+    sentence by length; a ``type(scope): ...`` bullet is a subject however long it is."""
     bullet = _BULLET_LINE.match(line)
     if not bullet:
         return True
@@ -266,17 +267,13 @@ def is_reason_bearing_line(line: str) -> bool:
 
 
 def has_stated_rationale(subject: str, body: str) -> bool:
-    """Does the commit's body state a reason once the noise is stripped?
-
-    A title that states a bound or a rule is a decision on its own. Otherwise trailers,
-    agent attribution lines, echoes of the subject, separators, and file-action lines
-    are dropped, and at least one reason-bearing line must remain.
-    """
+    """Does the body state a reason? A title with a bound or a rule needs none. Else code,
+    comments, trailers, attribution, subject echoes, separators and file actions drop out."""
     if states_numeric_bound(subject) or states_subject_rule(subject):
         return True
     subject_norm = _normalize_for_echo(subject)
-    # A fenced line is code, never a reason. Prose after the closing fence still counts.
-    for raw in FENCED_BLOCK.sub("\n", body).split("\n"):
+    # Fenced code and HTML comments are never a reason. Prose after them still counts.
+    for raw in CODE_BLOCK.sub("\n", body).split("\n"):
         line = raw.strip()
         if not _is_noise_line(line, subject_norm) and is_reason_bearing_line(line):
             return True
@@ -287,6 +284,8 @@ def _is_noise_line(line: str, subject_norm: str) -> bool:
     return (
         not line
         or bool(_TRAILER_LINE.search(line))
+        or is_known_trailer(line)
+        or bool(FENCE_MARK_LINE.match(line))
         or bool(FIXES_ONLY.search(line))
         or bool(_GENERATED_WITH.search(line))
         or _normalize_for_echo(line) == subject_norm
@@ -323,12 +322,8 @@ def is_decision_commit(subject: str) -> bool:
 
 
 def resolve_commit_shape(subject: str, body: str) -> CommitShape:
-    """Promote a merge commit's first body line to the subject when it is a decision.
-
-    On GitHub's default merge flow the PR title and description live in the body. The
-    original merge subject moves into the body so the ``#N`` PR reference survives.
-    A merge with nothing decision-shaped in its body keeps its boilerplate subject.
-    """
+    """Promote a merge commit's first body line, the PR title, to the subject when it is a
+    decision. The merge subject moves into the body so its ``#N`` reference survives."""
     if not _MERGE_SUBJECT.search(subject.strip()):
         return CommitShape(subject, body)
     lines = body.split("\n")
@@ -381,6 +376,7 @@ _PROSE_KEY = re.compile(r"^(?:why|reason|rationale|motivation|note)\Z", _I)
 # "Issue: users get a 500 when the token expires" states the problem and "Issue: #123"
 # points at one. Only the pointer is a trailer.
 _REFERENCE_KEY = re.compile(r"^(?:issue|bug)\Z", _I)
+_ISSUE_KEY = re.compile(r"^\s*(?:bug|issue):", _I)
 _REFERENCE = r"(?:" + _ISSUE_REF + r"|[A-Z][A-Z0-9]+-\d+|\d+)"
 _REFERENCES_ONLY = re.compile(
     r"^" + _REFERENCE + r"(?:" + _REF_SEP + _REFERENCE + r")*\s*(?:[.]\s*)?\Z", _A
@@ -413,6 +409,11 @@ def is_trailer_line(line: str) -> bool:
         return len(value) <= _MAX_REFERENCE_VALUE_CHARS and bool(_REFERENCES_ONLY.search(value))
     # "fix: retry on 503": conventional-commit form is a sub-commit subject in a squash body.
     return not (_PROSE_KEY.search(key) or REASON_CONVENTIONAL_PREFIX.search(line.strip()))
+
+
+def is_known_trailer(line: str) -> bool:
+    """A ``TRAILER`` key line. ``Issue:`` and ``Bug:`` count only when the value is a pointer."""
+    return bool(TRAILER.search(line)) and (not _ISSUE_KEY.match(line) or is_trailer_line(line))
 
 
 def strip_trailers(text: str, subject: str | None = None) -> str:
@@ -463,12 +464,8 @@ _DECISION_SHAPED = re.compile(
 
 
 def is_decision_shaped_title(title: str) -> bool:
-    """Does a commit or PR title read as a decision, and not as a fix?
-
-    Any ``type(scope)!:`` prefix is stripped. A fix-shaped type (fix, docs, chore, ...)
-    drops the title. Otherwise the rest is judged: "feat: fix retry policy" is the fix it
-    is, "feat(api): switch to gRPC" is kept, so is a numeric bound, and a stated rule.
-    """
+    """Does a title read as a decision, not a fix? A fix-shaped type or lead past any
+    ``type(scope)!:`` drops it; a decision word, numeric bound or stated rule keeps it."""
     prefix = _ANY_TYPE_PREFIX.match(title)
     rest = title[prefix.end() :] if prefix else title
     if (prefix and _FIX_SHAPED.search(prefix.group(1))) or _FIX_SHAPED.search(rest):

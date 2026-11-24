@@ -11,24 +11,20 @@
 # MIT, Copyright (c) 2026 Align Tech Ltd, see LICENSE-align
 """List the decisions in a repository that have no ADR yet. Read-only, no network.
 
-Pipeline: commits from ``adr_scan.read_commits``, then P6 merge promotion, P1 and P4 (the
-commit filters in ``adr_shape.py``), P8 (the decision-shaped title filter), P5 (the reason),
-P9 and P10 (pull requests and commit/PR dedup in ``adr_commits.py``), E1 (decision-log entries),
-and last the suppression of every decision an existing ADR already names.
+Pipeline: commits in batches, P6 merge promotion, P1 and P4 (``adr_shape.py``), P8 (title), P5
+(reason), P9 and P10 (PRs, commit/PR dedup: ``adr_commits.py``), E1 (decision logs), then the
+suppression of every decision an existing ADR names. Departures, each pinned by a test:
 
-Departures from the upstream source, each pinned by a test:
-
-- Upstream suppressed only on an exact URL. An ADR also hides a decision when it holds the full
-  SHA, a 7+ character prefix as a whole word, the whole pull request URL, or ``#N``.
-- ADR files are read in ``.md``, ``.mdx`` and ``.adoc`` in every located folder.
-- E3: a ``type!:`` subject or a ``BREAKING CHANGE:`` footer keeps a commit without a stated
-  rationale or a decision-shaped title, once it passes P1. ``signals`` holds ``breaking-change``.
+- An ADR hides a decision by the full SHA, a 7+ character prefix as a whole word, the whole PR
+  URL, or ``#N`` (upstream: an exact URL only), read from ``.md``, ``.mdx`` and ``.adoc`` files
+  in every located folder.
+- E3: a ``type!:`` subject or ``BREAKING CHANGE:`` footer keeps a commit with no stated
+  rationale or decision-shaped title past ``passes_floor``; ``signals`` holds ``breaking-change``.
 - E1: a decision-log entry that has an id and is not named by any ADR is a candidate.
 
-Git runs with a timeout, a clean environment, no replacement objects, and no trust in message
-text. ``git rev-list`` gives the SHAs in order, and ``git cat-file --batch`` reads them, size
-prefixed, so a message cannot add or hide a record. Every reply must name the SHA asked for,
-in order, with type ``commit``; anything else raises ``GitError``, and the reader never resyncs.
+Git runs with a timeout, a clean environment, no replacement objects and no trust in message
+text: ``cat-file --batch`` reads ``rev-list`` SHAs size-prefixed, and each reply must name the
+SHA asked for, in order, as a ``commit``, else ``GitError``; the reader never resyncs.
 """
 
 from __future__ import annotations
@@ -36,8 +32,10 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
+from subprocess import CompletedProcess
 from typing import Any
 
 from adr_commits import (
@@ -50,6 +48,7 @@ from adr_commits import (
     excerpt,
     iso_day,
     parse_commit_object,
+    passes_floor,
     sanitize,
     select_prs,
     web_base,
@@ -62,7 +61,6 @@ from adr_reason import breaking_change, extract_reason
 from adr_shape import (
     CommitShape,
     has_stated_rationale,
-    is_decision_commit,
     is_decision_shaped_title,
     is_one_off_change_title,
     resolve_commit_shape,
@@ -94,6 +92,8 @@ __all__ = [
 
 MAX_COMMITS = 10_000
 Candidate = dict[str, Any]
+Web = tuple[str, str] | None  # ``web_base`` of the origin
+Drops = dict[str, int]  # drop counts by filter
 
 
 @dataclass
@@ -104,9 +104,7 @@ class _Pending:
     number: int | None
 
 
-def _commit_pending(
-    record: CommitRecord, web: tuple[str, str] | None, breaking: bool, shape: CommitShape
-) -> _Pending:
+def _commit_pending(record: CommitRecord, web: Web, breaking: bool, shape: CommitShape) -> _Pending:
     number = commit_pr_number(record, shape.subject)
     commit_url, pull_url = commit_urls(web, record.sha, number)
     candidate: Candidate = {
@@ -133,20 +131,19 @@ def _states_reason(record: CommitRecord, shape: CommitShape) -> bool:
 
 
 def _commit_candidates(
-    records: list[CommitRecord],
-    covering: tuple[dict[str, int], set[int]],
-    web: tuple[str, str] | None,
-    dropped: dict[str, int],
-) -> tuple[list[_Pending], dict[int, list[_Pending]]]:
-    """The commit candidates, and for each kept pull request number the commits it covers. A
-    filtered commit hands over only its SHA and URLs, never a signal or a reason."""
+    batches: Iterable[list[CommitRecord]], rows: list[PrRow], web: Web, dropped: Drops
+) -> tuple[list[_Pending], dict[int, list[_Pending]], int]:
+    """Commit candidates, covered commits per kept PR, and the count read. Each batch is classified
+    as read: only candidate data outlives it. A filtered commit hands its PR only SHA and URLs."""
     pending: list[_Pending] = []
     carried: dict[int, list[_Pending]] = {}
-    for record in records:
+    examined, covering = 0, covering_numbers(rows)
+    for record in (record for batch in batches for record in batch):
+        examined += 1
         shape = resolve_commit_shape(record.subject, record.body)
         breaking = record.breaking or breaking_change(shape.subject, "")  # promoted ``type!:``
         covered = covering_pr(record, shape.subject, *covering)
-        if not is_decision_commit(shape.subject):
+        if not passes_floor(shape.subject, breaking):
             dropped["housekeeping"] += 1
         elif not breaking and not _states_reason(record, shape):
             dropped["no_rationale"] += 1
@@ -162,22 +159,13 @@ def _commit_candidates(
             names = _commit_pending(record, web, False, shape)
             names.candidate["reason"] = None
             carried.setdefault(covered, []).append(names)
-    return pending, carried
+    return pending, carried, examined
 
 
-def _pr_pending(rows: list[PrRow], dropped: dict[str, int]) -> tuple[list[_Pending], list[PrRow]]:
-    """The pull request candidates, and the rows that survived every filter (only those may cover
-    a commit). A breaking change (E3) keeps a pull request whose title is not decision-shaped, as
-    it keeps a commit, once the commit floor has passed it (``chore!:`` stays out)."""
+def _pr_pending(rows: list[PrRow]) -> list[_Pending]:
+    """The candidates of the rows ``select_prs`` kept, title filter included."""
     pending: list[_Pending] = []
-    kept: list[PrRow] = []
     for row in rows:
-        breaking = row.breaking
-        if not is_decision_shaped_title(row.title) and not (
-            breaking and is_decision_commit(row.title)
-        ):
-            dropped["pr_not_decision_shaped"] += 1
-            continue
         candidate: Candidate = {
             "id": f"pr-{row.number}",
             "kind": "pr",
@@ -186,12 +174,11 @@ def _pr_pending(rows: list[PrRow], dropped: dict[str, int]) -> tuple[list[_Pendi
             "excerpt": excerpt(row.title, row.body),
             "date": row.merged_day,
             "source": {"number": row.number, "url": row.url, "sha": row.merge_sha},
-            "signals": ["breaking-change"] if breaking else [],
+            "signals": ["breaking-change"] if row.breaking else [],
         }
         shas = (row.merge_sha,) if row.merge_sha else ()
         pending.append(_Pending(candidate, shas, (row.url,), row.number))
-        kept.append(row)
-    return pending, kept
+    return pending
 
 
 def _absorb(pr: _Pending, commit: _Pending) -> None:
@@ -208,15 +195,9 @@ def _absorb(pr: _Pending, commit: _Pending) -> None:
     pr.urls += tuple(url for url in (commit.candidate["source"]["url"],) if url)
 
 
-def _suppress(
-    pending: list[_Pending], existing: ExistingAdrs, dropped: dict[str, int]
-) -> list[Candidate]:
-    kept: list[Candidate] = []
-    for item in pending:
-        if existing.names(item.shas, item.urls, item.number):
-            dropped["already_documented"] += 1
-        else:
-            kept.append(item.candidate)
+def _suppress(items: list[_Pending], adrs: ExistingAdrs, dropped: Drops) -> list[Candidate]:
+    kept = [item.candidate for item in items if not adrs.names(item.shas, item.urls, item.number)]
+    dropped["already_documented"] += len(items) - len(kept)
     return kept
 
 
@@ -237,19 +218,20 @@ def _unique_ids(candidates: list[Candidate]) -> None:
 def scan(
     root: Path, rev: str, max_commits: int, since: str | None, prs: list[Any] | None
 ) -> dict[str, Any]:
-    """The ``scan`` payload for the repository at ``root``. Reads git and the working tree only."""
+    """The ``scan`` payload for ``root``, from git and the work tree; refuses a fetching clone first."""
     if not 1 <= max_commits <= MAX_COMMITS:
         raise ConfigError(f"max commits must be from 1 to {MAX_COMMITS}, not {max_commits}")
+    refuse_lazy_fetch(root)
     head = resolve_rev(root, rev)
     dropped = dict.fromkeys(DROP_KEYS, 0)
-    records, truncated = read_commits(root, head, max_commits, since, dropped)
-    web = origin_web_base(root)
-    pr_rows = select_prs(prs or [], dropped, web[1] if web else None)
+    batches, truncated = _record_batches(root, head, max_commits, since, dropped)
+    web, base = origin_web_base(root)
+    pr_rows = select_prs(prs or [], dropped, base)
     folders, walk_truncated = locate_folders(root)
     tally = AdrTally()
     existing = ExistingAdrs(read_adr_texts(root, folders, tally))
-    pending, kept_prs = _pr_pending(pr_rows, dropped)
-    commits, carried = _commit_candidates(records, covering_numbers(kept_prs), web, dropped)
+    pending = _pr_pending(pr_rows)
+    commits, carried, read = _commit_candidates(batches, pr_rows, web, dropped)
     for item in pending:
         for covered in carried.get(item.number or -1, []):
             _absorb(item, covered)
@@ -270,7 +252,7 @@ def scan(
         "walk_truncated": walk_truncated,
         "adr_corpus_truncated": tally.cut,
         "examined": {
-            "commits": len(records),
+            "commits": read,
             "prs": len(prs or []),
             "adr_files": tally.read,
             "adr_files_skipped": tally.skipped,
@@ -303,10 +285,9 @@ class GitError(Exception):
     """git is missing, failed, or timed out: exit 3."""
 
 
-# What ``git rev-parse --local-env-vars`` lists, plus GIT_NAMESPACE and the discovery ceiling,
-# hard-coded to spare a git call. Any of them in the parent environment would point the child at
-# another repository, or hide the work tree around a folder, whatever ``-C`` says. ``git_env``
-# forces GIT_DISCOVERY_ACROSS_FILESYSTEM on, never scrubs it.
+# ``git rev-parse --local-env-vars``, GIT_NAMESPACE and the discovery ceiling, hard-coded to
+# spare a git call. Inherited, any would point the child at another repository or hide the work
+# tree around a folder, whatever ``-C`` says. GIT_DISCOVERY_ACROSS_FILESYSTEM is forced on.
 _LOCAL_GIT_ENV = frozenset(
     "GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_CEILING_DIRECTORIES GIT_COMMON_DIR GIT_CONFIG "
     "GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS GIT_DIR "
@@ -316,19 +297,16 @@ _LOCAL_GIT_ENV = frozenset(
 
 
 def git_env() -> dict[str, str]:
-    """The environment for a git child: no repository redirection and no prompt. No replacement
-    objects, so a replaced commit is never read under the original's SHA. ``LC_ALL=C`` keeps the
-    stderr texts matched here (``dubious ownership``) the same on every locale. Discovery may
-    cross a mount, so the draft gate still sees a mounted folder as inside the work tree."""
+    """A git child's environment: no repository redirection, prompt, or replacement objects (a
+    replaced commit is never read under the original's SHA). ``LC_ALL=C`` fixes the stderr texts
+    matched here; discovery crosses a mount, so the draft gate sees a mounted work tree folder."""
     env = {key: value for key, value in os.environ.items() if key not in _LOCAL_GIT_ENV}
     env.update(GIT_TERMINAL_PROMPT="0", GIT_NO_LAZY_FETCH="1", GIT_NO_REPLACE_OBJECTS="1")
     env.update(GIT_DISCOVERY_ACROSS_FILESYSTEM="1", LC_ALL="C")
     return env
 
 
-def git_bytes(
-    repo: Path, *args: str, stdin: bytes | None = None
-) -> subprocess.CompletedProcess[bytes]:
+def git_bytes(repo: Path, *args: str, stdin: bytes | None = None) -> CompletedProcess[bytes]:
     """Run ``git -C repo args`` and return the raw result. Never decodes."""
     try:
         return subprocess.run(
@@ -347,29 +325,22 @@ def git_bytes(
         raise GitError(f"cannot run git: {exc}") from exc
 
 
-def git_text(
-    repo: Path, *args: str, ok: tuple[int, ...] = (0,)
-) -> subprocess.CompletedProcess[str]:
+def git_text(repo: Path, *args: str, ok: tuple[int, ...] = (0,)) -> CompletedProcess[str]:
     """Run git and decode stdout and stderr as UTF-8 with replacement."""
     proc = git_bytes(repo, *args)
     if proc.returncode not in ok:
         raise GitError(f"git {' '.join(args)} failed: {stderr_text(proc)}")
-    return subprocess.CompletedProcess(
-        proc.args,
-        proc.returncode,
-        proc.stdout.decode("utf-8", "replace"),
-        proc.stderr.decode("utf-8", "replace"),
-    )
+    out, err = (part.decode("utf-8", "replace") for part in (proc.stdout, proc.stderr))
+    return CompletedProcess(proc.args, proc.returncode, out, err)
 
 
-def stderr_text(proc: subprocess.CompletedProcess[bytes]) -> str:
+def stderr_text(proc: CompletedProcess[bytes]) -> str:
     """git's stderr, decoded and trimmed."""
     return proc.stderr.decode("utf-8", "replace").strip()
 
 
-def refusal(proc: subprocess.CompletedProcess[bytes], what: str) -> Exception:
-    """The error for a failed git call: a dubious-ownership refusal is git's, the rest is input.
-    ``what`` says what the caller asked. git's own words are always kept."""
+def refusal(proc: CompletedProcess[bytes], what: str) -> Exception:
+    """The error for a failed git call on ``what``, git's words kept: dubious ownership or input."""
     message = stderr_text(proc)
     if "dubious ownership" in message:
         return GitError(f"git refused to work in {what}: {message}")
@@ -418,12 +389,11 @@ def rev_list(root: Path, sha: str, max_count: int, since: str | None) -> list[st
 
 
 def _sizes(root: Path, shas: list[str]) -> list[int]:
-    """The object size of each SHA from ``git cat-file --batch-check``. The reply gets the batch
-    read's strict check: one ``<sha> commit <size>`` line per SHA, in order, and nothing else."""
+    """Each SHA's size from ``git cat-file --batch-check``: one ``<sha> commit <size>`` line per
+    SHA, in order, and nothing else."""
     if not shas:
         return []
-    stdin = ("\n".join(shas) + "\n").encode("ascii")
-    proc = git_bytes(root, "cat-file", "--batch-check", stdin=stdin)
+    proc = git_bytes(root, "cat-file", "--batch-check", stdin=("\n".join(shas) + "\n").encode())
     if proc.returncode != 0:
         raise GitError(f"git cat-file --batch-check failed: {stderr_text(proc)}")
     rows = _CHECK_ROW.findall(proc.stdout)
@@ -433,9 +403,8 @@ def _sizes(root: Path, shas: list[str]) -> list[int]:
 
 
 def _batches(shas: list[str], sizes: list[int], dropped: dict[str, int]) -> list[list[str]]:
-    """The SHAs to read, in order, in batches of at most ``BATCH_SHAS`` SHAs and
-    ``MAX_BATCH_BYTES`` of objects, though one object always forms a batch of its own. A commit
-    over ``MAX_COMMIT_BYTES`` is counted under ``commit_too_large`` and left out."""
+    """SHAs in order, in batches of at most ``BATCH_SHAS`` and ``MAX_BATCH_BYTES`` (one object can
+    always form a batch). A commit over ``MAX_COMMIT_BYTES`` counts as ``commit_too_large``."""
     batches: list[list[str]] = []
     total = 0
     for sha, size in zip(shas, sizes, strict=True):
@@ -459,8 +428,7 @@ def _read_batch(root: Path, shas: list[str]) -> list[CommitRecord]:
         header = _BATCH_HEADER.match(data, pos)
         if header is None or header[1].decode("ascii") != expected or header[2] != b"commit":
             raise GitError(f"git cat-file --batch did not return commit {expected}")
-        start = header.end()
-        end = start + int(header[3])
+        start, end = header.end(), header.end() + int(header[3])
         if data[end : end + 1] != b"\n":
             raise GitError(f"git cat-file --batch returned a short object for {expected}")
         records.append(parse_commit_object(expected, data[start:end]))
@@ -470,10 +438,42 @@ def _read_batch(root: Path, shas: list[str]) -> list[CommitRecord]:
     return records
 
 
-def origin_web_base(root: Path) -> tuple[str, str] | None:
-    """``web_base`` of the ``origin`` remote. A repository with no origin gives None."""
-    proc = git_text(root, "config", "--get", "remote.origin.url", ok=(0, 1))
-    return web_base(proc.stdout) if proc.returncode == 0 else None
+def origin_web_base(root: Path) -> tuple[Web, str | None]:
+    """``web_base`` of origin's fetch URL (``insteadOf`` applied, no fetch) and the ``select_prs``
+    base: None if git says ``No such remote`` (any exit code), ``""`` off GitHub and GitLab."""
+    proc = git_bytes(root, "remote", "get-url", "origin")
+    if proc.returncode != 0 and "No such remote" in stderr_text(proc):
+        return None, None
+    if proc.returncode != 0:
+        raise GitError(f"git remote get-url origin failed: {stderr_text(proc)}")
+    web = web_base(proc.stdout.decode("utf-8", "replace"))
+    return web, web[1] if web else ""
+
+
+# GIT_NO_LAZY_FETCH, which stops a partial clone fetching a missing object, came in git 2.45.1
+# and the May 2024 security releases of 2.39 to 2.44.
+_NO_LAZY_FETCH_GIT = (2, 45, 1)
+_NO_LAZY_FETCH_BACKPORTS = {(2, 39): 4, (2, 40): 2, (2, 41): 1, (2, 42): 2, (2, 43): 4, (2, 44): 1}
+_PROMISOR = re.compile(  # a ``git config --get-regexp`` line that marks a partial clone
+    r"(?:extensions\.partialclone|remote\..*\.partialclonefilter) \S"
+    r"|remote\..*\.promisor(?:\Z| (?!false|no|off|0\b)\S)"  # a bare key means true
+)
+_GIT_VERSION = re.compile(r"git version ([0-9]+)\.([0-9]+)\.([0-9]+)", re.ASCII)
+
+
+def refuse_lazy_fetch(root: Path) -> None:
+    """Refuse a partial clone on a git that may fetch, so ``scan`` never reaches the network."""
+    keys = r"^(extensions\.partialclone|remote\..*\.(promisor|partialclonefilter))$"
+    config = git_text(root, "config", "--get-regexp", keys, ok=(0, 1)).stdout.lower()
+    found = _GIT_VERSION.match(git_text(root, "version").stdout)
+    major, minor, patch = (int(part) for part in found.groups()) if found else (0, 0, 0)
+    floor = _NO_LAZY_FETCH_BACKPORTS.get((major, minor))
+    honored = (major, minor, patch) >= _NO_LAZY_FETCH_GIT or (floor is not None and patch >= floor)
+    if not honored and any(_PROMISOR.match(line) for line in config.splitlines()):
+        raise ConfigError(
+            "a partial clone on a git without GIT_NO_LAZY_FETCH (before 2.45.1 or its May 2024"
+            " backports) may fetch a missing commit; upgrade git or scan a full clone"
+        )
 
 
 def is_shallow(root: Path) -> bool:
@@ -482,19 +482,19 @@ def is_shallow(root: Path) -> bool:
 
 
 def read_commits(
-    root: Path,
-    sha: str,
-    max_commits: int,
-    since: str | None = None,
-    dropped: dict[str, int] | None = None,
+    root: Path, sha: str, max_commits: int, since: str | None = None, dropped: Drops | None = None
 ) -> tuple[list[CommitRecord], bool]:
-    """Read up to ``max_commits`` commits from ``sha``. The flag is True when more exist. Sizes are
-    read first, so no batch holds more than ``MAX_BATCH_BYTES``; a commit over
-    ``MAX_COMMIT_BYTES`` is counted in ``dropped`` and not read."""
+    """Read up to ``max_commits`` commits from ``sha``. The flag is True when more exist."""
+    batches, truncated = _record_batches(root, sha, max_commits, since, dropped)
+    return [record for batch in batches for record in batch], truncated
+
+
+def _record_batches(
+    root: Path, sha: str, max_commits: int, since: str | None, dropped: Drops | None
+) -> tuple[Iterator[list[CommitRecord]], bool]:
+    """Commit batches, each read when asked for, and the truncation flag. Sizes come first: no
+    batch tops ``MAX_BATCH_BYTES``; a commit over ``MAX_COMMIT_BYTES`` is counted, not read."""
     shas = rev_list(root, sha, max_commits + 1, since)
-    truncated = len(shas) > max_commits
-    shas = shas[:max_commits]
-    records: list[CommitRecord] = []
-    for batch in _batches(shas, _sizes(root, shas), {} if dropped is None else dropped):
-        records.extend(_read_batch(root, batch))
-    return records, truncated
+    kept = shas[:max_commits]
+    batches = _batches(kept, _sizes(root, kept), {} if dropped is None else dropped)
+    return (_read_batch(root, batch) for batch in batches), len(shas) > max_commits
