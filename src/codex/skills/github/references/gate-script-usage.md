@@ -14,7 +14,7 @@ script's header docstring and its exit statements.
 |---|---|---|
 | `utils/check_github_transport.py` | `--output-format json` | 0 check completed, read `transport` for the verdict; 2 plugin lib missing; 3 quota refusal or transport wobble; 4 credential fault |
 | `pr/get_pr_context.py` | `--pull-request 123`; `--pull-request 123 --include-diff --include-changed-files`; `--pull-request 123 --field author_is_bot` | 0 ok; 1 invalid parameters; 2 not found; 3 API failure; 4 auth |
-| `pr/get_pr_checks.py` | `--pull-request 123`; `--pull-request 123 --wait --timeout-seconds 600`; `--pull-request 123 --required-only` | 0 all passing, skipped, or pending (read `RequiredState`, not the code alone); 1 a check failed; 2 PR not found; 3 API error; 4 auth; 7 timeout with `--wait` |
+| `pr/get_pr_checks.py` | `--pull-request 123`; `--pull-request 123 --wait --required-only --timeout-seconds 540`; `--pull-request 123 --required-only` | 0 all passing, skipped, or pending (read `RequiredState`, not the code alone); 1 a check failed; 2 PR not found; 3 API error; 4 auth; 7 timeout with `--wait` |
 | `pr/get_pr_review_threads.py` | `--pull-request 123`; `--pull-request 123 --unresolved-only --include-comments` | 0 ok; 1 invalid parameters; 2 not found; 3 API failure; 4 auth |
 | `pr/get_unresolved_review_threads.py` | `--pull-request 123`; `--pull-request 123 --include-comments --output-format json` | 0 snapshot returned, possibly incomplete (check `fetched_pages_complete`); 2 usage; 4 auth. API and pagination failures return 0 with `success: false`, not 3 |
 | `pr/get_unaddressed_comments.py` | `--pull-request 123`; `--pull-request 123 --bot-only --only-unaddressed` | 0 ok; 3 API failure; 4 auth |

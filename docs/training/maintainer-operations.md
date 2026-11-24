@@ -76,7 +76,7 @@ The plugin CLI smoke used to be the one exception. The owner made it advisory on
    ============================== 83 passed in 9.95s ==============================
    ```
 
-5. Read a live verdict on any open PR. Add `--include-non-required` so waiting checks count too:
+5. Read a live verdict on any open PR. `--include-non-required` is a diagnostic view that counts waiting optional checks too. The merge gate is the default verdict without it:
 
    ```bash
    uv run python .claude/skills/github/scripts/pr/test_pr_merge_ready.py \
