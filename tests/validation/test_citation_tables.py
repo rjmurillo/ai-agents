@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 import pytest
 
 from scripts.validation import citation_tables
@@ -42,6 +44,7 @@ def _rows(text: str) -> list[bool]:
         pytest.param("| a |\n|---|\n<b>x</b> | y", [True, True, True], id="inline-html-row"),
         pytest.param("| a |\n|---|\n```x``` | y", [True, True, True], id="backtick-code-row"),
         pytest.param("| a |\n|---|\n~~~\nx", [True, True, False, False], id="tilde-fence"),
+        pytest.param("| a |\n|---|\n-\u00a0x | y", [True, True, True], id="nbsp-not-list"),
     ],
 )
 def test_table_row_truth_table(text: str, expected: list[bool]) -> None:
@@ -64,3 +67,12 @@ def test_one_file_is_classified_once(monkeypatch: pytest.MonkeyPatch) -> None:
     other = ["prose", "| piped prose"]
     assert not table_row(other, 1)
     assert calls == [len(lines), 2]
+
+
+@pytest.mark.parametrize("marker", ["---", "***", "___"])
+def test_a_long_whitespace_run_after_a_break_marker_scans_in_linear_time(marker: str) -> None:
+    """Trailing whitespace has one regex owner, so a hostile line cannot backtrack."""
+    lines = ["| a |", "|---|", marker + " " * 200_000 + "x"]
+    started = time.perf_counter()
+    assert table_row(lines, 2)
+    assert time.perf_counter() - started < 1.0
