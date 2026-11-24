@@ -188,8 +188,12 @@ base text, so this branch does not own it.
 
 - ADR-102:112 cited a docstring at base, not the mode flag line. It keeps its
   base text.
-- FAIL-OPEN-INVENTORY:121 and :151, REQ-023:48 and :275, and TASK-026:51 were
-  wrong at base. Earlier rounds had shifted them. They now keep their base text.
+- FAIL-OPEN-INVENTORY:121 and REQ-023:275 were wrong at base. They keep their
+  base text.
+- FAIL-OPEN-INVENTORY:151, REQ-023:48 and TASK-026:51 were also wrong at base.
+  The reverse-pass gate refuses their base numbers because the base text moved.
+  They map through the diff, so each still points at the same text as at base.
+  The mapping neither fixes nor worsens them.
 - The critic found one missed citation. The probe toolkit's `provenance.md:16`
   now cites `eval-agent-vs-baseline.py:452-480`.
 - The critic confirmed the other round 5 rows still hold at head.
