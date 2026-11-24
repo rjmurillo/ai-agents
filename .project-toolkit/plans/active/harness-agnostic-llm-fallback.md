@@ -4,7 +4,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Status** | Blocked (M1-T1 to M1-T4 ready; G0, G1 wait on the owner) |
+| **Status** | In Progress (M1-T1 to M1-T5 done; labeling method open) |
 | **Created** | 2026-11-23 |
 | **Owner** | Richard Murillo (plan drafted by Claude) |
 | **Complexity** | Medium |
@@ -191,7 +191,7 @@ Parallel tracks after M1-T5: labeling (T6 to T12) and runner (T13 to T15).
 
 | ID | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|---|
-| R1 | Labeling 200 items stalls on owner time | High | Blocks M1 exit | Rubric and sheet ready before asking; double-label only 50; owner may name a delegate |
+| R1 | Model-made labels grade a model arm with a model's judgment | High | Arm C scores inflated when labeler and arm C share a vendor or prompt style | Labeling method is open (owner, 2026-11-24). If a council labels: council members exclude arm C's vendor, labels come from majority vote, council never sees arm outputs, and a human spot-checks a sample. Decide before M1-T11 |
 | R2 | The fetch drops rows: no `pageInfo` on `reviewThreads(first: 100)` and `comments(first: 50)`, PR `updatedAt` window | High | Band share and corpus skew toward small PRs | M1-T3 counts and reports truncation; result states window semantics; fixing the fetch is deferred, not hidden |
 | R3 | Replies are scored as comments, so "thanks, fixed" rows enter the band | High | Kill criterion 1 measured on the wrong unit | Split band share by thread position; rubric fixes the unit to match production |
 | R4 | 60 held-out band items cannot detect a 10-point gain | High | Kill criterion 2 fires on noise | Minimum detectable gap computed first; inconclusive branch adds 100 band items once |
@@ -220,6 +220,9 @@ Parallel tracks after M1-T5: labeling (T6 to T12) and runner (T13 to T15).
 | 2026-11-23 | New eval runner instead of `eval-prompt-change.py` | That runner cannot model the 0.7 apply rule or three arms | Extend `eval-prompt-change.py` |
 | 2026-11-23 | Spec amended: eval unit, diff hunks, dev split, inconclusive branch, steady-state criterion 5 | Pre-mortem found the original eval measured the wrong unit and could not reach a verdict | Keep the original eval |
 | 2026-11-23 | G0 (CI secret) moved before G1 | Kill criterion 4 needs the answer; asking after M3 risks wasted build work | Ask at M4 |
+| 2026-11-24 | G0 answered: a CI secret is acceptable if the eval passes | Owner decision; kill criterion 4 cleared conditionally | No secret (fires criterion 4) |
+| 2026-11-24 | Labels will not be hand-made; owner suggests an LLM council; method decided later | Owner decision | Owner labels 200 by hand |
+| 2026-11-24 | Build only M1-T2 to M1-T5 now | Owner decision; band share alone could kill the effort | Stop at plan; build all of M1 |
 
 ## Progress Log
 
@@ -227,10 +230,13 @@ Parallel tracks after M1-T5: labeling (T6 to T12) and runner (T13 to T15).
 |------|--------|-------|
 | 2026-11-23 | Created plan from spec | Claude (milestone-planner, task-decomposer) |
 | 2026-11-23 | Revised after pre-mortem (7 risks) and critic (19 defects, verdict REVISE) | Claude (analyst, critic) |
+| 2026-11-24 | M1-T2, T3 done: `scripts/eval/measure_actionability_band.py`, 18 tests | Claude |
+| 2026-11-24 | M1-T4, T5 done: 819 of 4,647 comments in band (17.6 percent) across 837 PRs, measured 2026-11-24 at `951c9dba9c`. Openers 800 of 4,034, replies 19 of 613. 0 truncated PRs, 0 truncated threads. Kill criterion 1 cleared. | Claude |
 
 ## Blockers
 
-- G0 (CI secret) and G1 (transport seam) wait on the owner. M1-T1 to M1-T5 are not blocked.
+- Labeling method (M1-T11, M1-T12) waits on the owner. M1-T6 to M1-T10 and M1-T13 to M1-T15 are not blocked.
+- G1 (transport seam) opens only after M1-T20.
 
 ## Related
 
