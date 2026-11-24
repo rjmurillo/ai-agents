@@ -17,7 +17,7 @@ Corpus, sheet, and prediction files hold comment text. Keep them in
 
 ## Run it
 
-Run every step from the repository root. Steps 1 to 4 need a `gh` login.
+Run every step from the repository root. Steps 1 and 3 need a `gh` login.
 Step 7 needs `ANTHROPIC_API_KEY`, or a `--provider` that `call_api` accepts.
 
 1. Measure the band and save the raw PR nodes.
@@ -65,8 +65,18 @@ Step 7 needs `ANTHROPIC_API_KEY`, or a `--provider` that `call_api` accepts.
        --output .project-toolkit/scratch/labeled.jsonl
    ```
 
-7. Tune the prompt on the dev split, then freeze it. Then predict the held-out
-   split. A rerun with the same `--output` skips rows already done.
+7. Tune the prompt on the dev split. Edit `prompt-v1.md` between runs, and use
+   a fresh `--output` each time, since every record carries the prompt hash.
+
+   ```bash
+   uv run python scripts/eval/actionability_arms.py predict \
+       --corpus .project-toolkit/scratch/labeled.jsonl \
+       --split dev --model MODEL \
+       --output .project-toolkit/scratch/predictions-dev.jsonl
+   ```
+
+   Then commit `prompt-v1.md` to freeze it, and predict the held-out split. A
+   rerun with the same `--output` skips rows already done.
 
    ```bash
    uv run python scripts/eval/actionability_arms.py predict \
