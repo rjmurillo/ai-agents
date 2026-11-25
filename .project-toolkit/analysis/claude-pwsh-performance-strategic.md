@@ -1,5 +1,7 @@
 # Strategic Analysis: Claude Code PowerShell Performance
 
+<!-- doc-accuracy: external-sdk PowerShell-SDK -- C# examples use the PowerShell hosting SDK and Newtonsoft.Json, not this repository -->
+
 **Date**: 2025-12-23
 **Session**: 80
 **Status**: In Progress
@@ -408,18 +410,39 @@ User preference states PowerShell is required. However, let's challenge this:
 
 **Concept**: Use PowerShell SDK to maintain a runspace pool that can execute commands without process spawn.
 
+Build the sample for .NET 10 with `Microsoft.PowerShell.SDK` 7.6.10 and `Newtonsoft.Json` 13.0.4.
+The parent process supplies trusted PowerShell source through stdin.
+Each response contains text output and errors for one input line.
+
 **Architecture:**
+
 ```csharp
+using System;
+using System.Linq;
+using System.Management.Automation;
+using System.Management.Automation.Runspaces;
+using Newtonsoft.Json;
+
 // C# wrapper that exposes runspace pool via stdin/stdout
-var pool = RunspaceFactory.CreateRunspacePool(1, 5);
+using var pool = RunspaceFactory.CreateRunspacePool(1, 5);
 pool.Open();
-while (true) {
-    var command = Console.ReadLine();
+while (Console.ReadLine() is { } command)
+{
     using var ps = PowerShell.Create();
     ps.RunspacePool = pool;
     ps.AddScript(command);
-    var result = ps.Invoke();
-    Console.WriteLine(JsonConvert.SerializeObject(result));
+    try
+    {
+        var output = ps.Invoke().Select(item => item?.ToString()).ToArray();
+        var errors = ps.Streams.Error.Select(error => error.ToString()).ToArray();
+        Console.WriteLine(JsonConvert.SerializeObject(new { output, errors }));
+    }
+    catch (RuntimeException error)
+    {
+        var output = Array.Empty<string>();
+        var errors = new[] { error.Message };
+        Console.WriteLine(JsonConvert.SerializeObject(new { output, errors }));
+    }
 }
 ```
 

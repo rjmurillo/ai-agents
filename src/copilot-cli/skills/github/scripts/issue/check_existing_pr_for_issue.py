@@ -13,9 +13,6 @@ rather than a fragile free-text search.
 Exit codes follow ADR-035:
     0 - No open PR claims implementation ownership (safe to proceed)
     1 - One or more open PRs claim implementation ownership (do not open a duplicate)
-    2 - Config error (plugin lib path missing)
-    3 - External error (gh/API failure)
-    4 - Auth error (not authenticated)
 """
 
 from __future__ import annotations
@@ -27,32 +24,23 @@ import re
 import subprocess
 import sys
 
-_plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
-_workspace = os.environ.get("GITHUB_WORKSPACE")
-if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
-    _lib_dir = os.path.join(_plugin_root, "lib")
-elif _workspace:
-    _lib_dir = os.path.join(_workspace, ".claude", "lib")
-else:
-    _lib_dir = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
-    )
-if not os.path.isdir(_lib_dir):
-    print(f"Plugin lib directory not found: {_lib_dir}", file=sys.stderr)
-    sys.exit(2)  # Config error per ADR-035
-if _lib_dir not in sys.path:
-    sys.path.insert(0, _lib_dir)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from skill_bootstrap import ensure_plugin_paths
 
-from github_core.api import (
-    assert_gh_authenticated,
-    resolve_repo_params,
-)
-from github_core.output import (
+ensure_plugin_paths(__file__, (".claude", "lib"))
+
+from github_core import (
+    STANDARD_FAILURE_EXIT_CODES,
     add_output_format_arg,
+    assert_gh_authenticated,
     get_output_format,
+    resolve_repo_params,
     write_skill_error,
     write_skill_output,
 )
+
+if __doc__ is not None:
+    __doc__ += STANDARD_FAILURE_EXIT_CODES
 
 # GitHub closing keywords identify PRs that claim implementation ownership. Issue
 # #2477 originally included "Refs", but issue #4894 proved that diagnostic

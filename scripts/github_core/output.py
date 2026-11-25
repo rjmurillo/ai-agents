@@ -46,6 +46,13 @@ from datetime import datetime, timezone
 # portability floor the import fails before any script can run. A syntax-level
 # floor check does not catch it: this is a runtime stdlib API, not syntax, so
 # the file parses clean at 3.10 and breaks on import.
+STANDARD_FAILURE_EXIT_CODES = """\
+    2 - Config error (plugin lib path missing)
+    3 - External error (gh/API failure)
+    4 - Auth error (not authenticated)
+"""
+
+
 VALID_ERROR_TYPES = (
     "NotFound",
     "ApiError",
