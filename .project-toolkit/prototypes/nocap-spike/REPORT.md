@@ -1,7 +1,9 @@
 # Spike report: receipt checker core on ai-agents transcripts
 
 SPIKE ONLY. Do not merge. Nothing here is wired to a hook or shipped.
-Branch `spike/nocap-checker-core` is local only. It is not pushed, and no PR exists.
+Branch `spike/nocap-checker-core` is published as a DRAFT pull request, as the record of this spike.
+The owner accepted the round 4 verdict on 2026-11-25, with the limits named below.
+The Phase 1 port lands in a separate pull request. Its eval expands to standard suites such as SWE-rebench.
 Round 1 ran on 2026-11-23 and stopped. Round 2 applied two fixes and re-measured on 2026-11-25.
 Round 3 applied the remaining named fixes on 2026-11-25 and replayed both labeled sets.
 Round 4 checked the round 3 core against every upstream claim on 2026-11-25, on a fresh blind sample.
