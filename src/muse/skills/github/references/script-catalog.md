@@ -167,4 +167,3 @@ Approving stays a human action in the GitHub UI.
 Parameters: `--run-id` (required), `--owner`, `--repo`.
 
 Exit 0 success; 2 run not found; 3 API failure; 4 auth.
-

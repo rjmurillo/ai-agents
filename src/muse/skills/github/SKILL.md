@@ -258,7 +258,7 @@ PR scripts and `github_core` import with the SDK blocked.
 | `get_branch_protection.py` | Branch protection plus ruleset rules: required check contexts, required approvals, signature/admin rules. Read-only | `--branch`, `--output-format {json,human,auto}` |
 | `manage_squash_merge_message.py` | Read or update `squash_merge_commit_message` behind an expected-value guard (full text: `references/script-catalog.md`) | `--set`, `--expected-current`, `--dry-run`, `--output-format {json,human,auto}` |
 
-### Actions Runs (`scripts/actions/`)
+### Actions Runs
 
 | Script | Purpose | Key Parameters |
 |--------|---------|----------------|

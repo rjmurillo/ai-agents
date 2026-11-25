@@ -199,17 +199,17 @@ def _readiness_reasons(pr: dict[str, Any], ci_state: str) -> list[str]:
     return reasons
 
 
-def build_dismissal_command(owner: str, repo: str, pr: int, review_id: object) -> str:
+def build_dismissal_command(pr: int, review_id: object) -> str:
     """Return the handoff command a human runs to dismiss one stale review.
 
     Points at dismiss_pr_review.py from this skill (scripts/pr/), which checks
     the review state and unresolved threads before it writes, where the raw
-    ``gh api`` paste it replaces checked nothing. Owner and repo are
-    positional in the endpoint form, so the script infers them from the
-    checkout the human runs it in; cross-repo dismissal passes --owner/--repo.
+    ``gh api`` paste it replaces checked nothing. The script infers owner and
+    repo from the checkout the human runs it in; cross-repo dismissal passes
+    --owner/--repo.
     """
     return (
-        "python3 .claude/skills/github/scripts/pr/dismiss_pr_review.py "
+        "dismiss_pr_review.py (github skill, scripts/pr/) "
         f"--pull-request {pr} --review-id {review_id} "
         f'--message "{_DISMISS_MESSAGE}"'
     )
@@ -264,7 +264,7 @@ def build_handoff(
     ]
     for bot in bots:
         lines.append(f"- {bot['login']} review {bot['review_id']} on commit {bot['commit_id']}:")
-        lines.append(f"  {build_dismissal_command(owner, repo, pr, bot['review_id'])}")
+        lines.append(f"  {build_dismissal_command(pr, bot['review_id'])}")
     if human_blockers:
         lines.append(
             "A human CHANGES_REQUESTED review also stands ("

@@ -302,7 +302,7 @@ class TestMixedBots:
 
 
 def test_dismissal_command_points_at_the_dismiss_script():
-    command = build_dismissal_command("o", "r", 7, 100)
+    command = build_dismissal_command(7, 100)
     assert (
         "dismiss_pr_review.py" in command
         and "--pull-request 7" in command

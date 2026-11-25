@@ -209,6 +209,51 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
+def _thread_gate(
+    args: argparse.Namespace,
+    owner: str,
+    repo: str,
+    pr: int,
+    review_id: int,
+    fmt: str,
+) -> tuple[int, int]:
+    """Run the unresolved-thread gate. Return (count, exit code).
+
+    Exit code 0 means dismissal may proceed. A nonzero code means the error
+    output is already written and main returns it unchanged.
+    """
+    if args.skip_thread_check:
+        return 0, 0
+    unresolved, thread_error = count_unresolved_threads(owner, repo, pr)
+    if unresolved is None:
+        write_skill_error(
+            f"Unresolved-thread check could not run: {thread_error}. "
+            "Verify resolution another way and re-run with --skip-thread-check, "
+            "or do not dismiss.",
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name=_SCRIPT_NAME,
+        )
+        return 0, 3
+    if unresolved:
+        write_skill_error(
+            f"PR #{pr} still has {unresolved} unresolved review thread(s); "
+            "resolve them before dismissing the review",
+            1,
+            error_type="VerificationFailed",
+            output_format=fmt,
+            script_name=_SCRIPT_NAME,
+            extra={
+                "pull_request": pr,
+                "review_id": review_id,
+                "unresolved_threads": unresolved,
+            },
+        )
+        return 0, 1
+    return unresolved, 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     fmt = get_output_format(args.output_format)
@@ -284,35 +329,9 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
 
-    unresolved: int | None = 0
-    if not args.skip_thread_check:
-        unresolved, thread_error = count_unresolved_threads(owner, repo, pr)
-        if unresolved is None:
-            write_skill_error(
-                f"Unresolved-thread check could not run: {thread_error}. "
-                "Verify resolution another way and re-run with --skip-thread-check, "
-                "or do not dismiss.",
-                3,
-                error_type="ApiError",
-                output_format=fmt,
-                script_name=_SCRIPT_NAME,
-            )
-            return 3
-        if unresolved:
-            write_skill_error(
-                f"PR #{pr} still has {unresolved} unresolved review thread(s); "
-                "resolve them before dismissing the review",
-                1,
-                error_type="VerificationFailed",
-                output_format=fmt,
-                script_name=_SCRIPT_NAME,
-                extra={
-                    "pull_request": pr,
-                    "review_id": review_id,
-                    "unresolved_threads": unresolved,
-                },
-            )
-            return 1
+    unresolved, thread_gate = _thread_gate(args, owner, repo, pr, review_id, fmt)
+    if thread_gate:
+        return thread_gate
 
     try:
         head_sha = fetch_pr_head(owner, repo, pr)
