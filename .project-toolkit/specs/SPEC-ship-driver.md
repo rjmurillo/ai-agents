@@ -146,7 +146,7 @@ About 60 are live code, tests, docs, or ADRs. The rest are session logs and QA r
 - Remove the `push-pr` template. The build removes its mirrors.
 - Move its trigger phrases into the `ship` description.
 - Update autoplan routing at `autoplan.SKILL.md.tmpl:161`.
-- Update `templates/platforms/hermes.yaml:53`.
+- Update `templates/platforms/hermes.yaml:55`.
 - Update docs under `docs/skills/` and the `takeover`, `validate-pr-description`, and `checkpoint` skills.
 - Drop `push-pr` rows from the portability and trigger-resolution baselines.
 - Replace the prose tests with behavior tests on the scripts.
