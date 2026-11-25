@@ -76,13 +76,11 @@ findings; 2 = git or config error, including no base ref resolved.
 from __future__ import annotations
 
 import argparse
-import difflib
 import hashlib
 import json
 import re
-import subprocess
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -91,20 +89,21 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _SCRIPT_DIR.parent.parent
 sys.path[:0] = [p for p in (str(_REPO_ROOT), str(_SCRIPT_DIR)) if p not in sys.path]
 
-import yaml  # noqa: E402
 from skill_rewrite_evidence import Expected, load_runner, verify_results  # noqa: E402
+from skill_rewrite_skills import (  # noqa: E402
+    _SKILL_DIRS,
+    MOVE_MIN_LINES,
+    Git,
+    GitError,
+    SkillSide,
+    moved_lines,
+    read_skill,
+    reference_grant_findings,
+)
 
 EXIT_OK, EXIT_FINDINGS, EXIT_CONFIG = 0, 1, 2
-SHAPES = frozenset({"driver", "reference"})
 EVIDENCE_ROOT = "evals/skill-rewrites"
 RETIRED_FILE = "retired.json"
-# Trigger 4: at least this many SKILL.md lines of at least this length must
-# reappear verbatim in references/. Measured on 400 first-parent commits of
-# main to c0b72f8539 (2026-11-25): 5 skill changes in 4 commits fire. In
-# each, SKILL.md shrank and a reference file gained the removed lines.
-MOVE_MIN_LINES = 3
-MOVE_MIN_CHARS = 32
-
 _SKILL_PATH_PATTERNS = (
     re.compile(r"^templates/skills/(?P<n>[^/]+)\.SKILL\.md\.tmpl$"),
     re.compile(r"^src/claude/skills/(?P<n>[^/]+)/"),
@@ -112,185 +111,6 @@ _SKILL_PATH_PATTERNS = (
     re.compile(r"^tests/evals/(?P<n>[^/]+)-scenarios\.json$"),
     re.compile(rf"^{EVIDENCE_ROOT}/(?P<n>[^/]+)/"),
 )
-_SKILL_DIRS = ("src/claude/skills/{n}", ".claude/skills/{n}")
-
-# A `reference` skill may hold only these grants (ADR-127 decision 1). An
-# allowlist, not a denylist: a denylist of push and PR-write forms leaked
-# `git -C . push`, `uv:*`, and list-form grants in review.
-_READ_TOOLS = frozenset(
-    {
-        "Read",
-        "Grep",
-        "Glob",
-        "LS",
-        "Skill",
-        "Task",
-        "Agent",
-        "TodoWrite",
-        "Write",
-        "Edit",
-        "MultiEdit",
-        "NotebookEdit",
-        "WebFetch",
-        "WebSearch",
-        "AskUserQuestion",
-    }
-)
-_READ_MCP = re.compile(r"^mcp__[\w-]+__(?:get|list|read|search|find|query)[\w-]*$")
-_MCP_WRITE_WORD = re.compile(r"replace|write|create|delete|update|edit|set|add|insert|rename|move")
-_WRITE_TOOLS = frozenset({"Write", "Edit", "MultiEdit", "NotebookEdit"})
-_GRANT = re.compile(r"(?P<tool>[A-Za-z][\w.-]*)(?:\((?P<inner>[^)]*)\))?")
-_READ_BASH = re.compile(
-    r"^(?:git (?:diff|log|show|status|rev-parse|ls-files|ls-tree|merge-base|blame|cat-file)"
-    r"|git branch --show-current|date|ls|wc|mkdir|python3 -m json\.tool)(?:[: ]|$)"
-)
-_INTERPRETER = r"(?:python3|uv run --frozen python)(?: -I)?\s*:?\s*"
-# A Bash grant holding a path climb or a shell operator can chain past the
-# command it names, so it never counts as read-only.
-# `git diff --output` writes a file and `--ext-diff` runs a program.
-_UNSAFE_BASH = re.compile(
-    r"\.\.|[;&|`<>]|\$\(|\s-O|--output|--ext-diff|--textconv|--open-files-in-pager"
-)
-
-
-class GitError(RuntimeError):
-    """A git command failed; the check cannot see the repository state."""
-
-
-class Git:
-    """Read-only git access rooted at one repository."""
-
-    def __init__(self, root: Path) -> None:
-        self.root = root
-
-    def _run(
-        self, *args: str, ok_codes: tuple[int, ...] = (0,)
-    ) -> subprocess.CompletedProcess[bytes]:
-        try:
-            proc = subprocess.run(
-                ["git", "-C", str(self.root), *args], capture_output=True, check=False, timeout=60
-            )
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            raise GitError(f"git {' '.join(args)}: {exc}") from exc
-        if proc.returncode not in ok_codes:
-            err = proc.stderr.decode("utf-8", "replace").strip()
-            raise GitError(f"git {' '.join(args)} exited {proc.returncode}: {err}")
-        return proc
-
-    def text(self, *args: str) -> str:
-        return self._run(*args).stdout.decode("utf-8", "replace")
-
-    def files(self, ref: str, prefix: str) -> list[str]:
-        out = self._run("ls-tree", "-r", "-z", "--name-only", ref, "--", prefix).stdout
-        return [p for p in out.decode("utf-8", "replace").split("\0") if p]
-
-    def blob(self, ref: str, path: str) -> bytes:
-        return self._run("cat-file", "blob", f"{ref}:{path}").stdout
-
-    def is_ancestor(self, ancestor: str, descendant: str) -> bool:
-        proc = self._run("merge-base", "--is-ancestor", ancestor, descendant, ok_codes=(0, 1, 128))
-        return proc.returncode == 0
-
-
-@dataclass
-class SkillSide:
-    """One skill at one ref."""
-
-    skill_md_path: str | None = None
-    skill_md: str = ""
-    references: dict[str, str] = field(default_factory=dict)
-    shape: str | None = None
-    allowed_tools: str = ""
-    tools_error: str | None = None
-    error: str | None = None
-
-    @property
-    def surface(self) -> str:
-        """The text `load_prompt_surface_from_file` feeds the model."""
-        return "\n".join([self.skill_md, *(self.references[k] for k in sorted(self.references))])
-
-
-def _decode(data: bytes) -> str:
-    """Decode as `Path.read_text` does: strict UTF-8, universal newlines."""
-    return data.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
-
-
-def read_skill(git: Git, ref: str, name: str) -> SkillSide:
-    """Load a skill's rendered prompt surface and frontmatter at *ref*."""
-    side = SkillSide()
-    for template in _SKILL_DIRS:
-        base = template.format(n=name)
-        listing = git.files(ref, f"{base}/")
-        if f"{base}/SKILL.md" not in listing:
-            continue
-        side.skill_md_path = f"{base}/SKILL.md"
-        try:
-            side.skill_md = _decode(git.blob(ref, side.skill_md_path))
-            for path in listing:
-                rest = path.removeprefix(f"{base}/references/")
-                if rest != path and "/" not in rest and rest.endswith(".md"):
-                    side.references[rest] = _decode(git.blob(ref, path))
-        except UnicodeDecodeError as exc:
-            side.error = f"{ref}: prompt surface is not UTF-8: {exc}"
-            return side
-        _read_frontmatter(side, ref)
-        return side
-    return side
-
-
-def _read_frontmatter(side: SkillSide, ref: str) -> None:
-    match = re.match(r"^---\n(.*?)\n---\n", side.skill_md, re.DOTALL)
-    try:
-        front = yaml.safe_load(match.group(1)) if match else None
-    except yaml.YAMLError as exc:
-        side.error = f"{ref}: frontmatter is not valid YAML: {exc}"
-        return
-    front = front if isinstance(front, dict) else {}
-    metadata = front.get("metadata")
-    shape = metadata.get("shape") if isinstance(metadata, dict) else None
-    if shape is not None and shape not in SHAPES:
-        side.error = f"{ref}: metadata.shape is {shape!r}; it must be driver or reference"
-    side.shape = shape if shape in SHAPES else None
-    tools = front.get("allowed-tools")
-    if isinstance(tools, list) and all(isinstance(t, str) for t in tools):
-        tools = ", ".join(tools)
-    if tools is not None and not isinstance(tools, str):
-        side.tools_error = f"allowed-tools is a {type(tools).__name__}, not a string or list"
-    side.allowed_tools = tools if isinstance(tools, str) else ""
-
-
-def reference_grant_findings(name: str, allowed_tools: str) -> list[str]:
-    """Grants outside the `reference` allowlist (ADR-127 decision 1).
-
-    Bash is allowed only for a read-only command or for an interpreter that
-    runs a script under this skill's own ``scripts/`` directory. A reference
-    skill whose own script pushes is still a driver; a reviewer owns that.
-    """
-    own_script = re.compile(rf"^{_INTERPRETER}\S*skills/{re.escape(name)}/scripts/\S*$")
-    problems = []
-    for match in _GRANT.finditer(allowed_tools):
-        tool, inner = match.group("tool"), match.group("inner")
-        if tool == "Bash":
-            ok = (
-                inner is not None
-                and not _UNSAFE_BASH.search(inner)
-                and bool(_READ_BASH.match(inner.strip()) or own_script.match(inner.strip()))
-            )
-        else:
-            ok = inner is None and (
-                tool in _READ_TOOLS
-                or bool(_READ_MCP.match(tool) and not _MCP_WRITE_WORD.search(tool.split("__")[-1]))
-            )
-        if not ok:
-            problems.append(f"shape is reference but allowed-tools grants {match.group(0)}")
-    grants = [m.group(0) for m in _GRANT.finditer(allowed_tools)]
-    writes = sorted({g for g in grants if g in _WRITE_TOOLS})
-    if writes and any(g.startswith("Bash") for g in grants):
-        problems.append(
-            f"shape is reference but allowed-tools grants {writes} beside a Bash grant; "
-            "the model could write a script or a git config and run it"
-        )
-    return problems
 
 
 def changed_paths(git: Git, merge_base: str, head: str) -> dict[str, str]:
@@ -308,24 +128,6 @@ def skill_names(paths: dict[str, str]) -> set[str]:
             if match:
                 names.add(match.group("n"))
     return names
-
-
-def moved_lines(base: SkillSide, head: SkillSide) -> int:
-    """Count lines removed from SKILL.md that reappear in an added reference line.
-
-    Only lines of at least `MOVE_MIN_CHARS` count, so blank lines, headings,
-    and table rules do not make a coincidental match.
-    """
-    removed = {
-        line[2:].strip()
-        for line in difflib.ndiff(base.skill_md.splitlines(), head.skill_md.splitlines())
-        if line.startswith("- ") and len(line[2:].strip()) >= MOVE_MIN_CHARS
-    }
-    added: set[str] = set()
-    for name, text in head.references.items():
-        old = {line.strip() for line in base.references.get(name, "").splitlines()}
-        added |= {line.strip() for line in text.splitlines()} - old
-    return len(removed & added)
 
 
 def gate_reasons(name: str, base: SkillSide, head: SkillSide, paths: dict[str, str]) -> list[str]:
@@ -471,48 +273,71 @@ def _label_findings(base_bytes: bytes, scenarios: list[dict[str, Any]]) -> list[
     ]
 
 
-def verify_skill(ctx: Context, name: str, head: SkillSide) -> list[str]:
-    """Findings for one gated skill's evidence."""
-    scenario_path = f"tests/evals/{name}-scenarios.json"
-    if scenario_path not in ctx.git.files(ctx.head, scenario_path):
-        return [f"{scenario_path} does not exist; a gated skill needs a scenario file"]
-    scenario_bytes = ctx.git.blob(ctx.head, scenario_path)
+@dataclass
+class _Scenarios:
+    path: str
+    data: bytes
+    rows: list[dict[str, Any]]
+
+
+def _load_scenarios(ctx: Context, name: str) -> tuple[_Scenarios | None, list[str]]:
+    """The head scenario file, plus findings against the merge base."""
+    path = f"tests/evals/{name}-scenarios.json"
+    if path not in ctx.git.files(ctx.head, path):
+        return None, [f"{path} does not exist; a gated skill needs a scenario file"]
+    data = ctx.git.blob(ctx.head, path)
     try:
-        scenarios = json.loads(scenario_bytes)["scenarios"]
+        rows = json.loads(data)["scenarios"]
     except (json.JSONDecodeError, UnicodeDecodeError, KeyError, TypeError):
-        return [f"{scenario_path} is not valid scenario JSON"]
-    head_ids = _scenario_ids(scenario_bytes)
-    if head_ids is None or not all("expected_verdict" in s for s in scenarios):
-        return [f"{scenario_path} has a scenario with no id or expected_verdict"]
-    problems = _freeze_findings(ctx, name, scenario_path)
-    if scenario_path in ctx.git.files(ctx.merge_base, scenario_path):
-        base_ids = _scenario_ids(ctx.git.blob(ctx.merge_base, scenario_path)) or []
+        return None, [f"{path} is not valid scenario JSON"]
+    head_ids = _scenario_ids(data)
+    if head_ids is None or not all("expected_verdict" in r for r in rows):
+        return None, [f"{path} has a scenario with no id or expected_verdict"]
+    problems = _freeze_findings(ctx, name, path)
+    if path in ctx.git.files(ctx.merge_base, path):
+        base = ctx.git.blob(ctx.merge_base, path)
+        base_ids = _scenario_ids(base) or []
         problems += _retired_findings(ctx, name, [i for i in base_ids if i not in head_ids])
-        problems += _label_findings(ctx.git.blob(ctx.merge_base, scenario_path), scenarios)
-    results_dir = f"{EVIDENCE_ROOT}/{name}/"
-    result_paths = [
+        problems += _label_findings(base, rows)
+    return _Scenarios(path, data, rows), problems
+
+
+def _load_results(ctx: Context, results_dir: str) -> tuple[dict[str, Any], list[str]]:
+    """Every results file under *results_dir* at head, parsed."""
+    paths = [
         p
         for p in ctx.git.files(ctx.head, results_dir)
         if p.endswith(".json") and not p.endswith(f"/{RETIRED_FILE}")
     ]
-    if not result_paths:
-        return [*problems, f"no results file under {results_dir}; run the eval with --output there"]
-    head_sha = hashlib.sha256(head.surface.encode("utf-8")).hexdigest()
+    if not paths:
+        return {}, [f"no results file under {results_dir}; run the eval with --output there"]
     parsed: dict[str, Any] = {}
-    for path in result_paths:
+    problems = []
+    for path in paths:
         try:
             parsed[path] = json.loads(ctx.git.blob(ctx.head, path))
         except (json.JSONDecodeError, UnicodeDecodeError) as exc:
             problems.append(f"{path} is not readable JSON: {exc}")
+    return parsed, problems
+
+
+def _surface_sha(result: object) -> object:
+    identity = result.get("identity") if isinstance(result, dict) else None
+    return identity.get("prompt_surface_sha256") if isinstance(identity, dict) else None
+
+
+def verify_skill(ctx: Context, name: str, head: SkillSide) -> list[str]:
+    """Findings for one gated skill's evidence."""
+    scen, problems = _load_scenarios(ctx, name)
+    if scen is None:
+        return problems
+    results_dir = f"{EVIDENCE_ROOT}/{name}/"
+    parsed, read_problems = _load_results(ctx, results_dir)
+    problems += read_problems
     if problems:
         return problems
-    matching = [
-        p
-        for p, r in parsed.items()
-        if isinstance(r, dict)
-        and isinstance(r.get("identity"), dict)
-        and r["identity"].get("prompt_surface_sha256") == head_sha
-    ]
+    head_sha = hashlib.sha256(head.surface.encode("utf-8")).hexdigest()
+    matching = [p for p, r in parsed.items() if _surface_sha(r) == head_sha]
     if not matching:
         return [
             f"no results file under {results_dir} records the HEAD prompt surface sha256 {head_sha}"
@@ -525,9 +350,9 @@ def verify_skill(ctx: Context, name: str, head: SkillSide) -> list[str]:
     expected = Expected(
         prompt_path=str(head.skill_md_path),
         prompt_surface_sha256=head_sha,
-        scenarios_path=scenario_path,
-        scenarios_sha256=hashlib.sha256(scenario_bytes).hexdigest(),
-        scenarios=tuple(scenarios),
+        scenarios_path=scen.path,
+        scenarios_sha256=hashlib.sha256(scen.data).hexdigest(),
+        scenarios=tuple(scen.rows),
     )
     for path in sorted(p for p, i in order.items() if i == first):
         found = verify_results(ctx.runner, parsed[path], expected)
@@ -544,7 +369,54 @@ _JUDGE_PATHS = (
     "scripts/eval/_",
     "scripts/validation/check_skill_rewrite_evidence.py",
     "scripts/validation/skill_rewrite_evidence.py",
+    "scripts/validation/skill_rewrite_skills.py",
 )
+
+
+def _log(message: str) -> None:
+    print(f"[skill-rewrite-evidence] {message}")
+
+
+def _gate_or_skip(
+    name: str, base: SkillSide, side: SkillSide, paths: dict[str, str], deleted: bool
+) -> list[str]:
+    """The gate reasons for one readable skill; empty when it is not gated."""
+    if side.skill_md_path is None:
+        _log(f"{name} is deleted; nothing to evaluate")
+        return []
+    if base.skill_md_path is None and not deleted:
+        _log(f"{name} is new; it has no base to hold against")
+        return []
+    reasons = gate_reasons(name, base, side, paths)
+    if base.skill_md_path is None:
+        reasons.append("a new skill lands beside a deleted one, so it may be a rename")
+    return reasons
+
+
+def _examine(
+    ctx: Context,
+    name: str,
+    sides: tuple[SkillSide, SkillSide],
+    paths: dict[str, str],
+    deleted: bool,
+) -> tuple[list[str], bool]:
+    """Findings for one changed skill, and whether it is gated."""
+    base, side = sides
+    errors = [e for e in (base.error, side.error, side.tools_error) if e]
+    if errors:
+        return [f"{name}: {e}" for e in errors], False
+    findings = []
+    if side.shape == "reference":
+        findings = [f"{name}: {f}" for f in reference_grant_findings(name, side.allowed_tools)]
+    reasons = _gate_or_skip(name, base, side, paths, deleted)
+    if not reasons:
+        return findings, False
+    _log(f"{name} is gated: {'; '.join(reasons)}")
+    judge = sorted(p for p in paths if p.startswith(_JUDGE_PATHS))
+    if judge:
+        findings.append(f"{name}: a gated change may not also change {judge}")
+    findings += [f"{name}: {f}" for f in verify_skill(ctx, name, side)]
+    return findings, True
 
 
 def run_check(git: Git, base_ref: str, head: str = "HEAD") -> tuple[list[str], int, int]:
@@ -553,42 +425,22 @@ def run_check(git: Git, base_ref: str, head: str = "HEAD") -> tuple[list[str], i
     paths = changed_paths(git, merge_base, head)
     commits = git.text("rev-list", "--reverse", "--topo-order", f"{merge_base}..{head}").split()
     ctx = Context(git, base_ref, head, merge_base, commits, load_runner())
-    findings: list[str] = []
-    examined = gated = 0
     sides = {
         n: (read_skill(git, merge_base, n), read_skill(git, head, n))
         for n in sorted(skill_names(paths))
     }
     deleted = any(b.skill_md_path and not h.skill_md_path for b, h in sides.values())
-    for name, (base, side) in sides.items():
-        if side.skill_md_path is None and base.skill_md_path is None:
+    findings: list[str] = []
+    examined = gated = 0
+    for name, pair in sides.items():
+        if pair[0].skill_md_path is None and pair[1].skill_md_path is None:
             if any(p.startswith(f"{EVIDENCE_ROOT}/{name}/") for p in paths):
                 findings.append(f"{EVIDENCE_ROOT}/{name}/ names no skill")
             continue
         examined += 1
-        errors = [e for e in (base.error, side.error, side.tools_error) if e]
-        if errors:
-            findings += [f"{name}: {e}" for e in errors]
-            continue
-        if side.shape == "reference":
-            findings += [f"{name}: {f}" for f in reference_grant_findings(name, side.allowed_tools)]
-        if side.skill_md_path is None:
-            print(f"[skill-rewrite-evidence] {name} is deleted; nothing to evaluate")
-            continue
-        if base.skill_md_path is None and not deleted:
-            print(f"[skill-rewrite-evidence] {name} is new; it has no base to hold against")
-            continue
-        reasons = gate_reasons(name, base, side, paths)
-        if base.skill_md_path is None:
-            reasons.append("a new skill lands beside a deleted one, so it may be a rename")
-        if not reasons:
-            continue
-        gated += 1
-        print(f"[skill-rewrite-evidence] {name} is gated: {'; '.join(reasons)}")
-        judge = sorted(p for p in paths if p.startswith(_JUDGE_PATHS))
-        if judge:
-            findings.append(f"{name}: a gated change may not also change {judge}")
-        findings += [f"{name}: {f}" for f in verify_skill(ctx, name, side)]
+        found, is_gated = _examine(ctx, name, pair, paths, deleted)
+        findings += found
+        gated += is_gated
     return findings, examined, gated
 
 
