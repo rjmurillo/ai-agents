@@ -5,6 +5,7 @@ Serena code navigation|initialize once when available|active at start with `.mcp
 Knowledge -> context|C7/DW/Web|mem|constraints gov|ADRs arch|skills/rules .claude|generators gov
 Gates|S init/handoff/resume/memory/git|P `pre_pr.py`/no BLOCKING/security/style|E handoff/memory/lint/commit/check
 **Always**: Python ADR-042|branch/skills/PR/lint|SHA Actions|workflows|No manifest version (ADR-092)
+Docs|SKILL.md or skill/agent template changed -> read `docs/skills/<name>.md` or `docs/agents/<name>.md`; edit it, or if still true add commit trailer `Docs-Reviewed: <name>`|blocking: `check_agent_skill_doc_review.py`|rule `agent-skill-docs`
 **Ask First**: architecture/ADR/breaking/security
 **Autonomy Guardrail**: tiers ADR-112|irreversible->human|ambiguous minimal+flag
 **Never**: Secrets|New bash scripts|YAML logic|Raw `gh`|Force-push|No-verify|Internal refs|Scratch
