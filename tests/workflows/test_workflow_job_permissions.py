@@ -20,7 +20,7 @@ give an over-granted job attacker-reachable code. That happened once already:
 (PR #3967) and scoped it to ``contents: read``. Manual review is the only
 control this repository has for it.
 
-The 24 stay frozen below rather than scoped by hand: each needs per-job
+The jobs listed below stay frozen rather than scoped by hand (24 when this gate was written; fewer after the agent-* workflow deletions of 2026-11-25): each needs per-job
 knowledge of what it calls, and a wrong guess breaks CI. The gate stops the
 bleeding, and the burn-down rides the extraction PRs.
 

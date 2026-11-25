@@ -944,11 +944,11 @@ Fix the flaky test, then push again or re-run the job.
 
 ## Copilot CLI Version Management
 
-The CLI smoke (`.github/workflows/plugin-cli-smoke.yml`) uses GitHub Copilot CLI to prove the plugin loads. The `ai-review` action reviews with Claude and no longer installs Copilot (REQ-047, issue #6069). The CLI version is pinned to prevent regressions from auto-updates.
+The CLI smoke (`.github/workflows/plugin-cli-smoke.yml`) no longer runs a Copilot leg: it was deleted on 2026-11-25 with the other `agent-*` environment jobs, and the `ai-review` action reviews with Claude and does not install Copilot (REQ-047, issue #6069). The Copilot CLI pin stays maintained for local use and for a restored leg, and the version is pinned to prevent regressions from auto-updates.
 
 ### Current Pin
 
-The only pin is `@github/copilot` in `.github/cli-smoke/copilot/package.json`. Its `package-lock.json` holds the integrity hashes, and the smoke installs both with `npm ci`. Renovate maintains the pair.
+The only pin is `@github/copilot` in `.github/cli-smoke/copilot/package.json`. Its `package-lock.json` holds the integrity hashes. No workflow step installs it now, and `check_copilot_version_pin.py` still guards the pair. Renovate maintains it.
 
 `scripts/validation/check_copilot_version_pin.py` rejects known-bad pins in that manifest. It is a denylist guard, not the version source or proof of runtime compatibility. See [ADR-094](.project-toolkit/architecture/ADR-094-govern-copilot-cli-compatibility.md) for the known-bad guard policy. That ADR's Amendment still names the former workflow env pin; use this section for the pin location until the ADR is amended.
 
@@ -1006,7 +1006,7 @@ gh act pull_request \
 
 ### Upgrading the Copilot CLI Pin
 
-When changing the Copilot CLI version the smoke installs:
+When changing the Copilot CLI version pin:
 
 1. Install the new version locally: `npm install -g @github/copilot@X.Y.Z`
 2. Run the agent validation loop above

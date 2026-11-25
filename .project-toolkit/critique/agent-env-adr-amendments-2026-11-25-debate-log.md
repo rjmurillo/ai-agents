@@ -67,3 +67,7 @@ Reviewed the Round 2 response. Critic verdict: ACCEPT-WITH-CHANGES. Architect ve
 ## Method note
 
 The round 3 changes were applied after both seats accepted and were not sent to a fourth round. Both seats named only changes that the author could apply as written, and the ratchets (`check_adr_lifecycle.py`, 153 violations, none outside the baseline) pass after them.
+
+## Post-review correction
+
+After round 3, the `/review` skill ran its own axes over the whole branch. Its analyst axis found one overstatement in the ADR-101 amendment: it said no file under `.github` reads `ANTHROPIC_API_KEY`, but the `ai-review` composite action takes it as an input and `generate_spec_report.py` names it in message text. No workflow passes the secret. The author reworded the amendment to say that, without adding lines. The panel did not review this one-clause correction. The `check_adr_lifecycle.py` ratchet passes with no baseline change.
