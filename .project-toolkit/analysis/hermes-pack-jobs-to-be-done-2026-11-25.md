@@ -250,7 +250,7 @@ The build check cannot see paths joined in code, and the smoke is the only runti
 6. Updates to `docs/training/install-on-every-host.md` (pack table, skill count, remove-then-install steps) and `src/hermes/README.md`.
 7. A build check that fails when a pack script joins a path into `skills/` of another skill in code. If it does not land, record that gap as an accepted risk in ADR-115.
 8. A build check that fails when no Hermes pack holds `ship` or `push-pr`, so no ordering mistake leaves Hermes without a way to open a PR.
-9. Commits that each pass the build check alone: restore the chain, then the name-only references, then the pack moves. Run the smoke at the restore commit and at the last commit.
+9. Commits that each pass the build check alone, in this order: (1) the name-only references and the `security-scan` rewording, which change no pack table; (2) restore the chain and move `codeql-scan` and `golden-principles` into delivery in one commit, because `review` names their paths; (3) the remaining pack moves. Run the smoke after step 2 and at the last commit.
 10. A check that each line reworded to clear the guard is prose that does not run.
 
 ## Reversibility
