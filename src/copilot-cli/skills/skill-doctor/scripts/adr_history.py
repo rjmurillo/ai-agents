@@ -234,7 +234,8 @@ def _contradiction(commit: Commit, doc: AdrDoc, cited: list[tuple[int, str]]) ->
     }
     fix = (
         f"Candidate: commit {commit.sha[:10]} removed or renamed {len(paths)} path(s) that accepted "
-        f"{doc.file.rel} cites, for example `{paths[0]}`. Review the ADR against the commit."
+        f"{doc.file.rel} cites, for example `{paths[0]}`. Update the cited paths; if the decision "
+        "itself changed, supersede the record."
     )
     return make_finding(
         "adr-contradiction-candidate",

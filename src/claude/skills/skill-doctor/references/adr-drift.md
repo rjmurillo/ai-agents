@@ -58,7 +58,9 @@ timed out, or could not run. Every subcommand accepts `--help`. Each git call
 has a 120 s timeout, and a scan makes at most five calls.
 
 `scan` reads the last 300 commits from `HEAD` (`--max-commits`, `--since`) and
-the ADR files in the working tree. It uses no network. `--out` must be outside
+the ADR files in the working tree. It uses no network: git runs with
+`GIT_NO_LAZY_FETCH=1`, and a partial clone on a git older than 2.45.1 (or its
+May 2024 backports) exits 2, since that git could fetch. `--out` must be outside
 the repository, and the file is written whole or not at all. It needs git 2.31
 or later, for `git log --diff-merges=first-parent`. Older git fails with exit 3.
 A result larger than 5,000,000 bytes exits 2 and writes nothing, because the
@@ -129,9 +131,9 @@ and a non-empty `suggested_fix`.
 | Links | `adr-broken-link` | deterministic | Point the link at the existing file. |
 | Links | `adr-supersedes-missing-target` | deterministic | Fix the number or drop the edge. |
 | Links | `adr-supersession-not-reciprocal` | deterministic | Add the matching edge to the other record. |
-| Links | `adr-cited-path-missing` | deterministic | Update the ADR or mark it superseded. |
+| Links | `adr-cited-path-missing` | deterministic | Name the file's current path or drop the citation. Supersede only if the decision changed. |
 | History | `adr-superseded-by-commit` | heuristic | Update the status or write the successor. Severity low. |
-| History | `adr-contradiction-candidate` | heuristic | Review the ADR against the commit. Severity low. |
+| History | `adr-contradiction-candidate` | heuristic | Update the cited paths; supersede only if the decision changed. Severity low. |
 
 `no-adr-directory` is not reported when a folder could not be listed, `.adr-dir`
 could not be read, an existing folder was refused for resolving outside the
@@ -142,7 +144,8 @@ missing `.adr-dir` target or a dangling folder symlink still reports it.
 Details that decide what fires:
 
 - Links: only links that resolve into an ADR folder and name an ADR file. Code
-  fences and inline code are skipped.
+  fences, inline code, and HTML comments are skipped; text after a one-line
+  comment's `-->` is still read.
 - Cited paths: backticked repo-relative paths whose first directory exists in
   the repository, anywhere in the prose, not only the Decision section. Only
   records whose status is accepted, proposed, draft, approved, or empty are
@@ -153,7 +156,9 @@ Details that decide what fires:
   (`Supersedes [1. Use X](0001-use-x.md)`). A frontmatter value counts when it
   holds an `ADR-N` reference, a link or path to a numbered ADR file, or is a
   whole integer. A date is not an edge. Each (kind, number) pair is one edge, and
-  a frontmatter finding carries the line of its key. A number resolves in the
+  a frontmatter finding carries the line of its key. When frontmatter declares
+  an edge kind, prose edges of that kind are dropped, since status prose often
+  tells a longer chain. A number resolves in the
   citing record's folder first, then in the one other folder that holds it.
   When two other folders hold it, the edge is not checked. A back-edge counts
   only when it resolves, from its own folder, to the record that cites it. When

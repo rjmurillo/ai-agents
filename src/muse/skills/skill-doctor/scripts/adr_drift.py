@@ -48,7 +48,7 @@ from adr_corpus import (
     read_docs,
     within,
 )
-from adr_git import GitError, run_git
+from adr_git import GitError, lazy_fetch_refusal, run_git
 from adr_history import head_commit, history_findings, read_commits
 from adr_text import GROUPS, SCAN_MAX_BYTES, SETUP
 
@@ -146,6 +146,12 @@ def run_scan(args: argparse.Namespace) -> int:
     out = Path(args.out).expanduser().resolve()
     if within(out, repo):
         raise ExitError(2, f"--out {args.out} is inside the repository; scan never writes there")
+    try:
+        refusal = lazy_fetch_refusal(repo)
+    except GitError as exc:
+        raise ExitError(3, str(exc)) from exc
+    if refusal is not None:
+        raise ExitError(2, refusal)
     survey = find_adr_dirs(repo)
     docs = read_docs(survey)
     findings: list[Finding] = []

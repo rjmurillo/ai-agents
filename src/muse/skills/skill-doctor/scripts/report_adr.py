@@ -45,6 +45,8 @@ def _read_json(base: Path, name: Any, label: str) -> Any:
     if root != path and root not in path.parents:
         raise AdrInputError(f"{label} {name} is outside the report directory")
     try:
+        if path.exists() and not path.is_file():  # a FIFO would block the read forever
+            raise AdrInputError(f"{label} {name} is not a regular file")
         if path.stat().st_size > MAX_FILE_BYTES:
             raise AdrInputError(f"{label} {name} is larger than {MAX_FILE_BYTES} bytes")
         return json.loads(path.read_text(encoding="utf-8"))

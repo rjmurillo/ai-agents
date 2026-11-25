@@ -459,7 +459,8 @@ def check_cited_paths(repo: Path, docs: Sequence[AdrDoc]) -> list[Finding]:
             evidence = {"path": doc.file.rel, "line": line, "cited": path}
             fix = (
                 f"Update {doc.file.rel} line {line}: `{path}` no longer exists. "
-                "Name its replacement or mark the record superseded."
+                "Name the file's current path, or drop the citation. Supersede the record only if"
+                " the decision itself changed."
             )
             findings.append(
                 _found(

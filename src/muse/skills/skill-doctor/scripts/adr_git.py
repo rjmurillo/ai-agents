@@ -6,6 +6,7 @@ python3, stdlib only, no network.
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 from collections.abc import Sequence
 from pathlib import Path
@@ -13,7 +14,7 @@ from pathlib import Path
 GIT_TIMEOUT_SECONDS = 120
 # The variables `git rev-parse --local-env-vars` lists, plus the namespace and discovery
 # ceiling. Inherited, any of them points git at another repository whatever `-C` says.
-# skill-bootstrap's adr_scan.py strips the same set.
+# skill-bootstrap's adr_scan.py strips the same set; a test compares the two.
 LOCAL_GIT_ENV = frozenset(
     "GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_CEILING_DIRECTORIES GIT_COMMON_DIR GIT_CONFIG "
     "GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS GIT_DIR "
@@ -78,4 +79,39 @@ def _git_env() -> dict[str, str]:
     """No repository redirection, no prompt, no lock writes, and no replacement objects."""
     env = {key: value for key, value in os.environ.items() if key not in LOCAL_GIT_ENV}
     env.update(GIT_OPTIONAL_LOCKS="0", GIT_TERMINAL_PROMPT="0", GIT_NO_REPLACE_OBJECTS="1")
+    # A partial clone would fetch a missing blob for `git log -M`; this stops it.
+    env["GIT_NO_LAZY_FETCH"] = "1"
     return env
+
+
+# GIT_NO_LAZY_FETCH came in git 2.45.1 and the May 2024 releases of 2.39 to 2.44. An older
+# git ignores it, so a partial clone is refused there. Copied from skill-bootstrap.
+NO_LAZY_FETCH_GIT = (2, 45, 1)
+NO_LAZY_FETCH_BACKPORTS = {(2, 39): 4, (2, 40): 2, (2, 41): 1, (2, 42): 2, (2, 43): 4, (2, 44): 1}
+PROMISOR = re.compile(
+    r"extensions\.partialclone \S|remote\..*\.partialclonefilter(?: |\Z)"
+    r"|remote\..*\.promisor(?:\Z| (?!false|no|off|0\b)\S)"
+)
+GIT_VERSION = re.compile(r"git version ([0-9]+)\.([0-9]+)\.([0-9]+)", re.ASCII)
+
+
+def lazy_fetch_refusal(repo: Path) -> str | None:
+    """Why a scan must not run here, or None: a partial clone on a git that may fetch."""
+    keys = r"^(extensions\.partialclone|remote\..*\.(promisor|partialclonefilter))$"
+    try:
+        config = run_git(repo, ["config", "--get-regexp", keys]).lower()
+    except GitError as exc:
+        if exc.returncode != 1:  # 1 means no key matched
+            raise
+        return None
+    if not any(PROMISOR.match(line) for line in config.splitlines()):
+        return None
+    found = GIT_VERSION.match(run_git(repo, ["version"]))
+    version = tuple(int(part) for part in found.groups()) if found else (0, 0, 0)
+    floor = NO_LAZY_FETCH_BACKPORTS.get(version[:2])
+    if version >= NO_LAZY_FETCH_GIT or (floor is not None and version[2] >= floor):
+        return None
+    return (
+        "this is a partial clone, and a git without GIT_NO_LAZY_FETCH (before 2.45.1 or its"
+        " May 2024 backports) may fetch from the remote; upgrade git or scan a full clone"
+    )
