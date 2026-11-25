@@ -146,8 +146,10 @@ print("ok")
 """
 
 VALIDATOR_CRITICAL = """\
-print("CRITICAL: File mentioned but not in diff: old.py")
-print("other line")
+print("  CRITICAL: 1")
+print("[CRITICAL] File mentioned but not in diff")
+print("  File: old.py")
+print("  Description claims this file was changed, but it is not in the PR diff.")
 raise SystemExit(1)
 """
 

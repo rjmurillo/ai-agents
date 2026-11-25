@@ -5,7 +5,7 @@ Phase 1 of the ship driver (ADR-127). Prints result lines and ends on one
 ``NEXT:`` or ``STOP:`` line.
 
 Result lines: HOST, REMOTE_HOST, BRANCH, BASE, HEAD, PR, PR_URL, PR_AUTHOR,
-MODE. ``PR: none`` is printed only after a query that proved no open PR
+PR_DRAFT, MODE. ``PR: none`` is printed only after a query that proved no open PR
 exists; a failed query is a STOP, never ``PR: none``.
 
 Exit codes (ADR-035): 0 NEXT, 1 logic STOP, 2 config STOP, 3 external STOP,
@@ -82,21 +82,30 @@ def _auth_failure(stderr: str) -> bool:
     return any(signal in lowered for signal in _AUTH_SIGNALS)
 
 
-def _query_halt(reason: str, done) -> Halt:
+def query_halt(reason: str, done) -> Halt:
     detail = done.stderr.strip().splitlines()[-1:] or [f"exit {done.returncode}"]
     if _auth_failure(done.stderr):
         return Halt("auth-failed", common.EXIT_AUTH, detail[0])
     return Halt(reason, common.EXIT_EXTERNAL, detail[0])
 
 
-def _default_base(root: Path) -> str:
+def default_branch(root: Path) -> str:
+    """The origin default branch: origin/HEAD, else origin/main or origin/master, else main."""
     done = common.git(["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"], cwd=root)
     value = done.stdout.strip()
     if done.returncode == 0 and value.startswith("origin/"):
         candidate = value[len("origin/") :]
         if common.safe_ref(candidate):
             return candidate
+    for candidate in ("main", "master"):
+        probe = ["rev-parse", "--verify", "--quiet", f"refs/remotes/origin/{candidate}"]
+        if common.git(probe, cwd=root).returncode == 0:
+            return candidate
     return "main"
+
+
+# A branch ship never publishes from, whatever --base says.
+PROTECTED_BRANCHES = frozenset({"main", "master"})
 
 
 def _github_pr(root: Path) -> tuple[int | None, str, str, bool | None] | Halt:
@@ -104,7 +113,7 @@ def _github_pr(root: Path) -> tuple[int | None, str, str, bool | None] | Halt:
     if done.returncode != 0:
         if _NO_PR_SIGNAL in done.stderr.lower():
             return (None, "", "", None)
-        return _query_halt("pr-query-failed", done)
+        return query_halt("pr-query-failed", done)
     data = common.parse_json(done.stdout)
     if not isinstance(data, dict) or not isinstance(data.get("number"), int):
         return Halt("pr-query-failed", common.EXIT_EXTERNAL, "gh returned no PR number")
@@ -119,7 +128,7 @@ def _github_user(root: Path) -> str | Halt:
     done = common.run(["gh", "api", "user", "--jq", ".login"], cwd=root)
     login = done.stdout.strip()
     if done.returncode != 0 or not login:
-        return _query_halt("user-query-failed", done)
+        return query_halt("user-query-failed", done)
     return login
 
 
@@ -140,7 +149,7 @@ def _ado_pr(root: Path, branch: str) -> tuple[int | None, str, str, bool | None]
         cwd=root,
     )
     if done.returncode != 0:
-        return _query_halt("pr-query-failed", done)
+        return query_halt("pr-query-failed", done)
     data = common.parse_json(done.stdout)
     if not isinstance(data, list):
         return Halt("pr-query-failed", common.EXIT_EXTERNAL, "az returned no PR list")
@@ -164,7 +173,7 @@ def _ado_user(root: Path) -> str | Halt:
     )
     name = done.stdout.strip()
     if done.returncode != 0 or not name:
-        return _query_halt("user-query-failed", done)
+        return query_halt("user-query-failed", done)
     return name
 
 
@@ -214,7 +223,7 @@ def detect(cwd: Path | None = None, base: str | None = None) -> Context | Halt:
     if isinstance(checkout, Halt):
         return checkout
     root, host, host_name, branch, head = checkout
-    target = base or _default_base(root)
+    target = base or default_branch(root)
     pr_query = _github_pr(root) if host == "github" else _ado_pr(root, branch)
     if isinstance(pr_query, Halt):
         return pr_query

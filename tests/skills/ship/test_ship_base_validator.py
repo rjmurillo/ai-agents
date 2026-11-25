@@ -75,7 +75,7 @@ def test_base_copy_runs_private_isolated_and_against_the_checkout(
     assert os.path.realpath(seen["cwd"]) == os.path.realpath(repo)
     assert not seen["file"].startswith(str(repo))
     assert seen["argv"][0] == "--body-file"
-    assert seen["argv"][-2:] == ["--base", "origin/main"]
+    assert seen["argv"][-2:] == ["--base", "refs/remotes/origin/main"]
     assert not os.path.exists(seen["file"]), "the private copy outlived the check"
 
 

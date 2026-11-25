@@ -27,7 +27,11 @@ class TestPublishAdo:
         repo = make_repo(ADO)
         fakes.no_pr_ado()
         fakes.marker(0)
-        fakes.rule("validate_pr_description", [], {"stdout": ""})
+        fakes.rule(
+            "validate_pr_description",
+            [],
+            {"stdout": json.dumps({"ErrorCount": 0, "WarningCount": 1, "Validations": {}})},
+        )
         return repo, body_file(repo)
 
     def test_create_uses_the_fixed_argument_list(self, ado, fakes, scripts, capsys):

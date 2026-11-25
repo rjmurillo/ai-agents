@@ -227,10 +227,6 @@ class Result:
         self._set_terminal(("STOP", f"{reason} {text}".rstrip()), code)
         return self
 
-    @property
-    def stopped(self) -> bool:
-        return self.terminal is not None and self.terminal[0] == "STOP"
-
     def _set_terminal(self, terminal: tuple[str, str], code: int) -> None:
         if self._terminal is not None:
             raise ValueError("terminal line already set")
@@ -402,6 +398,10 @@ def run(
         )
     except FileNotFoundError:
         return Completed(127, "", f"{argv[0]}: not found")
+    except OSError as exc:
+        # A binary that exists but cannot run (no execute bit, bad format) is
+        # a failed call, never a crash, so the script still ends on STOP.
+        return Completed(126, "", f"{argv[0]}: cannot run: {exc.strerror or exc}")
     except subprocess.TimeoutExpired:
         return Completed(124, "", f"{argv[0]}: timed out after {timeout:g}s")
     return Completed(done.returncode, done.stdout or "", done.stderr or "")

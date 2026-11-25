@@ -1,8 +1,8 @@
 """Negative tests for the five security findings fixed in the ship scripts.
 
 Each class names one finding from the 2026-11-25 security review of the ship
-driver draft. The sixth finding (the repository-local path validator runs
-checkout code) is an owner decision and stays open; it has no test here.
+driver draft. The sixth finding (the paths validator ran checkout code) is
+covered by test_ship_base_validator.py, after the owner's option A ruling.
 """
 
 from __future__ import annotations

@@ -141,15 +141,17 @@ def _check_paths(ctx, body_file: Path, base: str, result) -> bool | None:
     Returns True on a pass, False on a failure, and None when it could not run.
     A None is not a pass: the model must compare the paths by hand.
     """
-    ref = f"origin/{base}"
+    # The full remote-tracking name: a tag named origin/<base> cannot shadow it.
+    ref = f"refs/remotes/origin/{base}"
+    shown = f"origin/{base}"
     files = _base_files(ctx, ref)
     if files is None:
-        _not_run(result, f"{ref} has no path validator")
+        _not_run(result, f"{shown} has no path validator")
         return None
     with tempfile.TemporaryDirectory(prefix="ship-validator-") as directory:
         tree = Path(directory)
         if not _write_private_tree(ctx, ref, files, tree):
-            _not_run(result, f"could not copy the validator from {ref}")
+            _not_run(result, f"could not copy the validator from {shown}")
             return None
         done = common.run(
             [
@@ -168,15 +170,28 @@ def _check_paths(ctx, body_file: Path, base: str, result) -> bool | None:
         result.add("CHECK", "paths=PASS")
         return True
     if done.returncode != 1 or "Traceback (most recent call last)" in done.stderr:
-        _not_run(result, f"the {ref} validator could not run (exit {done.returncode})")
+        _not_run(result, f"the {shown} validator could not run (exit {done.returncode})")
         return None
     result.add("CHECK", f"paths=FAIL exit={done.returncode}")
-    findings = [
-        line for line in done.stdout.splitlines() if "not in diff" in line or "CRITICAL" in line
-    ]
-    for line in findings[:10]:
-        result.add("FINDING", line)
+    for finding in critical_findings(done.stdout)[:10]:
+        result.add("FINDING", finding)
     return False
+
+
+def critical_findings(output: str) -> list[str]:
+    """``<issue>: <file>`` for each ``[CRITICAL]`` block the validator printed."""
+    findings: list[str] = []
+    issue = None
+    for line in output.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("[CRITICAL]"):
+            issue = stripped[len("[CRITICAL]") :].strip() or "critical"
+        elif issue and stripped.startswith("File:"):
+            findings.append(f"{issue}: {stripped[len('File:') :].strip()}")
+            issue = None
+    return findings or [
+        line for line in output.splitlines() if line.strip().startswith("[CRITICAL]")
+    ]
 
 
 def _check_ado_description(ctx, title: str, body_file: Path, result) -> bool:
@@ -189,11 +204,33 @@ def _check_ado_description(ctx, title: str, body_file: Path, result) -> bool:
         [sys.executable, "-I", str(helper), "--title", title, "--body-file", str(body_file)],
         cwd=ctx.root,
     )
-    if done.returncode != 0 or re.search(r"(?m)^\s*Errors\b", done.stdout):
-        result.add("CHECK", f"description=FAIL exit={done.returncode}")
+    problem = description_problem(done.returncode, done.stdout)
+    if problem:
+        result.add("CHECK", f"description=FAIL {problem}")
         return False
     result.add("CHECK", "description=PASS")
     return True
+
+
+def description_problem(returncode: int, stdout: str) -> str | None:
+    """Read validate_pr_description.py's JSON report; None when it holds no error.
+
+    Without --fail-on-violation the helper exits 0 even on an error, so the
+    report's ErrorCount decides, not the exit code.
+    """
+    if returncode != 0:
+        return f"exit={returncode}"
+    start = stdout.find("{")
+    report = common.parse_json(stdout[start:]) if start >= 0 else None
+    if not isinstance(report, dict) or not isinstance(report.get("ErrorCount"), int):
+        return "the validator report did not parse"
+    if report["ErrorCount"] == 0:
+        return None
+    validations = report.get("Validations") if isinstance(report.get("Validations"), dict) else {}
+    for name, item in validations.items():
+        if isinstance(item, dict) and item.get("Status") == "FAIL":
+            return f"{name}: {item.get('Message', '')}".strip()
+    return f"errors={report['ErrorCount']}"
 
 
 def _report(result, name: str, problem: str | None) -> bool:

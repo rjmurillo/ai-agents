@@ -208,7 +208,11 @@ class TestAdoDescriptionAfterTitleFailure:
     ):
         repo = make_repo("https://dev.azure.com/contoso/p/_git/r")
         fakes.no_pr_ado()
-        fakes.rule("validate_pr_description", [], {"stdout": ""})
+        fakes.rule(
+            "validate_pr_description",
+            [],
+            {"stdout": json.dumps({"ErrorCount": 0, "WarningCount": 1, "Validations": {}})},
+        )
         code, lines = run_pr(
             scripts, capsys, "check", "--title=-x: injected", "--body-file", str(body_file(repo))
         )

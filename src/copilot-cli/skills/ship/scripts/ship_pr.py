@@ -9,8 +9,9 @@ Phases 3 and 4 of the ship driver (ADR-127). Owns every step the retired
   check   --title T --body-file F    title, body, paths-in-diff, ADO rules
   publish --title T --body-file F    push, then create the PR (or reuse one)
 
-``publish`` refuses contributor mode, a dirty tree, an unreviewed HEAD
-(unless ``--draft``), and any failed ``check``. It never creates a commit and
+``publish`` refuses contributor mode, a base branch, a dirty tree, an
+unreviewed HEAD, and any failed ``check``. ``--draft`` skips the review
+marker only for a new draft PR or an open PR the host reports as a draft. It never creates a commit and
 never force-pushes: a rejected push is ``STOP: push-rejected`` for a human.
 On Azure DevOps it passes only ``--title``, ``--description @<checked file>``,
 ``--target-branch``, ``--draft``, and ``--output json``, and stops when the
@@ -73,7 +74,8 @@ REASONS = preflight_mod.REASONS | frozenset(
     }
 )
 BODY_MARKER = checks_mod.BODY_MARKER
-PUSH_TIMEOUT_SECONDS = 3600
+# Under the 600-second agent tool cap, so a slow pre-push hook ends on a STOP.
+PUSH_TIMEOUT_SECONDS = 540
 _BRANCH_RE = re.compile(
     r"^(feat|fix|docs|refactor|test|chore|ci|build|perf|style|revert)/[a-z0-9][a-z0-9-]{1,60}$"
 )
@@ -182,6 +184,12 @@ def _push(ctx, result):
         )
     elif any(signal in lowered for signal in _PUSH_AUTH_SIGNALS):
         result.stop("auth-failed", common.EXIT_AUTH, "push was not authorized")
+    elif done.returncode == 124:
+        result.stop(
+            "push-failed",
+            common.EXIT_EXTERNAL,
+            f"push timed out after {PUSH_TIMEOUT_SECONDS}s; check the remote, then rerun publish",
+        )
     else:
         last = done.stderr.strip().splitlines()[-1:] or [f"exit {done.returncode}"]
         result.stop("push-failed", common.EXIT_EXTERNAL, last[0])
@@ -227,7 +235,7 @@ def _create_ado(ctx, args, body: Path, result):
     ]
     done = common.run(argv, cwd=ctx.root, timeout=180)
     if done.returncode != 0:
-        halt = detect_mod._query_halt("pr-create-failed", done)
+        halt = detect_mod.query_halt("pr-create-failed", done)
         return result.stop(halt.reason, halt.code, halt.detail)
     data = common.parse_json(done.stdout)
     if not isinstance(data, dict) or not isinstance(data.get("pullRequestId"), int):
@@ -302,6 +310,13 @@ def cmd_publish(args, result, _root: Path):
         return result.stop(
             "contributor-mode", common.EXIT_LOGIC, "the open PR belongs to another author"
         )
+    protected = detect_mod.PROTECTED_BRANCHES | {ctx.base, detect_mod.default_branch(ctx.root)}
+    if ctx.branch in protected:
+        return result.stop(
+            "on-base-branch",
+            common.EXIT_LOGIC,
+            f"{ctx.branch} is a base branch; create a feature branch",
+        )
     body = _body_file(args, result, ctx)
     if body is None or not _review_gate(ctx, args, result):
         return result
@@ -331,7 +346,6 @@ def build_parser():
         if name == "publish":
             command.add_argument("--draft", action="store_true")
             command.add_argument("--require-axis", action="append", default=[])
-        if name == "publish":
             command.add_argument(
                 "--paths-checked-by-hand",
                 action="store_true",
@@ -370,7 +384,7 @@ def run(argv: list[str]):
             None,
         )
     for axis in getattr(args, "require_axis", []):
-        if not re.match(r"^[a-z][a-z0-9-]*$", axis):
+        if not preflight_mod.AXIS_RE.match(axis):
             return (
                 result.stop(
                     "bad-arguments",

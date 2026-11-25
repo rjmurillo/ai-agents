@@ -21,6 +21,7 @@ Exit codes (ADR-035): 0 NEXT, 1 logic STOP, 2 config STOP, 3 external STOP,
 from __future__ import annotations
 
 import importlib.util
+import os
 import re
 import sys
 import time
@@ -62,7 +63,7 @@ DEFAULT_CALL_WAIT = 480
 MAX_CALL_WAIT = 540
 POLL_SECONDS = 30
 CHECKS_TIMEOUT_SECONDS = 300
-_AXIS_RE = re.compile(r"^[a-z][a-z0-9-]*$")
+AXIS_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 _PASS_AXES_RE = re.compile(r"/review@([a-z0-9,-]+)")
 # One Halt type across the ship scripts, so a detect-side halt reads as a halt here.
 Halt = detect_mod.Halt
@@ -129,7 +130,9 @@ def check_reviewed(ctx, draft: bool, require_axes: list[str]) -> Check | Halt:
         return Check(
             "reviewed", "FAIL", refused + (lines[-1] if lines else "no valid review marker")
         )
-    return Halt("validator-config", common.EXIT_CONFIG, f"validator exit {done.returncode}")
+    last = [line for line in done.stderr.splitlines() if line.strip()][-1:]
+    detail = f"validator exit {done.returncode}" + (f": {last[0]}" if last else "")
+    return Halt("validator-config", common.EXIT_CONFIG, detail)
 
 
 def _github_head(ctx, pr: int) -> tuple[str, str] | Halt:
@@ -137,7 +140,7 @@ def _github_head(ctx, pr: int) -> tuple[str, str] | Halt:
         ["gh", "pr", "view", str(pr), "--json", "headRefName,headRefOid"], cwd=ctx.root
     )
     if done.returncode != 0:
-        return detect_mod._query_halt("checks-query-failed", done)
+        return detect_mod.query_halt("checks-query-failed", done)
     data = common.parse_json(done.stdout)
     if not isinstance(data, dict) or not data.get("headRefName") or not data.get("headRefOid"):
         return Halt("checks-query-failed", common.EXIT_EXTERNAL, f"PR {pr} head did not parse")
@@ -185,9 +188,12 @@ def _read_github_checks(ctx, pr: int, wait_seconds: int) -> tuple[int, dict] | C
     envelope = common.parse_json(lines[-1]) if lines else None
     data = envelope.get("Data") if isinstance(envelope, dict) else None
     if not isinstance(data, dict) or done.returncode not in (0, 1):
-        return Halt(
-            "checks-query-failed", common.EXIT_EXTERNAL, f"get_pr_checks exit {done.returncode}"
-        )
+        error = envelope.get("Error") if isinstance(envelope, dict) else None
+        message = error.get("Message") if isinstance(error, dict) else None
+        stderr = [line for line in done.stderr.splitlines() if line.strip()][-1:]
+        reason = message or (stderr[0] if stderr else "")
+        detail = f"get_pr_checks exit {done.returncode}" + (f": {reason}" if reason else "")
+        return Halt("checks-query-failed", common.EXIT_EXTERNAL, detail)
     return done.returncode, data
 
 
@@ -195,6 +201,9 @@ def _github_verdict(ctx, pr: int, code: int, data: dict) -> Check:
     """Turn one get_pr_checks.py result into PASS or FAIL. Exit 0 alone is not green."""
     if code == 0 and data.get("RequiredState") == "SUCCESS" and data.get("AllPassing") is True:
         return Check("pipeline", "PASS", f"pr={pr} head={ctx.head[:12]}")
+    if data.get("RequiredState") == "PENDING" and not data.get("FailedRequiredChecks"):
+        # Read without waiting, or the wait ended early: still running, not failed.
+        return Check("pipeline", "PENDING", f"pr={pr} required checks still running")
     names = []
     for key in ("FailedRequiredChecks", "MissingRequiredChecks", "PendingRequiredChecks"):
         for item in data.get(key) or []:
@@ -243,7 +252,7 @@ def _ado_policy_rows(ctx, pr: int) -> list[dict] | Halt:
         cwd=ctx.root,
     )
     if done.returncode != 0:
-        return detect_mod._query_halt("pipeline-query-failed", done)
+        return detect_mod.query_halt("pipeline-query-failed", done)
     rows = common.parse_json(done.stdout)
     if not isinstance(rows, list):
         return Halt("pipeline-query-failed", common.EXIT_EXTERNAL, "policy list did not parse")
@@ -272,7 +281,7 @@ def _ado_state(ctx, pr: int) -> dict | Halt:
         cwd=ctx.root,
     )
     if done.returncode != 0:
-        return detect_mod._query_halt("pipeline-query-failed", done)
+        return detect_mod.query_halt("pipeline-query-failed", done)
     data = common.parse_json(done.stdout)
     if not isinstance(data, dict):
         return Halt("pipeline-query-failed", common.EXIT_EXTERNAL, "pr show did not parse")
@@ -306,7 +315,7 @@ def _ado_evaluate(ctx, pr: int, rows: list[dict], state: dict) -> Check | Halt:
             cwd=ctx.root,
         )
         if build.returncode != 0:
-            return detect_mod._query_halt("pipeline-query-failed", build)
+            return detect_mod.query_halt("pipeline-query-failed", build)
         info = common.parse_json(build.stdout)
         if not isinstance(info, dict):
             return Halt("pipeline-query-failed", common.EXIT_EXTERNAL, "build show did not parse")
@@ -369,7 +378,11 @@ def build_parser():
     parser.add_argument(
         "--pr", type=int, default=None, help="PR to check; marks the discharge phase"
     )
-    parser.add_argument("--draft", action="store_true", help="Skip the review marker check")
+    parser.add_argument(
+        "--draft",
+        action="store_true",
+        help="Skip the marker check for a new draft PR or a host-reported draft PR only",
+    )
     parser.add_argument("--require-axis", action="append", default=[])
     parser.add_argument(
         "--deadline", type=int, default=None, help="Epoch second printed by a PENDING run"
@@ -389,11 +402,45 @@ def _validate(args) -> str | None:
     if not 0 <= args.wait_seconds <= MAX_CALL_WAIT:
         return f"--wait-seconds must be 0 to {MAX_CALL_WAIT}"
     for axis in args.require_axis:
-        if not _AXIS_RE.match(axis):
+        if not AXIS_RE.match(axis):
             return "--require-axis must be a lowercase axis name"
     if len(set(args.check)) != len(args.check):
         return "--check repeats a check"
     return None
+
+
+def bound_deadline(ctx, pr: int | None, requested: int | None) -> int:
+    """The 30-minute pipeline deadline for this PR and HEAD.
+
+    The first call writes it to a scratch state file keyed by host, PR, and
+    HEAD. Later calls read that file, so a rerun or an omitted --deadline
+    cannot extend the window. A --deadline can only shorten it.
+    """
+    now = int(time.time())
+    window = now + TOTAL_WAIT_SECONDS
+    stored = window
+    directory = common.scratch_dir(ctx.root, create=True) if pr is not None else None
+    if directory is not None:
+        path = directory / f"ship-deadline-{ctx.host}-{pr}-{ctx.head[:12]}.txt"
+        stored = _read_deadline(path)
+        if stored is None:
+            stored = window
+            try:
+                flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+                with os.fdopen(os.open(path, flags, 0o600), "w", encoding="utf-8") as handle:
+                    handle.write(str(stored))
+            except OSError:
+                pass
+    return min(stored, requested) if requested is not None else stored
+
+
+def _read_deadline(path) -> int | None:
+    if path.is_symlink() or not path.is_file():
+        return None
+    try:
+        return int(path.read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return None
 
 
 def _run_check(name, ctx, args, pr, wait_seconds, after_publish, deadline) -> Check | Halt:
@@ -438,7 +485,7 @@ def run(argv: list[str]):
     detect_mod.add_context_lines(result, ctx)
     pr = args.pr if args.pr is not None else ctx.pr
     after_publish = args.pr is not None
-    deadline = args.deadline if args.deadline is not None else int(time.time()) + TOTAL_WAIT_SECONDS
+    deadline = bound_deadline(ctx, pr, args.deadline)
     wait_seconds = max(0, min(args.wait_seconds, deadline - int(time.time())))
 
     checks: list[Check] = []

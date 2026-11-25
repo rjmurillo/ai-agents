@@ -81,6 +81,9 @@ Runs the checks that have one right answer.
 - `pipeline` reads checks only when the PR head branch and SHA match the local branch and HEAD.
   A stale head is `DEFERRED` before publish and `PENDING` after it.
 - `PENDING` ends on `NEXT: rerun-pipeline` with a `PIPELINE_DEADLINE:` line. Past the 30-minute deadline it is `FAIL`.
+  The first call stores that deadline in a scratch state file keyed by host, PR, and HEAD, so a rerun cannot extend it.
+- On GitHub each call waits at most 300 seconds (`--wait-seconds` is clamped to `get_pr_checks.py`'s per-call budget).
+  Required checks still running when the call returns are `PENDING`, never `FAIL`.
 - `reviewed` wraps the existing review-marker validator. It does not reimplement it.
 
 Security scan and tests stay as model-run steps. They need judgment on findings.
@@ -98,6 +101,7 @@ Owns everything `/push-pr` did after the body is written.
 
 `publish` rules, all enforced in code:
 
+- It refuses to publish from a base branch (`main`, `master`, the origin default, or `--base`): `STOP: on-base-branch`, exit 1. `--draft` does not lift this.
 - It refuses a dirty tree: `STOP: tree-dirty`, exit 1.
 - It refuses when HEAD is not the reviewed SHA: `STOP: head-not-reviewed`, exit 1.
   `--draft` skips that check only for a new PR or an open PR the host reports as a draft.
@@ -141,7 +145,9 @@ A STOP detail is at most 500 characters.
 | `ship_preflight.py` | the detect keys, `CHECK`, `PIPELINE_DEADLINE` | `write-body`, `report`, `publish-then-discharge`, `rerun-pipeline` | `--check` (repeatable), `--base`, `--pr`, `--draft`, `--require-axis`, `--deadline`, `--wait-seconds` (0 to 540) |
 | `ship_pr.py` | `BRANCH`, `BODY_FILE`, `CHECK`, `FINDING`, `PUSH`, `PR`, and the detect keys with `PR_AT_PREFLIGHT` in place of `PR` | `commit-then-review`, `write-body`, `compare-paths-by-hand`, `publish`, `discharge` | per subcommand, in the table above |
 
-`--deadline` takes only the `PIPELINE_DEADLINE` value a `PENDING` run printed. A later epoch second is refused.
+`--deadline` can only shorten the stored 30-minute window. A value past 30 minutes from the call is refused, and an omitted value reuses the stored deadline.
+The base branch defaults to `origin/HEAD`, else `origin/main` or `origin/master`, else `main`.
+A failed paths check prints one `FINDING: <issue>: <file>` line per critical finding. The Azure DevOps description check reads the helper's JSON `ErrorCount`.
 
 STOP reasons, by the script that first declares them. A later script also uses the reasons of the scripts it builds on.
 

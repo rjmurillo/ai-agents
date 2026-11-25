@@ -147,7 +147,7 @@ class TestCheck:
         code, lines = run_pr(scripts, capsys, "check", "--title", TITLE, "--body-file", str(body))
         assert code == 1
         assert "paths=FAIL exit=1" in values(lines, "CHECK")
-        assert values(lines, "FINDING") == ["CRITICAL: File mentioned but not in diff: old.py"]
+        assert values(lines, "FINDING") == ["File mentioned but not in diff: old.py"]
 
     def test_base_validator_pass(self, owner, base_validator, scripts, capsys):
         repo, body = owner
@@ -160,8 +160,29 @@ class TestCheck:
     @pytest.mark.parametrize(
         ("response", "verdict"),
         [
-            ({"stdout": "Warnings:\n  no Closes keyword\n"}, "description=PASS"),
-            ({"stdout": "Errors:\n  bad title\n"}, "description=FAIL exit=0"),
+            (
+                {"stdout": json.dumps({"ErrorCount": 0, "WarningCount": 2, "Validations": {}})},
+                "description=PASS",
+            ),
+            (
+                {
+                    "stdout": json.dumps(
+                        {
+                            "ErrorCount": 1,
+                            "Validations": {
+                                "IssueKeywords": {"Status": "WARN", "Message": "no keyword"},
+                                "ConventionalCommit": {"Status": "FAIL", "Message": "bad title"},
+                            },
+                        }
+                    )
+                },
+                "description=FAIL ConventionalCommit: bad title",
+            ),
+            (
+                {"stdout": json.dumps({"ErrorCount": 2, "Validations": {}})},
+                "description=FAIL errors=2",
+            ),
+            ({"stdout": "not a report"}, "description=FAIL the validator report did not parse"),
             ({"rc": 1}, "description=FAIL exit=1"),
         ],
     )

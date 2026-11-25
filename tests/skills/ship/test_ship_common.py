@@ -81,7 +81,6 @@ class TestResultContract:
         result = _result().stop("x-failed", code, "why")
         assert result.exit_code == code
         assert result.terminal == ("STOP", "x-failed why")
-        assert result.stopped
 
     @pytest.mark.parametrize("code", [0, 5, 7])
     def test_stop_rejects_other_codes(self, code):
