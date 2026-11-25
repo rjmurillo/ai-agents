@@ -2,10 +2,10 @@
 
 ## Summary
 
-- **Rounds**: 2 of 10
+- **Rounds**: 4 of 10
 - **Prior debate log**: `.project-toolkit/critique/ADR-057-debate-log-2.md`
 - **Outcome**: Consensus (2 Accept)
-- **Final Status**: accepted. The record's status is unchanged. This debate covers one sentence.
+- **Final Status**: accepted. The record's status is unchanged. This debate covers three sentences.
 - **Panel**: reduced, architect and critic. The edit removes a contradiction in prose. It changes no executable enforcement.
 - **Trigger**: a review bot on PR #7629 noted that criterion 2 says a behavior change updates scenario expectations alongside the prompt. That contradicts the gated-change freeze.
 - **Date**: 2026-11-25
@@ -44,6 +44,34 @@
 |-------|----------|
 | architect | Accept. Line 92 matches ADR-127 and the shipped check. |
 | critic | Accept. "Gated skill change" scopes it away from non-gated prompts. |
+
+## Round 3 Summary
+
+### Key Issues Addressed
+
+- A second review bot found lines 89 and 112 still say no CI check blocks a merge on a FAIL.
+- The critic found the first line 89 text too narrow. The check also fails closed on missing or invalid evidence.
+
+### Major Changes Made
+
+- Line 89 now ends: "The one exception is an ADR-127 gated skill change, where the deterministic evidence check blocks a recomputed FAIL and any missing or invalid evidence (Amendment 2026-11-25)."
+- Line 112 now ends: "An ADR-127 gated skill change is the exception (Amendment 2026-11-25)."
+
+### Agent Positions
+
+| Agent | Position |
+|-------|----------|
+| architect | Accept. No other line still claims nothing blocks; the `/spec` lines stay accurate. |
+| critic | Disagree-and-Commit until line 89 names missing or invalid evidence |
+
+## Round 4 Summary
+
+### Agent Positions
+
+| Agent | Position |
+|-------|----------|
+| architect | Accept. The wording matches Amendment 2026-11-25 items 1 and 3. |
+| critic | Accept. Its replacement text is applied verbatim. |
 
 ### Next Steps
 
