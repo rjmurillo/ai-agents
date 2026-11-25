@@ -60,12 +60,14 @@ gstack rows were read from a clone of `github.com/garrytan/gstack` at `ec5d7e6fb
 | 51 | ADR-103 is accepted and requires `--output-format` with `json`, `human`, `auto`; `auto` resolves to `json` when stdout is redirected | quote | `sed -n 3p`; `sed -n 92,100p` on ADR-103 | VERIFIED: decision items 2, 3, and 4 |
 | 52 | The runner records the base as a ref name, not a commit | path | `sed -n 1031p scripts/eval/eval-prompt-change.py` | VERIFIED: `source = f"git: {args.base_ref}:{before_path} -> working copy"` |
 | 53 | The runner excludes a scenario with an unstable base from regressions | path | `sed -n 769,772p scripts/eval/eval-prompt-change.py` | VERIFIED: `if is_base_unstable(...)` appends to `base_unstable_scenarios` and skips the regression branch |
+| 54 | ADR-103 gives the envelope `Success`, `Data`, `Error`, and `Metadata`, and makes `Error.Code` the ADR-035 exit code | quote | `sed -n 92,93p`; `sed -n 103,104p` on ADR-103 | VERIFIED: decision items 1 and 6 |
+| 55 | The runner treats three base shapes as unstable: a pass that is flaky, fewer than the required scored runs, and a resample that contradicts a clean first pass. ADR-127 decision 7 item 7 names the first two and points to the runner's list for the rest | behavior | read `is_base_unstable`, `scripts/eval/eval-prompt-change.py:518-540` | VERIFIED: three return paths |
 
 ## Gate results
 
 | Gate | Result |
 |---|---|
-| Claims ledger | VERIFIED: 50 rows. Rows 33 to 47 were added in debate round 1 and rows 48 to 50 in round 2. Rows 51 to 53 were added in the fourth debate |
+| Claims ledger | VERIFIED: 55 rows. Rows 33 to 47 were added in the first debate's round 1 and rows 48 to 50 in its round 2. Rows 51 to 55 were added in and after the fourth debate |
 | Documentation accuracy | Phase 4 ran once on 2026-11-25 (Sonnet, 11 tool uses, 61 s). 7 findings: 2 High, 2 Medium, 3 Low. All 7 fixed in the draft before the panel. High 1: the eval command pointed at the template, which feeds raw partial tags and skips `references/`. High 2: the draft called the grade deterministic and cited ADR-058. VERIFIED after the fixes by rows 28 to 31 |
 | Self-consistency | FAILED on the first draft, as the panel showed: freeze against retire inside decision 7, the gate trigger in decision 7 against decision 9, and the unfunded-key row against the NOT RUN rule. Re-run on the round 1 revision: VERIFIED for decisions 1 to 13 against each other and Consequences |
 | Refuting seat | Ran once on 2026-11-25 (`analyst`, Haiku, 52 tool uses, 126 s). 25 rows CONFIRMED. Row 6 not reproduced by the seat (no shell); row 14 not rerun by the seat. One finding outside the ledger: the ADR cited `SPEC-ship-driver.md`, which is not in this tree. Fixed by naming the unmerged branch instead. VERIFIED after the fix: `grep -c SPEC-ship-driver` on the ADR returns 0 |

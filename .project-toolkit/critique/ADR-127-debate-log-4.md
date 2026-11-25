@@ -7,7 +7,7 @@
 - **Outcome**: Consensus (3 Accept, 3 Disagree-and-Commit)
 - **Final Status**: accepted
 - **Panel**: full six seats. The change edits the result-line protocol and the gate's floors.
-- **Claims ledger**: `.project-toolkit/critique/ADR-127-claims-ledger.md` (53 rows)
+- **Claims ledger**: `.project-toolkit/critique/ADR-127-claims-ledger.md` (53 rows at the vote, 55 after the review round that followed)
 - **Date**: 2026-11-25
 
 ## Why a fourth debate
