@@ -101,6 +101,7 @@ Owns everything `/push-pr` did after the body is written.
 - It refuses a dirty tree: `STOP: tree-dirty`, exit 1.
 - It refuses when HEAD is not the reviewed SHA: `STOP: head-not-reviewed`, exit 1.
   `--draft` skips that check only for a new PR or an open PR the host reports as a draft.
+  An open PR whose draft state is unknown or false still needs the marker (owner ruling, 2026-11-25, #7581).
 - It refuses `MODE: contributor`: `STOP: contributor-mode`, exit 1.
 - It never creates a commit.
 - It reruns `check` and stops on any failure before the push.
@@ -165,6 +166,8 @@ The new `ship` SKILL.md is a driver. Each phase names one call.
 1. Detect: run `ship_detect.py`. A STOP ends the run.
 2. Preflight: run `ship_preflight.py` for tree, reviewed, and pipeline.
    Run `security-scan` and the tests. Record each result line.
+   With `--draft`, the marker check is skipped only for a new draft PR or an open PR the host reports as a draft.
+   An unknown draft state needs the marker (owner ruling, 2026-11-25, #7581).
 3. Body: run `ship_pr.py prepare`. Fill the body from the real diff.
    Run `ship_pr.py check` until it passes. This is the model's main judgment step.
 4. Publish: run `ship_pr.py publish`. Copy its `PR:` line.
@@ -208,10 +211,10 @@ It owns merge, auto-merge, and post-merge checks. It is out of scope here.
 
 ## Open decisions for Richard
 
-1. **Draft PRs before review.** `/push-pr` could open a PR with no `/review` marker.
-   `/ship` in owner mode requires the marker. Options:
-   A) `ship --draft` skips the marker check and opens a draft PR.
-   B) No PR before review.
+1. **Draft PRs before review.** Decided by Richard on 2026-11-25, recorded on #7581.
+   `ship --draft` skips the review marker check only for a new draft PR, or an open PR the host reports as a draft.
+   An unknown draft state is refused, and an existing non-draft PR still needs the marker.
+   This narrows the earlier option A, which skipped the marker for any `--draft` run.
 2. **Branch.** The four commits on `refactor/ship-push-pr-pr-creation` moved creation into `/push-pr`.
    This spec reverses that. Options:
    A) Build on a fresh branch from `origin/main` and drop this branch.
