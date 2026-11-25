@@ -29,7 +29,7 @@ A skill is `disputed` when it shows such a command as knowledge, or hands the pu
 | Priority | Meaning |
 |---|---|
 | P0 | A driver that pushes, merges, or writes to a PR, with the mutating step in prose and a wide grant or no script. |
-| P1 | A driver with scripts behind most steps, or a non-driver whose fixed steps or wide grant are clear script work. |
+| P1 | A driver with scripts behind most steps, a driver whose only external write waits on a user yes, or a non-driver whose fixed steps or wide grant are clear script work. |
 | P2 | A small gap. Fix it when the skill is next edited. |
 | P3 | No gap worth a rewrite. |
 
@@ -41,8 +41,8 @@ A skill is `disputed` when it shows such a command as knowledge, or hands the pu
 | Shape `driver` at `a7b036aba3` (2026-11-25) | 14 |
 | Shape `disputed`, for the owner at `a7b036aba3` (2026-11-25) | 3 |
 | Shape `reference` at `a7b036aba3` (2026-11-25) | 104 |
-| Priority P0 at `a7b036aba3` (2026-11-25) | 9 |
-| Priority P1 at `a7b036aba3` (2026-11-25) | 19 |
+| Priority P0 at `a7b036aba3` (2026-11-25) | 8 |
+| Priority P1 at `a7b036aba3` (2026-11-25) | 20 |
 | Priority P2 at `a7b036aba3` (2026-11-25) | 27 |
 | Priority P3 at `a7b036aba3` (2026-11-25) | 66 |
 | Templates with no verdict scenario file at `a7b036aba3` (2026-11-25) | 116 |
@@ -62,7 +62,7 @@ These two are the pilot. Both are drivers. `ship` has no script. `push-pr` scrip
 | Row id | G-096 | G-082 |
 | Template lines at `a7b036aba3` (2026-11-25) | 241 | 215 |
 | Rendered bytes at `a7b036aba3` (2026-11-25) | 24401 | 14890 |
-| Scripts at `a7b036aba3` (2026-11-25) | 0 | 0 |
+| Scripts in the skill's own directory at `a7b036aba3` (2026-11-25) | 0 | 0. It calls `new_pr.py` in the `github` skill. |
 | Grant | `Bash(*)` | `Bash(git push:*)` and seven more git grants |
 | Verdict scenarios at `a7b036aba3` (2026-11-25) | 8 in `tests/evals/ship-scenarios.json`, 6 in `ship-review-coverage-scenarios.json` | none |
 | Activation scenarios at `a7b036aba3` (2026-11-25) | 4 | 3 |
@@ -174,7 +174,7 @@ One exception: `pr-babysit` is P2 but rides in group 4, because it shares that g
 | G-007 | `ai-agents-config-catalog` | reference | lines 182, 188, 204 are read-only | lines 182, 188, 204: pasted locator calls | none | none | verdict: no; activation: no | P3 | Catalog plus an existing locator script. |
 | G-008 | `ai-agents-debugging-playbook` | disputed | line 78: a table cell says `git fetch origin main && git merge origin/main` | lines 90-98: pasted locator calls; lines 78-79: fetch, merge, and rev-list text in table cells | none | none | verdict: no; activation: no | P2 | The merge is a remedy cell, not a driven step. Owner rules on shape. |
 | G-009 | `ai-agents-diagnostics-toolkit` | reference | lines 35, 36, 45, 82 are read-only baselines | lines 35-36: pasted locator calls | none | none | verdict: no; activation: no | P3 | A script sits behind each call. |
-| G-010 | `ai-agents-docs-of-record` | reference | writes docs in the tree only | lines 97, 267, 268: pasted locator calls | none | none | verdict: no; activation: no | P2 | Ten "never" lines guard doc rules. No doc writer script exists. |
+| G-010 | `ai-agents-docs-of-record` | reference | writes docs in the tree only | lines 97, 267, 268: pasted locator calls | none | none | verdict: no; activation: no | P2 | Its "never" lines guard doc rules. No doc writer script exists. |
 | G-011 | `ai-agents-empirical-probe-toolkit` | reference | line 95: eval `--dry-run` | lines 95-99: eval dry-run block the model assembles | run_eval_dry_run.py (assemble eval-prompt-change args) | none | verdict: no; activation: no | P2 | The same argument assembly repeats in two skills. |
 | G-012 | `ai-agents-external-claims` | reference | `claim_ledger.py` is local | line 180: one locator call | none | none | verdict: no; activation: no | P3 | One-script skill. |
 | G-013 | `ai-agents-failure-archaeology` | reference | lines 166, 176, 184 run `corpus_index.py` | lines 166, 176, 184: pasted locator calls | none | none | verdict: no; activation: no | P3 | History reference with an index script. |
@@ -214,7 +214,7 @@ One exception: `pr-babysit` is P2 but rides in group 4, because it shares that g
 | G-047 | `execution-plans` | reference | plan writing guidance; no shell | none | none | none | verdict: no; activation: no | P3 | No shell. |
 | G-048 | `fix-markdown-fences` | reference | lines 312-316: a quick check; the fixer writes working-tree files | line 312: a one-line grep fallback | none | none | verdict: no; activation: no | P3 | The fixer and write guard exist. |
 | G-049 | `git-advanced-workflows` | disputed | lines 42-52: `rebase -i` then `git push --force-with-lease` in a recipe; unclear whether the model runs it or learns it | lines 42-52: nine-line fetch, rebase, and push block; lines 65-70: split-commit sequence; lines 249-254: abort block | rewrite_branch_history.py (rebase and lease-pinned push); abort_git_operation.py (abort an in-progress operation) | none | verdict: no; activation: no | P1 | Pushes and rewrites history with no script. Owner rules on shape. |
-| G-050 | `github` | driver | line 130: create PR; line 134: comment; line 149: close PR; line 150: merge | lines 126-150: routing tree to about 20 mutating scripts; lines 166-170: three multi-line locator blocks | route_github_operation.py (map intent to script and args) | none | verdict: no; activation: yes | P0 | Mutating and high traffic. Over the 12 KiB driver budget. |
+| G-050 | `github` | driver | line 130: create PR; line 134: comment; line 149: close PR; line 150: merge | lines 126-150: routing tree to about 20 mutating scripts; lines 166-170: three multi-line locator blocks | route_github_operation.py (map intent to script and args) | none | verdict: no; activation: yes | P1 | Mutating and high traffic, with a script behind each write. Over the 12 KiB driver budget. |
 | G-051 | `github-url-intercept` | reference | lines 47-56: read-only `gh api` calls | lines 47-56: the model fills owner, repo, and path; lines 139-146: URL parse in prose; lines 110-130: routing tree | route_github_url.py (parse URL and fetch JSON) | none | verdict: no; activation: no | P1 | A blocking intercept on every GitHub URL. Parsing is a fixed step. |
 | G-052 | `golden-principles` | reference | lines 64-83: read-only scan | lines 64-83: six variants of one scan command | none | none | verdict: no; activation: no | P3 | The script owns the scan. |
 | G-053 | `llm-council` | reference | lines 192-199: local run that calls model APIs | lines 190-199: the model picks locator or direct call | none | none | verdict: no; activation: yes | P3 | Small host-detection fallback. |
@@ -237,7 +237,7 @@ One exception: `pr-babysit` is P2 but rides in group 4, because it shares that g
 | G-070 | `pipeline-validator` | driver | line 318: `git push`; line 231: `az pipelines run`; lines 355-361, 440: `az repos pr update` | lines 92-124: repo, branch, and PR detection; lines 132-138: MUST NOT flag list; lines 236-248: poll loop; lines 272-279: timeline parse | detect_pipeline_context.py (repo, branch, PR lookup); run_pipeline.py (trigger and poll to a result); update_pr_description.py (edit the PR body) | none | verdict: no; activation: no | P0 | Azure DevOps and git writes with no scripts. Polling and a flag guard live in prose. |
 | G-071 | `plan` | reference | lines 60-135: spec to plan file | none | none | no Bash | verdict: no; activation: yes | P3 | Judgment skill. |
 | G-072 | `planner` | reference | lines 22-24, 152-158: local script calls; no push | lines 152, 201, 267: bare `python3 scripts/planner.py` calls with no locator | none | none | verdict: no; activation: no | P2 | Script-stepped already, but the calls skip the locator. |
-| G-073 | `pr-autofix` | driver | lines 895-896: merge and push; lines 925-926: force push with lease; line 906: thread reply; line 694: merge script | lines 161-690: one 529-line annotated bash program; lines 80-150: transport preflight; lines 916-936: force-push lease rules | preflight_transport.py (pick the transport); run_pr_pass.py (live gate, tier, disarm, round cap); update_branch_from_base.py (fetch, merge, push base) | bare `Bash` | verdict: no; activation: yes | P0 | The longest template. It mutates PRs and pushes. The safety order lives in prose. |
+| G-073 | `pr-autofix` | driver | lines 895-896: merge and push; lines 925-926: force push with lease; line 906: thread reply; line 694: merge script | lines 161-690: one 529-line annotated bash program; lines 80-150: transport preflight; lines 916-936: force-push lease rules | preflight_transport.py (pick the transport); run_pr_pass.py (live gate, tier, disarm, round cap); update_branch_from_base.py (fetch, merge, push base) | bare `Bash` | verdict: no; activation: yes | P0 | It mutates PRs and pushes. The safety order lives in prose. |
 | G-074 | `pr-babysit` | driver | line 146: update, push, wait again; lines 143-144: merge when the user asked | lines 135-136: branch update by script or local merge; lines 178-181: exit code to action table | none | none | verdict: no; activation: yes | P2 | Already a script-driven watcher. Push and merge stay prose but are rare. |
 | G-075 | `pr-comment-responder` | driver | lines 76-77: push fix, post reply, resolve thread | lines 96-110: PR number and repo taken from the prompt; lines 126-152: processing order tables; lines 168-177: domain-first loop | order_threads.py (domain then reviewer priority); infer_pr_context.py (PR and repo from prompt or git) | none | verdict: no; activation: yes | P1 | Scripts exist. Ordering and context inference are prose. |
 | G-076 | `pr-quality` | reference | lines 71-90: git read commands; a local gate | lines 71-82: base ref check by regex, then two git calls, then a SHA carried by hand | resolve_base_sha.py (validate base, print the merge-base SHA) | five scoped read-only `Bash(git ...)` entries | verdict: no; activation: yes | P1 | A regex check and a two-step git call are prose. |
