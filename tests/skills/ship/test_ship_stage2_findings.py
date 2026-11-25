@@ -9,6 +9,7 @@ import json
 import os
 import subprocess
 import time
+from pathlib import Path
 
 import pytest
 
@@ -20,6 +21,7 @@ from tests.skills.ship.ship_helpers import (
     invoke,
     publish,
     run_pr,
+    symlink_or_skip,
     values,
 )
 
@@ -171,7 +173,7 @@ class TestDeadlineIsBound:
         state.mkdir(parents=True, exist_ok=True)
         target = tmp_path / "elsewhere.txt"
         target.write_text("1", encoding="utf-8")
-        os.symlink(target, state / f"ship-deadline-github-9-{head}.txt")
+        symlink_or_skip(state / f"ship-deadline-github-9-{head}.txt", target)
         code, lines = invoke(scripts[2], ["--check", "pipeline"], capsys)
         assert code == 0
         assert int(values(lines, "PIPELINE_DEADLINE")[0]) > time.time()
@@ -188,7 +190,7 @@ class TestProcessFailuresEndOnStop:
         gh.chmod(0o644)
         git_dir = tmp_path / "git-only"
         git_dir.mkdir()
-        (git_dir / "git").symlink_to(shutil.which("git"))
+        symlink_or_skip(git_dir / "git", Path(shutil.which("git")))
         monkeypatch.setenv("PATH", f"{fakes.root / 'bin'}{os.pathsep}{git_dir}")
         code, lines = invoke(scripts[1], [], capsys)
         assert code == 3

@@ -112,6 +112,7 @@ SCRATCH_REL = _paths.SCRATCH_REL
 scratch_dir = _paths.scratch_dir
 write_private = _paths.write_private
 confine_body_file = _paths.confine_body_file
+stored_int = _paths.stored_int
 ALLOWED_URL_SCHEMES = _remote.ALLOWED_URL_SCHEMES
 remote_host = _remote.remote_host
 classify_host = _remote.classify_host

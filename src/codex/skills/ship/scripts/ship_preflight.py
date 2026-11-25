@@ -21,7 +21,6 @@ Exit codes (ADR-035): 0 NEXT, 1 logic STOP, 2 config STOP, 3 external STOP,
 from __future__ import annotations
 
 import importlib.util
-import os
 import re
 import sys
 import time
@@ -412,35 +411,16 @@ def _validate(args) -> str | None:
 def bound_deadline(ctx, pr: int | None, requested: int | None) -> int:
     """The 30-minute pipeline deadline for this PR and HEAD.
 
-    The first call writes it to a scratch state file keyed by host, PR, and
-    HEAD. Later calls read that file, so a rerun or an omitted --deadline
-    cannot extend the window. A --deadline can only shorten it.
+    The first call stores it in a scratch state file keyed by host, PR, and
+    HEAD; later calls read it, so a rerun or an omitted --deadline cannot
+    extend the window. A --deadline can only shorten it.
     """
-    now = int(time.time())
-    window = now + TOTAL_WAIT_SECONDS
+    window = int(time.time()) + TOTAL_WAIT_SECONDS
     stored = window
-    directory = common.scratch_dir(ctx.root, create=True) if pr is not None else None
-    if directory is not None:
-        path = directory / f"ship-deadline-{ctx.host}-{pr}-{ctx.head[:12]}.txt"
-        stored = _read_deadline(path)
-        if stored is None:
-            stored = window
-            try:
-                flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
-                with os.fdopen(os.open(path, flags, 0o600), "w", encoding="utf-8") as handle:
-                    handle.write(str(stored))
-            except OSError:
-                pass
+    if pr is not None:
+        name = f"ship-deadline-{ctx.host}-{pr}-{ctx.head[:12]}.txt"
+        stored = common.stored_int(ctx.root, name, window)
     return min(stored, requested) if requested is not None else stored
-
-
-def _read_deadline(path) -> int | None:
-    if path.is_symlink() or not path.is_file():
-        return None
-    try:
-        return int(path.read_text(encoding="utf-8").strip())
-    except (OSError, ValueError):
-        return None
 
 
 def _run_check(name, ctx, args, pr, wait_seconds, after_publish, deadline) -> Check | Halt:

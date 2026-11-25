@@ -399,3 +399,19 @@ class TestChildEnv:
             [os.sys.executable, "-c", "import os; print(os.environ.get('GIT_SSH_COMMAND'))"]
         )
         assert done.stdout.strip() == "ssh -i key"
+
+
+class TestStoredInt:
+    def test_first_call_stores_and_later_calls_read(self, tmp_path):
+        assert common.stored_int(tmp_path, "state.txt", 100) == 100
+        assert common.stored_int(tmp_path, "state.txt", 999) == 100
+        stored = tmp_path / common.SCRATCH_REL / "state.txt"
+        assert oct(stored.stat().st_mode & 0o777) == "0o600"
+
+    def test_unsafe_scratch_returns_initial_and_writes_nothing(self, tmp_path):
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        (tmp_path / ".project-toolkit").mkdir()
+        symlink_or_skip(tmp_path / ".project-toolkit" / "scratch", outside)
+        assert common.stored_int(tmp_path, "state.txt", 7) == 7
+        assert list(outside.iterdir()) == []
