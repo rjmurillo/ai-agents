@@ -320,7 +320,7 @@ Hermes scans each pack before it installs it. At the pinned hermes-agent commit 
    hermes plugins install rjmurillo/ai-agents/src/hermes/project-toolkit-azure-devops --enable
    ```
 
-   On 2026-11-25 the repository smoke installed it at the pinned commit (`63d0b94120`) without `--force`, so Hermes rated it `SAFE`.
+   On 2026-11-25 the repository smoke installed it at the pinned commit (`63d0b94120`) without `--force`, so Hermes rated it `SAFE`. Treat that rating as weak evidence: in the same run the guard's negative control, a known-dangerous skill, was also rated `SAFE` (`test_guard_negative_control_flags_a_dangerous_skill` failed, and it fails on `main` too). Read the skill files before you install.
 
    The repository smoke uses `--force` only for a `CAUTION` pack whose every `HIGH` finding was reviewed, by file, line, and line content (`FORCE_ALLOWED_FINDINGS` in `tests/e2e/hermes_runtime.py`). It never forces a `DANGEROUS` pack.
 
