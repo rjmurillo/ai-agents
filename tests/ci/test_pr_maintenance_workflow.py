@@ -51,7 +51,7 @@ def test_discover_prs_token_can_read_the_status_rollup(workflow: dict[Any, Any])
 
 def test_dispatch_offers_only_inputs_a_job_reads(workflow: dict[Any, Any]) -> None:
     """Negative: process_conflicts had no reader once process-prs was deleted."""
-    triggers = workflow.get(True) or workflow.get("on")
+    triggers: dict[str, Any] = workflow[True] if True in workflow else workflow["on"]
 
     assert set(triggers["workflow_dispatch"]["inputs"]) == {"max_prs"}
     assert "process_conflicts" not in WORKFLOW.read_text(encoding="utf-8")
