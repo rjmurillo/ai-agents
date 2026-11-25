@@ -126,7 +126,7 @@
     ".claude/skills/ai-agents-research-frontier/SKILL.md": 30,
     ".claude/skills/ai-agents-research-frontier/references/program3-self-improving-loop.md": 2,
     ".claude/skills/ai-agents-research-methodology/SKILL.md": 21,
-    ".claude/skills/ai-agents-validation-and-qa/SKILL.md": 15,
+    ".claude/skills/ai-agents-validation-and-qa/SKILL.md": 14,
     ".claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md": 22,
     ".github/agents/implementer.agent.md": 33,
     ".github/agents/merge-resolver.agent.md": 4,

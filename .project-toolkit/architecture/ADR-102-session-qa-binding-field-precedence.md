@@ -218,7 +218,8 @@ The issue suggests reusing `post_qa_code_changes()` here the way ADR-096 did. Th
 
 Deleting the raise and returning silently is the smaller diff and is rejected. The former `ci-scripts` rule (now at `.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`) SHOULD 4 treats a repair to a silent failure as itself a silent-failure candidate, and a relaxation that removes the only signal on `comparison.head` is that shape. The warning keeps the observation the raise was making, in the one place that has a channel for it, while removing the blocking verdict the observation does not support. `result.warnings` is the established non-blocking channel in this file; `scripts/validate_session_json.py:693-696` already uses it for the adjacent `changesCommitted` and `endingCommit` case.
 
-Fresh validation emits the warning when the binding finds a disagreement. Pre-commit passes a mode flag (`git_hook_policy.py:2789`). With `--existing-log`, the validator skips the binding. The warning preserves the signal under the former `ci-scripts` rule (now at `.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`) SHOULD 4.
+Fresh validation emits the warning when the binding finds a disagreement. Pre-commit passes a mode flag (`git_hook_policy.py:2789`). With `--existing-log`, the validator skips the binding.
+The warning preserves the signal under the former `ci-scripts` rule (now at `.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`) SHOULD 4.
 
 ### The laxer direction is bounded, not impossible
 
