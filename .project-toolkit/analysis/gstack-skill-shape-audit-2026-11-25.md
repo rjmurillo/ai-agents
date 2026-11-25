@@ -5,6 +5,7 @@ Method: read-only source read. No gstack code was run.
 Every `path:line` below is a path inside that gstack commit, not this repository.
 Three Sonnet readers produced the first pass. A second pass re-opened each cited line.
 Claims marked INFERRED were not confirmed in code.
+Rules D8 and D9 cite a manifest note and a directory count, not a code line.
 
 ## Rules extracted
 
@@ -89,13 +90,13 @@ Claims marked INFERRED were not confirmed in code.
 | G1 | The `.tmpl` file is the source. The rendered skill is committed. | `CLAUDE.md:115`. `package.json:26` defines `gen:skill-docs`. |
 | G2 | CI regenerates and fails on any diff. | `.github/workflows/skill-docs.yml:43` runs `git diff --exit-code`. |
 | G3 | Generated files carry a "do not edit" header. | `scripts/gen-skill-docs.ts:632`. |
-| G4 | One template renders for many hosts. | INFERRED from the `hosts/` directory listing and the reader's report. Host config code was not re-opened. |
+| G4 | One template renders for many hosts. | `scripts/host-config.ts:116-118` declares per-host `pathRewrites` and `toolRewrites`. The `hosts/` directory holds 18 entries. How each host renders was not traced. |
 
 ### H. Evals and tests
 
 | # | Rule | Evidence in gstack |
 |---|---|---|
-| H1 | Paid evals are chosen by diff through a touchfile map. | `package.json:60` defines `eval:select`. `test/helpers/touchfiles-data.ts` holds the maps. |
+| H1 | Paid evals are chosen by diff through a touchfile map. | `package.json:60` defines `eval:select`. `test/helpers/touchfiles-data.ts:27` holds the map. |
 | H2 | Each eval has a tier: gate, periodic, or marathon. | `test/helpers/touchfiles-data.ts:1176`. |
 | H3 | A new prompt with no registered coverage fails planning. | `CONTRIBUTING.md:269`. |
 | H4 | Results are stored and compared to the last run. | `test/helpers/eval-store.ts:24` sets a schema version. `package.json:55` defines `eval:compare`. |
@@ -117,11 +118,11 @@ Claims marked INFERRED were not confirmed in code.
 | Budget ledger, credits, Capy and Greptile paths | Reject | They serve a host and vendors this repo does not use. |
 | A separate `DRIVER.md` beside a 983-line `SKILL.md` | Adapt | gstack keeps both because the old skill still exists. A rewrite here makes `SKILL.md` the driver and moves the rest to `references/`. |
 | Preamble program at skill load (`gstack-skill-start`) | Defer | Load-time injection is a harness feature. No skill here has a present use case. |
-| Brief hashing and a findings ledger (E2 to E5) | Adopt for `review` | `review` and `adr-review` dispatch briefs as prose today. This is the highest-value port after `ship`. |
+| Brief hashing and a findings ledger (E2 to E5) | Adopt for `review` | `review` and `adr-review` dispatch briefs as prose today. |
 | Byte budget and anchor tests on the driver (D4 to D7) | Adopt | Both are deterministic pytest checks. They fit `tests/skills/<name>/`. |
 
 ## Limits of this audit
 
-- Phase-order enforcement (A7) and host rendering (G4) are INFERRED.
+- Phase-order enforcement (A7) is INFERRED. Host rendering (G4) is cited but not traced.
 - `lib/ship-receipt.ts`, `gstack-evidence`, `gstack-pregate`, and `gstack-ship-queue` were read by header only.
 - gstack's own eval pass rates were not measured. No gstack eval was run.

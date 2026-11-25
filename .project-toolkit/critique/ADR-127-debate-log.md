@@ -4,7 +4,7 @@
 
 - **Rounds**: 2 of 10
 - **Prior debate log**: none
-- **Outcome**: Consensus
+- **Outcome**: Consensus (2 Accept, 4 Disagree-and-Commit, 4 dissents recorded)
 - **Final Status**: accepted
 - **Panel**: full six seats. The record defines an executable gate, so the AGENTS.md trigger applies.
 - **Claims ledger**: `.project-toolkit/critique/ADR-127-claims-ledger.md` (50 rows)
@@ -14,7 +14,7 @@
 
 | Gate | Result |
 |---|---|
-| Claims ledger | VERIFIED. 27 rows before the panel, 50 after round 2. |
+| Claims ledger | VERIFIED. 27 rows at the refuting seat, 32 at panel start, 50 after round 2. |
 | Refuting seat | Ran once (`analyst`, Haiku). 25 rows confirmed, 2 not reproduced without a shell. One finding outside the ledger: a citation to a spec file that is not in this tree. Fixed before the panel. |
 | Documentation accuracy | Phase 4 ran once (Sonnet). 7 findings, 2 High. Fixed before the panel. |
 | Self-consistency | FAILED on the first draft. The panel found three conflicts the author's pass missed. Re-run VERIFIED on the round 1 revision. |

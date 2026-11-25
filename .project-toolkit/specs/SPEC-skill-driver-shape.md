@@ -1,6 +1,6 @@
 # Skills as script drivers, with evals as the gate
 
-Status: Proposed. Owner: Richard Murillo. Scope: every skill under `templates/skills/`.
+Status: Accepted as ADR-127 on 2026-11-25. Owner: Richard Murillo. Scope: every skill under `templates/skills/`.
 Decision of record: `.project-toolkit/architecture/ADR-127-workflow-skills-are-script-drivers.md`.
 Where this spec and ADR-127 differ, ADR-127 wins.
 
@@ -80,28 +80,10 @@ Generated files carry no header. gstack's "do not edit" header is rejected (audi
 
 ### R8. Evals are the acceptance gate
 
-A gated change sets a skill's shape, changes a driver's prompt surface, or implements a gap-audit row.
-
-1. A gated change merges only if its eval holds or improves against `origin/main`.
-2. The eval is the existing before-and-after runner, pointed at the rendered skill:
-
-   ```bash
-   uv run python scripts/eval/eval-prompt-change.py \
-     --prompt src/claude/skills/<name>/SKILL.md \
-     --scenarios tests/evals/<name>-scenarios.json \
-     --base-ref origin/main --output <results.json>
-   ```
-
-   A repository-local skill uses `.claude/skills/<name>/SKILL.md`.
-3. The scenario file holds at least 8 scenarios. At least 6 pass every run on `origin/main`.
-4. Scenarios test kept judgment in shape-neutral words.
-5. Hold: the runner prints `ACCEPTANCE GATE: PASS`.
-6. Floor: a scenario the base fails must pass every run on the after side.
-7. Scenarios land in their own commit before any template edit, then stay frozen.
-   That commit removes scenarios for steps that move into scripts.
-   Each removed scenario is listed with the pytest test that replaces it.
-8. Every run's output is committed. The first full run sets the verdict.
-9. The PR body shows the command, the verdict, and the scores. NOT RUN does not merge.
+ADR-127 decision 7 is the full rule. This spec does not restate it.
+In short: a gated change merges only if its eval holds or improves against `origin/main`.
+The eval is `scripts/eval/eval-prompt-change.py`, pointed at the rendered skill.
+A skill with no scenario file gets one, in its own commit, before the rewrite.
 
 ### R9. Driver contract tests
 
@@ -126,7 +108,7 @@ They cover STOP anchors, named scripts, the reason table, the byte budget, the c
 
 ## Acceptance criteria
 
-- [ ] The ADR is accepted after a full `adr-review` panel.
+- [x] The ADR is accepted after a full `adr-review` panel.
 - [ ] The gap audit covers every template in `templates/skills/`.
 - [ ] Each gated change shows `ACCEPTANCE GATE: PASS` with its command and scores.
 - [ ] No driver runs a mutating command that a script owns.

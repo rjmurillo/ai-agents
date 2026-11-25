@@ -1,6 +1,7 @@
 # ADR-127 Claims Ledger
 
-Every factual claim in ADR-127, checked on 2026-11-25.
+Factual claims in ADR-127, checked on 2026-11-25.
+Rows 8 and 13 back sentences that review rounds removed from the ADR. They stay as a record.
 Repository rows were read from the working tree at `792f6febd3` (2026-11-25).
 gstack rows were read from a clone of `github.com/garrytan/gstack` at `ec5d7e6fbd` (2026-11-25).
 

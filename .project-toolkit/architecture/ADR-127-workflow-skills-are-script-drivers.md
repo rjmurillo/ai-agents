@@ -39,10 +39,10 @@ The evidence, and its limits:
 
 The repository state at `792f6febd3` (2026-11-25):
 
-- 121 skill templates exist under `templates/skills/`.
-- 60 of 104 skill directories under `src/claude/skills/` have a `scripts/` directory.
-- 28 files match `tests/evals/*-scenarios.json`. These feed the before-and-after runner.
-- 55 of 104 `src/claude/skills/*/SKILL.md` files exceed 12 KiB.
+- 121 skill templates exist under `templates/skills/` at `792f6febd3` (2026-11-25).
+- 60 of 104 skill directories under `src/claude/skills/` have a `scripts/` directory at `792f6febd3` (2026-11-25).
+- 28 files match `tests/evals/*-scenarios.json` at `792f6febd3` (2026-11-25). These feed the before-and-after runner.
+- 55 of 104 `src/claude/skills/*/SKILL.md` files exceed 12 KiB at `792f6febd3` (2026-11-25).
 
 The gstack audit is `.project-toolkit/analysis/gstack-skill-shape-audit-2026-11-25.md`.
 It extracts 55 rules with citations and lists the parts that do not fit here.
@@ -60,7 +60,9 @@ A write to an external service includes creating or editing a PR, an issue, or a
 Every other skill is a `reference` skill.
 Writing a file in the working tree does not make a skill a driver.
 
-The gap audit proposes a shape for each skill. The owner settles a disputed shape.
+The gap audit is a later analysis file that scores every template against this record.
+It gives each finding a row with a stable id, proposes a shape for each skill, and counts the driver skills.
+The owner settles a disputed shape.
 Decisions 2 to 6 and 8 bind `driver` skills.
 
 ### 2. A driver skill's `SKILL.md` is a driver
@@ -131,9 +133,15 @@ Approval gates stay pending in an unattended run.
 
 This record calls a skill rewrite a **gated change**. It is any PR that does one of these:
 
-- sets or changes a skill's `metadata.shape`;
-- changes the prompt surface of a `driver` skill;
-- implements a row of the gap audit, for a skill of either shape. Each audit row carries a stable id.
+- declares a skill a `driver`, or changes a declared shape;
+- changes the prompt surface of a skill that is a `driver`, or that decision 1 says must be one;
+- implements a row of the gap audit, for a skill of either shape;
+- moves steps of any skill into scripts, or moves its sections into `references/`.
+
+The four triggers cover every rewrite this program launches.
+One case stays outside: a prose-only edit to a `reference` skill that moves nothing and implements no audit row.
+That edit is an ordinary prompt change. ADR-057 already makes its eval a MUST for the author.
+A PR that only adds `metadata.shape: reference` and changes no prompt surface is not a gated change.
 
 The prompt surface is the rendered `SKILL.md` plus every `references/*.md` beside it.
 
@@ -157,7 +165,8 @@ The prompt surface is the rendered `SKILL.md` plus every `references/*.md` besid
 4. **Scenario floor.** The scenario file holds at least 8 scenarios.
    At least 6 of them pass every scored run on `origin/main`. These are the carried scenarios.
    The base is the `origin/main` commit the first run records. A later `origin/main` does not change the carried set.
-   Eight matches the fixture floor ADR-111 rule 2 sets for pins.
+   Eight matches the fixture floor ADR-111 rule 2 sets for pins. That is an analogy, not a measurement.
+   Both numbers are provisional until decision 12 reports.
 5. **Scenarios test kept judgment, in shape-neutral words.**
    A scenario states the situation as facts, such as "the pipeline check failed".
    It does not depend on result-line syntax the base skill never saw.
@@ -244,6 +253,7 @@ Generated files carry no header. gstack's "do not edit" header is rejected.
 - the largest stdout a script printed, in lines and bytes.
 
 The owner reads those numbers and decides whether the rollout continues.
+The pilot may show that a number or rule in decision 4 or 7 is wrong. A change to either goes through `adr-review`.
 Fix threads for other skills may start before then. Their merges wait on decision 9.
 The owner should stop the rollout if the pilot cuts tool calls by less than 30 percent.
 That bar is provisional. No measurement here supports it yet.
@@ -305,6 +315,7 @@ No decision here adds a vendor or a runtime dependency.
 - The eval loads every reference into the prompt. Real use loads a reference only on a STOP.
   So the eval cannot see a wrong STOP route. The decision 8 anchor and table tests cover that.
 - The eval makes no tool calls. Call count is measured by the decision 8 budget test and the decision 12 pilot.
+  After the pilot, no gate measures real tool calls. Only the phase-count test remains.
 - Three runs per scenario is a weak sample. A scenario that passes 2 of 3 still passes.
   The decision 7 floors raise the bar. They do not make the gate a proof.
 - The scenario author is also the rewrite author. The scenario commit and the freeze limit that, not remove it.
@@ -323,8 +334,8 @@ No decision here adds a vendor or a runtime dependency.
 - Python under `skills/*/scripts/` grows, and each script needs positive, negative, and edge tests.
 - 116 of 121 templates have no `tests/evals/<name>-scenarios.json` at `792f6febd3` (2026-11-25).
   Each gated skill needs at least 8 scenarios first.
-- Each eval run spends provider credit. `--dry-run` reports 48 calls for the 8 `ship` scenarios, plus up to 24 resample calls.
-- All 8 current `ship` scenarios test host detection, mode detection, or the marker check.
+- Each eval run spends provider credit. `--dry-run` reports 48 calls for the 8 `ship` scenarios at `792f6febd3` (2026-11-25), plus up to 24 resample calls.
+- All 8 `ship` scenarios at `792f6febd3` (2026-11-25) test host detection, mode detection, or the marker check.
   Those steps move into scripts, so the pilot must write new judgment scenarios first.
 - Until the decision 9 check lands, a reviewer is the only enforcement.
 - ADR-121 records no probe result for Copilot CLI 1.0.109 or Codex 0.167.0.
@@ -333,7 +344,8 @@ No decision here adds a vendor or a runtime dependency.
 
 ### Neutral
 
-- Reference skills keep their shape. They are gated only when a gap-audit row changes them.
+- Reference skills keep their shape. Tagging one as `reference` is not gated.
+  Restructuring one, or changing it under a gap-audit row, is gated.
 - `tests/evals/skill-scenarios/` keeps feeding the activation runner. This record does not change it.
 
 ## Impact on Dependent Components
@@ -354,10 +366,12 @@ No decision here adds a vendor or a runtime dependency.
 ## Implementation Notes
 
 1. Audit every template against decisions 1 to 8. Write the result to `.project-toolkit/analysis/`.
+   The audit counts the driver skills and sizes the rollout before any fix thread starts.
 2. Pilot `ship` and `push-pr`.
    Their design draft sits unmerged on branch `refactor/ship-push-pr-pr-creation` (2026-11-25).
    It carries three open owner decisions. This record does not decide them.
 3. Land the decision 9 check and the ADR-057 amendment. No second gated change merges first.
+   It is the first work item after the pilot.
 4. Each gated change lands through `ship` with its evidence in the PR body.
 
 ## Related Decisions
@@ -386,6 +400,6 @@ Each named record still holds for a driver skill.
 
 - `.project-toolkit/specs/SPEC-skill-driver-shape.md`
 - `.project-toolkit/analysis/gstack-skill-shape-audit-2026-11-25.md`
-- `.project-toolkit/critique/ADR-127-debate-log.md`
+- `.project-toolkit/critique/ADR-127-debate-log.md` and `.project-toolkit/critique/ADR-127-debate-log-2.md`
 - `scripts/eval/eval-prompt-change.py`
 - gstack, `github.com/garrytan/gstack` at `ec5d7e6fbd` (2026-11-25): `ship/DRIVER.md`, `lib/ship-phase.ts`, `test/ship-driver.test.ts`
