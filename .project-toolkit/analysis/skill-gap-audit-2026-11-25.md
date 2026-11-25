@@ -96,7 +96,8 @@ What the pilot must settle before its rewrite:
 - `ship` grants `Bash(*)`. Decision 3 item 7 requires a grant that names each script.
 - Retiring `push-pr` leaves callers that name it. Moving its trigger phrases does not migrate them.
   `autoplan` line 161 routes push-only requests to `/push-pr`. `takeover` line 65 uses `push-pr` to file a replacement PR.
-  `ship` line 158 and `validate-pr-description` also name it, as do six pages under `docs/skills/`.
+  `ship` line 158 and `validate-pr-description` also name it.
+  Eight pages under `docs/skills/` besides its own name it at `a7b036aba3` (2026-11-25): `README`, `autoplan`, `checkpoint`, `git-advanced-workflows`, `github`, `ship`, `takeover`, and `validate-pr-description`.
   The pilot must update each caller in the same change, or the retirement breaks them.
 
 ## Decisions recorded for the pilot
@@ -120,11 +121,12 @@ Sequencing, from the same rulings:
 ## Driver contract, decisions 2, 4, 6, and 8
 
 The rows below score each driver on the rest of the contract. The numbers are measured, not judged.
+Script counts include every `.py` file under the skill's `scripts/` directory, at any depth.
 
 | Skill | Rendered bytes at `a7b036aba3` (2026-11-25) | Within the 12 KiB budget | States a call budget | Scripts that end on `NEXT:` or `STOP:` | STOP table | Test files under `tests/skills/<name>/` |
 |---|---|---|---|---|---|---|
 | `git-advanced-workflows` | 15145 | no | no | 0 of 0 | no | 1 |
-| `github` | 25548 | no | no | 0 of 1 | no | 68 |
+| `github` | 25548 | no | no | 0 of 86 | no | 68 |
 | `merge-resolver` | 18317 | no | no | 0 of 2 | no | 14 |
 | `modernize` | 10726 | yes | no | 0 of 0 | no | 1 |
 | `pipeline-validator` | 19660 | no | no | 0 of 0 | no | 1 |
@@ -190,7 +192,9 @@ Each group is one fix thread and one small PR series. Groups run two at a time.
 
 Sizing, by ADR-127 decision 7: each gated skill needs at least 8 verdict scenarios before its rewrite.
 Groups 1 and 3 to 9 cover 29 skills at `a7b036aba3` (2026-11-25): 21 in groups 1 and 3 to 8, and 8 reference skills in group 9. Only `ship` has a verdict file today.
-Decision 7 gates a reference skill too when a rewrite implements its audit row. So the floor is 28 new scenario files of at least 8 scenarios each, 224 scenarios or more.
+Decision 7 gates a reference skill too when a rewrite implements its audit row.
+`push-pr` folds into `ship`, so it needs no file of its own. That leaves 28 scenario files.
+Of those, 27 are new, and the `ship` file needs new scenarios on kept judgment. At 8 scenarios each, the floor is 224 scenarios.
 The P2 and P3 rows need no rewrite thread. A P2 row is a candidate when its skill is next edited.
 One exception: `pr-babysit` is P2 but rides in group 4, because it shares that group's branch update and push steps.
 `git-advanced-workflows` is a driver, so it stays in group 5.
