@@ -277,7 +277,7 @@ Recorded for the owner. None is fixed here.
 - **Stale exclusion reason.** `stuck-detection` rates `safe` with the pinned guard, but its `excluded` reason says `dangerous`. ADR-115 already notes this.
 - **Pilot description.** The pilot `ship` description still says "hand PR creation to push-pr" (`3a619dabd6`, 2026-11-25).
 - **Excluded skills are close to restorable.** Each `dangerous` skill traces to 1 to 4 `critical` lines in reference prose: `adr-review/references/deletion-workflow.md:86`, `cva-analysis/references/SKILL_SPEC.md:110`, `memory-maintenance/references/benchmarking.md:352`, `memory-search/references/memory-router.md:293` and `skill-reference.md:209,276,292`, `planner/resources/plan-format.md:170`. Restoring them is out of scope.
-- **doc-accuracy timed out.** `doc_accuracy.py --target . --phases 1,2,3` did not finish Phase 1 in 300 s on this checkout.
+- **doc-accuracy on the whole repo is slow.** `doc_accuracy.py --target . --phases 1,2,3` did not finish Phase 1 in 300 s. The diff-scoped run (`--diff-base origin/main`) passed with 0 findings.
 
 ## Open questions for the owner
 

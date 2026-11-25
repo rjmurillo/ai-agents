@@ -27,7 +27,7 @@ N1: C5 by-path users are seven skills; with `ship` through code, eight. The ADR 
 ## Gate results (adr-generator exit gates, 2026-11-25)
 
 - Gate 1, claims ledger: VERIFIED (this file).
-- Gate 2, doc-accuracy: NOT RUN. `doc_accuracy.py --target . --phases 1,2,3` timed out at 300 s in Phase 1.
+- Gate 2, doc-accuracy: VERIFIED after commit. `doc_accuracy.py --target . --diff-base origin/main --format gate` returned verdict PASS, 0 findings (2026-11-25). A first whole-repo run timed out at 300 s.
 - Gate 3, self-consistency: VERIFIED. The Decision 6 bullets, the four new alternatives, and the Negative bullet agree on packs, moves, and counts.
 - Gate 4, refuting seat (analyst, haiku, 86 s): one finding, on C9. It read the hermes-agent working tree at `2bd378ed1b`, where the docstring is at line 615. The ledger cites the pinned commit `63d0b94120`, where `git show 63d0b94120:tools/skills_tool.py` puts it at line 552. Not a factual error. C9 now names the revision. The seat could not check C1, C3, C4, C10, or C11 (no git access) or rerun guard claims.
 
