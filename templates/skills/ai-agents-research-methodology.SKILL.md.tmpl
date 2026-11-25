@@ -88,7 +88,7 @@ made after seeing the data is a description, not a test. Concretely:
    fixture; `ls tests/evals/` lists what is available.)
 
    `--dry-run` validates inputs and makes no API calls
-   (scripts/eval/eval-prompt-change.py:979, `Validate inputs, no API calls`).
+   (scripts/eval/eval-prompt-change.py:985, `Validate inputs, no API calls`).
    It is the only no-spend path; there is no `--mock`.
 3. Run the real eval, compare against the written prediction, and record both
    in the write-up. A miss is a finding, not an embarrassment.
