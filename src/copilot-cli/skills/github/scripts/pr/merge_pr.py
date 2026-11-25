@@ -165,6 +165,13 @@ _STRATEGY_PREFERENCE = ("squash", "merge", "rebase")
 
 _BLOCKED_KEYWORDS = ("BLOCKED", "branch protection", "required status check")
 
+# GraphQL and REST core rate limits are separate budgets. When agent fleets
+# exhaust the shared GraphQL budget, ``gh pr merge`` fails with a rate-limit
+# error while the REST merge endpoint still serves the same head SHA seconds
+# later; four PRs in the 2026-11 fleet incident were merged by hand through
+# raw REST for exactly this reason. Matched case-insensitively.
+_RATE_LIMIT_KEYWORDS = ("rate limit",)
+
 # Issue #5473: GraphQL refuses outright for a PR GitHub considers part of a
 # stack. Retargeting the child to break the stack is refused too. The
 # synchronous REST merge (_rest_merge) answers 403 for a stack, so the only
@@ -1108,8 +1115,12 @@ def _handle_merge_failure(
         # The synchronous REST endpoint refuses a stack, so go asynchronous.
         _merge_stack_async(ctx, subject, body, output)
         return _APPROVAL_ASYNC
-    if not ctx.auto and any(kw in output for kw in _BLOCKED_KEYWORDS):
-        # GraphQL refused with a BLOCKED policy error; retry via REST once.
+    blocked_refusal = any(kw in output for kw in _BLOCKED_KEYWORDS)
+    rate_limited = any(kw in lowered for kw in _RATE_LIMIT_KEYWORDS)
+    if not ctx.auto and (blocked_refusal or rate_limited):
+        # GraphQL refused with a BLOCKED policy error (issue #4362) or died on
+        # an exhausted GraphQL rate budget (2026-11 fleet incident); retry once
+        # via the REST merge endpoint, which draws on the separate core budget.
         rest_result = _rest_merge(
             pr,
             ctx.repo_flag,
@@ -1126,6 +1137,13 @@ def _handle_merge_failure(
             if rest_data.get("merged") or _pr_is_merged(pr, ctx.repo_flag):
                 return _APPROVAL
         # REST also failed; surface the original GraphQL error.
+        if rate_limited and not blocked_refusal:
+            raise _MergeFailureError(
+                f"PR #{pr} merge hit the GraphQL rate limit and the REST fallback "
+                f"also failed: {sanitize_failure_detail(output)}",
+                3,
+                "RateLimitError",
+            )
         raise _MergeFailureError(
             f"PR #{pr} is blocked by branch protection policy: {sanitize_failure_detail(output)}\n"
             "Hint: use --auto to enable auto-merge when checks pass.",

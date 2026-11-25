@@ -200,9 +200,18 @@ def _readiness_reasons(pr: dict[str, Any], ci_state: str) -> list[str]:
 
 
 def build_dismissal_command(owner: str, repo: str, pr: int, review_id: object) -> str:
+    """Return the handoff command a human runs to dismiss one stale review.
+
+    Points at dismiss_pr_review.py from this skill (scripts/pr/), which checks
+    the review state and unresolved threads before it writes, where the raw
+    ``gh api`` paste it replaces checked nothing. Owner and repo are
+    positional in the endpoint form, so the script infers them from the
+    checkout the human runs it in; cross-repo dismissal passes --owner/--repo.
+    """
     return (
-        f"gh api -X PUT repos/{owner}/{repo}/pulls/{pr}/reviews/{review_id}/dismissals "
-        f'-f event=DISMISS -f message="{_DISMISS_MESSAGE}"'
+        "python3 .claude/skills/github/scripts/pr/dismiss_pr_review.py "
+        f"--pull-request {pr} --review-id {review_id} "
+        f'--message "{_DISMISS_MESSAGE}"'
     )
 
 
