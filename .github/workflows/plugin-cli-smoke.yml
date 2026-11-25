@@ -2,9 +2,9 @@
 # Plugin CLI Smoke (issue #6069, REQ-047; supersedes the nightly smoke of issue #2231
 # items 3-4, ADR-071, issue #2736)
 #
-# Gates a pull request on proof that the shipped plugin loads in Claude,
-# Copilot, and Codex on Ubuntu, macOS, and Windows, and that the repo root loads
-# as a Pi package on Ubuntu. A path filter
+# Gates a pull request on proof that the shipped plugin loads in Codex on
+# Ubuntu, macOS, and Windows, and that the repo root loads as a Pi package on
+# Ubuntu. The Claude and Copilot legs run on dispatch only. A path filter
 # (scripts/validation/cli_smoke_paths.py, ADR-006: decision in Python, not YAML)
 # runs the legs only when a change can affect plugin loading. The "CLI Smoke
 # Result" job always runs, so it is the one check to require.
