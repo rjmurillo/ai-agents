@@ -79,3 +79,4 @@ Applied 2026-11-25 from a final check. Facts only; no rule or layout changed, so
 - `spec-generator` calls `adr-review` and `cva-analysis` by name; both stay excluded, now stated.
 - The ADR frontmatter `date` stays 2026-11-24, so the generated index `.project-toolkit/architecture/README.md` does not change. PR #7629 edits that file.
 - Two `security-scan` citations in Decision 6 now give the full repository path, so the citation-freshness gate resolves them.
+- The `vulnerability-patterns.md:23` citation names its row, which the citation-freshness gate matches.
