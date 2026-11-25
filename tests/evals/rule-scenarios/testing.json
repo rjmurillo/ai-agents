@@ -1,5 +1,6 @@
 {
-  "rule_path": ".claude/rules/testing.md",
+  "skill_path": ".claude/skills/test/SKILL.md",
+  "reference_path": ".claude/skills/test/references/rule-testing.md",
   "rule_id": "testing",
   "scenarios": [
     {
@@ -69,6 +70,60 @@
       ],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "The edited file matches none of the testing rule's paths (tests/**, **/*.Tests.ps1, **/tests/**, benchmarks, testing.md itself), so the test-file clauses do not activate."
+    },
+    {
+      "id": "N1",
+      "desc": "Gate test asserts a helper's return value",
+      "input": "I am writing a test for the doc-link checker gate. It will call find_broken_links(tree) and assert the returned list has one entry for the bad link. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "main(argv)",
+        "exit code",
+        "return value",
+        "process status",
+        "silent pass"
+      ],
+      "expected_gate": "assert-on-process-exit-code",
+      "rationale": "MUST 8: a test for a CLI or gate drives main(argv) and asserts the integer it returns. A helper returning a findings list proves detection, not that the program fails."
+    },
+    {
+      "id": "N2",
+      "desc": "Workflow wiring test using a text substring",
+      "input": "To make sure the coverage step stays in ci.yml, I will read the workflow file as text and assert that 'coverage-gate' is in it. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "parse",
+        "yaml",
+        "object graph",
+        "substring",
+        "comment"
+      ],
+      "expected_gate": "assert-on-parsed-structure-not-substring",
+      "rationale": "MUST 9: parse the YAML and assert on the object graph. A substring passes when the step is deleted but its name survives in a comment or an adjacent job."
+    },
+    {
+      "id": "N3",
+      "desc": "Test for a function that creates a cache directory",
+      "input": "I am testing ensure_cache_dir(). My fixture will hand the test a pytest tmp_path with the cache folder already created, then I assert the folder exists after the call. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "precondition",
+        "absent before",
+        "fixture",
+        "creates",
+        "assert"
+      ],
+      "expected_gate": "assert-precondition-absent-before-acting",
+      "rationale": "MUST 14: when the behavior under test is that the code creates X, the test asserts X is absent before acting. A pre-made directory lets the test pass against code that never creates it."
+    },
+    {
+      "id": "N4",
+      "desc": "Contributor docs on running the suite (negative)",
+      "input": "Update CONTRIBUTING.md so it explains how to run just the hooks tests and how to see which tests were slowest. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "pytest",
+        "durations",
+        "docs"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The task edits contributor documentation. It adds, changes, or reviews no test code, fixture, or harness, so the testing clauses do not apply."
     }
   ]
 }

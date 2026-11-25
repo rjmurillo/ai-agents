@@ -6,7 +6,7 @@ is not a second lock: it is no lock at all against the first. Three schemes were
 live at once on 2026-08-02 and the only way anyone found out was a ``ps`` census
 (issue #4366). This checker makes a fourth scheme visible at commit time.
 
-The canonical form is fixed by ``.claude/rules/push-lock.md``:
+The canonical form is fixed by ``.claude/skills/push-pr/references/rule-push-lock.md``:
 
     flock "$HOME/src/scratch/locks/push-lock-$SLUG.lock" git push origin "$BR"
 
@@ -60,7 +60,7 @@ EXCLUDED_PREFIXES = (
 _FENCE = re.compile(r"^\s*(?:```|~~~)")
 NO_PATH_MESSAGE = (
     "flock recipe names no canonical lock path in this block "
-    "(expected {template}; see .claude/rules/push-lock.md, issue #4366)"
+    "(expected {template}; see .claude/skills/push-pr/references/rule-push-lock.md, issue #4366)"
 )
 
 
@@ -247,7 +247,7 @@ def check_paths(repo_root: Path, paths: Iterable[str]) -> tuple[list[str], int]:
             if candidate:
                 detail = (
                     f"push lock '{candidate}' is not {CANONICAL_TEMPLATE} "
-                    "(see .claude/rules/push-lock.md, issue #4366)"
+                    "(see .claude/skills/push-pr/references/rule-push-lock.md, issue #4366)"
                 )
             else:
                 detail = NO_PATH_MESSAGE.format(template=CANONICAL_TEMPLATE)

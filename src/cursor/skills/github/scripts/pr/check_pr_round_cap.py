@@ -19,8 +19,8 @@ state that survives a session restart" with a hidden-marker PR comment. This
 script reuses that shape. A squash-merge, rebase, or force-push destroys the
 commit history a counter would replay, while a comment lives on the issue
 timeline. It needs only the GitHub API, like `check_pr_live_state.py`, and a
-fourth ad-hoc storage scheme repeats the failure `.claude/rules/push-lock.md`
-documents for lock files.
+fourth ad-hoc storage scheme repeats the failure the `push-pr` skill's
+`references/rule-push-lock.md` documents for lock files.
 
 Unlike the lease, this marker carries no security weight: a forged or
 duplicated marker at worst causes a premature ESCALATE (fail-safe), never a

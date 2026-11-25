@@ -13,7 +13,7 @@ implemented: true
 
 ## Status
 
-Accepted. Requested by issue #5164 (labels `enhancement`, `priority:P2`, `area-validation`; see the priority note at the end of this document). Round 1 of the standard 6-agent `adr-review` debate (architect, critic, independent-thinker, security, analyst, high-level-advisor) returned 6/6 ACCEPT-WITH-CHANGES; debate log at `.project-toolkit/critique/ADR-096-debate-log.md`. This text is the Phase 3 resolution incorporating the required changes, plus a Round 2 correction (see the debate log's Round 2 entry) fixing a Decision-section claim that contradicted this ADR's own correction note. Per `.claude/rules/ci-scripts.md` MUST-NOT-2 and the `adr-review-policy` lefthook hook, code was implemented only after this ADR's frontmatter `status` transitioned to `accepted` in the same change as this status update, per the `adr-review` skill's own acceptance-transition gate (debate-log evidence at `.project-toolkit/critique/ADR-096-debate-log.md`). The frontmatter `status` transition was found missing from this PR's first two heads by the AI Spec Validator workflow on PR #5167; corrected here rather than disputed, since the ADR's own text already asserted the gating rule it had failed to satisfy.
+Accepted. Requested by issue #5164 (labels `enhancement`, `priority:P2`, `area-validation`; see the priority note at the end of this document). Round 1 of the standard 6-agent `adr-review` debate (architect, critic, independent-thinker, security, analyst, high-level-advisor) returned 6/6 ACCEPT-WITH-CHANGES; debate log at `.project-toolkit/critique/ADR-096-debate-log.md`. This text is the Phase 3 resolution incorporating the required changes, plus a Round 2 correction (see the debate log's Round 2 entry) fixing a Decision-section claim that contradicted this ADR's own correction note. Per MUST-NOT-2 of the former `ci-scripts` rule (now at `.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`) and the `adr-review-policy` lefthook hook, code was implemented only after this ADR's frontmatter `status` transitioned to `accepted` in the same change as this status update, per the `adr-review` skill's own acceptance-transition gate (debate-log evidence at `.project-toolkit/critique/ADR-096-debate-log.md`). The frontmatter `status` transition was found missing from this PR's first two heads by the AI Spec Validator workflow on PR #5167; corrected here rather than disputed, since the ADR's own text already asserted the gating rule it had failed to satisfy.
 
 ## Date
 
@@ -182,8 +182,8 @@ The chosen design accepts a breaking signature change to `validate_qa_report()`,
 
 - `.claude/lib/qa_report.py`. `validate_qa_report`, `session_qa_binding`, `post_qa_code_changes`, `QA_EVIDENCE_PREFIXES`.
 - `scripts/validate_session_json.py:930-992`. `validate_qa_report_evidence`, the first call site.
-- `.claude/skills/session-end/scripts/complete_session_log.py:526-547,884-901`. `_qa_report_evidence` and its caller, the second call site.
-- `.claude/rules/ci-scripts.md` MUST-NOT-2, MUST-13. Validator-behavior-change ADR requirement; corpus-demonstration requirement for a newly-introduced gate.
+- `.claude/skills/session-end/scripts/complete_session_log.py:526-547,884-901`. `_qa_report_evidence` and its caller, the second call site. <!-- citation-freshness: ignore -- historical citation: the file and lines as they stood when this ADR was written; the file is no longer tracked -->
+- The former `ci-scripts` rule (now at `.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`), MUST-NOT-2 and MUST-13. Validator-behavior-change ADR requirement; corpus-demonstration requirement for a newly-introduced gate.
 - `.project-toolkit/sessions/handoffs/2026-08-15-2840-handoff.md`. The 23-mention, 15-round rebind evidence, and the round-15 citation this ADR corrects.
 - `.project-toolkit/critique/ADR-096-debate-log.md`. Round 1 debate log.
 

@@ -2,7 +2,7 @@
 
 Every fixture is built in `tmp_path`. Each negative shape asserts the exit
 code and the message, so a test cannot pass for the wrong reason (per
-`.claude/rules/testing.md` SHOULD 10). Modeled on
+`rule-testing.md` SHOULD 10). Modeled on
 `tests/validation/test_check_capability_graph.py`, the style model TASK-047
 names for this gate.
 """

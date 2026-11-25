@@ -18,7 +18,7 @@ applies to which label.
 Controls, one per runner path
 -----------------------------
 
-`.claude/rules/testing.md` MUST 11 requires an inverted control: a mutation the
+`rule-testing.md` MUST 11 requires an inverted control: a mutation the
 suite must SURVIVE, without which a harness that fails unconditionally reports a
 clean sweep. MUST 17 adds that survival alone proves nothing, so each control is
 paired with a discriminating edit that must be DEAD.
@@ -199,7 +199,7 @@ def _classify(proc: subprocess.CompletedProcess[str]) -> str:
 def _mutation(spec: MutationSpec, repo_root: Path) -> str:
     """Apply one spec and return its outcome string.
 
-    An ambiguous anchor is refused, not guessed. `.claude/rules/testing.md`
+    An ambiguous anchor is refused, not guessed. `rule-testing.md`
     MUST 7 requires each mutant to "count occurrences of its target before
     patching and refuse an ambiguous or absent match", and the sibling harness
     ``tests/mutation/test_mutate_baseline_ratchet_integrity.py`` already does,

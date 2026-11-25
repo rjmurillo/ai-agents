@@ -26,7 +26,7 @@ Choosing which surface a fact belongs on binds earlier, before you know which tr
 
 ## SHOULD
 
-1. **Prefer an existing rule file**. Before adding a new `.claude/rules/*.md`, SHOULD add the item to the closest existing rule (a testing convention to `.claude/rules/testing.md`, a security convention to `.claude/rules/security.md`). Create a new file only when no existing rule owns the concern.
+1. **Prefer an existing rule file**. Before adding a new `.claude/rules/*.md`, SHOULD add the item to the closest existing rule (a testing convention to the `test` skill's `references/rule-testing.md`, a security convention to the `security-review` skill's `references/rule-security.md`). A folded rule is that skill's own workflow text under the Placement contract. Create a new file only when no existing rule owns the concern.
 2. **Cite the incident**. SHOULD name the failure, PR, or review that motivated the convention, so the next reader can weigh it (mirrors `.claude/rules/governance.md` "Evidence required").
 
 ## Placement contract

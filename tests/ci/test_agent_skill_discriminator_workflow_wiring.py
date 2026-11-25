@@ -11,7 +11,7 @@ reported a fresh green tick in the checker's place. Nothing was inherited from
 an earlier run; the tick asserted only that the diff looked uninteresting.
 
 Asserted against the parsed object graph, never a substring of the YAML text,
-per `.claude/rules/testing.md` MUST-9: a text match passes when the pattern
+per `rule-testing.md` MUST-9: a text match passes when the pattern
 survives in a comment or a neighbouring job after the filter entry itself has
 been deleted.
 """

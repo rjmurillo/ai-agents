@@ -31,7 +31,7 @@ fails too, so the marker cannot outlive the reason it was written for.
 A module pytest skips during collection is different. It may skip on one host
 and collect on another. Marker syntax alone still proves nothing about whether
 the guarded code actually runs elsewhere, and a dead test behind a condition
-that is false on every host (`.claude/rules/testing.md` MUST 7's own
+that is false on every host (`.claude/skills/test/references/rule-testing.md` MUST 7's own
 falsifiability standard) can carry that syntax forever. The guard therefore
 requires a second declaration, ``pytest-zero-collection-conditional:
 <reason>``. That declaration satisfies the guard only when pytest actually
@@ -128,7 +128,7 @@ def pytest_collection_finish(session):
 '''
 
 # Inherited pytest state would reach the child run as extra options or as a
-# worker identity it must not adopt (`.claude/rules/testing.md` SHOULD 12).
+# worker identity it must not adopt (`.claude/skills/test/references/rule-testing.md` SHOULD 12).
 _STRIPPED_ENVIRONMENT = (
     "PYTEST_ADDOPTS",
     "PYTEST_CURRENT_TEST",

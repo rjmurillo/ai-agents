@@ -4,7 +4,7 @@ Governance, planning, history; only `plugins/` ships. `skills/*` link to `src/co
 
 ## Matters
 
-- Rules auto-load: `session-logs`,`token-economy`->`.agents/**`; `adr-records`,`tool-use-hook-bar`->`architecture/**`; `governance`,`push-lock`->`governance/**`; `canonical-source-mirror`->`governance/**`,`retrospective/**`; `retros`->`retrospective/**`; `secret-redaction`->`sessions/**`,`retrospective/**`; `security`->`security/**`; `testing`->`security/benchmarks/**`.
+- Rules auto-load: `session-logs`,`token-economy`->`.agents/**`; `adr-records`->`architecture/**`; `governance`->`governance/**`; `canonical-source-mirror`->`governance/**`,`retrospective/**`; `secret-redaction`->`sessions/**`,`retrospective/**`.
 - Markdownlint ignores `.agents/**`; dash ban binds (`staged-dash-policy`). `governance/DOCUMENTATION-LINK-REQUIREMENTS.md`: relative links, unenforced. Gemini skips it (`.gemini/config.yaml`).
 
 ## Entry points

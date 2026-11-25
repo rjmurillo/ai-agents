@@ -3,7 +3,7 @@
 Issue #5788: ADR-109 B1 made every agent copy generated output, and the sibling
 docs, rule text, and generator docstrings kept calling them hand-maintained.
 This guard is what makes that loud. Its tests drive ``main(argv)`` and assert on
-the integer it returns, per .claude/rules/testing.md MUST 8: a helper that
+the integer it returns, per rule-testing.md MUST 8: a helper that
 returns a findings list proves the helper detected the problem and proves nothing
 about whether the program fails.
 """

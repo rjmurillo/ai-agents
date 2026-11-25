@@ -165,7 +165,10 @@ A policy a prompt must carry at runtime renders into the prompt; it is not
 cited. The skill renderer and the agent renderer read separate partial
 directories, so such a policy has one canonical text per template tree, pinned
 byte-identical by a contract test. For `untrusted-content-handling`, owned by
-`templates/rules/security.md`:
+`templates/rules/universal.md`, the canonical text lives in these files.
+**Amended 2026-11-24, by owner decision (rjmurillo):** ownership moved to
+universal.md from the former `security` rule, which first held it (now at
+`.claude/skills/security-review/references/rule-security.md`):
 
 - `templates/skills/partials/untrusted-content.mustache`
 - `templates/agents/partials/untrusted-content.mustache`
@@ -265,8 +268,15 @@ and the deterministic report pays it back in one command.
 
 REQ-031, DESIGN-029, and TASK-040 carry the schema, the component design, and
 the three-milestone sequence. The first conversion is the untrusted-content
-policy: 13 authored locations to one canonical owner in
-`templates/rules/security.md`, with each consumer keeping a one-line MUST.
+policy: 13 authored locations to one canonical owner in the former `security` rule,
+with each consumer keeping a one-line MUST. **Amended 2026-11-24:** that rule left
+`templates/rules/` and became the skill reference
+`.claude/skills/security-review/references/rule-security.md`.
+`check_capability_graph.py` reads canonical owners only from `templates/`
+(lines 67-69), and a skill reference file is not a graph node (section 3), so
+ownership moved to `templates/rules/universal.md` by owner
+decision. The owner now loads on every path, so every session carries the
+invariant. The reference keeps a one-line restatement of the invariant; it is not a graph node.
 
 ## Related Decisions
 
