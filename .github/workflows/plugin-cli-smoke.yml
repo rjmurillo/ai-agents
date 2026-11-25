@@ -50,7 +50,7 @@
 #   - Codex agent install smoke (ADR-115 Decision 7): `install_agents.py` runs from the
 #     installed plugin cache, and `codex debug prompt-input` lists every shipped agent.
 #
-# Security (.claude/rules/security.md, issue #2231 item 3):
+# Security (.claude/skills/security-review/references/rule-security.md, issue #2231 item 3):
 #   - pull_request runs for same-repo branches get secrets only through the
 #     agent-<cli> environment approval. A fork PR gets no secrets from GitHub.
 #     The trusted-context gate (scripts/validation/assert_trusted_smoke_context.py)

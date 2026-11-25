@@ -98,7 +98,7 @@ Notes:
 
 #### D3. ADR-062 reconciliation (completed)
 
-This is done, and went further than the original draft directed. The ADR-062 amendment (issue #3214, Accepted 2026-07-18) RETIRED the LSP-first runtime enforcement hooks entirely (the five guards), and #3232 deleted them from the vendored surface, keeping only the static steering in `.claude/rules/lsp-first.md`. So the "LSP recovery mechanism" the June draft directed to reframe as a bounded escape no longer exists; there is nothing left to fail-open or fail-closed at that layer. The surviving static steering is a class-3 advisory (see D4) and enforces nothing at runtime. ADR-084 (the vendored-hook ROI bar) records why: the family added one true positive in 6.5 weeks against a running tally of false blocks. No further ADR-062 action is required by #2271.
+This is done, and went further than the original draft directed. The ADR-062 amendment (issue #3214, Accepted 2026-07-18) RETIRED the LSP-first runtime enforcement hooks entirely (the five guards), and #3232 deleted them from the vendored surface, keeping only the static steering in the former `lsp-first` rule (now at `.claude/skills/using-serena-symbols/references/rule-lsp-first.md`). So the "LSP recovery mechanism" the June draft directed to reframe as a bounded escape no longer exists; there is nothing left to fail-open or fail-closed at that layer. The surviving static steering is a class-3 advisory (see D4) and enforces nothing at runtime. ADR-084 (the vendored-hook ROI bar) records why: the family added one true positive in 6.5 weeks against a running tally of false blocks. No further ADR-062 action is required by #2271.
 
 #### D4. Graceful-degradation guidance reconciliation
 

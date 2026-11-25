@@ -49,7 +49,7 @@ the sweep examines today, not the seven jobs that existed when #5097 was
 fixed.
 
 Assertions run against `yaml.safe_load` output, never against workflow text
-(`.claude/rules/testing.md` MUST 9).
+(`rule-testing.md` MUST 9).
 """
 
 from __future__ import annotations
@@ -123,7 +123,7 @@ PRE_FIX_CONDITIONS: dict[tuple[str, str], str] = {
 
 # Lower bound on what the repository-wide sweep must examine. Without it a
 # broken classifier that matches nothing reports a clean sweep
-# (`.claude/rules/testing.md` MUST 10: report the scope size, not only the
+# (`rule-testing.md` MUST 10: report the scope size, not only the
 # finding count). Measured at 7 by running the sweep against
 # `.github/workflows/*.yml` at this commit: the six jobs in FIXED_AGGREGATORS
 # plus `pytest.yml::coverage`, which the artifact classifier added for #5104

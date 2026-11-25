@@ -14,7 +14,7 @@ review-by: 2027-04-13
 
 ## Context
 
-`.claude/rules/retros.md` MUST 2 says each retrospective classifies its failure against `.agents/governance/FAILURE-MODES.md`. When no class matches, the retrospective proposes a new class in a linked ADR.
+MUST 2 of the former `retros` rule (now at `.claude/skills/retrospective/references/rule-retros.md`) says each retrospective classifies its failure against `.agents/governance/FAILURE-MODES.md`. When no class matches, the retrospective proposes a new class in a linked ADR.
 
 The retrospective for issue #4780 (`.project-toolkit/retrospective/2026-09-01-issue-4780-importer-path-resolution.md`) found that FM-11, Customer-Facing Generated Artifact Shipped Without Runtime Verification, matches the mechanism and fails the premise. FM-11's mechanism sentence: "No gate ever executes the artifact under the runtime contract of its target host." That is the #4780 defect. FM-11's opening sentence says "A generator produces an artifact." The importer, `.claude-mem/scripts/import_claude_mem_memories.py`, is hand-authored. A governance doc, `.agents/governance/MEMORY-MANAGEMENT.md`, installed it into every harness's session by recommending it with no harness qualification.
 
@@ -83,7 +83,7 @@ Severity stays Critical. The #4780 defect was a false failure on an optional dep
 | `.agents/governance/FAILURE-MODES.md` | FM-11 title, Index row, Description, Trigger, Evidence, Detection, principle, References |
 | `.project-toolkit/retrospective/2026-09-01-issue-4780-importer-path-resolution.md` | Appended correction section |
 | `templates/skills/ai-agents-failure-archaeology.SKILL.md.tmpl` | FM-11 row title and evidence; rendered copy follows |
-| `.claude/rules/retros.md` | None. MUST 2 is satisfied by this ADR. |
+| The former `retros` rule (now at `.claude/skills/retrospective/references/rule-retros.md`) | None. MUST 2 is satisfied by this ADR. |
 | Gates | None. No script reads the class list or titles. |
 
 ## Reversibility Assessment
@@ -99,6 +99,6 @@ Review ran under the `adr-review` skill with the reduced panel (architect and cr
 - Issue #5461 (this decision), #4780, PR #5459
 - `.agents/governance/FAILURE-MODES.md`, section 11
 - `.project-toolkit/retrospective/2026-09-01-issue-4780-importer-path-resolution.md`
-- `.claude/rules/retros.md` MUST 2 and MUST NOT 1
+- The former `retros` rule (now at `.claude/skills/retrospective/references/rule-retros.md`), MUST 2 and MUST NOT 1
 - `.claude/rules/governance.md` MUST 2 and 4
 - ADR-071 (FM-11 origin), ADR-117 (precedent for a taxonomy ADR)

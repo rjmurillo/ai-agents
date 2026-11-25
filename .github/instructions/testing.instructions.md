@@ -1,1 +1,0 @@
-../../src/copilot-cli/instructions/testing.instructions.md

@@ -1,6 +1,6 @@
 # Test Location Standards
 
-This document restates, for `.agents/` readers, rules already enforced by [`.claude/rules/testing.md`](../../.claude/rules/testing.md) (the binding rule; its `paths` frontmatter fires on `tests/**`, `**/*.Tests.ps1`, `**/tests/**`, `.project-toolkit/security/benchmarks/**`) and by the placement gates in [`scripts/validation/`](../../scripts/validation/). Nothing below is new policy; it is documentation catching up to [ADR-042](../../.project-toolkit/architecture/ADR-042-python-migration-strategy.md) (accepted, Python-first migration) and to gates that already ship. Where a claim has no gate behind it, it carries a `Why:` paragraph instead of inventing one.
+This document restates, for `.agents/` readers, rules already enforced by [`.claude/skills/test/references/rule-testing.md`](../../.claude/skills/test/references/rule-testing.md) (the binding rule; the `test` skill loads it, and its header comment records the former path-rule scope `tests/**`, `**/*.Tests.ps1`, `**/tests/**`, `.project-toolkit/security/benchmarks/**`) and by the placement gates in [`scripts/validation/`](../../scripts/validation/). Nothing below is new policy; it is documentation catching up to [ADR-042](../../.project-toolkit/architecture/ADR-042-python-migration-strategy.md) (accepted, Python-first migration) and to gates that already ship. Where a claim has no gate behind it, it carries a `Why:` paragraph instead of inventing one.
 
 ## PowerShell layout: retired, no tracked survivors
 
@@ -34,7 +34,7 @@ Source: `pyproject.toml` `[tool.pytest.ini_options]`. Counts are measurements of
 
 | Rule | Statement | Evidence |
 |---|---|---|
-| 1 | New tests MUST live in `tests/` or `.project-toolkit/security/benchmarks/`. No other location is sanctioned. | `.claude/rules/testing.md` MUST 6 |
+| 1 | New tests MUST live in `tests/` or `.project-toolkit/security/benchmarks/`. No other location is sanctioned. | `.claude/skills/test/references/rule-testing.md` MUST 6 |
 | 2 | Skill tests MUST live under `tests/skills/<name>/`, never colocated inside `.claude/skills/<name>/tests/` or `src/copilot-cli/skills/<name>/tests/`. Colocated files ship to plugin consumers, who would then execute repo-internal test code. | Issue #4838; gate `check_colocated_skill_tests.py` |
 | 3 | Test files MUST be named `test_*.py`. A file named `*_test.py` alone is never collected, because `python_files` lists only the `test_*` prefix. Two tracked files end in `_test.py` and are still collected: both also begin with `test_`, because the module under test is itself named `*_test` (`tests/context-optimizer/test_skill_passive_compliance_test.py`, `tests/validation/test_run_workflow_local_test.py`). That is a suffix inherited from the subject, not a second naming convention. | `pyproject.toml` `[tool.pytest.ini_options]`; `python_files = ["test_*.py"]` |
 | 4 | A `test_*.py` that pytest walks MUST collect at least one test, or MUST carry a `pytest-zero-collection:` marker naming why it is a non-suite (an import helper, or a checker another workflow invokes). | Issue #4494; gate `check_zero_collection_tests.py` |
@@ -42,7 +42,7 @@ Source: `pyproject.toml` `[tool.pytest.ini_options]`. Counts are measurements of
 | 6 | A test file MUST NOT define two module-level helpers of the same name; ruff's F811 dummy-variable regex does not catch this for `_`-prefixed test helpers. | Gate `check_duplicate_test_helpers.py` |
 | 7 | A test MUST NOT write under a `PROJECT_ROOT`/`REPO_ROOT`/`ROOT`-rooted path outside `tmp_path` or `.pytest_tmp/`; four confirmed instances left litter that broke `git status` and inflated scanner baselines. | Issue #3772, PR #3688; gate `check_test_tree_writes.py` |
 | 8 | A `SKILL.md` that documents a script invocation plus an exit code MUST be named by at least one file under `tests/`, so the documented contract cannot drift silently. | Issue #4249; gate `check_skill_contract_tests.py` |
-| 9 | `.claude/rules/testing.md`'s own `.Tests.ps1` glob in its `paths:` frontmatter is a dead glob (zero matching files). It is left in place rather than edited here because narrowing that rule's scope is a `.claude/rules/testing.md` change, out of scope for this governance-doc rewrite. | Why: confirmed via `git ls-files '*.Tests.ps1'` (see above); changing the rule file itself needs its own PR |
+| 9 | The former `testing` path rule's `.Tests.ps1` glob was a dead glob (zero matching files). The rule now loads through the `test` skill, so no glob scopes it. | Why: confirmed via `git ls-files '*.Tests.ps1'` (see above) |
 
 ## Placement gates: what each rejects, exit codes, where it runs
 
@@ -59,7 +59,7 @@ All six read the shell-fail-loud contract in [the repo-local `ai-agents-validati
 
 ## Second sanctioned location: security benchmarks
 
-[`.project-toolkit/security/benchmarks/`](../../.project-toolkit/security/benchmarks) holds the security agent's benchmark suite (Issue #756): fixtures under `vulnerable_samples/`, `test_agent_review_quality.py`, `test_cwe22_path_traversal.py`, `test_cwe77_command_injection.py`. `.claude/rules/testing.md`'s `paths:` frontmatter names this tree explicitly, making it the one other placement `.claude/rules/testing.md` MUST 6 permits besides `tests/`.
+[`.project-toolkit/security/benchmarks/`](../../.project-toolkit/security/benchmarks) holds the security agent's benchmark suite (Issue #756): fixtures under `vulnerable_samples/`, `test_agent_review_quality.py`, `test_cwe22_path_traversal.py`, `test_cwe77_command_injection.py`. `.claude/skills/test/references/rule-testing.md` MUST 6 names this tree explicitly, making it the one other placement it permits besides `tests/`.
 
 ## One TypeScript test tree
 
@@ -97,12 +97,12 @@ Source: `pyproject.toml` `[tool.pytest.ini_options]`.
 ## What was dropped from the prior version, and why
 
 - All Pester-specific naming (`{ScriptName}.Tests.ps1`), the `BeforeAll`/`It` examples, and the Pester CI snippet: zero tracked `.ps1` files remain (see PowerShell section above); nothing in this repository executes that pattern today.
-- The single-directory "all tests in `/tests/`" rule: superseded by the two-location rule (`tests/` plus `.project-toolkit/security/benchmarks/`) that `.claude/rules/testing.md` MUST 6 actually enforces.
+- The single-directory "all tests in `/tests/`" rule: superseded by the two-location rule (`tests/` plus `.project-toolkit/security/benchmarks/`) that `.claude/skills/test/references/rule-testing.md` MUST 6 actually enforces.
 - The "no exceptions currently defined" line: false under current gates, which carry documented, evidence-anchored exceptions (`pytest-zero-collection:`-marked non-suites).
 
 ## Related Documents
 
-- [`.claude/rules/testing.md`](../../.claude/rules/testing.md): binding rule this document expands on.
+- [`.claude/skills/test/references/rule-testing.md`](../../.claude/skills/test/references/rule-testing.md): binding rule this document expands on.
 - [the repo-local `ai-agents-validation-and-qa` skill's `references/rule-ci-scripts.md`](../../.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md): exit-code and fail-loud contract every gate above follows.
 - [`.agents/governance/TESTING-RIGOR.md`](TESTING-RIGOR.md): pos+neg+edge evidence bar.
 - [`.agents/governance/TESTING-ANTI-PATTERNS.md`](TESTING-ANTI-PATTERNS.md): forbidden test shapes.

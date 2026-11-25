@@ -39,7 +39,7 @@ What it counts:
   operand). Hook registrations such as
   ``python3 -u .claude/hooks/<EventName>/invoke_<purpose>.py`` do not match:
   the placeholder path is not a tracked file, and hooks run under the host's
-  ambient interpreter by contract (``.claude/rules/python.md``).
+  ambient interpreter by contract (``.claude/skills/build/references/rule-python.md``).
 
 Scope:
   Tracked Markdown **and Python**, minus three exclusions.

@@ -1,6 +1,6 @@
 """Contract tests for the reviewer-findings skill bundle.
 
-Lives under ``tests/`` per ``.claude/rules/testing.md`` MUST 6 ("New tests
+Lives under ``tests/`` per ``rule-testing.md`` MUST 6 ("New tests
 MUST live in `tests/` ... Do not add tests to shipped skill directories"),
 not inside ``.claude/skills/reviewer-findings/tests/``. A colocated test file
 there would be mirrored by ``build/scripts/build_all.py`` into

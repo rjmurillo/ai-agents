@@ -802,7 +802,7 @@ def render_index(records: Sequence[AdrRecord]) -> str:
     parts = [_INTRO]
     for heading, blurb in _BLURBS:
         # An escape inside an f-string expression is 3.12+; the syntax floor is
-        # 3.10 (.claude/rules/python.md), so the fallback is bound out here.
+        # 3.10 (.claude/skills/build/references/rule-python.md), so the fallback is bound out here.
         table = tables[heading] or "None.\n"
         parts.append(f"## {heading}\n\n{blurb}\n\n{table}\n")
     return "".join(parts).rstrip("\n") + "\n"

@@ -33,11 +33,11 @@ workflow. Every GitHub branch now checks CI through `get_pr_checks.py`, and
 `TestGithubNeverRoutesToAdoValidator` pins that, with its own pre-fix control.
 
 Assertions parse the document into sections and bullets rather than substring-matching the
-whole file (`.claude/rules/testing.md` MUST 9): a bare `"pipeline-validator" in text` holds
+whole file (`rule-testing.md` MUST 9): a bare `"pipeline-validator" in text` holds
 when the name survives only in a prose reference and proves nothing about which branch
 invokes it. `TestPreFixControl` feeds the pre-fix ordering back through the same helpers, so
 every check here is shown to fail on the shape it was written against
-(`.claude/rules/testing.md` SHOULD 10).
+(`rule-testing.md` SHOULD 10).
 
 `templates/skills/ship.SKILL.md.tmpl` is the source; `src/copilot-cli/skills/ship/SKILL.md` is
 rendered from it by `build/scripts/build_all.py`, as is `.claude/skills/ship/SKILL.md`.

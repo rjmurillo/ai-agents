@@ -14,7 +14,7 @@ depends on, not the prose around them.
 Scoped to the section body rather than the whole file. A phrase asserted against
 the file as a whole survives the section's deletion whenever the same words
 appear in a neighbouring section, which is the same failure
-`.claude/rules/testing.md` MUST-9 describes for substring assertions on
+`rule-testing.md` MUST-9 describes for substring assertions on
 structured files. `test_the_section_scope_is_real` is the control for that.
 """
 

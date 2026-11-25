@@ -22,7 +22,7 @@ This is not a bar on hooks generally. `SessionStart`, `UserPromptSubmit`,
 once per tool call, and ADR-097 leaves them untouched.
 
 If you are here because this test failed: read ADR-097's "Re-evaluation
-Triggers", clear `.claude/rules/tool-use-hook-bar.md` MUST 1 through 5 for the
+Triggers", clear `rule-tool-use-hook-bar.md` MUST 1 through 5 for the
 new hook, and rebuild the hardening-test bar ADR-097 retired. Then delete the
 relevant assertion here, in the same change, with that reasoning recorded.
 """
@@ -39,7 +39,7 @@ HOOKS_DIR = REPO_ROOT / ".claude" / "hooks"
 GITHUB_HOOKS_DIR = REPO_ROOT / ".github" / "hooks"
 COPILOT_GENERATED_HOOKS = REPO_ROOT / "src" / "copilot-cli" / "hooks" / "hooks.json"
 
-# ADR-097 scope, matching `.claude/rules/tool-use-hook-bar.md`: every per-call
+# ADR-097 scope, matching `rule-tool-use-hook-bar.md`: every per-call
 # event. Naming fewer would leave the ratchet evadable by event choice.
 PER_CALL_EVENTS = (
     "PreToolUse",

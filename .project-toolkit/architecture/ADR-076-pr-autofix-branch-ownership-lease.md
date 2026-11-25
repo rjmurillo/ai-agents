@@ -215,7 +215,7 @@ The lease comment is untrusted input read from the PR timeline, so the acquire p
 |-----------|----------------|-----------------|------|
 | `.claude/commands/pr-autofix.md` | Direct | Document the lease acquire/release steps in the autofix flow; clarify the lease is advisory and the SHA gate remains authoritative (Phase 1) | Medium |
 | `docs/autonomous-pr-monitor.md` | Direct | Document the lease as a pre-action coordination step alongside `check_pr_live_state.py`; keep the Force-Push Safety section unchanged (Phase 1) | Medium |
-| New lease helper scripts (for example `scripts/pr_autofix_lease.py` with `acquire_lease`/`release_lease`/read) | Direct (new) | Implement the read-check-write, fail-open, TTL, and strict parser; ADR-035 exit codes; pytest coverage per `.claude/rules/testing.md` | Medium |
+| New lease helper scripts (for example `scripts/pr_autofix_lease.py` with `acquire_lease`/`release_lease`/read) | Direct (new) | Implement the read-check-write, fail-open, TTL, and strict parser; ADR-035 exit codes; pytest coverage per the former `testing` rule (now at `.claude/skills/test/references/rule-testing.md`) | Medium |
 | `check_pr_live_state.py` | Indirect | No change required; the lease check is a sibling probe, not a modification, but should run in the same pre-action position | Low |
 | Force-Push Safety SHA gate | Indirect | No relaxation. One addition: when a held lease's `base_sha` no longer matches `head.sha`, re-sync before push (already the recovery path) | Low |
 | Remote review/autofix routine (CodeRabbit autofix / CI) | Direct (Phase 2) | Acquire and check the lease before pushing; requires a BOT_PAT permissions audit before Phase 2 starts | High |
@@ -315,7 +315,7 @@ A forged or delayed REST response that misreports `merged`/`state` can at most c
 | `pr_autofix_lease.py` CLI (`main`) | Direct | No change; `SKIP` already maps to exit 1 (`:1564`) and `status="WARNING"` (`:1561`), which are the correct existing semantics for "declined to act" | None |
 | Callers of `renew` (local `pr-autofix`, any future remote Phase 2 integration) | Indirect | No caller contract change; a caller that inspects the `reason` field can log `pr-closed` distinctly from `held-by:<owner>`, but nothing requires it to | None |
 | `check_pr_live_state.py` | Indirect | No change; this amendment does not read or modify its query | None |
-| `src/copilot-cli/` mirror of the github skill | Direct | Regenerate via `build/scripts/build_all.py` after `scripts/sync_plugin_lib.py`, per `.claude/rules/generated-artifacts.md` | Low |
+| `src/copilot-cli/` mirror of the github skill | Direct | Regenerate via `build/scripts/build_all.py` after `scripts/sync_plugin_lib.py`, per the former `generated-artifacts` rule (since reworded to run `build_all.py` alone, now at `.claude/skills/ai-agents-generation-and-release/references/rule-generated-artifacts.md`) | Low |
 
 ### Consequences
 

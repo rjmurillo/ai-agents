@@ -148,7 +148,7 @@ and it took a user saying "I don't buy it" to reopen it.
 - **Structure being changed**: `.claude/rules/universal.md`, the always-on MUST
   list, plus its two generated mirrors under `.github/instructions/` and
   `src/copilot-cli/instructions/`.
-- **Closest existing rule**: `.claude/rules/testing.md` MUST 10 states that a
+- **Closest existing rule**: MUST 10 of the former `testing` rule (now at `.claude/skills/test/references/rule-testing.md`) states that a
   scope measurement must be reported together with the size of the scope,
   because the filter under evaluation is also the filter applied to the
   evidence. That is the same family of error, one layer down.
