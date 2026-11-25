@@ -1,9 +1,10 @@
 ---
 name: push-pr
 version: 1.0.0
-description: Commit the working tree, push the branch, and open a pull request with the repository template filled in from the real diff. Use when you say `push and open a PR`, `open a pull request`, or `push this branch`. Do NOT use to run the pre-ship review gates (use ship), and do NOT use to validate PR metadata alone (use validate-pr-description).
+description: Commit the working tree, push the branch, and open a pull request on GitHub or Azure DevOps with the repository template filled in from the real diff. This is the only skill that creates a PR. Use when you say `push and open a PR`, `open a pull request`, or `push this branch`. Do NOT use to run the pre-ship review gates (use ship), and do NOT use to validate PR metadata alone (use validate-pr-description).
 license: Apache-2.0
 # Security note: python3 -I is the identity-hardened form.
+# The az grant is scoped to `az repos pr create` only. Never widen it to `az:*` or `Bash(*)`.
 # The Edit entry above is scoped to the secure allocator's output file only.
 # The Bash tool executor must sanitize arguments to prevent command injection (CWE-78).
 # Shell metacharacters (; && | etc.) should be escaped/rejected before execution.
@@ -12,8 +13,9 @@ user-invocable: true
 
 # Push PR
 
-Commit, push, and open a pull request whose body is adapted from the real diff
-rather than copied from the template.
+Commit, push, and open a pull request, on GitHub or Azure DevOps, whose body is
+adapted from the real diff rather than copied from the template. This skill is
+the only place a PR is created; `/ship` calls it and never creates a PR itself.
 
 Migrated from `.claude/commands/push-pr.md` under ADR-064, which makes skills the
 single user-invocable surface. The scoped `allowed-tools` grant, the
@@ -23,13 +25,44 @@ carry over unchanged: they are the security contract, not formatting.
 ## Triggers
 
 `push and open a PR`, `open a pull request`, `push this branch`,
-`commit and push`
+`commit and push`, `open an Azure DevOps PR`
 
 ## Context
 
 - Current git status: !`git status`
 - Current git diff (staged and unstaged changes): !`git diff HEAD`
 - Current branch: !`git branch --show-current`
+
+## Host Detection
+
+Run this before step 1. It sets `host`, which only step 7 branches on. Steps 1
+to 6 run the same on both hosts.
+
+```bash
+remote_url="$(git remote get-url origin 2>/dev/null || true)"
+if [ -z "$remote_url" ]; then
+  echo "ERROR: origin remote is not configured; cannot detect VCS host." >&2
+  exit 2
+fi
+case "$remote_url" in
+  *dev.azure.com*|*visualstudio.com*) host=ado ;;
+  *) host=github ;;
+esac
+redacted_remote_url="$(printf '%s' "$remote_url" | sed -E 's#(https://)[^/@]+@#\1[redacted]@#')"
+echo "host=$host (origin: $redacted_remote_url)"
+```
+
+`dev.azure.com` or `visualstudio.com` anywhere in the URL means `host=ado`;
+everything else is `host=github`. This is the same rule `/ship` uses.
+
+## Commit Contract
+
+Commit messages MUST follow `<type>(<scope>): <desc>` and include a `Co-Authored-By:` trailer when authored with an AI agent.
+
+When the working tree is clean, `/push-pr` MUST NOT create a commit. It pushes
+`HEAD` as it stands. `/ship` relies on this: its owner-mode check requires the
+tree to be clean after `/review`, so the push carries the reviewed marker commit
+and nothing newer.
 
 ## Process
 
@@ -98,7 +131,8 @@ Based on the above changes:
      path under the change heading (inline code, bold, list item, or link) to
      `git diff --name-only origin/main...HEAD` by hand.
 6. Push the branch to origin.
-7. Create a pull request using the new_pr skill script:
+7. Create the pull request. `host=ado` skips the rest of this step and follows
+   Azure DevOps PR Creation. `host=github` uses the new_pr skill script:
 
    <!-- vendor-portability: declared. This skill reads the consumer's
    `.github/PULL_REQUEST_TEMPLATE.md` and writes the consumer's
@@ -120,6 +154,42 @@ Based on the above changes:
   - `Fixes #<number>`: auto-fixes issue when PR merges
   - `Resolves #<number>`: auto-resolves issue when PR merges
 - Ensure PR template sections are completed
+
+## Azure DevOps PR Creation
+
+Use this in place of step 7 only when `host=ado`. The `gh`-based `new_pr.py`
+does not apply to Azure DevOps. Steps 1 to 6 still run: the body file comes from
+step 3, the local checks from steps 4 and 5, and the push from step 6. Step 5
+carries its own fallback when the local validator is absent, such as in a
+plugin install.
+
+```bash
+az repos pr create --output json --title "<conventional commit title>" --description @<body-file-path-from-step-3>
+```
+
+- Azure CLI replaces an argument that starts with `@` by the contents of that
+  file, so `--description @<path>` sends the filled body file and never a shell
+  variable. Use the literal path from step 3.
+- Add `--target-branch <branch>` only when the PR must not target the
+  repository default branch. `--source-branch` defaults to the current branch.
+- A non-zero exit means no PR was created. Report FAIL with the `az` stderr and
+  stop. Never retry with a different command shape.
+- On success, read `pullRequestId` from the JSON output. Report it, and the PR
+  link `<repository.webUrl>/pullrequest/<pullRequestId>`, in the Output block.
+- The Windows PR Body Fallback below changes only how the body file is made.
+  The `az` command stays the same.
+
+## Output
+
+Finish with one line the caller can parse, naming the host and the PR:
+
+```text
+PR: host=github number=<number> url=<url>
+PR: host=ado pullRequestId=<id> url=<url>
+```
+
+`/ship` reads `number` (GitHub) or `pullRequestId` (Azure DevOps) from this line
+to check the pipeline on the new PR.
 
 ## Windows PR Body Fallback
 
@@ -172,12 +242,15 @@ You have the capability to call multiple tools in a single response. You MUST do
 ## Verification
 
 - [ ] Branch created off main when the working branch was main, never a push to main
+- [ ] `host` detected from the origin URL, and `ado` created the PR with `az repos pr create`, never `new_pr.py`
+- [ ] No commit created when the tree was already clean
 - [ ] Title follows conventional commit format
 - [ ] Local `pr_description.py --body-file` run exited 0 before the push, or its absence stated
 - [ ] Body written into the allocator's returned path, copied exactly, never through a shell variable (Windows: the `--body` fallback, with step 5 still run)
 - [ ] Every template section adapted from the real diff, with no placeholder comment left in
 - [ ] An `## Acceptance criteria` heading present with `- [ ]` bullets, checked only where met
 - [ ] Issue-linking keyword present, and a closing keyword used only when the diff delivers what the issue asks
+- [ ] Output block names the host and the PR number (`pullRequestId` on ADO)
 
 ## Anti-Patterns
 
@@ -188,11 +261,15 @@ You have the capability to call multiple tools in a single response. You MUST do
 | Numbered acceptance criteria | The Validate Spec Coverage job reads `- [ ]` and `* [ ]` only, so numbered items are invisible to it | Use checkbox bullets |
 | Checking a criterion box before it is met | The signal reports a pass the PR does not have, and the FAIL it should have shown does not block merge | Check a box only once the criterion holds |
 | Widening the `allowed-tools` grant to bare `Bash` | Removes the CWE-78 argument scoping that makes this skill safe to auto-approve | Add a specific scoped entry |
+| Granting `az:*` or `Bash(*)` for the ADO branch | Lets any `az` subcommand run unreviewed | Keep `Bash(az repos pr create:*)` only |
+| Creating a PR from `/ship` or any other skill | Splits title, body, and validation rules across two places | Call `/push-pr` and read its Output block |
+| Committing when the tree is clean | Moves HEAD off the `/review` marker commit `/ship` verified | Push `HEAD` as it stands |
 
 ## Extension Points
 
-- **Other forges.** Steps 3, 4, and 7 call `new_pr.py`. A non-GitHub forge swaps that
-  helper; the template-adaptation rules in step 4 are forge-independent.
+- **Other forges.** Step 7 branches on `host`: `new_pr.py` for GitHub, `az repos pr create`
+  for Azure DevOps. A further forge adds its own branch to Host Detection and step 7;
+  the template-adaptation rules in step 3 are forge-independent.
 - **Template changes.** Step 4's section list follows the repository PR
   template read in step 3. When that template gains a parsed section, add it to
   step 4 and to the Verification list together.
