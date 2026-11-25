@@ -238,8 +238,9 @@ class Survey:
     markers: list[str] = field(default_factory=list)
     rejected: list[dict[str, str]] = field(default_factory=list)
     read_errors: list[dict[str, str]] = field(default_factory=list)
-    # True when a folder exists but resolves outside the repository, so ADRs may exist unread.
-    folder_outside: bool = False
+    # True when an existing folder or ADR file was refused for resolving outside the
+    # repository or its folder, so ADRs may exist unread.
+    adrs_refused: bool = False
 
 
 def _resolve(path: Path) -> Path | None:
@@ -264,6 +265,7 @@ def load_dir(path: Path, rel: str, survey: Survey, explicit: bool = False) -> Ad
             continue
         target = _resolve(entry)
         if root is None or target is None or not within(target, root):
+            survey.adrs_refused = True
             survey.rejected.append(
                 {"path": f"{rel}/{entry.name}", "reason": "resolves outside the folder"}
             )
@@ -302,7 +304,8 @@ def _read_marker(repo: Path, survey: Survey) -> Path | None:
         return None
     candidate = _resolve(repo / first)
     if candidate is None or not within(candidate, repo):
-        survey.folder_outside = candidate is not None and candidate.is_dir()
+        if candidate is not None and candidate.is_dir():
+            survey.adrs_refused = True
         survey.rejected.append(
             {"path": ".adr-dir", "reason": f"target {first} resolves outside the repository"}
         )
@@ -324,7 +327,7 @@ def _known_folder(repo: Path, rel: str, survey: Survey) -> Path | None:
             survey.rejected.append({"path": rel, "reason": "symlink target is missing"})
         return None
     if not within(path, repo):
-        survey.folder_outside = True
+        survey.adrs_refused = True
         survey.rejected.append({"path": rel, "reason": "resolves outside the repository"})
         return None
     return path
@@ -428,9 +431,11 @@ def folder_style(folder: AdrDir | None, dirs: Sequence[AdrDir] = ()) -> FolderSt
 
 def _h2_headings(doc: AdrDoc) -> Iterator[str]:
     for _, line in prose_lines(doc.lines, doc.body_start):
-        match = re.match(r"^##\s+(.+?)\s*#*\s*$", line)
-        if match:
-            yield match.group(1)
+        match = re.match(r"^##\s+(.*)$", line)
+        # Trailing blanks and closing `#` marks come off in code: the old lazy regex was cubic.
+        title = match.group(1).rstrip().rstrip("#").rstrip() if match else ""
+        if title:
+            yield title
 
 
 def locate(repo: Path, survey: Survey) -> dict[str, Any]:

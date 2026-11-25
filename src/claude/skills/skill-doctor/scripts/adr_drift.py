@@ -150,7 +150,7 @@ def run_scan(args: argparse.Namespace) -> int:
     survey = find_adr_dirs(repo)
     docs = read_docs(survey)
     findings: list[Finding] = []
-    if not survey.dirs and not survey.read_errors and not survey.folder_outside:
+    if not survey.dirs and not survey.read_errors and not survey.adrs_refused:
         findings.append(_no_directory_finding())
     findings += check_numbering(survey.dirs, docs) + check_links(docs, survey.dirs)
     findings += check_supersession(docs) + check_cited_paths(repo, docs)

@@ -32,7 +32,7 @@ from adr_corpus import (
     next_number,
     parse_name,
 )
-from adr_text import STATUS_HEADING, h1_number, prose_lines, status_word
+from adr_text import ADR_NUMBER, STATUS_HEADING, h1_number, prose_lines, status_word
 
 ACTIVE_STATUSES = frozenset({"", "accepted", "proposed", "draft", "approved"})
 GAP_EVIDENCE_CAP = 50
@@ -47,9 +47,9 @@ KIND_PROFILE = {
     "adr-cited-path-missing": (LINKS, "low"),
 }
 
-# Link text, target, and title never span a `[`, so each match attempt stops at the next
-# one. That keeps a long line of brackets linear instead of quadratic.
-INLINE_LINK = re.compile(r"\[[^\[\]\n]*\]\(\s*<?([^()\[\]\s<>]+)>?(?:\s+\"[^\"\[\]\n]*\")?\s*\)")
+# Link text and target never span a `[`, and a title is at most 300 characters, so each
+# match attempt stops near the next `[`. That keeps a long line of brackets linear.
+INLINE_LINK = re.compile(r"\[[^\[\]\n]*\]\(\s*<?([^()\[\]\s<>]+)>?(?:\s+\"[^\"\n]{0,300}\")?\s*\)")
 REF_LINK = re.compile(r"^\s{0,3}\[[^\]]+\]:\s*<?(\S+?)>?(?:\s|$)")
 CODE_SPAN = re.compile(r"`[^`\n]*`")
 EDGE_LINE = re.compile(
@@ -58,7 +58,7 @@ EDGE_LINE = re.compile(
 LINKED_EDGE = re.compile(
     r"^\s*(?:[-*>]\s+)*\**(supersedes|superseded[ -]by)\**\s+(?=\[)(.*)$", re.IGNORECASE
 )
-SUPERSEDED_BY_TEXT = re.compile(r"supersed\w*\s+by\s+(.*)", re.IGNORECASE)
+SUPERSEDED_BY_TEXT = re.compile(r"supersed\w{0,20}\s+by\s+(.*)", re.IGNORECASE)
 PATH_RUN = re.compile(r"[\w./-]+")
 BARE_NUMBER = re.compile(r"^\d+$")
 EDGE_KEYS = (
@@ -66,7 +66,7 @@ EDGE_KEYS = (
     ("superseded-by", "superseded_by"),
     ("superseded_by", "superseded_by"),
 )
-ADR_REF = re.compile(r"\bADR-0*(\d+)\b")
+ADR_REF = re.compile(rf"\b{ADR_NUMBER}")
 
 
 @dataclass(frozen=True)

@@ -22,12 +22,13 @@ from adr_corpus import (
     make_finding,
     run_git,
 )
-from adr_text import status_word
+from adr_text import ADR_NUMBER, status_word
 
 MAX_CITED_EVIDENCE = 10
-SUPERSEDE_VERB = r"(?:supersed\w*|replac\w*|revert\w*|deprecat\w*|drop\w*)"
-VERB_THEN_ADR = re.compile(rf"{SUPERSEDE_VERB}[^.\n]{{0,60}}?\bADR-0*(\d+)\b", re.IGNORECASE)
-ADR_THEN_VERB = re.compile(rf"\bADR-0*(\d+)\b[^.\n]{{0,60}}?{SUPERSEDE_VERB}", re.IGNORECASE)
+# Word suffixes are bounded so a long run of verbs cannot make each match attempt rescan it.
+SUPERSEDE_VERB = r"(?:supersed|replac|revert|deprecat|drop)\w{0,20}"
+VERB_THEN_ADR = re.compile(rf"{SUPERSEDE_VERB}[^.\n]{{0,60}}?\b{ADR_NUMBER}", re.IGNORECASE)
+ADR_THEN_VERB = re.compile(rf"\b{ADR_NUMBER}[^.\n]{{0,60}}?{SUPERSEDE_VERB}", re.IGNORECASE)
 SHA_TOKEN = re.compile(r"^[0-9a-f]{40,64}$")
 STATUS_TOKEN = re.compile(r"^[A-Z]\d*$")
 LOG_ARGS = (

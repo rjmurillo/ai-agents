@@ -14,6 +14,9 @@ BACKTICK = re.compile(r"`([^`\n]+)`")
 PATHLIKE = re.compile(r"^[A-Za-z0-9_.@+-][A-Za-z0-9_.@+/-]*$")
 PLACEHOLDER = re.compile(r"YYYY|MM-DD|NNN|XXX|path/to", re.IGNORECASE)
 FILE_EXTENSION = re.compile(r"\.[A-Za-z0-9]{1,8}$")
+# An ADR number: one to six digits after any leading zeros, as file names allow. The digit
+# bound keeps a long run of zeros or digits linear and keeps `int()` within its digit limit.
+ADR_NUMBER = r"ADR-0*(\d{1,6})\b"
 
 
 def _strip_comment(value: str) -> str:
@@ -80,7 +83,7 @@ def prose_lines(lines: Sequence[str], start: int = 0) -> Iterator[tuple[int, str
 
 
 def h1_number(text: str) -> int | None:
-    match = re.match(r"^#\s+ADR-0*(\d+)\b", text) or re.match(r"^#\s+0*(\d+)\.\s", text)
+    match = re.match(rf"^#\s+{ADR_NUMBER}", text) or re.match(r"^#\s+0*(\d{1,6})\.\s", text)
     return int(match.group(1)) if match else None
 
 

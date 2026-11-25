@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import re
 import time
+from types import SimpleNamespace
 
 import adr_checks
+import adr_corpus
 import adr_drift
+import adr_history
 import adr_text
 import pytest
 from adr_drift_helpers import kinds, run_cli, scan, seeded_repo, symlink_or_skip
@@ -92,7 +96,6 @@ def test_a_result_over_the_size_cap_exits_2_and_writes_nothing(tmp_path, capsys,
 
 
 def test_the_writer_and_the_reader_share_one_size_limit():
-    import adr_corpus
     import report_adr
 
     assert adr_drift.SCAN_MAX_BYTES == report_adr.MAX_FILE_BYTES == adr_corpus.SCAN_MAX_BYTES
@@ -161,8 +164,6 @@ def test_link_and_path_parsing_is_linear_on_a_hostile_line(line):
     ],
 )
 def test_md_paths_match_the_pattern_they_replace(text, paths):
-    import re
-
     assert adr_checks._md_paths(text) == paths == re.findall(r"[\w./-]+\.md", text)
 
 
@@ -178,3 +179,91 @@ def test_md_paths_match_the_pattern_they_replace(text, paths):
 )
 def test_inline_links_keep_their_targets(line, targets):
     assert adr_checks._targets(line) == targets
+
+
+def test_an_adr_dir_naming_an_outside_folder_suppresses_the_create_fix(tmp_path, capsys):
+    (tmp_path / "elsewhere").mkdir()
+    (tmp_path / "elsewhere" / "0001-a.md").write_text("# 1. A\n", encoding="utf-8")
+    repo = seeded_repo(tmp_path / "repo", {".adr-dir": "../elsewhere\n"})
+
+    result = scan(capsys, repo)
+
+    assert kinds(result, "no-adr-directory") == []
+    assert [r["path"] for r in result["locate"]["rejected"]] == [".adr-dir"]
+
+
+def test_a_folder_whose_adrs_all_resolve_outside_it_suppresses_the_create_fix(tmp_path, capsys):
+    outside = tmp_path / "shared" / "0001-x.md"
+    outside.parent.mkdir()
+    outside.write_text("# 1. X\n", encoding="utf-8")
+    repo = seeded_repo(tmp_path / "repo", {"README.md": "x\n"})
+    (repo / "docs" / "adr").mkdir(parents=True)
+    symlink_or_skip(repo / "docs" / "adr" / "0001-x.md", outside)
+
+    result = scan(capsys, repo)
+
+    assert kinds(result, "no-adr-directory") == []
+    assert result["locate"]["rejected"] == [
+        {"path": "docs/adr/0001-x.md", "reason": "resolves outside the folder"}
+    ]
+
+
+@pytest.mark.parametrize(
+    ("pattern", "line"),
+    [
+        (adr_checks.ADR_REF, "ADR-" + "0" * 200_000 + "x"),
+        (adr_checks.SUPERSEDED_BY_TEXT, "supersed" * 25_000),
+        (adr_history.VERB_THEN_ADR, "drop" * 12_500),
+        (adr_history.ADR_THEN_VERB, "ADR-" + "0" * 200_000 + "x"),
+    ],
+    ids=["adr-ref", "superseded-by", "verb-then-adr", "adr-then-verb"],
+)
+def test_adr_reference_patterns_are_linear_on_a_hostile_line(pattern, line):
+    started = time.monotonic()
+    pattern.findall(line)
+
+    assert time.monotonic() - started < 2
+
+
+def test_h1_and_h2_parsing_is_linear_on_a_hostile_line():
+    doc = SimpleNamespace(lines=["## a" + " " * 20_000 + "b"], body_start=0)
+
+    started = time.monotonic()
+    adr_text.h1_number("# ADR-" + "0" * 200_000 + "x")
+    headings = list(adr_corpus._h2_headings(doc))
+
+    assert time.monotonic() - started < 2
+    assert headings == ["a" + " " * 20_000 + "b"]
+
+
+@pytest.mark.parametrize(
+    ("line", "heading"),
+    [
+        ("## Status", "Status"),
+        ("## Status ##  ", "Status"),
+        ("## C# notes", "C# notes"),
+        ("##   ", None),
+        ("### Deeper", None),
+    ],
+)
+def test_h2_headings_drop_closing_marks_and_blanks(line, heading):
+    doc = SimpleNamespace(lines=[line], body_start=0)
+
+    assert list(adr_corpus._h2_headings(doc)) == ([heading] if heading else [])
+
+
+@pytest.mark.parametrize(
+    ("text", "numbers"),
+    [
+        ("see ADR-007 and ADR-12", [7, 12]),
+        ("ADR-000000012", [12]),
+        ("ADR-1234567 has seven digits", []),
+        ("xADR-1", []),
+    ],
+)
+def test_adr_references_read_one_to_six_digits(text, numbers):
+    assert adr_checks._refs(text, include_paths=False) == numbers
+
+
+def test_a_link_title_with_brackets_keeps_its_target():
+    assert adr_checks._targets('[x](a.md "see [1]")') == ["a.md"]

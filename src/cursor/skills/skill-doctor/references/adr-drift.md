@@ -38,9 +38,11 @@ The result carries `head`, `examined`, `truncated`, `read_errors`, `findings`,
 - When `truncated` is true, say so: older history was not read.
 - When `read_errors` is not empty, name the paths that were not checked. A file
   that could not be read, or a folder that could not be listed, is listed there.
-- When `locate.rejected` is not empty, name those paths too. A folder or
-  `.adr-dir` target that resolves outside the repository, or is missing, is
-  refused. So is an ADR file that resolves outside its folder.
+- When `locate.rejected` is not empty, name those paths too, with each reason.
+  The reasons are: `.adr-dir` names no folder; its target resolves outside the
+  repository; its target is missing or not a folder; a known-folder symlink's
+  target is missing; a known folder resolves outside the repository; an ADR file
+  resolves outside its folder.
 - A repository with no commits yet is empty history, not an error. A `HEAD` that
   names no commit, or any other git failure, exits 3.
 
@@ -93,8 +95,9 @@ and a non-empty `suggested_fix`.
 | History | `adr-contradiction-candidate` | heuristic | Review the ADR against the commit. |
 
 `no-adr-directory` is not reported when a folder could not be listed, `.adr-dir`
-could not be read, or an existing folder was refused for resolving outside the
-repository. A missing `.adr-dir` target still reports it.
+could not be read, an existing folder was refused for resolving outside the
+repository, or an ADR file was refused for resolving outside its folder. A
+missing `.adr-dir` target or a dangling folder symlink still reports it.
 
 Details that decide what fires:
 
