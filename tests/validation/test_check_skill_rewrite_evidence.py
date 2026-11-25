@@ -350,6 +350,34 @@ class TestEntryPoints:
         out = run(repo, capsys)[1]
         assert "may not also change ['scripts/hook_utilities/frontmatter_block.py']" in out
 
+    def test_judge_paths_cover_every_imported_module(self) -> None:
+        """Every repo module the check and the runner load is a judge path."""
+        root = Path(checker.__file__).resolve().parents[2]
+        probe = (
+            "import os, sys\n"
+            "sys.path.insert(0, 'scripts/validation')\n"
+            "import check_skill_rewrite_evidence as c, checks_common\n"
+            "from skill_rewrite_evidence import load_runner\n"
+            "load_runner()\n"
+            "for m in list(sys.modules.values()):\n"
+            "    f = getattr(m, '__file__', None) or ''\n"
+            "    if f.startswith(os.getcwd() + '/scripts/'):\n"
+            "        print(os.path.relpath(f))\n"
+        )
+        out = subprocess.run(
+            [sys.executable, "-c", probe],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=True,
+            timeout=120,
+        ).stdout.split()
+        assert out, "the probe found no repo modules"
+        missing = sorted(p for p in out if not p.startswith(checker._JUDGE_PATHS))
+        assert missing == []
+
     def test_bad_base_ref_is_a_config_error(
         self, repo: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:

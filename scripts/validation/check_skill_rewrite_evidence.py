@@ -159,14 +159,14 @@ def _is_results_file(path: str, results_dir: str) -> bool:
 def _head_blob_findings(
     ctx: Context, results_dir: str, added: dict[str, int], flagged: set[str]
 ) -> list[str]:
-    """Each results file the branch added must reach head with its first-added blob.
+    """Each results file the branch added, or that the base ref holds, must reach head unchanged.
 
     ``Context.changes`` sees a path only when a commit differs from every
     parent. A merge that takes one parent's tree for a path, by dropping a
     file the other parent holds, never shows there. Comparing head to the blob
     at the first add needs no per-commit view, whichever parent held the file.
-    A path already named by the per-commit scan is not repeated. A results
-    file already on the base ref must also reach head unchanged.
+    A path already named by the per-commit scan is not repeated. A base-ref
+    results file must reach head with its base blob; ``retired.json`` may change.
     """
     at_head = ctx.git.tree_blobs(ctx.head, results_dir)
     problems = []
@@ -295,16 +295,26 @@ def verify_skill(ctx: Context, name: str, head: SkillSide) -> list[str]:
     return problems
 
 
-# A gated change may not also change the code that judges it.
+# A gated change may not also change the code that judges it: every repo
+# module this check imports, the runner and its imports included.
+# ``test_judge_paths_cover_every_imported_module`` recomputes that closure.
 _JUDGE_PATHS = (
+    "scripts/__init__.py",
+    "scripts/cli_exec.py",
     "scripts/eval/eval-prompt-change.py",
     "scripts/eval/_",
-    "scripts/hook_utilities/frontmatter_block.py",
+    "scripts/hook_utilities/",
+    "scripts/validation/__init__.py",
     "scripts/validation/check_skill_rewrite_evidence.py",
+    "scripts/validation/checks_common.py",
+    "scripts/validation/evidence.py",
+    "scripts/validation/models.py",
+    "scripts/validation/pre_pr_console.py",
     "scripts/validation/skill_rewrite_context.py",
     "scripts/validation/skill_rewrite_evidence.py",
     "scripts/validation/skill_rewrite_scenarios.py",
     "scripts/validation/skill_rewrite_skills.py",
+    "scripts/validation/subprocess_runner.py",
     "scripts/validation/checks_ci_parity.py",
     "scripts/validation/pre_pr_sequence.py",
     ".github/workflows/pr-validation.yml",

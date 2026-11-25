@@ -142,6 +142,7 @@ class TestBaseEvidence:
         assert code == 1
         assert "run-0.json" in out
         assert "results files are append-only" in out
+        assert "run-0.json is edited or deleted in" in out or "from the base ref is missing" in out
 
 
 class _FakeGit:
