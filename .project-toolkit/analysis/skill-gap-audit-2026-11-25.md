@@ -26,6 +26,7 @@ Limits:
 Shape follows ADR-127 decision 1. One test covers conditional writers:
 a skill is a `driver` when its own instructions run the push or the external write, even behind a user yes.
 A skill is `disputed` when it shows such a command as knowledge, or hands the push to another workflow.
+The readers left two skills disputed. Both are ruled now, under "Disputed shapes, ruled".
 
 | Priority | Meaning |
 |---|---|
@@ -40,19 +41,19 @@ A skill is `disputed` when it shows such a command as knowledge, or hands the pu
 |---|---|
 | Templates scored at `a7b036aba3` (2026-11-25) | 121 |
 | Shape `driver` at `a7b036aba3` (2026-11-25) | 15 |
-| Shape `disputed`, for the owner at `a7b036aba3` (2026-11-25) | 2 |
-| Shape `reference` at `a7b036aba3` (2026-11-25) | 104 |
-| Priority P0 at `a7b036aba3` (2026-11-25) | 9 |
+| Shape `disputed`, after the rulings at `a7b036aba3` (2026-11-25) | 0 |
+| Shape `reference` at `a7b036aba3` (2026-11-25) | 106 |
+| Priority P0 at `a7b036aba3` (2026-11-25) | 8 |
 | Priority P1 at `a7b036aba3` (2026-11-25) | 19 |
-| Priority P2 at `a7b036aba3` (2026-11-25) | 27 |
+| Priority P2 at `a7b036aba3` (2026-11-25) | 28 |
 | Priority P3 at `a7b036aba3` (2026-11-25) | 66 |
 | Templates with no verdict scenario file at `a7b036aba3` (2026-11-25) | 116 |
 | Rendered skills over the 12 KiB driver budget at `a7b036aba3` (2026-11-25) | 69 |
-| Driver skills with no scripts directory at `a7b036aba3` (2026-11-25) | 10 |
+| Driver skills with no scripts directory at `a7b036aba3` (2026-11-25) | 9 |
 
-Drivers: `git-advanced-workflows`, `github`, `merge-resolver`, `modernize`, `pipeline-validator`, `pr-autofix`, `pr-babysit`, `pr-comment-responder`, `pr-review`, `push-pr`, `research`, `ship`, `sol-loop`, `takeover`, `windows-image-updater`.
+Drivers: `github`, `merge-resolver`, `modernize`, `pipeline-validator`, `pr-autofix`, `pr-babysit`, `pr-comment-responder`, `pr-review`, `push-pr`, `research`, `ship`, `skillopt`, `sol-loop`, `takeover`, `windows-image-updater`.
 
-Driver skills with no scripts: `git-advanced-workflows`, `modernize`, `pipeline-validator`, `pr-autofix`, `pr-review`, `push-pr`, `research`, `ship`, `takeover`, `windows-image-updater`.
+Driver skills with no scripts: `modernize`, `pipeline-validator`, `pr-autofix`, `pr-review`, `push-pr`, `research`, `ship`, `takeover`, `windows-image-updater`.
 
 ## Ship and push-pr first
 
@@ -143,8 +144,9 @@ The deletion ships with that migration. The caller list is under "Ship and push-
 
 Sequencing, from the same rulings:
 
-- The pilot starts after PR #7572 merges. Both edit the same templates.
+- The pilot starts after PR #7572 merges. Both edit the same templates. PR #7572 merged on 2026-11-25.
 - At most two fix threads run at once.
+- The 8 P0 skills go first. A P1 thread starts only after every P0 thread lands or stops with a reason.
 
 ## Driver contract, decisions 2, 4, 6, and 8
 
@@ -153,7 +155,6 @@ Script counts include every `.py` file under the skill's `scripts/` directory, a
 
 | Skill | Rendered bytes at `a7b036aba3` (2026-11-25) | Within the 12 KiB budget | States a call budget | Scripts that end on `NEXT:` or `STOP:` | STOP table | Test files under `tests/skills/<name>/` |
 |---|---|---|---|---|---|---|
-| `git-advanced-workflows` | 15145 | no | no | 0 of 0 | no | 1 |
 | `github` | 25548 | no | no | 0 of 86 | no | 68 |
 | `merge-resolver` | 18317 | no | no | 0 of 2 | no | 14 |
 | `modernize` | 10726 | yes | no | 0 of 0 | no | 1 |
@@ -165,6 +166,7 @@ Script counts include every `.py` file under the skill's `scripts/` directory, a
 | `push-pr` | 14890 | no | no | 0 of 0 | no | 2 |
 | `research` | 15590 | no | no | 0 of 0 | no | 1 |
 | `ship` | 24401 | no | no | 0 of 0 | no | 1 |
+| `skillopt` | 21057 | no | no | 0 of 13 | no | 20 |
 | `sol-loop` | 13624 | no | no | 0 of 5 | no | 10 |
 | `takeover` | 4418 | yes | no | 0 of 0 | no | 2 |
 | `windows-image-updater` | 14367 | no | no | 0 of 0 | no | 1 |
@@ -174,14 +176,22 @@ Reading the table at `a7b036aba3` (2026-11-25):
 - 3 of 15 drivers fit the 12 KiB budget at `a7b036aba3` (2026-11-25): `modernize`, `pr-babysit`, `takeover`.
 - No driver states a call budget, has a STOP table, or has a script that ends on `NEXT:` or `STOP:` at `a7b036aba3` (2026-11-25). The protocol is new, so every driver starts at zero.
 - The test file counts say only that tests exist. None is a decision 8 contract test, because no driver has a STOP table or result lines to test yet.
-- The two disputed skills are not scored here. They get this table when the owner rules on their shape.
+- `skillopt` joined this table when it was ruled a driver. `git-advanced-workflows` left it when it was ruled a reference.
 
-## Disputed shapes, for the owner
+## Disputed shapes, ruled
 
-| Row | Skill | Why it is unclear |
-|---|---|---|
-| G-008 | `ai-agents-debugging-playbook` | line 78: a table cell says `git fetch origin main && git merge origin/main` |
-| G-101 | `skillopt` | line 283: "Commit and push through the owner's repository workflow" |
+The coordinator ruled on three shapes on 2026-11-25 under Richard's delegation. Richard can reverse each one.
+The delegation is the same coordinator thread as the pilot rulings. Treat these as provisional until the owner confirms them.
+
+| Row | Skill | Ruling | Reason given |
+|---|---|---|---|
+| G-008 | `ai-agents-debugging-playbook` | reference, no script | The merge command at line 78 is a remedy cell the reader applies. The skill does not drive it. |
+| G-049 | `git-advanced-workflows` | reference, P2 | It teaches recipes. `abort_git_operation.py` is optional. No `rewrite_branch_history.py`: a scripted force push breaks decision 3 item 8 and the `AGENTS.md` Never list. |
+| G-101 | `skillopt` | driver, for the deploy step only | `deploy_candidate.py` applies and hash-verifies the accepted candidate. The commit and push stay a handoff to `ship`. |
+
+The G-049 ruling overrides a review finding. A reviewer on PR #7579 read the publish procedure at lines 139-146 as an instruction to push.
+The readers first scored the skill `reference`, the audit moved it to `driver` on that finding, and the ruling moves it back.
+The publish procedure still tells the reader to push the topic branch. That text is unchanged by this audit.
 
 Two more calls for the owner:
 
@@ -192,7 +202,10 @@ Two more calls for the owner:
 
 1. **Force push against decision 3 item 8.** `modernize` (lines 61-62) and `pr-autofix` (lines 925-926) tell the model to force push with a lease.
    `git-advanced-workflows` (line 50) gives the same command. Decision 3 item 8 bars a script from a force push.
-   So these steps cannot move into a script as written. A rewrite keeps them with the human, or the ADR changes through `adr-review`.
+   So these steps cannot move into a script as written.
+   Ruled on 2026-11-25 by the coordinator, provisional like the rulings above: ADR-127 stands unchanged. No script performs a force push.
+   A rewrite keeps that step as an explicit human action and says so in the skill contract.
+   If a rewrite cannot work without it, the thread stops that skill and reports. It does not amend the ADR.
 2. **`Bash(*)` on four skills.** `build`, `review`, `ship`, and `test` grant `Bash(*)`. Only `ship` is a driver.
    `analyze`, `benchmark-models`, `context-optimizer`, `pr-autofix`, and `requirements-interview` grant bare `Bash`.
 3. **Scripts outside `scripts/`.** `metrics`, `security-detection`, and `stuck-detection` keep scripts at the skill root. `sync` uses a repository path.
@@ -212,20 +225,20 @@ Each group is one fix thread and one small PR series. Groups run two at a time.
 | 2 | Evidence check | none (decision 9 check and the ADR-057 amendment) | No second gated change merges before it. |
 | 3 | PR write surface | `github`, `pr-comment-responder`, `pr-review` | They share the PR and thread scripts. |
 | 4 | PR automation | `pr-autofix`, `pr-babysit`, `merge-resolver` | They share branch update and push steps. |
-| 5 | Branch rewrite | `modernize`, `takeover`, `git-advanced-workflows` | All three meet the force-push question in finding 1. |
+| 5 | Branch rewrite | `modernize`, `takeover` | Both rewrite or replace a PR branch. `modernize` meets the force-push ruling in finding 1. |
 | 6 | Azure DevOps | `pipeline-validator`, `windows-image-updater` | Both drive Azure DevOps and git with no scripts. |
 | 7 | Grants on lifecycle skills | `build`, `review`, `test`, `validate-pr-description`, `pr-quality` | Narrow `Bash(*)` and move the fixed gate steps into scripts. |
 | 8 | Conditional writers | `sol-loop`, `research`, `skillopt` | Each pushes or files only after a user yes. |
 | 9 | Reference skills at P1 | `analyze`, `benchmark-models`, `checkpoint`, `github-url-intercept`, `memory-consolidate`, `reviewer-findings`, `ai-agents-build-and-env`, `ai-agents-portability-campaign` | Clear script candidates with no remote write. |
 
 Sizing, by ADR-127 decision 7: each gated skill needs at least 8 verdict scenarios before its rewrite.
-Groups 1 and 3 to 9 cover 29 skills at `a7b036aba3` (2026-11-25): 21 in groups 1 and 3 to 8, and 8 reference skills in group 9. Only `ship` has a verdict file today.
+Groups 1 and 3 to 9 cover 28 skills at `a7b036aba3` (2026-11-25): 20 in groups 1 and 3 to 8, and 8 reference skills in group 9. Only `ship` has a verdict file today.
 Decision 7 gates a reference skill too when a rewrite implements its audit row.
-`push-pr` folds into `ship`, so it needs no file of its own. That leaves 28 scenario files.
-Of those, 27 are new, and the `ship` file needs new scenarios on kept judgment. At 8 scenarios each, the floor is 224 scenarios.
+`push-pr` folds into `ship`, so it needs no file of its own. That leaves 27 scenario files.
+Of those, 26 are new, and the `ship` file needs new scenarios on kept judgment. At 8 scenarios each, the floor is 216 scenarios.
 The P2 and P3 rows need no rewrite thread. A P2 row is a candidate when its skill is next edited.
 One exception: `pr-babysit` is P2 but rides in group 4, because it shares that group's branch update and push steps.
-`git-advanced-workflows` is a driver, so it stays in group 5.
+`git-advanced-workflows` is ruled a reference at P2, so it left group 5.
 
 ## All rows
 
@@ -238,7 +251,7 @@ One exception: `pr-babysit` is P2 but rides in group 4, because it shares that g
 | G-005 | `ai-agents-build-and-env` | reference | lines 191-197: "Each is read-only" | lines 191-197: four pasted locator calls; line 195: Phase 3 setup done by hand | run_setup_phase.py (uv sync, hooks install, verify) | none | verdict: no; activation: no | P1 | Setup phases are fixed steps left as prose. |
 | G-006 | `ai-agents-change-control` | reference | lines 40-42, 64 run `classify_change.py` | lines 40-42: three pasted locator calls | none | none | verdict: no; activation: no | P3 | The classifier script exists. |
 | G-007 | `ai-agents-config-catalog` | reference | lines 182, 188, 204 are read-only | lines 182, 188, 204: pasted locator calls | none | none | verdict: no; activation: no | P3 | Catalog plus an existing locator script. |
-| G-008 | `ai-agents-debugging-playbook` | disputed | line 78: a table cell says `git fetch origin main && git merge origin/main` | lines 90-98: pasted locator calls; lines 78-79: fetch, merge, and rev-list text in table cells | none | none | verdict: no; activation: no | P2 | The merge is a remedy cell, not a driven step. Owner rules on shape. |
+| G-008 | `ai-agents-debugging-playbook` | reference | line 78: a table cell says `git fetch origin main && git merge origin/main` | lines 90-98: pasted locator calls; lines 78-79: fetch, merge, and rev-list text in table cells | none | none | verdict: no; activation: no | P2 | The merge is a remedy cell, not a driven step. Ruled reference on 2026-11-25. |
 | G-009 | `ai-agents-diagnostics-toolkit` | reference | lines 35, 36, 45, 82 are read-only baselines | lines 35-36: pasted locator calls | none | none | verdict: no; activation: no | P3 | A script sits behind each call. |
 | G-010 | `ai-agents-docs-of-record` | reference | writes docs in the tree only | lines 97, 267, 268: pasted locator calls | none | none | verdict: no; activation: no | P2 | Its "never" lines guard doc rules. No doc writer script exists. |
 | G-011 | `ai-agents-empirical-probe-toolkit` | reference | line 95: eval `--dry-run` | lines 95-99: eval dry-run block the model assembles | run_eval_dry_run.py (assemble eval-prompt-change args) | none | verdict: no; activation: no | P2 | The same argument assembly repeats in two skills. |
@@ -279,7 +292,7 @@ One exception: `pr-babysit` is P2 but rides in group 4, because it shares that g
 | G-046 | `evidence-provenance` | reference | line 62: one local script | none | none | none | verdict: no; activation: yes | P3 | The script owns classification. |
 | G-047 | `execution-plans` | reference | plan writing guidance; no shell | none | none | none | verdict: no; activation: no | P3 | No shell. |
 | G-048 | `fix-markdown-fences` | reference | lines 312-316: a quick check; the fixer writes working-tree files | line 312: a one-line grep fallback | none | none | verdict: no; activation: no | P3 | The fixer and write guard exist. |
-| G-049 | `git-advanced-workflows` | driver | lines 139-146: the publish procedure says to commit, rebase, and "Push the topic branch"; lines 42-52: `rebase -i` then a lease-pinned force push | lines 42-52: nine-line fetch, rebase, and push block; lines 65-70: split-commit sequence; lines 249-254: abort block | rewrite_branch_history.py (rebase and lease-pinned push); abort_git_operation.py (abort an in-progress operation) | none | verdict: no; activation: no | P0 | Pushes and rewrites history with no script. A reviewer on PR #7579 showed the publish procedure is an instruction, not an example. |
+| G-049 | `git-advanced-workflows` | reference | lines 139-146: the publish procedure says to commit, rebase, and "Push the topic branch"; lines 42-52: `rebase -i` then a lease-pinned force push | lines 42-52: nine-line fetch, rebase, and push block; lines 65-70: split-commit sequence; lines 249-254: abort block | abort_git_operation.py (abort an in-progress operation, optional) | none | verdict: no; activation: no | P2 | Ruled reference on 2026-11-25: it teaches recipes. No script may force push, so no history rewrite script. A reviewer on PR #7579 read the publish procedure as an instruction. |
 | G-050 | `github` | driver | line 130: create PR; line 134: comment; line 149: close PR; line 150: merge | lines 126-150: routing tree to about 20 mutating scripts; lines 166-170: three multi-line locator blocks | route_github_operation.py (map intent to script and args) | none | verdict: no; activation: yes | P1 | Mutating and high traffic, with a script behind each write. Over the 12 KiB driver budget. |
 | G-051 | `github-url-intercept` | reference | lines 47-56: read-only `gh api` calls | lines 47-56: the model fills owner, repo, and path; lines 139-146: URL parse in prose; lines 110-130: routing tree | route_github_url.py (parse URL and fetch JSON) | none | verdict: no; activation: no | P1 | A blocking intercept on every GitHub URL. Parsing is a fixed step. |
 | G-052 | `golden-principles` | reference | lines 64-83: read-only scan | lines 64-83: six variants of one scan command | none | none | verdict: no; activation: no | P3 | The script owns the scan. |
@@ -331,7 +344,7 @@ One exception: `pr-babysit` is P2 but rides in group 4, because it shares that g
 | G-098 | `skill-doctor` | reference | line 136: writes only to a scratch directory | lines 47-50: root check; lines 105-107: repo detection; lines 141-155: collector arguments; line 213: a mean computed by hand | resolve_run_context.py (set root, repo, scratch dir) | none | verdict: no; activation: yes | P2 | Setup and aggregate steps are hand work. |
 | G-099 | `skillforge` | reference | lines 295-312: validators and packager write local files | lines 295-312: six validators and a packager pasted as one block | run_skill_checks.py (run all skill validators once) | none | verdict: no; activation: yes | P2 | Scripts exist. The run order is prose. |
 | G-100 | `skillify` | reference | no shell blocks | none | none | none | verdict: no; activation: yes | P3 | Already gated by a script. |
-| G-101 | `skillopt` | disputed | line 283: "Commit and push through the owner's repository workflow" | lines 102-107: locator discovery shell; lines 114-117: directory fallback; lines 276-284: deploy steps by hand | deploy_candidate.py (apply and hash-verify an accepted candidate) | none | verdict: no; activation: yes | P1 | Deploy ends in a push it defers to another workflow. Owner rules on shape. |
+| G-101 | `skillopt` | driver | line 283: "Commit and push through the owner's repository workflow" | lines 102-107: locator discovery shell; lines 114-117: directory fallback; lines 276-284: deploy steps by hand | deploy_candidate.py (apply and hash-verify an accepted candidate) | none | verdict: no; activation: yes | P1 | Ruled a driver on 2026-11-25, for the deploy step only. The commit and push stay a handoff to `ship`. |
 | G-102 | `slo-designer` | reference | lines 158-162: writes a local doc | none | none | none | verdict: no; activation: no | P3 | Usage blocks only. |
 | G-103 | `software-engineering-library` | reference | no shell | none | none | none | verdict: no; activation: yes | P3 | Knowledge index. |
 | G-104 | `sol-loop` | driver | lines 228-231: "Push after agreement only if the user asked to push" and a PR body line | lines 116-120: PR or local base detection; lines 228-231: attribution line added by hand; lines 240-244: run-file path and commit | push_reviewed_branch.py (push and append attribution); commit_run_file.py (commit the metrics run file) | none | verdict: no; activation: yes | P1 | A conditional push and a PR body edit are prose. |
