@@ -38,7 +38,8 @@ For a gated skill the check requires, and fails closed without:
 - each scenario dropped since the merge base listed in ``retired.json`` with
   a test that exists at head;
 - results files that are append-only on the branch: an edit or delete of
-  one fails (item 9);
+  one fails (item 9), including a merge that drops or changes a file its
+  first parent holds;
 - a results file recording the head prompt-surface sha256. The first one
   committed among those that also record the head scenario-file sha256 sets
   the verdict (one already on the base ref counts as first), so a base file
@@ -146,19 +147,38 @@ def gate_reasons(name: str, base: SkillSide, head: SkillSide, paths: dict[str, s
     return reasons
 
 
+def _is_results_file(path: str, results_dir: str) -> bool:
+    return (
+        path.startswith(results_dir)
+        and path.endswith(".json")
+        and not path.endswith(f"/{RETIRED_FILE}")
+    )
+
+
+def _merge_drops(
+    ctx: Context, commit: str, results_dir: str, reported: dict[str, str]
+) -> list[str]:
+    """Edits or deletes of a results file that a merge makes against its first parent."""
+    return [
+        f"{path} is edited or deleted in {commit[:10]}; results files are append-only"
+        for path in ctx.merge_edits(commit, results_dir)
+        if path not in reported and _is_results_file(path, results_dir)
+    ]
+
+
 def _results_history(ctx: Context, results_dir: str) -> tuple[dict[str, int], list[str]]:
     """When each results file was added, and every edit or delete of one.
 
     Results files are append-only (ADR-127 decision 7 item 9): a later run is
-    a new file, so the first one keeps setting the verdict.
+    a new file, so the first one keeps setting the verdict. At a merge, a file
+    the first parent holds that the merge deletes or changes also counts.
     """
     added: dict[str, int] = {}
     problems = []
     for index, commit in enumerate(ctx.commits):
-        for path, status in ctx.changes(commit).items():
-            if not path.startswith(results_dir) or not path.endswith(".json"):
-                continue
-            if path.endswith(f"/{RETIRED_FILE}"):
+        changes = ctx.changes(commit)
+        for path, status in changes.items():
+            if not _is_results_file(path, results_dir):
                 continue
             # ``--cc`` prints one letter per parent for a merge: ``AA`` is an add.
             is_add = set(status) == {"A"}
@@ -172,6 +192,7 @@ def _results_history(ctx: Context, results_dir: str) -> tuple[dict[str, int], li
                 problems.append(
                     f"{path} is edited or deleted in {commit[:10]}; results files are append-only"
                 )
+        problems += _merge_drops(ctx, commit, results_dir, changes)
     return added, problems
 
 
