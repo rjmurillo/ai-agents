@@ -1,8 +1,8 @@
 """Guards for the doc review gate's history ordering.
 
 Rule: ``templates/rules/agent-skill-docs.md`` MUST 2. A page edit or a
-``Docs-Reviewed:`` trailer counts only at or after the source's latest
-change. Merge commits and whitespace-only commits are skipped, so a GitHub
+``Docs-Reviewed:`` trailer counts only at or after each change to the
+source. Merge commits and whitespace-only commits are skipped, so a GitHub
 merge checkout and a formatter run cannot open or wedge the gate.
 """
 
@@ -21,7 +21,7 @@ from tests.validation.test_check_agent_skill_docs import (
     _paths,
 )
 
-# A review must not predate the source's last change
+# A review must not predate any change it covers
 
 
 def test_trailer_before_a_later_source_change_does_not_clear(tmp_path):
