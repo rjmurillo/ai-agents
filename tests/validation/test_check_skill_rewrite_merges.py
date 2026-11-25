@@ -119,6 +119,31 @@ class TestMergeCannotHideAResult:
         assert code == 0, out
 
 
+class TestBaseEvidence:
+    def test_deleting_a_results_file_from_the_base_ref_blocks(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        git(repo, "checkout", "-q", "main")
+        driver_change(repo)
+        write(repo, f"{EVID}/run-0.json", _failed_run(repo))
+        commit(repo, "failed run lands on main")
+        git(repo, "checkout", "-q", "-B", "feature")
+        git(repo, "checkout", "-q", "--orphan", "other")
+        git(repo, "rm", "-rq", "--cached", ".")
+        write(repo, "other.txt", "other\n")
+        git(repo, "add", "other.txt")
+        commit(repo, "unrelated root")
+        git(repo, "checkout", "-q", "-f", "feature")
+        git(repo, "merge", "-q", "--no-commit", "--allow-unrelated-histories", "other")
+        git(repo, "rm", "-q", f"{EVID}/run-0.json")
+        commit(repo, "merge other, dropping the base run")
+        commit_evidence(repo)
+        code, out = run(repo, capsys)
+        assert code == 1
+        assert "run-0.json" in out
+        assert "results files are append-only" in out
+
+
 class _FakeGit:
     """Maps (ref, prefix) to the blobs ``tree_blobs`` would list."""
 
@@ -134,13 +159,46 @@ class TestHeadBlobFindings:
 
     PATH = f"{EVID}/run-1.json"
 
-    def _ctx(self, at_head: dict[str, str]) -> SimpleNamespace:
-        blobs = {("HEAD", f"{EVID}/"): at_head, ("c1", self.PATH): {self.PATH: "aaa"}}
-        return SimpleNamespace(head="HEAD", commits=["c0", "c1"], git=_FakeGit(blobs))
+    BASE = f"{EVID}/base-run.json"
 
-    def _findings(self, at_head: dict[str, str], flagged: set[str] | None = None) -> list[str]:
-        ctx = self._ctx(at_head)
-        return checker._head_blob_findings(ctx, f"{EVID}/", {self.PATH: 1}, flagged or set())
+    def _ctx(self, at_head: dict[str, str], on_base: dict[str, str]) -> SimpleNamespace:
+        blobs = {
+            ("HEAD", f"{EVID}/"): at_head,
+            ("MB", f"{EVID}/"): on_base,
+            ("c1", self.PATH): {self.PATH: "aaa"},
+        }
+        return SimpleNamespace(
+            head="HEAD", merge_base="MB", commits=["c0", "c1"], git=_FakeGit(blobs)
+        )
+
+    def _findings(
+        self,
+        at_head: dict[str, str],
+        flagged: set[str] | None = None,
+        on_base: dict[str, str] | None = None,
+        added: dict[str, int] | None = None,
+    ) -> list[str]:
+        ctx = self._ctx(at_head, on_base or {})
+        added = {self.PATH: 1} if added is None else added
+        return checker._head_blob_findings(ctx, f"{EVID}/", added, flagged or set())
+
+    def test_base_results_file_unchanged_is_clean(self) -> None:
+        assert self._findings({self.BASE: "bbb"}, on_base={self.BASE: "bbb"}, added={}) == []
+
+    def test_base_results_file_missing_at_head_is_a_finding(self) -> None:
+        (found,) = self._findings({}, on_base={self.BASE: "bbb"}, added={})
+        assert f"{self.BASE} from the base ref is missing at HEAD" in found
+
+    def test_base_results_file_changed_at_head_is_a_finding(self) -> None:
+        (found,) = self._findings({self.BASE: "ccc"}, on_base={self.BASE: "bbb"}, added={})
+        assert f"{self.BASE} from the base ref differs at HEAD" in found
+
+    def test_base_retired_file_may_change(self) -> None:
+        retired = f"{EVID}/retired.json"
+        assert self._findings({}, on_base={retired: "rrr"}, added={}) == []
+
+    def test_base_results_file_already_flagged_is_not_repeated(self) -> None:
+        assert self._findings({}, flagged={self.BASE}, on_base={self.BASE: "bbb"}, added={}) == []
 
     def test_same_blob_is_clean(self) -> None:
         assert self._findings({self.PATH: "aaa"}) == []

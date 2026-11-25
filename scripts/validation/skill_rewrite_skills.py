@@ -238,6 +238,7 @@ def reference_grant_findings(name: str, allowed_tools: str) -> list[str]:
         if tool == "Bash":
             ok = (
                 inner is not None
+                and "," not in inner
                 and not _UNSAFE_BASH.search(inner)
                 and bool(_READ_BASH.match(inner.strip()) or own_script.match(inner.strip()))
             )

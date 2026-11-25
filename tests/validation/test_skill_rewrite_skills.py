@@ -205,6 +205,7 @@ class TestReferenceGrants:
             ("Read, Bash(git diff:*", "Bash(git diff:*"),
             ("Read(secrets), *", "*"),
             ("Read), Grep", "Read)"),
+            ("Bash(ls ,Write)", "Bash(ls ,Write)"),
         ],
     )
     def test_unparseable_or_wildcard_grants_are_findings(self, tools: str, grant: str) -> None:

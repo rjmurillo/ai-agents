@@ -165,10 +165,20 @@ def _head_blob_findings(
     parent. A merge that takes one parent's tree for a path, by dropping a
     file the other parent holds, never shows there. Comparing head to the blob
     at the first add needs no per-commit view, whichever parent held the file.
-    A path already named by the per-commit scan is not repeated.
+    A path already named by the per-commit scan is not repeated. A results
+    file already on the base ref must also reach head unchanged.
     """
     at_head = ctx.git.tree_blobs(ctx.head, results_dir)
     problems = []
+    on_base = ctx.git.tree_blobs(ctx.merge_base, results_dir)
+    for path, blob in sorted(on_base.items()):
+        if (
+            _is_results_file(path, results_dir)
+            and path not in flagged
+            and at_head.get(path) != blob
+        ):
+            state = "is missing at HEAD" if path not in at_head else "differs at HEAD"
+            problems.append(f"{path} from the base ref {state}; results files are append-only")
     for path, index in sorted(added.items()):
         commit = ctx.commits[index]
         if path in flagged or at_head.get(path) == ctx.git.tree_blobs(commit, path)[path]:
@@ -289,6 +299,7 @@ def verify_skill(ctx: Context, name: str, head: SkillSide) -> list[str]:
 _JUDGE_PATHS = (
     "scripts/eval/eval-prompt-change.py",
     "scripts/eval/_",
+    "scripts/hook_utilities/frontmatter_block.py",
     "scripts/validation/check_skill_rewrite_evidence.py",
     "scripts/validation/skill_rewrite_context.py",
     "scripts/validation/skill_rewrite_evidence.py",

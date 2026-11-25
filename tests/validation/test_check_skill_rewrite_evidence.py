@@ -339,6 +339,17 @@ class TestEntryPoints:
         commit(repo, "evidence and workflow")
         assert "may not also change ['.github/workflows/pr-validation.yml']" in run(repo, capsys)[1]
 
+    def test_gated_branch_may_not_edit_the_frontmatter_parser(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """The parser decides metadata.shape, so it judges the change too."""
+        driver_change(repo)
+        write(repo, "scripts/hook_utilities/frontmatter_block.py", "# loosened\n")
+        write(repo, f"{EVID}/run-1.json", results(repo))
+        commit(repo, "evidence and parser")
+        out = run(repo, capsys)[1]
+        assert "may not also change ['scripts/hook_utilities/frontmatter_block.py']" in out
+
     def test_bad_base_ref_is_a_config_error(
         self, repo: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
