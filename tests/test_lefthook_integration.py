@@ -113,6 +113,7 @@ def _git(
     repo: Path,
     *args: str,
     check: bool = True,
+    timeout: int | None = None,
 ) -> subprocess.CompletedProcess[str]:
     # GIT_EDITOR and GIT_SEQUENCE_EDITOR outrank -c core.editor, so a developer
     # who exports either one can make an editor-launching git command in a test
@@ -128,6 +129,7 @@ def _git(
         capture_output=True,
         check=check,
         env=env,
+        timeout=timeout,
     )
 
 
@@ -206,6 +208,7 @@ def _run_lefthook(
     stdin: str | None = None,
     check: bool = True,
     env: Mapping[str, str] | None = None,
+    timeout: int | None = None,
 ) -> subprocess.CompletedProcess[str]:
     assert LEFTHOOK is not None
     process_env = os.environ.copy()
@@ -221,6 +224,7 @@ def _run_lefthook(
         errors="replace",
         capture_output=True,
         check=False,
+        timeout=timeout,
     )
     if check and result.returncode != 0:
         pytest.fail(f"lefthook failed:\n{result.stdout}\n{result.stderr}")
@@ -268,14 +272,14 @@ def test_installed_python_hooks_run_ruff_and_preserve_exit_policy(
     monkeypatch.setenv("PYTHONUTF8", "1")
     assert LEFTHOOK is not None
     monkeypatch.setenv("LEFTHOOK_BIN", Path(LEFTHOOK).as_posix())
-    _run_lefthook(repo, "install")
+    _run_lefthook(repo, "install", timeout=30)
     source = "src/two words.py"
     _write_file(repo, source, '"""Sample."""\nVALUE = 1\n')
     _write_file(repo, "src/untracked.py", "VALUE = untracked_name\n")
     _git(repo, "add", "--", source)
 
     def run_hook() -> tuple[int, str]:
-        result = _git(repo, "hook", "run", "pre-commit", check=False)
+        result = _git(repo, "hook", "run", "pre-commit", check=False, timeout=60)
         return result.returncode, result.stdout + result.stderr
 
     code, output = run_hook()
