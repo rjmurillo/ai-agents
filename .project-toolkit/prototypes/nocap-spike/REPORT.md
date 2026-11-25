@@ -3,8 +3,86 @@
 SPIKE ONLY. Do not merge. Nothing here is wired to a hook or shipped.
 Branch `spike/nocap-checker-core` is local only. It is not pushed, and no PR exists.
 Round 1 ran on 2026-11-23 and stopped. Round 2 applied two fixes and re-measured on 2026-11-25.
+Round 3 applied the remaining named fixes on 2026-11-25 and replayed both labeled sets.
 
-## Verdict (round 2, after Fixes 1 and 2)
+## Verdict (round 3, after all named fixes)
+
+**Fixes applied. Precision clears the bar on both labeled sets, but only in-sample.**
+Both sets shaped the fixes, so these numbers are not a gate. A Phase 1 decision still needs a
+fresh sample with its own hand check. That sample was not run in round 3.
+
+| Measure | Round 1 set | Round 2 set |
+|---|---|---|
+| NO CAP precision, receipt level | 38 of 41 = **0.927** (was 0.70) | 50 of 51 = **0.980** (was 0.902) |
+| NO CAP precision, claim level | 40 of 41 = 0.976 | 51 of 51 = 1.000 |
+| CAP stamps in the corpus | 0 of 146 | 0 of 150 |
+| NO RECEIPT rate, corpus | 0.397 (was 0.384) | 0.413 (unchanged) |
+| False NO RECEIPT, hand check | not relabeled | 13 of 27 (was 17 of 27) |
+| "Code changed after" stamps | 0 (was 4, all false) | 1 (was 3), a real edit |
+| Stop budget, p50 / p95 / max | 0.19 / 0.56 / 0.70 s | 0.14 / 0.28 / 0.54 s |
+
+95% Wilson intervals: 0.81 to 0.98 for 38 of 41, and 0.90 to 1.00 for 50 of 51.
+
+## Round 3: the remaining fixes
+
+### What changed
+
+| Fix | Change |
+|---|---|
+| SHA needs a relation | A SHA counts only where the output places it: a `git log` or `rev-parse` row, a commit line, a push range, a `sha`, `oid`, or `commit` field, or "HEAD is now at". A SHA inside a review comment or a grep hit proves nothing. |
+| SHA content sentences | "Commit X fixes Y", "(fixed, X)", and "pinned to X" earn NO RECEIPT when the output only places X. |
+| Local merge is not a PR merge | A `git merge` no longer proves a PR merge claim, or any merge claim when it merges main in. |
+| CI counts (round 1 Fix 3) | "106 passed, 0 failed" with plural "checks", no test words, and no runner command is a `ci` claim. Counts must match the last check read. A mismatch is NO RECEIPT, never CAP. |
+| Freshness (round 1 Fix 4) | `->`, `$VAR` targets, heredocs written to temp files, `mktemp` fixtures, `scratch*/` paths, and "v0.7" strings no longer read as code edits. |
+| Repo script output (round 1 Fix 5) | `merge_pr.py`, `get_pr_checks.py`, PR-create output, `gh` JSON states, and `gh pr list` rows are parsed. None of them can yield CAP. |
+
+Stamps that changed on replay, whole corpus (40 transcripts per set):
+
+| Change | Round 1 set | Round 2 set |
+|---|---|---|
+| SHA, NO CAP to NO RECEIPT | 12 | 8 |
+| SHA, NO CAP with a new cited call | 14 | 1 |
+| Test claim to `ci`, NO RECEIPT to NO CAP | 4 | 5 |
+| Test claim to `ci`, still NO RECEIPT | 4 | 2 |
+| Test claim, NO RECEIPT to NO CAP (freshness) | 2 | 0 |
+| Merged, NO RECEIPT to NO CAP | 3 | 0 |
+| Merged, NO CAP with a new cited call | 2 | 0 |
+| PR opened, NO RECEIPT to NO CAP | 1 | 3 |
+
+In the round 2 hand check, 6 SHA stamps lost NO CAP. 4 had been wrong and 2 had been right.
+6 stamps gained NO CAP (4 `ci`, 2 PR opened), and each cites a call that proves it.
+
+Tests: 36 adapter tests pass, 17 of them new in round 3. Upstream's 156 tests pass.
+With the round 2 core restored, 12 of the new tests fail. The other 5 are controls that pass either way.
+One replay found a regression mid-round. "Local check: `pytest ...` gave 86 passed" had moved to `ci`.
+A test now pins it as a test claim.
+
+### How the labeled sets were re-scored
+
+- **Round 2 set:** 15 stamps changed kind, verdict, or citation. I labeled each against its new cited
+  output. The other 63 kept their round 2 labels.
+- **Round 1 set:** round 1 saved no citation-level labels. So I labeled all 41 NO CAP stamps against
+  their cited output. The 3 still wrong: a SHA placed in a review row but claimed as HEAD, a
+  "Bugbot re-ran" claim backed by a review from another user, and a number matched in a brief.
+
+### What is still open
+
+- **No fresh sample.** Both sets informed the fixes, so a fresh sample is the next gate.
+- **Correct stamps lost.** The content rule demotes "Commit X changed `a.py`" even when a diffstat
+  proves it. A SHA256 digest claim now earns NO RECEIPT, because a digest is not a commit.
+- **NO RECEIPT noise remains.** 13 of the 27 NO RECEIPT stamps in the round 2 set are on supported claims:
+  - 3 facts from earlier turns not carried over.
+  - 3 claims backed only by a subagent's report.
+  - 2 scoped test runs flagged as subsets.
+  - 1 CI job failure phrased as a test claim.
+  - 1 `build_all.py --check` result not parsed.
+  - 1 merge seen only in `git log`.
+  - The 2 correct SHA stamps the content and digest rules demoted.
+- **The round 1 missed CAP stays missed.** Count mismatches never stamp CAP. That keeps a truncated
+  `gh pr checks` listing from producing a false CAP.
+- **One labeler.** I wrote the fixes and labeled every round.
+
+## Round 2 verdict (superseded by round 3)
 
 **Proceed with named fixes. No abort condition fired on the fresh sample.**
 The margin is thin, and the residual risks below still apply.
