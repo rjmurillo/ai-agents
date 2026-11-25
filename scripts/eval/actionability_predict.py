@@ -41,7 +41,6 @@ from scripts.eval.actionability_io import (  # noqa: E402
     REPO_ROOT,
     load_jsonl,
     sha256_hex,
-    split_jsonl_lines,
     write_jsonl,
 )
 from scripts.eval.actionability_labels import (  # noqa: E402
@@ -307,19 +306,41 @@ def _predict_config_error(args: argparse.Namespace, has_api_key: bool) -> str | 
     return None
 
 
+def _decode_lines(path: Path) -> list[str | None]:
+    """Split an existing output on newline bytes and decode each line on its own.
+
+    A line that is not valid UTF-8 comes back as None. A crash can tear a multibyte character
+    at the tail, and decoding the whole file first would fail the resume on it.
+    """
+    try:
+        raw = path.read_bytes()
+    except OSError as exc:
+        raise OutputError(f"cannot read {path}: {type(exc).__name__}") from None
+    decoded: list[str | None] = []
+    for chunk in raw.split(b"\n"):
+        try:
+            text = chunk.decode("utf-8")
+        except UnicodeDecodeError:
+            decoded.append(None)
+            continue
+        if text.strip():
+            decoded.append(text)
+    return decoded
+
+
 def _read_prior_records(path: Path) -> list[dict[str, Any]]:
     """Return the records in an existing output. A torn final line is dropped.
 
-    Raises OutputError for any other damage: a bad line before the last, or a line
-    that is not a JSON object.
+    A torn line is one that does not parse, or does not decode as UTF-8, at the end of the file.
+    Raises OutputError for any other damage: a bad line before the last, or a line that is not
+    a JSON object.
     """
-    try:
-        lines = split_jsonl_lines(path.read_text(encoding="utf-8"))
-    except OSError as exc:
-        raise OutputError(f"cannot read {path}: {type(exc).__name__}") from None
+    lines = _decode_lines(path)
     records: list[dict[str, Any]] = []
     for index, line in enumerate(lines):
         try:
+            if line is None:
+                raise json.JSONDecodeError("not UTF-8", "", 0)
             record = json.loads(line)
         except json.JSONDecodeError:
             if index == len(lines) - 1:
