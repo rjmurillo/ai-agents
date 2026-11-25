@@ -3,6 +3,8 @@
 import ast
 from pathlib import Path
 
+import yaml
+
 from tests.skills._template_contract import assert_template_owned_contract
 
 REPO = Path(__file__).resolve().parents[3]
@@ -29,8 +31,10 @@ def test_template_routes_adr_drift_to_its_step() -> None:
     text = (REPO / "templates/skills/skill-doctor.SKILL.md.tmpl").read_text(encoding="utf-8")
     frontmatter, body = text.split("\n---\n", 1)
 
-    assert "`check ADR drift`" in frontmatter.split("description:", 1)[1].splitlines()[0]
-    assert "      - check ADR drift" in frontmatter
+    meta = yaml.safe_load(frontmatter.removeprefix("---\n"))
+
+    assert "`check ADR drift`" in meta["description"]
+    assert "check ADR drift" in meta["metadata"]["routing"]["intents"]
     assert "- `check ADR drift`" in body.split("## Triggers", 1)[1].split("\n## ", 1)[0]
     assert "#### ADR-only fast path" in body
     assert "### Step 1a: ADR drift" in body
