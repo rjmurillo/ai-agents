@@ -167,12 +167,17 @@ def build_user_message(row: dict[str, Any], token_factory: Callable[[], str] = _
     return "\n".join(parts)
 
 
-def _load_call_api() -> Callable[..., str]:
-    """Resolve the shared transport at call time, so importing this module stays cheap."""
+def _load_eval_module(name: str) -> Any:
+    """Import a private ``scripts/eval`` module at call time, so importing this one stays cheap."""
     eval_dir = str(Path(__file__).resolve().parent)
     if eval_dir not in sys.path:
         sys.path.insert(0, eval_dir)
-    return cast(Callable[..., str], importlib.import_module("_anthropic_api").call_api)
+    return importlib.import_module(name)
+
+
+def _load_call_api() -> Callable[..., str]:
+    """Resolve the shared transport at call time."""
+    return cast(Callable[..., str], _load_eval_module("_anthropic_api").call_api)
 
 
 def _failure_outcome(status: str, exc: BaseException, latency: float) -> dict[str, Any]:
@@ -278,13 +283,24 @@ def _effective_provider(provider: str | None) -> str:
     return os.environ.get("EVAL_PROVIDER") or "anthropic"
 
 
+def _needs_anthropic_key(provider: str | None) -> bool:
+    """True when the effective provider is the built-in Anthropic transport.
+
+    Same test as ``_anthropic_api.load_api_key_for_selected_provider``: ``--provider`` wins,
+    then ``EVAL_PROVIDER``, and only the default transport needs ``ANTHROPIC_API_KEY``. Any
+    other transport loads its own credential or needs none.
+    """
+    is_default = _load_eval_module("_providers").is_default_anthropic
+    return bool(is_default(_effective_provider(provider)))
+
+
 def _predict_config_error(args: argparse.Namespace, has_api_key: bool) -> str | None:
     if not 0.0 <= args.max_failure_rate <= 1.0:
         return "--max-failure-rate must be between 0 and 1"
     if not args.model.strip():
         return "--model must not be empty"
-    if not has_api_key and args.provider is None:
-        return f"{API_KEY_ENV} is not set; set it or pass --provider"
+    if not has_api_key and _needs_anthropic_key(args.provider):
+        return f"{API_KEY_ENV} is not set; set it or select another provider"
     return None
 
 
