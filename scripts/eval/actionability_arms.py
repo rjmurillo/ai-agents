@@ -69,6 +69,7 @@ from scripts.eval.actionability_score import (  # noqa: E402
     LOOKS,
     ScoreInputError,
     build_report,
+    check_extension,
 )
 
 logger = logging.getLogger(__name__)
@@ -174,6 +175,21 @@ def _sha256_of(path: Path) -> str | None:
         return None
 
 
+def _check_look_arguments(args: argparse.Namespace, rows: list[dict[str, Any]]) -> None:
+    """Look 2 must name the look-1 report and extend its corpus. Look 1 takes no such report."""
+    if args.look == LOOKS[0]:
+        if args.look1_report is not None:
+            raise ScoreInputError("--look1-report applies only to --look 2")
+        return
+    if args.look1_report is None:
+        raise ScoreInputError("--look 2 needs --look1-report, the report written at look 1")
+    try:
+        look1 = json.loads(args.look1_report.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ScoreInputError(f"cannot read {args.look1_report}: {type(exc).__name__}") from None
+    check_extension(look1, rows)
+
+
 def cmd_score(args: argparse.Namespace) -> int:
     """Score the arms on a labeled corpus and write the report JSON."""
     if args.bootstrap < 1:
@@ -187,6 +203,7 @@ def cmd_score(args: argparse.Namespace) -> int:
     if rows is None or predictions is None:
         return 2
     try:
+        _check_look_arguments(args, rows)
         report = build_report(
             rows,
             predictions,
@@ -253,6 +270,13 @@ def _build_parser() -> argparse.ArgumentParser:
             "1, or 2 for the one-time extension. The interval is 97.5 percent at both looks; "
             "the look only decides final and kill_criterion_2"
         ),
+    )
+    score.add_argument(
+        "--look1-report",
+        type=Path,
+        default=None,
+        help="Report JSON written at look 1. Required for --look 2, which refuses a corpus "
+        "that adds fewer than 100 heldout band rows to it",
     )
     score.set_defaults(handler=cmd_score)
     return parser

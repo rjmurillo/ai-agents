@@ -237,7 +237,14 @@ class TestScoreCliLook:
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """`--look 2` records look 2 and a final, not-fired result for an inconclusive gap."""
-        code = aa.main(_score_argv(tmp_path, 10, 3, 1, "--look", "2"))
+        assert aa.main(_score_argv(tmp_path, 10, 3, 1)) == 0
+        look1 = tmp_path / "look1.json"
+        (tmp_path / "report.json").rename(look1)
+        capsys.readouterr()
+
+        code = aa.main(
+            _score_argv(tmp_path, 110, 9, 1, "--look", "2", "--look1-report", str(look1))
+        )
 
         report = json.loads((tmp_path / "report.json").read_text(encoding="utf-8"))
         out = capsys.readouterr().out

@@ -65,6 +65,9 @@ MIN_CLUSTERS = 2
 
 BASELINES = ("A", "B")
 
+# Spec, Eval method: "On a look-1 inconclusive, label 100 more band items once".
+LOOK2_MIN_ADDED_BAND_ROWS = 100
+
 
 class ScoreInputError(ValueError):
     """The corpus or predictions cannot be scored. Maps to exit code 2."""
@@ -238,6 +241,35 @@ def kill_criterion_2(result: str, look: int) -> str:
 def is_final(result: str, look: int) -> bool:
     """A result is final unless it is inconclusive at look 1, which may take the one extension."""
     return result != "inconclusive" or look == LOOKS[-1]
+
+
+def heldout_band_row_count(rows: Sequence[Mapping[str, Any]]) -> int:
+    """Heldout band rows in the corpus, unsure ones included: the rows a labeler had to read."""
+    return sum(1 for r in rows if r["split"] == SPLIT_HELDOUT and r["in_band"])
+
+
+def check_extension(look1_report: object, rows: Sequence[Mapping[str, Any]]) -> None:
+    """Raise ScoreInputError unless ``rows`` are a valid look-2 corpus for ``look1_report``.
+
+    The extension exists once, after an inconclusive look 1, and adds at least
+    ``LOOK2_MIN_ADDED_BAND_ROWS`` heldout band rows. Scoring the unchanged corpus at look 2
+    would mark an inconclusive result final without the extra data the alpha split paid for.
+    """
+    if not isinstance(look1_report, dict):
+        raise ScoreInputError("the look-1 report must hold a JSON object")
+    if look1_report.get("look") != LOOKS[0] or look1_report.get("verdict") != "inconclusive":
+        raise ScoreInputError("look 2 needs a look-1 report whose verdict is inconclusive")
+    before = look1_report.get("heldout_band_rows")
+    if isinstance(before, bool) or not isinstance(before, int):
+        raise ScoreInputError(
+            "the look-1 report has no heldout_band_rows; rescore look 1 with this version"
+        )
+    added = heldout_band_row_count(rows) - before
+    if added < LOOK2_MIN_ADDED_BAND_ROWS:
+        raise ScoreInputError(
+            f"look 2 needs at least {LOOK2_MIN_ADDED_BAND_ROWS} more heldout band rows than "
+            f"look 1 ({before}); this corpus adds {added}"
+        )
 
 
 def _validate(records: list[dict[str, Any]], checks: Sequence[Check], where: str) -> None:
@@ -467,6 +499,7 @@ def build_report(
             "unsure_share": unsure / len(rows),
             "scored": len(labeled),
         },
+        "heldout_band_rows": heldout_band_row_count(rows),
         "heldout_band": _subset_report(band, by_id, arms),
         "non_dev": _subset_report(non_dev, by_id, arms),
         **_gap_section(band, by_id, arms, seed, iterations, look),

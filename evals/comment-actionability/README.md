@@ -90,7 +90,9 @@ Step 7 needs `ANTHROPIC_API_KEY`, or a `--provider` that `call_api` accepts.
 8. Score the three arms. The verdict is `pass` when the gap is at least 0.10
    and the CI lower bound is above 0, `fail` only when the CI upper bound is
    under 0.10, and `inconclusive` otherwise. On a look-1 `inconclusive`, label
-   100 more band items once and rerun with `--look 2`.
+   100 more band items once and rerun with `--look 2 --look1-report
+   .project-toolkit/scratch/score.json`. Look 2 exits 2 unless that report is an
+   inconclusive look 1 and the corpus holds at least 100 more heldout band rows.
 
    ```bash
    uv run python scripts/eval/actionability_arms.py score \
