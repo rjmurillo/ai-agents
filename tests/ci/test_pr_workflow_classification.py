@@ -143,9 +143,6 @@ def test_required_workflows_read_no_model_credential(name: str) -> None:
 def test_ai_label_matches_model_credential_use(name: str) -> None:
     labelled_ai = contract.REPORT_ONLY_WORKFLOWS[name] == contract.AI_QUOTA
     uses_model = _reads_model_credential(name)
-    if name == "post-pr-retrospective.yml":
-        assert uses_model and labelled_ai
-        return
     assert labelled_ai == uses_model, (
         f"{name}: labelled AI={labelled_ai} but model credential use={uses_model}"
     )

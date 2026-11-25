@@ -26,7 +26,7 @@ No commit ever added it there (`git log -S ANTHROPIC_API_KEY` on that file, empt
 `LLMFallbackConfig.from_env()` then sets `enabled=False` (`config.py:53-61`).
 So the fallback does not run in that workflow, and its history shows it never did.
 
-The job already runs under `environment: agent-claude` (`update-reviewer-stats.yml:57`, since `d73c0cf0fe`, 2026-11-05).
+The job already runs under `environment: agent-claude` (the deleted update-reviewer-stats workflow, since `d73c0cf0fe`, 2026-11-05).
 That environment holds `ANTHROPIC_API_KEY` and `CLAUDE_CODE_OAUTH_TOKEN` (secret names listed by `gh api`, 2026-11-24).
 The secrets are optional: a fork, a `gh act` run, or another repository has none. The step just never maps them in.
 The heuristic alone decides every comment.
@@ -177,7 +177,7 @@ The caller keeps its current rule: apply the verdict only when `confidence >= 0.
 
 A comment skipped by either cap keeps its heuristic verdict and counts as `fallback_capped`.
 Worst case per run: the wall budget plus one in-flight call, about 11 minutes.
-That fits inside the 15-minute step budget the sibling step already uses (`update-reviewer-stats.yml:88`).
+That fits inside the 15-minute step budget the sibling step already uses (the deleted update-reviewer-stats workflow).
 
 ### Caching
 

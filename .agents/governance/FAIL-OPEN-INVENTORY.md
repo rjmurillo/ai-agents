@@ -301,9 +301,10 @@ Four deserve their reasoning kept, because they are the shapes worth copying:
   filter, and a co-located test, `tests/ci/test_frontmatter_gate_paths_filter.py`,
   asserts the filter still covers everything the gate scans. The filter cannot
   drift out from under the validator without that test failing.
-- `agent-skill-discriminator-check.yml:54` and
-  `software-engineering-library-activation.yml:10` move the whole-corpus
-  measurement off the diff filter onto an unfiltered schedule trigger.
+- `agent-skill-discriminator-check.yml:54` moves the whole-corpus
+  measurement off the diff filter onto an unfiltered schedule trigger. The
+  software-engineering-library-activation workflow did the same until it was
+  deleted on 2026-11-25.
 
 ### Adjacent finding, not counted as a defect here
 

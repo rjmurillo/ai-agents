@@ -81,7 +81,7 @@ REPORT_ONLY_WORKFLOWS: dict[str, str] = {
     "milestone-tracking.yml": AUTOMATION,
     "passive-context-budget.yml": DETERMINISTIC,
     "placeholder-identity-check.yml": DETERMINISTIC,
-    "plugin-cli-smoke.yml": AI_QUOTA,
+    "plugin-cli-smoke.yml": DETERMINISTIC,
     "plugin-scanner.yml": DETERMINISTIC,
     "skill-passive-compliance.yml": DETERMINISTIC,
     "skillbook-validation.yml": DETERMINISTIC,
