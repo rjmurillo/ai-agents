@@ -160,6 +160,38 @@ class TestReferenceGrants:
         assert code == 1
         assert "allowed-tools is a dict, not a string or list" in out
 
+    @pytest.mark.parametrize(
+        ("tools", "grant"),
+        [
+            ("*", "*"),
+            ("*, Read", "*"),
+            ("Read, *", "*"),
+            ("Bash(*)", "Bash(*)"),
+            ("Read, ??, Grep", "??"),
+            ("Read Grep", "Read Grep"),
+            ("mcp__github__get_*", "mcp__github__get_*"),
+            ("Read, Bash(git diff:*", "Bash(git diff:*"),
+            ("Read(secrets), *", "*"),
+            ("Read), Grep", "Read)"),
+        ],
+    )
+    def test_unparseable_or_wildcard_grants_are_findings(self, tools: str, grant: str) -> None:
+        found = checker.reference_grant_findings("demo", tools)
+        assert f"shape is reference but allowed-tools grants {grant}" in found
+
+    def test_quoted_wildcard_in_frontmatter_blocks(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        write(repo, SKILL, skill_md("reference", body="\n".join(MOVED), tools='"*, Read"'))
+        commit(repo, "wildcard")
+        code, out = run(repo, capsys)
+        assert code == 1
+        assert "shape is reference but allowed-tools grants *" in out
+
+    @pytest.mark.parametrize("tools", ["", "Read,", "Read,  , Grep", " Read ,Grep "])
+    def test_empty_segments_and_spacing_are_not_findings(self, tools: str) -> None:
+        assert checker.reference_grant_findings("demo", tools) == []
+
     def test_other_skill_script_fails(self, repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
         tools = "Bash(python3:*/skills/other/scripts/*)"
         write(repo, SKILL, skill_md("reference", body="\n".join(MOVED), tools=tools))

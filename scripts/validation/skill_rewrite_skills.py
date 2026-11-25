@@ -176,16 +176,44 @@ def _read_frontmatter(side: SkillSide, ref: str) -> None:
     side.allowed_tools = tools if isinstance(tools, str) else ""
 
 
+def _split_grants(allowed_tools: str) -> list[str]:
+    """Split on commas outside parentheses; blank segments are dropped.
+
+    The whole string is consumed, so a token the grant pattern cannot match
+    stays visible to the caller. A pattern that only searched would skip it.
+    """
+    grants, depth, start = [], 0, 0
+    for index, char in enumerate(allowed_tools):
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth = max(depth - 1, 0)
+        elif char == "," and depth == 0:
+            grants.append(allowed_tools[start:index].strip())
+            start = index + 1
+    grants.append(allowed_tools[start:].strip())
+    return [g for g in grants if g]
+
+
 def reference_grant_findings(name: str, allowed_tools: str) -> list[str]:
     """Grants outside the `reference` allowlist (ADR-127 decision 1).
 
     Bash is allowed only for a read-only command or for an interpreter that
     runs a script under this skill's own ``scripts/`` directory. A reference
     skill whose own script pushes is still a driver; a reviewer owns that.
+
+    Every comma-separated token must parse as ``Tool`` or ``Tool(inner)``.
+    A token that does not, such as ``*`` or ``mcp__x__*``, is a finding: the
+    frontmatter validator reads ``*`` as a live wildcard grant.
     """
     own_script = re.compile(rf"^{_INTERPRETER}\S*skills/{re.escape(name)}/scripts/\S*$")
     problems = []
-    for match in _GRANT.finditer(allowed_tools):
+    grants = _split_grants(allowed_tools)
+    for grant in grants:
+        match = _GRANT.fullmatch(grant)
+        if match is None:
+            problems.append(f"shape is reference but allowed-tools grants {grant}")
+            continue
         tool, inner = match.group("tool"), match.group("inner")
         if tool == "Bash":
             ok = (
@@ -199,8 +227,7 @@ def reference_grant_findings(name: str, allowed_tools: str) -> list[str]:
                 or bool(_READ_MCP.match(tool) and not _MCP_WRITE_WORD.search(tool.split("__")[-1]))
             )
         if not ok:
-            problems.append(f"shape is reference but allowed-tools grants {match.group(0)}")
-    grants = [m.group(0) for m in _GRANT.finditer(allowed_tools)]
+            problems.append(f"shape is reference but allowed-tools grants {grant}")
     writes = sorted({g for g in grants if g in _WRITE_TOOLS})
     if writes and any(g.startswith("Bash") for g in grants):
         problems.append(
