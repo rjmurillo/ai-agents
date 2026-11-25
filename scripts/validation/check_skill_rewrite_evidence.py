@@ -39,11 +39,10 @@ For a gated skill the check requires, and fails closed without:
   a test that exists at head;
 - results files that are append-only on the branch: an edit or delete of
   one fails (item 9);
-- a results file recording the head prompt-surface sha256. Of those, the
-  first committed sets the verdict; a matching file already on the base
-  ref counts as first, since that surface was evaluated before. It must match the other
-  identities: prompt path, scenario path and sha256, a base commit that is
-  an ancestor of the base ref, and a model;
+- a results file recording the head prompt-surface sha256. The first one
+  committed sets the verdict (one already on the base ref counts as first)
+  and must match the other identities: prompt path, scenario path and
+  sha256, a base commit that is an ancestor of the base ref, and a model;
 - a merge-base scenario file that parses, when one exists;
 - the verdict recomputed from the per-run labels, plus the decision 7
   floors (``skill_rewrite_evidence.verify_results``);

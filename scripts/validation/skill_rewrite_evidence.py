@@ -251,6 +251,46 @@ def _floor_findings(runner: ModuleType, rec: _Recomputed, required: int, total: 
     return problems
 
 
+def _recompute_gate(
+    runner: ModuleType, rec: _Recomputed, required: int, security: bool
+) -> dict[str, Any]:
+    """The runner's `acceptance_gate` over the rebuilt rows, with `run_comparison`'s scores."""
+    stable = [
+        (b, a)
+        for b, a in zip(rec.before, rec.after, strict=True)
+        if not runner.is_base_unstable(b, required)
+    ]
+    before_score = sum(1 for b, _ in stable if b["passed"]) / max(1, len(stable))
+    after_score = sum(1 for _, a in stable if a["passed"]) / max(1, len(stable))
+    gate: dict[str, Any] = runner.acceptance_gate(
+        {
+            "before_score": round(before_score, 4),
+            "after_score": round(after_score, 4),
+            "delta": round(after_score - before_score, 4),
+            "scenario_count": len(rec.before),
+            "scored_scenario_count": len(stable),
+            "before_results": rec.before,
+            "after_results": rec.after,
+        },
+        security_critical=security,
+    )
+    return gate
+
+
+def _verdict_findings(results: dict[str, Any], gate: dict[str, Any]) -> list[str]:
+    """The recorded verdict must equal the recomputed one, and that must be PASS."""
+    block = results.get("gate")
+    recorded = block.get("verdict") if isinstance(block, dict) else None
+    problems = []
+    if recorded != gate["verdict"]:
+        problems.append(
+            f"gate.verdict says {recorded!r} but the recorded runs recompute to {gate['verdict']!r}"
+        )
+    if gate["verdict"] != "PASS":
+        problems.append(f"recomputed gate is {gate['verdict']}: regressions {gate['regressions']}")
+    return problems
+
+
 def verify_results(runner: ModuleType, results: object, expected: Expected) -> list[str]:
     """Every finding for one results file. Empty means the file holds."""
     if not isinstance(results, dict):
@@ -273,33 +313,6 @@ def verify_results(runner: ModuleType, results: object, expected: Expected) -> l
     rows = [*rec.before, *rec.after]
     if any(r.get("model_used", model) != model for row in rows for r in row["per_run"]):
         problems.append("a recorded run names a model other than identity.model")
-    stable = [
-        (b, a)
-        for b, a in zip(rec.before, rec.after, strict=True)
-        if not runner.is_base_unstable(b, required)
-    ]
-    before_score = sum(1 for b, _ in stable if b["passed"]) / max(1, len(stable))
-    after_score = sum(1 for _, a in stable if a["passed"]) / max(1, len(stable))
-    gate = runner.acceptance_gate(
-        {
-            "before_score": round(before_score, 4),
-            "after_score": round(after_score, 4),
-            "delta": round(after_score - before_score, 4),
-            "scenario_count": len(rec.before),
-            "scored_scenario_count": len(stable),
-            "before_results": rec.before,
-            "after_results": rec.after,
-        },
-        security_critical=security,
-    )
-    recorded = (
-        results.get("gate", {}).get("verdict") if isinstance(results.get("gate"), dict) else None
-    )
-    if recorded != gate["verdict"]:
-        problems.append(
-            f"gate.verdict says {recorded!r} but the recorded runs recompute to {gate['verdict']!r}"
-        )
-    if gate["verdict"] != "PASS":
-        problems.append(f"recomputed gate is {gate['verdict']}: regressions {gate['regressions']}")
+    problems += _verdict_findings(results, _recompute_gate(runner, rec, required, security))
     problems.extend(_floor_findings(runner, rec, required, len(rec.before)))
     return problems

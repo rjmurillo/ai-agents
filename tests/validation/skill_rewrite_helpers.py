@@ -32,11 +32,14 @@ __all__ = [
     "_VALIDATION",
     "checker",
     "commit",
+    "commit_evidence",
     "driver_change",
     "git",
+    "on_main",
     "repo",
     "results",
     "run",
+    "run_gated",
     "scenario_doc",
     "skill_md",
     "sre",
@@ -151,6 +154,31 @@ def run(root: Path, capsys: pytest.CaptureFixture[str], base: str = "main") -> t
     code = checker.main(["--repo-root", str(root), "--base-ref", base])
     captured = capsys.readouterr()
     return code, captured.out + captured.err
+
+
+def commit_evidence(root: Path, msg: str = "evidence") -> str:
+    """Commit one passing results file for the current skill surface."""
+    write(root, f"{EVID}/run-1.json", results(root))
+    return commit(root, msg)
+
+
+def on_main(root: Path, files: dict[str, str], msg: str) -> None:
+    """Commit *files* on main, then rebuild the feature branch from it."""
+    git(root, "checkout", "-q", "main")
+    for rel, text in files.items():
+        write(root, rel, text)
+    commit(root, msg)
+    git(root, "checkout", "-q", "-B", "feature")
+
+
+def run_gated(
+    root: Path, capsys: pytest.CaptureFixture[str], evidence: bool = True
+) -> tuple[int, str]:
+    """Tag the skill a driver, optionally commit passing evidence, run the check."""
+    driver_change(root)
+    if evidence:
+        commit_evidence(root)
+    return run(root, capsys)
 
 
 def driver_change(root: Path) -> None:

@@ -14,11 +14,14 @@ from tests.validation.skill_rewrite_helpers import (
     SKILL,
     checker,
     commit,
+    commit_evidence,
     driver_change,
     git,
+    on_main,
     repo,
     results,
     run,
+    run_gated,
     scenario_doc,
     skill_md,
     write,
@@ -58,8 +61,7 @@ class TestAppendOnly:
         write(repo, f"{EVID}/retired.json", json.dumps({"retired": []}))
         commit(repo, "retired")
         write(repo, f"{EVID}/retired.json", json.dumps({"retired": [], "note": "x"}))
-        write(repo, f"{EVID}/run-1.json", results(repo))
-        commit(repo, "evidence")
+        commit_evidence(repo)
         code, out = run(repo, capsys)
         assert code == 0, out
 
@@ -108,10 +110,7 @@ class TestAppendOnly:
         doc["scenarios"][0]["expected_verdict"] = "STOP"
         write(repo, SCEN, json.dumps(doc))
         commit(repo, "scenario commit")
-        driver_change(repo)
-        write(repo, f"{EVID}/run-1.json", results(repo))
-        commit(repo, "evidence")
-        code, out = run(repo, capsys)
+        code, out = run_gated(repo, capsys)
         assert code == 1
         assert "scenario S1 changes expected_verdict from 'GO' to 'STOP'" in out
 
@@ -132,16 +131,14 @@ class TestScenarioFile:
     def test_missing_scenario_file(self, repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
         git(repo, "rm", "-q", SCEN)
         commit(repo, "drop scenarios")
-        driver_change(repo)
-        code, out = run(repo, capsys)
+        code, out = run_gated(repo, capsys, evidence=False)
         assert code == 1
         assert f"{SCEN} does not exist" in out
 
     def test_invalid_scenario_json(self, repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
         write(repo, SCEN, "{")
         commit(repo, "break")
-        driver_change(repo)
-        code, out = run(repo, capsys)
+        code, out = run_gated(repo, capsys, evidence=False)
         assert code == 1
         assert "is not valid scenario JSON" in out
 
@@ -150,16 +147,14 @@ class TestScenarioFile:
     ) -> None:
         write(repo, SCEN, json.dumps({"scenarios": [{"id": "S1"}]}))
         commit(repo, "thin")
-        driver_change(repo)
-        code, out = run(repo, capsys)
+        code, out = run_gated(repo, capsys, evidence=False)
         assert code == 1
         assert "has a scenario with no expected_verdict" in out
 
     def test_scenario_without_id(self, repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
         write(repo, SCEN, json.dumps({"scenarios": [{"expected_verdict": "GO"}]}))
         commit(repo, "no id")
-        driver_change(repo)
-        code, out = run(repo, capsys)
+        code, out = run_gated(repo, capsys, evidence=False)
         assert code == 1
         assert "is not valid scenario JSON with an id on every scenario" in out
 
@@ -171,8 +166,7 @@ class TestScenarioFile:
         doc["scenarios"][0]["desc"] = "changed"
         write(repo, SCEN, json.dumps(doc))
         commit(repo, "late scenario edit")
-        write(repo, f"{EVID}/run-1.json", results(repo))
-        commit(repo, "evidence")
+        commit_evidence(repo)
         code, out = run(repo, capsys)
         assert code == 1
         assert "changes in or after the first commit that touches the skill" in out
@@ -182,10 +176,7 @@ class TestScenarioFile:
     ) -> None:
         write(repo, SCEN, scenario_doc(9))
         commit(repo, "scenario commit")
-        driver_change(repo)
-        write(repo, f"{EVID}/run-1.json", results(repo))
-        commit(repo, "evidence")
-        code, out = run(repo, capsys)
+        code, out = run_gated(repo, capsys)
         assert code == 0, out
 
     def test_dropped_scenario_without_retired_file(
@@ -194,10 +185,7 @@ class TestScenarioFile:
         self._base_with_nine(repo)
         write(repo, SCEN, scenario_doc(8))
         commit(repo, "drop S9")
-        driver_change(repo)
-        write(repo, f"{EVID}/run-1.json", results(repo))
-        commit(repo, "evidence")
-        code, out = run(repo, capsys)
+        code, out = run_gated(repo, capsys)
         assert code == 1
         assert "scenarios ['S9'] were dropped" in out
 
@@ -226,10 +214,7 @@ class TestScenarioFile:
         write(repo, SCEN, scenario_doc(8))
         write(repo, f"{EVID}/retired.json", retired)
         commit(repo, "drop S9")
-        driver_change(repo)
-        write(repo, f"{EVID}/run-1.json", results(repo))
-        commit(repo, "evidence")
-        code, out = run(repo, capsys)
+        code, out = run_gated(repo, capsys)
         assert code == 1
         assert message in out
 
@@ -245,26 +230,17 @@ class TestScenarioFile:
             json.dumps({"retired": [{"scenario": "S9", "test": test}]}),
         )
         commit(repo, "drop S9")
-        driver_change(repo)
-        write(repo, f"{EVID}/run-1.json", results(repo))
-        commit(repo, "evidence")
-        code, out = run(repo, capsys)
+        code, out = run_gated(repo, capsys)
         assert code == 0, out
 
     @pytest.mark.parametrize("broken", ["{", json.dumps({"scenarios": 3})])
     def test_unreadable_base_scenarios_fail_closed(
         self, repo: Path, capsys: pytest.CaptureFixture[str], broken: str
     ) -> None:
-        git(repo, "checkout", "-q", "main")
-        write(repo, SCEN, broken)
-        commit(repo, "broken on main")
-        git(repo, "checkout", "-q", "-B", "feature")
+        on_main(repo, {SCEN: broken}, "broken on main")
         write(repo, SCEN, scenario_doc())
         commit(repo, "scenario commit")
-        driver_change(repo)
-        write(repo, f"{EVID}/run-1.json", results(repo))
-        commit(repo, "evidence")
-        code, out = run(repo, capsys)
+        code, out = run_gated(repo, capsys)
         assert code == 1
         assert "does not parse at the merge base" in out
 
@@ -277,15 +253,9 @@ class TestScenarioFile:
         git(repo, "checkout", "-q", "-B", "feature")
         write(repo, SCEN, scenario_doc())
         commit(repo, "scenario commit")
-        driver_change(repo)
-        write(repo, f"{EVID}/run-1.json", results(repo))
-        commit(repo, "evidence")
-        code, out = run(repo, capsys)
+        code, out = run_gated(repo, capsys)
         assert code == 0, out
 
     @staticmethod
     def _base_with_nine(repo: Path) -> None:
-        git(repo, "checkout", "-q", "main")
-        write(repo, SCEN, scenario_doc(9))
-        commit(repo, "nine on main")
-        git(repo, "checkout", "-q", "-B", "feature")
+        on_main(repo, {SCEN: scenario_doc(9)}, "nine on main")
