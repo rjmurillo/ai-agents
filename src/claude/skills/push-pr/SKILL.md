@@ -182,9 +182,11 @@ that passed steps 4 and 5:
 
 Run it without `--fail-on-violation`, as `new_pr.py` does on GitHub. Warnings,
 such as a missing `Closes #N` keyword or an Azure Boards `AB#` link, are
-advisory: report them and go on. A non-zero exit means an error, such as a
-title that is not a conventional commit, or a check that could not run. Fix the
-title or body file, then re-run steps 4 and 5 and this check. Do not create the PR.
+advisory: report them and go on. Exit 1 means escaped newlines in the body or
+an unreadable body file. In this mode a bad title still exits 0, so also stop
+when the output prints an `Errors` section. Step 4 already rejects a title that
+is not a conventional commit. On either failure, fix the title or body file,
+then re-run steps 4 and 5 and this check. Do not create the PR.
 
 This validator has no dash check. Read the title and the body file for an em
 dash (U+2014) or an en dash (U+2013). Replace each one before the create.

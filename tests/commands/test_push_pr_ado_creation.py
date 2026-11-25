@@ -137,6 +137,8 @@ class TestPushPrOwnsAdoCreation:
         ado = " ".join(section(push_pr_text, "Azure DevOps PR Creation").split())
         assert "are advisory" in ado
         assert "`AB#`" in ado
+        assert "a bad title still exits 0" in ado
+        assert "prints an `Errors` section" in ado
 
     def test_ado_requires_manual_dash_check(self, push_pr_text: str) -> None:
         ado = " ".join(section(push_pr_text, "Azure DevOps PR Creation").split())
