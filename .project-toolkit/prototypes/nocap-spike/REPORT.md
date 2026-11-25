@@ -2,8 +2,101 @@
 
 SPIKE ONLY. Do not merge. Nothing here is wired to a hook or shipped.
 Branch `spike/nocap-checker-core` is local only. It is not pushed, and no PR exists.
+Round 1 ran on 2026-11-23 and stopped. Round 2 applied two fixes and re-measured on 2026-11-25.
 
-## Verdict
+## Verdict (round 2, after Fixes 1 and 2)
+
+**Proceed with named fixes. No abort condition fired on the fresh sample.**
+The margin is thin, and the residual risks below still apply.
+
+| Abort condition | Threshold | Measured, fresh sample | Fired? |
+|---|---|---|---|
+| NO CAP precision, hand-checked set | under 0.85 | receipt level 46 of 51 = **0.902** | No |
+| | | claim level 47 of 51 = 0.922 | No |
+| Any false CAP | 1 or more | 0 CAP stamps of 150 in the corpus | No |
+| Fits the 15 s Stop budget | typical reply over 15 s | p50 0.13 s, p95 0.25 s, max 0.47 s | No |
+
+Residual risks a Phase 1 decision should weigh:
+
+- **The interval crosses the bar.** The 95% Wilson interval for 46 of 51 is 0.79 to 0.96.
+- **All 5 wrong NO CAP stamps are SHA stamps.** Non-SHA receipt-level precision is 18 of 18.
+  Four stamps credit a sentence about what a commit did, or what a PR body cites, when the output
+  only shows the SHA exists.
+  One cites a commit call whose output shows HEAD, not the plugin update the sentence claims.
+- **The fixes did not hold on the round 1 set.** Replaying round 1's 40 transcripts changed no verdict.
+  10 NO CAP stamps moved to a new cited call. By my reading, 4 now cite a proving call and 6 still do not.
+  That puts round 1 receipt-level precision near 32 of 40 = 0.80. This is INFERRED: round 1 saved
+  claim-level labels per stamp, not receipt-level ones. Round 1 was also the set the fixes came from.
+- **NO RECEIPT is mostly noise.** 17 of 27 NO RECEIPT stamps in the hand check were on supported
+  claims. An annotate-only hook would show these to users. Fixes 3 to 5 target most of them.
+- **One labeler.** I wrote the adapter, chose the fixes, and labeled both rounds.
+
+## Round 2: re-measure after Fixes 1 and 2
+
+Run on 2026-11-25 on branch `spike/nocap-checker-core`.
+
+### What changed
+
+- **Fix 1:** `evidence.py` collects SHAs from tool output only, not from the command text.
+- **Fix 2, partial:** the `git merge` pattern no longer matches `git merge-tree`, `merge-base`, and
+  similar plumbing. Fix 2 also named the number stamp that matched "10" in a doc line. I left that
+  alone, because the core matches numbers by token by design.
+- Upstream's 156 tests pass on the modified core. Four new adapter tests cover both fixes.
+  With the unfixed core restored, exactly the two negative tests fail. The two keep-receipt tests pass either way.
+- `run_corpus.py --exclude` skips sessions named in earlier `_selection.json` files.
+
+### Fresh sample
+
+Same selection rule as round 1, with the 45 round 1 sessions excluded. Pool 3,917 files.
+264 scanned to find 40 eligible. No holdout, because the adapter did not change.
+
+| Measure | Value |
+|---|---|
+| Replies with claims | 49 |
+| Claims extracted | 200 |
+| Stamps shown | 150 |
+| NO CAP | 88 |
+| NO RECEIPT | 62 (rate 0.413) |
+| CAP | 0 |
+| Tamper hits | 0 |
+| "Code changed after" stamps | 3 (2 in the hand check, both on CI check claims, Fix 3) |
+
+### Hand check (20 replies, 78 stamps)
+
+Same method as round 1: the first 20 replies with stamps, in selection order. I read each cited call's
+output, then searched every tool output in the session up to that turn.
+
+| Stamp \ Label | Supported | Unsupported | Contradicted | Not a claim |
+|---|---|---|---|---|
+| NO CAP, cited call proves it | 46 | 0 | 0 | 0 |
+| NO CAP, other output proves it | 1 | 0 | 0 | 0 |
+| NO CAP, nothing proves it | 0 | 4 | 0 | 0 |
+| NO RECEIPT | 17 | 6 | 0 | 4 |
+
+Labeling rule for SHA stamps: the stamp is correct when the cited output proves what the sentence
+says about that SHA. "At head X" passes when the output shows X is HEAD. "Commit X fixes Y" fails
+when the output only shows X exists.
+
+Fix 1 showed up directly once. A reply cited a SHA that appeared only in the agent's commands.
+Round 1's core would have stamped NO CAP. The fixed core stamped NO RECEIPT.
+
+Causes of the 17 false NO RECEIPT stamps:
+
+- 7 CI check counts read as test claims (Fix 3).
+- 2 scoped test runs flagged as a subset, though the reply named the scope.
+- 3 facts from earlier turns not carried over.
+- 5 outputs the core does not parse: a subagent report, the repo's PR-create script,
+  a `gh pr view` JSON line, a `build_all.py --check` result, and a merge seen only in `git log`.
+
+### Fixes still needed
+
+1. **SHA stamps need a relation, not a prefix match.** Tie the SHA to HEAD, a commit, or a push ref
+   in the cited output. Do not stamp a sentence about a commit's content on presence alone.
+2. **A local `git merge` is not a PR merge.** Round 1's `merge_pr.py` claim now cites
+   `git merge origin/main`, which proves nothing about the PR.
+3. Round 1 Fixes 3, 4, and 5 below, to cut NO RECEIPT noise before any user sees a stamp.
+
+## Round 1 verdict (superseded by round 2)
 
 **Stop. Abort condition 1 fired at the receipt level.** The other two conditions did not fire.
 
@@ -116,6 +209,8 @@ Host load average was about 10 on 48 cores.
 | Three largest in the whole pool (up to 36 MB) | 3 | 2.47 s | 3.52 s | 3.52 s |
 
 ## Fixes a Phase 1 re-measure would need
+
+Fix 1 and part of Fix 2 were applied in round 2. See above.
 
 1. **SHA receipts count the agent's own words.** SHA evidence reads command text as well as output.
    A SHA the agent typed into a PR body earned NO CAP and cited that call. Count only tool output, and

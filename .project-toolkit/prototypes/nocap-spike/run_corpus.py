@@ -6,6 +6,8 @@ Selection rule, fixed before the first measured run:
 3. Eligible: at least one turn whose final reply yields one or more claims.
 4. The first ``--holdout`` eligible files are for adapter debugging only.
    The next ``--measured`` eligible files are the measured set.
+5. Re-measure: ``--exclude`` names earlier ``_selection.json`` files. Their
+   sessions are skipped before eligibility, so the new sample shares none.
 
 Raw output holds reply excerpts and commands, so it goes to ``--out`` outside
 the repository. Only aggregates go into the report.
@@ -72,10 +74,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--holdout", type=int, default=5)
     parser.add_argument("--measured", type=int, default=40)
     parser.add_argument("--set", choices=("holdout", "measured"), default="measured")
+    parser.add_argument("--exclude", type=Path, nargs="*", default=[])
     args = parser.parse_args(argv)
+    used = {s for f in args.exclude for s in json.loads(f.read_text())["selected"]}
 
     args.out.mkdir(parents=True, exist_ok=True)
-    pool = candidates(args.root)
+    pool = [p for p in candidates(args.root) if session_id(p) not in used]
     eligible: list[dict[str, Any]] = []
     scanned = 0
     need = args.holdout + args.measured
@@ -93,6 +97,7 @@ def main(argv: list[str] | None = None) -> int:
         )
     meta = {
         "candidates": len(pool),
+        "excluded": len(used),
         "scanned": scanned,
         "eligible_found": len(eligible),
         "set": args.set,
