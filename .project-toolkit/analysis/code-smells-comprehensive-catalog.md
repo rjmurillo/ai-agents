@@ -438,28 +438,57 @@ When adding a new payment type, you must change:
 **After (refactored using Strategy pattern):**
 
 ```python
+from abc import ABC, abstractmethod
+from collections.abc import Callable
+from dataclasses import dataclass
+
+
 class PaymentStrategy(ABC):
     @abstractmethod
-    def process(self, amount):
-        pass
+    def process(self, amount_cents: int) -> str:
+        """Charge the payment method and return the provider receipt ID."""
 
     @abstractmethod
-    def validate(self):
-        pass
+    def validate(self, amount_cents: int) -> bool:
+        """Check the amount and provider-specific payment reference."""
 
     @abstractmethod
-    def get_display_name(self):
-        pass
+    def get_display_name(self) -> str:
+        """Return the payment method's display name."""
 
 
+@dataclass(frozen=True)
 class CreditCardPayment(PaymentStrategy):
-    # All credit card logic in one place
-    pass
+    card_token: str
+    charge_card: Callable[[str, int], str]
+
+    def validate(self, amount_cents: int) -> bool:
+        return amount_cents > 0 and bool(self.card_token.strip())
+
+    def process(self, amount_cents: int) -> str:
+        if not self.validate(amount_cents):
+            raise ValueError("A card token and a positive amount are required")
+        return self.charge_card(self.card_token, amount_cents)
+
+    def get_display_name(self) -> str:
+        return "Credit card"
 
 
+@dataclass(frozen=True)
 class PayPalPayment(PaymentStrategy):
-    # All PayPal logic in one place
-    pass
+    approved_order_id: str
+    capture_order: Callable[[str, int], str]
+
+    def validate(self, amount_cents: int) -> bool:
+        return amount_cents > 0 and bool(self.approved_order_id.strip())
+
+    def process(self, amount_cents: int) -> str:
+        if not self.validate(amount_cents):
+            raise ValueError("An approved order and a positive amount are required")
+        return self.capture_order(self.approved_order_id, amount_cents)
+
+    def get_display_name(self) -> str:
+        return "PayPal"
 ```
 
 **Why this matters:** Adding a new payment type now requires creating one new class that implements the strategy interface. The change is localized rather than scattered.
@@ -487,6 +516,9 @@ def create_user(email: str, phone: str, postal_code: str):
 **After (refactored with Value Objects):**
 
 ```python
+from dataclasses import dataclass
+
+
 @dataclass(frozen=True)
 class Email:
     value: str
@@ -502,14 +534,29 @@ class PhoneNumber:
 
     def __post_init__(self):
         cleaned = self.value.replace("-", "").replace(" ", "")
-        if len(cleaned) != 10:
+        if len(cleaned) != 10 or not cleaned.isascii() or not cleaned.isdecimal():
             raise ValueError("Invalid phone number")
         object.__setattr__(self, "value", cleaned)
 
 
-def create_user(email: Email, phone: PhoneNumber, postal_code: PostalCode):
-    # Validation is guaranteed by the type system
-    pass
+@dataclass(frozen=True)
+class PostalCode:
+    value: str
+
+    def __post_init__(self):
+        if len(self.value) != 5 or not self.value.isascii() or not self.value.isdecimal():
+            raise ValueError("Invalid five-digit postal code")
+
+
+@dataclass(frozen=True)
+class User:
+    email: Email
+    phone: PhoneNumber
+    postal_code: PostalCode
+
+
+def create_user(email: Email, phone: PhoneNumber, postal_code: PostalCode) -> User:
+    return User(email, phone, postal_code)
 ```
 
 **Why this matters:** The validation logic is now centralized in the value objects. Invalid data cannot exist because the constructor enforces invariants. This eliminates duplicate validation scattered across the codebase.

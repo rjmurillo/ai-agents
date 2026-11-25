@@ -20,53 +20,14 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import subprocess
+import subprocess as subprocess
 import sys
 from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
-
-def _find_project_root(fallback_dir: Path | None = None) -> Path:
-    """Find project root via git or directory traversal."""
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--git-common-dir"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if result.returncode == 0:
-            git_common = Path(result.stdout.strip())
-            if not git_common.is_absolute():
-                git_common = (Path.cwd() / git_common).resolve()
-            else:
-                git_common = git_common.resolve()
-            return git_common.parent
-    except FileNotFoundError:
-        pass
-
-    # Walk up from the caller's directory, never the script's own install
-    # tree: a vendored plugin copy must not edit itself as the project.
-    search = (fallback_dir or Path.cwd()).resolve()
-    while search != search.parent:
-        if (search / ".git").exists():
-            return search
-        search = search.parent
-    raise SystemExit("Could not find project root (no .git directory found)")
-
-
-def _validate_path_within_project(memories_path: str, project_root: Path) -> Path:
-    """Validate that a path is within the project root (CWE-22 mitigation)."""
-    resolved = Path(memories_path).resolve()
-    root_resolved = project_root.resolve()
-    if not resolved.is_relative_to(root_resolved):
-        raise SystemExit(
-            f"Security: MemoriesPath must be within project directory. "
-            f"Provided: {resolved}, Project root: {root_resolved}"
-        )
-    return resolved
-
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from memory_link_processing import _find_project_root, _validate_path_within_project
 
 # Domain patterns for grouping related memories.
 # More specific prefixes MUST come before shorter ones (first-match-wins).

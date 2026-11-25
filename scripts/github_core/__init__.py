@@ -7,6 +7,7 @@ file and regenerate.
 
 from __future__ import annotations
 
+from scripts.github_core.actions_output import write_github_output, write_step_summary
 from scripts.github_core.api import (
     DEFAULT_RATE_THRESHOLDS,
     FetchStatus,
@@ -35,6 +36,7 @@ from scripts.github_core.api import (
     is_gh_authenticated,
     resolve_repo_params,
     safe_log_str,
+    sanitize_failure_detail,
     transform_review_thread,
     update_issue_comment,
 )
@@ -43,6 +45,7 @@ from scripts.github_core.bot_config import (
     get_bot_authors_config,
     is_bot,
 )
+from scripts.github_core.environment import env_timeout_seconds
 from scripts.github_core.formatting import (
     get_priority_emoji,
     get_reaction_emoji,
@@ -50,6 +53,8 @@ from scripts.github_core.formatting import (
 from scripts.github_core.gh_client import GhCliClient
 from scripts.github_core.not_found import is_pr_not_found
 from scripts.github_core.output import (
+    STANDARD_FAILURE_EXIT_CODES,
+    add_output_format_arg,
     get_output_format,
     write_skill_error,
     write_skill_output,
@@ -74,6 +79,8 @@ from scripts.github_core.validation import (
 )
 
 __all__ = [
+    "STANDARD_FAILURE_EXIT_CODES",
+    "add_output_format_arg",
     "DEFAULT_RATE_THRESHOLDS",
     "FetchStatus",
     "GhAuthResult",
@@ -123,6 +130,10 @@ __all__ = [
     "is_safe_file_path",
     "resolve_repo_params",
     "safe_log_str",
+    "sanitize_failure_detail",
+    "env_timeout_seconds",
+    "write_github_output",
+    "write_step_summary",
     "transform_review_thread",
     "update_issue_comment",
     "write_skill_error",

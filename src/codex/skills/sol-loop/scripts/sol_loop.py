@@ -38,32 +38,17 @@ import os
 import re
 import sys
 from datetime import datetime, timezone
+from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 
-
-def _resolve_paths_lib_dir() -> Path:
-    """Resolve the lib directory holding paths.py, or fail with context."""
-    # ADR-047 keeps this bootstrap inline because imports need sys.path first.
-    # A plugin-root variable can name another plugin, so use it only when it
-    # holds paths.py, then fall back to this file's own plugin tree.
-    roots = (os.environ.get("COPILOT_PLUGIN_ROOT"), os.environ.get("CLAUDE_PLUGIN_ROOT"))
-    candidates = [Path(root) / "lib" for root in roots if root]
-    candidates.append(Path(__file__).resolve().parents[3] / "lib")
-    for lib_dir in candidates:
-        if (lib_dir / "paths.py").is_file():
-            return lib_dir.resolve()
-    raise RuntimeError(f"paths.py not found in any of: {', '.join(map(str, candidates))}")
-
-
-_LIB_DIR = _resolve_paths_lib_dir()
-if str(_LIB_DIR) not in sys.path:
-    sys.path.insert(0, str(_LIB_DIR))
-
-import paths  # noqa: E402
-
-_HERE = Path(__file__).absolute().parent
-if str(_HERE) not in sys.path:
-    sys.path.insert(0, str(_HERE))
+_BOOTSTRAP = Path(__file__).resolve().parents[3] / "lib" / "bootstrap.py"
+if not _BOOTSTRAP.is_file():
+    raise ImportError(f"Cannot load skill bootstrap from {_BOOTSTRAP}")
+_spec = spec_from_file_location("_skill_bootstrap", _BOOTSTRAP)
+assert _spec is not None and _spec.loader is not None
+_bootstrap = module_from_spec(_spec)
+_spec.loader.exec_module(_bootstrap)
+paths = _bootstrap.load_skill_paths(_BOOTSTRAP.parent, __file__)
 
 from sol_cli import DEFAULT_TIMEOUT_SECONDS, available_runner, run_sol  # noqa: E402
 from sol_findings import (  # noqa: E402

@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import builtins
 import contextlib
+import importlib
 import io
+import os
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -83,3 +85,20 @@ def run_main_wrapper(
     except SystemExit as excinfo:
         code = excinfo.code
     return code, stdout_buffer.getvalue(), stderr_buffer.getvalue()
+
+
+_PLUGIN_ROOT_VARS = ("CLAUDE_PLUGIN_ROOT", "COPILOT_PLUGIN_ROOT")
+
+
+def import_hook_without_inherited_plugin_root(name: str) -> ModuleType:
+    """Import a hook module with the plugin-root variables unset, then restore them.
+
+    A hook resolves its lib directory from ``CLAUDE_PLUGIN_ROOT`` at import
+    time. An agent shell can inherit that variable from an unrelated plugin,
+    and the hook would then load a lib without ``hook_utilities``.
+    """
+    saved = {key: os.environ.pop(key) for key in _PLUGIN_ROOT_VARS if key in os.environ}
+    try:
+        return importlib.import_module(name)
+    finally:
+        os.environ.update(saved)

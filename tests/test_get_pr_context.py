@@ -13,37 +13,19 @@
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import subprocess
 import sys
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 from scripts.github_core.api import RepoInfo
+from tests.gh_pr_lookup_cases import PR_VIEW_FAILURE_CASES
 from tests.mock_fidelity import assert_mock_keys_match
+from tests.skills.claude_skills_import import import_skill_script
 
-# ---------------------------------------------------------------------------
-# Import the script via importlib (not a package)
-# ---------------------------------------------------------------------------
-_SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
-)
-
-
-def _import_script(name: str):
-    spec = importlib.util.spec_from_file_location(name, _SCRIPTS_DIR / f"{name}.py")
-    assert spec is not None
-    assert spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[name] = mod
-    spec.loader.exec_module(mod)
-    return mod
-
-
-_mod = _import_script("get_pr_context")
+_mod = import_skill_script(".claude/skills/github/scripts/pr/get_pr_context.py")
 main = _mod.main
 build_parser = _mod.build_parser
 
@@ -1737,24 +1719,7 @@ class TestFocusedFieldMode:
         gh_graphql.assert_not_called()
 
 
-_GH_MISSING_PR = (
-    "GraphQL: Could not resolve to a PullRequest with the number of 999999. "
-    "(repository.pullRequest)\n"
-)
-_GH_MISSING_REPO = "GraphQL: Could not resolve to a Repository with the name 'o/r'. (repository)"
-
-
-@pytest.mark.parametrize(
-    ("stdout", "stderr", "code"),
-    [
-        pytest.param("", _GH_MISSING_PR, 2, id="gh-missing-pr"),
-        pytest.param(_GH_MISSING_PR, "", 2, id="marker-on-stdout-fallback"),
-        pytest.param("", "not found", 2, id="legacy-wording"),
-        pytest.param("", "gh: Not Found (HTTP 404)", 2, id="legacy-any-case"),
-        pytest.param("", "HTTP 502: Bad Gateway", 3, id="external-error"),
-        pytest.param("", _GH_MISSING_REPO, 3, id="missing-repo"),
-    ],
-)
+@pytest.mark.parametrize(("stdout", "stderr", "code"), PR_VIEW_FAILURE_CASES)
 def test_failed_pr_view_exit_code(stdout, stderr, code):
     """A failed PR lookup maps to the ADR-035 code."""
     auth_patch, repo_patch = _patch_auth_and_repo()

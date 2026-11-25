@@ -273,14 +273,20 @@ result=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; d
 At session start, agents SHOULD:
 
 ```python
-# 1. Read mandatory memory (BLOCKING)
-mcp__serena__read_memory(memory_file_name="usage-mandatory")
+from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 
-# 2. Search for relevant project context
-search_memory("[session objectives]", max_results=10)
+# Run after adding the memory skill directory to sys.path as shown above.
+from memory_core.memory_router import search_memory
+from memory_core.reflexion_memory import get_episodes
 
-# 3. Review recent episodes
-get_episodes(since=datetime.now(UTC) - timedelta(days=7), max_results=5)
+
+def load_session_context(read_memory: Callable[[str], object], objectives: str):
+    # The host supplies the Serena read_memory adapter.
+    mandatory = read_memory("usage-mandatory")
+    facts = search_memory(objectives, max_results=10)
+    episodes = get_episodes(since=datetime.now(UTC) - timedelta(days=7), max_results=5)
+    return mandatory, facts, episodes
 ```
 
 ### Session End

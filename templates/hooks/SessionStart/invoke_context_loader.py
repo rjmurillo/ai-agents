@@ -32,7 +32,6 @@ References:
 
 from __future__ import annotations
 
-import io
 import os
 import re
 import sys
@@ -247,51 +246,6 @@ def _write_audit_log(project_dir: str, loaded_files: list[str]) -> None:
         pass  # Fail-open: audit is best-effort
 
 
-def _drain_stdin() -> None:
-    """Drain stdin to prevent pipe buffer blocking on the harness side.
-
-    Even when this hook does not need input data, consuming stdin keeps
-    the fail-open contract with the harness: an unconsumed pipe can leave
-    the producer blocked or trigger EPIPE/SIGPIPE when the hook exits.
-    """
-    if not sys.stdin.isatty():
-        try:
-            sys.stdin.read()
-        except OSError:
-            pass
-
-
-def _emit_utf8(text: str) -> None:
-    """Prefer UTF-8 protocol output, with an ambient-encoding text fallback."""
-    stream = sys.stdout
-    reconfigure = getattr(stream, "reconfigure", None)
-    if callable(reconfigure):
-        try:
-            reconfigure(encoding="utf-8", errors="strict", newline="\n")
-        except (
-            AttributeError,
-            TypeError,
-            ValueError,
-            io.UnsupportedOperation,
-            OSError,
-        ):
-            pass
-        else:
-            stream.write(text + "\n")
-            stream.flush()
-            return
-
-    payload = bytes(f"{text}\n", encoding="utf-8")
-    buffer = getattr(stream, "buffer", None)
-    if buffer is not None:
-        buffer.write(payload)
-        buffer.flush()
-        return
-
-    stream.write(text + "\n")
-    stream.flush()
-
-
 def _pending_reminder(pending_count: int, pending_names: list[str]) -> str:
     """Render the unfilled-skeleton reminder with one fill command (Issue #2079)."""
     listed = _pending_skeleton_summary(pending_names)
@@ -314,6 +268,13 @@ def _retro_dir_is_trusted(retro_dir: Path, root: Path) -> bool:
     :func:`_count_pending_skeletons` applies before it globs.
     """
     return retro_dir.is_dir() and not _has_symlink_component(root, retro_dir)
+
+
+try:
+    from hook_utilities.protocol_output import drain_stdin as _drain_stdin
+    from hook_utilities.protocol_output import emit_utf8 as _emit_utf8
+except ImportError:
+    pass  # No copy here: main() raises NameError and __main__ fails open.
 
 
 def main() -> None:

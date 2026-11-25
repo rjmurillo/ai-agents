@@ -1,6 +1,10 @@
 # Calibration Examples
 
+<!-- doc-accuracy: external-sdk Stripe -- examples call the Stripe SDK, not this repository -->
+
 Reference examples for consistent code quality scoring across teams.
+
+See [Advanced Calibration Notes](calibration-advanced-notes.md) for automated scoring, language adaptations, and the workshop.
 
 ## Cohesion Examples
 
@@ -26,6 +30,9 @@ class EmailValidator:
 ### Score: 7/10 (Good Cohesion)
 
 ```python
+from datetime import datetime
+
+
 class User:
     """Represents a user with validation"""
 
@@ -94,12 +101,26 @@ class Utilities:
 ### Score: 10/10 (Minimal Coupling)
 
 ```python
+from dataclasses import dataclass
+from typing import Protocol
+
+
+@dataclass(frozen=True)
+class Order:
+    total_cents: int
+
+
+class PaymentServiceInterface(Protocol):
+    def charge(self, amount_cents: int) -> bool:
+        """Return whether the payment service accepted this amount."""
+
+
 class OrderProcessor:
     def __init__(self, payment_service: PaymentServiceInterface):
         self._payment_service = payment_service  # Injected dependency
 
     def process(self, order: Order) -> bool:
-        return self._payment_service.charge(order.total)
+        return self._payment_service.charge(order.total_cents)
 ```
 
 **Why 10**: Depends on interface, not implementation. Easy to test with mocks. No global state.
@@ -107,12 +128,31 @@ class OrderProcessor:
 ### Score: 7/10 (Loose Coupling)
 
 ```python
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class Order:
+    total_cents: int
+
+
+class PaymentService:
+    def __init__(self, credit_cents: int):
+        self._credit_cents = credit_cents
+
+    def charge(self, amount_cents: int) -> bool:
+        if not 0 < amount_cents <= self._credit_cents:
+            return False
+        self._credit_cents -= amount_cents
+        return True
+
+
 class OrderProcessor:
-    def __init__(self):
-        self._payment_service = PaymentService()  # Direct instantiation
+    def __init__(self, credit_cents: int):
+        self._payment_service = PaymentService(credit_cents)  # Direct instantiation
 
     def process(self, order: Order) -> bool:
-        return self._payment_service.charge(order.total)
+        return self._payment_service.charge(order.total_cents)
 ```
 
 **Why 7**: Direct instantiation creates coupling, but isolated to constructor. Still testable.
@@ -120,46 +160,100 @@ class OrderProcessor:
 ### Score: 4/10 (Moderate Coupling)
 
 ```python
+import logging
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class Order:
+    total_cents: int
+
+
+class PaymentService:
+    def __init__(self, credit_cents: int):
+        self._credit_cents = credit_cents
+
+    def charge(self, amount_cents: int) -> bool:
+        if not 0 < amount_cents <= self._credit_cents:
+            return False
+        self._credit_cents -= amount_cents
+        return True
+
+
+payment_service = PaymentService(credit_cents=10_000)
+
+
 class OrderProcessor:
     def process(self, order: Order) -> bool:
-        # Global singleton access
-        payment = PaymentService.get_instance()
-        logger = Logger.get_instance()
-
+        # Process-wide service and logger are hidden dependencies.
+        logger = logging.getLogger("orders")
         logger.info("Processing order")
-        return payment.charge(order.total)
+        return payment_service.charge(order.total_cents)
 ```
 
 **Why 4**: Depends on singletons (hidden dependencies). Global state. Hard to test.
 
 ### Score: 1/10 (Tight Coupling)
 
+This integration example needs `psycopg` and `stripe`, an `orders` table, and test credentials.
+The Stripe test account must allow the supplied payment method.
+
 ```python
+import os
+import smtplib
+from dataclasses import dataclass
+from email.message import EmailMessage
+
+import psycopg
+from stripe import StripeClient
+
+
+@dataclass(frozen=True)
+class Order:
+    order_id: str
+    total_cents: int
+    email: str
+    payment_method: str
+
+
 class OrderProcessor:
     def process(self, order: Order) -> bool:
         # Hard-coded dependencies everywhere
-        db = DatabaseConnection("localhost", 5432)
-        payment = StripePayment(api_key="sk_live_...")
-        email = SmtpEmail("smtp.gmail.com")
+        with psycopg.connect(host="localhost", port=5432, dbname="orders") as db:
+            db.execute(
+                "INSERT INTO orders (id, total_cents) VALUES (%s, %s)",
+                (order.order_id, order.total_cents),
+            )
 
-        db.save(order)
-        payment.charge(order.total)
-        email.send(order.user.email, "Order confirmed")
+        client = StripeClient(os.environ["STRIPE_TEST_SECRET_KEY"])
+        payment = client.v1.payment_intents.create(
+            {
+                "amount": order.total_cents,
+                "currency": "usd",
+                "payment_method": order.payment_method,
+                "payment_method_types": ["card"],
+                "confirm": True,
+            },
+            {"idempotency_key": order.order_id},
+        )
+        if payment.status != "succeeded":
+            return False
+
+        sender = os.environ["SMTP_USER"]
+        message = EmailMessage()
+        message["From"] = sender
+        message["To"] = order.email
+        message["Subject"] = "Order confirmed"
+        message.set_content(f"Payment received for order {order.order_id}.")
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10) as smtp:
+            smtp.login(sender, os.environ["SMTP_PASSWORD"])
+            smtp.send_message(message)
         return True
 ```
 
 **Why 1**: Hard-coded connections. Impossible to test without real Stripe, SMTP, DB.
 
-### How assess.py scores coupling
-
-`assess.py` scores coupling as `10 - scored imports`, floored at 1, at confidence 0.6.
-Go standard-library imports appear in the report but are not scored.
-A Go path is standard when its first element has no dot.
-Packages of the module named in the nearest `go.mod` always count.
-The cgo pseudo-package `"C"` also counts.
-Ten imports such as `fmt`, `os`, and `time` therefore score 10, not 1.
-Python standard-library statements and C# `System` namespace directives are not scored either.
-Their breakdown line appears only when at least one is present.
+See [How assess.py scores coupling](calibration-advanced-notes.md#how-assesspy-scores-coupling) for the automated heuristic.
 
 ---
 
@@ -404,69 +498,3 @@ def process_quote(subtotal: float, tax_rate: float) -> float:
 ```
 
 **Why 1**: Copy-paste everywhere. Fixing bugs requires updating 3 places. Nightmare.
-
----
-
-## Language-Specific Adaptations
-
-### Python: Duck Typing Encapsulation
-
-```python
-class Example:
-    def __init__(self):
-        self._private = "use single underscore"  # Convention
-        self.__really_private = "double underscore mangles name"  # Rare
-```
-
-Score based on convention adherence, not enforcement.
-
-### TypeScript: Interface Segregation
-
-```typescript
-// Good coupling (10/10)
-interface PaymentProcessor {
-  charge(amount: number): Promise<boolean>;
-}
-
-class Order {
-  constructor(private payment: PaymentProcessor) {}
-}
-
-// Poor coupling (4/10)
-class Order {
-  constructor(private payment: StripePayment) {}  // Concrete dependency
-}
-```
-
-### C#: Property Encapsulation
-
-```csharp
-// Perfect encapsulation (10/10)
-public class BankAccount
-{
-    private decimal _balance;
-
-    public decimal Balance => _balance;  // Read-only property
-
-    public void Deposit(decimal amount) => _balance += amount;
-}
-
-// Weak encapsulation (4/10)
-public class BankAccount
-{
-    public decimal Balance { get; set; }  // Public setter
-}
-```
-
----
-
-## Calibration Workshop
-
-Use these examples in team calibration sessions:
-
-1. **Round 1**: Score examples independently
-2. **Round 2**: Compare scores, discuss differences
-3. **Round 3**: Reach consensus on borderline cases
-4. **Round 4**: Create team-specific examples
-
-**Goal**: 80%+ agreement on scores within ±1 point.

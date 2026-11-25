@@ -16,6 +16,9 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Any
 
+from scripts.graphql_connection import FetchError, as_nodes, as_object
+from scripts.graphql_connection import next_cursor as _next_cursor
+
 logger = logging.getLogger(__name__)
 
 MAX_PR_PAGES = 200
@@ -29,10 +32,6 @@ PR_PAGE_THREADS = 20
 MIN_REMAINING_POINTS = 100
 
 GraphQL = Callable[[str, dict[str, Any] | None], dict[str, Any]]
-
-
-class FetchError(RuntimeError):
-    """Pagination or response shape prevented a complete read."""
 
 
 def _parse_updated_at(value: object) -> datetime:
@@ -86,36 +85,6 @@ query($owner: String!, $repo: String!, $number: Int!, $cursor: String) {{
     }}
   }}
 }}"""
-
-
-def as_object(value: object, what: str) -> dict[str, Any]:
-    if not isinstance(value, dict):
-        raise FetchError(f"malformed GraphQL response: {what} is not an object")
-    return value
-
-
-def _next_cursor(connection: dict[str, Any], what: str) -> str | None:
-    info = connection.get("pageInfo")
-    if not isinstance(info, dict):
-        raise FetchError(f"missing pagination info for {what}")
-    has_next = info.get("hasNextPage")
-    if not isinstance(has_next, bool):
-        raise FetchError(f"missing pagination flag for {what}")
-    if not has_next:
-        return None
-    cursor = info.get("endCursor")
-    if not isinstance(cursor, str) or not cursor:
-        raise FetchError(f"missing pagination cursor for {what}")
-    return cursor
-
-
-def as_nodes(connection: dict[str, Any], what: str) -> list[dict[str, Any]]:
-    nodes = connection.get("nodes")
-    if not isinstance(nodes, list):
-        raise FetchError(f"missing nodes for {what}")
-    if any(n is None for n in nodes):
-        raise FetchError(f"null node in {what}; the read is incomplete")
-    return [as_object(n, what) for n in nodes]
 
 
 def normalize_thread(thread: dict[str, Any], pr_number: int) -> dict[str, Any]:
