@@ -52,7 +52,8 @@ For a gated skill the check requires, and fails closed without:
 - a merge-base scenario file that parses, when one exists;
 - the verdict recomputed from the per-run labels, plus the decision 7
   floors (``skill_rewrite_evidence.verify_results``);
-- no change in the same branch to the runner or to this check.
+- no change in the same branch to a module this check or the runner
+  imports (``_JUDGE_PATHS``).
 
 ``retired.json`` is ``{"retired": [{"scenario": "<id>", "test":
 "<path>::[<Class>::]<name>"}]}``. Pytest must collect it, per pyproject.toml:
@@ -303,7 +304,10 @@ _JUDGE_PATHS = (
     "scripts/cli_exec.py",
     "scripts/eval/eval-prompt-change.py",
     "scripts/eval/_",
-    "scripts/hook_utilities/",
+    "scripts/hook_utilities/__init__.py",
+    "scripts/hook_utilities/frontmatter_block.py",
+    "scripts/hook_utilities/guards.py",
+    "scripts/hook_utilities/utilities.py",
     "scripts/validation/__init__.py",
     "scripts/validation/check_skill_rewrite_evidence.py",
     "scripts/validation/checks_common.py",

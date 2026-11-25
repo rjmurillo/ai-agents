@@ -354,15 +354,17 @@ class TestEntryPoints:
         """Every repo module the check and the runner load is a judge path."""
         root = Path(checker.__file__).resolve().parents[2]
         probe = (
-            "import os, sys\n"
+            "import sys\n"
+            "from pathlib import Path\n"
             "sys.path.insert(0, 'scripts/validation')\n"
             "import check_skill_rewrite_evidence as c, checks_common\n"
             "from skill_rewrite_evidence import load_runner\n"
             "load_runner()\n"
+            "scripts = (Path.cwd() / 'scripts').resolve()\n"
             "for m in list(sys.modules.values()):\n"
-            "    f = getattr(m, '__file__', None) or ''\n"
-            "    if f.startswith(os.getcwd() + '/scripts/'):\n"
-            "        print(os.path.relpath(f))\n"
+            "    f = getattr(m, '__file__', None)\n"
+            "    if f and Path(f).resolve().is_relative_to(scripts):\n"
+            "        print(Path(f).resolve().relative_to(scripts.parent).as_posix())\n"
         )
         out = subprocess.run(
             [sys.executable, "-c", probe],
