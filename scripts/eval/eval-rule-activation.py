@@ -286,6 +286,29 @@ def _route_matched(
     return selected_reference == _normalize_selected_reference(rule.get("reference_path"))
 
 
+def _load_target(
+    primary_path: Path, reference_path: Path | None, args: argparse.Namespace
+) -> dict[str, Any]:
+    """Parse a rule or skill target and attach distractors when they apply.
+
+    A SKILL.md target with no reference_path has no route to score, so a
+    nonzero --distractors cannot apply. Say so on stderr instead of
+    recording a count the model never saw.
+    """
+    count = getattr(args, "distractors", 0)
+    if reference_path is None:
+        if count > 0 and primary_path.name == "SKILL.md":
+            print(
+                f"WARNING: --distractors {count} ignored for {primary_path}: "
+                "it needs a reference_path target",
+                file=sys.stderr,
+            )
+        return parse_rule(primary_path)
+    return _attach_distractors(
+        parse_skill_reference(primary_path, reference_path), count, reference_path
+    )
+
+
 def _attach_distractors(
     rule: dict[str, Any], count: int, reference_path: Path | None
 ) -> dict[str, Any]:
@@ -1499,7 +1522,9 @@ def _route_with_distractors(
         "selected_reference": reference,
         "reasoning": str(route.get("reasoning", ""))[:300],
     }
-    routing["reference_matched"] = _route_matched(rule, chosen, reference)
+    # Step two must name the target too. A route that declines the skill but
+    # still names a reference is not a hit.
+    routing["reference_matched"] = _route_matched(rule, routed_skill, reference)
     return routing, ""
 
 
@@ -2770,7 +2795,8 @@ def _parse_args() -> argparse.Namespace:
         default=0,
         metavar="K",
         help=(
-            "For a skill target, show the model the target plus the K skills under "
+            "For a skill target with a reference_path, show the model the target plus "
+            "the K skills under "
             ".claude/skills with the most similar descriptions, and count a route as "
             "matched only when it selects the target. 0 (default) shows the target "
             "alone. Rule targets (rule_path) ignore this flag."
@@ -3179,14 +3205,7 @@ def _process_one_rule(
     primary_path, reference_path = target_paths
     default_id = primary_path.parent.name if primary_path.name == "SKILL.md" else primary_path.stem
     rule_id = scenarios_data.get("rule_id") or scenarios_data.get("skill_id") or default_id
-    if reference_path is None:
-        rule = parse_rule(primary_path)
-    else:
-        rule = _attach_distractors(
-            parse_skill_reference(primary_path, reference_path),
-            getattr(args, "distractors", 0),
-            reference_path,
-        )
+    rule = _load_target(primary_path, reference_path, args)
     scenarios = scenarios_data.get("scenarios", [])
     route_calls = len(scenarios) if reference_path is not None else 0
     load_bearing = scenarios_data.get("load_bearing")
@@ -3346,15 +3365,7 @@ def _process_selected_scenario(
     arms = tuple(args.arms) if args.arms else MECHANISMS
     default_id = primary_path.parent.name if primary_path.name == "SKILL.md" else primary_path.stem
     rule_id = scenarios_data.get("rule_id") or scenarios_data.get("skill_id") or default_id
-    rule = (
-        parse_rule(primary_path)
-        if reference_path is None
-        else _attach_distractors(
-            parse_skill_reference(primary_path, reference_path),
-            getattr(args, "distractors", 0),
-            reference_path,
-        )
-    )
+    rule = _load_target(primary_path, reference_path, args)
     if SKILL_ROUTED in arms:
         harness_fields = _harness_target(primary_path, rule, reference_path)
         if isinstance(harness_fields, int):
