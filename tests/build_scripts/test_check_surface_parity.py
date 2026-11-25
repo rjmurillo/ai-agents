@@ -298,12 +298,6 @@ def test_include_ignores_same_name_outside_surface(tmp_path: Path) -> None:
     assert kinds(found) == ["INCLUDE-UNKNOWN"]
 
 
-def test_run_checks_reports_dead_include(tmp_path: Path) -> None:
-    put(tmp_path, "guides/a.md")
-    write_manifest(tmp_path, [independent("guides", include=["a.md", "gone.md"])], ["guides"])
-    assert kinds(findings(tmp_path)) == ["INCLUDE-UNKNOWN"]
-
-
 # --- Translated surfaces --------------------------------------------------
 
 

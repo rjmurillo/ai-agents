@@ -64,9 +64,9 @@ CLI::
     uv run python build/scripts/check_surface_parity.py
     uv run python build/scripts/check_surface_parity.py --format json
 
-The standalone CLI checks declarations, inventory, classification, and
-hand-maintained bytes only. It never runs a generator, so generated-output
-drift is caught by ``build_all.py --check`` and
+The standalone CLI checks declarations, inventory, classification, include
+globs, and hand-maintained bytes only. It never runs a generator, so
+generated-output drift is caught by ``build_all.py --check`` and
 ``agent-drift-detection.yml``, not here.
 
 ``build_all.py --check`` runs the same checks and also labels its stale-path
