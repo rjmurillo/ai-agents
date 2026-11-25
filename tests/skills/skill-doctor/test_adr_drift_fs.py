@@ -6,6 +6,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 import adr_drift
 import pytest
@@ -24,10 +25,11 @@ CANNOT_CHMOD = sys.platform == "win32" or (hasattr(os, "geteuid") and os.geteuid
 needs_chmod = pytest.mark.skipif(CANNOT_CHMOD, reason="chmod 000 is not enforced here")
 
 
-def _locate(capsys, repo: Path) -> dict:
+def _locate(capsys, repo: Path) -> dict[str, Any]:
     code, out, err = run_cli(capsys, "locate", "--repo", str(repo))
     assert code == 0, err
-    return json.loads(out)
+    result: dict[str, Any] = json.loads(out)
+    return result
 
 
 def test_a_symlinked_adr_file_that_leaves_the_folder_is_rejected_not_read(tmp_path, capsys):

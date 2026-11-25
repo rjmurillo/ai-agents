@@ -274,7 +274,7 @@ def test_a_report_html_that_cannot_be_written_exits_2_for_adr_only_and_scored_re
     assert "cannot write" in adr_only[2] and "cannot write" in scored[2]
 
 
-def _bootstrap_candidate(**source: str) -> dict:
+def _bootstrap_candidate(**source: str) -> dict[str, Any]:
     """One candidate in skill-bootstrap's `bootstrap_adr.py scan` output shape."""
     return {
         "id": "c-aaaaaaa",
