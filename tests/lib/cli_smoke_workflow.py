@@ -21,13 +21,11 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "plugin-cli-smoke.yml"
 RENOVATE_CONFIG = REPO_ROOT / "renovate.json"
-CLIS = ("claude", "copilot")
-# Claude legs use the subscription OAuth token (REQ-047 owner decision); the API
-# key ran out of credit on 2026-10-07 and must not be read by the smoke.
-CLI_SECRET = {"claude": "CLAUDE_CODE_OAUTH_TOKEN", "copilot": "COPILOT_GITHUB_TOKEN"}
-SECRET_NAMES = set(CLI_SECRET.values())
+# No smoke job reads a model credential: the Claude and Copilot prompt legs were
+# deleted with their agent-* environments. These names stay so a test can prove
+# no step reads one again.
+SECRET_NAMES = {"CLAUDE_CODE_OAUTH_TOKEN", "COPILOT_GITHUB_TOKEN"}
 EVERY_MODEL_SECRET = SECRET_NAMES | {"ANTHROPIC_API_KEY", "OPENAI_API_KEY", "FACTORY_API_KEY"}
-CLI_PACKAGE = {"claude": "@anthropic-ai/claude-code", "copilot": "@github/copilot"}
 # Each CLI installs from its own committed package.json and package-lock.json
 # (`npm ci`), so Renovate maintains the pin natively and npm checks integrity.
 CLI_SMOKE_DIR = REPO_ROOT / ".github" / "cli-smoke"
@@ -37,28 +35,20 @@ PACKAGE_DIR = {
     "@openai/codex": "codex",
     "@earendil-works/pi-coding-agent": "pi",
 }
+# Packages a workflow step installs. Copilot keeps a manifest and lockfile, but no
+# step installs it since the Copilot smoke leg was deleted.
+INSTALLED_PACKAGES = tuple(p for p in PACKAGE_DIR if p != "@github/copilot")
+# job id -> (package, install step name) for every job that installs a CLI.
+INSTALL_JOBS = {
+    "smoke-codex": ("@openai/codex", "Install pinned Codex CLI"),
+    "smoke-claude-hooks": ("@anthropic-ai/claude-code", "Install pinned Claude CLI"),
+    "smoke-pi": ("@earendil-works/pi-coding-agent", "Install pinned Pi CLI"),
+}
 OPERATING_SYSTEMS = ["ubuntu-latest", "macos-latest", "windows-latest"]
-INSTALL_STEP = {"claude": "Install pinned Claude CLI", "copilot": "Install pinned Copilot CLI"}
-HOOK_STEP = {
-    "claude": "Run real-CLI hook smoke (claude)",
-    "copilot": "Run real-CLI hook smoke (copilot)",
-}
-PLUGIN_STEP = {
-    "claude": "Run real-CLI plugin-load smoke (claude)",
-    "copilot": "Run real-CLI plugin-load smoke (copilot)",
-}
-HOOK_GATE = {
-    "claude": "Assert the hook smoke actually ran (claude)",
-    "copilot": "Assert the hook smoke actually ran (copilot)",
-}
-PLUGIN_GATE = {
-    "claude": "Assert the plugin-load smoke actually ran (claude)",
-    "copilot": "Assert the plugin-load smoke actually ran (copilot)",
-}
-CREDENTIAL_STEPS = set(HOOK_STEP.values()) | set(PLUGIN_STEP.values())
 SMOKE_FILES = {
     "hook": "tests/e2e/test_cli_hook_e2e.py",
     "plugin": "tests/e2e/test_plugin_load_smoke.py",
+    "hook-discovery": "tests/e2e/test_claude_hook_discovery_smoke.py",
 }
 BASE_CHECKOUT_PATH = "trusted-base"
 SEMVER = re.compile(r"^\d+\.\d+\.\d+$")

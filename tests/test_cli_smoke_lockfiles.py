@@ -15,6 +15,7 @@ import yaml
 
 from tests.lib.cli_smoke_workflow import (
     CLI_SMOKE_DIR,
+    INSTALLED_PACKAGES,
     PACKAGE_DIR,
     SEMVER,
     WORKFLOW,
@@ -55,7 +56,7 @@ def test_no_run_field_resolves_a_version_at_run_time() -> None:
     assert not [run for run in runs if any(f"{package}@" in run for package in PACKAGE_DIR)]
 
 
-@pytest.mark.parametrize("package", sorted(PACKAGE_DIR))
+@pytest.mark.parametrize("package", sorted(INSTALLED_PACKAGES))
 def test_install_step_keeps_the_cli_on_path(package: str) -> None:
     """Positive: later steps find the CLI because its own install step extends GITHUB_PATH."""
     step = _install_steps()[package]
@@ -111,3 +112,9 @@ def test_cli_pins_receive_native_renovate_updates(renovate_config: dict[str, Any
     assert package_rule["automerge"] is True
     assert package_rule["minimumReleaseAge"] == "7 days"
     assert set(package_rule["matchUpdateTypes"]) == {"major", "minor", "patch"}
+
+
+def test_the_copilot_manifest_has_no_install_step() -> None:
+    """Guard: the Copilot manifest stays for Renovate, and no workflow step installs it."""
+    assert "@github/copilot" in PACKAGE_DIR
+    assert "@github/copilot" not in _install_steps()

@@ -9,7 +9,7 @@
 - **Panel**: reduced panel, architect and critic.
 - **Why reduced**: the edits are history and citation fallout. No decision text changes. No executable enforcement and no rule that other gates read changes.
 - **Owner decision, 2026-11-25**: approved the amendment route, the reduced panel, past tense, sentence-case starts, and dated amendments. No ratchet baseline may rise.
-- **Base**: `e74b842786`, deletion commit `3f145f26fd`, head `7cfb378901` plus these uncommitted ADR edits.
+- **Base**: `e74b842786`, deletion commit `3f145f26fd`. The ADR edits and this log are in commit `2fff4607a4`.
 
 On 2026-11-25 the owner deleted every GitHub Actions job gated by an `agent-*` environment. Eleven workflows were deleted and two lost their agent-gated jobs. ADR-057 and ADR-101 cited the deleted files by path, which raised the `cited-paths-exist` ratchet from 57 to 59. ADR-059 cited a config range that moved. The size-cap ratchet holds ADR-101 at 500 lines, so its amendment adds no lines.
 

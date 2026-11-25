@@ -445,7 +445,7 @@ A prompt change passes when all three criteria hold:
 
 ### Enforcement
 
-- **CI gate**: The `/spec` eval in `.github/workflows/slash-command-quality.yml` blocks merge on regression (see ADR-057 Amendment 2026-07-22 for advisory vs blocking scope).
+- **CI gate**: No CI job runs the `/spec` eval. The slash-command-quality workflow was deleted on 2026-11-25 with the other `agent-*` environment jobs, so run `eval-prompt-change.py` by hand (see ADR-057 Amendment 2026-11-25).
 - **PR review**: For prompt files without a blocking CI leg, the gate is advisory and PR review carries judgment.
 
 ### References

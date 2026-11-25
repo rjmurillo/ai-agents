@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Write the advisory report for a PR whose references name no loadable requirements.
 
-Runs in `ai-spec-review.yml` when `spec_load_content.py` reports `loadable=false`
+Ran in the deleted `ai-spec-review.yml` when `spec_load_content.py` reports `loadable=false`
 (issue #6506 fail-open-27): the model steps were skipped, so the report states
 that nothing was reviewed and claims no verdict. The job stays advisory and the
 PR comment still posts.

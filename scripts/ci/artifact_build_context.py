@@ -2,7 +2,7 @@
 """Build artifact context file for AI analysis.
 
 Replaces the bash 'Build artifact context' block in
-artifact-insight-scanner.yml (ADR-006).
+the artifact-insight-scanner workflow, since deleted (ADR-006).
 
 ENV:
   ARTIFACT_FILE - path to file listing artifacts (from collect step)

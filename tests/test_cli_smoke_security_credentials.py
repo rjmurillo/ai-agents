@@ -1,7 +1,7 @@
 """Credential-scope tests for the PR-gated CLI smoke workflow (REQ-047 AC3, AC9).
 
-Each leg's CLI step receives only its own credential; install and non-CLI steps
-receive none.
+No step receives a provider credential. The Claude and Copilot prompt legs that
+did were deleted, so each CLI leg runs with no secret in its environment.
 """
 
 from __future__ import annotations
@@ -12,12 +12,8 @@ from typing import Any
 import pytest
 
 from tests.lib.cli_smoke_workflow import (
-    CLI_SECRET,
-    CLIS,
-    CREDENTIAL_STEPS,
-    HOOK_STEP,
-    INSTALL_STEP,
-    PLUGIN_STEP,
+    EVERY_MODEL_SECRET,
+    INSTALL_JOBS,
     SECRET_NAMES,
     _step_by_name,
 )
@@ -25,55 +21,32 @@ from tests.lib.cli_smoke_workflow import (
 pytest_plugins = ["tests.lib.cli_smoke_fixtures"]
 
 
-@pytest.mark.parametrize("cli", CLIS)
-def test_install_step_has_no_secret_environment(smoke_job: dict[str, Any], cli: str) -> None:
+@pytest.mark.parametrize("job_name", sorted(INSTALL_JOBS))
+def test_install_step_has_no_secret_environment(
+    workflow_doc: dict[Any, Any], job_name: str
+) -> None:
     """Edge: a later workflow edit cannot reintroduce install-step secrets."""
-    install = _step_by_name(smoke_job, INSTALL_STEP[cli])
-    install_env = install.get("env") or {}
+    _, step_name = INSTALL_JOBS[job_name]
+    install = _step_by_name(workflow_doc["jobs"][job_name], step_name)
 
-    assert SECRET_NAMES.isdisjoint(install_env)
+    assert set(install.get("env") or {}) <= {"BIN_DIR"}
     assert "secrets." not in install["run"]
 
 
-@pytest.mark.parametrize("cli", CLIS)
-@pytest.mark.parametrize("steps", [HOOK_STEP, PLUGIN_STEP], ids=["hook", "plugin"])
-def test_cli_step_receives_only_its_own_credential(
-    smoke_job: dict[str, Any], steps: dict[str, str], cli: str
-) -> None:
-    """Positive: a leg's CLI step gets exactly its provider secret and no other."""
-    step = _step_by_name(smoke_job, steps[cli])
-
-    assert set(step["env"]) == {CLI_SECRET[cli]}
-    assert step["env"][CLI_SECRET[cli]] == f"${{{{ secrets.{CLI_SECRET[cli]} }}}}"
-    assert f"matrix.cli == '{cli}'" in step["if"]
+def test_no_step_receives_a_credential(workflow_doc: dict[Any, Any]) -> None:
+    """Negative: credentials reach no checkout, setup, install, CLI, or gate step."""
+    for job_name, job in workflow_doc["jobs"].items():
+        for step in job["steps"]:
+            step_env = step.get("env") or {}
+            assert EVERY_MODEL_SECRET.isdisjoint(step_env), (job_name, step.get("name"))
+            assert "secrets." not in str(step_env), (job_name, step.get("name"))
 
 
-@pytest.mark.parametrize("cli", CLIS)
-@pytest.mark.parametrize("steps", [HOOK_STEP, PLUGIN_STEP], ids=["hook", "plugin"])
-def test_cli_step_selects_only_its_own_marker(
-    smoke_job: dict[str, Any], steps: dict[str, str], cli: str
-) -> None:
-    """Negative: a leg cannot run the other provider's tests, which would skip."""
-    arguments = shlex.split(_step_by_name(smoke_job, steps[cli])["run"])
-    other = next(c for c in CLIS if c != cli)
+def test_hook_discovery_step_selects_only_the_claude_marker(hooks_job: dict[str, Any]) -> None:
+    """Negative: the hook discovery leg cannot select a provider prompt test."""
+    step = _step_by_name(hooks_job, "Run real-CLI hook discovery smoke (claude)")
+    arguments = shlex.split(step["run"])
 
-    marker_expression = arguments[arguments.index("-m") + 1]
-    assert marker_expression == f"smoke and {cli}"
-    assert other not in marker_expression
-
-
-def test_non_cli_steps_receive_no_credentials(smoke_job: dict[str, Any]) -> None:
-    """Negative: credentials do not leak to checkout, setup, install, or checks."""
-    for step in smoke_job["steps"]:
-        if step.get("name") in CREDENTIAL_STEPS:
-            continue
-        step_env = step.get("env") or {}
-        assert SECRET_NAMES.isdisjoint(step_env)
-
-
-def test_credential_steps_exist_for_every_cli_and_smoke(smoke_job: dict[str, Any]) -> None:
-    """Guard: the exemption list above cannot drift from the real step names."""
-    names = {step.get("name") for step in smoke_job["steps"]}
-    assert CREDENTIAL_STEPS <= names
-    with_secrets = {s["name"] for s in smoke_job["steps"] if "secrets." in str(s.get("env"))}
-    assert with_secrets == CREDENTIAL_STEPS
+    assert arguments[arguments.index("-m") + 1] == "smoke and claude"
+    assert "tests/e2e/test_claude_hook_discovery_smoke.py" in arguments
+    assert SECRET_NAMES.isdisjoint(step.get("env") or {})

@@ -32,7 +32,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = REPO_ROOT / ".github" / "workflows"
 # The loader resolves its own realpath, which is the canonical src/claude tree (ADR-119).
 CONFIG_PATH = "src/claude/skills/pr-review/pr-review-config.yaml"
-LISTED = ".github/workflows/ai-spec-review.yml"
+LISTED = ".github/workflows/ai-spec-validation.yml"
 # Listed on purpose (owner decision, issue 6182) but holds no model job: the
 # deterministic Validate Spec Coverage check. The test pins that it stays so.
 DETERMINISTIC_LISTED = ".github/workflows/ai-spec-validation.yml"
@@ -181,10 +181,10 @@ def test_check_run_without_a_workflow_run_still_blocks() -> None:
 @pytest.mark.parametrize(
     "resource",
     [
-        "/other/repo/actions/workflows/ai-spec-review.yml",
-        "/o/r/actions/workflows/sub/ai-spec-review.yml",
+        "/other/repo/actions/workflows/ai-spec-validation.yml",
+        "/o/r/actions/workflows/sub/ai-spec-validation.yml",
         "/o/r/actions/workflows/",
-        "/o/r/ai-spec-review.yml",
+        "/o/r/ai-spec-validation.yml",
     ],
 )
 def test_a_resource_path_from_another_repo_or_shape_is_not_exempt(resource: str) -> None:
@@ -700,7 +700,7 @@ def test_uppercase_owner_and_repo_prefix_still_matches() -> None:
         AGENT_CHECK,
         "FAILURE",
         workflow=None,
-        resource="/O/R/actions/workflows/ai-spec-review.yml",
+        resource="/O/R/actions/workflows/ai-spec-validation.yml",
     )
     assert _readiness(_pr_with(row), {LISTED})["CanMerge"] is True
 
@@ -708,10 +708,10 @@ def test_uppercase_owner_and_repo_prefix_still_matches() -> None:
 @pytest.mark.parametrize(
     "resource",
     [
-        "/o/r/actions/workflows/ai-spec-review.yml/",
-        "/o/r/actions/workflows/ai-spec-review.yml?query=1",
+        "/o/r/actions/workflows/ai-spec-validation.yml/",
+        "/o/r/actions/workflows/ai-spec-validation.yml?query=1",
         "/o/r/actions/workflows/AI-SPEC-VALIDATION.YML",
-        "/o/r/actions/workflows/../ai-spec-review.yml",
+        "/o/r/actions/workflows/../ai-spec-validation.yml",
     ],
 )
 def test_malformed_resource_paths_are_not_exempt(resource: str) -> None:

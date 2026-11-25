@@ -33,7 +33,7 @@ rebases and pure refactors into their own commits or PRs.
 ## Specification References
 
 <!-- Enable AI spec-to-implementation traceability -->
-<!-- The ai-spec-validation and ai-spec-review workflows read these references -->
+<!-- The ai-spec-validation workflow reads these references -->
 
 | Type | Reference | Description |
 |------|-----------|-------------|

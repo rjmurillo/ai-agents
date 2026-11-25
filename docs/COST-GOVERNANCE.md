@@ -118,7 +118,7 @@ Set up GitHub billing alerts at:
 | Workflow | Est. Monthly Cost | Optimization Status |
 |----------|------------------|---------------------|
 | ai-spec-validation | $8-12 | ✅ ARM, concurrency (no path filter; the job decides its own scope) |
-| copilot-context-synthesis | $8-12 | ✅ ARM, concurrency, approval-gated |
+| copilot-context-synthesis | $0 | Workflow deleted 2026-11-25 |
 | validate-generated-agents | $5-10 | ⚠️ Windows (no ARM), concurrency, path filter |
 | drift-detection | $3-5 | ✅ ARM, concurrency, path filter |
 
@@ -163,8 +163,8 @@ If monthly costs exceed $100:
 
 - agent-metrics (weekly)
 - drift-detection (weekly)
-- copilot-context-synthesis (hourly sweep)
-- autoplan-route-eval (weekly)
+- copilot-context-synthesis (hourly sweep; deleted 2026-11-25)
+- autoplan-route-eval (weekly; deleted 2026-11-25)
 
 ### Critical Workflows (Never Disable)
 
@@ -210,8 +210,8 @@ How the `agent-claude` secrets map to the credits:
 
 | Secret | How the repo uses it | Draws on the monthly API credits |
 |--------|----------------------|----------------------------------|
-| `ANTHROPIC_API_KEY` | Calls the Messages API directly, through the `anthropic` SDK in `.github/actions/ai-review` or the HTTP client in `scripts/eval/_anthropic_api.py`. Used by ai-spec-review, pr-maintenance, artifact-insight-scanner, ai-metrics-analysis, autoplan-route-eval, skill-overlap-eval, slash-command-quality, and software-engineering-library-activation. | Yes, when the key was created in the linked Console organization. |
-| `CLAUDE_CODE_OAUTH_TOKEN` | Runs Claude Code through `anthropics/claude-code-action` in claude and post-pr-retrospective, and through the Claude Code CLI in plugin-cli-smoke. | No. The token uses the Claude subscription. |
+| `ANTHROPIC_API_KEY` | Calls the Messages API directly, through the `anthropic` SDK in `.github/actions/ai-review` or the HTTP client in `scripts/eval/_anthropic_api.py`. Was used by ai-spec-review, pr-maintenance, artifact-insight-scanner, ai-metrics-analysis, autoplan-route-eval, skill-overlap-eval, slash-command-quality, and software-engineering-library-activation. Those workflows, or their model jobs, were deleted on 2026-11-25, so no workflow reads it now. | Yes, when the key was created in the linked Console organization. |
+| `CLAUDE_CODE_OAUTH_TOKEN` | Ran Claude Code through `anthropics/claude-code-action` in claude and post-pr-retrospective, which were deleted on 2026-11-25, and through the Claude Code CLI in the plugin-cli-smoke leg that was also deleted. No workflow reads it now. | No. The token uses the Claude subscription. |
 
 [max-credits-help]: https://support.claude.com/en/articles/17154008-monthly-api-credits-for-max-and-team-plans
 [max-credits-docs]: https://docs.claude.com/en/docs/about-claude/api-credits-for-subscribers

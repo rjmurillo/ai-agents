@@ -1,11 +1,12 @@
 # Copilot CLI Setup for GitHub Actions
 
-This guide explains how to configure GitHub Copilot CLI authentication for the
-Copilot legs of the CLI smoke (`.github/workflows/plugin-cli-smoke.yml`).
+This guide explains how to configure GitHub Copilot CLI authentication for a
+Copilot leg of the CLI smoke (`.github/workflows/plugin-cli-smoke.yml`).
 
-The `ai-review` action no longer calls Copilot. It reviews with Claude and reads
-`ANTHROPIC_API_KEY` in the `agent-claude` environment (REQ-047, issue #6069).
-The Copilot token is read only by the Copilot smoke legs, in `agent-copilot`.
+> **Status, 2026-11-25:** the Copilot smoke legs and every job gated by an
+> `agent-*` environment were deleted, because the required-reviewer approval was
+> never given. No workflow reads `COPILOT_GITHUB_TOKEN` now. The steps below apply
+> only if the owner restores a Copilot leg.
 
 ## Prerequisites
 
@@ -77,7 +78,7 @@ Check that:
 
 - The account owning the PAT has an active Copilot subscription
 - The token is a **fine-grained PAT** with **"Copilot Requests: Read"**
-- The `agent-copilot` environment approval was granted
+- The `agent-copilot` environment approval was granted, if a Copilot leg is restored
 - Organization policies allow Copilot CLI access
 - Rate limits and the monthly quota have not been exceeded
 

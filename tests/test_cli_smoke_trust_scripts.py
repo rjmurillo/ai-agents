@@ -26,7 +26,6 @@ TRUSTED_SCRIPTS = (
     "assert_trusted_smoke_context.py",
     "smoke_result.py",
     "assert_smoke_ran.py",
-    "smoke_quota_report.py",
 )
 
 

@@ -28,8 +28,8 @@ REQUIRED_CONTEXTS: frozenset[str] = frozenset(
 # merge-readiness check (check_merge_readiness) is a separate policy and still
 # rejects a failed non-required check that has no recorded disposition.
 AI_QUOTA = (
-    "model-driven: spends provider quota or waits on an agent-<cli> environment "
-    "approval, so it must never gate a merge"
+    "model-driven: spends provider quota, so it must never gate a merge. No "
+    "workflow carries this label since the agent-* jobs were deleted (2026-11-25)"
 )
 DETERMINISTIC = (
     "deterministic check: a job name is not pinned in the ruleset, so promoting "

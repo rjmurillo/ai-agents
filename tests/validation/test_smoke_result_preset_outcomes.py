@@ -60,7 +60,6 @@ def test_passing_outcomes_print_one_line(
             },
             f"::error::{FORK_MESSAGE}",
         ),
-        ({"EVENT_NAME": "pull_request", "CODEX_RESULT": "failure"}, "[CODEX_RESULT=failure]"),
         ({"CODEX_RESULT": "failure"}, "[CODEX_RESULT=failure]"),
         ({"HOOKS_RESULT": "failure"}, "[HOOKS_RESULT=failure]"),
         ({"HOOKS_RESULT": "skipped"}, "[HOOKS_RESULT=skipped]"),
@@ -70,7 +69,6 @@ def test_passing_outcomes_print_one_line(
     ids=[
         "broken-filter",
         "fork",
-        "pull-request-codex-still-gates",
         "codex-leg-failed",
         "hooks-leg-failed",
         "hooks-leg-skipped",

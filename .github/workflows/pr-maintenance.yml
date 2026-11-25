@@ -7,13 +7,9 @@ on:
   workflow_dispatch:     # Manual trigger
     inputs:
       max_prs:
-        description: 'Max PRs to process'
+        description: 'Max PRs to discover'
         type: number
         default: 20
-      process_conflicts:
-        description: 'Auto-resolve merge conflicts'
-        type: boolean
-        default: true
 
 # Issue #2520: least privilege. Both jobs are read-only. Job-level blocks below.
 permissions:

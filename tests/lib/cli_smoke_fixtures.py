@@ -19,8 +19,8 @@ def workflow_doc() -> dict[Any, Any]:
 
 
 @pytest.fixture(scope="module")
-def smoke_job(workflow_doc: dict[Any, Any]) -> dict[str, Any]:
-    return workflow_doc["jobs"]["smoke"]
+def hooks_job(workflow_doc: dict[Any, Any]) -> dict[str, Any]:
+    return workflow_doc["jobs"]["smoke-claude-hooks"]
 
 
 @pytest.fixture(scope="module")

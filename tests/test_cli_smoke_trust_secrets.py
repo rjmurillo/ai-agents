@@ -1,7 +1,6 @@
 """Provider-secret and Codex job tests for the CLI smoke workflow (REQ-047 AC3, AC9, AC11).
 
-Only agent environments read provider secrets. The Codex job reads none and
-runs in no environment.
+No job reads a provider secret or runs in an environment.
 """
 
 from __future__ import annotations
@@ -23,32 +22,26 @@ from tests.lib.cli_smoke_workflow import (
 pytest_plugins = ["tests.lib.cli_smoke_fixtures"]
 
 
-def test_only_copilot_steps_read_the_copilot_token(workflow_doc: dict[Any, Any]) -> None:
-    """REQ-047 AC3: the Copilot token is read by Copilot smoke steps and nothing else."""
+def test_no_step_reads_the_copilot_token(workflow_doc: dict[Any, Any]) -> None:
+    """REQ-047 AC3: the Copilot smoke legs were deleted, so nothing reads the token."""
     readers = [
-        (job_name, step["name"])
+        (job_name, step.get("name"))
         for job_name, job in workflow_doc["jobs"].items()
         for step in job["steps"]
         if "secrets.COPILOT_GITHUB_TOKEN" in str(step.get("env"))
     ]
 
-    assert readers == [
-        ("smoke", "Run real-CLI hook smoke (copilot)"),
-        ("smoke", "Run real-CLI plugin-load smoke (copilot)"),
-    ]
+    assert readers == []
 
 
 def test_no_job_reads_the_anthropic_api_key(workflow_doc: dict[Any, Any]) -> None:
-    """Negative: the Claude smoke uses the subscription token, never the exhausted API key."""
+    """Negative: the Claude smoke uses no stored key at all."""
     assert "secrets.ANTHROPIC_API_KEY" not in yaml.safe_dump(workflow_doc)
 
 
-def test_every_secret_reader_sits_in_an_agent_environment(
-    workflow_doc: dict[Any, Any],
-) -> None:
+def test_no_job_reads_any_secret(workflow_doc: dict[Any, Any]) -> None:
     for name, job in workflow_doc["jobs"].items():
-        if "secrets." in yaml.safe_dump(job):
-            assert job.get("environment") == "agent-${{ matrix.cli }}", name
+        assert "secrets." not in yaml.safe_dump(job), name
 
 
 def test_codex_job_has_no_environment_and_reads_no_secret(codex_job: dict[str, Any]) -> None:

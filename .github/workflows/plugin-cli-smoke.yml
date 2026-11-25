@@ -442,7 +442,6 @@ jobs:
           RUN: ${{ needs.changes.outputs.run }}
           AUTHORIZE_RESULT: ${{ needs.authorize.result }}
           TRUSTED: ${{ needs.authorize.outputs.trusted }}
-          EVENT_NAME: ${{ github.event_name }}
           CODEX_RESULT: ${{ needs.smoke-codex.result }}
           HOOKS_RESULT: ${{ needs.smoke-claude-hooks.result }}
           PI_RESULT: ${{ needs.smoke-pi.result }}

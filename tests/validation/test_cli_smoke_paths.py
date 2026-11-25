@@ -72,7 +72,6 @@ def test_smoke_paths_trigger_a_run(changed: str) -> None:
         "docs/COST-GOVERNANCE.md",
         "scripts/ci/invoke_claude_review.py",
         ".github/workflows/pytest.yml",
-        ".github/workflows/claude.yml",
         "tests/test_something.py",
         "build/scripts/agent_toml_other.py",
         "build/scripts/agent_templates.py",

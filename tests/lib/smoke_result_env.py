@@ -13,7 +13,6 @@ FORK_MESSAGE = (
 )
 
 GREEN = {
-    "EVENT_NAME": "workflow_dispatch",
     "RUN": "true",
     "CHANGES_RESULT": "success",
     "AUTHORIZE_RESULT": "success",
