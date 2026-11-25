@@ -199,14 +199,43 @@ def stratified_sample(
     return picks + rng.sample(pool, count - len(picks))
 
 
+def thread_key(row: dict[str, Any]) -> tuple[Any, ...]:
+    """Identify the review thread a row came from, without a stored thread id.
+
+    A row keeps its own body and the bodies of the other thread comments, so every row of one
+    thread yields the same sorted set of bodies. The PR number and path separate threads that
+    share a body such as "LGTM". Two threads with the same bodies in the same file and PR merge
+    into one key, which only makes the split more conservative.
+    """
+    bodies = sorted([row.get("body") or "", *(row.get("thread_replies") or [])])
+    return (row["pr_number"], row.get("path"), tuple(bodies))
+
+
 def assign_splits(
     band: list[dict[str, Any]],
     outside: list[dict[str, Any]],
     dev_count: int,
     rng: random.Random,
 ) -> None:
-    """Mark ``dev_count`` band rows dev and the rest heldout. Outside rows are outside."""
-    dev_indexes = set(rng.sample(range(len(band)), min(dev_count, len(band))))
+    """Mark up to ``dev_count`` band rows dev and the rest heldout. Outside rows are outside.
+
+    The predict prompt carries the other comments of a row's thread, so a thread never spans
+    splits: whole threads go to dev, in random order, while they fit under ``dev_count``. A
+    thread that shares a thread with an outside row stays heldout, so no dev prompt shows a
+    comment from another split. Fewer than ``dev_count`` rows are dev when no whole thread
+    fits the remainder.
+    """
+    threads: dict[tuple[Any, ...], list[int]] = {}
+    for index, row in enumerate(band):
+        threads.setdefault(thread_key(row), []).append(index)
+    outside_threads = {thread_key(row) for row in outside}
+    order = rng.sample(sorted(threads, key=lambda key: threads[key][0]), len(threads))
+    dev_indexes: set[int] = set()
+    for key in order:
+        members = threads[key]
+        if key in outside_threads or len(dev_indexes) + len(members) > dev_count:
+            continue
+        dev_indexes.update(members)
     for index, row in enumerate(band):
         row["split"] = SPLIT_DEV if index in dev_indexes else SPLIT_HELDOUT
     for row in outside:
@@ -254,6 +283,13 @@ def cmd_sample(args: argparse.Namespace) -> int:
         )
         return 2
     assign_splits(band, outside, args.dev_count, rng)
+    dev_rows = sum(1 for row in band if row["split"] == SPLIT_DEV)
+    if dev_rows < args.dev_count:
+        print(
+            f"warning: {dev_rows} dev rows, {args.dev_count} requested; "
+            "a thread never spans splits",
+            file=sys.stderr,
+        )
     corpus = band + outside
     head = head_sha()
     for row in corpus:
