@@ -304,10 +304,8 @@ _JUDGE_PATHS = (
     "scripts/cli_exec.py",
     "scripts/eval/eval-prompt-change.py",
     "scripts/eval/_",
-    "scripts/hook_utilities/__init__.py",
-    "scripts/hook_utilities/frontmatter_block.py",
-    "scripts/hook_utilities/guards.py",
-    "scripts/hook_utilities/utilities.py",
+    # The whole package: a new module or subpackage could shadow an imported one.
+    "scripts/hook_utilities/",
     "scripts/validation/__init__.py",
     "scripts/validation/check_skill_rewrite_evidence.py",
     "scripts/validation/checks_common.py",
