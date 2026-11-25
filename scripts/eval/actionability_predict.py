@@ -137,11 +137,19 @@ def is_auth_failure(exc: BaseException) -> bool:
 
 
 def _load_eval_module(name: str) -> ModuleType:
-    """Import a private ``scripts/eval`` module at call time, so importing this one stays cheap."""
+    """Import a private ``scripts/eval`` module at call time, so importing this one stays cheap.
+
+    Each name maps to a literal import, so no caller-supplied string reaches
+    ``importlib.import_module``.
+    """
     eval_dir = str(Path(__file__).resolve().parent)
     if eval_dir not in sys.path:
         sys.path.insert(0, eval_dir)
-    return importlib.import_module(name)
+    if name == "_anthropic_api":
+        return importlib.import_module("_anthropic_api")
+    if name == "_providers":
+        return importlib.import_module("_providers")
+    raise ValueError(f"not a loadable eval module: {name!r}")
 
 
 def _load_call_api() -> Callable[..., str]:
@@ -277,7 +285,7 @@ def _predict_config_error(args: argparse.Namespace, has_api_key: bool) -> str | 
             "comment could read local files into the request. Use another provider"
         )
     if not has_api_key and _needs_anthropic_key(args.provider):
-        return f"{API_KEY_ENV} is not set; set it or select another provider"
+        return "ANTHROPIC_API_KEY is not set; set it or select another provider"
     return None
 
 

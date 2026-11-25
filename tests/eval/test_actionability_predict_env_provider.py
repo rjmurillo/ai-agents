@@ -15,6 +15,7 @@ from tests.eval._actionability_arms_test_support import (
     aa,
     heldout_rows,
     install_call_api,
+    pm,
     predict_argv,
     write_corpus_file,
 )
@@ -80,3 +81,28 @@ class TestEnvProvider:
         code, _ = _run(tmp_path, monkeypatch, "--provider", "fake")
 
         assert code == 0
+
+
+class TestKeyMessageAndLoader:
+    def test_the_missing_key_message_names_the_variable_predict_reads(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """The message spells the name literally, so it must track ``API_KEY_ENV``."""
+        code, _ = _run(tmp_path, monkeypatch, "--provider", "anthropic")
+
+        assert code == 2
+        assert f"{pm.API_KEY_ENV} is not set" in capsys.readouterr().err
+
+    @pytest.mark.parametrize("name", ["_anthropic_api", "_providers"])
+    def test_the_loader_imports_each_known_eval_module(self, name: str) -> None:
+        module = pm._load_eval_module(name)
+
+        assert module.__name__ == name
+
+    @pytest.mark.parametrize("name", ["os", "_codex_cli", "", "../_providers"])
+    def test_the_loader_refuses_any_other_name(self, name: str) -> None:
+        with pytest.raises(ValueError, match="not a loadable eval module"):
+            pm._load_eval_module(name)
