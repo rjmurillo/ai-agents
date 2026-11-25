@@ -104,6 +104,9 @@ class TestReferenceGrants:
             "mcp__serena__find_and_replace",
             "Write, Bash(python3:*/skills/demo/scripts/*)",
             "Edit, Bash(git diff:*)",
+            "Read, Task",
+            "Read, Agent",
+            "Bash(mkdir:-p .project-toolkit/scratch)",
             "Read(secrets/*)",
         ],
     )
@@ -119,11 +122,10 @@ class TestReferenceGrants:
     @pytest.mark.parametrize(
         "tools",
         [
-            "Read, Grep, Glob, Skill, Task, Write",
+            "Read, Grep, Glob, Skill, Write",
             "Bash(git diff:*), Bash(git merge-base:*), Bash(git branch --show-current)",
             "Bash(python3:*/skills/demo/scripts/*)",
             "Bash(uv run --frozen python -I */skills/demo/scripts/check.py*)",
-            "Bash(mkdir:-p .project-toolkit/scratch)",
             "mcp__serena__find_symbol, mcp__github__get_file_contents",
         ],
     )

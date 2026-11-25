@@ -33,16 +33,18 @@ author does not declare. A reviewer still owns those.
 For a gated skill the check requires, and fails closed without:
 
 - ``tests/evals/<name>-scenarios.json`` at head, frozen after the first
-  commit that touches the prompt surface (decision 7 item 8), with no kept
+  commit that touches the skill (decision 7 item 8), with no kept
   scenario's ``expected_verdict`` changed since the merge base (item 10);
 - each scenario dropped since the merge base listed in ``retired.json`` with
   a test that exists at head;
 - results files that are append-only on the branch: an edit or delete of
   one fails (item 9);
 - a results file recording the head prompt-surface sha256. Of those, the
-  one the branch added first sets the verdict, and it must match the other
+  first committed sets the verdict; a matching file already on the base
+  ref counts as first, since that surface was evaluated before. It must match the other
   identities: prompt path, scenario path and sha256, a base commit that is
   an ancestor of the base ref, and a model;
+- a merge-base scenario file that parses, when one exists;
 - the verdict recomputed from the per-run labels, plus the decision 7
   floors (``skill_rewrite_evidence.verify_results``);
 - no change in the same branch to the runner or to this check.
@@ -80,7 +82,7 @@ import hashlib
 import json
 import re
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -153,9 +155,12 @@ class Context:
     merge_base: str
     commits: list[str]
     runner: ModuleType
+    _changes: dict[str, dict[str, str]] = field(default_factory=dict)
 
     def changes(self, commit: str) -> dict[str, str]:
         """Path to status for one commit. ``--cc`` keeps a merge's own edits."""
+        if commit in self._changes:
+            return self._changes[commit]
         raw = self.git.text(
             "diff-tree",
             "--no-commit-id",
@@ -167,7 +172,8 @@ class Context:
             commit,
         )
         parts = [p for p in raw.split("\0") if p]
-        return {parts[i + 1]: parts[i] for i in range(0, len(parts) - 1, 2)}
+        self._changes[commit] = {parts[i + 1]: parts[i] for i in range(0, len(parts) - 1, 2)}
+        return self._changes[commit]
 
 
 def _freeze_findings(ctx: Context, name: str, scenario_path: str) -> list[str]:
@@ -184,13 +190,14 @@ def _freeze_findings(ctx: Context, name: str, scenario_path: str) -> list[str]:
             first_surface = index
     if last_scenario is not None and first_surface is not None and last_scenario >= first_surface:
         return [
-            f"{scenario_path} changes in or after the first prompt-surface commit; "
+            f"{scenario_path} changes in or after the first commit that touches the skill; "
             "scenarios land in their own earlier commit and stay frozen"
         ]
     return []
 
 
-def _scenario_ids(data: bytes) -> list[str] | None:
+def _scenario_rows(data: bytes) -> list[dict[str, Any]] | None:
+    """The scenario rows, each a mapping with an ``id``, or None when the file is not that."""
     try:
         parsed = json.loads(data)
     except (json.JSONDecodeError, UnicodeDecodeError):
@@ -198,7 +205,7 @@ def _scenario_ids(data: bytes) -> list[str] | None:
     rows = parsed.get("scenarios") if isinstance(parsed, dict) else None
     if not isinstance(rows, list) or not all(isinstance(r, dict) and "id" in r for r in rows):
         return None
-    return [str(r["id"]) for r in rows]
+    return rows
 
 
 def _retired_findings(ctx: Context, name: str, dropped: list[str]) -> list[str]:
@@ -256,19 +263,13 @@ def _results_history(ctx: Context, results_dir: str) -> tuple[dict[str, int], li
     return added, problems
 
 
-def _label_findings(base_bytes: bytes, scenarios: list[dict[str, Any]]) -> list[str]:
+def _label_findings(base: list[dict[str, Any]], head: list[dict[str, Any]]) -> list[str]:
     """A kept scenario may not change its label (ADR-127 decision 7 item 10)."""
-    try:
-        rows = json.loads(base_bytes).get("scenarios")
-    except (json.JSONDecodeError, UnicodeDecodeError, AttributeError):
-        return []
-    if not isinstance(rows, list):
-        return []
-    before = {str(r.get("id")): r.get("expected_verdict") for r in rows if isinstance(r, dict)}
+    before = {str(r["id"]): r.get("expected_verdict") for r in base}
     return [
         f"scenario {s['id']} changes expected_verdict from {before[str(s['id'])]!r} "
         f"to {s['expected_verdict']!r}; a label never changes to pass"
-        for s in scenarios
+        for s in head
         if str(s["id"]) in before and before[str(s["id"])] != s["expected_verdict"]
     ]
 
@@ -286,18 +287,22 @@ def _load_scenarios(ctx: Context, name: str) -> tuple[_Scenarios | None, list[st
     if path not in ctx.git.files(ctx.head, path):
         return None, [f"{path} does not exist; a gated skill needs a scenario file"]
     data = ctx.git.blob(ctx.head, path)
-    try:
-        rows = json.loads(data)["scenarios"]
-    except (json.JSONDecodeError, UnicodeDecodeError, KeyError, TypeError):
-        return None, [f"{path} is not valid scenario JSON"]
-    head_ids = _scenario_ids(data)
-    if head_ids is None or not all("expected_verdict" in r for r in rows):
-        return None, [f"{path} has a scenario with no id or expected_verdict"]
+    rows = _scenario_rows(data)
+    if rows is None:
+        return None, [f"{path} is not valid scenario JSON with an id on every scenario"]
+    if not all("expected_verdict" in r for r in rows):
+        return None, [f"{path} has a scenario with no expected_verdict"]
     problems = _freeze_findings(ctx, name, path)
     if path in ctx.git.files(ctx.merge_base, path):
-        base = ctx.git.blob(ctx.merge_base, path)
-        base_ids = _scenario_ids(base) or []
-        problems += _retired_findings(ctx, name, [i for i in base_ids if i not in head_ids])
+        base = _scenario_rows(ctx.git.blob(ctx.merge_base, path))
+        if base is None:
+            return None, [
+                f"{path} does not parse at the merge base, so dropped scenarios and "
+                "label changes cannot be checked"
+            ]
+        head_ids = {str(r["id"]) for r in rows}
+        dropped = [str(r["id"]) for r in base if str(r["id"]) not in head_ids]
+        problems += _retired_findings(ctx, name, dropped)
         problems += _label_findings(base, rows)
     return _Scenarios(path, data, rows), problems
 
@@ -357,7 +362,10 @@ def verify_skill(ctx: Context, name: str, head: SkillSide) -> list[str]:
     for path in sorted(p for p, i in order.items() if i == first):
         found = verify_results(ctx.runner, parsed[path], expected)
         base_commit = parsed[path]["identity"].get("base_commit")
-        if not found and not ctx.git.is_ancestor(str(base_commit), ctx.base_ref):
+        ancestor = None if found else ctx.git.is_ancestor(str(base_commit), ctx.base_ref)
+        if ancestor is None and not found:
+            found.append(f"identity.base_commit {base_commit} is not a commit in this clone")
+        elif ancestor is False:
             found.append(f"identity.base_commit {base_commit} is not an ancestor of {ctx.base_ref}")
         problems += [f"{path}: {f}" for f in found]
     return problems
@@ -370,6 +378,9 @@ _JUDGE_PATHS = (
     "scripts/validation/check_skill_rewrite_evidence.py",
     "scripts/validation/skill_rewrite_evidence.py",
     "scripts/validation/skill_rewrite_skills.py",
+    "scripts/validation/checks_ci_parity.py",
+    "scripts/validation/pre_pr_sequence.py",
+    ".github/workflows/pr-validation.yml",
 )
 
 
@@ -410,6 +421,7 @@ def _examine(
         findings = [f"{name}: {f}" for f in reference_grant_findings(name, side.allowed_tools)]
     reasons = _gate_or_skip(name, base, side, paths, deleted)
     if not reasons:
+        _log(f"{name} is not gated: no ADR-127 decision 7 trigger fired")
         return findings, False
     _log(f"{name} is gated: {'; '.join(reasons)}")
     judge = sorted(p for p in paths if p.startswith(_JUDGE_PATHS))
@@ -472,6 +484,9 @@ def main(argv: list[str] | None = None) -> int:
         findings, examined, gated = run_check(Git(root), base_ref, args.head_ref)
     except GitError as exc:
         print(f"[skill-rewrite-evidence] {exc}", file=sys.stderr)
+        return EXIT_CONFIG
+    except (ImportError, OSError, SyntaxError) as exc:
+        print(f"[skill-rewrite-evidence] cannot load the eval runner: {exc}", file=sys.stderr)
         return EXIT_CONFIG
     for finding in findings:
         print(f"[skill-rewrite-evidence] FAIL {finding}")

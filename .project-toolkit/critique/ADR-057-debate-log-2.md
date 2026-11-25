@@ -125,3 +125,18 @@ The seat commits because no template sets `metadata.shape` today, and the limit 
 - Confirm or reject the reading in amendment item 5: a brand-new driver is not gated.
 - ADR-127 still says "until the decision 9 check lands" in four places. A follow-up amends it.
 - `scripts/eval/` has no CODEOWNERS line.
+
+## Edits after the debate (from `/review` round 1)
+
+The `/review` axes found these after consensus. Each is a fix or a wording change; none adds a mechanism.
+
+| Finding | Axis | Change |
+|---|---|---|
+| Delegation tools in the reference allowlist | security, agent-safety, qa | Task and Agent removed. `mkdir` removed from the read-only Bash list. The amendment lists the real allowlist. |
+| Judge paths omit the gate wiring | architect, agent-safety | Item 10 now covers `pre_pr_sequence.py`, `checks_ci_parity.py`, and `pr-validation.yml`. |
+| Pooled base runs dropped from the model check | correctness | Fixed in code. 1 test. |
+| Malformed base scenario file fails open | spec-compliance, qa, observability | It now fails closed. |
+| Pre-existing matching results file | analyst, code-quality | Item 6 states that it counts as first. |
+| Precision overstated | decision-rigor | Item 4 says precision is inferred from 5 hits and recall is unknown. |
+| Reversibility table | decision-rigor | Row updated with the rollback path. |
+| Runner tree and merge queue | devops | Two limits added. |

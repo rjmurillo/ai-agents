@@ -322,8 +322,9 @@ jobs:
       # 2026-11-25 scopes this block to gated changes; other prompt edits stay
       # advisory. Unconditional: a skill edit from any actor is checked.
       # HEAD_SHA is the PR head, the tree the author ran the eval on; the
-      # merge_group leg has none and checks HEAD. The step reads git only, so
-      # it gets no token.
+      # merge_group leg has none and checks HEAD, so a second queued PR that
+      # edits the same skill fails there by design. The step reads git only,
+      # so it gets no token.
       - name: Check ADR-127 skill rewrite evidence
         env:
           BASE_REF: ${{ github.base_ref || github.event.repository.default_branch }}

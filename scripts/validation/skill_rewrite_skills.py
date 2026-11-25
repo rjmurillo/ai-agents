@@ -30,15 +30,16 @@ MOVE_MIN_CHARS = 32
 # A `reference` skill may hold only these grants (ADR-127 decision 1). An
 # allowlist, not a denylist: a denylist of push and PR-write forms leaked
 # `git -C . push`, `uv:*`, and list-form grants in review.
-_READ_TOOLS = frozenset(
+# Delegation tools (Task, Agent) are out: a subagent can hold any grant.
+# Working-tree writes stay in, since ADR-127 decision 1 says a file write
+# does not make a skill a driver; a write beside any Bash grant still fails.
+_REFERENCE_TOOLS = frozenset(
     {
         "Read",
         "Grep",
         "Glob",
         "LS",
         "Skill",
-        "Task",
-        "Agent",
         "TodoWrite",
         "Write",
         "Edit",
@@ -55,12 +56,13 @@ _WRITE_TOOLS = frozenset({"Write", "Edit", "MultiEdit", "NotebookEdit"})
 _GRANT = re.compile(r"(?P<tool>[A-Za-z][\w.-]*)(?:\((?P<inner>[^)]*)\))?")
 _READ_BASH = re.compile(
     r"^(?:git (?:diff|log|show|status|rev-parse|ls-files|ls-tree|merge-base|blame|cat-file)"
-    r"|git branch --show-current|date|ls|wc|mkdir|python3 -m json\.tool)(?:[: ]|$)"
+    r"|git branch --show-current|date|ls|wc|python3 -m json\.tool)(?:[: ]|$)"
 )
 _INTERPRETER = r"(?:python3|uv run --frozen python)(?: -I)?\s*:?\s*"
 # A Bash grant holding a path climb or a shell operator can chain past the
-# command it names, so it never counts as read-only.
-# `git diff --output` writes a file and `--ext-diff` runs a program.
+# command it names, so it never counts as read-only. `git diff --output`
+# writes a file and `--ext-diff` runs a program. This reads the grant text
+# only: a `*` in a grant still lets the model add these flags at run time.
 _UNSAFE_BASH = re.compile(
     r"\.\.|[;&|`<>]|\$\(|\s-O|--output|--ext-diff|--textconv|--open-files-in-pager"
 )
@@ -100,9 +102,10 @@ class Git:
     def blob(self, ref: str, path: str) -> bytes:
         return self._run("cat-file", "blob", f"{ref}:{path}").stdout
 
-    def is_ancestor(self, ancestor: str, descendant: str) -> bool:
+    def is_ancestor(self, ancestor: str, descendant: str) -> bool | None:
+        """True or False, or None when git cannot find *ancestor* (exit 128)."""
         proc = self._run("merge-base", "--is-ancestor", ancestor, descendant, ok_codes=(0, 1, 128))
-        return proc.returncode == 0
+        return None if proc.returncode == 128 else proc.returncode == 0
 
 
 @dataclass
@@ -191,7 +194,7 @@ def reference_grant_findings(name: str, allowed_tools: str) -> list[str]:
             )
         else:
             ok = inner is None and (
-                tool in _READ_TOOLS
+                tool in _REFERENCE_TOOLS
                 or bool(_READ_MCP.match(tool) and not _MCP_WRITE_WORD.search(tool.split("__")[-1]))
             )
         if not ok:

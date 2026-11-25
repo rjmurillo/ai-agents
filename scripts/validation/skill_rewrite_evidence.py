@@ -150,6 +150,7 @@ def _pool(runner: ModuleType, first: dict[str, Any], extra: dict[str, Any]) -> d
             "pass_rate": passes / count if count else 0.0,
             "passed": count > 0 and passes >= runner.required_passes(count),
             "flaky": 0 < passes < count,
+            "per_run": [*first["per_run"], *extra["per_run"]],
             "resample_contradicted": (
                 extra["passes"] < extra["runs"] or extra["runs"] < extra["requested_runs"]
             ),
@@ -168,8 +169,9 @@ def _side(results: dict[str, Any], side: str) -> dict[str, list[Any]] | None:
         if not isinstance(row, dict) or not isinstance(row.get("per_run"), list):
             return None
         sid = row.get("scenario_id")
-        if not isinstance(sid, str) or sid in out:
+        if not isinstance(sid, (str, int)) or str(sid) in out:
             return None
+        sid = str(sid)
         out[sid] = row["per_run"]
     return out
 
@@ -260,7 +262,9 @@ def verify_results(runner: ModuleType, results: object, expected: Expected) -> l
     security = results.get("security_critical")
     runs = results.get("runs_per_scenario")
     required = runner.SECURITY_RUNS if security else runner.DEFAULT_RUNS
-    if not isinstance(security, bool) or not isinstance(runs, int) or runs < required:
+    if not isinstance(security, bool):
+        return [*problems, f"security_critical is {security!r}; it must be true or false"]
+    if not isinstance(runs, int) or runs < required:
         return [*problems, f"runs_per_scenario {runs!r} is below the required {required}"]
     rec = _recompute_sides(runner, results, expected, runs)
     if rec.findings:

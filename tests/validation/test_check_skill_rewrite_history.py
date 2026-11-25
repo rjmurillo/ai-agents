@@ -153,7 +153,15 @@ class TestScenarioFile:
         driver_change(repo)
         code, out = run(repo, capsys)
         assert code == 1
-        assert "has a scenario with no id or expected_verdict" in out
+        assert "has a scenario with no expected_verdict" in out
+
+    def test_scenario_without_id(self, repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        write(repo, SCEN, json.dumps({"scenarios": [{"expected_verdict": "GO"}]}))
+        commit(repo, "no id")
+        driver_change(repo)
+        code, out = run(repo, capsys)
+        assert code == 1
+        assert "is not valid scenario JSON with an id on every scenario" in out
 
     def test_scenario_edit_after_surface_commit_blocks(
         self, repo: Path, capsys: pytest.CaptureFixture[str]
@@ -167,7 +175,7 @@ class TestScenarioFile:
         commit(repo, "evidence")
         code, out = run(repo, capsys)
         assert code == 1
-        assert "changes in or after the first prompt-surface commit" in out
+        assert "changes in or after the first commit that touches the skill" in out
 
     def test_scenario_commit_before_surface_is_allowed(
         self, repo: Path, capsys: pytest.CaptureFixture[str]
@@ -244,7 +252,7 @@ class TestScenarioFile:
         assert code == 0, out
 
     @pytest.mark.parametrize("broken", ["{", json.dumps({"scenarios": 3})])
-    def test_unreadable_base_scenarios_drop_nothing(
+    def test_unreadable_base_scenarios_fail_closed(
         self, repo: Path, capsys: pytest.CaptureFixture[str], broken: str
     ) -> None:
         git(repo, "checkout", "-q", "main")
@@ -257,7 +265,8 @@ class TestScenarioFile:
         write(repo, f"{EVID}/run-1.json", results(repo))
         commit(repo, "evidence")
         code, out = run(repo, capsys)
-        assert code == 0, out
+        assert code == 1
+        assert "does not parse at the merge base" in out
 
     def test_scenario_file_new_on_branch(
         self, repo: Path, capsys: pytest.CaptureFixture[str]

@@ -335,14 +335,15 @@ Decision:
    it is a `driver` on either side and its prompt surface changed;
    the branch touches `evals/skill-rewrites/<name>/`, which is how an author declares a gap-audit row;
    or at least 3 lines of 32 or more characters leave `SKILL.md` and reappear in `references/`.
-   The last test measures precision only. A reworded or split move slips past it.
+   Precision is inferred from 5 hits, and recall is unknown. A reworded or split move slips past it.
 5. A new skill has no base to hold against, and a deleted skill has nothing to run, so neither is gated.
    A new skill that lands beside a deleted one may be a rename, so it is gated. Its eval uses the runner's `--renamed-from`.
    This reads ADR-127 decision 7, trigger 1, as not covering a brand-new driver. Read literally, that trigger would block every new driver forever: the carried floor needs base runs that cannot exist.
    The ADR-127 owner confirms or rejects this reading at PR review. A new driver still owes the decision 8 tests.
 6. For a gated skill the check requires `tests/evals/<name>-scenarios.json` and a results file under `evals/skill-rewrites/<name>/`.
    Candidates are the results files that record the head prompt-surface sha256.
-   The one the branch added first sets the verdict. It must match the other three identities too.
+   The one committed first sets the verdict. A matching file already on the base ref counts as first, since that surface was evaluated before.
+   It must match the other three identities too.
    Its base commit must be an ancestor of the base ref.
    The check recomputes each run's pass from its verdict label and the scenario file. It never reads `gate.verdict` as truth.
    It then calls the runner's own `acceptance_gate`. A file whose recorded verdict disagrees with its runs fails.
@@ -354,14 +355,15 @@ Decision:
    A kept scenario may not change its `expected_verdict` since the merge base.
    A scenario dropped since the merge base needs a row in `retired.json` naming a test that exists at head.
 9. Results files are append-only on the branch (decision 7 item 9). An edit, a delete, or a second add of the same path fails.
-10. A gated branch may not also change the runner (`scripts/eval/eval-prompt-change.py` or `scripts/eval/_*`) or the check itself.
+10. A gated branch may not also change the runner (`scripts/eval/eval-prompt-change.py` or `scripts/eval/_*`), the check's three modules, its `pre_pr` registration, or `pr-validation.yml`.
 
 Rollback: a false block is fixed by one PR that removes the CI step and the `pre_pr` registration.
 The check has no skip flag, so a revert is the only way past it.
 
 Security seat recommendation (ADR-127 review): adopted, as an allowlist. This rule goes past decision 9.
-A skill the branch touches that is tagged `reference` may hold only read tools: Read, Grep, Glob, Skill, Task, and similar.
-It may hold a read-only MCP tool, a read-only Bash command such as `git diff`, or a Bash grant that runs its own `scripts/`.
+A skill the branch touches that is tagged `reference` may hold only these tools: Read, Grep, Glob, LS, Skill, TodoWrite, WebFetch, WebSearch, AskUserQuestion, and the working-tree write tools.
+Delegation tools (Task, Agent) fail, since a subagent can hold any grant.
+It may also hold a read-only MCP tool, a read-only Bash command such as `git diff`, or a Bash grant that runs its own `scripts/`.
 A Bash grant fails when it holds `..`, a shell operator, or a git flag that writes or runs a program (`--output`, `--ext-diff`, `-O`).
 `git grep` is not on the list. A write tool beside any Bash grant fails. The model could write a script, or a git config that sets `diff.external`, and run it.
 Any other grant fails. A list-form `allowed-tools` is read the same way as a string.
@@ -378,6 +380,8 @@ Limits, which stay with the reviewer:
 - The base commit is only proved to be an ancestor of the base ref, not the exact fork point.
 - A `pull_request` run uses the PR's own copy of `pr-validation.yml`, so a PR can edit the step out. CODEOWNERS covers `.github/workflows/`.
 - The check reads the PR head. If `main` edits the same skill, the merged tree is never evaluated.
+- In CI the runner module loads from the merge-commit tree while blobs are read at the PR head. A `main` change to the runner's hashing would show as an identity mismatch.
+- In the merge queue, the check reads the queued tree. A second queued PR that edits the same skill fails, because no results file records the combined surface.
 - The checkout leaves its token in `.git/config` for the whole job. Earlier steps in the job run PR code the same way.
 - The grant rule reads the grant text. A `*` in a grant lets the model add flags when it runs, so `Bash(git diff:*)` can still take `--output`.
 - The own-script grant accepts any path prefix before `skills/<name>/scripts/`, so it does not prove the path is inside the plugin root.
@@ -403,7 +407,7 @@ Debate log: `.project-toolkit/critique/ADR-057-debate-log-2.md`.
 
 | Criterion | Assessment |
 |-----------|------------|
-| Rollback capability | Methodology can be dropped without affecting prompts or structural tests |
+| Rollback capability | Methodology can be dropped without affecting prompts or structural tests. The ADR-127 evidence gate (Amendment 2026-11-25) reverts with one PR that removes its CI step and `pre_pr` registration; it has no skip flag |
 | Vendor lock-in | Uses Anthropic API (already a project dependency) |
 | Exit strategy | Revert to manual testing or evolve to golden corpus |
 | Legacy impact | None. Additive to ADR-023. |

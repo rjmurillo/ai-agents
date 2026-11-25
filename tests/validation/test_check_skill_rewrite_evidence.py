@@ -255,6 +255,43 @@ class TestEvidence:
 
 
 class TestEntryPoints:
+    def test_runner_load_failure_is_a_config_error(
+        self, repo: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def broken() -> None:
+            raise ImportError("no runner")
+
+        monkeypatch.setattr(checker, "load_runner", broken)
+        code, out = run(repo, capsys)
+        assert code == 2
+        assert "cannot load the eval runner: no runner" in out
+
+    def test_unknown_base_commit_is_named(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        driver_change(repo)
+        write(repo, f"{EVID}/run-1.json", results(repo, base_commit="f" * 40))
+        commit(repo, "evidence")
+        code, out = run(repo, capsys)
+        assert code == 1
+        assert f"identity.base_commit {'f' * 40} is not a commit in this clone" in out
+
+    def test_not_gated_skill_is_logged(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        write(repo, SKILL, skill_md(body="\n".join(MOVED) + "\nMore."))
+        commit(repo, "prose")
+        assert "demo is not gated: no ADR-127 decision 7 trigger fired" in run(repo, capsys)[1]
+
+    def test_gated_branch_may_not_edit_the_workflow(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        driver_change(repo)
+        write(repo, ".github/workflows/pr-validation.yml", "name: x\n")
+        write(repo, f"{EVID}/run-1.json", results(repo))
+        commit(repo, "evidence and workflow")
+        assert "may not also change ['.github/workflows/pr-validation.yml']" in run(repo, capsys)[1]
+
     def test_bad_base_ref_is_a_config_error(
         self, repo: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:

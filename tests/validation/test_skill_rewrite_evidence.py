@@ -211,7 +211,26 @@ class TestShape:
     def test_security_flag_not_bool(self) -> None:
         res = results()
         res["security_critical"] = "no"
-        assert any("below the required" in f for f in verify(res))
+        assert any("security_critical is 'no'; it must be true or false" in f for f in verify(res))
+
+    def test_integer_scenario_ids_are_read(self) -> None:
+        res = results()
+        for side in ("before", "after"):
+            for row in res["detail"][side]:
+                row["scenario_id"] = int(row["scenario_id"][1:])
+        exp = sre.Expected(
+            prompt_path=expected().prompt_path,
+            prompt_surface_sha256=SURFACE,
+            scenarios_path=expected().scenarios_path,
+            scenarios_sha256=SCEN_SHA,
+            scenarios=tuple({**s, "id": int(s["id"][1:])} for s in scenarios()),
+        )
+        assert sre.verify_results(RUNNER, res, exp) == []
+
+    def test_resampled_base_run_model_is_checked(self) -> None:
+        res = results({"S1": ("PPPPPP", "FFF")}, verdict="FAIL")
+        res["detail"]["before"][0]["per_run"][4]["model_used"] = "other"
+        assert any("names a model other" in f for f in verify(res))
 
     def test_detail_missing(self) -> None:
         res = results()
