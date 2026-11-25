@@ -30,7 +30,7 @@ The pattern comes from gstack `ship/DRIVER.md`.
 
 1. Each phase is one script call.
 2. A script prints `KEY: value` result lines and nothing else of note.
-3. The last line is `NEXT: <act>` or `STOP: <reason>`.
+3. The last line is `NEXT: <act>` or `STOP: <reason> [detail]`.
 4. Exit codes follow the repo standard: 0 ok, 1 logic, 2 config, 3 external, 4 auth.
    A `STOP:` line always pairs with a non-zero exit.
 5. The model keeps only judgment work.
@@ -92,9 +92,9 @@ Owns everything `/push-pr` did after the body is written.
 | Subcommand | Does | Prints |
 |---|---|---|
 | `branch --name <type>/<slug>` | creates and switches to a feature branch | `BRANCH:` |
-| `prepare` | allocates the body file and seeds the template | `BODY_FILE: <path>` |
-| `check --title --body-file` | title, body, paths-in-diff, ADO description rules | `CHECK: title=`, `CHECK: body=`, `CHECK: paths=` |
-| `publish --title --body-file [--draft] [--require-axis A] [--paths-checked-by-hand]` | push, then create the PR | `PUSH:`, `PR:`, `NEXT:` |
+| `prepare [--base <ref>]` | allocates the body file and seeds the template | `BODY_FILE: <path>` |
+| `check --title --body-file [--base <ref>]` | title, body, paths-in-diff, ADO description rules | `CHECK: title=`, `CHECK: body=`, `CHECK: paths=` |
+| `publish --title --body-file [--base <ref>] [--draft] [--require-axis A] [--paths-checked-by-hand]` | push, then create the PR | `PUSH:`, `PR:`, `NEXT:` |
 
 `publish` rules, all enforced in code:
 
@@ -132,7 +132,7 @@ A STOP detail is at most 500 characters.
 | Script | Result keys | NEXT acts | Flags |
 |---|---|---|---|
 | `ship_detect.py` | `HOST`, `REMOTE_HOST`, `BRANCH`, `BASE`, `HEAD`, `PR`, `PR_URL`, `PR_AUTHOR`, `PR_DRAFT`, `MODE` | `preflight`, `validate-only` | `--base` |
-| `ship_preflight.py` | the detect keys, `CHECK`, `PIPELINE_DEADLINE` | `write-body`, `report`, `publish-then-discharge`, `rerun-pipeline` | `--check` (repeatable), `--base`, `--pr`, `--draft`, `--require-axis`, `--deadline`, `--wait-seconds` |
+| `ship_preflight.py` | the detect keys, `CHECK`, `PIPELINE_DEADLINE` | `write-body`, `report`, `publish-then-discharge`, `rerun-pipeline` | `--check` (repeatable), `--base`, `--pr`, `--draft`, `--require-axis`, `--deadline`, `--wait-seconds` (0 to 540) |
 | `ship_pr.py` | `BRANCH`, `BODY_FILE`, `CHECK`, `FINDING`, `PUSH`, `PR`, and the detect keys with `PR_AT_PREFLIGHT` in place of `PR` | `commit-then-review`, `write-body`, `compare-paths-by-hand`, `publish`, `discharge` | per subcommand, in the table above |
 
 `--deadline` takes only the `PIPELINE_DEADLINE` value a `PENDING` run printed. A later epoch second is refused.

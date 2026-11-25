@@ -25,6 +25,17 @@ class TestClean:
     def test_strips_url_userinfo(self):
         assert common.clean("https://user:tok@dev.azure.com/o") == "https://dev.azure.com/o"
 
+    def test_long_values_clean_in_linear_time(self):
+        import time
+
+        for value in ("x" * 200_000, "a://" * 50_000, "ab+.-" * 40_000):
+            start = time.perf_counter()
+            assert len(common.clean(value)) == len(value)
+            assert time.perf_counter() - start < 1.0
+
+    def test_userinfo_after_a_word_boundary_is_still_stripped(self):
+        assert common.clean("see https://u:p@host/x now") == "see https://host/x now"
+
     def test_plain_value_unchanged(self):
         assert common.clean("PR 12 ok") == "PR 12 ok"
 

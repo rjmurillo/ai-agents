@@ -59,7 +59,10 @@ SCRATCH_REL = Path(".project-toolkit") / "scratch"
 VERSION = "1.0.0"
 
 _CONTROL_RE = re.compile("[\x00-\x1f\x7f\x85  ]")
-_USERINFO_RE = re.compile(r"([A-Za-z][A-Za-z0-9+.-]*://)[^/@\s]*@")
+# Bounded and anchored so a long value cannot make the scan quadratic: a
+# scheme starts after a non-scheme character and is at most 32 characters,
+# and userinfo is at most 256.
+_USERINFO_RE = re.compile(r"(?<![A-Za-z0-9+.-])([A-Za-z][A-Za-z0-9+.-]{0,31}://)[^/@\s]{0,256}@")
 _REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$")
 # ADR-127 decision 3 item 4: a remote URL must match an allowed scheme list.
 # git also accepts transports such as ext::, file://, and git://; none of
