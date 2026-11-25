@@ -197,7 +197,10 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--from-json",
         type=Path,
-        help="Read PR nodes from this file instead of GitHub (offline, reproducible)",
+        help=(
+            "Read PR nodes from this file instead of GitHub (offline). The heuristic "
+            "ages comments against the current clock, so a replay can differ later"
+        ),
     )
     parser.add_argument("--save-prs", type=Path, help="Also write the fetched PR nodes here")
     parser.add_argument("--output", type=Path, required=True, help="Where to write the result JSON")
