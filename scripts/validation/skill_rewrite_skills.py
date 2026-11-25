@@ -8,6 +8,7 @@ moved-line count behind trigger 4.
 
 from __future__ import annotations
 
+import ast
 import difflib
 import re
 import subprocess
@@ -225,3 +226,26 @@ def moved_lines(base: SkillSide, head: SkillSide) -> int:
         old = {line.strip() for line in base.references.get(name, "").splitlines()}
         added |= {line.strip() for line in text.splitlines()} - old
     return len(removed & added)
+
+
+def defines_test(source: str, classes: list[str], func: str) -> bool:
+    """True when *func* is defined directly inside the nested *classes* of *source*.
+
+    *classes* and *func* are the segments of a pytest node id after the path.
+    A ``[param]`` suffix on *func* is dropped. An empty segment, or a file that
+    does not parse, is False.
+    """
+    func = func.split("[", 1)[0]
+    if not func or not all(classes):
+        return False
+    try:
+        body = ast.parse(source).body
+    except SyntaxError:
+        return False
+    for name in classes:
+        found = [n for n in body if isinstance(n, ast.ClassDef) and n.name == name]
+        if not found:
+            return False
+        body = found[0].body
+    funcs = (ast.FunctionDef, ast.AsyncFunctionDef)
+    return any(isinstance(n, funcs) and n.name == func for n in body)

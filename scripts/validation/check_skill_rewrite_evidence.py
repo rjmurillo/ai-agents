@@ -49,7 +49,7 @@ For a gated skill the check requires, and fails closed without:
 - no change in the same branch to the runner or to this check.
 
 ``retired.json`` is ``{"retired": [{"scenario": "<id>", "test":
-"<path>::[<Class>::]<name>"}]}``; each named class and function must exist.
+"<path>::[<Class>::]<name>"}]}``; the function must sit in that class chain.
 ``prompt_path`` is the repository-relative rendered file ``--prompt`` takes.
 
 A skill tagged ``reference`` that the branch touches also fails when its
@@ -93,6 +93,7 @@ from skill_rewrite_skills import (  # noqa: E402
     Git,
     GitError,
     SkillSide,
+    defines_test,
     moved_lines,
     read_skill,
     reference_grant_findings,
@@ -225,8 +226,7 @@ def _retired_findings(ctx: Context, name: str, dropped: list[str]) -> list[str]:
         test_path, *classes, func = test.split("::")
         found = test_path in ctx.git.files(ctx.head, test_path)
         text = ctx.git.blob(ctx.head, test_path).decode("utf-8", "replace") if found else ""
-        named = all(re.search(rf"^\s*class {re.escape(c)}\b", text, re.M) for c in classes)
-        if not (found and named and f"def {func}(" in text):
+        if not (found and defines_test(text, classes, func)):
             problems.append(f"dropped scenario {sid}: test {test} does not exist at HEAD")
     return problems
 

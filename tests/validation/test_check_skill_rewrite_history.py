@@ -138,6 +138,7 @@ class TestAppendOnly:
         write(repo, SCEN, json.dumps(doc))
         commit(repo, "scenario commit")
         code, out = run_gated(repo, capsys)
+        assert code == 0, out
         assert "changes expected_verdict" not in out
 
     def test_head_ref_reads_the_named_commit(

@@ -180,3 +180,60 @@ def test_surface_matches_runner_loader(repo: Path) -> None:
     commit(repo, "refs")
     side = checker.read_skill(checker.Git(repo), "HEAD", "demo")
     assert side.surface == RUNNER.load_prompt_surface_from_file(str(repo / SKILL))
+
+
+_TESTS = """
+def test_top():
+    pass
+
+
+class TestA:
+    def test_a(self):
+        pass
+
+    async def test_async(self):
+        pass
+
+    class TestInner:
+        def test_inner(self):
+            pass
+
+
+class TestB:
+    def test_b(self):
+        pass
+"""
+
+
+class TestDefinesTest:
+    @pytest.mark.parametrize(
+        ("classes", "func"),
+        [
+            ([], "test_top"),
+            (["TestA"], "test_a"),
+            (["TestA"], "test_async"),
+            (["TestA", "TestInner"], "test_inner"),
+            (["TestB"], "test_b[case-1]"),
+        ],
+    )
+    def test_defined_in_the_named_chain(self, classes: list[str], func: str) -> None:
+        assert checker.defines_test(_TESTS, classes, func)
+
+    @pytest.mark.parametrize(
+        ("classes", "func"),
+        [
+            (["TestB"], "test_a"),
+            ([], "test_a"),
+            (["TestInner"], "test_inner"),
+            (["TestInner", "TestA"], "test_inner"),
+            (["TestA"], "test_top"),
+            ([""], "test_a"),
+            (["TestA"], ""),
+            (["TestNope"], "test_a"),
+        ],
+    )
+    def test_not_defined_in_the_named_chain(self, classes: list[str], func: str) -> None:
+        assert not checker.defines_test(_TESTS, classes, func)
+
+    def test_unparseable_source_is_not_defined(self) -> None:
+        assert not checker.defines_test("def test_x(:\n", [], "test_x")
