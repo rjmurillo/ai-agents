@@ -65,9 +65,12 @@ _REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$")
 # git also accepts transports such as ext::, file://, and git://; none of
 # them is a GitHub or Azure DevOps remote, so they are refused.
 ALLOWED_URL_SCHEMES = frozenset({"https", "ssh"})
-_URL_HOST_RE = re.compile(r"^([A-Za-z][A-Za-z0-9+.-]*)://(?:[^/@]*@)?\[?([^/:\]\s]+)")
+_URL_HOST_RE = re.compile(r"^([A-Za-z][A-Za-z0-9+.-]*)://(?:[^/@]*@)?([^/:\s]+)")
 _SCP_HOST_RE = re.compile(r"^(?:[^@/:\s]+@)?([^/:\s]+):(?![/:])\S")
-_PLAIN_HOST_RE = re.compile(r"^[a-z0-9][a-z0-9.-]+$")
+# One or more DNS labels: letters, digits, inner dashes. No empty label,
+# no trailing dot, no bracket literal, at least two characters in all.
+_LABEL = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+_PLAIN_HOST_RE = re.compile(rf"^(?=.{{2,253}}$){_LABEL}(?:\.{_LABEL})*$")
 _ADO_HOSTS = frozenset({"dev.azure.com", "ssh.dev.azure.com"})
 
 
@@ -262,11 +265,9 @@ def write_private(root: Path, prefix: str, suffix: str, text: str) -> Path | Non
     return path
 
 
-def render(result: Result, output_format: str, repo_root: Path | None) -> str:
-    """Return the stdout text for ``result`` in ``output_format``."""
-    if result.terminal is None:
-        raise ValueError("result has no terminal line")
-    lines = _capped_lines(result, repo_root)
+def _format(result: Result, lines: list[tuple[str, str]], output_format: str) -> str:
+    """Format ``lines`` plus the terminal line in ``output_format``."""
+    assert result.terminal is not None
     if output_format == "json":
         data: dict[str, object] = {}
         for key, value in lines:
@@ -297,6 +298,31 @@ def render(result: Result, output_format: str, repo_root: Path | None) -> str:
     text = [f"{key}: {value}" for key, value in lines]
     text.append(f"{result.terminal[0]}: {result.terminal[1]}")
     return "\n".join(text) + "\n"
+
+
+def render(result: Result, output_format: str, repo_root: Path | None) -> str:
+    """Return the stdout text for ``result`` in ``output_format``, within the caps.
+
+    ``_capped_lines`` spills by an estimate. The final check here measures
+    the rendered text itself and drops kept lines into the detail file until
+    it fits, so the 32,000-byte cap holds for any input in either format.
+    """
+    if result.terminal is None:
+        raise ValueError("result has no terminal line")
+    lines = _capped_lines(result, repo_root)
+    text = _format(result, lines, output_format)
+    while len(text.encode("utf-8")) > MAX_BYTES:
+        # Defensive: _capped_lines charges each line its JSON size and reserves room for
+        # the doubled terminal line, so it has already spilled whenever this loop runs.
+        if not any(key == "DETAIL_FILE" for key, _value in lines):  # pragma: no cover
+            body = [f"{key}: {value}" for key, value in result.lines]
+            lines.append(("DETAIL_FILE", write_detail_file(body, repo_root)))
+        droppable = [index for index, (key, _value) in enumerate(lines) if key != "DETAIL_FILE"]
+        if not droppable:  # pragma: no cover - a capped terminal line plus the envelope fit alone
+            break
+        del lines[droppable[-1]]
+        text = _format(result, lines, output_format)
+    return text
 
 
 def emit(result: Result, output_format: str, repo_root: Path | None) -> int:

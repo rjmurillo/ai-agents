@@ -382,6 +382,8 @@ def _validate(args) -> str | None:
         return "--base is not a plain ref"
     if args.pr is not None and args.pr <= 0:
         return "--pr must be a positive integer"
+    if args.deadline is not None and args.deadline > int(time.time()) + TOTAL_WAIT_SECONDS:
+        return "--deadline must be the PIPELINE_DEADLINE value a PENDING run printed"
     if not 0 <= args.wait_seconds <= MAX_CALL_WAIT:
         return f"--wait-seconds must be 0 to {MAX_CALL_WAIT}"
     for axis in args.require_axis:

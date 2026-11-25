@@ -122,6 +122,29 @@ PR: host=github number=<n> url=<u>
 NEXT: discharge
 ```
 
+## Result contract
+
+Every script prints `KEY: value` lines and ends on one `NEXT:` or `STOP:` line.
+Every script accepts `--output-format json|human|auto`, before or after a subcommand.
+A run that spills output to a file prints `DETAIL_FILE: <path>`.
+A STOP detail is at most 500 characters.
+
+| Script | Result keys | NEXT acts | Flags |
+|---|---|---|---|
+| `ship_detect.py` | `HOST`, `REMOTE_HOST`, `BRANCH`, `BASE`, `HEAD`, `PR`, `PR_URL`, `PR_AUTHOR`, `PR_DRAFT`, `MODE` | `preflight`, `validate-only` | `--base` |
+| `ship_preflight.py` | the detect keys, `CHECK`, `PIPELINE_DEADLINE` | `write-body`, `report`, `publish-then-discharge`, `rerun-pipeline` | `--check` (repeatable), `--base`, `--pr`, `--draft`, `--require-axis`, `--deadline`, `--wait-seconds` |
+| `ship_pr.py` | `BRANCH`, `BODY_FILE`, `CHECK`, `FINDING`, `PUSH`, `PR`, and the detect keys with `PR_AT_PREFLIGHT` in place of `PR` | `commit-then-review`, `write-body`, `compare-paths-by-hand`, `publish`, `discharge` | per subcommand, in the table above |
+
+`--deadline` takes only the `PIPELINE_DEADLINE` value a `PENDING` run printed. A later epoch second is refused.
+
+STOP reasons, by the script that first declares them. A later script also uses the reasons of the scripts it builds on.
+
+| Script | STOP reasons |
+|---|---|
+| `ship_detect.py` | `bad-arguments`, `no-repo`, `no-origin`, `unsupported-remote`, `detached-head`, `on-base-branch`, `pr-query-failed`, `user-query-failed`, `auth-failed`, `pr-author-unknown` |
+| `ship_preflight.py` | `check-failed`, `validator-missing`, `validator-config`, `checks-query-failed`, `pipeline-query-failed` |
+| `ship_pr.py` | `bad-branch-name`, `branch-create-failed`, `prepare-failed`, `bad-body-file`, `contributor-mode`, `tree-dirty`, `head-not-reviewed`, `paths-not-checked`, `push-rejected`, `push-failed`, `pr-create-failed`, `description-upload-failed` |
+
 ## Permissions
 
 `/ship` grants one entry per script it calls, with no wildcard (ADR-127 decision 3 item 7).

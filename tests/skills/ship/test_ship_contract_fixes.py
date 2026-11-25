@@ -42,6 +42,9 @@ class TestRemoteSchemes:
             "ssh://-oProxyCommand=x/y",
             "https://[::1]/x",
             "@h:p",
+            "ssh://git@[2001:db8::1]/a",
+            "https://dev.azure.com./o/p/_git/r",
+            "https://a..b/x",
         ],
     )
     def test_disallowed_remote_forms_have_no_host(self, scripts, url):
@@ -189,3 +192,46 @@ class TestStopDetailCap:
         assert len(out.encode("utf-8")) <= 32000
         assert envelope["Data"]["STOP"].endswith("...")
         assert len(envelope["Error"]["Message"]) <= 520
+
+    @pytest.mark.parametrize("output_format", ["json", "human"])
+    @pytest.mark.parametrize("unit", ['"', "\U0001f600", "\u00e9"])
+    def test_near_budget_lines_plus_a_long_stop_stay_under_the_cap(
+        self, scripts, tmp_path, output_format, unit
+    ):
+        common = scripts[0]
+        result = common.Result("t.py", frozenset({"x-failed"}))
+        for _index in range(59):
+            result.add("ITEM", unit * 435)
+        result.stop("x-failed", 1, unit * 500)
+        text = common.render(result, output_format, tmp_path)
+        assert len(text.encode("utf-8")) <= common.MAX_BYTES
+        assert len(text.splitlines()) <= common.MAX_LINES
+        if output_format == "json":
+            assert "DETAIL_FILE" in json.loads(text)["Data"]
+
+
+class TestAdoDescriptionAfterTitleFailure:
+    def test_bad_title_never_reaches_the_description_helper(
+        self, make_repo, fakes, scripts, capsys, body_file
+    ):
+        repo = make_repo("https://dev.azure.com/contoso/p/_git/r")
+        fakes.no_pr_ado()
+        fakes.rule("validate_pr_description", [], {"stdout": ""})
+        code, lines = run_pr(
+            scripts, capsys, "check", "--title=-x: injected", "--body-file", str(body_file(repo))
+        )
+        assert code == 1
+        assert not fakes.calls("validate_pr_description")
+        assert not any(value.startswith("description=") for value in values(lines, "CHECK"))
+
+
+class TestDeadlineBound:
+    def test_far_future_deadline_is_refused(self, make_repo, fakes, scripts, capsys):
+        import time
+
+        make_repo(GITHUB)
+        code, lines = invoke(
+            scripts[2], ["--check", "tree", "--deadline", str(int(time.time()) + 86400)], capsys
+        )
+        assert code == 2
+        assert lines[-1].startswith("STOP: bad-arguments --deadline")

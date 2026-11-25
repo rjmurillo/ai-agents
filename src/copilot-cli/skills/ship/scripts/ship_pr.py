@@ -242,7 +242,8 @@ def run_checks(ctx, title: str, body_file: Path, base: str, result) -> list[str]
         ("body", _report(result, "body", body_problem(text))),
         ("paths", _check_paths(ctx, body_file, base, result)),
     ]
-    if ctx.host == "ado":
+    # A title or body that failed its own check never reaches a helper's argv.
+    if ctx.host == "ado" and all(ok for _name, ok in outcomes[:2]):
         outcomes.append(("description", _check_ado_description(ctx, title, body_file, result)))
     failed = [name for name, ok in outcomes if ok is False]
     return failed + [f"{name}:not-run" for name, ok in outcomes if ok is None]
