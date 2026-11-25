@@ -127,6 +127,24 @@ def _wrap(name: str, token: str, text: str) -> str:
     return f"<{name}-{token}>\n{text}\n</{name}-{token}>"
 
 
+def _sent_fields(row: dict[str, Any]) -> tuple[str, str, list[str]]:
+    """The path, body, and replies of ``row`` as the model sees them, after truncation."""
+    path = row.get("path") or ""
+    body = (row.get("body") or "")[:MAX_BODY_CHARS]
+    replies = [r[:MAX_REPLY_CHARS] for r in (row.get("thread_replies") or [])[:MAX_REPLIES]]
+    return path, body, replies
+
+
+def input_sha256(row: dict[str, Any]) -> str:
+    """SHA-256 of what the model is sent for ``row``, minus the per-call delimiter token.
+
+    A resumed run reuses a carried verdict only when this still matches, so an edited body or
+    reply in the corpus is predicted again instead of keeping the verdict for the old text.
+    """
+    payload = json.dumps(_sent_fields(row), ensure_ascii=False).encode("utf-8")
+    return sha256_hex(payload)
+
+
 def build_user_message(row: dict[str, Any], token_factory: Callable[[], str] = _new_token) -> str:
     """Build the model input. The heuristic score is logged, never sent.
 
@@ -134,9 +152,7 @@ def build_user_message(row: dict[str, Any], token_factory: Callable[[], str] = _
     per-call random token, so no text a commenter writes can close its own
     delimiter. The token is re-drawn if it appears anywhere in the data.
     """
-    path = row.get("path") or ""
-    body = (row.get("body") or "")[:MAX_BODY_CHARS]
-    replies = [r[:MAX_REPLY_CHARS] for r in (row.get("thread_replies") or [])[:MAX_REPLIES]]
+    path, body, replies = _sent_fields(row)
     fields = [path, body, *replies]
     for _ in range(MAX_TOKEN_ATTEMPTS):
         token = token_factory()
@@ -245,6 +261,7 @@ def predict_rows(
             "provider": provider,
             "model": model,
             "prompt_sha256": prompt_sha256,
+            "input_sha256": input_sha256(row),
             **outcome,
         }
         records.append(record)
@@ -330,6 +347,20 @@ def _carried_ok(path: Path, run: dict[str, str]) -> list[dict[str, Any]]:
             seen.add(record_id)
             carried.append(record)
     return carried
+
+
+def _drop_stale(
+    carried: list[dict[str, Any]], selected: list[dict[str, Any]]
+) -> tuple[list[dict[str, Any]], int]:
+    """Drop carried records whose row now sends different text, or that record no input hash.
+
+    Only rows in ``selected`` are judged. A record for another split is left alone.
+    """
+    current = {row["id"]: input_sha256(row) for row in selected}
+    kept = [
+        r for r in carried if r["id"] not in current or r.get("input_sha256") == current[r["id"]]
+    ]
+    return kept, len(carried) - len(kept)
 
 
 def _make_sink(handle: TextIO) -> Sink:
@@ -458,9 +489,12 @@ def cmd_predict(args: argparse.Namespace) -> int:
         except OutputError as exc:
             print(f"error: {exc}", file=sys.stderr)
             return EXIT_CONFIG
+        carried, stale = _drop_stale(carried, selected)
         write_jsonl(args.output, carried)
         done = [r for r in carried if r["id"] in selected_ids]
         print(f"resuming, {len(done)} done")
+        if stale:
+            print(f"{stale} carried records no longer match the corpus text; predicting again")
     done_ids = {r["id"] for r in carried}
     new_records = _run_pending([r for r in selected if r["id"] not in done_ids], args, api_key, run)
     final = [r for r in carried if r["id"] in selected_ids] + new_records

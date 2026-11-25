@@ -56,6 +56,7 @@ class TestPredictRows:
                 "provider": "fake-provider",
                 "model": "fake-model",
                 "prompt_sha256": "h" * 64,
+                "input_sha256": pm.input_sha256(make_row("A")),
             }
         ]
 

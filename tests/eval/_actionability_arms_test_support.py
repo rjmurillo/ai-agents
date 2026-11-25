@@ -154,7 +154,11 @@ def provider_argv(corpus: Path, out: Path, *extra: str) -> list[str]:
 def ok_record(row_id: str, **overrides: Any) -> dict[str, Any]:
     """An ok prediction carrying the provenance the CLI writes for `--provider fake`."""
     record = make_prediction(
-        row_id, provider="fake", model="fake-model", prompt_sha256=pm.load_prompt()[1]
+        row_id,
+        provider="fake",
+        model="fake-model",
+        prompt_sha256=pm.load_prompt()[1],
+        input_sha256=pm.input_sha256(make_row(row_id)),
     )
     record.update(overrides)
     return record
