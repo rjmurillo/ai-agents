@@ -50,7 +50,7 @@ def _read_json(base: Path, name: Any, label: str) -> Any:
         if path.stat().st_size > MAX_FILE_BYTES:
             raise AdrInputError(f"{label} {name} is larger than {MAX_FILE_BYTES} bytes")
         return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, ValueError) as exc:
+    except (OSError, UnicodeDecodeError, ValueError, RecursionError) as exc:
         raise AdrInputError(f"cannot read {label} {name}: {exc}") from exc
 
 

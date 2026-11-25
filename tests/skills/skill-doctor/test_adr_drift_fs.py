@@ -60,6 +60,27 @@ def test_a_symlinked_adr_file_that_stays_inside_the_folder_is_kept(tmp_path, cap
     assert result["locate"]["rejected"] == []
 
 
+def test_a_known_folder_name_that_aliases_another_is_read_once_under_its_real_path(
+    tmp_path, capsys
+):
+    """`docs/adr -> decisions`: one folder, one copy of each finding, no false history hit."""
+    record = "docs/decisions/ADR-001-x.md"
+    repo = seeded_repo(
+        tmp_path / "repo", {record: adr_text(1, body="See [gone](ADR-009-missing.md).")}
+    )
+    symlink_or_skip(repo / "docs/adr", Path("decisions"))
+    commit(repo, {record: adr_text(1, body="See [gone](ADR-009-missing.md). Edited.")}, "x")
+    commit(repo, {"src/new.py": "x = 1\n"}, "refactor: supersede ADR-001 with a queue")
+
+    result = scan(capsys, repo)
+
+    assert [d["path"] for d in result["locate"]["adr_dirs"]] == ["docs/decisions"]
+    assert result["locate"]["primary"] == "docs/decisions"
+    broken = [f["evidence"]["path"] for f in result["findings"] if f["kind"] == "adr-broken-link"]
+    assert broken == [record]
+    assert all("docs/adr/" not in json.dumps(f) for f in result["findings"])
+
+
 def test_a_clean_repository_has_no_read_errors_and_no_rejections(tmp_path, capsys):
     repo = seeded_repo(tmp_path / "repo")
 

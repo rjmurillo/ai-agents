@@ -337,7 +337,10 @@ def find_adr_dirs(repo: Path) -> Survey:
     """Find ADR folders and the markers that led to them.
 
     A valid `.adr-dir` is authoritative and the only folder returned. Otherwise
-    every known folder that holds a numbered ADR or a template counts.
+    every known folder that holds a numbered ADR or a template counts. A known
+    name that is an in-repository symlink is read once, under its real path, which
+    is the path git logs. A second name for the same folder is skipped, as
+    skill-bootstrap's `adr_locate._accept` skips a folder it has seen.
     """
     repo = repo.resolve()
     survey = Survey()
@@ -347,10 +350,13 @@ def find_adr_dirs(repo: Path) -> Survey:
         survey.dirs.append(load_dir(marker, rel, survey, explicit=True))
         survey.markers.append(".adr-dir")
         return survey
-    for rel in KNOWN_DIRS:
-        path = _known_folder(repo, rel, survey)
-        if path is None:
+    seen: set[Path] = set()
+    for name in KNOWN_DIRS:
+        path = _known_folder(repo, name, survey)
+        if path is None or path in seen:
             continue
+        seen.add(path)
+        rel = path.relative_to(repo).as_posix()
         loaded = load_dir(path, rel, survey)
         templates = [n for n in loaded.other_md if is_template_name(n)]
         if loaded.files or templates:

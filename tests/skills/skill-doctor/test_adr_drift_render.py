@@ -273,6 +273,15 @@ def test_an_input_file_over_the_size_cap_exits_2(tmp_path, capsys, monkeypatch, 
     assert code == 2 and html == "" and f"{label} " in err and "larger than" in err
 
 
+def test_a_scan_file_nested_past_the_parser_limit_exits_2(tmp_path, capsys):
+    (tmp_path / "adr_drift").mkdir()
+    (tmp_path / SCAN).write_text("[" * 200_000 + "]" * 200_000, encoding="utf-8")
+
+    code, html, err = _run(tmp_path, _adr_only(), capsys)
+
+    assert code == 2 and html == "" and "cannot read adr_drift scan" in err
+
+
 @pytest.mark.parametrize("name", [7, "", "   "], ids=["number", "empty", "blank"])
 def test_a_scan_path_that_is_not_a_path_string_exits_2(tmp_path, capsys, name):
     code, html, err = _run(tmp_path, _adr_only(repos=[{"repo": "r", "scan": name}]), capsys)
