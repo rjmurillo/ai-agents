@@ -4124,9 +4124,8 @@ def _resolve_or_none(path: Path) -> Path | None:
     3.14 returns the unresolved path without raising. ``RuntimeError`` is
     not an ``OSError``, so an ``except OSError`` guard lets the loop escape
     as an unhandled traceback on exactly the interpreters the repo's
-    hook-portability floor targets (the ``build`` skill's
-    ``references/rule-python.md``: skill scripts run under the host's ambient
-    interpreter, floor 3.10).
+    hook-portability floor targets (``.claude/rules/python.md``: skill
+    scripts run under the host's ambient interpreter, floor 3.10).
 
     Measured rather than assumed: grep of ``pathlib.py`` in the 3.10, 3.11
     and 3.12 stdlibs shows the raise; 3.14 returned the path for the same
@@ -4862,7 +4861,7 @@ def main(argv: list[str] | None = None) -> int:
         # detects failure, since exit_code is set on exactly the paths
         # that leave them None. The conditional expression is the
         # unreachable-default; `or 2` would be the falsy-override bug
-        # rule-python.md rejects, even though 0 never occurs here.
+        # python.md rejects, even though 0 never occurs here.
         return 2 if resolved.exit_code is None else resolved.exit_code
     config_path, raw_config = resolved.path, resolved.raw
     install = resolved.install

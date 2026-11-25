@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import yaml
+
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _SKILL_PARTIAL = _REPO_ROOT / "templates" / "skills" / "partials" / "untrusted-content.mustache"
 _AGENT_PARTIAL = _REPO_ROOT / "templates" / "agents" / "partials" / "untrusted-content.mustache"
@@ -35,10 +37,11 @@ def test_the_partial_states_the_invariant() -> None:
 
 def test_the_owning_rule_declares_the_capability() -> None:
     owner = (_REPO_ROOT / "templates" / "rules" / "universal.md").read_text(encoding="utf-8")
-    frontmatter = owner.split("---", 2)[1]
+    frontmatter = yaml.safe_load(owner.split("---", 2)[1])
 
-    assert "capability:" in frontmatter
-    assert "owns:\n      - untrusted-content-handling" in frontmatter
+    capability = frontmatter["metadata"]["capability"]
+    assert "untrusted-content-handling" in capability["owns"]
+    assert capability["status"] == "active"
 
 
 def test_no_skill_template_restates_the_policy_it_includes() -> None:

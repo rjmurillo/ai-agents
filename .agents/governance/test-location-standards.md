@@ -1,6 +1,6 @@
 # Test Location Standards
 
-This document restates, for `.agents/` readers, rules already enforced by [`.claude/skills/test/references/rule-testing.md`](../../.claude/skills/test/references/rule-testing.md) (the binding rule; its `paths` frontmatter fires on `tests/**`, `**/*.Tests.ps1`, `**/tests/**`, `.project-toolkit/security/benchmarks/**`) and by the placement gates in [`scripts/validation/`](../../scripts/validation/). Nothing below is new policy; it is documentation catching up to [ADR-042](../../.project-toolkit/architecture/ADR-042-python-migration-strategy.md) (accepted, Python-first migration) and to gates that already ship. Where a claim has no gate behind it, it carries a `Why:` paragraph instead of inventing one.
+This document restates, for `.agents/` readers, rules already enforced by [`.claude/skills/test/references/rule-testing.md`](../../.claude/skills/test/references/rule-testing.md) (the binding rule; the `test` skill loads it, and its header comment records the former path-rule scope `tests/**`, `**/*.Tests.ps1`, `**/tests/**`, `.project-toolkit/security/benchmarks/**`) and by the placement gates in [`scripts/validation/`](../../scripts/validation/). Nothing below is new policy; it is documentation catching up to [ADR-042](../../.project-toolkit/architecture/ADR-042-python-migration-strategy.md) (accepted, Python-first migration) and to gates that already ship. Where a claim has no gate behind it, it carries a `Why:` paragraph instead of inventing one.
 
 ## PowerShell layout: retired, no tracked survivors
 
@@ -42,7 +42,7 @@ Source: `pyproject.toml` `[tool.pytest.ini_options]`. Counts are measurements of
 | 6 | A test file MUST NOT define two module-level helpers of the same name; ruff's F811 dummy-variable regex does not catch this for `_`-prefixed test helpers. | Gate `check_duplicate_test_helpers.py` |
 | 7 | A test MUST NOT write under a `PROJECT_ROOT`/`REPO_ROOT`/`ROOT`-rooted path outside `tmp_path` or `.pytest_tmp/`; four confirmed instances left litter that broke `git status` and inflated scanner baselines. | Issue #3772, PR #3688; gate `check_test_tree_writes.py` |
 | 8 | A `SKILL.md` that documents a script invocation plus an exit code MUST be named by at least one file under `tests/`, so the documented contract cannot drift silently. | Issue #4249; gate `check_skill_contract_tests.py` |
-| 9 | `.claude/skills/test/references/rule-testing.md`'s own `.Tests.ps1` glob in its `paths:` frontmatter is a dead glob (zero matching files). It is left in place rather than edited here because narrowing that rule's scope is a `.claude/skills/test/references/rule-testing.md` change, out of scope for this governance-doc rewrite. | Why: confirmed via `git ls-files '*.Tests.ps1'` (see above); changing the rule file itself needs its own PR |
+| 9 | The former `testing` path rule's `.Tests.ps1` glob was a dead glob (zero matching files). The rule now loads through the `test` skill, so no glob scopes it. | Why: confirmed via `git ls-files '*.Tests.ps1'` (see above) |
 
 ## Placement gates: what each rejects, exit codes, where it runs
 
@@ -59,7 +59,7 @@ All six read the shell-fail-loud contract in [the repo-local `ai-agents-validati
 
 ## Second sanctioned location: security benchmarks
 
-[`.project-toolkit/security/benchmarks/`](../../.project-toolkit/security/benchmarks) holds the security agent's benchmark suite (Issue #756): fixtures under `vulnerable_samples/`, `test_agent_review_quality.py`, `test_cwe22_path_traversal.py`, `test_cwe77_command_injection.py`. `.claude/skills/test/references/rule-testing.md`'s `paths:` frontmatter names this tree explicitly, making it the one other placement `.claude/skills/test/references/rule-testing.md` MUST 6 permits besides `tests/`.
+[`.project-toolkit/security/benchmarks/`](../../.project-toolkit/security/benchmarks) holds the security agent's benchmark suite (Issue #756): fixtures under `vulnerable_samples/`, `test_agent_review_quality.py`, `test_cwe22_path_traversal.py`, `test_cwe77_command_injection.py`. `.claude/skills/test/references/rule-testing.md` MUST 6 names this tree explicitly, making it the one other placement it permits besides `tests/`.
 
 ## One TypeScript test tree
 

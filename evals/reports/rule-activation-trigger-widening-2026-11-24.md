@@ -48,7 +48,8 @@ Scores are 1 to 5. `+` means positive scenarios, `-` means negative scenarios.
 ## Findings
 
 - Six rules route as well as the loaded rule. They move into their skills.
-- Routed negatives scored at or above the loaded rule for every rule.
+- Routed negatives scored at or above the loaded rule for every cut rule.
+- `adr-records`, a kept rule, fell on negatives from 3.83 to 3.50.
 - A loaded rule often fires on tasks it does not cover. Routing avoids that.
 - The five kept rules lose to overlapping skills, not to missing triggers.
 - `ai-agents-generation-and-release` took cases from three of them.
@@ -67,5 +68,6 @@ Scores are 1 to 5. `+` means positive scenarios, `-` means negative scenarios.
 
 - Held-out sets are small: 6 to 9 scenarios per rule.
 - push-lock and security used 1 judge sample. Both cleared the gate by 0.18 or more.
+- A distractor pick answers with no skill loaded. It scores the missed route, not the other skill.
 - The distractor pick is lexical. Production routing sees about 120 skills, not 9.
 - Global user instructions loaded in every arm, as in the earlier diet eval.

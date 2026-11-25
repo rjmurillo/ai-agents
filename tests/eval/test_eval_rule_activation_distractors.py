@@ -227,6 +227,22 @@ class TestRouting:
         assert cell["routing"]["reference_matched"] is False
         assert "REF B BODY" in systems[0]
 
+    @pytest.mark.parametrize("declined", [None, "", "alpha"])
+    def test_step_two_declining_the_skill_is_a_miss(
+        self, skills: Path, monkeypatch: pytest.MonkeyPatch, declined: str | None
+    ) -> None:
+        # Step one picks the target, step two names the right reference but
+        # declines or swaps the skill. That route is not a hit.
+        cell, _, kinds = _route(
+            monkeypatch,
+            _rule(skills, 2),
+            PICK_SPEC,
+            {"selected_skill": declined, "selected_reference": "references/a.md"},
+        )
+        assert kinds == ["selection", "route", "answer"]
+        assert cell["routing"]["reference_matched"] is False
+        assert cell["routing"]["reference_route"]["selected_skill"] == declined
+
     @pytest.mark.parametrize("spelling", ["/spec", "  SPEC ", "/Spec\n"])
     def test_slash_case_and_whitespace_are_normalized(
         self, skills: Path, monkeypatch: pytest.MonkeyPatch, spelling: str
@@ -304,3 +320,37 @@ class TestRuleTargetsAndMetadata:
         for k in (0, 3):
             args = argparse.Namespace(model="m", scenarios=[], distractors=k)
             assert eval_mod._build_run_provenance(args)["distractors"] == k
+
+
+class TestLoadTarget:
+    def _args(self, k: int) -> Any:
+        import argparse
+
+        return argparse.Namespace(distractors=k)
+
+    def test_skill_without_reference_warns_when_k_positive(
+        self, skills: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        rule = eval_mod._load_target(skills / "spec" / "SKILL.md", None, self._args(3))
+        assert "distractors" not in rule
+        assert "--distractors 3 ignored" in capsys.readouterr().err
+
+    def test_skill_without_reference_is_quiet_at_k0(
+        self, skills: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        eval_mod._load_target(skills / "spec" / "SKILL.md", None, self._args(0))
+        assert capsys.readouterr().err == ""
+
+    def test_rule_target_is_quiet(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        rule_path = tmp_path / "r.md"
+        rule_path.write_text("---\ndescription: d\n---\nbody\n", "utf-8")
+        eval_mod._load_target(rule_path, None, self._args(3))
+        assert capsys.readouterr().err == ""
+
+    def test_skill_with_reference_gets_distractors(self, skills: Path) -> None:
+        rule = eval_mod._load_target(
+            skills / "spec" / "SKILL.md",
+            skills / "spec" / "references" / "a.md",
+            self._args(2),
+        )
+        assert [n for n, _ in rule["distractors"]] == ["alpha", "zeta"]
