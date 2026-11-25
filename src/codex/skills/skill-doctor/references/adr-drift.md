@@ -55,19 +55,24 @@ python (Join-Path $SKILL_ROOT 'scripts\adr_drift.py') scan --repo $REPO `
 Exit codes: 0 ok, 2 bad arguments, unreadable input, `--out` not allowed, a
 result over 5,000,000 bytes, or not a git repository, 3 a git command failed,
 timed out, or could not run. Every subcommand accepts `--help`. Each git call
-has a 120 s timeout, and a scan makes at most five calls.
+has a 120 s timeout, and a scan makes at most six calls.
 
 `scan` reads the last 300 commits from `HEAD` (`--max-commits`, `--since`) and
 the ADR files in the working tree. It uses no network: git runs with
 `GIT_NO_LAZY_FETCH=1`, and a partial clone on a git older than 2.45.1 (or its
-May 2024 backports) exits 2, since that git could fetch. `--out` must be outside
+May 2024 backports) exits 2, since that git could fetch. In a partial clone on a
+newer git, rename detection is off, because it reads blob contents the clone
+lacks: a rename lists as a delete plus an add. `--out` must be outside
 the repository, and the file is written whole or not at all. It needs git 2.31
 or later, for `git log --diff-merges=first-parent`. Older git fails with exit 3.
 A result larger than 5,000,000 bytes exits 2 and writes nothing, because the
 renderer refuses larger files. Narrow it with `--since` or `--max-commits`.
 
-The result carries `head`, `examined`, `truncated`, `read_errors`, `findings`,
-`counts`, and `locate`. Report these:
+The result carries `head`, `examined`, `truncated`, `rename_detection`,
+`read_errors`, `findings`, `counts`, and `locate`. Report these:
+
+- When `rename_detection` is false, say so: the repository is a partial clone,
+  so a rename reads as a delete plus an add.
 
 - When `truncated` is true, say so: older history was not read.
 - When `read_errors` is not empty, name the paths that were not checked. A file
@@ -144,8 +149,9 @@ missing `.adr-dir` target or a dangling folder symlink still reports it.
 Details that decide what fires:
 
 - Links: only links that resolve into an ADR folder and name an ADR file. Code
-  fences, inline code, and HTML comments are skipped; text after a one-line
-  comment's `-->` is still read.
+  fences, inline code, and HTML comments are skipped. On a line that opens a
+  comment or sits inside one, the text outside the comments is still read. A
+  comment opened mid-line is not tracked.
 - Cited paths: backticked repo-relative paths whose first directory exists in
   the repository, anywhere in the prose, not only the Decision section. Only
   records whose status is accepted, proposed, draft, approved, or empty are

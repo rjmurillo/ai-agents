@@ -79,9 +79,15 @@ def head_commit(repo: Path) -> str | None:
     raise GitError(f"{ref} exists but is not a commit")
 
 
-def read_commits(repo: Path, max_commits: int, since: str | None) -> tuple[list[Commit], bool]:
-    """Walk HEAD. Returns (commits, truncated). Asks for one extra to detect truncation."""
-    args = [*LOG_ARGS, f"--max-count={max_commits + 1}", LOG_FORMAT]
+def read_commits(
+    repo: Path, max_commits: int, since: str | None, renames: bool = True
+) -> tuple[list[Commit], bool]:
+    """Walk HEAD. Returns (commits, truncated). Asks for one extra to detect truncation.
+
+    With `renames` off, a rename lists as a delete plus an add, which needs no blob.
+    """
+    base = list(LOG_ARGS) if renames else [*(a for a in LOG_ARGS if a != "-M"), "--no-renames"]
+    args = [*base, f"--max-count={max_commits + 1}", LOG_FORMAT]
     if since:
         args.append(f"--since={since}")
     commits = _parse_log(run_git(repo, args))

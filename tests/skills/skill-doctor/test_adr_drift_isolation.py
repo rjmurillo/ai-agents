@@ -41,6 +41,32 @@ def test_the_stripped_git_variables_equal_skill_bootstrap_list():
     assert adr_git.LOCAL_GIT_ENV == _bootstrap_local_git_env()
 
 
+def _bootstrap_constant(name: str) -> ast.expr:
+    tree = ast.parse(BOOTSTRAP_SCAN.read_text(encoding="utf-8"))
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(
+            isinstance(t, ast.Name) and t.id == name for t in node.targets
+        ):
+            return node.value
+    raise AssertionError(f"skill-bootstrap adr_scan.py has no {name}")
+
+
+def _pattern_of(name: str) -> str:
+    call = _bootstrap_constant(name)
+    assert isinstance(call, ast.Call) and isinstance(call.args[0], ast.Constant)
+    pattern = call.args[0].value
+    assert isinstance(pattern, str)
+    return pattern
+
+
+def test_the_lazy_fetch_rules_equal_skill_bootstrap_rules():
+    assert ast.literal_eval(_bootstrap_constant("_NO_LAZY_FETCH_GIT")) == adr_git.NO_LAZY_FETCH_GIT
+    backports = ast.literal_eval(_bootstrap_constant("_NO_LAZY_FETCH_BACKPORTS"))
+    assert backports == adr_git.NO_LAZY_FETCH_BACKPORTS
+    assert _pattern_of("_PROMISOR") == adr_git.PROMISOR.pattern
+    assert _pattern_of("_GIT_VERSION") == adr_git.GIT_VERSION.pattern
+
+
 def test_the_git_env_turns_off_lazy_fetch():
     assert adr_git._git_env()["GIT_NO_LAZY_FETCH"] == "1"
 
@@ -68,8 +94,10 @@ def test_a_partial_clone_fetches_nothing(tmp_path, capsys):
 
     code, _, err = run_cli(capsys, "scan", "--repo", str(clone), "--out", str(out))
 
+    assert code == 0, err
     assert _missing_objects(clone) == before
-    assert code in (0, 2, 3), err
+    result = json.loads(out.read_text(encoding="utf-8"))
+    assert result["rename_detection"] is False and result["examined"] == 2
 
 
 def test_an_old_git_refuses_a_partial_clone(monkeypatch, tmp_path):
@@ -78,7 +106,7 @@ def test_an_old_git_refuses_a_partial_clone(monkeypatch, tmp_path):
 
     refusal = adr_git.lazy_fetch_refusal(tmp_path)
 
-    assert refusal is not None and "partial clone" in refusal
+    assert refusal is not None and "partial clone" in refusal and "2.44.0" in refusal
 
 
 @pytest.mark.parametrize("version", ["git version 2.45.1\n", "git version 2.43.4\n"])
@@ -91,7 +119,8 @@ def test_a_git_that_honors_no_lazy_fetch_scans_a_partial_clone(monkeypatch, tmp_
 
 def test_the_refusal_exits_2(tmp_path, capsys, monkeypatch):
     repo = seeded_repo(tmp_path / "repo")
-    monkeypatch.setattr(adr_drift, "lazy_fetch_refusal", lambda repo: "this is a partial clone")
+    monkeypatch.setattr(adr_drift, "is_partial_clone", lambda repo: True)
+    monkeypatch.setattr(adr_drift, "old_git_refusal", lambda repo: "this is a partial clone")
     out = tmp_path / "out" / "scan.json"
 
     code, _, err = run_cli(capsys, "scan", "--repo", str(repo), "--out", str(out))
@@ -105,8 +134,11 @@ def test_the_refusal_exits_2(tmp_path, capsys, monkeypatch):
         (["<!-- note --> Superseded by ADR-5"], [" Superseded by ADR-5"]),
         (["<!-- a --> <!-- b", "hidden", "-->", "after"], ["after"]),
         (["<!-- only a comment -->", "next"], ["next"]),
+        (["<!-- a --> ADR-5 <!-- b --> tail"], [" ADR-5  tail"]),
+        (["<!--", "x", "--> <!-- y", "hidden", "-->", "after"], ["after"]),
+        (["<!--", "--> Superseded by ADR-5"], [" Superseded by ADR-5"]),
     ],
-    ids=["tail", "reopened", "whole-line"],
+    ids=["tail", "reopened", "whole-line", "between", "closing-reopens", "closing-tail"],
 )
 def test_text_after_a_one_line_comment_stays_live(lines, live):
     assert [text for _, text in adr_text.prose_lines(lines)] == live

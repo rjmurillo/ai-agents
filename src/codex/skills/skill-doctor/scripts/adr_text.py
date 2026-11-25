@@ -88,19 +88,34 @@ def prose_lines(lines: Sequence[str], start: int = 0) -> Iterator[tuple[int, str
             continue
         if fenced:
             continue
-        if commented:
-            commented = "-->" not in line
-            continue
-        if stripped.startswith("<!--"):
-            # A one-line comment is skipped and the text after its `-->` stays live.
-            # A comment still open at the end of the line runs to its `-->` line.
-            end = line.rfind("-->")
-            tail = line[end + 3 :] if end >= 0 else ""
-            commented = end < 0 or "<!--" in tail
-            if not commented and tail.strip():
-                yield index + 1, tail
+        if commented or stripped.startswith("<!--"):
+            # On a line inside a comment or opening one, every comment is cut out and the
+            # text between them stays live. A comment opened mid-line is not tracked.
+            live, commented = _cut_comments(line, commented)
+            if live.strip():
+                yield index + 1, live
             continue
         yield index + 1, line
+
+
+def _cut_comments(line: str, commented: bool) -> tuple[str, bool]:
+    """The text outside `<!-- ... -->` on one line, and whether a comment is still open."""
+    parts: list[str] = []
+    index = 0
+    while index < len(line):
+        if commented:
+            end = line.find("-->", index)
+            if end < 0:
+                return "".join(parts), True
+            commented, index = False, end + 3
+            continue
+        start = line.find("<!--", index)
+        if start < 0:
+            parts.append(line[index:])
+            break
+        parts.append(line[index:start])
+        commented, index = True, start + 4
+    return "".join(parts), commented
 
 
 def h1_number(text: str) -> int | None:

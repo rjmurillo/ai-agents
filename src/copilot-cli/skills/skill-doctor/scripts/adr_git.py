@@ -85,7 +85,8 @@ def _git_env() -> dict[str, str]:
 
 
 # GIT_NO_LAZY_FETCH came in git 2.45.1 and the May 2024 releases of 2.39 to 2.44. An older
-# git ignores it, so a partial clone is refused there. Copied from skill-bootstrap.
+# git ignores it, so a partial clone is refused there. Copied from skill-bootstrap's
+# adr_scan.py; a test compares the two.
 NO_LAZY_FETCH_GIT = (2, 45, 1)
 NO_LAZY_FETCH_BACKPORTS = {(2, 39): 4, (2, 40): 2, (2, 41): 1, (2, 42): 2, (2, 43): 4, (2, 44): 1}
 PROMISOR = re.compile(
@@ -95,23 +96,34 @@ PROMISOR = re.compile(
 GIT_VERSION = re.compile(r"git version ([0-9]+)\.([0-9]+)\.([0-9]+)", re.ASCII)
 
 
-def lazy_fetch_refusal(repo: Path) -> str | None:
-    """Why a scan must not run here, or None: a partial clone on a git that may fetch."""
+def is_partial_clone(repo: Path) -> bool:
+    """True when the repository fetches missing objects from a promisor remote."""
     keys = r"^(extensions\.partialclone|remote\..*\.(promisor|partialclonefilter))$"
     try:
         config = run_git(repo, ["config", "--get-regexp", keys]).lower()
     except GitError as exc:
         if exc.returncode != 1:  # 1 means no key matched
             raise
-        return None
-    if not any(PROMISOR.match(line) for line in config.splitlines()):
-        return None
-    found = GIT_VERSION.match(run_git(repo, ["version"]))
+        return False
+    return any(PROMISOR.match(line) for line in config.splitlines())
+
+
+def old_git_refusal(repo: Path) -> str | None:
+    """Why a partial clone must not be scanned with this git, or None when git honors
+    GIT_NO_LAZY_FETCH. An unparsed version is treated as too old."""
+    line = run_git(repo, ["version"]).strip()
+    found = GIT_VERSION.match(line)
     version = tuple(int(part) for part in found.groups()) if found else (0, 0, 0)
     floor = NO_LAZY_FETCH_BACKPORTS.get(version[:2])
     if version >= NO_LAZY_FETCH_GIT or (floor is not None and version[2] >= floor):
         return None
     return (
-        "this is a partial clone, and a git without GIT_NO_LAZY_FETCH (before 2.45.1 or its"
-        " May 2024 backports) may fetch from the remote; upgrade git or scan a full clone"
+        f"this is a partial clone, and {line or 'this git'} lacks GIT_NO_LAZY_FETCH (it came in"
+        " 2.45.1 and the May 2024 backports), so it may fetch from the remote;"
+        " upgrade git or scan a full clone"
     )
+
+
+def lazy_fetch_refusal(repo: Path) -> str | None:
+    """Why a scan must not run here, or None: a partial clone on a git that may fetch."""
+    return old_git_refusal(repo) if is_partial_clone(repo) else None

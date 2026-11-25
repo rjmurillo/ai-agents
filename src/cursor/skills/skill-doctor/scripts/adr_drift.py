@@ -48,7 +48,7 @@ from adr_corpus import (
     read_docs,
     within,
 )
-from adr_git import GitError, lazy_fetch_refusal, run_git
+from adr_git import GitError, is_partial_clone, old_git_refusal, run_git
 from adr_history import head_commit, history_findings, read_commits
 from adr_text import GROUPS, SCAN_MAX_BYTES, SETUP
 
@@ -113,11 +113,13 @@ def _no_directory_finding() -> Finding:
     )
 
 
-def _history(repo: Path, args: argparse.Namespace, docs: Sequence[AdrDoc]) -> dict[str, Any]:
+def _history(
+    repo: Path, args: argparse.Namespace, docs: Sequence[AdrDoc], renames: bool = True
+) -> dict[str, Any]:
     head = head_commit(repo)
     if head is None:
         return {"head": None, "examined": 0, "truncated": False, "findings": []}
-    commits, truncated = read_commits(repo, args.max_commits, args.since)
+    commits, truncated = read_commits(repo, args.max_commits, args.since, renames)
     return {
         "head": head,
         "examined": len(commits),
@@ -147,7 +149,8 @@ def run_scan(args: argparse.Namespace) -> int:
     if within(out, repo):
         raise ExitError(2, f"--out {args.out} is inside the repository; scan never writes there")
     try:
-        refusal = lazy_fetch_refusal(repo)
+        partial = is_partial_clone(repo)
+        refusal = old_git_refusal(repo) if partial else None
     except GitError as exc:
         raise ExitError(3, str(exc)) from exc
     if refusal is not None:
@@ -160,7 +163,8 @@ def run_scan(args: argparse.Namespace) -> int:
     findings += check_numbering(survey.dirs, docs) + check_links(docs, survey.dirs)
     findings += check_supersession(docs) + check_cited_paths(repo, docs)
     try:
-        history = _history(repo, args, docs)
+        # Rename detection reads blob contents, which a partial clone lacks.
+        history = _history(repo, args, docs, renames=not partial)
     except GitError as exc:
         raise ExitError(3, str(exc)) from exc
     findings += history["findings"]
@@ -171,6 +175,7 @@ def run_scan(args: argparse.Namespace) -> int:
         "head": history["head"],
         "examined": history["examined"],
         "truncated": history["truncated"],
+        "rename_detection": not partial,
         "max_commits": args.max_commits,
         "since": args.since,
         "locate": locate(repo, survey),
