@@ -45,7 +45,7 @@ The brief said delivery holds 400 files. That count is from `d41431afe6` (2026-1
 - PR #7542 landed the quality split after the brief's count. Delivery is not at the cap today.
 - PR #7628 (head `f450839777`, 2026-11-25) predates that split. Its cap reason no longer holds. GitHub reports it `CONFLICTING`, so it needs a rebase.
 
-The cap still matters. Restoring the PR-opening chain adds 56 files (pilot `ship`, `review`, `security-scan`, `pr-quality`, `security-detection`; 2026-11-25). ADR-127 driver scripts add 31 more to delivery's skills.
+The cap still matters. Restoring the PR-opening chain adds 56 files (pilot `ship`, `review`, `security-scan`, `pr-quality`, `security-detection`; 2026-11-25). ADR-127 P0 and P1 driver scripts add 31 files to today's delivery skills (299 to 330, 2026-11-25). Under the proposed table, delivery grows by 21 (351 to 372).
 
 ## Constraints the layout must obey
 
@@ -89,7 +89,8 @@ Projection assumptions:
 - "Now" includes the pilot `ship` (8 files at `3a619dabd6`, 2026-11-25).
 - "After P0" and "After P0+P1" add one file per script that `.project-toolkit/analysis/skill-gap-audit-2026-11-25.md` names for that priority. `push-pr` adds none, because it retires.
 - No `lib/` growth, no P2 scripts (27 audit rows), and no new skills.
-- No test files live under `src/claude/skills/` (0 at `71ab5b15b3`, 2026-11-25), so driver tests add nothing.
+- Driver tests live under `tests/skills/` (the pilot's are in `tests/skills/ship/`), not inside the skill, so they add nothing. Seven `test_*.py` tooling scripts already ship inside skills (`71ab5b15b3`, 2026-11-25); the counts include them.
+- "Free of 400" counts against the Hermes cap. The build budget `packMaxFiles` is 399 (`templates/platforms/hermes.yaml:21`), one less.
 
 | Pack | Skills | Now | After P0 | After P0+P1 | Free of 400 | Guard verdict (staged) | Jobs |
 |---|---|---|---|---|---|---|---|
@@ -161,7 +162,7 @@ Measured with the pinned guard on 2026-11-25:
 Both flagged lines are documentation, not code that runs. The rewording keeps what each line teaches:
 
 - `vulnerability-patterns.md:23`: the example input `../../../etc/passwd` becomes a placeholder for a parent-relative path to a system file. The placeholder must not spell `../../../`, which the guard also flags.
-- `SKILL.md:180`: the reader list "a shell, `ssh`, `sudo`, `psql`" stops naming `sudo`. The tested wording was "a privilege wrapper". `scan_bash_heredoc.py:62-63` names the real set (`su`, `sudo -i`, `runuser`, `chroot`), so the final wording should point there. The source is `templates/skills/security-scan.SKILL.md.tmpl`.
+- `SKILL.md:180`: the reader list "a shell, `ssh`, `sudo`, `psql`" stops naming `sudo`. The tested wording was "a privilege wrapper". `scan_bash_heredoc.py:62-65` names the real rule: any command outside `_INERT_READERS`, such as `su`, `sudo -i`, `runuser`, `chroot`, `at`, `source`, or a shell. The final wording should point there. The source is `templates/skills/security-scan.SKILL.md.tmpl`.
 
 The rewording changes text on every host. Line 23 sits in the CWE-22 section, which `security-scan` says it does not scan (`SKILL.md:24`, `:34`). Moving that section out does not help Hermes, because the line flags wherever it lands, and both candidate homes (`codeql-scan`, `security-review`) are packed.
 
@@ -235,7 +236,7 @@ One implementation pull request makes every move at once. Each existing Hermes u
 
 Removing first avoids two problems. Hermes needs `--force` to replace an installed pack, even a `safe` one, and `--force` also accepts every new `caution` finding without a prompt. And on 2026-11-24, an old pack left installed beside a new one listed moved skills twice (`docs/training/install-on-every-host.md`).
 
-Reinstall count: one per existing pack, in one release. Richard's earlier option C (2026-11-25) cost two reinstalls of delivery. Landing PR #7628 alone first, then this layout, would also cost two.
+Reinstall count: one per existing pack, in one release. The owner's earlier option C (2026-11-25) cost two reinstalls of delivery. Landing PR #7628 alone first, then this layout, would also cost two.
 
 ## Implementation pull request: acceptance criteria
 
@@ -249,6 +250,14 @@ The build check cannot see paths joined in code, and the smoke is the only runti
 6. Updates to `docs/training/install-on-every-host.md` (pack table, skill count, remove-then-install steps) and `src/hermes/README.md`.
 7. A build check that fails when a pack script joins a path into `skills/` of another skill in code. If it does not land, record that gap as an accepted risk in ADR-115.
 8. A build check that fails when no Hermes pack holds `ship` or `push-pr`, so no ordering mistake leaves Hermes without a way to open a PR.
+9. Commits that each pass the build check alone: restore the chain, then the name-only references, then the pack moves. Run the smoke at the restore commit and at the last commit.
+10. A check that each line reworded to clear the guard is prose that does not run.
+
+## Reversibility
+
+- The layout can be undone. A revert restores the four-pack table and costs each Hermes user one more remove-and-reinstall. No user data is lost.
+- The prerequisite edits can stay after a revert. Name-only references work on every host, and the reworded `security-scan` lines keep their meaning.
+- The claim that users predict packs by job is a hypothesis from this job table, not user data. After rollout, check install-guide questions and reports of missing skills per pack. The by-choice moves (`benchmark-models`, `prompt-engineer`, `technical-writing`, `fix-markdown-fences`, `api-doc-authoring`) are the cheapest to reverse.
 
 ## Growth policy
 
@@ -268,6 +277,7 @@ The build check cannot see paths joined in code, and the smoke is the only runti
 6. **Keep today's table and leave `ship` excluded.** Delivery has room (330 after growth), but Hermes keeps no PR path once #7587 retires `push-pr`.
 7. **Drop `vulnerability-patterns.md` from the Hermes pack instead of rewording it.** `security-scan` stays `caution`, and Hermes users lose its remediation reference.
 8. **Move the CWE-22 section out of `security-scan`.** The flagged line rates `dangerous` in any packed skill, so it needs rewording wherever it lands.
+9. **Delete the CWE-22 section.** `security-scan` delegates CWE-22 detection to CodeQL (`SKILL.md:24`), but the section still guides remediation and false-positive triage on every host. Rewording one line keeps that guidance; deleting about 148 lines removes it everywhere to fix one Hermes verdict.
 
 ## Findings outside this task
 
