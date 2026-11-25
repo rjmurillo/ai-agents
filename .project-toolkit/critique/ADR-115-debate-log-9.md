@@ -83,3 +83,4 @@ Applied 2026-11-25 from a final check. Facts only; no rule or layout changed, so
 - The same citation now follows its anchor text, which the gate reads from before the citation.
 - doc-accuracy, recorded as NOT RUN before review, later passed: the diff-scoped run (`--diff-base origin/main --format gate`) returned PASS with 0 findings.
 - `/review` round 1 fixes (facts and wording only): a reversibility bullet, same-line anchors on three Decision 6 counts, `sudo_usage` named as a `high` finding that leaves a `caution` verdict, and the reader-list citation corrected to `scan_bash_heredoc.py:62-65`. Acceptance criteria 9 and 10 add step-by-step commits and a check that reworded lines do not run.
+- The Decision 6 lead-in no longer says "six packs:" before an 18-item list, which the doc-accuracy cardinality rule flagged.
