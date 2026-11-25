@@ -1137,6 +1137,39 @@ def pin_inputs(args: argparse.Namespace, scenarios_data: bytes | None) -> Pinned
     )
 
 
+def _repo_root() -> Path | None:
+    """The checkout root git reports for the current directory, or None."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    top = result.stdout.strip()
+    return Path(top).resolve() if result.returncode == 0 and top else None
+
+
+def repo_relative_path(path: str | None, root: Path | None) -> str | None:
+    """*path* as the repository spells it: the real file, relative to *root*.
+
+    `./x` and a symlinked `.claude/skills/<n>` resolve to the path git tracks
+    (`src/claude/skills/<n>`), which is what the evidence check compares. A
+    path outside *root*, or no *root*, stays as typed.
+    """
+    if not path or root is None:
+        return path
+    try:
+        return Path(path).resolve().relative_to(root).as_posix()
+    except (ValueError, OSError, RuntimeError):
+        return path
+
+
 def run_identity(
     args: argparse.Namespace, after_text: str, pinned: PinnedInputs | None = None
 ) -> dict[str, Any]:
@@ -1147,14 +1180,17 @@ def run_identity(
     `load_prompt_surface_from_file` joins them. `base_commit` and
     `scenarios_sha256` come from *pinned* and are never re-read here. Without
     *pinned* both are None, so the evidence check can fail closed on them.
+    The two paths are written repository-relative (see `repo_relative_path`),
+    not as typed.
     """
     prompt = getattr(args, "prompt", None)
     base_ref = getattr(args, "base_ref", None)
     pinned = pinned or PinnedInputs()
+    root = _repo_root()
     return {
-        "prompt_path": prompt,
+        "prompt_path": repo_relative_path(prompt, root),
         "prompt_surface_sha256": _sha256_hex(after_text.encode("utf-8")),
-        "scenarios_path": getattr(args, "scenarios", None),
+        "scenarios_path": repo_relative_path(getattr(args, "scenarios", None), root),
         "scenarios_sha256": pinned.scenarios_sha256,
         "base_ref": base_ref if prompt else None,
         "base_commit": pinned.base_commit,

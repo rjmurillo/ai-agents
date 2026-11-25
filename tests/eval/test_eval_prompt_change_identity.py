@@ -229,3 +229,67 @@ class TestIdentityIsPinnedBeforeTheModelPreflight:
         assert identity["scenarios_sha256"] == hashlib.sha256(scenarios).hexdigest()
         assert "BEFORE at the commit the run loaded" in result["prompts_seen"]
         assert not any("pushed during the preflight" in p for p in result["prompts_seen"])
+
+
+class TestIdentityPathsAreRepositoryRelative:
+    """The checker compares paths as the repository spells them, not as typed."""
+
+    def _paths(self, repo: Path, **kw: Any) -> tuple[Any, Any]:
+        out = ev.run_identity(_args(**kw), "x", _pinned(repo, **kw))
+        return out["prompt_path"], out["scenarios_path"]
+
+    def test_plain_paths_are_unchanged(self, repo: Path) -> None:
+        assert self._paths(repo) == ("p/SKILL.md", "s.json")
+
+    def test_dot_slash_prefix_is_stripped(self, repo: Path) -> None:
+        paths = self._paths(repo, prompt="./p/SKILL.md", scenarios="./s.json")
+        assert paths == ("p/SKILL.md", "s.json")
+
+    def test_symlinked_skill_path_resolves_to_the_real_file(self, repo: Path) -> None:
+        real = repo / "src" / "claude" / "skills" / "x"
+        real.mkdir(parents=True)
+        (real / "SKILL.md").write_text("x\n", encoding="utf-8")
+        link = repo / ".claude" / "skills" / "x"
+        link.parent.mkdir(parents=True)
+        try:
+            link.symlink_to(Path("../../src/claude/skills/x"), target_is_directory=True)
+        except OSError:
+            pytest.skip("symlinks are not available")
+        prompt, _ = self._paths(repo, prompt=".claude/skills/x/SKILL.md")
+        assert prompt == "src/claude/skills/x/SKILL.md"
+
+    def test_repo_local_skill_keeps_its_real_claude_path(self, repo: Path) -> None:
+        local = repo / ".claude" / "skills" / "y"
+        local.mkdir(parents=True)
+        (local / "SKILL.md").write_text("y\n", encoding="utf-8")
+        prompt, _ = self._paths(repo, prompt="./.claude/skills/y/SKILL.md")
+        assert prompt == ".claude/skills/y/SKILL.md"
+
+    def test_paths_are_relative_to_the_root_not_the_cwd(
+        self, repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        (repo / "sub").mkdir()
+        monkeypatch.chdir(repo / "sub")
+        paths = self._paths(repo, prompt="../p/SKILL.md", scenarios="../s.json")
+        assert paths == ("p/SKILL.md", "s.json")
+
+    def test_path_outside_the_repo_stays_as_typed(self, repo: Path) -> None:
+        outside = repo.parent / "outside.json"
+        outside.write_text("[]", encoding="utf-8")
+        assert self._paths(repo, scenarios=str(outside))[1] == str(outside)
+        assert self._paths(repo, scenarios="../outside.json")[1] == "../outside.json"
+
+    def test_outside_a_checkout_paths_stay_as_typed(
+        self, repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(repo.parent)
+        assert self._paths(repo, prompt="./p/SKILL.md") == ("./p/SKILL.md", "s.json")
+
+    def test_git_failure_leaves_paths_as_typed(
+        self, repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def boom(*_a: Any, **_k: Any) -> None:
+            raise OSError("no git")
+
+        monkeypatch.setattr(ev.subprocess, "run", boom)
+        assert self._paths(repo, prompt="./p/SKILL.md") == ("./p/SKILL.md", "s.json")
