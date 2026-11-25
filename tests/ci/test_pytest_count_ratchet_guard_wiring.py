@@ -5,7 +5,7 @@ Dual-name rollout, step 2 (``.claude/rules/ci-scripts.md`` MUST 22): the
 steps are gone from the ``test`` job, and ``test-result`` still needs the job.
 
 Every assertion parses the YAML object graph, never the file text, so a step
-deleted but still named in a comment fails (``.claude/rules/testing.md`` MUST 9).
+deleted but still named in a comment fails (``rule-testing.md`` MUST 9).
 """
 
 from __future__ import annotations

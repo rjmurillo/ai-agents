@@ -1,6 +1,6 @@
 """Pre-PR wiring for the measurement-anchoring gate (issue #5771).
 
-``.claude/rules/testing.md`` SHOULD 6: prove the consumer is wired, not only
+``rule-testing.md`` SHOULD 6: prove the consumer is wired, not only
 the guard. Mirrors ``test_check_citation_freshness_wiring.py``.
 """
 

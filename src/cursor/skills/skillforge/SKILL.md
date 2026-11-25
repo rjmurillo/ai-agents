@@ -1,6 +1,6 @@
 ---
 name: skillforge
-description: "Intelligent skill router and creator. Analyzes ANY input to recommend existing skills, improve them, or create new ones. Use when you say \"create a skill\", \"do I have a skill for\", \"which skill should I use\", \"improve the X skill\", or \"SkillForge: {goal}\". Do NOT use for context optimization, placement analysis, markdown compression, extraction and indexing, or rule audits (use context-optimizer), eval-gated optimization of an existing skill (use skillopt), or saving finished work as a skill (use skillify). For a whole repository's skill library mined from history, use skill-bootstrap."
+description: "Intelligent skill router and creator. Analyzes ANY input to recommend existing skills, improve them, or create new ones. Use when you say \"create a skill\", \"do I have a skill for\", \"which skill should I use\", \"improve the X skill\", or \"SkillForge: {goal}\". Also use before adding or widening a PreToolUse or PostToolUse hook. Do NOT use for context optimization, placement analysis, markdown compression, extraction and indexing, or rule audits (use context-optimizer), eval-gated optimization of an existing skill (use skillopt), or saving finished work as a skill (use skillify). For a whole repository's skill library mined from history, use skill-bootstrap."
 license: MIT
 metadata:
   version: 4.1.0
@@ -27,8 +27,6 @@ metadata:
 ---
 
 # SkillForge 4.1 - Intelligent Skill Router and Creator
-
-Analyzes any input to find, improve, compose, or create the right skill.
 
 Boundary with `skillify`: SkillForge starts from a goal or request. To turn a
 workflow you just completed into a skill, driven by the session's tool calls,
@@ -88,6 +86,8 @@ flow and script examples.
 | Skill question | Skill recommendation | Match confidence >=60% |
 
 ---
+
+Folded rule: before adding a per-call hook, read [tool-use-hook-bar](references/rule-tool-use-hook-bar.md).
 
 ## Process Overview
 

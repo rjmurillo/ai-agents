@@ -2,7 +2,7 @@
 
 A gate's own unit tests prove the gate. They cannot prove any call site reached
 it, so a gate can pass every test it owns while `pre_pr` never calls it
-(`.claude/rules/testing.md` SHOULD 6). These tests drive the real sequence and
+(`rule-testing.md` SHOULD 6). These tests drive the real sequence and
 fail when either gate is unwired.
 
 Both gates are driven over the same input twice, differing only in the

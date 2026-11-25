@@ -13,7 +13,7 @@ Three claims, one section each:
    produce a distinct, named result, and one failure does not hide the rest.
 3. Wiring: the workflow job exists, has no path gate, takes no harness list,
    and ``test-result`` needs it. The YAML is parsed, never substring-matched
-   (``.claude/rules/testing.md`` MUST 9).
+   (``rule-testing.md`` MUST 9).
 """
 
 from __future__ import annotations

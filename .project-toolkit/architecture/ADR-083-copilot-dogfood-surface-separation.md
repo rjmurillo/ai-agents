@@ -283,7 +283,7 @@ existing citations still resolve.
    authorization for their retirement. ADR-097 is the decision of record for
    the hook surface from here on. A proposal to restore a security control on
    a tool-use event goes through ADR-097's Re-evaluation Triggers, ADR-084
-   rule 6, and `.claude/rules/tool-use-hook-bar.md`, not through this ADR. This
+   rule 6, and the former `tool-use-hook-bar` rule (now at `.claude/skills/skillforge/references/rule-tool-use-hook-bar.md`), not through this ADR. This
    amendment changes no control: the shipped base carried neither hook before
    it and carries neither after it.
 

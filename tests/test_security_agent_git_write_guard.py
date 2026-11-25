@@ -18,7 +18,7 @@ control, so this module pins the control: the `permissions.deny` rules in
 deny rules ahead of everything else. From the permissions reference: "Hook
 decisions don't bypass permission rules... a matching deny rule blocks the
 call", which "preserves the deny-first precedence". It is also the placement
-`.claude/rules/tool-use-hook-bar.md` MUST 2 requires be ruled out first, a
+`rule-tool-use-hook-bar.md` MUST 2 requires be ruled out first, a
 host-native declarative surface, before anyone proposes the `PreToolUse` hook
 that ADR-097 gates behind an ADR review.
 
@@ -102,7 +102,7 @@ EVASION_EXPLOITS = (
 # The seven read-only invocations the enumeration protocol actually needs. A
 # rule set that blocks any of these reinstates issue #4781 by another route,
 # and a wrong deny on Bash is the #5013 failure mode that
-# `.claude/rules/tool-use-hook-bar.md` exists to prevent.
+# `rule-tool-use-hook-bar.md` exists to prevent.
 PROTOCOL_COMMANDS = (
     "git status --porcelain",
     "git diff",
@@ -153,7 +153,7 @@ NEIGHBOURING_COMMANDS = (
 # and reached through the `_git` helper in `scripts/ci/prepare_conflict_context.py`
 # and `scripts/ci/apply_ai_conflict_resolution.py`. That is the #5013 shape a wrong
 # deny on `Bash` produces: 127 unrelated commands denied over 21 minutes, per
-# the incident record in `.claude/rules/tool-use-hook-bar.md`.
+# the incident record in `rule-tool-use-hook-bar.md`.
 MUTATING_GIT_THE_PROMPT_FORBIDS = (
     "git commit -m 'fix: thing'",
     "git commit --amend --no-edit",

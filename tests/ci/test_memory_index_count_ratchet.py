@@ -3,7 +3,7 @@
 """Tests for the unindexed-memory count ratchet (issue #4313).
 
 The subprocess fake dispatches on the argument vector rather than on call
-order, per ``.claude/rules/testing.md`` SHOULD 10: ``_collect`` calls the
+order, per ``rule-testing.md`` SHOULD 10: ``_collect`` calls the
 validator and ``git ls-files``, and a call-order fake would keep passing if
 those two calls were ever reordered or one were dropped.
 """

@@ -2,8 +2,7 @@
   "cardinality": {},
   "cohesion": {
     "templates/rules/canonical-source-mirror.md": 6,
-    "templates/rules/knowledge-persistence.md": 5,
-    "templates/rules/security.md": 26
+    "templates/rules/knowledge-persistence.md": 5
   },
   "duplicate_blocks": {
     ".agents/governance/spec-schemas.md|.claude/skills/spec-generator/references/spec-schemas.md": 92,

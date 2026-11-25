@@ -1,7 +1,7 @@
 ---
 name: test
 version: 1.0.0
-description: Prove a change works across six gates covering functional, non-functional, security, DevOps, developer experience, and observability quality. Use when you say `prove this works`, `run the test gates`, or `validate this change`, and run it after build. Do NOT use to write the implementation or its first tests (use build), and do NOT use to run pre-flight and open a PR (use ship).
+description: Prove a change works across six gates covering functional, non-functional, security, DevOps, developer experience, and observability quality. Use when you say `prove this works`, `run the test gates`, or `validate this change`, and run it after build. Also use when writing or editing tests under tests/ or *.Tests.ps1, a mutation harness, test fixtures or baselines, coverage targets, or a CI-only guard in a test. Do NOT use to write the implementation or its first tests (use build), and do NOT use to run pre-flight and open a PR (use ship).
 license: Apache-2.0
 allowed-tools: Task, Skill, Read, Glob, Grep, Bash(*)
 argument-hint: component-or-failure-description
@@ -63,6 +63,8 @@ generated shims, event translation, or hook output:
 |--------|---------|------------|
 | `dx_trigger.py` (this skill's script directory) | Decides whether Gate 5 composes `dx-review`, from verified changed paths and DX effects. Emits the decision, journeys, and skip or activation reason as JSON. | `0` decision emitted, `2` config error (review-axis classifier missing or unloadable) |
 | `doc_accuracy_trigger.py` | Decides whether Gate 5 composes `doc-accuracy`. Emits JSON. | `0` decision emitted, `2` config error or blank diff base |
+
+Folded rule: before you write or edit a test, a fixture, a baseline, or a mutation harness, read [testing](references/rule-testing.md).
 
 ## Step 0: Classify PR Type
 

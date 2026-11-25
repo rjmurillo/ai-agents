@@ -44,7 +44,7 @@ test_a_symlinked_parent_does_not_get_written_through`, which calls
 `write_baseline_json` and verifies that the victim still reads
 `DO NOT OVERWRITE`.
 
-Exemplar for SHOULD-6 in `.claude/rules/testing.md`.
+Exemplar for SHOULD-6 in `rule-testing.md`.
 """
 
 from __future__ import annotations

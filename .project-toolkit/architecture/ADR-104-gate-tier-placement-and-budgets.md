@@ -976,4 +976,4 @@ two that failed are recorded as failing rather than dropped quietly.
 - PR #6239: deleted the test selector; pre-push collected only until 2026-10-09,
   when it began running the tests testmon selects.
 - `.serena/memories/ci/ci-pre-push-wall-clock-is-python-tests.md`
-- `.claude/rules/ci-scripts.md` MUST-14, MUST-16, MUST-19, MUST-21.
+- The former `ci-scripts` rule (now at `.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`), MUST-14, MUST-16, MUST-19, and MUST-21.

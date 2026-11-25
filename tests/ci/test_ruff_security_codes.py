@@ -4,7 +4,7 @@ The main ruff gate reads ``[tool.ruff.lint] select``; the CI security step in
 ``pytest.yml`` passes its own ``--select`` so its SARIF holds only security
 findings. These tests keep the two lists equal, keep every code named one by
 one, and require review for any per-file waiver of a security code. They parse
-TOML and YAML instead of matching text (``.claude/rules/testing.md`` MUST 9).
+TOML and YAML instead of matching text (``rule-testing.md`` MUST 9).
 """
 
 from __future__ import annotations

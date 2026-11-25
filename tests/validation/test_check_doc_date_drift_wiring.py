@@ -1,6 +1,6 @@
 """Pre-PR wiring for the doc-date-drift gate (PRs #7428 and #6925).
 
-``.claude/rules/testing.md`` SHOULD 6: prove the consumer is wired, not only
+``rule-testing.md`` SHOULD 6: prove the consumer is wired, not only
 the guard. Mirrors ``test_check_measurement_anchoring_wiring.py``, except the
 verdict is a typed ``CheckOutcome`` because this gate is advisory.
 """

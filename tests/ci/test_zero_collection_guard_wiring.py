@@ -6,7 +6,7 @@
 # a sibling's while looking complete on its own.
 
 A guard proves only that the guard works. It cannot prove any caller reached
-it (`.claude/rules/testing.md` SHOULD 6), and issue #4494 is a report about
+it (`rule-testing.md` SHOULD 6), and issue #4494 is a report about
 exactly that gap: the baseline-ratchet mutation harness existed, ran nothing,
 and was named by no gate.
 
@@ -22,7 +22,7 @@ Two claims are pinned here, one per gate:
 
 Every wiring assertion parses the YAML and asserts against the object graph. A
 substring match on the file text passes when the step has been deleted and its
-name survives in a comment (`.claude/rules/testing.md` MUST 9). The collection
+name survives in a comment (`rule-testing.md` MUST 9). The collection
 claim is proved the same way, by running the thing rather than reading it: it
 spawns pytest and reads the exit code, because an AST shape check asserts that
 ``def test_*`` nodes exist, which is a different claim from AC1's "collects at
@@ -53,7 +53,7 @@ MUTATION_DIRECTORY = "tests/mutation"
 _SHELL_CONTROL_TOKENS = frozenset({"&&", "||", ";", "|", "&"})
 
 # Inherited pytest state would reach the child run as extra options or as a
-# worker identity it must not adopt (`.claude/rules/testing.md` SHOULD 12).
+# worker identity it must not adopt (`rule-testing.md` SHOULD 12).
 _STRIPPED_PYTEST_ENVIRONMENT = frozenset(
     {
         "PYTEST_ADDOPTS",

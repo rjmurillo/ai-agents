@@ -1,7 +1,7 @@
 [.agents/]
 |Governance, planning, history; only `plugins/` ships. `skills/*` link to `src... (see: .project-toolkit/context/agents/details/agents.md)
 [Matters]
-|Rules auto-load: `session-logs`,`token-economy`->`.agents/**`; `adr-records`,... (see: .project-toolkit/context/agents/details/matters.md)
+|Rules auto-load: `session-logs`,`token-economy`->`.agents/**`; `adr-records`-... (see: .project-toolkit/context/agents/details/matters.md)
 [Entry points]
 |`sessions/handoffs/<date>-<issue>-handoff.md`: read latest, update at end. Si... (see: .project-toolkit/context/agents/details/entry-points.md)
 [Where to look]

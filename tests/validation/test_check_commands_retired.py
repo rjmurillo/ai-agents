@@ -3,7 +3,7 @@
 ADR-064 (issue #5632) deleted the command-to-skill bridge, so a command file
 placed under a plugin root now loads in Claude Code and reaches no other harness.
 This guard is what makes that loud. Its tests drive ``main(argv)`` and assert on
-the integer it returns, per .claude/rules/testing.md MUST 8: a helper that
+the integer it returns, per rule-testing.md MUST 8: a helper that
 returns a findings list proves the helper detected the problem and proves nothing
 about whether the program fails.
 """
