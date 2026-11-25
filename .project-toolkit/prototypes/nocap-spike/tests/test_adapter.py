@@ -373,3 +373,201 @@ def test_fix2_plain_git_merge_keeps_its_receipt(tmp_path: Path) -> None:
     [r] = receipts(path)
 
     assert (r["kind"], r["verdict"]) == ("merged", "NO_CAP")
+
+
+def one(
+    tmp_path: Path, name: str, calls: list[tuple[str, dict[str, Any], str]], reply: str
+) -> dict[str, Any]:
+    t = Transcript().prompt("go")
+    for call in calls:
+        t.tool(*call)
+    [r] = receipts(t.reply(reply).write(tmp_path / f"{name}.jsonl"))
+    return r
+
+
+LOG = ("Bash", {"command": "git log --oneline -1"}, f"{SHA} fix(x): y")
+
+
+def test_round3_sha_in_prose_output_is_not_a_receipt(tmp_path: Path) -> None:
+    prose = (
+        "Bash",
+        {"command": "gh api graphql -f query=q"},
+        f"Bugbot: looks fine at {SHA[:8]} now.",
+    )
+
+    r = one(tmp_path, "sha_prose", [prose], f"Tested at commit `{SHA}`.")
+
+    assert (r["verdict"], r["why"]) == (
+        "NO_RECEIPT",
+        "the SHA appears in output, but not as a commit, HEAD, or ref",
+    )
+
+
+def test_round3_sha_content_sentence_needs_more_than_the_sha(tmp_path: Path) -> None:
+    r = one(tmp_path, "sha_content", [LOG], f"Commit `{SHA}` fixes the parser.")
+
+    assert r["verdict"] == "NO_RECEIPT"
+
+
+def test_round3_sha_pinned_document_sentence_needs_more_than_the_sha(tmp_path: Path) -> None:
+    r = one(tmp_path, "sha_cites", [LOG], f"The PR body is pinned to `{SHA}`.")
+
+    assert r["verdict"] == "NO_RECEIPT"
+
+
+def test_round3_sha_in_push_range_keeps_its_receipt(tmp_path: Path) -> None:
+    push = ("Bash", {"command": "git push"}, f"   1a2b3c4d..{SHA}  feat -> feat")
+
+    path = Transcript().prompt("go").tool(*push).reply(f"Pushed as commit `{SHA}`.")
+
+    [r] = [r for r in receipts(path.write(tmp_path / "sha_push.jsonl")) if r["kind"] == "sha"]
+
+    assert r["verdict"] == "NO_CAP"
+
+
+MERGE_MAIN = (
+    "Bash",
+    {"command": "git merge --no-edit origin/main"},
+    "Merge made by the 'ort' strategy.",
+)
+
+
+def test_round3_local_merge_of_main_is_not_a_pr_merge(tmp_path: Path) -> None:
+    r = one(tmp_path, "pr_vs_local", [MERGE_MAIN], "I merged with `merge_pr.py` squash.")
+
+    assert (r["kind"], r["verdict"]) == ("merged", "NO_RECEIPT")
+
+
+def test_round3_merge_pr_script_success_is_a_receipt(tmp_path: Path) -> None:
+    out = '{"Success":true,"Data":{"pull_request":42,"state":"MERGED"}}'
+    call = ("Bash", {"command": "python3 merge_pr.py --pull-request 42 --strategy squash"}, out)
+
+    r = one(tmp_path, "merge_pr_ok", [call], "I merged PR #42 with a squash.")
+
+    assert (r["kind"], r["verdict"]) == ("merged", "NO_CAP")
+
+
+def test_round3_merge_pr_script_failure_is_never_cap(tmp_path: Path) -> None:
+    out = '{"Success":false,"Data":{"pull_request":42},"Error":{"Message":"mergeable=UNKNOWN"}}'
+    call = ("Bash", {"command": "python3 merge_pr.py --pull-request 42 --strategy squash"}, out)
+
+    r = one(tmp_path, "merge_pr_fail", [call], "I merged PR #42 with a squash.")
+
+    assert (r["kind"], r["verdict"]) == ("merged", "NO_RECEIPT")
+
+
+def test_round3_pr_list_row_shows_merged(tmp_path: Path) -> None:
+    call = (
+        "Bash",
+        {"command": "gh pr list --state all"},
+        "42\tfix: thing\tfix/thing\tMERGED\n43\tdocs\td\tOPEN",
+    )
+
+    r = one(tmp_path, "pr_list", [call], "PR #42 was merged.")
+
+    assert (r["kind"], r["verdict"]) == ("merged", "NO_CAP")
+
+
+CHECKS = "python3 get_pr_checks.py --pull-request 42 --output-format json"
+
+
+def test_round3_check_counts_match_the_repo_script(tmp_path: Path) -> None:
+    out = "{'FailedCount': 0, 'PendingCount': 0, 'PassedCount': 106}"
+
+    r = one(
+        tmp_path, "ci_ok", [("Bash", {"command": CHECKS}, out)], "Checks: 106 passed, 0 failed."
+    )
+
+    assert (r["kind"], r["verdict"]) == ("ci", "NO_CAP")
+
+
+def test_round3_check_count_mismatch_is_no_receipt(tmp_path: Path) -> None:
+    out = "{'FailedCount': 0, 'PendingCount': 0, 'PassedCount': 105}"
+
+    r = one(
+        tmp_path, "ci_miss", [("Bash", {"command": CHECKS}, out)], "Checks: 106 passed, 0 failed."
+    )
+
+    assert (r["kind"], r["verdict"]) == ("ci", "NO_RECEIPT")
+
+
+def test_round3_repo_script_failure_never_stamps_ci_cap(tmp_path: Path) -> None:
+    out = "{'FailedCount': 2, 'PendingCount': 0, 'PassedCount': 104}"
+
+    r = one(
+        tmp_path, "ci_fail", [("Bash", {"command": CHECKS}, out)], "The CI checks pass on PR #42."
+    )
+
+    assert (r["kind"], r["verdict"]) == ("ci", "NO_RECEIPT")
+
+
+def test_round3_pr_create_script_output_is_a_receipt(tmp_path: Path) -> None:
+    out = "Creating PR...\nhttps://github.com/o/r/pull/7273\n\nPR created successfully!\n"
+    call = ("Bash", {"command": "python3 new_pr.py --title t --body-file b.md"}, out)
+
+    r = one(tmp_path, "pr_create", [call], "I opened PR #7273.")
+
+    assert (r["kind"], r["verdict"]) == ("pr_opened", "NO_CAP")
+
+
+def test_round3_pr_view_json_shows_open(tmp_path: Path) -> None:
+    out = '{"draft":false,"number":7285,"state":"open","title":"docs"}'
+    call = ("Bash", {"command": "gh pr view 7285 --json number,state,title,draft"}, out)
+
+    r = one(tmp_path, "pr_open", [call], "PR #7285 is open and ready.")
+
+    assert (r["kind"], r["verdict"]) == ("pr_opened", "NO_CAP")
+
+
+NOT_EDITS = {
+    "merge_tree": "git merge-tree --write-tree HEAD origin/main >/dev/null 2>&1",
+    "arrow_in_quotes": "python3 r.py | python3 -c \"print('$1->$2')\"",
+    "var_redirect": "python3 gate.py --json > $P 2>&1",
+    "temp_heredoc": (
+        "cat > /tmp/probe.py <<'EOF'\nfrom pathlib import Path\nPath('m.py').write_text('x')\nEOF\n"
+        "python3 /tmp/probe.py"
+    ),
+    "mktemp_fixture": "S=$(mktemp -d); cd \"$S\" && printf 'x' > scripts/m1.py",
+    "python_writes_doc": "python3 - <<'EOF'\np='docs/a.md'\nopen(p,'w').write('x')\nEOF",
+    "scratchpad_write": "printf 'x' > /home/u/scratchpad/n.py",
+    "version_string_in_python": (
+        "python3 - <<'EOF'\np='docs/a.md'\ns=open(p).read().replace('v0.6','v0.7')\n"
+        "open(p,'w').write(s)\nEOF"
+    ),
+}
+
+
+def test_round3_calls_that_are_not_code_edits_keep_the_receipt(tmp_path: Path) -> None:
+    for name, cmd in NOT_EDITS.items():
+        r = one(tmp_path, name, [GREEN_RUN, ("Bash", {"command": cmd}, "")], "All tests pass.")
+
+        assert (name, r["verdict"]) == (name, "NO_CAP")
+
+
+def test_round3_shell_write_to_source_still_makes_the_run_stale(tmp_path: Path) -> None:
+    edit = ("Bash", {"command": "printf 'x = 2\\n' > src/app.py"}, "")
+
+    r = one(tmp_path, "shell_edit", [GREEN_RUN, edit], "All tests pass.")
+
+    assert (r["verdict"], r["why"]) == ("NO_RECEIPT", "code changed after the last test run")
+
+
+def test_round3_a_local_pytest_check_stays_a_test_claim(tmp_path: Path) -> None:
+    r = one(
+        tmp_path, "local_check", [GREEN_RUN], "Local check: `uv run pytest tests/` gave 12 passed."
+    )
+
+    assert (r["kind"], r["verdict"]) == ("tests", "NO_CAP")
+
+
+def test_round3_check_counts_with_pending_checks_still_match(tmp_path: Path) -> None:
+    out = "{'FailedCount': 0, 'PendingCount': 2, 'PassedCount': 106}"
+
+    r = one(
+        tmp_path,
+        "ci_pending",
+        [("Bash", {"command": CHECKS}, out)],
+        "Checks: 106 passed, 0 failed.",
+    )
+
+    assert (r["kind"], r["verdict"]) == ("ci", "NO_CAP")

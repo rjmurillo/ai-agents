@@ -1,4 +1,4 @@
-# Modified for an ai-agents spike: SHA evidence reads output only; git merge-* plumbing is not a merge. See VENDORED.md.
+# Modified for an ai-agents spike (rounds 2 and 3): SHA, merge, CI, PR-script and freshness parsing. See VENDORED.md.
 """Turn one tool call into an evidence record: the facts a reply's claims can be checked against.
 
 Stdlib only. Raw output is scanned here and never stored; only the extracted
@@ -132,7 +132,7 @@ TEST_PATH_RE = re.compile(
     r"(?i)(?:^|/)(?:tests?|__tests__|specs?|testdata|test_?data|fixtures|e2e|testing)/|(?:^|/)test_[^/]*$|"
     r"_tests?\.\w+$|\.(?:test|spec|e2e)\.\w+$|_spec\.rb$|(?:^|/)src/test/|(?<=[a-z0-9])Tests?\.(?:java|kt|cs|swift|scala|php)$|"
     r"(?:^|/)conftest\.py$|(?:^|/)snapshots?/|\.snap$")
-TEMP_PATH_RE = re.compile(r"(?i)^/tmp/|^/var/folders/|^\$TMPDIR|(?:^|/)(?:tmp|temp|scratch)/|(?:^|/)(?:repro|reproduce|scratch)"
+TEMP_PATH_RE = re.compile(r"(?i)^/tmp/|^/var/folders/|^\$TMPDIR|(?:^|/)(?:tmp|temp|scratch\w*)/|(?:^|/)(?:repro|reproduce|scratch)"
                           r"[\w-]*\.\w+$|(?:^|/)(?:tmp|temp)[_-][\w.-]*$|\.(?:tmp|bak|orig|rej)$")
 PY_WRITE_RE = re.compile(r"open\([^)\n]*,\s*['\"][wa]b?\+?['\"]|\.write_text\(|\.write_bytes\(|os\.replace\(|shutil\.(?:copy|move)")
 STOPPED_RE = re.compile(r"(?i)(?<!!)!+[ \t]*stopping after \d+ failures?|Interrupted: \d+ errors? during collection|"
@@ -175,6 +175,16 @@ def _shell_file_args(cmd: str) -> List[str]:
 FAIL_TEXT_RE = re.compile(r"(?i)\bFAIL(?:ED|URES?|ING)?\b|\berrors?\b|Traceback|panic:|exit status [1-9]|✗|✘|×|"
                           r"AssertionError|Exception\b|not found|No such file|cannot |could not|unable to|segmentation|"
                           r"\bkilled\b|timed? ?out")
+
+
+_TEMP_HEREDOC_RE = re.compile(
+    r"\b(?:cat|tee)\s+(?:-a\s+)?>{0,2}\s*['\"]?([^\s'\";&|<]+)['\"]?\s*<<-?\s*(['\"]?)(\w+)\2[^\n]*\n.*?\n[ \t]*\3[ \t]*(?=\n|$)",
+    re.S)
+
+
+def _drop_temp_heredocs(cmd: str) -> str:
+    """Remove heredoc bodies written to a temp or doc file, so their contents are not read as this call's writes."""
+    return _TEMP_HEREDOC_RE.sub(lambda m: "" if path_class(m.group(1)) in ("temp", "doc") else m.group(0), cmd)
 
 
 def path_class(p: str) -> str:
@@ -502,6 +512,21 @@ def _aws_secret(m: "re.Match") -> str:
 
 URL_RE = re.compile(r"https?://[^\s'\"<>()\[\]{}`]+")
 SHA_RE = re.compile(r"\b[0-9a-f]{7,64}\b")
+# Spike round 3: a SHA is a receipt only where the output ties it to a commit, HEAD, or a ref.
+SHA_REF_RES = (
+    re.compile(r"(?m)^[\s*|]*([0-9a-f]{7,40})\b"),  # git log, rev-parse, and ls-remote rows
+    re.compile(r"(?m)^commit ([0-9a-f]{40})\b"),
+    re.compile(r"\[[^\]\s]+(?: \(root-commit\))? ([0-9a-f]{7,40})\]"),  # git commit summary line
+    re.compile(r"\b([0-9a-f]{7,40})\.\.\.?([0-9a-f]{7,40})\b"),  # push and fetch ranges
+    re.compile(r"(?i)[\"']?\w*(?:sha|oid|commit)\w*[\"']?\s*[:=]\s*[\"']?([0-9a-f]{7,40})\b"),  # JSON or dict fields
+    re.compile(r"HEAD is now at ([0-9a-f]{7,40})\b"),
+)
+
+
+def sha_refs(text: str) -> List[str]:
+    """SHAs the output places as a commit, HEAD, or ref; a SHA mentioned in prose or file content is not one."""
+    found = [g for rx in SHA_REF_RES for m in rx.finditer(text) for g in m.groups() if g]
+    return list(dict.fromkeys(s for s in found if re.search(r"\d", s) and re.search(r"[a-f]", s)))[:MAX_ITEMS]
 NUM_RE = re.compile(r"(?<![\w.])(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d+))?(?![\d.]\d|\d)")
 HTTP_RES = [
     re.compile(r"\bHTTP/[\d.]+\s+(\d{3})\b"),
@@ -823,7 +848,8 @@ def _ci_status(text: str, exit_code: Optional[int]) -> Optional[Dict[str, Any]]:
         pending += 1
     if not fails and not passes and not pending:
         return None
-    return {"ci_fail": fails > 0, "ci_pass": fails == 0 and passes > 0 and pending == 0, "ci_pending": pending > 0}
+    return {"ci_fail": fails > 0, "ci_pass": fails == 0 and passes > 0 and pending == 0, "ci_pending": pending > 0,
+            "ci_counts": {"passed": passes, "failed": fails, "pending": pending}}
 
 
 def parse_git(cmd: str, text: str, exit_code: Optional[int]) -> Dict[str, Any]:
@@ -889,10 +915,18 @@ def parse_git(cmd: str, text: str, exit_code: Optional[int]) -> Dict[str, Any]:
         g["git_merge_failed"] = bool(re.search(r"CONFLICT|Automatic merge failed|^fatal:", text, re.M))
         g["git_merge_ok"] = ok and not g["git_merge_failed"]
         g["merge_line"] = _cut(text.strip().splitlines()[0]) if text.strip() else ""
+        mm = re.search(r"\bgit\b(?:(?!\bgit\b)[^|;&])*\bmerge(?![\w-])([^|;&\n]*)", cmd)
+        refs = [t for t in (mm.group(1).split() if mm else []) if not t.startswith("-") and ">" not in t]
+        g["git_merge_ref"] = refs[-1] if refs else ""
     if re.search(r"\bgh\s+pr\s+create\b", cmd):
         g["opened_prs"] = sorted({int(n) for n in re.findall(r"/pull/(\d+)", text)})
         g["pr_create_ok"] = bool(g["opened_prs"])
         g["pr_create_failed"] = not g["opened_prs"] and exit_code not in (0, None) and not _chained(cmd)
+    g.update(_repo_pr_scripts(cmd, text))
+    if re.search(r"\bgh\s+(?:pr\s+(?:list|view)|api)\b", cmd):
+        states = _pr_states(cmd, text)
+        if states:
+            g["pr_states"] = states
     if re.search(r"\bgh\s+(pr\s+checks|pr\s+view\b(?:(?!\bgh\s).)*statusCheckRollup|run\s+(view|watch))\b", cmd) \
             and not re.search(r"\bfor\s+\w+\s+in\b", cmd):
         st = _ci_status(text, exit_code)
@@ -901,7 +935,57 @@ def parse_git(cmd: str, text: str, exit_code: Optional[int]) -> Dict[str, Any]:
             line = next((ln for ln in text.splitlines() if re.search(r"(?i)\b(fail|failure)\b", ln)), "") \
                 if st["ci_fail"] else (text.strip().splitlines() or [""])[0]
             g["ci_line"] = _cut(line.strip())
+    g.update(_pr_checks_script(cmd, text))
     return g
+
+
+def _repo_pr_scripts(cmd: str, text: str) -> Dict[str, Any]:
+    """Spike round 3: this repo's PR scripts. They never yield a failure flag, so they can never stamp CAP."""
+    g: Dict[str, Any] = {}
+    if re.search(r"\bmerge_pr\.py\b", cmd) and not re.search(r"--help\b|--dry-run\b", cmd):
+        nums = sorted({int(n) for n in re.findall(r"--pull-request[ =](\d+)", cmd)})
+        merged = len(nums) == 1 and bool(re.search(r'"Success"\s*:\s*true', text)) and bool(
+            re.search(r'"state"\s*:\s*"MERGED"', text))
+        g.update(merge_ok=merged, merge_failed=False, merge_cmd_prs=nums, merge_line="merge_pr.py: state MERGED" if merged else "")
+        if merged:
+            g["merged_prs"] = nums
+    if re.search(r"(?m)^PR created successfully!?\s*$", text):
+        opened = sorted({int(n) for n in re.findall(r"https://github\.com/[\w.-]+/[\w.-]+/pull/(\d+)", text)})
+        if len(opened) == 1:
+            g.update(opened_prs=opened, pr_create_ok=True, pr_create_failed=False)
+    return g
+
+
+def _pr_checks_script(cmd: str, text: str) -> Dict[str, Any]:
+    """Spike round 3: get_pr_checks.py counts for one PR. The last reading wins; a polled run prints several."""
+    prs = set(re.findall(r"--pull-request[ =](\d+)", cmd))
+    if not re.search(r"\bget_pr_checks\.py\b", cmd) or len(prs) != 1 or re.search(r"--help\b", cmd):
+        return {}
+
+    def last(key: str) -> Optional[int]:
+        vals = re.findall(r"[\"']" + key + r"[\"']\s*:\s*(\d+)", text)
+        return int(vals[-1]) if vals else None
+
+    failed, passed, pending = last("FailedCount"), last("PassedCount"), last("PendingCount")
+    if failed is None or passed is None or pending is None:
+        return {}
+    return {"ci_fail": failed > 0, "ci_pass": failed == 0 and passed > 0 and pending == 0, "ci_pending": pending > 0,
+            "ci_counts": {"passed": passed, "failed": failed, "pending": pending}, "ci_src": "script",
+            "ci_line": f"{passed} passed, {failed} failed, {pending} pending"}
+
+
+def _pr_states(cmd: str, text: str) -> Dict[str, str]:
+    """Spike round 3: PR number to state, from JSON objects and `gh pr list` rows. A PR seen in two states is dropped."""
+    seen: Dict[int, set] = {}
+    for obj in re.findall(r"\{[^{}]*\}", text[:20_000]):
+        n = re.search(r'"number"\s*:\s*(\d+)', obj)
+        st = re.search(r'"state"\s*:\s*"(open|merged|closed)"', obj, re.I)
+        if n and st:
+            seen.setdefault(int(n.group(1)), set()).add(st.group(1).upper())
+    if re.search(r"\bgh\s+pr\s+list\b", cmd):
+        for n, st in re.findall(r"(?m)^#?(\d{1,6})\b[^\n]{0,200}?\b(OPEN|MERGED|CLOSED)\b", text[:20_000]):
+            seen.setdefault(int(n), set()).add(st)
+    return {str(n): next(iter(v)) for n, v in seen.items() if len(v) == 1}
 
 
 def unit_stem(unit: str) -> str:
@@ -1302,18 +1386,24 @@ def extract(tool_name: str, args: Any, result: Any, status: Optional[str] = None
                                 if p not in ev["paths_written"]][:MAX_ITEMS]
     doc = DOC_PATH_RE
     flat = strip_heredocs(cmd, cut=cut)
-    targets = re.findall(r"(?:(?<![\d&>])>{1,2}|\btee\s+(?:-a\s+)?)\s*['\"]?([\w./~$-]+)", flat)
+    # Spike round 3: `->` and `=>` are not redirects, and `$VAR` targets are unknown files, not code.
+    targets = re.findall(r"(?:(?<![\d&>=-])>{1,2}|\btee\s+(?:-a\s+)?)\s*['\"]?([\w./~$-]+)", flat)
     targets += re.findall(r"\b(?:sed\s+-i(?:\s*''|\s+\S+)?|perl\s+-\w*i\S*(?:\s+-\w+)*)\s+(?:'[^']*'|\"[^\"]*\")\s+([\w./~$-]+)", flat)
     targets += PATCH_FILE_RE.findall(cmd) if shell else []
-    py_write = shell and bool(PY_WRITE_RE.search(cmd))
-    if py_write:
-        targets += re.findall(r"['\"]([~\w./-]+\.[A-Za-z0-9]{1,5})['\"]", cmd)
+    py_src = _drop_temp_heredocs(cmd)  # a script written to a temp file is that file's content, not this call's writes
+    py_write = shell and bool(PY_WRITE_RE.search(py_src))
+    py_targets = re.findall(r"['\"]([~\w./-]+\.[A-Za-z][A-Za-z0-9]{0,4})['\"]", py_src) if py_write else []  # not "v0.7"
+    targets += py_targets
+    targets = [t for t in targets if not t.startswith("$")]
+    tmp_var = re.search(r"\b(\w+)=\$\(\s*mktemp\b", cmd)
+    if tmp_var and re.search(r"\bcd\s+[\"']?\$\{?" + tmp_var.group(1) + r"\b", cmd):
+        targets = [t for t in targets if t.startswith(("/", "~"))]  # relative writes land in the mktemp directory
     code_targets = [t for t in targets if not doc.search(t)]
     written = [p for p in ev["paths_written"] if not doc.search(p)]
     unknown_target = not test_cmd and bool(
-        re.search(r"\bgit\s+(?:apply|checkout\s+--|restore|stash\s+pop|merge|pull|rebase|cherry-pick|am)\b|"
+        re.search(r"\bgit\s+(?:apply|checkout\s+--|restore|stash\s+pop|merge|pull|rebase|cherry-pick|am)(?![\w-])|"
                   r"(?:^|[;&|(]\s*|\s)patch\s+(?:-[\w-]+(?:\s+\S+)?\s+)*(?:<|-i\b|-p\d)", cmd)
-        or (py_write and not code_targets))
+        or (py_write and not py_targets))
     ev["any_edit"] = bool(written) or (not test_cmd and bool(code_targets)) or unknown_target
     # "edit" = a change that can make an earlier test run stale: source code, not tests, docs, temp files or comments
     comment_only = bool(written) and _comment_only(args)
@@ -1355,6 +1445,7 @@ def extract(tool_name: str, args: Any, result: Any, status: Optional[str] = None
     ev["urls"] = list(dict.fromkeys(u.rstrip(".,;:'\"") for u in urls))[:MAX_ITEMS]
     ev["shas"] = list(dict.fromkeys(s for s in SHA_RE.findall(text)
                                     if re.search(r"\d", s) and re.search(r"[a-f]", s)))[:MAX_ITEMS]
+    ev["sha_refs"] = sha_refs(text)
     ev["numbers"] = _numbers(text)
     if re.search(r"\bgit\s+(?:diff|show)\b(?:(?!\bgit\b)[^|;&])*--stat", cmd):
         fm = list(re.finditer(r"(\d+) files? changed", text))
@@ -1395,7 +1486,7 @@ _FACT_FLAGS = ("i", "tool", "cmd", "exit", "ok", "error", "test_cmd", "deploy_cm
                "any_edit", "skip_added", "check_cmd", "where", "suite", "baseline", "chained", "masked", "subset",
                "stopped", "tail_only", "partial", "fail_text", "quiet_silent", "out_empty", "windowed", "no_tests",
                "head_sha", "diff_files", "workdir", "ts")
-_FACT_LISTS = {"paths_written": 10, "paths_edited": 20, "paths_reported": 10, "shas": 20, "test_files": 50,
+_FACT_LISTS = {"paths_written": 10, "paths_edited": 20, "paths_reported": 10, "shas": 20, "sha_refs": 20, "test_files": 50,
                "failed_tests": 20, "suite_change": 10}
 
 

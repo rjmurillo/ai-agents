@@ -1,4 +1,4 @@
-# Modified for an ai-agents spike: lines 69 and 375 spell two dash characters as escapes. See VENDORED.md.
+# Modified for an ai-agents spike: dash escapes (lines 69, 375) and check counts routed to ci (round 3). See VENDORED.md.
 """Find checkable claims in a final reply. Deterministic, stdlib only. English here; Chinese, Thai and Spanish for
 tests / push / merge / deploy in lang.py.
 
@@ -549,6 +549,14 @@ def _claims_in(cl: str) -> List[Dict[str, Any]]:
         pass
     else:
         t = _tests(cl, low)
+        bare = re.sub(r"`[^`]*`", " ", low)  # check names in backticks ("`Run Python Tests`") are not test words
+        if t and re.search(r"\bchecks\b", bare) and not re.search(r"\b(?:tests?|specs?|suites?|unit)\b", bare) \
+                and not re.search(r"\b(?:pytest|jest|vitest|uv run|npm (?:run )?test|go test|cargo test)\b", low):
+            # spike round 3: "106 passed, 0 failed checks" counts CI checks, not a test run
+            out.append({"kind": "ci", "scoped": False, "counts": True, "passed": t.get("passed"),
+                        "failed": t.get("failed"), "all_pass": bool(t.get("all_pass")) and not re.search(
+                            r"\b(?:pending|queued|running|in progress|waiting|so far)\b", bare)})
+            t = None
         if t:
             if re.search(r"[“\"][^”\"]{0,200}[”\"]", cl):
                 t["quoted"] = True  # a quoted summary: a receipt if it matches, silent if it doesn't

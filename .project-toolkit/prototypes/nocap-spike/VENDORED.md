@@ -26,10 +26,26 @@ Apache-2.0 section 4(b) asks that modified files say so. Each change is listed h
    - `parse_git`: the `git merge` pattern ends in `merge(?![\w-])`, so `git merge-tree` and `git merge-base`
      no longer count as a merge.
    - `extract`: `ev["shas"]` reads SHAs from the tool output only. Upstream also read the command text.
+4. Spike round 3, in `evidence.py`, `verdict.py`, and `claims.py`. These change behavior on purpose.
+   Line 1 of each file carries a modification notice.
+   - `evidence.py`: `sha_refs` keeps SHAs the output places as a commit, HEAD, or ref.
+     `_repo_pr_scripts`, `_pr_checks_script`, and `_pr_states` read this repo's `merge_pr.py`,
+     `get_pr_checks.py`, and PR-create output, plus PR states in `gh` JSON and `gh pr list` rows.
+     `parse_git` records the ref a `git merge` names. `_ci_status` keeps its counts.
+   - `evidence.py` freshness: `->` and `=>` are not redirects. `$VAR` targets are not code.
+     Heredocs written to temp or doc files are skipped. Relative writes after `cd` into a `mktemp`
+     directory are skipped. `git merge-tree` is not a merge. `scratch*/` paths are temp.
+     Python string targets need an extension that starts with a letter.
+   - `verdict.py`: `_sha` needs a placed SHA and never credits a sentence about what a commit did.
+     `_merged` drops a local `git merge` for a PR merge claim, and accepts `pr_states`.
+     `_pr_opened` accepts an OPEN state for "PR #N is open". `_ci` compares stated check counts.
+     The new parsers never yield CAP.
+   - `claims.py`: a sentence with check counts and no test words becomes a `ci` claim.
 
 ## Check that the changes are behavior-neutral
 
-Changes 1 and 2 are behavior-neutral. Change 3 is not. Upstream's tests still pass with it: `156 passed` on 2026-11-25.
+Changes 1 and 2 are behavior-neutral. Changes 3 and 4 are not. Upstream's tests still pass with them:
+`156 passed` on 2026-11-25.
 
 Upstream's own tests ran against the modified files in a scratch copy of the upstream checkout.
 Result on 2026-11-23, rerun on the committed files after the notice line was added: `156 passed` for `test_claims.py`, `test_evidence.py`, `test_claim_regressions.py`,

@@ -1,3 +1,4 @@
+# Modified for an ai-agents spike (round 3): SHA, merge, CI and PR-state judging. See VENDORED.md.
 """Match claims to the turn's evidence ledger: NO_CAP (proven), CAP (contradicted), NO_RECEIPT.
 
 Precision first: CAP is only returned when a tool output in this turn says the opposite of the claim.
@@ -361,11 +362,30 @@ def _tests(c, evs):
     return _r(c, NO_CAP, e, quote=_run_quote(e))
 
 
+def _ci_counts(c, last):
+    """Spike round 3: "106 passed, 0 failed" against the last check read. A count mismatch is never CAP."""
+    n = last["git"].get("ci_counts")
+    if not n:
+        return _r(c, NO_RECEIPT, last, why="that check read has no counts", quote=last["git"].get("ci_line", ""))
+    if c.get("failed") is not None and c["failed"] != n["failed"]:
+        return _r(c, NO_RECEIPT, last, why=f"the last check read shows {n['failed']} failed", quote=last["git"].get("ci_line", ""))
+    if c.get("passed") is not None and c["passed"] != n["passed"]:
+        return _r(c, NO_RECEIPT, last, why=f"the last check read shows {n['passed']} passed", quote=last["git"].get("ci_line", ""))
+    stated = c.get("passed") is not None or c.get("failed") is not None  # counts as of a read, not "all done"
+    if c.get("all_pass") and not stated and (n["pending"] or n["failed"]):
+        return _r(c, NO_RECEIPT, last, why="checks still pending", quote=last["git"].get("ci_line", ""))
+    return _r(c, NO_CAP, last, quote=last["git"].get("ci_line", ""))
+
+
 def _ci(c, evs):
     cands = [e for e in evs if "ci_pass" in e.get("git", {})]
     if not cands:
         return _r(c, NO_RECEIPT, why="no CI check read in this turn")
     last = cands[-1]
+    if c.get("counts"):
+        return _ci_counts(c, last)
+    if last["git"].get("ci_src") == "script" and last["git"]["ci_fail"]:
+        return _r(c, NO_RECEIPT, last, why="a check failed in the repo script's count", quote=last["git"].get("ci_line", ""))
     if last["git"].get("ci_pending") and not last["git"]["ci_fail"]:
         return _r(c, NO_RECEIPT, last, why="checks still pending", quote=last["git"].get("ci_line", ""))
     if last["git"]["ci_fail"] and not c.get("scoped"):
@@ -397,10 +417,27 @@ def _by_flag(c, evs, flag, label):
     return _r(c, CAP, last, quote=last.get("error") or f"exit {last.get('exit')}")
 
 
+_PR_MERGE_WORDS_RE = re.compile(r"\b(?:pr|pull request|merge_pr|squash|gh pr merge|auto-?merge|merge queue)\b", re.I)
+_BASE_REF_RE = re.compile(r"(?:origin/|upstream/)?(?:main|master|develop|trunk)")
+
+
+def _local_merge_only(c, e) -> bool:
+    """Spike round 3: a local `git merge` proves a PR merge claim nothing, and merging main in proves no merge out."""
+    g = e.get("git", {})
+    if "git_merge_ok" not in g or c.get("git_merge"):
+        return False
+    return bool(c.get("pr") is not None or _PR_MERGE_WORDS_RE.search(c.get("text", ""))
+                or _BASE_REF_RE.fullmatch(g.get("git_merge_ref", "")))
+
+
 def _merged(c, evs):
-    keys = ("git_merge_ok",) if c.get("git_merge") else ("merge_ok", "pr_view_state", "git_merge_ok")
-    cands = [e for e in evs if any(k in e.get("git", {}) for k in keys)]
     pr = c.get("pr")
+    if pr is not None:
+        seen = [e for e in evs if (e.get("git", {}).get("pr_states") or {}).get(str(pr))]
+        if seen and seen[-1]["git"]["pr_states"][str(pr)] == "MERGED":
+            return _r(c, NO_CAP, seen[-1], quote=f"#{pr} state MERGED")
+    keys = ("git_merge_ok",) if c.get("git_merge") else ("merge_ok", "pr_view_state", "git_merge_ok")
+    cands = [e for e in evs if any(k in e.get("git", {}) for k in keys) and not _local_merge_only(c, e)]
     if pr is not None:
         cands = [e for e in cands if pr in e["git"].get("merge_cmd_prs", []) + e["git"].get("merged_prs", [])
                  + e["git"].get("pr_view_prs", []) or f"#{pr}" in e["git"].get("merge_line", "")]
@@ -476,11 +513,18 @@ def _committed(c, evs):
     return _r(c, NO_RECEIPT, cands[-1], why="commit output was not conclusive")
 
 
+_IS_OPEN_RE = re.compile(r"\bis\s+(?:still\s+|now\s+)?open\b|\bopen\s+(?:as|and)\b|\bstill\s+open\b", re.I)
+
+
 def _pr_opened(c, evs):
+    pr = c.get("pr")
+    if pr is not None and _IS_OPEN_RE.search(c.get("text", "")):  # spike round 3: "PR #N is open" is a state claim
+        seen = [e for e in evs if (e.get("git", {}).get("pr_states") or {}).get(str(pr))]
+        if seen and seen[-1]["git"]["pr_states"][str(pr)] == "OPEN":
+            return _r(c, NO_CAP, seen[-1], quote=f"#{pr} state OPEN")
     cands = [e for e in evs if "pr_create_ok" in e.get("git", {})]
     if not cands:
         return _r(c, NO_RECEIPT, why="no gh pr create in this turn")
-    pr = c.get("pr")
     good = [e for e in cands if e["git"]["pr_create_ok"] and (pr is None or pr in e["git"].get("opened_prs", []))]
     if good:
         return _r(c, NO_CAP, good[-1], quote=f"/pull/{good[-1]['git']['opened_prs'][-1]}")
@@ -568,10 +612,32 @@ def _sha(c, evs):
             if not any(e.get("git") and e["i"] > heads[-1]["i"] for e in evs):  # nothing moved HEAD after
                 return _r(c, CAP, heads[-1], quote=f"HEAD {h[:12]}")
             return _r(c, NO_RECEIPT, heads[-1], why="HEAD may have moved since")
-    for e in reversed(evs):
-        if any(x.startswith(s) or s.startswith(x) for x in e.get("shas", []) if len(x) >= 7):
-            return _r(c, NO_CAP, e, quote=s)
+    match = lambda key: lambda e: any(x.startswith(s) or s.startswith(x) for x in e.get(key, []) if len(x) >= 7)
+    placed = [e for e in evs if match("sha_refs")(e)]
+    mentioned = [e for e in evs if match("shas")(e)]
+    if placed and _sha_content(c.get("text", ""), s):  # spike round 3: "commit X fixes Y" needs more than X existing
+        return _r(c, NO_RECEIPT, placed[-1], why="the SHA is on record, but not what the sentence says about it", quote=s)
+    if placed:
+        return _r(c, NO_CAP, placed[-1], quote=s)
+    if mentioned:
+        return _r(c, NO_RECEIPT, mentioned[-1], why="the SHA appears in output, but not as a commit, HEAD, or ref")
     return _r(c, NO_RECEIPT, why="SHA not in any tool output")
+
+
+_SHA_VERBS = (r"adds|added|fix(?:es|ed)?|chang(?:es|ed)|remov(?:es|ed)|skip(?:s|ped)|drop(?:s|ped)|mov(?:es|ed)|"
+              r"introduc(?:es|ed)|makes|made|keeps|kept|address(?:es|ed)|revert(?:s|ed)|bump(?:s|ed)|updat(?:es|ed)|"
+              r"delet(?:es|ed)|renam(?:es|ed)|rewr(?:ites|ote)|replac(?:es|ed)|splits|restor(?:es|ed)|contains|"
+              r"touch(?:es|ed)|implements|lands")
+
+
+def _sha_content(text: str, s: str) -> bool:
+    """The sentence says what a commit did or what a document cites, not only that the SHA exists or is HEAD."""
+    t, q = (text or "").lower(), re.escape(s.lower()) + r"[0-9a-f]*`?"
+    return bool(re.search(q + r"\)?\s+(?:only\s+|also\s+|then\s+)?(?:" + _SHA_VERBS + r")\b", t)
+                or re.search(r"\b(?:fixed|added|introduced|changed|resolved|addressed|done)\b[^.`]{0,20}?(?:\bin\b|\bby\b|,)"
+                             r"\s*(?:commit\s+)?`?" + q, t)
+                or re.search(r"\b(?:cites?|cited|pinned to|anchored to|references?|refers to|names)\s+(?:the\s+)?"
+                             r"(?:head\s+|commit\s+|sha\s+)?`?" + q, t))
 
 
 def _number(c, evs):
@@ -727,9 +793,10 @@ _RELEVANT = {
     "ci": lambda e: "ci_pass" in (e.get("git") or {}),
     "pushed": lambda e: "push_ok" in (e.get("git") or {}),
     "committed": lambda e: "commit_ok" in (e.get("git") or {}),
-    "pr_opened": lambda e: "pr_create_ok" in (e.get("git") or {}),
-    "merged": lambda e: any(k in (e.get("git") or {}) for k in ("merge_ok", "pr_view_state", "git_merge_ok", "pr_missing")),
-    "sha": lambda e: bool(e.get("head_sha") or e.get("git")),
+    "pr_opened": lambda e: any(k in (e.get("git") or {}) for k in ("pr_create_ok", "pr_states")),
+    "merged": lambda e: any(k in (e.get("git") or {}) for k in ("merge_ok", "pr_view_state", "git_merge_ok", "pr_missing",
+                                                               "pr_states")),
+    "sha": lambda e: bool(e.get("head_sha") or e.get("git") or e.get("sha_refs")),
     "file": lambda e: bool(e.get("paths_edited")),
 }
 
