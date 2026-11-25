@@ -22,10 +22,40 @@ always used when present. An operator with a key exported would therefore get
 an API-billed run out of the subscription column, and nothing in the report
 would say so.
 
-So `_BLOCKED_BILLING_ENV` is removed from the child environment and
-`--setting-sources ""` drops the settings files an `apiKeyHelper` could come
-from. What is left for the CLI to authenticate with is
-`CLAUDE_CODE_OAUTH_TOKEN`, which is what the matrix says this cell costs.
+So `ANTHROPIC_API_KEY` and the cloud-provider switches are removed from the
+child environment, and `--setting-sources ""` drops the settings files an
+`apiKeyHelper` could come from.
+
+## The environment is inherited, minus what breaks the cell
+
+The child gets the parent environment, not an allowlist, so a proxy, a CA
+bundle, or a gateway the operator exported reaches it. Only these are denied:
+
+- every `CLAUDE*` name (`_ISOLATION_DENY_PREFIXES`): `CLAUDE_CONFIG_DIR`, the
+  parent session's `CLAUDECODE` and `CLAUDE_CODE_*` plumbing, and the
+  `CLAUDE_CODE_USE_*` cloud switches. The transport sets back what it needs.
+- `ANTHROPIC_API_KEY` (`_BLOCKED_BILLING_ENV`): it would make the cell
+  API-billed under a subscription label.
+- `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_CUSTOM_HEADERS` on every step except
+  `gateway`. The token outranks the OAuth token, and a custom header can carry
+  an `Authorization` or `x-api-key` value, so on another step either could
+  authenticate a run that records a different credential.
+
+## Gateway
+
+`ANTHROPIC_BASE_URL` plus `ANTHROPIC_AUTH_TOKEN` is the gateway pair (a local
+CLIProxy hub, for example). Because Claude Code ranks the auth token above
+`CLAUDE_CODE_OAUTH_TOKEN`, the gateway is what authenticates whenever the pair
+is set. So it is resolved first, recorded as `gateway`, and no OAuth token is
+injected next to it. The gateway decides which account pays, so a `gateway`
+run is not a direct subscription run: `endpoint_host` names the host it
+reached, and `_transport_record` writes it into `eval-prompt-change.py`
+results (other runners do not write it yet).
+Neither the token nor the URL path is recorded. `_claude_gateway` owns the pair.
+
+A base URL with no auth token passes through on its own, for a proxy in front
+of the OAuth login. The OAuth token then goes to that host. The host is
+recorded, and the run's payer reads `proxy`, not `subscription`.
 
 ## Isolation
 
@@ -56,18 +86,25 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from _claude_gateway import (
+    AUTH_TOKEN_ENV,
+    BASE_URL_ENV,
+    gateway_configured,
+    gateway_preempt,
+)
 from _cli_credential_sources import claude_disk_token, claude_login_probe
 from _cli_credentials import (
     STEP_ENV,
     STEP_EXISTING_LOGIN,
+    STEP_GATEWAY,
     CredentialSpec,
     ResolvedCredential,
+    remember_resolution,
     resolve_cached,
 )
 from _cli_transport import (
-    BASE_ENV_ALLOWLIST,
     build_envelope,
-    minimal_process_env,
+    inherited_process_env,
     run_cli,
     validate_timeout,
 )
@@ -79,33 +116,31 @@ PROVIDER_LABEL = "Claude CLI"
 #: The subscription credential this cell runs on.
 OAUTH_TOKEN_ENV = "CLAUDE_CODE_OAUTH_TOKEN"
 
-#: Credentials that would silently move the run onto metered billing. Removed
-#: from the child environment; see the module docstring for the precedence
-#: that makes each of them outrank the subscription token.
-_BLOCKED_BILLING_ENV = frozenset(
-    {
-        "ANTHROPIC_API_KEY",
-        "ANTHROPIC_AUTH_TOKEN",
-        "ANTHROPIC_BASE_URL",
-        "CLAUDE_CODE_USE_BEDROCK",
-        "CLAUDE_CODE_USE_FOUNDRY",
-        "CLAUDE_CODE_USE_VERTEX",
-    }
-)
+#: The metered key that would silently move the run onto API billing. Removed
+#: from the child environment; the module docstring gives the precedence that
+#: puts it above the subscription token. The cloud switches
+#: (`CLAUDE_CODE_USE_BEDROCK` and its siblings) are covered by the prefix deny.
+_BLOCKED_BILLING_ENV = frozenset({"ANTHROPIC_API_KEY"})
 
-#: `CLAUDE_CONFIG_DIR` is not allowlisted: the transport sets it to an isolated
-#: profile. Only the `existing-login` step forwards the operator's own value.
-_ENV_ALLOWLIST = BASE_ENV_ALLOWLIST
+#: Names that may carry a credential other than the one a non-gateway step
+#: records. They reach the child only on the `gateway` step.
+_GATEWAY_ONLY_ENV = frozenset({AUTH_TOKEN_ENV, "ANTHROPIC_CUSTOM_HEADERS"})
+
+#: Every `CLAUDE*` name: the config directory, the parent session's plumbing,
+#: and the cloud switches. The transport sets back the one it needs.
+_ISOLATION_DENY_PREFIXES = ("CLAUDE",)
 
 _MISSING_CREDENTIAL_MESSAGE = (
     f"{PROVIDER_LABEL} found no subscription credential. Tried, in order: "
+    f"a gateway ({BASE_URL_ENV} plus {AUTH_TOKEN_ENV}), "
     f"{OAUTH_TOKEN_ENV} in the environment or a dotenv file (EVAL_DOTENV_FILES), "
     "the token Claude Code stored under its config directory, the CLI's own "
-    "claude.ai login, and a prompt (stdin is not a terminal). Run "
-    f"`claude setup-token` and export the result as {OAUTH_TOKEN_ENV}, run "
-    "`claude auth login`, or select the claude-api cell to run on "
-    "ANTHROPIC_API_KEY instead."
+    "claude.ai login, and a prompt (stdin is not a terminal). Export the "
+    f"gateway pair, run `claude setup-token` and export the result as "
+    f"{OAUTH_TOKEN_ENV}, run `claude auth login`, or select the claude-api "
+    "cell to run on ANTHROPIC_API_KEY instead."
 )
+
 
 #: Variability for the shared credential order in `_cli_credentials`.
 CREDENTIAL_SPEC = CredentialSpec(
@@ -115,6 +150,7 @@ CREDENTIAL_SPEC = CredentialSpec(
     read_disk=claude_disk_token,
     login_probe=claude_login_probe,
     missing_message=_MISSING_CREDENTIAL_MESSAGE,
+    preempt=gateway_preempt,
 )
 
 #: Same variable `eval_runtime_parity.py --real-home` sets (issue #5404). Under
@@ -170,6 +206,10 @@ class _ClaudeCLIProvider:
             "--strict-mcp-config",
             "--mcp-config",
             _EMPTY_MCP_CONFIG,
+            # `--tools ""` turns every built-in off, including any a later CLI
+            # adds. The named deny list stays as a backstop.
+            "--tools",
+            "",
             "--disallowed-tools",
             _DISALLOWED_TOOLS,
             "--disable-slash-commands",
@@ -179,29 +219,42 @@ class _ClaudeCLIProvider:
     def _build_env(self, config_dir: Path, credential: ResolvedCredential) -> dict[str, str]:
         """Build the child environment for the resolved credential step.
 
-        An injected token runs under a relocated, empty config directory. The
-        `existing-login` step instead leaves the operator's config directory
-        alone, because that is where the login it relies on lives. Under the
-        real-HOME opt-in, HOME passes through and no config directory is set.
+        The parent environment is inherited minus the deny list in the module
+        docstring. An injected token and the `gateway` step run under a
+        relocated, empty config directory. The `existing-login` step instead
+        forwards the operator's config directory, because that is where its
+        login lives. Under the real-HOME opt-in no config directory is set.
+
+        `_GATEWAY_ONLY_ENV` reaches the child only on the `gateway` step. On
+        any other step it could outrank the credential the run records.
         """
+        gateway = credential.step == STEP_GATEWAY
+        if gateway and not gateway_configured(os.environ):
+            # The step is cached for the process; the pair has since changed.
+            raise RuntimeError(
+                f"{PROVIDER_LABEL} resolved a gateway, but {BASE_URL_ENV} or "
+                f"{AUTH_TOKEN_ENV} is no longer set. Rerun with both exported."
+            )
+        denied = set(_BLOCKED_BILLING_ENV)
+        if not gateway:
+            denied |= _GATEWAY_ONLY_ENV
         overrides: dict[str, str] = {}
         if credential.secret is not None:
-            overrides = {OAUTH_TOKEN_ENV: credential.secret}
-        allow = _ENV_ALLOWLIST
-        if _real_home_requested():
-            # The operator's own HOME, no relocated config. The CLI finds its
-            # own login. Nothing is linked, copied, or read here.
-            allow = _ENV_ALLOWLIST | {"HOME"}
-        elif credential.secret is not None:
-            overrides["CLAUDE_CONFIG_DIR"] = str(config_dir)
-        elif forwarded := os.environ.get("CLAUDE_CONFIG_DIR"):
-            overrides = {"CLAUDE_CONFIG_DIR": forwarded}
+            overrides[OAUTH_TOKEN_ENV] = credential.secret
+        # Under the real-HOME opt-in the CLI runs on the operator's own HOME
+        # with no relocated config and finds its own login. Nothing is linked,
+        # copied, or read here, and no config directory is set.
+        if not _real_home_requested():
+            if credential.secret is not None or gateway:
+                overrides["CLAUDE_CONFIG_DIR"] = str(config_dir)
+            elif forwarded := os.environ.get("CLAUDE_CONFIG_DIR"):
+                overrides["CLAUDE_CONFIG_DIR"] = forwarded
         # `_cli_transport` is a flat sibling module, so mypy resolves it to Any
         # under `ignore_missing_imports`. Pin the contract at this boundary
         # rather than letting Any leak into the subprocess call.
-        env: dict[str, str] = minimal_process_env(
-            allow=allow,
-            blocked=_BLOCKED_BILLING_ENV,
+        env: dict[str, str] = inherited_process_env(
+            denied_names=frozenset(denied),
+            denied_prefixes=_ISOLATION_DENY_PREFIXES,
             overrides=overrides,
         )
         return env
@@ -211,13 +264,19 @@ class _ClaudeCLIProvider:
         """Walk the shared credential order, or the real-HOME subset.
 
         Under the real-HOME opt-in no credential file or dotenv FIFO is read:
-        an exported token is forwarded, else the CLI uses its own login.
+        an exported gateway pair wins, as it does in the CLI, then an exported
+        token is forwarded, else the CLI uses its own login.
         """
         if not _real_home_requested():
             return resolve_cached(CREDENTIAL_SPEC, executable=executable)
-        if token := os.environ.get(OAUTH_TOKEN_ENV):
-            return ResolvedCredential(STEP_ENV, token)
-        return ResolvedCredential(STEP_EXISTING_LOGIN)
+        if (preempted := gateway_preempt(os.environ)) is not None:
+            resolved = preempted
+        elif token := os.environ.get(OAUTH_TOKEN_ENV):
+            resolved = ResolvedCredential(STEP_ENV, token)
+        else:
+            resolved = ResolvedCredential(STEP_EXISTING_LOGIN)
+        remember_resolution(f"{CREDENTIAL_SPEC.transport}-real-home", resolved)
+        return resolved
 
     def _read_answer(self, stdout: str, model: str) -> tuple[str, str | None]:
         """Return answer text and the model the CLI reported answering with.
