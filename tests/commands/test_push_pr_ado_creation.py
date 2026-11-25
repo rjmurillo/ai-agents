@@ -170,6 +170,10 @@ class TestPushPrGrantIsNotBroadened:
         az = [g for g in grants_of(push_pr_text) if re.search(r"\baz\b", g)]
         assert az == []
 
+    def test_no_remote_url_grant(self, push_pr_text: str) -> None:
+        """Its stdout can print origin credentials, so each lookup must prompt."""
+        assert not [g for g in grants_of(push_pr_text) if "remote get-url" in g]
+
     def test_az_detector_sees_a_scoped_az_grant(self) -> None:
         """Negative control: the `az` detector fires on the grant this file bans."""
         grants = grants_of("allowed-tools: Bash(git add:*), Bash(az repos pr create:*)\n")

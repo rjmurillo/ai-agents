@@ -5,6 +5,7 @@ description: Commit, push, and open a pull request on GitHub or ADO with the rep
 license: Apache-2.0
 # Security note: python3 -I is the identity-hardened form.
 # az is deliberately NOT granted. A prefix grant cannot limit its flags, so each ADO create prompts.
+# git remote get-url is NOT granted. Its stdout can carry origin credentials, so host detection prompts.
 # The Edit entry above is scoped to the secure allocator's output file only.
 # The Bash tool executor must sanitize arguments to prevent command injection (CWE-78).
 # Shell metacharacters (; && | etc.) should be escaped/rejected before execution.

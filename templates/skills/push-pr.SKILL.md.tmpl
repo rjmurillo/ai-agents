@@ -3,9 +3,10 @@ name: push-pr
 version: 1.0.0
 description: Commit, push, and open a pull request on GitHub or ADO with the repo template filled in from the real diff. Use when you say `push and open a PR`, `open a pull request`, or `push this branch`. Also use when writing a push recipe or runbook step, serializing pushes with flock or a push lock file (the lock file under $HOME/src/scratch/locks), or quoting the old /tmp push lock. Do NOT use to run the pre-ship review gates (use ship), and do NOT use to validate PR metadata alone (use validate-pr-description).
 license: Apache-2.0
-allowed-tools: Bash(git checkout -b:*), Bash(git switch -c:*), Bash(git add:*), Bash(git status:*), Bash(git push:*), Bash(git commit:*), Bash(python3:-I */pr/new_pr.py*), Bash(uv run --frozen python -I scripts/validation/pr_description.py*), Bash(git diff:*), Bash(git branch:*), Bash(git remote get-url:*), Bash(python3:-I */pr/validate_pr_description.py*), Bash(mkdir:-p .project-toolkit/scratch), Edit(.project-toolkit/scratch/pr-body-*.md)
+allowed-tools: Bash(git checkout -b:*), Bash(git switch -c:*), Bash(git add:*), Bash(git status:*), Bash(git push:*), Bash(git commit:*), Bash(python3:-I */pr/new_pr.py*), Bash(uv run --frozen python -I scripts/validation/pr_description.py*), Bash(git diff:*), Bash(git branch:*), Bash(python3:-I */pr/validate_pr_description.py*), Bash(mkdir:-p .project-toolkit/scratch), Edit(.project-toolkit/scratch/pr-body-*.md)
 # Security note: python3 -I is the identity-hardened form.
 # az is deliberately NOT granted. A prefix grant cannot limit its flags, so each ADO create prompts.
+# git remote get-url is NOT granted. Its stdout can carry origin credentials, so host detection prompts.
 # The Edit entry above is scoped to the secure allocator's output file only.
 # The Bash tool executor must sanitize arguments to prevent command injection (CWE-78).
 # Shell metacharacters (; && | etc.) should be escaped/rejected before execution.
