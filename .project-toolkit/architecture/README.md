@@ -194,7 +194,7 @@ Recorded, not yet binding. The last column is what each record says is holding i
 | [ADR-119](ADR-119-symlinked-dogfood-agents-and-skills.md) | Symlink the Agent and Skill Dogfood Trees to the Plugin Tree | 2026-11-04 | A binplace manifest row may set `link: true` (`templates/platforms/binplace.yaml`). | review by 2027-04-17; This record amends ADR-109 and ADR-108; see Related Decisions. |
 | [ADR-121](ADR-121-one-resolver-for-plugin-root-commands.md) | One Resolver Launches Every Shipped Plugin-Root Shell Command | 2026-11-14 | Three classes of site. | review by 2027-02-11 |
 | [ADR-124](ADR-124-verify-documentation-sdk-symbols.md) | Verify Documentation SDK Symbols | 2026-11-20 | Prove framework symbols from pinned declarations bound to each occurrence. | Round 1 blocked, and the owner then narrowed the scope. Panel round 2 and owner acceptance are required before implementation. The debate appears in `.project-toolkit/critique/ADR-124-debate-log.md`.... |
-| [ADR-126](ADR-126-repository-resolved-memory-store.md) | Repository-Resolved Memory Store | 2026-11-23 | Each repository has exactly one memory store, resolved by folder. | - |
+| [ADR-126](ADR-126-repository-resolved-memory-store.md) | Repository-Resolved Memory Store | 2026-11-25 | Each repository has exactly one memory store, resolved by folder. | - |
 
 ## Retired
 
