@@ -75,7 +75,7 @@ In contributor mode, the skill never writes a marker commit, never creates a PR,
 
 **References.** `ado-policy-wait.md` holds the Azure DevOps wait block. `review-marker-resolution.md` holds the validator resolution steps and exit-code table.
 
-**Scripts.** The skill directory holds the ADR-127 driver scripts: `ship_detect.py`, `ship_preflight.py`, and `ship_pr.py`, with the shared `_ship_common.py`. Each prints `KEY: value` lines and ends on one `NEXT:` or `STOP:` line, with exit codes 0 to 4. The current `SKILL.md` does not call them yet. Issue #7586 wires them in.
+**Scripts.** The skill directory holds the ADR-127 driver scripts: `ship_detect.py`, `ship_preflight.py`, and `ship_pr.py`, with the shared `_ship_common.py` and the body checks in `ship_pr_checks.py`. Each prints `KEY: value` lines and ends on one `NEXT:` or `STOP:` line, with exit codes 0 to 4. The current `SKILL.md` does not call them yet. Issue #7586 wires them in.
 
 ## Where it runs
 
