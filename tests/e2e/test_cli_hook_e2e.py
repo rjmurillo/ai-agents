@@ -37,7 +37,7 @@ fast, always-on guards are the unit/runtime-contract tests and the
 Run locally:
     RUN_CLI_E2E=1 uv run pytest tests/e2e/test_cli_hook_e2e.py -v -m "not copilot"
 
-Copilot cases run only in CI, behind the agent-copilot environment.
+CI has no Copilot leg since the agent-copilot smoke leg was deleted.
 """
 
 from __future__ import annotations

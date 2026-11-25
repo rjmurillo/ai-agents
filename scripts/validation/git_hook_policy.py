@@ -710,8 +710,8 @@ TESTMON_COVERAGE_CORE = "ctrace"
 CLI_E2E_TIMEOUT_SECONDS = 1_140
 # CLIs the local smoke can drive; any one on PATH satisfies the gate (REQ-047).
 # The local smoke uses the harness the developer runs, on their own login.
-# Copilot cases run only in CI, behind the token-gated agent-copilot
-# environment, so the local run deselects them even when copilot is on PATH.
+# CI has no Copilot leg since the agent-copilot smoke leg was deleted, so the
+# local run deselects those cases even when copilot is on PATH.
 CLI_E2E_BINARIES = ("claude", "codex")
 # The hook smoke has Claude and Copilot cases only, so Codex alone cannot run it.
 CLI_HOOK_E2E_BINARIES = ("claude",)

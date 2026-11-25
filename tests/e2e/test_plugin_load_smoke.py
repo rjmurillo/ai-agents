@@ -81,7 +81,7 @@ detector's positive and negative controls, with no CLI.
 Run locally:
     RUN_CLI_E2E=1 uv run pytest tests/e2e/test_plugin_load_smoke.py -v -m "not copilot"
 
-Copilot cases run only in CI, behind the agent-copilot environment.
+CI has no Copilot leg since the agent-copilot smoke leg was deleted.
 """
 
 from __future__ import annotations
@@ -3530,8 +3530,8 @@ def _smoke_tests() -> list[Callable[..., object]]:
 def _local_smoke_tests() -> list[Callable[..., object]]:
     """Smoke tests the pre-push run executes: it selects ``-m "not copilot"``.
 
-    ``CLI_E2E_LOCAL_MARKERS`` keeps every Copilot case in CI behind the
-    agent-copilot environment, so a Copilot hang cannot cost the local push.
+    ``CLI_E2E_LOCAL_MARKERS`` keeps every Copilot case out of the local run,
+    so a Copilot hang cannot cost the local push.
     """
     return [
         test
