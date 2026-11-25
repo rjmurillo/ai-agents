@@ -1483,10 +1483,10 @@ _PyDefined = dict[str, "_PyScope | None"]
 class _PyScope:
     """One Python scope in an example: module, class, function or comprehension.
 
-    ``local`` holds every name the scope binds anywhere, so a read of a local
+    ``_local`` holds every name the scope binds anywhere, so a read of a local
     name never falls through to an enclosing scope. ``defined`` holds the
     names definitely bound at the current point of the flow analysis.
-    ``outer`` is what enclosing scopes had definitely bound when this scope
+    ``_outer`` is what enclosing scopes had definitely bound when this scope
     was created. A plain class, not a dataclass: on Python 3.10 a dataclass
     resolves its self-referencing string annotations through ``sys.modules``,
     which a script loaded by file path may not be registered in.

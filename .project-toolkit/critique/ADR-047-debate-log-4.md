@@ -161,3 +161,10 @@ The qa reviewer could not reproduce 14 with the ledger row 16 command.
 Row 16 now names an exact command and filter.
 It gives 12 on origin/main and 11 at HEAD.
 The ADR now says 11. No decision text changed.
+
+### Count correction reverted (round 17 review)
+
+The decision-rigor reviewer ran the row 16 command against git blobs.
+It gives 14 at HEAD and 15 at origin/main `148d7ad72`.
+The round 16 figures of 11 and 12 came from a shell loop that split file names.
+The ADR and ledger say 14 again. No decision text changed.

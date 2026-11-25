@@ -1228,7 +1228,10 @@ _TEST_RUNNER_ROOTS = frozenset({"pytest"})
 
 
 def _is_test_module(path: Path) -> bool:
-    """Return True for a ``test_*.py`` or ``conftest.py`` under a ``tests`` folder."""
+    """Return True for a ``test_*`` or ``conftest.py`` file under a ``tests`` folder.
+
+    The caller passes a repo-relative path, and only Python files reach it.
+    """
     name = path.name
     return "tests" in path.parts[:-1] and (name.startswith("test_") or name == "conftest.py")
 
@@ -1356,7 +1359,11 @@ def _coupling_admission(
     comparison: FileComparison,
     import_roots: list[Path],
 ) -> dict[str, Any] | None:
-    """Admit a Python coupling drop whose third-party roots did not grow."""
+    """Admit a Python coupling drop whose third-party roots did not grow.
+
+    In a test module, ``pytest`` is left out of both root sets before the
+    comparison, so the record lists the roots that were compared.
+    """
     head_path = Path(comparison.file_path)
     if detect_language(head_path) != "python":
         print(f"NOT ADMITTED: {head_path}: coupling: language is not Python", file=sys.stderr)
