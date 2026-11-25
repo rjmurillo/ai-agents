@@ -41,6 +41,8 @@ Apache-2.0 section 4(b) asks that modified files say so. Each change is listed h
      `_pr_opened` accepts an OPEN state for "PR #N is open". `_ci` compares stated check counts.
      The new parsers never yield CAP.
    - `claims.py`: a sentence with check counts and no test words becomes a `ci` claim.
+   - Upstream's `tests/test_redos.py` caught two quadratic SHA regexes in the first round 3 draft. The field
+     pattern is anchored to a word start with bounded runs, and the row pattern no longer spans lines.
 
 ## Check that the changes are behavior-neutral
 

@@ -514,11 +514,12 @@ URL_RE = re.compile(r"https?://[^\s'\"<>()\[\]{}`]+")
 SHA_RE = re.compile(r"\b[0-9a-f]{7,64}\b")
 # Spike round 3: a SHA is a receipt only where the output ties it to a commit, HEAD, or a ref.
 SHA_REF_RES = (
-    re.compile(r"(?m)^[\s*|]*([0-9a-f]{7,40})\b"),  # git log, rev-parse, and ls-remote rows
+    re.compile(r"(?m)^[ \t*|]*([0-9a-f]{7,40})\b"),  # git log, rev-parse, ls-remote rows; never spans lines
     re.compile(r"(?m)^commit ([0-9a-f]{40})\b"),
     re.compile(r"\[[^\]\s]+(?: \(root-commit\))? ([0-9a-f]{7,40})\]"),  # git commit summary line
     re.compile(r"\b([0-9a-f]{7,40})\.\.\.?([0-9a-f]{7,40})\b"),  # push and fetch ranges
-    re.compile(r"(?i)[\"']?\w*(?:sha|oid|commit)\w*[\"']?\s*[:=]\s*[\"']?([0-9a-f]{7,40})\b"),  # JSON or dict fields
+    # JSON or dict fields; the word-start anchor and bounded runs keep a long word linear (tests/test_redos.py)
+    re.compile(r"(?i)(?<!\w)\w{0,24}(?:sha|oid|commit)\w{0,24}[\"']?\s*[:=]\s*[\"']?([0-9a-f]{7,40})\b"),
     re.compile(r"HEAD is now at ([0-9a-f]{7,40})\b"),
 )
 
