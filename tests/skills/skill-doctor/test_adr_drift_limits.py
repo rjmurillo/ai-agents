@@ -229,6 +229,17 @@ def test_adr_reference_patterns_are_linear_on_a_hostile_line(pattern, line):
     assert time.monotonic() - started < LINEAR_SECONDS
 
 
+def test_a_status_row_above_a_long_blank_line_is_linear():
+    # 50,000 blanks: the old two-run separator pattern took about 28 s here.
+    lines = ["| Status | Accepted |", " " * 50_000 + "x"]
+
+    started = time.monotonic()
+    status = adr_text.doc_status({}, lines, 0)
+
+    assert time.monotonic() - started < LINEAR_SECONDS
+    assert status == "accepted"
+
+
 def test_h1_and_h2_parsing_is_linear_on_a_hostile_line():
     doc = SimpleNamespace(lines=["## a" + " " * 20_000 + "b"], body_start=0)
 

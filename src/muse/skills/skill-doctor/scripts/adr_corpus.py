@@ -152,9 +152,12 @@ def is_template_name(name: str) -> bool:
 
 
 def is_non_record_name(name: str) -> bool:
-    """A template, an index or log file, or a date-prefixed note: never a numbered ADR."""
+    """A template or an index or log file: never a numbered ADR.
+
+    A date-named file never gets here: `load_dir` lists it in `rejected` first.
+    """
     stem = name.lower().removesuffix(".md")
-    return is_template_name(name) or stem in INDEX_STEMS or bool(DATE_PREFIX.match(name))
+    return is_template_name(name) or stem in INDEX_STEMS
 
 
 def within(path: Path, root: Path) -> bool:
@@ -187,7 +190,7 @@ def path_exists(path: Path) -> bool:
     """
     try:
         return path.exists()
-    except OSError:
+    except (OSError, ValueError):
         return False
 
 
@@ -195,14 +198,15 @@ def path_is_dir(path: Path) -> bool:
     """`Path.is_dir`, reading any OS error as not a folder, like `path_exists`."""
     try:
         return path.is_dir()
-    except OSError:
+    except (OSError, ValueError):
         return False
 
 
 def _resolve(path: Path) -> Path | None:
+    """The real path, or None. A NUL byte (a UTF-16 `.adr-dir`) raises ValueError."""
     try:
         return path.resolve()
-    except (OSError, RuntimeError):
+    except (OSError, RuntimeError, ValueError):
         return None
 
 

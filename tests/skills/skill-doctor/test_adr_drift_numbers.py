@@ -6,6 +6,7 @@ import errno
 from pathlib import Path
 
 import adr_history
+import pytest
 from adr_drift_helpers import adr_path, adr_text, commit, kinds, scan, seeded_repo
 
 
@@ -83,14 +84,40 @@ def test_a_back_edge_must_resolve_to_the_citing_record(tmp_path, capsys):
         },
     )
 
-    found = {
-        f["evidence"]["path"]: f
-        for f in kinds(scan(capsys, repo), "adr-supersession-not-reciprocal")
-    }
+    found = kinds(scan(capsys, repo), "adr-supersession-not-reciprocal")
 
-    # 0007's back-edge names ADR-003, which from docs/rfcs is 0003-y, not docs/adr/0003-x.
-    assert sorted(found) == ["docs/rfcs/0003-y.md", "docs/rfcs/0007-z.md"]
-    assert "superseded-by: docs/adr/0003-x.md" in found["docs/rfcs/0007-z.md"]["suggested_fix"]
+    # From docs/rfcs, ADR-003 is 0003-y, so no edge in 0007-z can name docs/adr/0003-x:
+    # that edge is not checked. 0007-z's own edge to 0003-y has no back-edge.
+    assert [f["evidence"]["path"] for f in found] == ["docs/rfcs/0003-y.md"]
+    assert "supersedes: ADR-7" in found[0]["suggested_fix"]
+
+
+def test_an_edge_no_number_can_answer_is_not_reported(tmp_path, capsys):
+    repo = seeded_repo(
+        tmp_path / "repo",
+        {
+            "docs/adr/0003-x.md": _adr(3, supersedes="[ADR-007]"),
+            "docs/rfcs/0003-y.md": _adr(3),
+            "docs/rfcs/0007-z.md": _adr(7),
+        },
+    )
+
+    # From docs/rfcs, ADR-3 is 0003-y, so no fix in 0007-z could name docs/adr/0003-x.
+    assert kinds(scan(capsys, repo), "adr-supersession-not-reciprocal") == []
+
+
+def test_applying_the_reciprocity_fix_clears_the_finding(tmp_path, capsys):
+    files = {
+        "docs/rfcs/0003-y.md": _adr(3),
+        "docs/rfcs/0007-z.md": _adr(7, superseded_by="ADR-003"),
+    }
+    repo = seeded_repo(tmp_path / "repo", files)
+    (before,) = kinds(scan(capsys, repo, name="before.json"), "adr-supersession-not-reciprocal")
+    assert "supersedes: ADR-7" in before["suggested_fix"]
+
+    commit(repo, {"docs/rfcs/0003-y.md": _adr(3, supersedes="[ADR-7]")}, "docs: apply the fix")
+
+    assert kinds(scan(capsys, repo, name="after.json"), "adr-supersession-not-reciprocal") == []
 
 
 def test_a_number_two_other_folders_hold_is_not_called_missing(tmp_path, capsys):
@@ -130,6 +157,19 @@ def test_superseded_by_names_the_successor_not_a_candidate():
     assert adr_history.superseded_numbers("follow ADR-40, which replaces ADR-12") == {12}
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "ADR-12 is superseded by ADR-40",
+        "ADR-12 was replaced by ADR-40",
+        "ADR-12 is deprecated in favor of ADR-40",
+        "ADR-012 is now superseded by ADR-040.",
+    ],
+)
+def test_the_passive_form_names_the_superseded_record(text):
+    assert adr_history.superseded_numbers(text) == {12}
+
+
 def _too_long(real, long: str):
     def probe(self: Path, **kwargs: object) -> bool:
         if long in str(self):
@@ -148,6 +188,18 @@ def test_a_link_name_too_long_for_the_os_is_a_broken_link(tmp_path, capsys, monk
     (found,) = kinds(scan(capsys, repo), "adr-broken-link")
 
     assert long in found["evidence"]["target"]
+
+
+@pytest.mark.parametrize(
+    "raw", [b"docs\x00adr\n", "docs/adr\r\n".encode("utf-16")], ids=["nul", "utf-16"]
+)
+def test_an_adr_dir_with_a_nul_byte_is_rejected_not_fatal(tmp_path, capsys, raw):
+    repo = seeded_repo(tmp_path / "repo", {"docs/adr/0001-a.md": "# 1. A\n"})
+    (repo / ".adr-dir").write_bytes(raw)
+
+    result = scan(capsys, repo)
+
+    assert [r["path"] for r in result["locate"]["rejected"]] == [".adr-dir"]
 
 
 def test_an_adr_dir_name_too_long_for_the_os_is_rejected(tmp_path, capsys, monkeypatch):

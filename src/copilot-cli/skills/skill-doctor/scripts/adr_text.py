@@ -14,7 +14,11 @@ BACKTICK = re.compile(r"`([^`\n]+)`")
 PATHLIKE = re.compile(r"^[A-Za-z0-9_.@+-][A-Za-z0-9_.@+/-]*$")
 PLACEHOLDER = re.compile(r"YYYY|MM-DD|NNN|XXX|path/to", re.IGNORECASE)
 FILE_EXTENSION = re.compile(r"\.[A-Za-z0-9]{1,8}$")
-TABLE_SEPARATOR = re.compile(r"^\s*\|?\s*:?-{3,}")
+# Matched against a line with its leading blanks stripped, so one blank run stays linear.
+TABLE_SEPARATOR = re.compile(r"\|?\s*:?-{3,}")
+STATUS_WORDS = frozenset(
+    {"accepted", "proposed", "draft", "approved", "superseded", "deprecated", "rejected"}
+)
 # An ADR number: one to six digits after any leading zeros, as file names allow. The digit
 # bound keeps a long run of zeros or digits linear and keeps `int()` within its digit limit.
 ADR_NUMBER = r"ADR-0*(\d{1,6})\b"
@@ -133,15 +137,17 @@ def doc_status(frontmatter: dict[str, Any], lines: Sequence[str], start: int) ->
 def _inline_status(line: str, following: str) -> str | None:
     """`Status: x`, a `- Status: x` bullet, or a two-cell `| Status | x |` row.
 
-    A row with more cells, or one above a `|---|` separator, is a table header,
-    so `| Status | Deciders | Date |` names columns, not a status.
+    A row with more cells is a table header, so `| Status | Deciders | Date |` names
+    columns, not a status. A two-cell row above a `|---|` separator is a header too,
+    unless its second cell is a status word, as in a key and value table.
     """
     if line.lstrip().startswith("|"):
         cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
-        if len(cells) != 2 or TABLE_SEPARATOR.match(following):
+        if len(cells) != 2 or cells[0].strip("*").lower() != "status":
             return None
-        name, value = cells
-        return value.strip("*").strip().lower() if name.strip("*").lower() == "status" else None
+        value = cells[1].strip("*").strip().lower()
+        header = TABLE_SEPARATOR.match(following.lstrip()) is not None
+        return None if header and status_word(value) not in STATUS_WORDS else value
     match = re.match(r"^\s*(?:[-*]\s+)?\**status\**\s*:\s*\**\s*(.+)$", line, re.IGNORECASE)
     return match.group(1).strip().lower() if match else None
 

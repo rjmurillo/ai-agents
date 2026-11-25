@@ -137,8 +137,17 @@ def test_locate_records_a_style_read_failure(tmp_path, capsys, monkeypatch):
         (["# ADR-1: x", "", "Nothing here"], ""),
         (["# ADR-1: x", "", "| Status | Deciders | Date |", "| --- | --- | --- |"], ""),
         (["# ADR-1: x", "", "| Status | Owner |", "|---|---|", "| Accepted | me |"], ""),
+        (["# ADR-1: x", "", "| Status | Accepted |", "|---|---|", "| Date | 2024 |"], "accepted"),
     ],
-    ids=["inline", "table-row", "commented-out", "none", "wide-header", "two-cell-header"],
+    ids=[
+        "inline",
+        "table-row",
+        "commented-out",
+        "none",
+        "wide-header",
+        "two-cell-header",
+        "key-value-first-row",
+    ],
 )
 def test_status_lines_in_prose(lines, status):
     assert adr_text.status_word(adr_text.doc_status({}, lines, 0)) == status

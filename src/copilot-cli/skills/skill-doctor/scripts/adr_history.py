@@ -22,11 +22,12 @@ MAX_CITED_EVIDENCE = 10
 # Word suffixes are bounded so a long run of verbs cannot make each match attempt rescan it.
 SUPERSEDE_VERB = r"(?:supersed|replac|revert|deprecat|drop)\w{0,20}"
 VERB_THEN_ADR = re.compile(rf"{SUPERSEDE_VERB}([^.\n]{{0,60}}?)\b{ADR_NUMBER}", re.IGNORECASE)
-# "superseded by ADR-N" names the successor, not the record that was superseded.
-BY_SUCCESSOR = re.compile(r"\bby\W*\Z", re.IGNORECASE)
-# In "ADR-M supersedes ADR-N", ADR-M is the successor: another ADR follows the verb.
+# "superseded by ADR-N" and "deprecated in favor of ADR-N" name the successor.
+BY_SUCCESSOR = re.compile(r"\b(?:by|in\s+favou?r\s+of)\W*\Z", re.IGNORECASE)
+# In the active "ADR-M supersedes ADR-N", ADR-M is the successor: the verb ends in "s"
+# and another ADR follows it. The passive "ADR-N is superseded by ADR-M" is not skipped.
 THEN_ADR = re.compile(rf"[^.\n]{{0,60}}?\b{ADR_NUMBER}", re.IGNORECASE)
-ADR_THEN_VERB = re.compile(rf"\b{ADR_NUMBER}[^.\n]{{0,60}}?{SUPERSEDE_VERB}", re.IGNORECASE)
+ADR_THEN_VERB = re.compile(rf"\b{ADR_NUMBER}[^.\n]{{0,60}}?({SUPERSEDE_VERB})", re.IGNORECASE)
 SHA_TOKEN = re.compile(r"^[0-9a-f]{40,64}$")
 STATUS_TOKEN = re.compile(r"^[A-Z]\d*$")
 LOG_ARGS = (
@@ -125,10 +126,16 @@ def _commit_evidence(commit: Commit) -> dict[str, Any]:
     return {"sha": commit.sha, "date": commit.date, "subject": commit.subject}
 
 
+def _names_successor(match: re.Match[str], text: str) -> bool:
+    """True for ADR-M in "ADR-M supersedes ADR-N": an active verb, then another ADR."""
+    active = match.group(2).lower().endswith("s")
+    return active and THEN_ADR.match(text, match.end()) is not None
+
+
 def superseded_numbers(text: str) -> set[int]:
     """ADR numbers a commit text says were superseded, replaced, reverted, or dropped."""
     numbers = {
-        int(m.group(1)) for m in ADR_THEN_VERB.finditer(text) if not THEN_ADR.match(text, m.end())
+        int(m.group(1)) for m in ADR_THEN_VERB.finditer(text) if not _names_successor(m, text)
     }
     for match in VERB_THEN_ADR.finditer(text):
         if not BY_SUCCESSOR.search(match.group(1)):

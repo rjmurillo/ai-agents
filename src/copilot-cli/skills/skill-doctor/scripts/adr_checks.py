@@ -408,10 +408,15 @@ def _missing_target(doc: AdrDoc, edge: Edge) -> Finding:
 def _reciprocity(
     doc: AdrDoc, edge: Edge, target: AdrDoc, target_edges: list[Edge], docs: Sequence[AdrDoc]
 ) -> Finding | None:
-    """A missing back-edge. A back-edge counts only when it resolves, from the target, to `doc`."""
+    """A missing back-edge. A back-edge counts only when it resolves, from the target, to `doc`.
+
+    When `doc`'s number names another record from the target's folder, no edge in the
+    target can name `doc` by number, so no fix exists and the edge is not checked.
+    """
+    if resolve_number(target, doc.file.number, docs) is not doc:
+        return None
     wanted = "superseded_by" if edge.kind == "supersedes" else "supersedes"
-    back = [e for e in target_edges if e.kind == wanted and e.number == doc.file.number]
-    if any(resolve_number(target, e.number, docs) is doc for e in back):
+    if any(e.kind == wanted and e.number == doc.file.number for e in target_edges):
         return None
     label = "superseded-by" if wanted == "superseded_by" else "supersedes"
     evidence = {
@@ -420,12 +425,8 @@ def _reciprocity(
         "edge": edge.kind,
         "missing_edge": wanted,
     }
-    # From the target's folder, a bare number may name another record, so cite the path.
-    ref = f"ADR-{doc.file.number}"
-    if resolve_number(target, doc.file.number, docs) is not doc:
-        ref = doc.file.rel
     fix = (
-        f"Add `{label}: {ref}` to {target.file.rel} "
+        f"Add `{label}: ADR-{doc.file.number}` to {target.file.rel} "
         f"(or a matching status line), because {doc.file.rel} declares the {edge.kind} edge."
     )
     return _found(
