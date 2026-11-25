@@ -11,7 +11,7 @@ from tests.lib.smoke_result_env import FORK_MESSAGE, apply_green
 
 Capsys = pytest.CaptureFixture[str]
 
-SUCCESS = "CLI smoke passed for Claude, Copilot, Codex, and Pi."
+SUCCESS = "CLI smoke passed for every leg that ran."
 QUOTA_NOTICE = (
     "::notice::CLI smoke passed with 2 prompt checks quota-skipped. Load tests passed on every leg."
 )
@@ -37,8 +37,11 @@ def run_preset(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: Capsys):
     [
         ({}, 0, SUCCESS),
         ({"RUN": "false", "SMOKE_RESULT": "skipped", "AUTHORIZE_RESULT": "skipped"}, 0, NO_CHANGE),
+        # The Claude and Copilot legs need an environment approval, so a pull
+        # request skips them by design and the rest of the smoke still decides.
+        ({"EVENT_NAME": "pull_request", "SMOKE_RESULT": "skipped"}, 0, SUCCESS),
     ],
-    ids=["all-green", "no-smoke-path"],
+    ids=["all-green", "no-smoke-path", "pull-request-skips-approval-legs"],
 )
 def test_passing_outcomes_print_one_line(
     run_preset, overrides: dict[str, str], rc: int, out: str
@@ -71,6 +74,8 @@ def test_quota_skips_print_the_count_notice(run_preset, tmp_path: Path) -> None:
             f"::error::{FORK_MESSAGE}",
         ),
         ({"SMOKE_RESULT": "failure"}, "[SMOKE_RESULT=failure]"),
+        ({"SMOKE_RESULT": "skipped"}, "[SMOKE_RESULT=skipped]"),
+        ({"EVENT_NAME": "pull_request", "CODEX_RESULT": "failure"}, "[CODEX_RESULT=failure]"),
         ({"CODEX_RESULT": "failure"}, "[CODEX_RESULT=failure]"),
         ({"HOOKS_RESULT": "failure"}, "[HOOKS_RESULT=failure]"),
         ({"HOOKS_RESULT": "skipped"}, "[HOOKS_RESULT=skipped]"),
@@ -81,6 +86,8 @@ def test_quota_skips_print_the_count_notice(run_preset, tmp_path: Path) -> None:
         "broken-filter",
         "fork",
         "smoke-leg-failed",
+        "smoke-leg-skipped-on-dispatch",
+        "pull-request-codex-still-gates",
         "codex-leg-failed",
         "hooks-leg-failed",
         "hooks-leg-skipped",

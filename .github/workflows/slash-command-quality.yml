@@ -48,7 +48,9 @@ jobs:
     runs-on: ubuntu-26.04-arm
     environment: agent-claude
     needs: check-paths
-    if: needs.check-paths.outputs.spec_evals_changed == 'true'
+    # Not on pull requests: the agent-claude approval is never given, so a PR
+    # run only waited and blocked auto-merge. Push to main still runs it.
+    if: github.event_name != 'pull_request' && needs.check-paths.outputs.spec_evals_changed == 'true'
     permissions:
       contents: read
 
@@ -99,7 +101,7 @@ jobs:
   skip-validation:
     runs-on: ubuntu-26.04-arm
     needs: check-paths
-    if: needs.check-paths.outputs.spec_evals_changed != 'true'
+    if: github.event_name == 'pull_request' || needs.check-paths.outputs.spec_evals_changed != 'true'
     permissions: {}
     steps:
       - name: Skip validation
