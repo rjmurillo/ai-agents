@@ -1,7 +1,7 @@
 ---
 id: ADR-059
 status: accepted
-date: 2026-11-01
+date: 2026-11-25
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -162,7 +162,7 @@ path sits inside a quoted payload, so every Copilot run stopped.
   empty `blocking_unverifiable_command_tokens` list
   (`templates/skills/pr-review.SKILL.md.tmpl:152-154`). The config table
   `verify_config_only_exits` summarizes it; the template governs
-  (`src/claude/skills/pr-review/pr-review-config.yaml:116-122`).
+  (`src/claude/skills/pr-review/pr-review-config.yaml:103-109`).
 - So R1 has two strengths. Exit 2 is enforced by the gate. A blocking
   token is not: the gate still exits 0 (`gate.py:4778-4787`) and lists the
   token for the agent to stop on. The ADR-101 plane table rates files

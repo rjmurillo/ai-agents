@@ -342,8 +342,9 @@ def get_concurrency_group(run: WorkflowRun) -> str:
 
     The key approximates the workflow's concurrency group: run name plus PR
     number for pull_request runs, run name plus head branch otherwise. It does
-    not reproduce the group string in the YAML. claude.yml groups per comment,
-    review, or thread (ADR-114), so its runs are over-merged here.
+    not reproduce the group string in the YAML, so a workflow whose group is
+    keyed another way (per comment, review, or thread; ADR-114) is over-merged
+    here.
     """
     if run.event == "pull_request" and run.pull_requests:
         pr_number = run.pull_requests[0].get("number")

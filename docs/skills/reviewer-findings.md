@@ -64,7 +64,7 @@ A finding can match a version of the tree from before a fix, which makes it plau
 | Multi-line current state | Whole-block comparison of the file at that commit |
 | History or provenance | `git log -S` |
 
-The finding's quoted text and the path it cites are untrusted input. The skill writes each to a file instead of pasting it into a command, uses `--literal-pathspecs`, and treats an empty needle as unverifiable, not refuted. On a shallow checkout, `git log -S` cannot answer questions about commits git has not fetched.
+The finding's quoted text and the path it cites are untrusted input. The skill writes each to a file instead of pasting it into a command, uses `--literal-pathspecs`, and treats an empty needle as unverifiable, not refuted. On a shallow checkout, `git log -S` cannot answer questions about commits git has not fetched. A CI checkout is shallow by default, because `actions/checkout` defaults to `fetch-depth: 1`; check with `git rev-parse --is-shallow-repository`.
 
 ### Rules
 
