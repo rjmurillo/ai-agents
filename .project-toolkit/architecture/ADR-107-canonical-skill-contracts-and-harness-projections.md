@@ -749,6 +749,6 @@ Issue states below were read with `gh issue view` on 2026-09-09 (`repo-observed`
 - Issue #3465 (closed, completed, 2026-07-28), markdown portability ratchet coverage. Cited here
   only to correct the first revision, which treated it as open.
 - `.agents/governance/GENERATOR-FILES.md`, the generator register.
-- `.claude/rules/generated-artifacts.md`, `.claude/rules/canonical-source-mirror.md`,
+- The former `generated-artifacts` rule (now at `.claude/skills/ai-agents-generation-and-release/references/rule-generated-artifacts.md`), `.claude/rules/canonical-source-mirror.md`,
   `.claude/rules/templates.md`, `.claude/rules/claude-agents.md`,
   `.claude/rules/plugin-self-containment.md`.
