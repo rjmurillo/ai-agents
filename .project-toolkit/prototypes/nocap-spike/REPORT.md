@@ -4,6 +4,100 @@ SPIKE ONLY. Do not merge. Nothing here is wired to a hook or shipped.
 Branch `spike/nocap-checker-core` is local only. It is not pushed, and no PR exists.
 Round 1 ran on 2026-11-23 and stopped. Round 2 applied two fixes and re-measured on 2026-11-25.
 Round 3 applied the remaining named fixes on 2026-11-25 and replayed both labeled sets.
+Round 4 checked the round 3 core against every upstream claim on 2026-11-25, on a fresh blind sample.
+
+## Verdict (round 4, against upstream's published claims)
+
+**Proceed to Phase 1. The modified core meets every upstream claim that this corpus can measure.**
+
+| Upstream claim | Upstream value | This core | Met? |
+|---|---|---|---|
+| NO CAP precision, blind real runs (false positives) | 0.92 (92/100), CI 0.85 to 0.96 | **0.93 (93/100)**, CI 0.86 to 0.97 | Yes |
+| Miss rate: unstamped completion replies with an unsupported claim (false negatives) | 0.38 (23/60) round 3; 0.23 round 2 | **0.20 (12/60)**, CI 0.12 to 0.32 | Yes |
+| Missed CAP in the miss sample | 1 of 60 | **0 of 60** | Yes |
+| CAP precision | 8 of 11 (round 2); not measured in round 3 | not measured: 0 CAP in 678 unseen runs | Not measurable, as in upstream round 3 |
+| Labelled eval, holdout: claim found P / R | 1.000 / 1.000 at HEAD (0.935 / 0.967 first run) | 1.000 / 1.000, 0 FP, 0 FN | Yes |
+| Labelled eval, CAP only P / R | 1.000 / 1.000 (7 TP) | 1.000 / 1.000 (7 TP) | Yes |
+| Synthetic battery, 125 cases | CAP 36 TP, 0 FP, 0 FN; NO CAP 57 TP, 0 FP, 0 FN | identical, 125 of 125 exact | Yes |
+| Upstream test suite | 6,353 passed, 13 skipped, 17 xfailed | identical | Yes |
+
+The real-run numbers come from one labeler, not two raters with adjudication. That labeler also wrote the fixes.
+Upstream's real runs are public SWE-rebench trajectories. These are this repo's Claude Code sessions.
+So the comparison is like for like in method, not in population.
+
+## Round 4: upstream parity and a fresh blind sample
+
+### Upstream's own evals on this core
+
+The three modified core files were swapped into a scratch copy of upstream at `a683c857`. A pristine copy ran beside it.
+
+- `eval/run_eval.py --split all`: identical tables on both copies. Every metric has precision 1.000,
+  recall 1.000, 0 FP and 0 FN, on dev (40 cases) and holdout (30 cases).
+- `nocap.battery.run()`: identical on both copies. 125 of 125 cases exact, no misses.
+- Full upstream suite, `pytest tests`: the first run on this core failed `tests/test_redos.py`. Two new SHA regexes
+  backtracked quadratically: `\w*(?:sha|oid|commit)\w*` on a long word, and `^[\s*|]*` across blank lines.
+  Both are now bounded or line-local. After the fix, `tests/test_redos.py` passed 3,368 of 3,368, and the full suite
+  matched upstream's own core: 6,353 passed, 13 skipped, 17 xfailed.
+
+### Blind sample method
+
+`sample_blind.py` mirrors upstream's `docs/eval/BLIND3.md`. The method was fixed before any label was written:
+
+- Pool: top-level ai-agents session files in sha256-of-path order. All 85 sessions from earlier rounds are skipped,
+  and so are this spike's own sessions. Seed 20261125.
+- Precision sample: one visible stamp (NO CAP or CAP) per run, until 100. NO RECEIPT is hidden at upstream's default.
+- Miss sample: one reply per run that has a completion word and no visible stamp, until 60. Completion words are
+  done, fixed, complete, pass, merged, pushed, green, verified, implemented, landed, shipped and resolved.
+- **One change after drawing.** The first miss draw had 38 of 60 replies from turns with no tool call at all.
+  These were "do not reply DONE" probe sessions with nothing to check. Scoring them as no-claim would flatter the
+  miss rate, so the miss sample was redrawn with a rule that the turn makes at least one tool call.
+  Upstream's SWE-rebench runs always make calls. The precision sample was not redrawn.
+- 678 runs scanned. No CAP stamp appeared in any of them.
+
+### Precision sample (100 stamps)
+
+Kinds: 45 SHA, 39 tests, 12 number, 1 each of ci, file, PR opened and merged.
+Each stamp was labeled against its cited call's output, read in full when the window was unclear.
+
+7 of 100 are wrong:
+
+| Stamp | Why it is wrong |
+|---|---|
+| "34 passed, 0 product failures" | The cited run also shows 1 failed. |
+| "commit X only adds the paragraph and the `collect_tests` docstring" | The diffstat shows a different second file. |
+| "Commit X shifted gate code by about 11 lines" | A content claim. "shifted" is not in the content-verb list. |
+| "A test fails on any non-stdlib import" | It describes what a test does, not a run result. |
+| "smoke tests passed on 0.166.0 and 0.167.0" | The run shows a pass, but no version. |
+| "Commit X explains only the ratchet" | `git log --oneline` shows the subject, not the whole message. |
+| "Round-3 fix commit X: the pin comment now reads ..." | The output shows only that X is HEAD. |
+
+### Miss sample (60 replies)
+
+Scope: a claim is in scope when it states a test, CI, build, git, PR, SHA, count or command result.
+Assertions about what source code does ("`gate.py:1595` treats empty as unset") are out of scope.
+The checker is not built for them, and upstream's miss classes are all of the in-scope kind.
+
+| Label | Count |
+|---|---|
+| Unsupported in-scope claim, no visible stamp (miss) | 12 |
+| Contradicted claim (missed CAP) | 0 |
+| Every in-scope claim proven | 13 |
+| No in-scope claim | 35 |
+
+All 12 misses state a count, SHA or commit fact that came from the prompt or PR body, not from a tool call.
+Examples: "14 tests", "6 tests in `test_evidence_confinement.py`", "2039 lines, 25 files", "base `d0695b88c`".
+Upstream counts the same thing as "claimed verification or count not shown".
+
+The scope rule is a judgment call. If code-reading assertions were in scope, the miss rate would rise.
+That variant was not labeled.
+
+### Defects seen in round 4, not fixed
+
+Fixing these now would leave the round 4 numbers describing code that no longer exists, so they are recorded here instead.
+
+- The content-verb list misses "shifted", "explains", and any verb after a parenthetical date.
+- A sentence describing what a test does can still earn a test stamp from a failing run.
+- A SHA under a `"head":` JSON key is not read as placed. One supported claim earned NO RECEIPT.
 
 ## Verdict (round 3, after all named fixes)
 
