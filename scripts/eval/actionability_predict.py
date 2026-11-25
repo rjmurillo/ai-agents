@@ -29,6 +29,7 @@ import sys
 import time
 from collections.abc import Callable
 from pathlib import Path
+from types import ModuleType
 from typing import Any, TextIO, cast
 
 # Must exist before the first scripts.* import below, so it cannot come from actionability_io.
@@ -167,7 +168,7 @@ def build_user_message(row: dict[str, Any], token_factory: Callable[[], str] = _
     return "\n".join(parts)
 
 
-def _load_eval_module(name: str) -> Any:
+def _load_eval_module(name: str) -> ModuleType:
     """Import a private ``scripts/eval`` module at call time, so importing this one stays cheap."""
     eval_dir = str(Path(__file__).resolve().parent)
     if eval_dir not in sys.path:
@@ -290,8 +291,10 @@ def _needs_anthropic_key(provider: str | None) -> bool:
     then ``EVAL_PROVIDER``, and only the default transport needs ``ANTHROPIC_API_KEY``. Any
     other transport loads its own credential or needs none.
     """
-    is_default = _load_eval_module("_providers").is_default_anthropic
-    return bool(is_default(_effective_provider(provider)))
+    is_default = cast(
+        Callable[[str | None], bool], _load_eval_module("_providers").is_default_anthropic
+    )
+    return is_default(_effective_provider(provider))
 
 
 def _predict_config_error(args: argparse.Namespace, has_api_key: bool) -> str | None:
