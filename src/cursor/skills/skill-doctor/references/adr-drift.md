@@ -4,6 +4,36 @@ Read this from Step 1a of `SKILL.md`. It covers what `adr_drift.py` checks, the
 finding kinds, and how to treat the text it reads. The script is read-only toward
 the repository: `scan` writes only its `--out` file, which must sit outside it.
 
+## Workflow
+
+Run Step 1a for an ADR drift request. Run it in a scoring run only when the
+user also asks for it. Skip it for `--all-conversations` runs and say why: there
+is no single repository to check.
+
+For each selected repository, scan into the report directory. Never write into
+the repository. `<repo-slug>` is the repo folder name, kept to letters, digits,
+`.`, `_`, and `-`.
+
+```bash
+mkdir -p "$REPORT_DIR/adr_drift"
+python3 "$SKILL_ROOT/scripts/adr_drift.py" scan --repo "$REPO" \
+  --out "$REPORT_DIR/adr_drift/<repo-slug>.json"
+```
+
+Windows: use the PowerShell form under Commands.
+
+Read the scan file and report it as Reading the results describes. Every
+finding carries a `suggested_fix`.
+
+Then run skill-bootstrap's scan for undocumented decisions:
+
+```bash
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skill-bootstrap/scripts/bootstrap_adr.py scan --repo "$REPO" --out "$REPORT_DIR/adr_drift/<repo-slug>-decisions.json"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+```
+
+Handle its result as Undocumented decisions describes. Then add the
+`adr_drift` section to `report.json` as `references/report-schema.md` describes.
+
 ## Commands
 
 ```bash

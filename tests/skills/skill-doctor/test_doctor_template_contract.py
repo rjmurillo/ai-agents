@@ -56,6 +56,24 @@ def _module_tuple(relative: str, name: str) -> list[str]:
     raise AssertionError(f"{relative} assigns no literal {name}")
 
 
+def test_step_1a_points_to_a_workflow_that_holds_the_moved_steps() -> None:
+    """Step 1a defers to the reference Workflow, which keeps every command it moved."""
+    text = (REPO / "templates/skills/skill-doctor.SKILL.md.tmpl").read_text(encoding="utf-8")
+    step = text.split("### Step 1a: ADR drift", 1)[1].split("\n### ", 1)[0]
+    reference = (REPO / "src/claude/skills/skill-doctor/references/adr-drift.md").read_text(
+        encoding="utf-8"
+    )
+    workflow = reference.split("\n## Workflow\n", 1)[1].split("\n## ", 1)[0]
+
+    assert "follow the Workflow in `$SKILL_ROOT/references/adr-drift.md`" in step
+    assert "`--all-conversations`" in workflow
+    assert 'mkdir -p "$REPORT_DIR/adr_drift"' in workflow
+    assert 'adr_drift.py" scan --repo "$REPO"' in workflow
+    assert "bootstrap_adr.py scan --repo" in workflow
+    assert "<repo-slug>-decisions.json" in workflow
+    assert "references/report-schema.md" in workflow
+
+
 def test_known_adr_folders_equal_the_skill_bootstrap_folders() -> None:
     """skill-doctor and skill-bootstrap read the same ADR folders, so one run agrees with itself."""
     bootstrap = _module_tuple(
