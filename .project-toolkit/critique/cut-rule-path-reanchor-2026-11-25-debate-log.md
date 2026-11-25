@@ -118,3 +118,11 @@ No seat raised an open finding after round 2.
 - The recorded runs under `runs/2026-09-23/` quote the prompt verbatim.
 
 ## Gates
+
+All runs are at `438fb87d49` on 2026-11-25.
+
+- `check_citation_freshness.py --base d8d140bb2e`: exit 0, 15 citations examined, none stale.
+- `check_adr_lifecycle.py`: PASS, 153 violations, none outside the baseline.
+- `check_measurement_anchoring.py`: exit 0.
+- `pre_pr.py`: exit 0. 122 PASS, 4 ADVISORY, 2 SKIP, 0 blocking.
+- Doc Date Drift is advisory. It asks to bump ADR dates. A citation edit changes no decision, so dates stay.
