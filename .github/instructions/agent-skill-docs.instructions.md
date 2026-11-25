@@ -27,14 +27,17 @@ or a recorded review.
    removes, or renames an agent or skill, make the same change to its page and
    to its row in `docs/agents/README.md` or `docs/skills/README.md`.
 2. **Review the page whenever the source changes.** A change to a skill's
-   `SKILL.md`, its template, or an agent template needs a same-branch review.
-   Whitespace-only edits do not count. Edit the page or add a
+   `SKILL.md`, its template, an agent template, or a rendered agent under
+   `src/claude/agents/` needs a same-branch review. An edit to a shared
+   partial counts through each file it renders into. Whitespace-only edits
+   count on neither side. Edit the page or add a
    `Docs-Reviewed: <name>[, <name>...]` trailer to a commit. For a name shared
    by an agent and a skill, use `agents/<name>` or `skills/<name>`.
-   Read the page before you pick. Edit it when a fact it states changed: the
+   Read the page before you pick, in the same session. Edit it when a fact it states changed: the
    name, the slash command and its `project-toolkit:` form, trigger phrases,
    arguments, script names, exit codes, output paths, what it does, and when
-   to use it or not. Use the trailer only when the page is still true. PR
+   to use it or not. Use the trailer only when the page is still true. Never
+   paste the trailer the gate prints without reading every page it names. PR
    #7572 moved PR creation from `ship` to `push-pr` and left both pages
    describing the old flow.
 3. **Keep the page shape.** A new page uses its siblings' sections in order:
@@ -68,8 +71,13 @@ uv run python scripts/validation/check_agent_skill_doc_review.py --base-ref orig
 It diffs the working tree with the fork point and reads `Docs-Reviewed:`
 trailers from the commits in `<base-ref>..HEAD`. It fails for each changed
 source whose page did not change and whose name no trailer lists. Its output
-prints the trailer line to paste. A trailer on a commit outside the branch
-does not count. A new or removed source is left to the page check above.
+prints the trailer line to use after reading. Put it in the final trailer
+block of the message, beside `Co-Authored-By:`; git reads no trailer from an
+earlier paragraph. Amend an unpushed commit, or add a new commit with
+`git commit --allow-empty`; never force-push a shared branch. A trailer on a
+commit outside the branch does not count. A whole skill or agent that is new
+or removed is left to the page check above. One source file added or removed
+for an existing skill or agent counts as a change.
 
 The advisory freshness check names which fact changed. Pre-PR runs it as
 `Skill Page Freshness (advisory)`, and it never blocks:

@@ -17,6 +17,7 @@ Coverage:
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 from scripts.validation import check_agent_skill_doc_review as review
@@ -244,3 +245,125 @@ def test_ambiguous_trailer_requires_qualified_name(tmp_path):
         "record review\n\nDocs-Reviewed: skills/alpha",
     )
     assert review.find_unreviewed(repo, "base").findings == []
+
+
+# Round 1 review fixes
+
+
+def test_whitespace_only_page_edit_does_not_clear(tmp_path):
+    repo, skill, _ = _with_agent(tmp_path)
+    _edit(skill / "SKILL.md", _BODY_OLD, _BODY_NEW)
+    page = repo / "docs" / "skills" / "alpha.md"
+    page.write_text(page.read_text(encoding="utf-8") + "\n\n   \n", encoding="utf-8")
+    _commit(repo, "change alpha, touch page whitespace")
+
+    assert _paths(review.find_unreviewed(repo, "base")) == ["docs/skills/alpha.md"]
+
+
+def test_page_edit_on_base_after_fork_does_not_clear_branch_change(tmp_path):
+    repo, skill, _ = _with_agent(tmp_path)
+    _git(repo, "checkout", "-q", "-b", "feature")
+    _edit(skill / "SKILL.md", _BODY_OLD, _BODY_NEW)
+    _commit(repo, "change alpha")
+    _git(repo, "checkout", "-q", "base")
+    _edit(repo / "docs" / "skills" / "alpha.md", "## Related\n\nText.", "## Related\n\nBase.")
+    _commit(repo, "base edits the page")
+    _git(repo, "checkout", "-q", "feature")
+
+    assert _paths(review.find_unreviewed(repo, "base")) == ["docs/skills/alpha.md"]
+
+
+def _ci_merge_head(repo: Path, message: str) -> None:
+    """Build the GitHub pull_request checkout shape: a merge of feature into base."""
+    _git(repo, "checkout", "-q", "-b", "feature")
+    skill_md = repo / "src" / "claude" / "skills" / "alpha" / "SKILL.md"
+    _edit(skill_md, _BODY_OLD, _BODY_NEW)
+    _commit(repo, message)
+    _git(repo, "checkout", "-q", "base")
+    (repo / "base.txt").write_text("moved on\n", encoding="utf-8")
+    _commit(repo, "base moves on")
+    _git(repo, "checkout", "-q", "--detach", "base")
+    _git(
+        repo,
+        "-c",
+        "user.email=t@example.com",
+        "-c",
+        "user.name=t",
+        "merge",
+        "-q",
+        "--no-ff",
+        "-m",
+        "Merge feature into base",
+        "feature",
+    )
+
+
+def test_ci_merge_commit_head_honours_branch_trailer(tmp_path):
+    repo, _, _ = _with_agent(tmp_path)
+    _ci_merge_head(repo, "change alpha\n\nDocs-Reviewed: alpha")
+
+    assert review.main([str(repo), "--base-ref", "base"]) == 0
+
+
+def test_ci_merge_commit_head_without_trailer_fails(tmp_path):
+    repo, _, _ = _with_agent(tmp_path)
+    _ci_merge_head(repo, "change alpha")
+
+    assert _paths(review.find_unreviewed(repo, "base")) == ["docs/skills/alpha.md"]
+
+
+def test_rendered_agent_change_from_partial_counts(tmp_path):
+    repo, _, _ = _with_agent(tmp_path)
+    rendered = repo / "src" / "claude" / "agents" / "critic.md"
+    rendered.parent.mkdir(parents=True)
+    rendered.write_text("Old rendered body.\n", encoding="utf-8")
+    _commit(repo, "render critic")
+    _git(repo, "branch", "-f", "base", "HEAD")
+    rendered.write_text("Body from a changed partial.\n", encoding="utf-8")
+    _commit(repo, "partial edit re-renders critic")
+
+    assert _paths(review.find_unreviewed(repo, "base")) == ["docs/agents/critic.md"]
+
+
+def test_fix_text_puts_trailer_before_findings(tmp_path, capsys):
+    repo, skill, _ = _with_agent(tmp_path)
+    _edit(skill / "SKILL.md", _BODY_OLD, _BODY_NEW)
+    _commit(repo, "change alpha")
+
+    assert review.main([str(repo), "--base-ref", "base"]) == 1
+    err = capsys.readouterr().err
+    assert err.index("Docs-Reviewed: alpha") < err.index("docs/skills/alpha.md:")
+    assert "final trailer block" in err
+
+
+def test_git_log_failure_is_external_error(tmp_path, monkeypatch, capsys):
+    repo, skill, _ = _with_agent(tmp_path)
+    _edit(skill / "SKILL.md", _BODY_OLD, _BODY_NEW)
+    real = review._git
+
+    def failing(root, *args):
+        if args[0] == "log":
+            return subprocess.CompletedProcess(args, 128, "", "fatal: bad revision\n")
+        return real(root, *args)
+
+    monkeypatch.setattr(review, "_git", failing)
+
+    assert review.main([str(repo), "--base-ref", "base"]) == 3
+    assert "fatal: bad revision" in capsys.readouterr().err
+
+
+def test_git_timeout_is_external_error(tmp_path, monkeypatch):
+    repo, _, _ = _with_agent(tmp_path)
+
+    def hung(_root, *args):
+        raise subprocess.TimeoutExpired(["git", *args], 60)
+
+    monkeypatch.setattr(review, "_git", hung)
+
+    assert review.main([str(repo), "--base-ref", "base"]) == 3
+
+
+def test_option_shaped_base_ref_is_config_error(tmp_path):
+    repo, _, _ = _with_agent(tmp_path)
+
+    assert review.main([str(repo), "--base-ref=--output=/tmp/x"]) == 2

@@ -323,7 +323,7 @@ different owners and states.
   CI
 - Evidence: `scripts/validation/pre_pr_sequence.py:858-869` reads `fast_stage_ran` and skips with `continue`.
   `lefthook.yml:728` sets `AI_AGENTS_PRE_PR_FAST_STAGE_RAN: "1"`.
-  `tests/validation/test_pre_pr_sequence_registry.py:190-198` defines `FAST_STAGE_DUPLICATES`.
+  `tests/validation/test_pre_pr_sequence_registry.py:192-200` defines `FAST_STAGE_DUPLICATES`.
   The set names Count Ratchets, Unreachable Code Detection, Path Normalization, Planning Artifacts, and Em/en-dash Prohibition.
   `tests/validation/test_pre_pr_sequence_registry.py:293-317` defines `TestFastStageDeferral`.
 - **Current outcome protected**: the five fast-stage lefthook jobs
