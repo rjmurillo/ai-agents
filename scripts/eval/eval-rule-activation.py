@@ -1456,14 +1456,16 @@ def _route_with_distractors(
     """
 
     def ask(prompt: str) -> str:
-        return _call_api(
-            api_key,
-            [{"role": "user", "content": prompt}],
-            system=system,
-            model=model,
-            max_tokens=300,
-            seed=seed,
-            metadata=metadata,
+        return str(
+            _call_api(
+                api_key,
+                [{"role": "user", "content": prompt}],
+                system=system,
+                model=model,
+                max_tokens=300,
+                seed=seed,
+                metadata=metadata,
+            )
         )
 
     selection_text = ask(build_skill_selection_prompt(rule, scenario))
@@ -1585,7 +1587,12 @@ def eval_one_scenario(
                             "selected_reference": None,
                             "route_failed": True,
                             "reference_matched": False,
-                            "distractors": [name for name, _desc in rule["distractors"]],
+                            "distractors": [
+                                name
+                                for name, _desc in cast(
+                                    "list[tuple[str, str]]", rule["distractors"]
+                                )
+                            ],
                         },
                     }
                     continue
