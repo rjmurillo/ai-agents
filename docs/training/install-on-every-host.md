@@ -765,6 +765,7 @@ Stale check: Hermes does not tell you. For these packs, `hermes plugins check-up
 hermes plugins install --force --enable rjmurillo/ai-agents/src/hermes/project-toolkit-knowledge
 hermes plugins install --force --enable rjmurillo/ai-agents/src/hermes/project-toolkit-delivery
 hermes plugins install --force --enable rjmurillo/ai-agents/src/hermes/project-toolkit-authoring
+hermes plugins install --force --enable rjmurillo/ai-agents/src/hermes/project-toolkit-azure-devops
 ```
 
 `--force` also skips the `CAUTION` block on delivery and authoring, so read their findings first. The help says `--ref COMMIT_SHA` installs one exact 40-character commit. Not run: `--force` over an existing pack, and `--ref`.
