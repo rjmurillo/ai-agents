@@ -77,6 +77,10 @@ Step 7 needs `ANTHROPIC_API_KEY`, or a `--provider` that `call_api` accepts.
        --output .project-toolkit/scratch/predictions-dev.jsonl
    ```
 
+   `predict` refuses `--provider codex-cli` (and `EVAL_PROVIDER=codex-cli`):
+   `codex exec` cannot turn its shell and file tools off, and the comments sent
+   are untrusted text.
+
    Then commit `prompt-v1.md` to freeze it, and predict the held-out split. A
    rerun with the same `--output` skips rows already done.
 

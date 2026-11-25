@@ -87,6 +87,17 @@ MIN_ATTEMPTS_FOR_FAILURE_EXIT = 5
 MAX_CONSECUTIVE_CALL_ERRORS = 5
 
 API_KEY_ENV = "ANTHROPIC_API_KEY"
+
+# Provider names that `scripts/eval/_providers.py` `_REGISTRY` maps to `_make_codex_cli`.
+# tests/eval/test_actionability_predict_codex_refusal.py reads the registry and fails when
+# this set and the registry disagree.
+#
+# predict sends untrusted review comments. `_codex_cli.py` `_build_argv` passes
+# `--sandbox read-only`, which still lets the agent read any file the user can, and
+# `codex exec --help` (codex-cli 0.172.0) lists no option that removes the shell or file
+# tools. The Claude and Copilot cells pass `--disallowed-tools` and `--available-tools=`.
+# A prompt-injected comment could therefore make Codex read a local file into the request.
+CODEX_CLI_PROVIDERS = frozenset({"codex-cli", "codex-subscription"})
 MAX_TOKEN_ATTEMPTS = 8
 
 EXIT_SECRET = 1
@@ -301,6 +312,12 @@ def _predict_config_error(args: argparse.Namespace, has_api_key: bool) -> str | 
         return "--max-failure-rate must be between 0 and 1"
     if not args.model.strip():
         return "--model must not be empty"
+    if _effective_provider(args.provider).strip().lower() in CODEX_CLI_PROVIDERS:
+        return (
+            f"provider {_effective_provider(args.provider)!r} cannot run predict: `codex exec` "
+            "has no option that disables its shell and file tools, so a prompt-injected "
+            "comment could read local files into the request. Use another provider"
+        )
     if not has_api_key and _needs_anthropic_key(args.provider):
         return f"{API_KEY_ENV} is not set; set it or select another provider"
     return None
