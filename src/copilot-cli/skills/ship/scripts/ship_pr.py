@@ -26,6 +26,7 @@ Exit codes (ADR-035): 0 NEXT, 1 logic STOP, 2 config STOP, 3 external STOP,
 
 from __future__ import annotations
 
+import argparse
 import importlib.util
 import os
 import re
@@ -69,6 +70,7 @@ REASONS = preflight_mod.REASONS | frozenset(
         "push-failed",
         "pr-create-failed",
         "description-upload-failed",
+        "paths-not-checked",
     }
 )
 BODY_MARKER = "<!-- replace with PR body -->"
@@ -168,15 +170,19 @@ def body_problem(text: str) -> str | None:
     return None
 
 
-def _check_paths(ctx, body_file: Path, base: str, result) -> bool:
-    """Run the checkout's paths-in-diff validator when present; return False on a failure."""
+def _check_paths(ctx, body_file: Path, base: str, result) -> bool | None:
+    """Run the checkout's paths-in-diff validator when present.
+
+    Returns True on a pass, False on a failure, and None when it could not run.
+    A None is not a pass: the model must compare the paths by hand.
+    """
     local_check = ctx.root / LOCAL_PATH_CHECK
     uv = shutil.which("uv")
     if not (local_check.is_file() and uv):
         result.add(
             "CHECK", "paths=NOT-RUN no local path validator; compare the body to the diff by hand"
         )
-        return True
+        return None
     done = common.run(
         [
             uv,
@@ -228,16 +234,26 @@ def _report(result, name: str, problem: str | None) -> bool:
 
 
 def run_checks(ctx, title: str, body_file: Path, base: str, result) -> list[str]:
-    """Run every body and title check; add CHECK lines; return failed check names."""
+    """Run every body and title check; add CHECK lines; return failed check names.
+
+    A check that could not run is reported as ``<name>:not-run``.
+    """
     text = body_file.read_text(encoding="utf-8", errors="replace")
-    outcomes = [
+    outcomes: list[tuple[str, bool | None]] = [
         ("title", _report(result, "title", title_problem(title))),
         ("body", _report(result, "body", body_problem(text))),
         ("paths", _check_paths(ctx, body_file, base, result)),
     ]
     if ctx.host == "ado":
         outcomes.append(("description", _check_ado_description(ctx, title, body_file, result)))
-    return [name for name, ok in outcomes if not ok]
+    failed = [name for name, ok in outcomes if ok is False]
+    return failed + [f"{name}:not-run" for name, ok in outcomes if ok is None]
+
+
+def _split(outcome: list[str]) -> tuple[list[str], bool]:
+    """Separate real failures from the paths check that could not run."""
+    failed = [name for name in outcome if not name.endswith(":not-run")]
+    return failed, len(failed) != len(outcome)
 
 
 def _detect(args, result):
@@ -267,10 +283,10 @@ def cmd_check(args, result, _root: Path):
     body = _body_file(args, result, ctx)
     if body is None:
         return result
-    failed = run_checks(ctx, args.title, body, ctx.base, result)
+    failed, paths_not_run = _split(run_checks(ctx, args.title, body, ctx.base, result))
     if failed:
         return result.stop("check-failed", common.EXIT_LOGIC, ",".join(failed))
-    return result.next("publish")
+    return result.next("compare-paths-by-hand" if paths_not_run else "publish")
 
 
 def _push(ctx, result):
@@ -386,10 +402,19 @@ def _checked_snapshot(ctx, args, body: Path, result) -> Path | None:
     if snapshot is None:
         result.stop("bad-body-file", common.EXIT_CONFIG, "could not write the body snapshot")
         return None
-    failed = run_checks(ctx, args.title, snapshot, ctx.base, result)
+    failed, paths_not_run = _split(run_checks(ctx, args.title, snapshot, ctx.base, result))
     if failed:
         result.stop("check-failed", common.EXIT_LOGIC, ",".join(failed))
         return None
+    if paths_not_run and not args.paths_checked_by_hand:
+        result.stop(
+            "paths-not-checked",
+            common.EXIT_LOGIC,
+            "compare the body paths to the diff, then pass --paths-checked-by-hand",
+        )
+        return None
+    if paths_not_run:
+        result.add("CHECK", "paths=CHECKED-BY-HAND")
     return snapshot
 
 
@@ -430,8 +455,19 @@ def build_parser():
         if name == "publish":
             command.add_argument("--draft", action="store_true")
             command.add_argument("--require-axis", action="append", default=[])
-    for command in (parser, branch, prepare, sub.choices["check"], sub.choices["publish"]):
-        common.add_output_format_arg(command)
+        if name == "publish":
+            command.add_argument(
+                "--paths-checked-by-hand",
+                action="store_true",
+                help="The model compared the body paths to the diff after paths=NOT-RUN",
+            )
+    common.add_output_format_arg(parser)
+    # A subcommand repeats the flag without a default, so a value given before
+    # the subcommand is not overwritten by the subparser's own default.
+    for command in (branch, prepare, sub.choices["check"], sub.choices["publish"]):
+        command.add_argument(
+            "--output-format", choices=common.OUTPUT_FORMATS, default=argparse.SUPPRESS
+        )
     return parser
 
 

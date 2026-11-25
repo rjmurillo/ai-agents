@@ -147,7 +147,9 @@ class TestPrEdges:
 
         monkeypatch.setattr(common, "git", broken)
         code, lines = invoke(
-            scripts[3], ["publish", "--title", TITLE, "--body-file", str(body)], capsys
+            scripts[3],
+            ["publish", "--paths-checked-by-hand", "--title", TITLE, "--body-file", str(body)],
+            capsys,
         )
         assert code == 2
         assert lines[-1].startswith("STOP: no-repo")

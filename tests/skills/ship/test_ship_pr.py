@@ -91,7 +91,7 @@ class TestCheck:
         checks = values(lines, "CHECK")
         assert checks[:2] == ["title=PASS", "body=PASS"]
         assert checks[2].startswith("paths=NOT-RUN")
-        assert lines[-1] == "NEXT: publish"
+        assert lines[-1] == "NEXT: compare-paths-by-hand"
 
     @pytest.mark.parametrize(
         "title",
@@ -226,9 +226,27 @@ class TestArguments:
             [],
             ["bogus"],
             ["check", "--title", TITLE],
-            ["publish", "--title", TITLE, "--body-file", "x", "--forc"],
-            ["publish", "--title", TITLE, "--body-file", "x", "--base", "-main"],
-            ["publish", "--title", TITLE, "--body-file", "x", "--require-axis", "Bad"],
+            ["publish", "--paths-checked-by-hand", "--title", TITLE, "--body-file", "x", "--forc"],
+            [
+                "publish",
+                "--paths-checked-by-hand",
+                "--title",
+                TITLE,
+                "--body-file",
+                "x",
+                "--base",
+                "-main",
+            ],
+            [
+                "publish",
+                "--paths-checked-by-hand",
+                "--title",
+                TITLE,
+                "--body-file",
+                "x",
+                "--require-axis",
+                "Bad",
+            ],
             ["check", "--titl", TITLE, "--body-file", "x"],
         ],
     )

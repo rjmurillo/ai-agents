@@ -178,7 +178,11 @@ def _checkout(cwd: Path | None) -> tuple[Path, str, str, str, str] | Halt:
         return Halt("no-origin", common.EXIT_CONFIG, "origin remote is not configured")
     host_name = common.remote_host(origin.stdout)
     if host_name is None:
-        return Halt("unsupported-remote", common.EXIT_CONFIG, "origin is a local path")
+        return Halt(
+            "unsupported-remote",
+            common.EXIT_CONFIG,
+            "origin is not an https, ssh, or scp-style remote",
+        )
     branch_done = common.git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=root)
     branch = branch_done.stdout.strip()
     if branch_done.returncode != 0 or branch in ("", "HEAD"):

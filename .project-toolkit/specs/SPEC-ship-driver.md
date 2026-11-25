@@ -56,8 +56,9 @@ Replaces both host-detection blocks and the PR ownership prose.
 | `BASE:` | the target branch |
 | `HEAD:` | the full HEAD SHA |
 
-- No origin remote: `STOP: no origin`, exit 2.
-- A failed `gh` or `az` query: `STOP: pr query failed`, exit 3.
+- No origin remote: `STOP: no-origin`, exit 2. A remote that is not `https`, `ssh`, or scp-style: `STOP: unsupported-remote`, exit 2.
+- A failed `gh` or `az` query: `STOP: pr-query-failed`, exit 3, or `STOP: auth-failed`, exit 4.
+- An open PR with no author in the host reply: `STOP: pr-author-unknown`, exit 3.
   It never prints `PR: none` after a failed query.
 - Host rule: match the parsed URL host, not a substring.
   This fixes finding LOW-1 from the 2026-11-25 security review.
@@ -87,24 +88,28 @@ Owns everything `/push-pr` did after the body is written.
 
 | Subcommand | Does | Prints |
 |---|---|---|
+| `branch --name <type>/<slug>` | creates and switches to a feature branch | `BRANCH:` |
 | `prepare` | allocates the body file and seeds the template | `BODY_FILE: <path>` |
-| `check --title --body-file` | title, body, paths-in-diff, ADO description rules | `CHECK: title=`, `CHECK: body=` |
-| `publish --title --body-file` | push, then create the PR | `PUSH:`, `PR:`, `NEXT:` |
+| `check --title --body-file` | title, body, paths-in-diff, ADO description rules | `CHECK: title=`, `CHECK: body=`, `CHECK: paths=` |
+| `publish --title --body-file [--draft] [--require-axis A] [--paths-checked-by-hand]` | push, then create the PR | `PUSH:`, `PR:`, `NEXT:` |
 
 `publish` rules, all enforced in code:
 
-- It refuses a dirty tree: `STOP: tree dirty`, exit 1.
-- It refuses when HEAD is not the reviewed SHA: `STOP: head not reviewed`, exit 1.
-- It refuses `MODE: contributor`: `STOP: contributor mode`, exit 1.
+- It refuses a dirty tree: `STOP: tree-dirty`, exit 1.
+- It refuses when HEAD is not the reviewed SHA: `STOP: head-not-reviewed`, exit 1.
+  `--draft` skips that check only for a new PR or an open PR the host reports as a draft.
+- It refuses `MODE: contributor`: `STOP: contributor-mode`, exit 1.
 - It never creates a commit.
 - It reruns `check` and stops on any failure before the push.
 - GitHub create calls `new_pr.py` as today.
 - ADO create builds a fixed argument list and runs it without a shell.
   Only `--title`, `--description @<checked body file>`, and `--target-branch` are passed.
 - After an ADO create, it reads the JSON `description`.
-  If it starts with `@`, it prints `STOP: description upload failed`, exit 3.
+  If it starts with `@`, it prints `STOP: description-upload-failed`, exit 3.
   The PR is left open for the user to decide.
-- An existing open PR is not recreated. It prints `PR: existing <id>` and pushes only.
+- An existing open PR is not recreated. It prints `PR: host=<h> number=<id> url=<u> existing` and pushes only.
+- When the checkout has no local paths-in-diff validator, `check` prints `CHECK: paths=NOT-RUN` and ends on `NEXT: compare-paths-by-hand`.
+  `publish` then stops with `STOP: paths-not-checked` unless the model passes `--paths-checked-by-hand`.
 
 Output on success:
 
@@ -116,8 +121,8 @@ NEXT: discharge
 
 ## Permissions
 
-`/ship` grants one form: `Bash(python3:-I */ship/scripts/*.py*)`.
-That grant is safe because argparse rejects unknown flags.
+`/ship` grants one entry per script it calls, with no wildcard (ADR-127 decision 3 item 7).
+Those grants are safe because each parser sets `allow_abbrev=False` and rejects unknown flags.
 The `az` and `gh` argument lists are fixed in code.
 So the ADO create no longer prompts, and no `az` grant is needed.
 Today's `Edit` grant on the scratch body file stays.

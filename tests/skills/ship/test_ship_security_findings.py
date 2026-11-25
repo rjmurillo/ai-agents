@@ -118,7 +118,14 @@ class TestSymlinkedScratch:
         symlink_or_skip(repo / ".project-toolkit" / "scratch", outside)
         code, lines = invoke(
             scripts[3],
-            ["publish", "--title", TITLE, "--body-file", ".project-toolkit/scratch/pr-body.md"],
+            [
+                "publish",
+                "--paths-checked-by-hand",
+                "--title",
+                TITLE,
+                "--body-file",
+                ".project-toolkit/scratch/pr-body.md",
+            ],
             capsys,
         )
         assert code == 2
@@ -134,7 +141,9 @@ class TestSymlinkedScratch:
         body = body_file(repo)
         monkeypatch.setattr(scripts[0], "write_private", lambda *args, **kwargs: None)
         code, lines = invoke(
-            scripts[3], ["publish", "--title", TITLE, "--body-file", str(body)], capsys
+            scripts[3],
+            ["publish", "--paths-checked-by-hand", "--title", TITLE, "--body-file", str(body)],
+            capsys,
         )
         assert code == 2
         assert lines[-1].startswith("STOP: bad-body-file could not write the body snapshot")
@@ -152,7 +161,15 @@ class TestDraftOnExistingPr:
         fakes.marker(1)
         code, lines = invoke(
             scripts[3],
-            ["publish", "--title", TITLE, "--body-file", str(body_file(repo)), "--draft"],
+            [
+                "publish",
+                "--paths-checked-by-hand",
+                "--title",
+                TITLE,
+                "--body-file",
+                str(body_file(repo)),
+                "--draft",
+            ],
             capsys,
         )
         assert code == 1
@@ -168,7 +185,15 @@ class TestDraftOnExistingPr:
         fakes.marker(1)
         code, lines = invoke(
             scripts[3],
-            ["publish", "--title", TITLE, "--body-file", str(body_file(repo)), "--draft"],
+            [
+                "publish",
+                "--paths-checked-by-hand",
+                "--title",
+                TITLE,
+                "--body-file",
+                str(body_file(repo)),
+                "--draft",
+            ],
             capsys,
         )
         assert code == 0, lines
@@ -226,6 +251,7 @@ class TestRequiredAxes:
             scripts[3],
             [
                 "publish",
+                "--paths-checked-by-hand",
                 "--title",
                 TITLE,
                 "--body-file",
@@ -421,7 +447,16 @@ class TestMissingAuthor:
             "gh", ["pr", "view"], {"stdout": json.dumps({"number": 9, "state": "OPEN", "url": "u"})}
         )
         code, lines = invoke(
-            scripts[3], ["publish", "--title", TITLE, "--body-file", str(body_file(repo))], capsys
+            scripts[3],
+            [
+                "publish",
+                "--paths-checked-by-hand",
+                "--title",
+                TITLE,
+                "--body-file",
+                str(body_file(repo)),
+            ],
+            capsys,
         )
         assert code == 3
         assert lines[-1].startswith("STOP: pr-author-unknown")

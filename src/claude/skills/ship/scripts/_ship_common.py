@@ -58,8 +58,12 @@ VERSION = "1.0.0"
 _CONTROL_RE = re.compile("[\x00-\x1f\x7f\x85  ]")
 _USERINFO_RE = re.compile(r"([A-Za-z][A-Za-z0-9+.-]*://)[^/@\s]*@")
 _REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$")
-_URL_HOST_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*://(?:[^/@]*@)?\[?([^/:\]]+)")
-_SCP_HOST_RE = re.compile(r"^(?:[^@/:\s]+@)?([^/:\s]+):(?!/)")
+# ADR-127 decision 3 item 4: a remote URL must match an allowed scheme list.
+# git also accepts transports such as ext::, file://, and git://; none of
+# them is a GitHub or Azure DevOps remote, so they are refused.
+ALLOWED_URL_SCHEMES = frozenset({"https", "ssh"})
+_URL_HOST_RE = re.compile(r"^([A-Za-z][A-Za-z0-9+.-]*)://(?:[^/@]*@)?\[?([^/:\]\s]+)")
+_SCP_HOST_RE = re.compile(r"^(?:[^@/:\s]+@)?([^/:\s]+):(?![/:])\S")
 _ADO_HOSTS = frozenset({"dev.azure.com", "ssh.dev.azure.com"})
 
 
@@ -339,11 +343,18 @@ def safe_ref(value: str) -> bool:
 
 
 def remote_host(url: str) -> str | None:
-    """Return the lowercase host of a git remote URL, or None for a local path."""
+    """Return the lowercase host of a git remote URL, or None when it is not allowed.
+
+    Allowed forms: ``https://`` and ``ssh://`` URLs, and the scp-like
+    ``[user@]host:path`` form. A local path, another scheme, and a transport
+    such as ``ext::`` all return None.
+    """
     url = url.strip()
-    match = _URL_HOST_RE.match(url)
-    if match:
-        return match.group(1).lower()
+    if "://" in url:
+        match = _URL_HOST_RE.match(url)
+        if match is None or match.group(1).lower() not in ALLOWED_URL_SCHEMES:
+            return None
+        return match.group(2).lower()
     if url.startswith(("/", ".", "~")):
         return None
     match = _SCP_HOST_RE.match(url)
