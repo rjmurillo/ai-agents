@@ -43,17 +43,17 @@ The latest closed log for each ADR:
 
 - ADR-062: `ADR-062-debate-log.md`
 - ADR-066: none found under `.project-toolkit/critique/`
-- ADR-068: `ADR-068-debate-log.md`
+- ADR-068: `ADR-068-071-084-085-109-req048-task006-debate-log.md`
 - ADR-071: `ADR-071-debate-log-2.md`
 - ADR-074: `ADR-074-debate-log.md`
-- ADR-076: `ADR-076-debate-log.md`
+- ADR-076: `ADR-076-ADR-090-lease-retirement-debate-log.md`
 - ADR-093: `ADR-093-debate-log.md`
 - ADR-096: `ADR-096-debate-log.md`
 - ADR-097: `ADR-097-debate-log-2.md`
 - ADR-100: `ADR-100-amendment-2026-09-22-debate-log.md`
 - ADR-101: `ADR-101-dispatch-closure-exempt-links-debate-log.md`
-- ADR-102: `ADR-102-debate-log.md`
-- ADR-104: `ADR-104-debate-log.md`
+- ADR-102: `ADR-102-ruff-format-fmt-markers-debate-log.md`
+- ADR-104: `ADR-104-6200-pytest-step-bound-debate-log.md`
 - ADR-107: `ADR-107-debate-log-3.md`
 - ADR-108: `ADR-108-debate-log.md`
 - ADR-109: `ADR-109-debate-log-12.md`
@@ -140,20 +140,29 @@ Devin Review left three nits on PR #7569.
 - The successor runs `build_all.py` alone. The row now says the rule was reworded since.
 - This log lacked prior debate references. It now has a Prior debate logs section.
 
-### Declined
+### Not changed, left to Richard
 
 - Devin asked for relative links in place of code-span paths.
-- ADRs here use code-span paths: 341 code spans and 11 links at `1b8fe1d9d5`.
-- Both precedent re-anchor logs used code spans. A link change would span all 20 ADRs.
+- `DOCUMENTATION-LINK-REQUIREMENTS.md:15` covers ADRs, and code-span paths break it.
+- ADRs already diverge: 19 of 126 use relative links (2026-11-25).
+- No checker enforces the policy. Converting the ADRs is left to Richard.
 
-Both fixes change wording only. The architect and critic seats were not reconvened.
+| Agent | Position |
+|-------|----------|
+| architect | ACCEPT-WITH-CHANGES. Four prior-log rows named older logs. Fixed. |
+| critic | REVISE. The link decline cited house practice, not policy. Reworded. |
+
+Both seats confirmed the ADR-076:318 claim against the successor.
 
 ## Final Verdicts
 
 | Agent | Verdict |
 |-------|---------|
-| architect | ACCEPT-WITH-CHANGES. Its one change is applied. |
-| critic | ACCEPT |
+| architect | ACCEPT-WITH-CHANGES in round 3. Its four row fixes are applied. |
+| critic | REVISE in round 3. Its proposed wording is applied as given. |
+
+Neither seat raised a finding against the ADR text after round 2.
+Round 3 findings touched this log only, apart from ADR-076:318.
 
 ## Eval fixture outside the ADR scope
 
