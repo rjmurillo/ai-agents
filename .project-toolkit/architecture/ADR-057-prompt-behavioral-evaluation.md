@@ -339,7 +339,7 @@ Decision:
 5. A new skill has no base to hold against, and a deleted skill has nothing to run, so neither is gated.
    A new skill that lands beside a deleted one may be a rename, so it is gated. Its eval uses the runner's `--renamed-from`.
    This reads ADR-127 decision 7, trigger 1, as not covering a brand-new driver. Read literally, that trigger would block every new driver forever: the carried floor needs base runs that cannot exist.
-   The ADR-127 owner confirms or rejects this reading at PR review. A new driver still owes the decision 8 tests.
+   The ADR-127 owner confirmed this reading on 2026-11-25, and ADR-127 decision 7 now states it. A new driver still owes the decision 8 tests.
 6. For a gated skill the check requires `tests/evals/<name>-scenarios.json` and a results file under `evals/skill-rewrites/<name>/`.
    Candidates are the results files that record the head prompt-surface sha256.
    The one committed first sets the verdict. A matching file already on the base ref counts as first, since that surface was evaluated before.
