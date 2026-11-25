@@ -310,3 +310,66 @@ def test_inverted_control_plain_green_run_is_no_cap(tmp_path: Path) -> None:
     [r] = receipts(path)
 
     assert r["verdict"] == "NO_CAP"
+
+
+SHA = "3f9a2c41be"
+
+
+def test_fix1_sha_only_in_command_text_earns_no_receipt(tmp_path: Path) -> None:
+    path = (
+        Transcript()
+        .prompt("go")
+        .tool("Bash", {"command": f"gh pr create --body 'fix in {SHA}'"}, "https://x/o/r/pull/9")
+        .reply(f"The fix landed as commit `{SHA}`.")
+        .write(tmp_path / "sha_cmd.jsonl")
+    )
+
+    [r] = receipts(path)
+
+    assert (r["kind"], r["verdict"]) == ("sha", "NO_RECEIPT")
+
+
+def test_fix1_sha_in_tool_output_keeps_its_receipt(tmp_path: Path) -> None:
+    path = (
+        Transcript()
+        .prompt("go")
+        .tool("Bash", {"command": "git log --oneline -1"}, f"{SHA} fix(x): y")
+        .reply(f"The fix landed as commit `{SHA}`.")
+        .write(tmp_path / "sha_out.jsonl")
+    )
+
+    [r] = receipts(path)
+
+    assert (r["kind"], r["verdict"]) == ("sha", "NO_CAP")
+
+
+def test_fix2_git_merge_tree_is_not_a_merge_receipt(tmp_path: Path) -> None:
+    path = (
+        Transcript()
+        .prompt("go")
+        .tool(
+            "Bash",
+            {"command": "git fetch origin -q; git merge-tree --write-tree HEAD origin/main"},
+            "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+        )
+        .reply("I merged the branch into main.")
+        .write(tmp_path / "merge_tree.jsonl")
+    )
+
+    [r] = receipts(path)
+
+    assert (r["kind"], r["verdict"]) == ("merged", "NO_RECEIPT")
+
+
+def test_fix2_plain_git_merge_keeps_its_receipt(tmp_path: Path) -> None:
+    path = (
+        Transcript()
+        .prompt("go")
+        .tool("Bash", {"command": "git merge origin/main"}, "Merge made by the 'ort' strategy.")
+        .reply("I merged the branch into main.")
+        .write(tmp_path / "git_merge.jsonl")
+    )
+
+    [r] = receipts(path)
+
+    assert (r["kind"], r["verdict"]) == ("merged", "NO_CAP")

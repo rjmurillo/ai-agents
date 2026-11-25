@@ -22,7 +22,14 @@ Apache-2.0 section 4(b) asks that modified files say so. Each change is listed h
    `per-file-ignores = ["ALL"]` and a `ruff format` exclude for `vendor/**`. The pre-commit hook runs
    `ruff check --fix`, which would otherwise rewrite upstream code.
 
+3. `evidence.py`, spike round 2. These change behavior on purpose. Line 1 carries a modification notice.
+   - `parse_git`: the `git merge` pattern ends in `merge(?![\w-])`, so `git merge-tree` and `git merge-base`
+     no longer count as a merge.
+   - `extract`: `ev["shas"]` reads SHAs from the tool output only. Upstream also read the command text.
+
 ## Check that the changes are behavior-neutral
+
+Changes 1 and 2 are behavior-neutral. Change 3 is not. Upstream's tests still pass with it: `156 passed` on 2026-11-25.
 
 Upstream's own tests ran against the modified files in a scratch copy of the upstream checkout.
 Result on 2026-11-23, rerun on the committed files after the notice line was added: `156 passed` for `test_claims.py`, `test_evidence.py`, `test_claim_regressions.py`,

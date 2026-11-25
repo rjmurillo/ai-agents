@@ -1,3 +1,4 @@
+# Modified for an ai-agents spike: SHA evidence reads output only; git merge-* plumbing is not a merge. See VENDORED.md.
 """Turn one tool call into an evidence record: the facts a reply's claims can be checked against.
 
 Stdlib only. Raw output is scanned here and never stored; only the extracted
@@ -884,7 +885,7 @@ def parse_git(cmd: str, text: str, exit_code: Optional[int]) -> Dict[str, Any]:
             n = int(gone.group(1)) if gone.group(1) else (nums[0] if nums else None)
             if n is not None and (not nums or nums[0] == n):
                 g["pr_missing"] = [n]
-    elif re.search(r"\bgit\b(?:(?!\bgit\b)[^|;&])*\bmerge\b", cmd) and not re.search(r"--abort", cmd):
+    elif re.search(r"\bgit\b(?:(?!\bgit\b)[^|;&])*\bmerge(?![\w-])", cmd) and not re.search(r"--abort", cmd):
         g["git_merge_failed"] = bool(re.search(r"CONFLICT|Automatic merge failed|^fatal:", text, re.M))
         g["git_merge_ok"] = ok and not g["git_merge_failed"]
         g["merge_line"] = _cut(text.strip().splitlines()[0]) if text.strip() else ""
@@ -1352,7 +1353,7 @@ def extract(tool_name: str, args: Any, result: Any, status: Optional[str] = None
     ev["http"] = codes[:MAX_ITEMS]
     urls = URL_RE.findall(cmd + "\n" + arg_text) + URL_RE.findall(text)
     ev["urls"] = list(dict.fromkeys(u.rstrip(".,;:'\"") for u in urls))[:MAX_ITEMS]
-    ev["shas"] = list(dict.fromkeys(s for s in SHA_RE.findall(text + "\n" + cmd)
+    ev["shas"] = list(dict.fromkeys(s for s in SHA_RE.findall(text)
                                     if re.search(r"\d", s) and re.search(r"[a-f]", s)))[:MAX_ITEMS]
     ev["numbers"] = _numbers(text)
     if re.search(r"\bgit\s+(?:diff|show)\b(?:(?!\bgit\b)[^|;&])*--stat", cmd):
