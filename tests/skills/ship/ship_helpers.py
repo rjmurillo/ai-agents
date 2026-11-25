@@ -96,3 +96,38 @@ def symlink_or_skip(link: Path, target: Path) -> None:
         if os.name != "nt":
             raise
         pytest.skip(f"cannot create symbolic links here: {exc}")
+
+
+# Fake base-branch validators for the paths-in-diff check.
+VALIDATOR_PASS = """\
+import json, os, sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import scripts.github_core  # the base closure must be importable
+probe = os.environ.get("SHIP_VALIDATOR_PROBE")
+if probe:
+    me = Path(__file__)
+    Path(probe).write_text(json.dumps({
+        "argv": sys.argv[1:],
+        "isolated": sys.flags.isolated,
+        "file_mode": oct(me.stat().st_mode & 0o777),
+        "dir_mode": oct(me.parents[2].stat().st_mode & 0o777),
+        "cwd": os.getcwd(),
+        "file": str(me),
+    }))
+print("ok")
+"""
+
+VALIDATOR_CRITICAL = """\
+print("CRITICAL: File mentioned but not in diff: old.py")
+print("other line")
+raise SystemExit(1)
+"""
+
+VALIDATOR_BRANCH_EDIT = """\
+import os
+from pathlib import Path
+Path(os.environ["SHIP_BRANCH_SENTINEL"]).write_text("branch validator ran")
+print("CRITICAL: branch copy")
+raise SystemExit(1)
+"""

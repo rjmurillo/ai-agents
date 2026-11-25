@@ -213,3 +213,26 @@ def owner(make_repo, fakes, body_file):
         },
     )
     return repo, body_file(repo)
+
+
+@pytest.fixture
+def base_validator():
+    """Return a factory that puts a validator on origin/main, then returns to the branch."""
+
+    def factory(repo: Path, source: str, *, closure: bool = True) -> None:
+        branch = git(repo, "branch", "--show-current")
+        git(repo, "switch", "-q", "main")
+        validator = repo / "scripts" / "validation" / "pr_description.py"
+        validator.parent.mkdir(parents=True, exist_ok=True)
+        validator.write_text(source, encoding="utf-8")
+        if closure:
+            (repo / "scripts" / "__init__.py").write_text("", encoding="utf-8")
+            package = repo / "scripts" / "github_core"
+            package.mkdir(exist_ok=True)
+            (package / "__init__.py").write_text("", encoding="utf-8")
+        git(repo, "add", "scripts")
+        git(repo, "commit", "-q", "-m", "chore: add the base validator")
+        git(repo, "push", "-q", "origin", "main")
+        git(repo, "switch", "-q", branch)
+
+    return factory

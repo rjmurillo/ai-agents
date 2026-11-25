@@ -13,6 +13,8 @@ from tests.skills.ship.ship_helpers import (
     EN_DASH,
     GITHUB,
     TITLE,
+    VALIDATOR_CRITICAL,
+    VALIDATOR_PASS,
     run_pr,
     values,
 )
@@ -139,47 +141,21 @@ class TestCheck:
         assert code == 2
         assert lines[-1].startswith(("STOP: bad-body-file", "STOP: bad-arguments"))
 
-    def test_local_path_validator_runs_when_present(
-        self, owner, fakes, scripts, capsys, monkeypatch
-    ):
+    def test_base_validator_findings_fail_the_check(self, owner, base_validator, scripts, capsys):
         repo, body = owner
-        validator = repo / "scripts" / "validation" / "pr_description.py"
-        validator.parent.mkdir(parents=True)
-        validator.write_text("", encoding="utf-8")
-        fakes.rule(
-            "uv",
-            [],
-            {"rc": 1, "stdout": "CRITICAL: File mentioned but not in diff: old.py\nother line\n"},
-        )
-        uv = fakes.root / "bin" / "uv"
-        uv.write_text((fakes.root / "bin" / "gh").read_text(encoding="utf-8"), encoding="utf-8")
-        uv.chmod(0o755)
+        base_validator(repo, VALIDATOR_CRITICAL, closure=False)
         code, lines = run_pr(scripts, capsys, "check", "--title", TITLE, "--body-file", str(body))
         assert code == 1
         assert "paths=FAIL exit=1" in values(lines, "CHECK")
         assert values(lines, "FINDING") == ["CRITICAL: File mentioned but not in diff: old.py"]
-        call = fakes.calls("uv")[0]
-        assert call[1:6] == [
-            "run",
-            "--frozen",
-            "python",
-            "-I",
-            "scripts/validation/pr_description.py",
-        ]
-        assert call[-2:] == ["--base", "origin/main"]
 
-    def test_local_path_validator_pass(self, owner, fakes, scripts, capsys):
+    def test_base_validator_pass(self, owner, base_validator, scripts, capsys):
         repo, body = owner
-        validator = repo / "scripts" / "validation" / "pr_description.py"
-        validator.parent.mkdir(parents=True)
-        validator.write_text("", encoding="utf-8")
-        fakes.rule("uv", [], {"rc": 0})
-        uv = fakes.root / "bin" / "uv"
-        uv.write_text((fakes.root / "bin" / "gh").read_text(encoding="utf-8"), encoding="utf-8")
-        uv.chmod(0o755)
+        base_validator(repo, VALIDATOR_PASS)
         code, lines = run_pr(scripts, capsys, "check", "--title", TITLE, "--body-file", str(body))
         assert code == 0
         assert "paths=PASS" in values(lines, "CHECK")
+        assert lines[-1] == "NEXT: publish"
 
     @pytest.mark.parametrize(
         ("response", "verdict"),

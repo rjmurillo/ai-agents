@@ -5,17 +5,31 @@
 ``CHECK: <name>=<state>`` line. A check that could not run is reported as
 ``<name>:not-run`` and is never a pass.
 
-vendor-portability: declared. ``_check_paths`` runs the repository's own
-``scripts/validation/pr_description.py`` when the consumer checkout has it,
-and reports ``paths=NOT-RUN`` otherwise.
+The paths-in-diff check never runs code from the branch being shipped
+(owner ruling, 2026-11-25, security finding 1, option A). It reads the
+validator and its import closure from the base branch with
+``git show origin/<base>:<path>``, writes them to a private temporary tree
+(directory 0700, files 0600), and runs that copy under this interpreter with
+``-I``. The body file and the branch diff are its data; git reads the diff
+from the checkout. ``uv`` is not used, so the branch's lockfile builds nothing.
+
+Accepted trade-off: a PR that changes the validator itself is checked by the
+base version until it merges.
+
+When the base has no validator, or the base copy cannot run (exit 2 or a
+crash), the check reports ``paths=NOT-RUN``. That is never a pass.
+
+vendor-portability: declared. The validator path names the consumer
+repository's own ``scripts/validation/pr_description.py`` on its base branch.
 """
 
 from __future__ import annotations
 
 import importlib.util
+import os
 import re
-import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 
@@ -37,7 +51,12 @@ def _load(
 common = _load("_ship_common")
 
 BODY_MARKER = "<!-- replace with PR body -->"
-LOCAL_PATH_CHECK = Path("scripts") / "validation" / "pr_description.py"
+BASE_VALIDATOR = "scripts/validation/pr_description.py"
+# The validator imports scripts.github_core from its own tree, so the base
+# copy needs the base copy of that package beside it.
+BASE_CLOSURE_FILES = ("scripts/__init__.py",)
+BASE_CLOSURE_DIRS = ("scripts/github_core",)
+VALIDATOR_TIMEOUT_SECONDS = 300
 _CONVENTIONAL_RE = re.compile(
     r"^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9][a-z0-9._/-]*\))?!?: \S.{0,198}$"
 )
@@ -76,38 +95,81 @@ def body_problem(text: str) -> str | None:
     return None
 
 
+def _not_run(result, reason: str) -> None:
+    result.add("CHECK", f"paths=NOT-RUN {reason}; compare the body to the diff by hand")
+
+
+def _base_files(ctx, ref: str) -> list[str] | None:
+    """Repository paths to copy from ``ref``, or None when it has no validator."""
+    if common.git(["cat-file", "-e", f"{ref}:{BASE_VALIDATOR}"], cwd=ctx.root).returncode != 0:
+        return None
+    files = [BASE_VALIDATOR]
+    files += [
+        f
+        for f in BASE_CLOSURE_FILES
+        if common.git(["cat-file", "-e", f"{ref}:{f}"], cwd=ctx.root).returncode == 0
+    ]
+    for directory in BASE_CLOSURE_DIRS:
+        listing = common.git(["ls-tree", "-r", "--name-only", ref, "--", directory], cwd=ctx.root)
+        files += [line for line in listing.stdout.splitlines() if line.endswith(".py")]
+    return files
+
+
+def _write_private_tree(ctx, ref: str, files: list[str], tree: Path) -> bool:
+    """Copy each base file into ``tree`` with owner-only modes; False on any failure."""
+    for rel in files:
+        parts = Path(rel).parts
+        if not parts or parts[0] != "scripts" or ".." in parts or Path(rel).is_absolute():
+            return False
+        shown = common.git(["show", f"{ref}:{rel}"], cwd=ctx.root)
+        if shown.returncode != 0:
+            return False
+        target = tree.joinpath(*parts)
+        try:
+            target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+            with os.fdopen(os.open(target, flags, 0o600), "w", encoding="utf-8") as handle:
+                handle.write(shown.stdout)
+        except OSError:
+            return False
+    return True
+
+
 def _check_paths(ctx, body_file: Path, base: str, result) -> bool | None:
-    """Run the checkout's paths-in-diff validator when present.
+    """Run the base branch's paths-in-diff validator from a private copy.
 
     Returns True on a pass, False on a failure, and None when it could not run.
     A None is not a pass: the model must compare the paths by hand.
     """
-    local_check = ctx.root / LOCAL_PATH_CHECK
-    uv = shutil.which("uv")
-    if not (local_check.is_file() and uv):
-        result.add(
-            "CHECK", "paths=NOT-RUN no local path validator; compare the body to the diff by hand"
-        )
+    ref = f"origin/{base}"
+    files = _base_files(ctx, ref)
+    if files is None:
+        _not_run(result, f"{ref} has no path validator")
         return None
-    done = common.run(
-        [
-            uv,
-            "run",
-            "--frozen",
-            "python",
-            "-I",
-            str(LOCAL_PATH_CHECK),
-            "--body-file",
-            str(body_file),
-            "--base",
-            f"origin/{base}",
-        ],
-        cwd=ctx.root,
-        timeout=300,
-    )
+    with tempfile.TemporaryDirectory(prefix="ship-validator-") as directory:
+        tree = Path(directory)
+        if not _write_private_tree(ctx, ref, files, tree):
+            _not_run(result, f"could not copy the validator from {ref}")
+            return None
+        done = common.run(
+            [
+                sys.executable,
+                "-I",
+                str(tree / BASE_VALIDATOR),
+                "--body-file",
+                str(body_file),
+                "--base",
+                ref,
+            ],
+            cwd=ctx.root,
+            timeout=VALIDATOR_TIMEOUT_SECONDS,
+        )
     if done.returncode == 0:
         result.add("CHECK", "paths=PASS")
         return True
+    if done.returncode != 1 or "Traceback (most recent call last)" in done.stderr:
+        _not_run(result, f"the {ref} validator could not run (exit {done.returncode})")
+        return None
     result.add("CHECK", f"paths=FAIL exit={done.returncode}")
     findings = [
         line for line in done.stdout.splitlines() if "not in diff" in line or "CRITICAL" in line

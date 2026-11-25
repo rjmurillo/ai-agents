@@ -111,7 +111,12 @@ Owns everything `/push-pr` did after the body is written.
   If it starts with `@`, it prints `STOP: description-upload-failed`, exit 3.
   The PR is left open for the user to decide.
 - An existing open PR is not recreated. It prints `PR: host=<h> number=<id> url=<u> existing` and pushes only.
-- When the checkout has no local paths-in-diff validator, `check` prints `CHECK: paths=NOT-RUN` and ends on `NEXT: compare-paths-by-hand`.
+- The paths-in-diff check never runs code from the branch being shipped (owner ruling, 2026-11-25).
+  It reads `scripts/validation/pr_description.py` and its `scripts/github_core/` import closure with `git show origin/<base>:<path>`.
+  It writes them to a private temporary tree (directory 0700, files 0600) and runs that copy with `python3 -I`.
+  The body file and the branch diff are its data. `uv` is not used, so the branch's lockfile builds nothing.
+- Accepted trade-off: a PR that changes the validator itself is checked by the base version until it merges.
+- When the base has no validator, or the base copy cannot run, `check` prints `CHECK: paths=NOT-RUN` and ends on `NEXT: compare-paths-by-hand`.
   `publish` then stops with `STOP: paths-not-checked` unless the model passes `--paths-checked-by-hand`.
 
 Output on success:
@@ -168,6 +173,10 @@ The new `ship` SKILL.md is a driver. Each phase names one call.
 
 A "where each STOP sends you" table maps each STOP to one fix section.
 The skill reads a section only when a STOP sends it there.
+
+The contract states the paths-check trust boundary in the body step:
+the check runs the base branch's validator, so a PR that edits the validator is checked by the old version until it merges.
+`paths=NOT-RUN` is never a pass. The model compares each path in the body to the diff by hand, then passes `--paths-checked-by-hand`.
 
 ## Retiring `/push-pr`
 

@@ -13,11 +13,11 @@ import sys
 
 import pytest
 
-from tests.skills.ship.conftest import git
 from tests.skills.ship.ship_helpers import (
     GITHUB,
     SCRIPTS,
     TITLE,
+    VALIDATOR_PASS,
     invoke,
     run_pr,
     values,
@@ -138,17 +138,9 @@ class TestPathsNotRun:
         assert code == 0
         assert "CHECK: paths=CHECKED-BY-HAND" in lines
 
-    def test_validator_pass_needs_no_hand_check(self, owner, fakes, scripts, capsys):
+    def test_validator_pass_needs_no_hand_check(self, owner, base_validator, scripts, capsys):
         repo, body = owner
-        validator = repo / "scripts" / "validation" / "pr_description.py"
-        validator.parent.mkdir(parents=True)
-        validator.write_text("", encoding="utf-8")
-        git(repo, "add", "scripts/validation/pr_description.py")
-        git(repo, "commit", "-q", "-m", "chore: add the path validator")
-        uv = fakes.root / "bin" / "uv"
-        uv.write_text((fakes.root / "bin" / "gh").read_text(encoding="utf-8"), encoding="utf-8")
-        uv.chmod(0o755)
-        fakes.rule("uv", [], {"rc": 0})
+        base_validator(repo, VALIDATOR_PASS)
         code, lines = run_pr(scripts, capsys, "publish", "--title", TITLE, "--body-file", str(body))
         assert code == 0
         assert "CHECK: paths=PASS" in lines
