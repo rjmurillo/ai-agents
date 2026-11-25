@@ -52,8 +52,26 @@ class TestCommonEdges:
             result.add("ITEM", f"{index:02d}" + "y" * 1000)
         result.stop("x-failed", 1, "z" * 2500)
         text = common.render(result, "human", tmp_path)
-        assert len(text.encode("utf-8")) > common.MAX_BYTES - common._TAIL_RESERVE
-        assert any(line.startswith("DETAIL_FILE: ") for line in text.splitlines())
+        lines = text.splitlines()
+        assert len(text.encode("utf-8")) <= common.MAX_BYTES
+        assert any(line.startswith("DETAIL_FILE: ") for line in lines)
+        assert lines[-1] == "STOP: x-failed " + "z" * 2500
+
+    @pytest.mark.parametrize("output_format", ["json", "human"])
+    def test_non_ascii_and_quote_heavy_output_stays_under_the_cap(
+        self, scripts, tmp_path, output_format
+    ):
+        common = scripts[0]
+        result = common.Result("t.py", frozenset({"x-failed"}))
+        for _index in range(200):
+            result.add("FINDING", "\u00e9" * 150 + '"\\' * 75)
+        result.stop("x-failed", 1, "d")
+        text = common.render(result, output_format, tmp_path)
+        assert len(text.encode("utf-8")) <= common.MAX_BYTES
+        if output_format == "json":
+            envelope = json.loads(text)
+            assert "DETAIL_FILE" in envelope["Data"]
+            assert envelope["Error"]["Code"] == 1
 
     def test_scratch_mkdir_failure_is_refused(self, scripts, tmp_path):
         common = scripts[0]
@@ -130,6 +148,16 @@ class TestPrEdges:
         assert code == 0
         body = repo / values(lines, "BODY_FILE")[0]
         assert body.read_text(encoding="utf-8") == "<!-- replace with PR body -->\n"
+
+    def test_windows_prepare_stops_on_an_unsafe_scratch(
+        self, make_repo, fakes, scripts, capsys, monkeypatch
+    ):
+        make_repo(GITHUB)
+        monkeypatch.setattr(scripts[3], "_IS_WINDOWS", True)
+        monkeypatch.setattr(scripts[0], "write_private", lambda *args, **kwargs: None)
+        code, lines = invoke(scripts[3], ["prepare"], capsys)
+        assert code == 2
+        assert lines[-1] == "STOP: prepare-failed scratch directory is unsafe"
 
     def test_publish_git_status_failure_stops(
         self, make_repo, fakes, scripts, capsys, body_file, monkeypatch

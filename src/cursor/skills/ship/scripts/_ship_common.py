@@ -163,18 +163,30 @@ class Result:
         self.exit_code = code
 
 
+def _line_size(line: str) -> int:
+    """Bytes one result line costs in the larger of the two formats.
+
+    The JSON form escapes quotes and backslashes, so a line is charged its
+    JSON-encoded size. That keeps the byte cap true for both formats
+    (ADR-127 decision 4 items 9 and 12).
+    """
+    return len(json.dumps(line, ensure_ascii=False).encode("utf-8")) + 1
+
+
 def _capped_lines(result: Result, repo_root: Path | None) -> list[tuple[str, str]]:
     """Return lines within the caps, spilling the full set to a detail file."""
     body = [f"{key}: {value}" for key, value in result.lines]
     terminal = f"{result.terminal[0]}: {result.terminal[1]}" if result.terminal else ""
-    total = sum(len(line.encode("utf-8")) + 1 for line in body) + len(terminal.encode("utf-8")) + 1
-    if len(body) + 1 <= MAX_LINES and total <= MAX_BYTES:
+    total = sum(_line_size(line) for line in body) + _line_size(terminal)
+    if len(body) + 1 <= MAX_LINES and total <= MAX_BYTES - _TAIL_RESERVE:
         return list(result.lines)
     kept: list[tuple[str, str]] = []
     used = 0
-    budget = MAX_BYTES - _TAIL_RESERVE
-    for (key, value), line in zip(result.lines, body, strict=True):
-        size = len(line.encode("utf-8")) + 1
+    budget = MAX_BYTES - _TAIL_RESERVE - _line_size(terminal)
+    # The check above guarantees a break: over the line cap, kept stops at
+    # MAX_LINES - 2; over the byte cap, the lines alone exceed the budget.
+    for (key, value), line in zip(result.lines, body, strict=True):  # pragma: no branch
+        size = _line_size(line)
         if len(kept) >= MAX_LINES - 2 or used + size > budget:
             break
         kept.append((key, value))
@@ -275,7 +287,7 @@ def render(result: Result, output_format: str, repo_root: Path | None) -> str:
                 "Timestamp": datetime.now(timezone.utc).isoformat(),
             },
         }
-        return json.dumps(envelope, separators=(",", ":")) + "\n"
+        return json.dumps(envelope, separators=(",", ":"), ensure_ascii=False) + "\n"
     text = [f"{key}: {value}" for key, value in lines]
     text.append(f"{result.terminal[0]}: {result.terminal[1]}")
     return "\n".join(text) + "\n"
@@ -358,9 +370,14 @@ def remote_host(url: str) -> str | None:
     if url.startswith(("/", ".", "~")):
         return None
     match = _SCP_HOST_RE.match(url)
-    if match:
-        return match.group(1).lower()
-    return None
+    if match is None:
+        return None
+    host = match.group(1).lower()
+    # A host is at least two characters and never starts with "-": that
+    # refuses a Windows drive path (C:\\repo) and an ssh option (-oX=y:z).
+    if len(host) < 2 or host.startswith("-"):
+        return None
+    return host
 
 
 def classify_host(host: str) -> str:

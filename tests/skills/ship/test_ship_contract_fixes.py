@@ -35,6 +35,9 @@ class TestRemoteSchemes:
             "http://github.com/o/r.git",
             "fd::17",
             "host::path",
+            "C:\\repo",
+            "c:/repo",
+            "-oProxyCommand=x:y",
         ],
     )
     def test_disallowed_remote_forms_have_no_host(self, scripts, url):

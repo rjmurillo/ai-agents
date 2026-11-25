@@ -32,7 +32,6 @@ import os
 import re
 import shutil
 import sys
-import uuid
 from pathlib import Path
 
 
@@ -113,22 +112,21 @@ def cmd_branch(args, result, root: Path):
     return result.next("commit-then-review")
 
 
-def _windows_body_file(root: Path) -> Path:
-    directory = root / common.SCRATCH_REL
-    directory.mkdir(parents=True, exist_ok=True)
+def _windows_body_file(root: Path) -> Path | None:
+    """Seed a body file through the guarded scratch writer; None when it is unsafe."""
     template = root / ".github" / "PULL_REQUEST_TEMPLATE.md"
     seed = BODY_MARKER + "\n"
     if template.is_file():
         seed += template.read_text(encoding="utf-8", errors="replace")
-    path = directory / f"pr-body-{uuid.uuid4()}.md"
-    path.write_text(seed, encoding="utf-8")
-    return path
+    return common.write_private(root, "pr-body", ".md", seed)
 
 
 def cmd_prepare(args, result, root: Path):
     if _IS_WINDOWS:
         path = _windows_body_file(root)
-        result.add("BODY_FILE", path.relative_to(root).as_posix())
+        if path is None:
+            return result.stop("prepare-failed", common.EXIT_CONFIG, "scratch directory is unsafe")
+        result.add("BODY_FILE", path.relative_to(root.resolve()).as_posix())
         return result.next("write-body")
     helper = _new_pr()
     if not helper.is_file():
