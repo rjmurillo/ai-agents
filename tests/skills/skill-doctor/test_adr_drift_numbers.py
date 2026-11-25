@@ -3,11 +3,20 @@
 from __future__ import annotations
 
 import errno
+import os
 from pathlib import Path
 
 import adr_history
 import pytest
-from adr_drift_helpers import adr_path, adr_text, commit, kinds, scan, seeded_repo
+from adr_drift_helpers import (
+    adr_path,
+    adr_text,
+    commit,
+    kinds,
+    scan,
+    seeded_repo,
+    symlink_or_skip,
+)
 
 
 def _adr(number: int, *, supersedes: str = "[]", superseded_by: str = "null") -> str:
@@ -178,6 +187,8 @@ def test_any_active_form_names_the_successor_first(text):
         "ADR-12 was replaced by ADR-40",
         "ADR-12 is deprecated in favor of ADR-40",
         "ADR-012 is now superseded by ADR-040.",
+        "ADR-12 is superseded by the new ADR-40",
+        "ADR-12 was deprecated in favor of the proposed ADR-40",
     ],
 )
 def test_the_passive_form_names_the_superseded_record(text):
@@ -214,6 +225,43 @@ def test_an_adr_dir_with_a_nul_byte_is_rejected_not_fatal(tmp_path, capsys, raw)
     result = scan(capsys, repo)
 
     assert [r["path"] for r in result["locate"]["rejected"]] == [".adr-dir"]
+
+
+def _device_link(path: Path) -> None:
+    device = Path("/dev/zero")
+    if not device.exists():
+        pytest.skip("no /dev/zero on this platform")
+    symlink_or_skip(path, device)
+
+
+def _fifo(path: Path) -> None:
+    if not hasattr(os, "mkfifo"):
+        pytest.skip("no FIFOs on this platform")
+    os.mkfifo(path)
+
+
+@pytest.mark.parametrize(
+    ("make", "reason"),
+    [
+        (lambda repo: _device_link(repo / ".adr-dir"), "resolves outside the repository"),
+        (lambda repo: _fifo(repo / ".adr-dir"), "is not a regular file"),
+        (
+            lambda repo: (repo / ".adr-dir").write_text("x" * 5000, encoding="utf-8"),
+            "larger than 4096 bytes",
+        ),
+    ],
+    ids=["device-symlink", "fifo", "oversize"],
+)
+def test_an_adr_dir_that_is_not_a_small_repo_file_is_refused_unread(tmp_path, capsys, make, reason):
+    repo = seeded_repo(tmp_path / "repo", {"docs/adr/0001-a.md": "# 1. A\n"})
+    try:
+        make(repo)
+    except OSError as exc:
+        pytest.skip(f"special files unavailable: {exc}")
+
+    result = scan(capsys, repo)
+
+    assert {"path": ".adr-dir", "reason": reason} in result["locate"]["rejected"]
 
 
 def test_an_adr_dir_name_too_long_for_the_os_is_rejected(tmp_path, capsys, monkeypatch):

@@ -151,3 +151,9 @@ def test_locate_records_a_style_read_failure(tmp_path, capsys, monkeypatch):
 )
 def test_status_lines_in_prose(lines, status):
     assert adr_text.status_word(adr_text.doc_status({}, lines, 0)) == status
+
+
+def test_every_active_status_is_a_status_word():
+    import adr_checks
+
+    assert adr_checks.ACTIVE_STATUSES - {""} <= adr_text.STATUS_WORDS

@@ -22,13 +22,14 @@ MAX_CITED_EVIDENCE = 10
 # Word suffixes are bounded so a long run of verbs cannot make each match attempt rescan it.
 SUPERSEDE_VERB = r"(?:supersed|replac|revert|deprecat|drop)\w{0,20}"
 VERB_THEN_ADR = re.compile(rf"{SUPERSEDE_VERB}([^.\n]{{0,60}}?)\b{ADR_NUMBER}", re.IGNORECASE)
-# "superseded by ADR-N" and "deprecated in favor of ADR-N" name the successor.
-BY_SUCCESSOR = re.compile(r"\b(?:by|in\s+favou?r\s+of)\W*\Z", re.IGNORECASE)
+# A "by" or "in favor of" between the verb and ADR-N, as in "superseded by the new
+# ADR-N" or "deprecated in favor of ADR-N", names ADR-N as the successor.
+BY_SUCCESSOR = re.compile(r"\b(?:by|in\s+favou?r\s+of)\b", re.IGNORECASE)
 # In "ADR-M supersedes ADR-N" or "ADR-M replaced ADR-N", ADR-M is the successor: another
 # ADR follows the verb with no "by" or "in favor of" between. The passive "ADR-N is
 # superseded by ADR-M" keeps ADR-N.
 THEN_ADR = re.compile(rf"([^.\n]{{0,60}}?)\b{ADR_NUMBER}", re.IGNORECASE)
-ADR_THEN_VERB = re.compile(rf"\b{ADR_NUMBER}[^.\n]{{0,60}}?({SUPERSEDE_VERB})", re.IGNORECASE)
+ADR_THEN_VERB = re.compile(rf"\b{ADR_NUMBER}[^.\n]{{0,60}}?{SUPERSEDE_VERB}", re.IGNORECASE)
 SHA_TOKEN = re.compile(r"^[0-9a-f]{40,64}$")
 STATUS_TOKEN = re.compile(r"^[A-Z]\d*$")
 LOG_ARGS = (
@@ -128,7 +129,8 @@ def _commit_evidence(commit: Commit) -> dict[str, Any]:
 
 
 def _names_successor(match: re.Match[str], text: str) -> bool:
-    """True for ADR-M in "ADR-M supersedes ADR-N": another ADR follows, not after "by"."""
+    """True for ADR-M in "ADR-M supersedes ADR-N": another ADR follows the verb, and no
+    "by" or "in favor of" stands anywhere between them."""
     after = THEN_ADR.match(text, match.end())
     return after is not None and not BY_SUCCESSOR.search(after.group(1))
 

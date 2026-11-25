@@ -106,7 +106,8 @@ The summary line on stdout repeats the finding count, the commits examined,
 the highest number plus one.
 
 `rejected` lists what was skipped on purpose, each with a `path` and a `reason`:
-a `.adr-dir` target that is empty, missing, or outside the repository, a known
+a `.adr-dir` that is a symlink out of the repository, not a regular file, or over
+4,096 bytes, a `.adr-dir` target that is empty, missing, or outside the repository, a known
 folder that is a symlink outside the repository or a dangling symlink, an ADR
 file whose real path leaves its folder, a date-named record, and an `.mdx` or
 `.adoc` ADR, which this scan does not parse. `scan` carries it under `locate`.
@@ -165,8 +166,9 @@ Details that decide what fires:
 - `adr-superseded-by-commit`: a commit message that pairs `ADR-N` with
   supersede, replace, revert, deprecate, or drop, where ADR-N is still accepted
   and the commit did not touch it. "Superseded by ADR-M" and "deprecated in
-  favor of ADR-M" name the successor, so ADR-M does not count. Neither does
-  ADR-M when another ADR follows the verb with no "by" between, as in "ADR-M
+  favor of ADR-M" name the successor, so ADR-M does not count, also with words
+  between, as in "superseded by the new ADR-M". Neither does ADR-M when another
+  ADR follows the verb with no "by" or "in favor of" between, as in "ADR-M
   supersedes ADR-N" or "ADR-M replaced ADR-N". The passive "ADR-N is
   superseded by ADR-M" still counts ADR-N. Every folder that holds ADR-N gets
   its own candidate.

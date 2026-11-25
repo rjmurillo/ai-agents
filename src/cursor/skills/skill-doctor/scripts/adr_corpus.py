@@ -63,6 +63,8 @@ UNREAD_NAME = re.compile(r"(?:ADR-)?\d{1,6}[-_].+\.(?:mdx|adoc)\Z", re.IGNORECAS
 DATE_PREFIX = re.compile(r"^(?:\d{4}-\d{2}-\d{2}|\d{8})(?!\d)")
 INDEX_STEMS = frozenset({"readme", "index", "adr-index", "adr-log"})
 DEFAULT_HEADINGS = ("Status", "Context", "Decision", "Consequences")
+# `.adr-dir` holds one folder name; anything larger is not a marker.
+MARKER_MAX_BYTES = 4096
 
 
 class Finding(TypedDict):
@@ -262,14 +264,39 @@ def load_dir(path: Path, rel: str, survey: Survey, explicit: bool = False) -> Ad
     return AdrDir(path, rel, files, other, explicit)
 
 
-def _read_marker(repo: Path, survey: Survey) -> Path | None:
-    """Return the folder named by an adr-tools `.adr-dir` file, or record why it is unusable."""
-    try:
-        text = (repo / ".adr-dir").read_text(encoding="utf-8", errors="replace")
-    except FileNotFoundError:
+def _marker_text(repo: Path, survey: Survey) -> str | None:
+    """The `.adr-dir` text, or None. A symlink out of the repository, a device or FIFO,
+    or a file over MARKER_MAX_BYTES is refused unread, so it cannot block or fill memory."""
+    marker = repo / ".adr-dir"
+    if not path_exists(marker):
         return None
+    target = _resolve(marker)
+    reason = None
+    if target is None or not within(target, repo):
+        reason = "resolves outside the repository"
+    elif not target.is_file():
+        reason = "is not a regular file"
+    if reason is not None:
+        survey.rejected.append({"path": ".adr-dir", "reason": reason})
+        return None
+    try:
+        with target.open("rb") as handle:
+            raw = handle.read(MARKER_MAX_BYTES + 1)
     except OSError as exc:
         survey.read_errors.append({"path": ".adr-dir", "error": str(exc)})
+        return None
+    if len(raw) > MARKER_MAX_BYTES:
+        survey.rejected.append(
+            {"path": ".adr-dir", "reason": f"larger than {MARKER_MAX_BYTES} bytes"}
+        )
+        return None
+    return raw.decode("utf-8", errors="replace")
+
+
+def _read_marker(repo: Path, survey: Survey) -> Path | None:
+    """Return the folder named by an adr-tools `.adr-dir` file, or record why it is unusable."""
+    text = _marker_text(repo, survey)
+    if text is None:
         return None
     first = next((ln.strip() for ln in text.splitlines() if ln.strip()), "")
     if not first:
