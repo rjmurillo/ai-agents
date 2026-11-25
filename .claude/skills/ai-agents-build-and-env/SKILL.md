@@ -69,7 +69,7 @@ in every shell, not only interactive ones. Without it the shim looks in
 `/usr/share/dotnet`, prints `You must install or update .NET`, and exits 150.
 Agent shells and git hooks are not interactive, so `~/.zshrc` and `~/.bashrc`
 miss them. For zsh, put `export DOTNET_ROOT="$HOME/.dotnet"` in `~/.zshenv`.
-Check with `zsh -c 'pwsh -NoProfile -c 1'; echo $?`, which must print 0.
+Check with `env -u DOTNET_ROOT zsh -c 'pwsh -NoProfile -c 1'; echo $?`, which must print 0.
 Measured cases and the `bash -c` gap: `docs/runbooks/local-hook-failure.md`.
 
 Container or VM setup: `bash scripts/bootstrap-vm.sh` automates all of the above
@@ -180,7 +180,7 @@ The 15-minute smoke checklist. All boxes checked means the environment works.
 - [ ] `uv run ruff --version` prints a version
 - [ ] `python3 --version` matches `cat .python-version`
 - [ ] `node --version` major matches `env_probe.py pins` `node_major`; `gh --version` prints 2.60+; `pwsh --version` prints 7.5+
-- [ ] Non-interactive pwsh starts: `zsh -c 'pwsh -NoProfile -c 1'; echo $?` prints 0 (use `bash -c` if bash is your login shell)
+- [ ] Non-interactive pwsh starts: `env -u DOTNET_ROOT zsh -c 'pwsh -NoProfile -c 1'; echo $?` prints 0 (bash has no tested fix yet; see `docs/runbooks/local-hook-failure.md`)
 - [ ] `.env` exists locally (copied from `.env.example`) and is NOT tracked: `env_probe.py envfile` reports `tracked_env: false`
 - [ ] Optional, requires network: the Serena MCP server starts (harness lists `mcp__serena__*` tools); if not, confirm the ADR-007 fallbacks (superseded by ADR-106; the degradation rule is not restated there) in Phase 4 before proceeding
 

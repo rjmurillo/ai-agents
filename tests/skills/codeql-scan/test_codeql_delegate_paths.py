@@ -151,9 +151,10 @@ class TestFlagsMatchRealDelegateContracts:
         assert "install_codeql.py --add-to-path" in err
         # The hint embeds the interpreter and checkout paths. A path may itself
         # contain "pwsh" (a branch named fix-pwsh-...), so mask them first.
-        hint = err.replace(wrapper._python_executable(), "<python>").replace(
-            str(tmp_path), "<repo>"
-        )
+        # Masking hides the interpreter, so check its own name separately.
+        interpreter = wrapper._python_executable()
+        assert "pwsh" not in Path(interpreter).name
+        hint = err.replace(interpreter, "<python>").replace(str(tmp_path), "<repo>")
         assert "pwsh" not in hint
 
 
