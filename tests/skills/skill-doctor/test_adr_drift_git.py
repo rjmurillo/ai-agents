@@ -48,7 +48,7 @@ def test_a_rename_is_parsed_beside_control_bytes_in_the_same_body(tmp_path):
     commits, truncated = adr_history.read_commits(repo, 10, None)
 
     assert not truncated and commits[0].subject == "refactor: rename"
-    assert commits[0].paths == (("D", "old.txt"), ("A", "new.txt"))
+    assert sorted(commits[0].paths) == [("A", "new.txt"), ("D", "old.txt")]
     assert commits[0].body.startswith("forged\x1e")
 
 

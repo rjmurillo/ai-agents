@@ -96,16 +96,19 @@ PROMISOR = re.compile(
 GIT_VERSION = re.compile(r"git version ([0-9]+)\.([0-9]+)\.([0-9]+)", re.ASCII)
 
 
-def is_partial_clone(repo: Path) -> bool:
-    """True when the repository fetches missing objects from a promisor remote."""
+def partial_filters(repo: Path) -> list[str] | None:
+    """The partial-clone filters of a repository (possibly empty), or None for a full clone."""
     keys = r"^(extensions\.partialclone|remote\..*\.(promisor|partialclonefilter))$"
     try:
         config = run_git(repo, ["config", "--get-regexp", keys]).lower()
     except GitError as exc:
         if exc.returncode != 1:  # 1 means no key matched
             raise
-        return False
-    return any(PROMISOR.match(line) for line in config.splitlines())
+        return None
+    lines = config.splitlines()
+    if not any(PROMISOR.match(line) for line in lines):
+        return None
+    return [line.split(" ", 1)[1] for line in lines if ".partialclonefilter " in line]
 
 
 def old_git_refusal(repo: Path) -> str | None:
@@ -124,6 +127,15 @@ def old_git_refusal(repo: Path) -> str | None:
     )
 
 
-def lazy_fetch_refusal(repo: Path) -> str | None:
-    """Why a scan must not run here, or None: a partial clone on a git that may fetch."""
-    return old_git_refusal(repo) if is_partial_clone(repo) else None
+def partial_clone_refusal(repo: Path) -> str | None:
+    """Why a scan must not run here, or None. A blobless clone scans: history reads only
+    trees. A treeless clone lacks those trees, and an old git might fetch them."""
+    filters = partial_filters(repo)
+    if filters is None:
+        return None
+    if any(f.startswith("tree:") for f in filters):
+        return (
+            "this is a treeless partial clone, and the history read needs the trees it lacks;"
+            " scan a full or blobless clone"
+        )
+    return old_git_refusal(repo)

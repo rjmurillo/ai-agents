@@ -60,19 +60,17 @@ has a 120 s timeout, and a scan makes at most six calls.
 `scan` reads the last 300 commits from `HEAD` (`--max-commits`, `--since`) and
 the ADR files in the working tree. It uses no network: git runs with
 `GIT_NO_LAZY_FETCH=1`, and a partial clone on a git older than 2.45.1 (or its
-May 2024 backports) exits 2, since that git could fetch. In a partial clone on a
-newer git, rename detection is off, because it reads blob contents the clone
-lacks: a rename lists as a delete plus an add. `--out` must be outside
+May 2024 backports) exits 2, since that git could fetch. History runs without
+rename detection, so git never reads a blob and a blobless clone scans like a
+full one; a rename reads as a delete plus an add. A treeless clone
+(`--filter=tree:0`) exits 2, since history needs its trees. `--out` must be outside
 the repository, and the file is written whole or not at all. It needs git 2.31
 or later, for `git log --diff-merges=first-parent`. Older git fails with exit 3.
 A result larger than 5,000,000 bytes exits 2 and writes nothing, because the
 renderer refuses larger files. Narrow it with `--since` or `--max-commits`.
 
-The result carries `head`, `examined`, `truncated`, `rename_detection`,
-`read_errors`, `findings`, `counts`, and `locate`. Report these:
-
-- When `rename_detection` is false, say so: the repository is a partial clone,
-  so a rename reads as a delete plus an add.
+The result carries `head`, `examined`, `truncated`, `read_errors`, `findings`,
+`counts`, and `locate`. Report these:
 
 - When `truncated` is true, say so: older history was not read.
 - When `read_errors` is not empty, name the paths that were not checked. A file

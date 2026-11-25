@@ -94,33 +94,55 @@ def test_a_partial_clone_fetches_nothing(tmp_path, capsys):
 
     code, _, err = run_cli(capsys, "scan", "--repo", str(clone), "--out", str(out))
 
-    assert code == 0, err
     assert _missing_objects(clone) == before
-    result = json.loads(out.read_text(encoding="utf-8"))
-    assert result["rename_detection"] is False and result["examined"] == 2
+    if adr_git.old_git_refusal(clone) is not None:  # this git may fetch, so it refuses
+        assert code == 2 and "partial clone" in err
+        return
+    assert code == 0, err
+    assert json.loads(out.read_text(encoding="utf-8"))["examined"] == 2
+
+
+def test_a_treeless_clone_exits_2_with_its_reason(tmp_path, capsys):
+    source = seeded_repo(tmp_path / "source", {adr_path(1): adr_body(1)})
+    commit(source, {"x.txt": "1"}, "chore: second")
+    git(source, "config", "uploadpack.allowFilter", "true")
+    clone = tmp_path / "clone"
+    subprocess.run(
+        ["git", "clone", "-q", "--no-checkout", "--filter=tree:0", source.as_uri(), str(clone)],
+        check=True,
+        env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+    )
+    if _missing_objects(clone) == 0:
+        pytest.skip("this git did not make a treeless clone")
+    before = _missing_objects(clone)
+    out = tmp_path / "out" / "scan.json"
+
+    code, _, err = run_cli(capsys, "scan", "--repo", str(clone), "--out", str(out))
+
+    assert code == 2 and "treeless" in err and not out.exists()
+    assert _missing_objects(clone) == before
 
 
 def test_an_old_git_refuses_a_partial_clone(monkeypatch, tmp_path):
     replies = {"config": "remote.origin.promisor true\n", "version": "git version 2.44.0\n"}
     monkeypatch.setattr(adr_git, "run_git", lambda repo, args: replies[args[0]])
 
-    refusal = adr_git.lazy_fetch_refusal(tmp_path)
+    refusal = adr_git.partial_clone_refusal(tmp_path)
 
     assert refusal is not None and "partial clone" in refusal and "2.44.0" in refusal
 
 
 @pytest.mark.parametrize("version", ["git version 2.45.1\n", "git version 2.43.4\n"])
-def test_a_git_that_honors_no_lazy_fetch_scans_a_partial_clone(monkeypatch, tmp_path, version):
+def test_a_git_that_honors_no_lazy_fetch_allows_a_blobless_clone(monkeypatch, tmp_path, version):
     replies = {"config": "remote.origin.promisor true\n", "version": version}
     monkeypatch.setattr(adr_git, "run_git", lambda repo, args: replies[args[0]])
 
-    assert adr_git.lazy_fetch_refusal(tmp_path) is None
+    assert adr_git.partial_clone_refusal(tmp_path) is None
 
 
 def test_the_refusal_exits_2(tmp_path, capsys, monkeypatch):
     repo = seeded_repo(tmp_path / "repo")
-    monkeypatch.setattr(adr_drift, "is_partial_clone", lambda repo: True)
-    monkeypatch.setattr(adr_drift, "old_git_refusal", lambda repo: "this is a partial clone")
+    monkeypatch.setattr(adr_drift, "partial_clone_refusal", lambda repo: "this is a partial clone")
     out = tmp_path / "out" / "scan.json"
 
     code, _, err = run_cli(capsys, "scan", "--repo", str(repo), "--out", str(out))
@@ -168,3 +190,20 @@ def test_the_cited_path_fix_leads_with_the_current_path(tmp_path, capsys):
     (found,) = kinds(scan(capsys, repo), "adr-cited-path-missing")
 
     assert found["suggested_fix"].index("current path") < found["suggested_fix"].index("Supersede")
+
+
+@pytest.mark.parametrize(
+    ("config", "refused"),
+    [
+        ("remote.origin.promisor true\nremote.origin.partialclonefilter blob:none\n", False),
+        ("remote.origin.promisor true\nremote.origin.partialclonefilter tree:0\n", True),
+    ],
+    ids=["blobless", "treeless"],
+)
+def test_only_a_treeless_filter_is_refused_on_a_new_git(monkeypatch, tmp_path, config, refused):
+    replies = {"config": config, "version": "git version 2.55.0\n"}
+    monkeypatch.setattr(adr_git, "run_git", lambda repo, args: replies[args[0]])
+
+    refusal = adr_git.partial_clone_refusal(tmp_path)
+
+    assert (refusal is not None and "treeless" in refusal) is refused
