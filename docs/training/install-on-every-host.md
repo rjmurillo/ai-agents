@@ -17,7 +17,7 @@ We ran the commands on 2026-11-11 with main at `d34536c95c`. Counts come from th
 | Cursor | Agent CLI 2026.10.14-0f9edde | 105 | 28 | Local plugin directory | Partly |
 | Grok Build | 1.0.77 | 105 | 29 | Marketplace | Yes |
 | Pi | 1.5.0 | 105 | None | `pi install` from git | Yes |
-| Hermes | Agent v0.23.0 | 89, in three packs | None | `hermes plugins install` per pack | Yes |
+| Hermes | Agent v0.23.0 | 89, in four packs | None | `hermes plugins install` per pack | Yes |
 | Muse personal agent | Not run | 105 | None | Copy skill folders | No |
 | Muse Code | 1.4.15, at `fc91afcf2` | 105 | 25; a signed-in run spawned all 25 | Copy skill and agent folders | Partly |
 
@@ -277,17 +277,20 @@ pi remove git:github.com/rjmurillo/ai-agents
 
 ### Install on Hermes
 
-Hermes caps a plugin at 400 files. The toolkit does not fit in one plugin, so it ships as three packs ([ADR-115](../../.project-toolkit/architecture/ADR-115-native-plugin-support-per-host.md) Decision 6):
+Hermes caps a plugin at 400 files. The toolkit does not fit in one plugin, so it ships as four packs ([ADR-115](../../.project-toolkit/architecture/ADR-115-native-plugin-support-per-host.md) Decision 6):
 
 | Pack | Skills | Holds |
 |------|--------|-------|
-| `project-toolkit-delivery` | 49 | Pull request work, build, test, quality gates, security review, operations |
+| `project-toolkit-delivery` | 47 | Pull request work, build, test, quality gates, security review, operations |
 | `project-toolkit-knowledge` | 34 | Memory, context, decisions, requirements, strategy, documentation |
 | `project-toolkit-authoring` | 6 | Writing, tuning, and bootstrapping skills, and placing context |
+| `project-toolkit-azure-devops` | 2 | Azure DevOps pipeline validation and OneBranch pipeline image updates |
 
 That is 89 skills. Another 15 skills ship in no pack. Hermes rates 7 of them dangerous. Seven more refer to an excluded skill. `skill-doctor` has a file over the 1 MiB limit. [src/hermes/README.md](../../src/hermes/README.md) lists each one with its reason. A skill in one pack never refers to a skill in another pack by path. Two `skillforge` scripts look in the other packs at run time when they are installed. No sign-in is needed.
 
 Six skills used to ship in the knowledge pack: `skill-bootstrap`, `skillopt`, `skillforge`, `context-optimizer`, `skillify`, and `prose-self-check`. They moved to `project-toolkit-authoring` because the knowledge pack reached the 400-file cap and the six refer to each other. To keep them, reinstall the knowledge pack with `--force` first, then install `project-toolkit-authoring` (step 4). The order matters. With an old knowledge pack still installed, Hermes lists all six skills twice, once from each pack, until you reinstall knowledge. We measured this on 2026-11-24 against hermes-agent `63d0b94120`: 95 skills listed with six duplicates, and 89 with none after the knowledge reinstall.
+
+Two skills used to ship in the delivery pack: `pipeline-validator` and `windows-image-updater`. They moved to `project-toolkit-azure-devops` on 2026-11-25 because the delivery pack reached its file budget. To keep them, reinstall the delivery pack with `--force` first, then install `project-toolkit-azure-devops` (step 5). With an old delivery pack still installed, expect Hermes to list both skills twice, as it did for the authoring move. We did not measure the duplicate count for this move.
 
 1. Install the knowledge pack and enable it:
 
@@ -325,6 +328,14 @@ Six skills used to ship in the knowledge pack: `skill-bootstrap`, `skillopt`, `s
    hermes plugins install --force --enable rjmurillo/ai-agents/src/hermes/project-toolkit-authoring
    ```
 
+5. Install the Azure DevOps pack and enable it:
+
+   ```bash
+   hermes plugins install rjmurillo/ai-agents/src/hermes/project-toolkit-azure-devops --enable
+   ```
+
+   The guard at the pinned hermes-agent commit `63d0b94120` rates it `SAFE` (2026-11-25), so it needs no `--force`. The repository smoke installs it without `--force`, because it is not in `FORCE_ALLOWED_PACKS`.
+
 Update: see "Check Hermes" below. `hermes plugins check-updates` cannot tell for these packs. Reinstall each pack with `--force`.
 
 Uninstall:
@@ -333,6 +344,7 @@ Uninstall:
 hermes plugins remove project-toolkit-delivery
 hermes plugins remove project-toolkit-knowledge
 hermes plugins remove project-toolkit-authoring
+hermes plugins remove project-toolkit-azure-devops
 ```
 
 ### Install on Muse
@@ -725,9 +737,10 @@ hermes plugins list
 hermes plugins doctor project-toolkit-knowledge
 hermes plugins doctor project-toolkit-delivery
 hermes plugins doctor project-toolkit-authoring
+hermes plugins doctor project-toolkit-azure-devops
 ```
 
-The list shows all three packs with status `enabled` and source `user`. Each doctor run prints:
+The list shows all four packs with status `enabled` and source `user`. Each doctor run prints:
 
 ```text
   OK: runtime discovery, manifest parsing, import, and registration passed
@@ -739,9 +752,10 @@ Then count the skills on disk:
 ls -d "${HERMES_HOME:-$HOME/.hermes}"/plugins/project-toolkit-delivery/skills/*/ | wc -l
 ls -d "${HERMES_HOME:-$HOME/.hermes}"/plugins/project-toolkit-knowledge/skills/*/ | wc -l
 ls -d "${HERMES_HOME:-$HOME/.hermes}"/plugins/project-toolkit-authoring/skills/*/ | wc -l
+ls -d "${HERMES_HOME:-$HOME/.hermes}"/plugins/project-toolkit-azure-devops/skills/*/ | wc -l
 ```
 
-Expect `49`, `34`, and `6`. Hermes gets skills only.
+Expect `47`, `34`, `6`, and `2`. Hermes gets skills only.
 
 Not run: a Hermes model turn that uses a skill. `hermes skills list` showed no plugin skills in our run, so do not use it as your check.
 

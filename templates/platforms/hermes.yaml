@@ -38,8 +38,9 @@ artifacts:
     # one. An old skill changes packs only by owner decision, recorded in ADR-115
     # Decision 6, and takes every skill its path references connect. On
     # 2026-11-24 six skills moved from knowledge, which sat at the 400-file cap,
-    # to authoring. On 2026-11-25 pipeline-validator and windows-image-updater
-    # moved from delivery, which sat at the cap, to azure-devops.
+    # to authoring. The 2026-11-25 move of pipeline-validator and
+    # windows-image-updater from delivery to azure-devops is proposed. It awaits
+    # the owner ruling on issue #7591 and is not yet recorded in ADR-115.
     packs:
       delivery:
         description: "Project Toolkit skills for GitHub pull request work, build, test, and quality gates, security review, and operations."
