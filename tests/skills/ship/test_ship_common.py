@@ -334,7 +334,3 @@ class TestHelpers:
         path = common.skill_script("github", "pr", "new_pr.py")
         assert path.is_file()
         assert path.parents[3].name == "skills"
-
-    def test_load_sibling_returns_cached_module(self):
-        first = common.load_sibling("ship_detect")
-        assert common.load_sibling("ship_detect") is first

@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-def _load_common():
+def _load_common():  # pragma: no cover - runs only in a fresh interpreter; see test_ship_edges.py::test_script_runs_under_isolated_mode
     name = "_ship_common"
     path = Path(__file__).resolve().with_name(f"{name}.py")
     if name in sys.modules:
@@ -48,6 +48,7 @@ REASONS = frozenset(
         "pr-query-failed",
         "user-query-failed",
         "auth-failed",
+        "pr-author-unknown",
     }
 )
 _NO_PR_SIGNAL = "no pull requests found"
@@ -66,6 +67,7 @@ class Context:
     pr_url: str
     pr_author: str
     mode: str
+    pr_draft: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -97,19 +99,20 @@ def _default_base(root: Path) -> str:
     return "main"
 
 
-def _github_pr(root: Path) -> tuple[int | None, str, str] | Halt:
-    done = common.run(["gh", "pr", "view", "--json", "number,author,state,url"], cwd=root)
+def _github_pr(root: Path) -> tuple[int | None, str, str, bool | None] | Halt:
+    done = common.run(["gh", "pr", "view", "--json", "number,author,state,url,isDraft"], cwd=root)
     if done.returncode != 0:
         if _NO_PR_SIGNAL in done.stderr.lower():
-            return (None, "", "")
+            return (None, "", "", None)
         return _query_halt("pr-query-failed", done)
     data = common.parse_json(done.stdout)
     if not isinstance(data, dict) or not isinstance(data.get("number"), int):
         return Halt("pr-query-failed", common.EXIT_EXTERNAL, "gh returned no PR number")
     if data.get("state") != "OPEN":
-        return (None, "", "")
+        return (None, "", "", None)
     author = data.get("author") if isinstance(data.get("author"), dict) else {}
-    return (data["number"], str(data.get("url", "")), str(author.get("login", "")))
+    draft = data.get("isDraft") if isinstance(data.get("isDraft"), bool) else None
+    return (data["number"], str(data.get("url", "")), str(author.get("login") or ""), draft)
 
 
 def _github_user(root: Path) -> str | Halt:
@@ -120,7 +123,7 @@ def _github_user(root: Path) -> str | Halt:
     return login
 
 
-def _ado_pr(root: Path, branch: str) -> tuple[int | None, str, str] | Halt:
+def _ado_pr(root: Path, branch: str) -> tuple[int | None, str, str, bool | None] | Halt:
     done = common.run(
         [
             "az",
@@ -142,7 +145,7 @@ def _ado_pr(root: Path, branch: str) -> tuple[int | None, str, str] | Halt:
     if not isinstance(data, list):
         return Halt("pr-query-failed", common.EXIT_EXTERNAL, "az returned no PR list")
     if not data:
-        return (None, "", "")
+        return (None, "", "", None)
     first = data[0] if isinstance(data[0], dict) else {}
     pr_id = first.get("pullRequestId")
     if not isinstance(pr_id, int):
@@ -151,7 +154,8 @@ def _ado_pr(root: Path, branch: str) -> tuple[int | None, str, str] | Halt:
     web_url = str(repository.get("webUrl", ""))
     url = f"{web_url}/pullrequest/{pr_id}" if web_url else ""
     created_by = first.get("createdBy") if isinstance(first.get("createdBy"), dict) else {}
-    return (pr_id, url, str(created_by.get("uniqueName", "")))
+    draft = first.get("isDraft") if isinstance(first.get("isDraft"), bool) else None
+    return (pr_id, url, str(created_by.get("uniqueName") or ""), draft)
 
 
 def _ado_user(root: Path) -> str | Halt:
@@ -188,17 +192,25 @@ def detect(cwd: Path | None = None, base: str | None = None) -> Context | Halt:
     pr_query = _github_pr(root) if host == "github" else _ado_pr(root, branch)
     if isinstance(pr_query, Halt):
         return pr_query
-    pr, pr_url, author = pr_query
+    pr, pr_url, author, pr_draft = pr_query
     mode = "owner"
     if pr is not None:
+        # Owner mode on an open PR needs a positive identity match. A PR whose
+        # author the host did not return cannot prove the branch is yours.
+        if not author.strip():
+            return Halt(
+                "pr-author-unknown",
+                common.EXIT_EXTERNAL,
+                f"PR {pr} has no author in the host reply",
+            )
         me = _github_user(root) if host == "github" else _ado_user(root)
         if isinstance(me, Halt):
             return me
-        if author and author.lower() != me.lower():
+        if author.strip().lower() != me.strip().lower():
             mode = "contributor"
     if mode == "owner" and pr is None and branch == target:
         return Halt("on-base-branch", common.EXIT_LOGIC, f"on {target}; create a feature branch")
-    return Context(root, host, host_name, branch, target, head, pr, pr_url, author, mode)
+    return Context(root, host, host_name, branch, target, head, pr, pr_url, author, mode, pr_draft)
 
 
 def add_context_lines(result, ctx: Context, *, pr_key: str = "PR") -> None:
@@ -212,6 +224,8 @@ def add_context_lines(result, ctx: Context, *, pr_key: str = "PR") -> None:
         result.add("PR_URL", ctx.pr_url)
     if ctx.pr_author:
         result.add("PR_AUTHOR", ctx.pr_author)
+    if ctx.pr is not None:
+        result.add("PR_DRAFT", "unknown" if ctx.pr_draft is None else str(ctx.pr_draft).lower())
     result.add("MODE", ctx.mode)
 
 
@@ -248,5 +262,7 @@ def main(argv: list[str] | None = None) -> int:
     return common.emit(result, fmt, root)
 
 
-if __name__ == "__main__":
+if (
+    __name__ == "__main__"
+):  # pragma: no cover - runs only in a fresh interpreter; see test_ship_edges.py::test_script_runs_under_isolated_mode
     raise SystemExit(main())

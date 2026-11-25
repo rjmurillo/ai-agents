@@ -258,7 +258,11 @@ def test_ado_query_failures_stop(make_repo, fakes, scripts, capsys, response, re
 
 def test_ado_user_query_failure_stops(make_repo, fakes, scripts, capsys):
     make_repo(ADO_HTTPS)
-    fakes.rule("az", ["repos", "pr", "list"], {"stdout": json.dumps([{"pullRequestId": 5}])})
+    fakes.rule(
+        "az",
+        ["repos", "pr", "list"],
+        {"stdout": json.dumps([{"pullRequestId": 5, "createdBy": {"uniqueName": "me"}}])},
+    )
     fakes.rule("az", ["account", "show"], {"rc": 1, "stderr": "boom\n"})
     code, lines = _detect(scripts, capsys)
     assert code == 3

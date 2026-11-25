@@ -35,7 +35,9 @@ import uuid
 from pathlib import Path
 
 
-def _load(name: str):
+def _load(
+    name: str,
+):  # pragma: no cover - runs only in a fresh interpreter; see test_ship_edges.py::test_script_runs_under_isolated_mode
     path = Path(__file__).resolve().with_name(f"{name}.py")
     if name in sys.modules:
         return sys.modules[name]
@@ -371,13 +373,20 @@ def cmd_publish(args, result, _root: Path):
         return result.stop(tree.reason, tree.code, tree.detail)
     if tree.failed:
         return result.stop("tree-dirty", common.EXIT_LOGIC, tree.detail)
-    if not args.draft:
-        reviewed = preflight_mod.check_reviewed(ctx, False, args.require_axis)
-        if isinstance(reviewed, preflight_mod.Halt):
-            return result.stop(reviewed.reason, reviewed.code, reviewed.detail)
-        result.add("CHECK", f"reviewed={reviewed.state} {reviewed.detail}".rstrip())
-        if reviewed.state != "PASS":
-            return result.stop("head-not-reviewed", common.EXIT_LOGIC, reviewed.detail)
+    reviewed = preflight_mod.check_reviewed(ctx, args.draft, args.require_axis)
+    if isinstance(reviewed, preflight_mod.Halt):
+        return result.stop(reviewed.reason, reviewed.code, reviewed.detail)
+    result.add("CHECK", f"reviewed={reviewed.state} {reviewed.detail}".rstrip())
+    if reviewed.state not in ("PASS", "SKIPPED"):
+        return result.stop("head-not-reviewed", common.EXIT_LOGIC, reviewed.detail)
+    # Validate and publish the same bytes: read the body once into a private
+    # snapshot, check the snapshot, and hand only the snapshot to the host.
+    snapshot = common.write_private(
+        ctx.root, "pr-body-publish", ".md", body.read_text(encoding="utf-8", errors="replace")
+    )
+    if snapshot is None:
+        return result.stop("bad-body-file", common.EXIT_CONFIG, "could not write the body snapshot")
+    body = snapshot
     failed = run_checks(ctx, args.title, body, ctx.base, result)
     if failed:
         return result.stop("check-failed", common.EXIT_LOGIC, ",".join(failed))
@@ -455,5 +464,7 @@ def main(argv: list[str] | None = None) -> int:
     return common.emit(result, fmt, root)
 
 
-if __name__ == "__main__":
+if (
+    __name__ == "__main__"
+):  # pragma: no cover - runs only in a fresh interpreter; see test_ship_edges.py::test_script_runs_under_isolated_mode
     raise SystemExit(main())

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -20,6 +21,15 @@ TITLE = "feat(ship): add the driver"
 PR_URL = "https://github.com/rjmurillo/ai-agents/pull/501"
 EM_DASH = chr(0x2014)
 EN_DASH = chr(0x2013)
+
+
+def _assert_snapshot(published: Path, body: Path) -> None:
+    """The host gets a private snapshot of the validated body, never the original path."""
+    assert published != body.resolve()
+    assert published.parent == body.resolve().parent
+    assert published.name.startswith("pr-body-publish-")
+    assert published.read_text(encoding="utf-8") == body.read_text(encoding="utf-8")
+    assert oct(published.stat().st_mode & 0o777) == "0o600"
 
 
 def _pr(scripts, capsys, *argv):
@@ -261,14 +271,8 @@ class TestPublishGitHub:
         remote_head = git(tmp_path / "remote.git", "rev-parse", "refs/heads/feat/ship-change")
         assert remote_head == git(repo, "rev-parse", "HEAD")
         create = fakes.calls("new_pr")[0]
-        assert create[1:] == [
-            "--title",
-            TITLE,
-            "--base",
-            "main",
-            "--body-file",
-            str(body.resolve()),
-        ]
+        assert create[1:6] == ["--title", TITLE, "--base", "main", "--body-file"]
+        _assert_snapshot(Path(create[6]), body)
 
     def test_never_creates_a_commit(self, owner, scripts, capsys):
         repo, body = owner
@@ -502,13 +506,14 @@ class TestPublishAdo:
             "--title",
             TITLE,
             "--description",
-            f"@{body.resolve()}",
+            create[9],
             "--target-branch",
             "main",
             "--draft",
             "false",
         ]
         assert sum(arg.startswith("@") for arg in create) == 1
+        _assert_snapshot(Path(create[9][1:]), body)
 
     def test_draft_flag_reaches_az(self, ado, fakes, scripts, capsys):
         _repo, body = ado

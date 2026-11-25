@@ -7,9 +7,11 @@ from __future__ import annotations
 
 import json
 import time
+from pathlib import Path
 
 import pytest
 
+from tests.skills.ship.conftest import git
 from tests.skills.ship.ship_helpers import invoke, values
 
 GITHUB = "https://github.com/rjmurillo/ai-agents.git"
@@ -23,6 +25,35 @@ def _checks(data: dict, rc: int = 0) -> dict:
 
 def _green() -> dict:
     return _checks({"RequiredState": "SUCCESS", "AllPassing": True})
+
+
+def _head(fakes, pr: int, *, branch: str | None = None, sha: str | None = None) -> None:
+    """Make PR ``pr`` report this checkout's branch and HEAD unless overridden."""
+    repo = Path.cwd()
+    fakes.rule(
+        "gh",
+        ["pr", "view", str(pr)],
+        {
+            "stdout": json.dumps(
+                {
+                    "headRefName": branch or git(repo, "branch", "--show-current"),
+                    "headRefOid": sha or git(repo, "rev-parse", "HEAD"),
+                }
+            )
+        },
+    )
+
+
+def _show(
+    fakes, *, merge: str = MERGE, branch: str | None = None, sha: str | None = None, rc: int = 0
+):
+    repo = Path.cwd()
+    state = {
+        "source": f"refs/heads/{branch or git(repo, 'branch', '--show-current')}",
+        "head": sha or git(repo, "rev-parse", "HEAD"),
+        "merge": merge,
+    }
+    fakes.rule("az", ["repos", "pr", "show"], {"rc": rc, "stdout": json.dumps(state)})
 
 
 def _preflight(scripts, capsys, *argv):
@@ -49,6 +80,7 @@ def github_pr(make_repo, fakes):
         },
     )
     fakes.rule("gh", ["api", "user"], {"stdout": "me\n"})
+    _head(fakes, 9)
     return repo
 
 
@@ -116,6 +148,7 @@ def test_contributor_is_advisory_and_never_runs_the_validator(make_repo, fakes, 
         },
     )
     fakes.rule("gh", ["api", "user"], {"stdout": "bob\n"})
+    _head(fakes, 9)
     fakes.rule("get_pr_checks", [], _green())
     code, lines = _preflight(scripts, capsys, "--check", "reviewed", "--check", "pipeline")
     assert code == 0
@@ -146,7 +179,7 @@ def test_github_green_needs_success_and_all_passing(github_pr, fakes, scripts, c
     fakes.rule("get_pr_checks", [], _green())
     code, lines = _preflight(scripts, capsys, "--check", "pipeline")
     assert code == 0
-    assert values(lines, "CHECK") == ["pipeline=PASS pr=9"]
+    assert values(lines, "CHECK")[0].startswith("pipeline=PASS pr=9 head=")
     call = fakes.calls("get_pr_checks")[0]
     assert call[1:] == [
         "--pull-request",
@@ -230,10 +263,11 @@ def test_github_missing_helper_stops(github_pr, fakes, scripts, capsys):
 
 
 def test_discharge_with_explicit_pr_ends_on_report(github, fakes, scripts, capsys):
+    _head(fakes, 41)
     fakes.rule("get_pr_checks", [], _green())
     code, lines = _preflight(scripts, capsys, "--check", "pipeline", "--pr", "41")
     assert code == 0
-    assert values(lines, "CHECK") == ["pipeline=PASS pr=41"]
+    assert values(lines, "CHECK")[0].startswith("pipeline=PASS pr=41 head=")
     assert lines[-1] == "NEXT: report"
 
 
@@ -259,7 +293,7 @@ def test_ado_approved_build_on_merge_commit_passes(make_repo, fakes, scripts, ca
     fakes.rule(
         "az", ["repos", "pr", "policy", "list"], _policies(("approved", 5), ("notApplicable", None))
     )
-    fakes.rule("az", ["repos", "pr", "show"], {"stdout": MERGE + "\n"})
+    _show(fakes)
     fakes.rule(
         "az",
         ["pipelines", "build", "show"],
@@ -284,7 +318,7 @@ def test_ado_approved_build_on_merge_commit_passes(make_repo, fakes, scripts, ca
 def test_ado_policy_failures(make_repo, fakes, scripts, capsys, rows, build):
     _ado(make_repo, fakes)
     fakes.rule("az", ["repos", "pr", "policy", "list"], _policies(*rows))
-    fakes.rule("az", ["repos", "pr", "show"], {"stdout": MERGE + "\n"})
+    _show(fakes)
     if build is not None:
         fakes.rule("az", ["pipelines", "build", "show"], {"stdout": json.dumps(build)})
     code, lines = _preflight(scripts, capsys, "--check", "pipeline", "--wait-seconds", "0")
@@ -295,7 +329,7 @@ def test_ado_policy_failures(make_repo, fakes, scripts, capsys, rows, build):
 def test_ado_without_merge_commit_fails(make_repo, fakes, scripts, capsys):
     _ado(make_repo, fakes)
     fakes.rule("az", ["repos", "pr", "policy", "list"], _policies(("approved", 5)))
-    fakes.rule("az", ["repos", "pr", "show"], {"stdout": "\n"})
+    _show(fakes, merge="")
     code, lines = _preflight(scripts, capsys, "--check", "pipeline", "--wait-seconds", "0")
     assert code == 1
     assert "no merge commit" in values(lines, "CHECK")[0]
@@ -303,6 +337,7 @@ def test_ado_without_merge_commit_fails(make_repo, fakes, scripts, capsys):
 
 def test_ado_without_policy_fails_before_publish(make_repo, fakes, scripts, capsys):
     _ado(make_repo, fakes)
+    _show(fakes)
     fakes.rule("az", ["repos", "pr", "policy", "list"], _policies(("notApplicable", None)))
     code, lines = _preflight(scripts, capsys, "--check", "pipeline", "--wait-seconds", "0")
     assert code == 1
@@ -311,6 +346,7 @@ def test_ado_without_policy_fails_before_publish(make_repo, fakes, scripts, caps
 
 def test_ado_discharge_waits_for_policies_to_appear(make_repo, fakes, scripts, capsys):
     _ado(make_repo, fakes, pr=None)
+    _show(fakes)
     fakes.rule("az", ["repos", "pr", "policy", "list"], {"stdout": "[]"})
     code, lines = _preflight(
         scripts, capsys, "--check", "pipeline", "--pr", "77", "--wait-seconds", "0"
@@ -330,7 +366,7 @@ def test_ado_polls_until_queued_policies_settle(make_repo, fakes, scripts, capsy
         _policies(("queued", 5)),
         _policies(("approved", 5)),
     )
-    fakes.rule("az", ["repos", "pr", "show"], {"stdout": MERGE + "\n"})
+    _show(fakes)
     fakes.rule(
         "az",
         ["pipelines", "build", "show"],
@@ -350,7 +386,7 @@ def test_ado_polls_until_queued_policies_settle(make_repo, fakes, scripts, capsy
 def test_ado_query_failure_stops_exit_3(make_repo, fakes, scripts, capsys, failing):
     _ado(make_repo, fakes)
     fakes.rule("az", ["repos", "pr", "policy", "list"], _policies(("approved", 5)))
-    fakes.rule("az", ["repos", "pr", "show"], {"stdout": MERGE + "\n"})
+    _show(fakes)
     fakes.rule(
         "az",
         ["pipelines", "build", "show"],
@@ -368,7 +404,7 @@ def test_ado_query_failure_stops_exit_3(make_repo, fakes, scripts, capsys, faili
 def test_ado_unparseable_reply_stops(make_repo, fakes, scripts, capsys, failing):
     _ado(make_repo, fakes)
     fakes.rule("az", ["repos", "pr", "policy", "list"], _policies(("approved", 5)))
-    fakes.rule("az", ["repos", "pr", "show"], {"stdout": MERGE + "\n"})
+    _show(fakes)
     fakes.rule(
         "az",
         ["pipelines", "build", "show"],

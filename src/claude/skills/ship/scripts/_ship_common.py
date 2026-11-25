@@ -13,14 +13,13 @@ that protocol so the three scripts cannot drift apart:
 * ``--output-format json`` emits the ADR-103 envelope with the same keys.
 
 Stdlib only, Python 3.10 floor: the scripts run on the host interpreter under
-``python3 -I``, which drops the script directory from ``sys.path``. Siblings
-load this file by absolute path (see ``load_sibling``).
+``python3 -I``, which drops the script directory from ``sys.path``. Each script
+loads this file by absolute path, leaving ``sys.path`` alone.
 """
 
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 import os
 import re
@@ -30,7 +29,6 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from types import ModuleType
 
 KEY_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
 TOKEN_RE = re.compile(r"^[a-z][a-z0-9-]*$")
@@ -184,16 +182,61 @@ def write_detail_file(body: list[str], repo_root: Path | None) -> str:
     """Write every result line to an owner-only scratch file; return its path."""
     if repo_root is None:
         return "unavailable"
-    directory = repo_root / SCRATCH_REL
-    path = directory / f"ship-detail-{uuid.uuid4().hex}.txt"
-    try:
-        directory.mkdir(parents=True, exist_ok=True)
-        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            handle.write("\n".join(body) + "\n")
-    except OSError:
+    path = write_private(repo_root, "ship-detail", ".txt", "\n".join(body) + "\n")
+    if path is None:
         return "unavailable"
-    return path.relative_to(repo_root).as_posix()
+    return path.relative_to(repo_root.resolve()).as_posix()
+
+
+def scratch_dir(root: Path, create: bool = False) -> Path | None:
+    """Return the real scratch directory under ``root``, or None when it is unsafe.
+
+    Each component (``.project-toolkit`` and ``scratch``) must be a real
+    directory, not a symlink, and the result must resolve under the real
+    repository root. A symlinked component could point the confinement anchor
+    anywhere on disk, so it is refused rather than followed.
+    """
+    try:
+        real_root = root.resolve(strict=True)
+    except (OSError, RuntimeError):
+        return None
+    current = real_root
+    for part in SCRATCH_REL.parts:
+        current = current / part
+        if current.is_symlink():
+            return None
+        if not current.exists():
+            if not create:
+                return None
+            try:
+                current.mkdir(mode=0o700)
+            except OSError:
+                return None
+        if not current.is_dir():
+            return None
+    try:
+        resolved = current.resolve(strict=True)
+    except (OSError, RuntimeError):
+        return None
+    if resolved != real_root / SCRATCH_REL:
+        return None
+    return resolved
+
+
+def write_private(root: Path, prefix: str, suffix: str, text: str) -> Path | None:
+    """Write ``text`` to a new owner-only file in the scratch directory."""
+    directory = scratch_dir(root, create=True)
+    if directory is None:
+        return None
+    path = directory / f"{prefix}-{uuid.uuid4().hex}{suffix}"
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(path, flags, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            handle.write(text)
+    except OSError:
+        return None
+    return path
 
 
 def render(result: Result, output_format: str, repo_root: Path | None) -> str:
@@ -322,9 +365,11 @@ def confine_body_file(raw: str, root: Path) -> Path | None:
     candidate = Path(raw)
     if not candidate.is_absolute():
         candidate = root / candidate
+    scratch = scratch_dir(root)
+    if scratch is None:
+        return None
     try:
         resolved = candidate.resolve(strict=True)
-        scratch = (root / SCRATCH_REL).resolve()
     except (OSError, RuntimeError):
         return None
     if scratch not in resolved.parents or not resolved.is_file():
@@ -335,20 +380,6 @@ def confine_body_file(raw: str, root: Path) -> Path | None:
 def skill_script(skill: str, *parts: str) -> Path:
     """Path of a script in a sibling skill of the same install tree."""
     return Path(__file__).resolve().parents[2].joinpath(skill, "scripts", *parts)
-
-
-def load_sibling(name: str) -> ModuleType:
-    """Load a sibling ship script by absolute path, leaving ``sys.path`` alone."""
-    path = Path(__file__).resolve().with_name(f"{name}.py")
-    if name in sys.modules and getattr(sys.modules[name], "__file__", None) == str(path):
-        return sys.modules[name]
-    spec = importlib.util.spec_from_file_location(name, path)
-    if spec is None or spec.loader is None:  # pragma: no cover - defensive
-        raise ImportError(f"cannot load sibling module: {path}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    spec.loader.exec_module(module)
-    return module
 
 
 def parse_json(text: str) -> object | None:

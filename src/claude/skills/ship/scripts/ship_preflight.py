@@ -28,7 +28,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-def _load(name: str):
+def _load(
+    name: str,
+):  # pragma: no cover - runs only in a fresh interpreter; see test_ship_edges.py::test_script_runs_under_isolated_mode
     path = Path(__file__).resolve().with_name(f"{name}.py")
     if name in sys.modules:
         return sys.modules[name]
@@ -87,11 +89,30 @@ def check_tree(root: Path) -> Check | Halt:
     return Check("tree", "dirty", f"files={len(entries)}")
 
 
+def draft_exempt(ctx, draft: bool) -> bool:
+    """Return whether ``--draft`` may skip the marker check.
+
+    Only a new draft PR, or an open PR the host reports as a draft, is
+    exempt. An existing non-draft PR, or one whose draft state is unknown,
+    still needs the review marker, because a push there lands on a PR that
+    can merge.
+    """
+    return draft and (ctx.pr is None or ctx.pr_draft is True)
+
+
 def check_reviewed(ctx, draft: bool, require_axes: list[str]) -> Check | Halt:
-    if draft:
+    exempt = draft_exempt(ctx, draft)
+    if require_axes and (exempt or ctx.mode == "contributor"):
+        return Check(
+            "reviewed",
+            "FAIL",
+            "required axes cannot be verified without a review marker: " + ",".join(require_axes),
+        )
+    if exempt:
         return Check("reviewed", "SKIPPED", "draft")
     if ctx.mode == "contributor":
         return Check("reviewed", "ADVISORY", "contributor mode: attest the review in the report")
+    refused = f"draft exemption refused: PR {ctx.pr} is not a verified draft; " if draft else ""
     validator = common.skill_script("review", "validate_review_marker.py")
     if not validator.is_file():
         return Halt("validator-missing", common.EXIT_CONFIG, "review skill validator not found")
@@ -102,14 +123,46 @@ def check_reviewed(ctx, draft: bool, require_axes: list[str]) -> Check | Halt:
     if done.returncode == 0:
         match = _PASS_AXES_RE.search(done.stdout)
         axes = match.group(1) if match else "unknown"
-        return Check("reviewed", "PASS", f"axes={axes}")
+        return Check("reviewed", "PASS", f"{refused}axes={axes}")
     if done.returncode == 1:
         lines = [line for line in done.stderr.splitlines() if line.strip()]
-        return Check("reviewed", "FAIL", lines[-1] if lines else "no valid review marker")
+        return Check(
+            "reviewed", "FAIL", refused + (lines[-1] if lines else "no valid review marker")
+        )
     return Halt("validator-config", common.EXIT_CONFIG, f"validator exit {done.returncode}")
 
 
-def _github_pipeline(ctx, pr: int) -> Check | Halt:
+def _github_head(ctx, pr: int) -> tuple[str, str] | Halt:
+    done = common.run(
+        ["gh", "pr", "view", str(pr), "--json", "headRefName,headRefOid"], cwd=ctx.root
+    )
+    if done.returncode != 0:
+        return detect_mod._query_halt("checks-query-failed", done)
+    data = common.parse_json(done.stdout)
+    if not isinstance(data, dict) or not data.get("headRefName") or not data.get("headRefOid"):
+        return Halt("checks-query-failed", common.EXIT_EXTERNAL, f"PR {pr} head did not parse")
+    return str(data["headRefName"]), str(data["headRefOid"])
+
+
+def _binding(ctx, pr: int, branch: str, sha: str, after_publish: bool) -> Check | None:
+    """Return a non-PASS check when PR ``pr`` does not carry this branch at HEAD."""
+    if branch != ctx.branch:
+        return Check("pipeline", "FAIL", f"pr={pr} head branch {branch} is not {ctx.branch}")
+    if sha != ctx.head:
+        detail = f"pr={pr} head {sha[:12]} is not HEAD {ctx.head[:12]}"
+        if after_publish:
+            return Check("pipeline", "PENDING", detail + "; host has not seen the push yet")
+        return Check("pipeline", "DEFERRED", detail + "; checks run after publish")
+    return None
+
+
+def _github_pipeline(ctx, pr: int, after_publish: bool) -> Check | Halt:
+    before = _github_head(ctx, pr)
+    if isinstance(before, Halt):
+        return before
+    mismatch = _binding(ctx, pr, *before, after_publish)
+    if mismatch is not None:
+        return mismatch
     helper = common.skill_script("github", "pr", "get_pr_checks.py")
     if not helper.is_file():
         return Halt("checks-query-failed", common.EXIT_CONFIG, "get_pr_checks.py not found")
@@ -138,12 +191,17 @@ def _github_pipeline(ctx, pr: int) -> Check | Halt:
         return Halt(
             "checks-query-failed", common.EXIT_EXTERNAL, f"get_pr_checks exit {done.returncode}"
         )
+    after = _github_head(ctx, pr)
+    if isinstance(after, Halt):
+        return after
+    if after != before:
+        return Check("pipeline", "PENDING", f"pr={pr} head moved during the check")
     if (
         done.returncode == 0
         and data.get("RequiredState") == "SUCCESS"
         and data.get("AllPassing") is True
     ):
-        return Check("pipeline", "PASS", f"pr={pr}")
+        return Check("pipeline", "PASS", f"pr={pr} head={ctx.head[:12]}")
     names = []
     for key in ("FailedRequiredChecks", "MissingRequiredChecks", "PendingRequiredChecks"):
         for item in data.get(key) or []:
@@ -184,7 +242,7 @@ def _ado_policy_rows(ctx, pr: int) -> list[dict] | Halt:
     ]
 
 
-def _ado_evaluate(ctx, pr: int, rows: list[dict]) -> Check | Halt:
+def _ado_state(ctx, pr: int) -> dict | Halt:
     done = common.run(
         [
             "az",
@@ -194,15 +252,23 @@ def _ado_evaluate(ctx, pr: int, rows: list[dict]) -> Check | Halt:
             "--id",
             str(pr),
             "--query",
-            "lastMergeCommit.commitId",
+            "{source: sourceRefName, head: lastMergeSourceCommit.commitId, "
+            "merge: lastMergeCommit.commitId}",
             "--output",
-            "tsv",
+            "json",
         ],
         cwd=ctx.root,
     )
     if done.returncode != 0:
         return detect_mod._query_halt("pipeline-query-failed", done)
-    merge_commit = done.stdout.strip()
+    data = common.parse_json(done.stdout)
+    if not isinstance(data, dict):
+        return Halt("pipeline-query-failed", common.EXIT_EXTERNAL, "pr show did not parse")
+    return data
+
+
+def _ado_evaluate(ctx, pr: int, rows: list[dict], state: dict) -> Check | Halt:
+    merge_commit = str(state.get("merge") or "")
     if not merge_commit:
         return Check("pipeline", "FAIL", f"pr={pr} has no merge commit to compare builds against")
     failures = []
@@ -244,6 +310,14 @@ def _ado_evaluate(ctx, pr: int, rows: list[dict]) -> Check | Halt:
 
 
 def _ado_pipeline(ctx, pr: int, wait_seconds: int, after_publish: bool) -> Check | Halt:
+    state = _ado_state(ctx, pr)
+    if isinstance(state, Halt):
+        return state
+    source = str(state.get("source") or "")
+    branch = source[len("refs/heads/") :] if source.startswith("refs/heads/") else source
+    mismatch = _binding(ctx, pr, branch, str(state.get("head") or ""), after_publish)
+    if mismatch is not None:
+        return mismatch
     call_end = time.monotonic() + wait_seconds
     while True:
         rows = _ado_policy_rows(ctx, pr)
@@ -251,7 +325,13 @@ def _ado_pipeline(ctx, pr: int, wait_seconds: int, after_publish: bool) -> Check
             return rows
         pending = [row for row in rows if row.get("status") in ("queued", "running")]
         if rows and not pending:
-            return _ado_evaluate(ctx, pr, rows)
+            verdict = _ado_evaluate(ctx, pr, rows, state)
+            again = _ado_state(ctx, pr)
+            if isinstance(again, Halt):
+                return again
+            if again.get("head") != state.get("head"):
+                return Check("pipeline", "PENDING", f"pr={pr} head moved during the check")
+            return verdict
         if not rows and not after_publish:
             return Check("pipeline", "FAIL", f"pr={pr} has no blocking build policy evaluation")
         remaining = call_end - time.monotonic()
@@ -266,7 +346,7 @@ def check_pipeline(ctx, pr: int | None, wait_seconds: int, after_publish: bool) 
     if pr is None:
         return Check("pipeline", "DEFERRED", "no open PR yet")
     if ctx.host == "github":
-        return _github_pipeline(ctx, pr)
+        return _github_pipeline(ctx, pr, after_publish)
     return _ado_pipeline(ctx, pr, wait_seconds, after_publish)
 
 
@@ -361,5 +441,7 @@ def main(argv: list[str] | None = None) -> int:
     return common.emit(result, fmt, root)
 
 
-if __name__ == "__main__":
+if (
+    __name__ == "__main__"
+):  # pragma: no cover - runs only in a fresh interpreter; see test_ship_edges.py::test_script_runs_under_isolated_mode
     raise SystemExit(main())
