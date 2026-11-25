@@ -9,7 +9,13 @@ import sys
 import pytest
 
 from tests.skills.ship.conftest import git
-from tests.skills.ship.ship_helpers import SCRIPTS, approved_ado_build, invoke, values
+from tests.skills.ship.ship_helpers import (
+    SCRIPTS,
+    approved_ado_build,
+    invoke,
+    symlink_or_skip,
+    values,
+)
 
 GITHUB = "https://github.com/rjmurillo/ai-agents.git"
 ADO = "https://dev.azure.com/contoso/p/_git/r"
@@ -244,3 +250,21 @@ class TestPreflightEdges:
         code, lines = invoke(scripts[2], ["--check", "pipeline", "--wait-seconds", "0"], capsys)
         assert code == 3
         assert lines[-1].startswith("STOP: pipeline-query-failed")
+
+
+@pytest.mark.parametrize("script", ["ship_detect.py", "ship_preflight.py", "ship_pr.py"])
+def test_symlinked_entry_uses_its_real_sibling(tmp_path, script):
+    entry = tmp_path / script
+    symlink_or_skip(entry, SCRIPTS / script)
+    done = subprocess.run(
+        [sys.executable, "-I", str(entry), "--output-format", "human"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    assert done.returncode == 2
+    assert done.stdout.splitlines()[-1].startswith("STOP:")
+    assert not done.stderr

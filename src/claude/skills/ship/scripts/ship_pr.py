@@ -33,7 +33,7 @@ from pathlib import Path
 # Absolute loading works under -I without adding a directory to sys.path.
 if "_ship_common" not in sys.modules:  # pragma: no cover - exercised by the isolated CLI tests
     spec = importlib.util.spec_from_file_location(
-        "_ship_common", Path(__file__).with_name("_ship_common.py")
+        "_ship_common", Path(__file__).resolve(strict=True).with_name("_ship_common.py")
     )
     assert spec is not None and spec.loader is not None
     sys.modules[spec.name] = importlib.util.module_from_spec(spec)
