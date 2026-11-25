@@ -169,6 +169,14 @@ class TestScenarioFile:
         assert code == 1
         assert "is not valid scenario JSON" in out
 
+    def test_top_level_array_corpus_is_accepted(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        write(repo, SCEN, json.dumps(json.loads(scenario_doc())["scenarios"]))
+        commit(repo, "array corpus")
+        code, out = run_gated(repo, capsys)
+        assert code == 0, out
+
     def test_scenario_without_expected_verdict(
         self, repo: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:

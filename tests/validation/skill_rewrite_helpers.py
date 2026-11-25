@@ -120,7 +120,8 @@ def surface_sha(root: Path) -> str:
 def results(root: Path, table: dict[str, tuple[str, str]] | None = None, **over: Any) -> str:
     table = table or {}
     verdict = over.pop("verdict", "PASS")
-    scenarios = json.loads((root / SCEN).read_text(encoding="utf-8"))["scenarios"]
+    corpus = json.loads((root / SCEN).read_text(encoding="utf-8"))
+    scenarios = corpus["scenarios"] if isinstance(corpus, dict) else corpus
 
     def per_run(pattern: str) -> list[dict[str, Any]]:
         return [{"verdict": "GO" if c == "P" else "STOP", "model_used": "m"} for c in pattern]

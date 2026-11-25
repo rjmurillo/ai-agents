@@ -37,12 +37,19 @@ def _freeze_findings(ctx: Context, name: str, scenario_path: str) -> list[str]:
 
 
 def scenario_rows(data: bytes) -> list[dict[str, Any]] | None:
-    """The scenario rows, each a mapping with an ``id``, or None when the file is not that."""
+    """The scenario rows, each a mapping with an ``id``, or None when the file is not that.
+
+    Mirrors ``load_scenarios`` in ``scripts/eval/eval-prompt-change.py``, which
+    reads ``data.get("scenarios", data) if isinstance(data, dict) else data``.
+    A top-level array is a corpus, so the check hashes and verifies the same
+    file the runner accepted. The runner also rejects an empty list and
+    rows missing fields; this check leaves the field floors to the results.
+    """
     try:
         parsed = json.loads(data)
     except (json.JSONDecodeError, UnicodeDecodeError):
         return None
-    rows = parsed.get("scenarios") if isinstance(parsed, dict) else None
+    rows = parsed.get("scenarios", parsed) if isinstance(parsed, dict) else parsed
     if not isinstance(rows, list) or not all(isinstance(r, dict) and "id" in r for r in rows):
         return None
     return rows
