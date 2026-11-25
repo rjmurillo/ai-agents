@@ -36,6 +36,35 @@ They sit in Context, Prior Art, Impact, or References sections.
 `check_adr_lifecycle.py` does not read those sections.
 Richard asked on 2026-11-25 for them to be re-anchored too.
 
+## Prior debate logs
+
+This is a new cross-ADR debate. It closes no earlier log and reopens none.
+The latest closed log for each ADR:
+
+- ADR-062: `ADR-062-debate-log.md`
+- ADR-066: none found under `.project-toolkit/critique/`
+- ADR-068: `ADR-068-debate-log.md`
+- ADR-071: `ADR-071-debate-log-2.md`
+- ADR-074: `ADR-074-debate-log.md`
+- ADR-076: `ADR-076-debate-log.md`
+- ADR-093: `ADR-093-debate-log.md`
+- ADR-096: `ADR-096-debate-log.md`
+- ADR-097: `ADR-097-debate-log-2.md`
+- ADR-100: `ADR-100-amendment-2026-09-22-debate-log.md`
+- ADR-101: `ADR-101-dispatch-closure-exempt-links-debate-log.md`
+- ADR-102: `ADR-102-debate-log.md`
+- ADR-104: `ADR-104-debate-log.md`
+- ADR-107: `ADR-107-debate-log-3.md`
+- ADR-108: `ADR-108-debate-log.md`
+- ADR-109: `ADR-109-debate-log-12.md`
+- ADR-112: `ADR-112-debate-log.md`
+- ADR-116: `ADR-116-debate-log.md`
+- ADR-117: `ADR-117-debate-log.md`
+- ADR-118: `ADR-118-debate-log.md`
+
+The cross-ADR re-anchor logs are `context-diet-rule-citation-reanchor-2026-11-24-debate-log.md` and `trigger-widening-rule-citation-reanchor-2026-11-24-debate-log.md`.
+Carried forward: the trigger-widening log noted these citations as left unchanged. This debate takes up that item.
+
 ## Method
 
 - Same method as `context-diet-rule-citation-reanchor-2026-11-24-debate-log.md`.
@@ -100,6 +129,24 @@ No seat raised an open finding after round 2.
 - The line changed only a citation, so the counts now count as added.
 - The line gains a reasoned `measurement-anchor: ignore` HTML comment.
 - No visible text changes, so the panel was not reconvened.
+
+## Round 3: PR review findings
+
+Devin Review left three nits on PR #7569.
+
+### Accepted
+
+- ADR-076:318 said to run `sync_plugin_lib.py` first, next to the successor path.
+- The successor runs `build_all.py` alone. The row now says the rule was reworded since.
+- This log lacked prior debate references. It now has a Prior debate logs section.
+
+### Declined
+
+- Devin asked for relative links in place of code-span paths.
+- ADRs here use code-span paths: 341 code spans and 11 links at `1b8fe1d9d5`.
+- Both precedent re-anchor logs used code spans. A link change would span all 20 ADRs.
+
+Both fixes change wording only. The architect and critic seats were not reconvened.
 
 ## Final Verdicts
 

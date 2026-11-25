@@ -315,7 +315,7 @@ A forged or delayed REST response that misreports `merged`/`state` can at most c
 | `pr_autofix_lease.py` CLI (`main`) | Direct | No change; `SKIP` already maps to exit 1 (`:1564`) and `status="WARNING"` (`:1561`), which are the correct existing semantics for "declined to act" | None |
 | Callers of `renew` (local `pr-autofix`, any future remote Phase 2 integration) | Indirect | No caller contract change; a caller that inspects the `reason` field can log `pr-closed` distinctly from `held-by:<owner>`, but nothing requires it to | None |
 | `check_pr_live_state.py` | Indirect | No change; this amendment does not read or modify its query | None |
-| `src/copilot-cli/` mirror of the github skill | Direct | Regenerate via `build/scripts/build_all.py` after `scripts/sync_plugin_lib.py`, per the former `generated-artifacts` rule (now at `.claude/skills/ai-agents-generation-and-release/references/rule-generated-artifacts.md`) | Low |
+| `src/copilot-cli/` mirror of the github skill | Direct | Regenerate via `build/scripts/build_all.py` after `scripts/sync_plugin_lib.py`, per the former `generated-artifacts` rule (since reworded to run `build_all.py` alone, now at `.claude/skills/ai-agents-generation-and-release/references/rule-generated-artifacts.md`) | Low |
 
 ### Consequences
 
