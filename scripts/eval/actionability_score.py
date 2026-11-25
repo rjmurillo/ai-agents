@@ -34,6 +34,7 @@ from scripts.eval.actionability_labels import (
     PROVENANCE_FIELDS,
     SPLIT_HELDOUT,
     SPLIT_OUTSIDE,
+    STATUS_CALL_ERROR,
     STATUS_OK,
     STATUSES,
 )
@@ -426,15 +427,27 @@ def _prediction_counts(
 
 
 def _latency_section(predictions: list[dict[str, Any]], scored_ids: set[str]) -> dict[str, Any]:
-    """p50 and p95 of ok calls made for the scored heldout band rows only."""
+    """p50 and p95 of ok calls for the scored heldout band rows, plus failed-call cost.
+
+    Percentiles cover ok calls only. A failed call (a timeout among them) still
+    spends the run budget, so its count and summed wall time are reported beside
+    the percentiles for the capacity kill criterion.
+    """
+    scored = [r for r in predictions if r["id"] in scored_ids]
     ok = [
-        record["latency_s"]
-        for record in predictions
-        if record["id"] in scored_ids
-        and record["status"] == STATUS_OK
-        and record.get("latency_s") is not None
+        r["latency_s"]
+        for r in scored
+        if r["status"] == STATUS_OK and r.get("latency_s") is not None
     ]
-    return {"p50": nearest_rank(ok, 50), "p95": nearest_rank(ok, 95), "n_ok": len(ok)}
+    failed = [r for r in scored if r["status"] == STATUS_CALL_ERROR]
+    failed_s = sum(r["latency_s"] for r in failed if r.get("latency_s") is not None)
+    return {
+        "p50": nearest_rank(ok, 50),
+        "p95": nearest_rank(ok, 95),
+        "n_ok": len(ok),
+        "n_call_error": len(failed),
+        "call_error_s_total": round(failed_s, 3),
+    }
 
 
 def _require_scorable_band(

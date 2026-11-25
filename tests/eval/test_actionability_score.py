@@ -339,7 +339,13 @@ class TestBuildReport:
 
         report = _report(rows, predictions)
 
-        assert report["latency_s"] == {"p50": 2.0, "p95": 4.0, "n_ok": 4}
+        assert report["latency_s"] == {
+            "p50": 2.0,
+            "p95": 4.0,
+            "n_ok": 4,
+            "n_call_error": 1,
+            "call_error_s_total": 99.0,
+        }
 
     def test_latency_is_null_without_ok_predictions(self) -> None:
         """Plan M1-T15: no ok call, no latency."""
@@ -348,7 +354,9 @@ class TestBuildReport:
 
         report = _report(rows, predictions)
 
-        assert report["latency_s"] == {"p50": None, "p95": None, "n_ok": 0}
+        assert report["latency_s"]["p95"] is None
+        assert report["latency_s"]["n_ok"] == 0
+        assert report["latency_s"]["n_call_error"] == 1
 
     def test_provenance_is_copied_from_the_predictions(self) -> None:
         """Plan M1-T15: provider, model, and prompt hash are in the report."""

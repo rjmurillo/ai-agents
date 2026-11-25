@@ -121,7 +121,13 @@ class TestLatencyScope:
 
         latency = json.loads(out.read_text(encoding="utf-8"))["latency_s"]
         assert code == 0
-        assert latency == {"p50": 2.0, "p95": 4.0, "n_ok": 4}
+        assert latency == {
+            "p50": 2.0,
+            "p95": 4.0,
+            "n_ok": 4,
+            "n_call_error": 0,
+            "call_error_s_total": 0,
+        }
 
     def test_a_dropped_unsure_row_is_not_timed(self) -> None:
         """An unsure heldout row is not scored, so its call does not count either."""
@@ -135,7 +141,7 @@ class TestLatencyScope:
         assert report["latency_s"]["p95"] == 60.0
 
     def test_failed_predictions_for_scored_rows_stay_out(self) -> None:
-        """Only ok calls have a latency worth reporting."""
+        """Failed calls stay out of the percentiles but are counted with their wall time."""
         preds = [
             make_prediction("H0", latency_s=1.0),
             make_prediction("H1", status="call_error", is_actionable=None, latency_s=50.0),
@@ -143,7 +149,13 @@ class TestLatencyScope:
 
         report = sc.build_report(_rows(), preds, aa.ARM_FUNCTIONS, seed=1, iterations=20)
 
-        assert report["latency_s"] == {"p50": 1.0, "p95": 1.0, "n_ok": 1}
+        assert report["latency_s"] == {
+            "p50": 1.0,
+            "p95": 1.0,
+            "n_ok": 1,
+            "n_call_error": 1,
+            "call_error_s_total": 50.0,
+        }
 
     def test_no_scored_ok_prediction_gives_null_percentiles(self) -> None:
         """The empty case still returns nulls."""
@@ -151,4 +163,7 @@ class TestLatencyScope:
 
         report = sc.build_report(_rows(), preds, aa.ARM_FUNCTIONS, seed=1, iterations=20)
 
-        assert report["latency_s"] == {"p50": None, "p95": None, "n_ok": 0}
+        assert report["latency_s"]["p50"] is None
+        assert report["latency_s"]["p95"] is None
+        assert report["latency_s"]["n_ok"] == 0
+        assert report["latency_s"]["n_call_error"] == 1
