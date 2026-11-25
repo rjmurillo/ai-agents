@@ -15,8 +15,9 @@ import re
 import subprocess
 import sys
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from typing import cast
 
 # ADR-047 keeps this bootstrap inline because imports need sys.path first.
 # This file's own plugin lib wins when it holds the shared frontmatter parser,
@@ -37,6 +38,7 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 from hook_utilities.frontmatter_block import split_frontmatter  # noqa: E402
+from hook_utilities.scan_rules import parse_scan_rules  # noqa: E402
 
 EXIT_SUCCESS = 0
 EXIT_ERROR = 1
@@ -1163,15 +1165,7 @@ def format_json(result: LintResult) -> str:
         "error_count": result.error_count,
         "warning_count": result.warning_count,
         "violations": [
-            {
-                "rule": v.rule,
-                "severity": v.severity,
-                "category": v.category,
-                "file": v.file,
-                "line": v.line,
-                "message": v.message,
-                "remediation": v.remediation,
-            }
+            {"rule": v.rule, "severity": v.severity, "category": v.category, **asdict(v)}
             for v in result.violations
         ],
     }
@@ -1180,15 +1174,7 @@ def format_json(result: LintResult) -> str:
 
 def parse_rules(rules_str: str) -> tuple[str, ...]:
     """Parse comma-separated rule names."""
-    if not rules_str:
-        return ALL_RULES
-    rules = tuple(r.strip() for r in rules_str.split(","))
-    invalid = [r for r in rules if r not in ALL_RULES]
-    if invalid:
-        print(f"error: unknown rules: {', '.join(invalid)}", file=sys.stderr)
-        print(f"valid rules: {', '.join(ALL_RULES)}", file=sys.stderr)
-        sys.exit(EXIT_ERROR)
-    return rules
+    return cast(tuple[str, ...], parse_scan_rules(rules_str, ALL_RULES, EXIT_ERROR))
 
 
 _HELP_EPILOG = """\

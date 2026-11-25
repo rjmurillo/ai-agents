@@ -2,35 +2,18 @@
 
 from __future__ import annotations
 
-import importlib.util
 import json
-import sys
 from datetime import UTC, datetime
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from scripts.github_core.api import RepoInfo
+from tests.skills.claude_skills_import import import_skill_script
 
-_SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
+_mod = import_skill_script(
+    ".claude/skills/github/scripts/pr/get_pr_checks.py", "get_pr_checks_rest_fallback"
 )
-
-
-def _import_script(name: str):
-    spec = importlib.util.spec_from_file_location(
-        f"{name}_rest_fallback", _SCRIPTS_DIR / f"{name}.py"
-    )
-    assert spec is not None
-    assert spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = mod
-    spec.loader.exec_module(mod)
-    return mod
-
-
-_mod = _import_script("get_pr_checks")
 _MISSING_PR = RuntimeError("Could not resolve to a PullRequest")
 _RATE_LIMITED = RuntimeError(
     "GraphQL request failed: API rate limit already exceeded for user ID 42."

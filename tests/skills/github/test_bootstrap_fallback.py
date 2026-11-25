@@ -12,10 +12,11 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-import textwrap
 from pathlib import Path
 
 import pytest
+
+from tests.plugin_bootstrap_helpers import skill_resolution_source as _skill_resolution_source
 
 # Absolute path to the skills scripts dir, independent of cwd.
 _SCRIPTS_DIR = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "github" / "scripts"
@@ -113,7 +114,8 @@ class TestBootstrapSourceCode:
         return [
             f
             for f in _SCRIPTS_DIR.rglob("*.py")
-            if "_plugin_root" in f.read_text() and "CLAUDE_PLUGIN_ROOT" in f.read_text()
+            if "_plugin_root" in _skill_resolution_source(f)
+            and "CLAUDE_PLUGIN_ROOT" in _skill_resolution_source(f)
         ]
 
     def test_scripts_prefer_copilot_plugin_root(self) -> None:
@@ -121,7 +123,7 @@ class TestBootstrapSourceCode:
         COPILOT_PLUGIN_ROOT (preferring it via `or`)."""
         failures = []
         for f in self._bootstrap_scripts():
-            content = f.read_text()
+            content = _skill_resolution_source(f)
             if "COPILOT_PLUGIN_ROOT" not in content:
                 failures.append(str(f.relative_to(_SCRIPTS_DIR.parents[3])))
         assert not failures, (
@@ -134,7 +136,7 @@ class TestBootstrapSourceCode:
         lib/github_core is present before trusting the value."""
         failures = []
         for f in self._bootstrap_scripts():
-            content = f.read_text()
+            content = _skill_resolution_source(f)
             if 'os.path.isdir(os.path.join(_plugin_root, "lib", "github_core"))' not in content:
                 failures.append(str(f.relative_to(_SCRIPTS_DIR.parents[3])))
         assert not failures, (
@@ -167,8 +169,7 @@ class TestBootstrapFallbackIsolating:
         # Use repr() for the path so Windows backslashes are safely escaped.
         old_bootstrap = tmp_path / "old_bootstrap_demo.py"
         old_bootstrap.write_text(
-            textwrap.dedent(
-                f"""\
+            f"""\
 import os, sys
 _plugin_root = {repr(str(fake_plugin))}  # blindly trust
 if _plugin_root:  # old behavior: no isdir check
@@ -178,8 +179,8 @@ else:
 if not os.path.isdir(_lib_dir):
     print(f"Plugin lib directory not found: {{_lib_dir}}", file=sys.stderr)
     sys.exit(2)
-"""
-            )
+""",
+            encoding="utf-8",
         )
         result = subprocess.run(
             [sys.executable, str(old_bootstrap)],

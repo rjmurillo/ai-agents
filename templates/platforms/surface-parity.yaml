@@ -651,6 +651,10 @@ surfaces:
     path: .github/workflows
     relation: independent
     reason: Workflow files are authored in place.
+  - id: github-dependency-hygiene
+    path: .github/dependency-hygiene
+    relation: independent
+    reason: Dependency usage and version compatibility policies are authored in place.
   - id: github-scripts
     path: .github/scripts
     relation: independent

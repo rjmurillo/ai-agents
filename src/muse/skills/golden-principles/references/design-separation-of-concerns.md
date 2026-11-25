@@ -6,6 +6,8 @@ review-by: 2026-07-11
 
 # Separation of Concerns
 
+<!-- doc-accuracy: external-sdk dotnet -- C# examples use the .NET base class library, not this repository -->
+
 Decompose a system into distinct sections, each addressing a separate concern. Attribution: Edsger W. Dijkstra, "On the role of scientific thought" (1974).
 
 A **concern** is a set of information that affects the code. Each section should address one concern, be independent, and be modifiable without affecting unrelated sections.
@@ -26,13 +28,37 @@ A **concern** is a set of information that affects the code. Each section should
 Use Programming by Intention to separate workflow from implementation:
 
 ```csharp
-public void ProcessOrder(Order order)
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+public sealed record LineItem(decimal Price, int Quantity);
+public sealed record Order(string Id, string CustomerEmail, IReadOnlyList<LineItem> Items);
+
+public sealed class OrderWorkflow(Action<string, decimal> persist, Action<string, string> notify)
 {
-    ValidateOrder(order);           // Validation concern
-    CalculateTotals(order);         // Calculation concern
-    ApplyDiscounts(order);          // Business rules concern
-    PersistOrder(order);            // Data access concern
-    NotifyCustomer(order);          // Communication concern
+    public void ProcessOrder(Order order)
+    {
+        ValidateOrder(order);                    // Validation concern
+        decimal subtotal = CalculateTotals(order); // Calculation concern
+        decimal total = ApplyDiscounts(subtotal);  // Business rules concern
+        PersistOrder(order.Id, total);             // Data access concern
+        NotifyCustomer(order);                     // Communication concern
+    }
+
+    private static void ValidateOrder(Order order)
+    {
+        if (order.Items.Count == 0 || order.Items.Any(item => item.Quantity <= 0 || item.Price < 0m))
+            throw new ArgumentException("Order must contain valid line items.", nameof(order));
+    }
+
+    private static decimal CalculateTotals(Order order) => order.Items.Sum(item => item.Price * item.Quantity);
+
+    private static decimal ApplyDiscounts(decimal subtotal) => subtotal >= 100m ? subtotal * 0.9m : subtotal;
+
+    private void PersistOrder(string orderId, decimal total) => persist(orderId, total);
+
+    private void NotifyCustomer(Order order) => notify(order.CustomerEmail, $"Order {order.Id} confirmed.");
 }
 ```
 

@@ -20,6 +20,7 @@ _EXPECTED_PARTITIONS = {
     "split-3",
     "split-4",
     "split-5",
+    "split-6",
     "safe-push",
     "pr-autofix",
 }

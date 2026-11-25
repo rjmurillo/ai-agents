@@ -19,10 +19,12 @@ from unittest.mock import patch
 
 import pytest
 
+from tests.hook_test_helpers import import_hook_without_inherited_plugin_root
+
 HOOKS_DIR = str(Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "SessionStart")
 sys.path.insert(0, HOOKS_DIR)
 
-import invoke_context_loader
+invoke_context_loader = import_hook_without_inherited_plugin_root("invoke_context_loader")
 
 MARKER = invoke_context_loader.RETRO_STATE_MARKER
 GUIDE = invoke_context_loader.RETRO_LOOKUP_GUIDE

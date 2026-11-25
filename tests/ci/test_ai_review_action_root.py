@@ -7,6 +7,9 @@ workflow wiring, this one pins the action and script behavior that makes a
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -60,6 +63,88 @@ def test_conflict_resolver_path_is_anchored_to_the_script() -> None:
     assert resolver.is_relative_to(REPO_ROOT)
 
 
-def test_comment_processing_script_does_not_trust_github_workspace() -> None:
-    script = REPO_ROOT / ".claude/skills/github/scripts/pr/invoke_pr_comment_processing.py"
-    assert 'environ.get("GITHUB_WORKSPACE")' not in script.read_text(encoding="utf-8")
+_COMMENT_SCRIPT = REPO_ROOT / ".claude/skills/github/scripts/pr/invoke_pr_comment_processing.py"
+_BOOTSTRAP_DIR = REPO_ROOT / ".claude/skills/github/scripts"
+
+
+def _plant_workspace_lib(tmp_path: Path) -> tuple[Path, Path]:
+    """Create a workspace whose github_core records its import, then raises."""
+    workspace = tmp_path / "workspace"
+    package = workspace / ".claude" / "lib" / "github_core"
+    package.mkdir(parents=True)
+    marker = tmp_path / "planted-lib-imported"
+    package.joinpath("__init__.py").write_text(
+        "import os\n"
+        "from pathlib import Path\n"
+        'Path(os.environ["PLANTED_LIB_MARKER"]).write_text("imported", encoding="utf-8")\n'
+        'raise RuntimeError("planted workspace lib was imported")\n',
+        encoding="utf-8",
+    )
+    assert not marker.exists()
+    return workspace, marker
+
+
+def _planted_env(workspace: Path, marker: Path) -> dict[str, str]:
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k not in {"COPILOT_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT", "PYTHONPATH"}
+    }
+    env.update(GITHUB_WORKSPACE=str(workspace), PLANTED_LIB_MARKER=str(marker))
+    return env
+
+
+def _run(argv: list[str], env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        argv,
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+
+
+def test_comment_processing_script_never_imports_a_lib_planted_in_github_workspace(
+    tmp_path: Path,
+) -> None:
+    """pr-maintenance runs the script from a trusted copy; the workspace may hold a PR head.
+
+    The command comes from the same builder execute_ai_review_post_script.py uses, with
+    the verdict FAIL so the script returns before any GitHub call once its imports resolve.
+    """
+    from scripts.ci.execute_ai_review_post_script import build_command
+
+    workspace, marker = _plant_workspace_lib(tmp_path)
+    env = _planted_env(workspace, marker)
+    env.update(PR_NUMBER="1", AI_VERDICT="FAIL", AI_FINDINGS="{}")
+    argv = build_command(_COMMENT_SCRIPT, env)
+    argv[0] = sys.executable
+
+    result = _run(argv, env)
+
+    assert result.returncode == 0, result.stderr
+    assert "skipping comment processing" in result.stderr
+    assert not marker.exists(), "script imported github_core from GITHUB_WORKSPACE"
+
+
+def test_planted_workspace_lib_is_detected_when_resolution_opts_into_the_workspace(
+    tmp_path: Path,
+) -> None:
+    """Negative control: the same plant fires when ensure_plugin_paths opts into the workspace."""
+    workspace, marker = _plant_workspace_lib(tmp_path)
+    code = (
+        "import sys\n"
+        f"sys.path.insert(0, {str(_BOOTSTRAP_DIR)!r})\n"
+        "from skill_bootstrap import ensure_plugin_paths\n"
+        f"ensure_plugin_paths({str(_COMMENT_SCRIPT)!r}, ('.claude', 'lib'))\n"
+        "import github_core\n"
+    )
+
+    result = _run([sys.executable, "-c", code], _planted_env(workspace, marker))
+
+    assert result.returncode != 0
+    assert "planted workspace lib was imported" in result.stderr
+    assert marker.read_text(encoding="utf-8") == "imported"

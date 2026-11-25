@@ -341,6 +341,9 @@ def test_recorder_records_a_gate_that_raises_and_keeps_going(tmp_path: Path) -> 
 
 # Gate name -> the text its command carries, for each gate this change added.
 _NEW_GATES: dict[str, str] = {
+    "Python Duplicate Code Detection": "check_duplicate_code.py",
+    "Unused Dependency Detection": "check_unused_dependencies.py",
+    "Dependency Version Drift": "check_dependency_drift.py",
     "Agent Registry": "agent_registry.py",
     "Plugin Frontmatter Self-Containment": "check_plugin_frontmatter_self_containment.py",
     "Python3 Entrypoints": "check_python3_entrypoints.py",

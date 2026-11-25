@@ -62,24 +62,13 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Plugin-root resolution: matches sibling scripts (test_pr_merged.py,
 # test_pr_merge_ready.py). When the script runs inside a deployed Claude
-# plugin, CLAUDE_PLUGIN_ROOT points at the plugin's installed path; when
-# it runs inside the repo (the case under test), we walk up to .claude/lib.
+# plugin, COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT names its installed path.
+# Repository callers retain their existing workspace fallback.
 # ---------------------------------------------------------------------------
-_plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
-_workspace = os.environ.get("GITHUB_WORKSPACE")
-if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
-    _lib_dir = os.path.join(_plugin_root, "lib")
-elif _workspace:
-    _lib_dir = os.path.join(_workspace, ".claude", "lib")
-else:
-    _lib_dir = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
-    )
-if not os.path.isdir(_lib_dir):
-    print(f"Plugin lib directory not found: {_lib_dir}", file=sys.stderr)
-    sys.exit(2)
-if _lib_dir not in sys.path:
-    sys.path.insert(0, _lib_dir)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from skill_bootstrap import ensure_plugin_paths
+
+ensure_plugin_paths(__file__, (".claude", "lib"))
 
 from github_core.api import (
     RepoInfo,  # re-exported so tests can reach it via _mod.RepoInfo

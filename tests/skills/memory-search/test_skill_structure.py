@@ -18,43 +18,28 @@ Tests follow Arrange/Act/Assert, one behavior per test.
 from __future__ import annotations
 
 import re
-import sys
-from pathlib import Path
 
 import pytest
 
-_BUILD_SCRIPTS = Path(__file__).resolve().parents[3] / "build" / "scripts"
-sys.path.insert(0, str(_BUILD_SCRIPTS))
-try:
-    import plugin_run_launcher
-finally:
-    sys.path.remove(str(_BUILD_SCRIPTS))
+from tests.skills.skill_structure_support import (
+    BACKTICK_TRIGGER,
+    SKILLS_DIR,
+    frontmatter_block,
+    locator_targets,
+)
 
-SKILL_DIR = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "memory-search"
+SKILL_DIR = SKILLS_DIR / "memory-search"
 SKILL_MD = SKILL_DIR / "SKILL.md"
 
-_FRONTMATTER = re.compile(r"(?s)\A---\r?\n(.*?)\r?\n---\r?\n")
 _VENDOR_FORBIDDEN = re.compile(r"(?<![\w/])(?:\.agents|\.serena|\.github)/", re.IGNORECASE)
-_BACKTICK_TRIGGER = re.compile(r"`[^`]+`")
 
 
 def _read_skill() -> str:
     return SKILL_MD.read_text(encoding="utf-8")
 
 
-def _locator_targets(body: str) -> set[str]:
-    return {
-        match.script_rel
-        for line in body.splitlines()
-        for match in plugin_run_launcher.find_locators(line)
-        if match.script_rel
-    }
-
-
 def _frontmatter_block() -> str:
-    match = _FRONTMATTER.search(_read_skill())
-    assert match is not None, "SKILL.md must open with a --- frontmatter block"
-    return match.group(1)
+    return frontmatter_block(_read_skill())
 
 
 def test_skill_md_exists() -> None:
@@ -95,7 +80,7 @@ def test_description_names_search_operation() -> None:
 def test_description_has_three_to_five_backtick_triggers() -> None:
     # Arrange: SkillForge requires 3 to 5 backtick-wrapped trigger phrases.
     block = _frontmatter_block()
-    triggers = _BACKTICK_TRIGGER.findall(block)
+    triggers = BACKTICK_TRIGGER.findall(block)
 
     # Act / Assert
     assert 3 <= len(triggers) <= 5, (
@@ -109,7 +94,7 @@ def test_points_at_canonical_search_script() -> None:
 
     # Act / Assert: the sub-skill must route to the canonical script, not
     # reimplement search. The script stays in the memory skill tree.
-    assert "skills/memory/scripts/search_memory.py" in _locator_targets(body), (
+    assert "skills/memory/scripts/search_memory.py" in locator_targets(body), (
         "memory-search must delegate to the canonical search_memory.py"
     )
 

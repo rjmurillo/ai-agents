@@ -24,7 +24,7 @@ tags:
 
 Ship the two PRs DESIGN-026 defines: PR A extends
 `templates/rules/knowledge-persistence.md` and `.serena/memories/README.md`
-with the five-destination placement taxonomy, regenerates the two mirrors,
+with the five-destination placement taxonomy, regenerates the repository-local mirrors,
 and commits; PR B adds `scripts/validation/check_memory_placement.py`, its
 tests, and the `lefthook.yml` job, and records the full-corpus warning count
 in the PR body.
@@ -32,7 +32,7 @@ in the PR body.
 ## In/Out of Scope
 
 In scope: the taxonomy section in `knowledge-persistence.md`, the "What
-belongs here" section in `.serena/memories/README.md`, the two regenerated
+belongs here" section in `.serena/memories/README.md`, the repository-local regenerated
 mirrors, the new validator script, its test module, and the one new lefthook
 job in the existing parallel memory group.
 
@@ -51,7 +51,7 @@ validator-eligible existing memory files.
       decision rule.
 - [ ] `.serena/memories/README.md` contains a "What belongs here" section
       pointing at the taxonomy and documenting the suppression marker.
-- [ ] Both generated mirrors
+- [ ] Both repository-local generated mirrors
       (`.claude/rules/knowledge-persistence.md`,
       `.github/instructions/knowledge-persistence.instructions.md`)
       are byte-identical to what `build_all.py` renders from the edited
@@ -77,14 +77,19 @@ validator-eligible existing memory files.
 | File | Action | Description |
 |---|---|---|
 | `templates/rules/knowledge-persistence.md` | Modify | Add the placement taxonomy section |
-| `.claude/rules/knowledge-persistence.md` | Modify (generated) | Regenerated and binplaced by `build_all.py` |
-| `.github/instructions/knowledge-persistence.instructions.md` | Modify (generated) | Copilot mirror |
+| `.claude/rules/knowledge-persistence.md` | Modify (generated) | Repository-local rule from `build_all.py` |
+| `.github/instructions/knowledge-persistence.instructions.md` | Modify (generated) | Repository-local Copilot mirror |
 | `.serena/memories/README.md` | Modify | Add "What belongs here" section |
 | `scripts/validation/check_memory_placement.py` | Create | The narrow placement validator |
 | `tests/validation/test_check_memory_placement.py` | Create | Positive, negative, and edge-case coverage |
 | `lefthook.yml` | Modify | Add the `memory-placement` job to the existing parallel memory group |
 
 ## Implementation Notes
+
+PR #7242 made this rule repository-only on 2026-11-11.
+The template now generates only the repository-local outputs listed above.
+Plugin copies were intentionally removed and must not be restored.
+The earlier working-tree observation below predates that distribution change.
 
 - PR A's doc edits (the taxonomy section and the `README.md` addition) are
   already present as uncommitted working-tree changes on
