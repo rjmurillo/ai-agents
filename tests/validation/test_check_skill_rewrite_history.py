@@ -256,7 +256,13 @@ class TestScenarioFile:
             ("{", "is not valid JSON with a 'retired' list"),
             (json.dumps({"retired": [{"scenario": "S9"}]}), "has no replacing test"),
             (
-                json.dumps({"retired": [{"scenario": "S9", "test": "tests/nope.py::test_x"}]}),
+                json.dumps(
+                    {
+                        "retired": [
+                            {"scenario": "S9", "test": "tests/skills/demo/test_nope.py::test_x"}
+                        ]
+                    }
+                ),
                 "does not exist at HEAD",
             ),
             (
@@ -305,6 +311,57 @@ class TestScenarioFile:
         commit(repo, "drop S9")
         code, out = run_gated(repo, capsys)
         assert code == 0, out
+
+    def _retire_with(
+        self, repo: Path, capsys: pytest.CaptureFixture[str], test: str
+    ) -> tuple[int, str]:
+        self._base_with_nine(repo)
+        write(repo, SCEN, scenario_doc(8))
+        retired = json.dumps({"retired": [{"scenario": "S9", "test": test}]})
+        write(repo, f"{EVID}/retired.json", retired)
+        commit(repo, "drop S9")
+        return run_gated(repo, capsys)
+
+    @pytest.mark.parametrize(
+        "test",
+        [
+            "tests/skills/demo/test_demo.py::TestX::test_replaces[case-1]",
+            "tests/skills/demo/test_demo.py::TestX::test_replaces[a::b]",
+        ],
+    )
+    def test_retired_test_with_a_parameter_id_is_rejected(
+        self, repo: Path, capsys: pytest.CaptureFixture[str], test: str
+    ) -> None:
+        code, out = self._retire_with(repo, capsys, test)
+        assert code == 1
+        assert "name the function without a parameter id" in out
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "tests/skills/demo/helpers.py",
+            "tests/skills/demo/demo_test.py",
+            "scripts/test_demo.py",
+        ],
+    )
+    def test_retired_test_in_a_file_pytest_skips_is_rejected(
+        self, repo: Path, capsys: pytest.CaptureFixture[str], path: str
+    ) -> None:
+        write(repo, path, "class TestX:\n    def test_replaces(self):\n        pass\n")
+        code, out = self._retire_with(repo, capsys, f"{path}::TestX::test_replaces")
+        assert code == 1
+        assert "is not collected by pytest" in out
+
+    @pytest.mark.parametrize("test", ["Helper::test_replaces", "TestX::replaces"])
+    def test_retired_test_pytest_would_not_name_is_rejected(
+        self, repo: Path, capsys: pytest.CaptureFixture[str], test: str
+    ) -> None:
+        demo = "class Helper:\n    def test_replaces(self):\n        pass\n"
+        demo += "class TestX:\n    def replaces(self):\n        pass\n"
+        write(repo, "tests/skills/demo/test_demo.py", demo)
+        code, out = self._retire_with(repo, capsys, f"tests/skills/demo/test_demo.py::{test}")
+        assert code == 1
+        assert "does not exist at HEAD" in out
 
     @pytest.mark.parametrize("broken", ["{", json.dumps({"scenarios": 3})])
     def test_unreadable_base_scenarios_fail_closed(

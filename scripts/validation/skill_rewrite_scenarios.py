@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from skill_rewrite_context import EVIDENCE_ROOT, RETIRED_FILE, Context
-from skill_rewrite_skills import _SKILL_DIRS, defines_test
+from skill_rewrite_skills import _SKILL_DIRS, PYTEST_FILE_GLOB, defines_test, is_collected_file
 
 
 def _freeze_findings(ctx: Context, name: str, scenario_path: str) -> list[str]:
@@ -75,12 +75,27 @@ def _retired_findings(ctx: Context, name: str, dropped: list[str]) -> list[str]:
         if not isinstance(test, str) or "::" not in test:
             problems.append(f"dropped scenario {sid} has no replacing test in {path}")
             continue
-        test_path, *classes, func = test.split("::")
-        found = test_path in ctx.git.files(ctx.head, test_path)
-        text = ctx.git.blob(ctx.head, test_path).decode("utf-8", "replace") if found else ""
-        if not (found and defines_test(text, classes, func)):
-            problems.append(f"dropped scenario {sid}: test {test} does not exist at HEAD")
+        problem = _retired_test_problem(ctx, test)
+        if problem:
+            problems.append(f"dropped scenario {sid}: test {test} {problem}")
     return problems
+
+
+def _retired_test_problem(ctx: Context, test: str) -> str | None:
+    """Why *test* cannot replace a dropped scenario, or None when pytest would run it."""
+    if "[" in test:
+        return "names a parameter id; name the function without a parameter id"
+    test_path, *classes, func = test.split("::")
+    if not is_collected_file(test_path):
+        return (
+            f"is not collected by pytest; the file must be under tests/ and match "
+            f"{PYTEST_FILE_GLOB}"
+        )
+    found = test_path in ctx.git.files(ctx.head, test_path)
+    text = ctx.git.blob(ctx.head, test_path).decode("utf-8", "replace") if found else ""
+    if not (found and defines_test(text, classes, func)):
+        return "does not exist at HEAD"
+    return None
 
 
 def _label_findings(base: list[dict[str, Any]], head: list[dict[str, Any]]) -> list[str]:

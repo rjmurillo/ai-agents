@@ -49,7 +49,10 @@ For a gated skill the check requires, and fails closed without:
 - no change in the same branch to the runner or to this check.
 
 ``retired.json`` is ``{"retired": [{"scenario": "<id>", "test":
-"<path>::[<Class>::]<name>"}]}``; the function must sit in that class chain.
+"<path>::[<Class>::]<name>"}]}``. Pytest must collect it, per pyproject.toml:
+the file is ``tests/**/test_*.py``, each class starts with ``Test``, the
+function starts with ``test_`` and sits in that class chain. A ``[param]`` id
+fails, since only a run can confirm one: name the function without it.
 ``prompt_path`` is the repository-relative rendered file ``--prompt`` takes.
 
 A skill tagged ``reference`` that the branch touches also fails when its

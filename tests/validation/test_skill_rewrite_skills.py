@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+import tomllib
 
 from tests.validation.skill_rewrite_helpers import (
     MOVED,
@@ -23,6 +24,8 @@ from tests.validation.skill_rewrite_helpers import (
 __all__ = ["repo"]
 
 import skill_rewrite_skills as skills
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class TestFrontmatter:
@@ -248,8 +251,20 @@ def test_top():
     pass
 
 
+def make_thing():
+    pass
+
+
+class Helpers:
+    def test_h(self):
+        pass
+
+
 class TestA:
     def test_a(self):
+        pass
+
+    def helper(self):
         pass
 
     async def test_async(self):
@@ -274,7 +289,6 @@ class TestDefinesTest:
             (["TestA"], "test_a"),
             (["TestA"], "test_async"),
             (["TestA", "TestInner"], "test_inner"),
-            (["TestB"], "test_b[case-1]"),
         ],
     )
     def test_defined_in_the_named_chain(self, classes: list[str], func: str) -> None:
@@ -291,6 +305,11 @@ class TestDefinesTest:
             ([""], "test_a"),
             (["TestA"], ""),
             (["TestNope"], "test_a"),
+            (["TestB"], "test_b[case-1]"),
+            ([], "test_top[x]"),
+            ([], "make_thing"),
+            (["TestA"], "helper"),
+            (["Helpers"], "test_h"),
         ],
     )
     def test_not_defined_in_the_named_chain(self, classes: list[str], func: str) -> None:
@@ -298,3 +317,34 @@ class TestDefinesTest:
 
     def test_unparseable_source_is_not_defined(self) -> None:
         assert not skills.defines_test("def test_x(:\n", [], "test_x")
+
+
+class TestCollectionRules:
+    def test_constants_match_pyproject(self) -> None:
+        config = tomllib.loads((_REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+        pytest_config = config["tool"]["pytest"]["ini_options"]
+        assert pytest_config["python_files"] == [skills.PYTEST_FILE_GLOB]
+        assert pytest_config["python_classes"] == [f"{skills.PYTEST_CLASS_PREFIX}*"]
+        assert pytest_config["python_functions"] == [f"{skills.PYTEST_FUNC_PREFIX}*"]
+        assert pytest_config["testpaths"] == [skills.PYTEST_ROOT]
+
+    @pytest.mark.parametrize("path", ["tests/test_a.py", "tests/skills/demo/test_demo.py"])
+    def test_collected_files(self, path: str) -> None:
+        assert skills.is_collected_file(path)
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "tests/helpers.py",
+            "tests/conftest.py",
+            "tests/skills/demo/demo_test.py",
+            "tests/test_demo.txt",
+            "scripts/test_demo.py",
+            "test_demo.py",
+            "tests/../scripts/test_demo.py",
+            "tests",
+            "",
+        ],
+    )
+    def test_files_pytest_does_not_collect(self, path: str) -> None:
+        assert not skills.is_collected_file(path)

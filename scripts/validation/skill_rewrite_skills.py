@@ -14,7 +14,8 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass, field
-from pathlib import Path
+from fnmatch import fnmatchcase
+from pathlib import Path, PurePosixPath
 
 import yaml
 
@@ -268,15 +269,39 @@ def moved_lines(base: SkillSide, head: SkillSide) -> int:
     return len(removed & added)
 
 
+# What pytest collects, from [tool.pytest.ini_options] in pyproject.toml:
+# testpaths = ["tests"], python_files = ["test_*.py"],
+# python_classes = ["Test*"], python_functions = ["test_*"].
+# TestCollectionRules.test_constants_match_pyproject fails when they drift.
+PYTEST_ROOT = "tests"
+PYTEST_FILE_GLOB = "test_*.py"
+PYTEST_CLASS_PREFIX = "Test"
+PYTEST_FUNC_PREFIX = "test_"
+
+
+def is_collected_file(path: str) -> bool:
+    """True when pytest collects *path*: under ``tests/`` with a ``test_*.py`` name."""
+    parts = PurePosixPath(path).parts
+    return (
+        len(parts) > 1
+        and parts[0] == PYTEST_ROOT
+        and ".." not in parts
+        and fnmatchcase(parts[-1], PYTEST_FILE_GLOB)
+    )
+
+
 def defines_test(source: str, classes: list[str], func: str) -> bool:
-    """True when *func* is defined directly inside the nested *classes* of *source*.
+    """True when pytest would collect *func*, defined directly in nested *classes* of *source*.
 
     *classes* and *func* are the segments of a pytest node id after the path.
-    A ``[param]`` suffix on *func* is dropped. An empty segment, or a file that
-    does not parse, is False.
+    Every class must start with ``Test`` and *func* with ``test_``. A
+    ``[param]`` id is False: a parameter id exists only at run time, so no
+    static read of *source* can confirm it. An empty segment, or a file that
+    does not parse, is False. Whether the file itself is collected is
+    ``is_collected_file``'s question, not this one's.
     """
-    func = func.split("[", 1)[0]
-    if not func or not all(classes):
+    named_like_tests = func.startswith(PYTEST_FUNC_PREFIX) and "[" not in func
+    if not named_like_tests or not all(c.startswith(PYTEST_CLASS_PREFIX) for c in classes):
         return False
     try:
         body = ast.parse(source).body
