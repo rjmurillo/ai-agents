@@ -102,6 +102,36 @@ def _rows(text: str) -> list[bool]:
             "- item\n\n  ```\n  A | B\n  --- | ---\n  ```", [False] * 6, id="fence-in-item"
         ),
         pytest.param("  | a |\n  |---|\n| x |", [True, True, True], id="indent-two"),
+        pytest.param(
+            "- item\n\n  ```\n  > quoted\n  ```\n\n| a |\n|---|\n| x |",
+            [False] * 6 + [True] * 3,
+            id="quote-line-in-list-fence-keeps-fence-open",
+        ),
+        pytest.param(
+            "- item\n\n  <!--\n  > q\n  A | B\n  --- | ---\n  x | y\n  -->",
+            [False] * 8,
+            id="quote-line-in-list-comment-keeps-comment-open",
+        ),
+        pytest.param(
+            "> ```\n> > q\n> ```\n\n| a |\n|---|\n| x |",
+            [False] * 4 + [True] * 3,
+            id="deeper-quote-line-in-quoted-fence",
+        ),
+        pytest.param(
+            "<!--\nx\n--!>\nA | B\n--- | ---\nx | y",
+            [False] * 6,
+            id="bang-close-does-not-end-a-comment",
+        ),
+        pytest.param(
+            "<!--\nx\n--!>\ny\n-->\nA | B\n--- | ---\nx | y",
+            [False] * 5 + [True] * 3,
+            id="dash-dash-close-ends-a-comment-after-bang-close",
+        ),
+        pytest.param(
+            "<SCRIPT>\nx\n</Script>\nA | B\n--- | ---\nx | y",
+            [False] * 3 + [True] * 3,
+            id="html-end-tag-matches-any-case",
+        ),
     ],
 )
 def test_table_row_truth_table(text: str, expected: list[bool]) -> None:

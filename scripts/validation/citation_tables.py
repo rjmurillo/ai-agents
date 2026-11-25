@@ -19,6 +19,7 @@ from typing import NamedTuple
 
 # Blockquote markers before a line's content: each `>` may follow up to 3
 # spaces and take one optional space of its own.
+_QUOTE_MARKER = re.compile(r" {0,3}> ?")
 _QUOTE_MARKERS = re.compile(r"^(?: {0,3}> ?)*")
 _LEADING_WHITESPACE = re.compile(r"^[ \t]*")
 # A GFM table delimiter cell: dashes with optional alignment colons.
@@ -48,18 +49,20 @@ _INTERRUPTER = re.compile(
     )""",
     re.VERBOSE,
 )
-# Raw HTML blocks of GFM types 1 to 5: a start pattern and the text that
-# ends the block. The block runs through blank lines to that text, which may
-# sit on the opener's own line.
+# Raw HTML blocks of GFM types 1 to 5: a start pattern and the strings that
+# end the block, lowercase. GFM ends one at the first line that contains an end
+# string, so a plain substring test is the whole rule (`--!>` does not end a
+# comment). The block runs through blank lines to that line, which may be the
+# opener's own.
 _HTML_RAW = (
     (
         re.compile(r"(?i)^ {0,3}<(?:script|pre|style|textarea)(?:\s|>|$)"),
-        re.compile(r"(?i)</(?:script|pre|style|textarea)>"),
+        ("</script>", "</pre>", "</style>", "</textarea>"),
     ),
-    (re.compile(r"^ {0,3}<!--"), re.compile(r"-->")),
-    (re.compile(r"^ {0,3}<\?"), re.compile(r"\?>")),
-    (re.compile(r"^ {0,3}<![A-Za-z]"), re.compile(r">")),
-    (re.compile(r"^ {0,3}<!\[CDATA\["), re.compile(r"\]\]>")),
+    (re.compile(r"^ {0,3}<!--"), ("-->",)),
+    (re.compile(r"^ {0,3}<\?"), ("?>",)),
+    (re.compile(r"^ {0,3}<![A-Za-z]"), (">",)),
+    (re.compile(r"^ {0,3}<!\[CDATA\["), ("]]>",)),
 )
 # Type 6: a block-level tag name. The block ends at a blank line.
 _HTML_BLOCK = re.compile(
@@ -101,7 +104,7 @@ class _Raw(NamedTuple):
     depth: int
     item: int
     fence: str  # the opener's fence characters; empty for raw HTML
-    end: re.Pattern[str] | None  # raw HTML types 1 to 5; None ends at a blank line
+    end: tuple[str, ...] | None  # raw HTML types 1 to 5; None ends at a blank line
 
 
 class _Unit(NamedTuple):
@@ -111,11 +114,20 @@ class _Unit(NamedTuple):
     body: str
 
 
-def _quote_split(line: str) -> tuple[int, str]:
-    """Return a line's blockquote depth and the content after its markers."""
-    markers = _QUOTE_MARKERS.match(line)
-    prefix = markers.group(0) if markers else ""
-    return prefix.count(">"), line[len(prefix) :]
+def _quote_split(line: str, limit: int | None = None) -> tuple[int, str]:
+    """Return a line's blockquote depth and the content after its markers.
+
+    With a limit, strip at most that many markers: an open fence or raw HTML
+    block owns every `>` past its own quote depth as content.
+    """
+    if limit is None:
+        markers = _QUOTE_MARKERS.match(line)
+        prefix = markers.group(0) if markers else ""
+        return prefix.count(">"), line[len(prefix) :]
+    pos = depth = 0
+    while depth < limit and (marker := _QUOTE_MARKER.match(line, pos)):
+        pos, depth = marker.end(), depth + 1
+    return depth, line[pos:]
 
 
 def _expand_leading_tabs(body: str) -> str:
@@ -175,10 +187,10 @@ def _opens_table(header: str, delimiter: str) -> bool:
     return head_cells is not None and len(head_cells) == len(delim_cells)
 
 
-def _html_start(body: str, paragraph_open: bool) -> tuple[bool, re.Pattern[str] | None, bool]:
+def _html_start(body: str, paragraph_open: bool) -> tuple[bool, tuple[str, ...] | None, bool]:
     """Classify a body as a raw HTML block start.
 
-    Returns whether the body starts one, the pattern that ends it (None for
+    Returns whether the body starts one, the strings that end it (None for
     types 6 and 7, which end at a blank line), and whether the block runs past
     this line. Type 7 cannot interrupt a paragraph, so `paragraph_open`
     blocks it.
@@ -186,7 +198,7 @@ def _html_start(body: str, paragraph_open: bool) -> tuple[bool, re.Pattern[str] 
     for start, end in _HTML_RAW:
         match = start.match(body)
         if match:
-            return True, end, end.search(body, match.end()) is None
+            return True, end, not _has_end(body[match.end() :], end)
     if _HTML_BLOCK.match(body) or (not paragraph_open and _HTML_TAG.match(body)):
         return True, None, True
     return False, None, False
@@ -203,7 +215,7 @@ class _Scanner:
 
     def unit(self, line: str) -> _Unit | None:
         """Return a line as a table candidate, or None when it ends any table."""
-        depth, body = _quote_split(line)
+        depth, body = _quote_split(line, self._raw.depth if self._raw else None)
         body = _expand_leading_tabs(body)
         blank = not body.strip()
         self._leave_items(depth, body, blank)
@@ -272,7 +284,7 @@ class _Scanner:
             closer = _FENCE_CLOSE.match(inner) if depth == raw.depth else None
             if closer and _closes(closer.group("fence"), raw.fence):
                 self._raw = None
-        elif raw.end is not None and raw.end.search(inner):
+        elif raw.end is not None and _has_end(inner, raw.end):
             self._raw = None
         return True
 
@@ -288,6 +300,12 @@ class _Scanner:
             self._raw = _Raw(depth, self._owner(), "", end) if stays_open else None
             return True
         return bool(_INTERRUPTER.match(inner))
+
+
+def _has_end(text: str, end: tuple[str, ...]) -> bool:
+    """Return whether a line contains one of a raw HTML block's end strings."""
+    lowered = text.lower()
+    return any(marker in lowered for marker in end)
 
 
 def _closes(closer: str, opener: str) -> bool:
