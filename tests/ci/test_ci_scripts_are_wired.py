@@ -39,6 +39,39 @@ _WORKFLOW_DIRS = (
     _REPO_ROOT / ".github" / "actions",
 )
 
+# Scripts whose only workflow caller was a job gated by an agent-* environment.
+# Those jobs were deleted because the reviewer approval was never given, and the
+# scripts stay (with their unit tests) until the owner decides whether to delete
+# or rewire them. Remove an entry when its script is deleted or wired again.
+_ORPHANED_BY_AGENT_JOB_REMOVAL: tuple[str, ...] = (
+    "apply_ai_conflict_resolution.py",
+    "artifact_build_context.py",
+    "artifact_collect.py",
+    "artifact_create_issues.py",
+    "artifact_write_summary.py",
+    "build_retrospective_prompt.py",
+    "check_claude_authorization.py",
+    "collect_ai_metrics.py",
+    "detect_human_changes_requested.py",
+    "find_copilot_ready_issues.py",
+    "open_bot_pr.py",
+    "prepare_conflict_context.py",
+    "retrospective_gate.py",
+    "run_copilot_synthesis.py",
+    "run_pr_conflict_resolver.py",
+    "spec_load_content.py",
+    "spec_no_loadable_report.py",
+    "spec_prepare_context.py",
+    "spec_review_export_head.py",
+    "sweep_copilot_synthesis.py",
+    "write_copilot_synthesis_summary.py",
+    "write_synthesis_sweep_summary.py",
+)
+_ORPHANED_REASON = (
+    "Its only workflow caller was an agent-* environment job that was deleted. "
+    "Kept, with its tests, until the owner decides to delete or rewire it."
+)
+
 # Guards that are deliberately not invoked from a workflow. Each needs a
 # non-empty reason, so that adding one is a decision rather than a way to
 # silence this test.
@@ -179,6 +212,7 @@ _NOT_WORKFLOW_INVOKED: dict[str, str] = {
         "the shared contract."
     ),
 }
+_NOT_WORKFLOW_INVOKED.update(dict.fromkeys(_ORPHANED_BY_AGENT_JOB_REMOVAL, _ORPHANED_REASON))
 
 
 def _yaml_files() -> list[Path]:

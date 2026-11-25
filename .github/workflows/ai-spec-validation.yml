@@ -2,8 +2,7 @@ name: Spec-to-Implementation Validation
 
 # Deterministic spec coverage check (issue #6182). The verdict comes from the
 # linked-spec flag and the acceptance-criteria checkboxes in the PR body. No
-# model call, no secret, no environment. The model review runs separately in
-# ai-spec-review.yml.
+# model call, no secret, no environment.
 
 on:
   pull_request:

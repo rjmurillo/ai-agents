@@ -23,7 +23,7 @@ widens the guard.
 Not every such file is a defect. Two in this repository are legitimately not
 test suites: ``tests/skills/github/test_helpers.py`` is imported by its
 siblings, and ``tests/workflows/test_claude_authorization.py`` is a checker
-script ``.github/workflows/claude.yml`` invokes. Those declare themselves with
+script the deleted ``.github/workflows/claude.yml`` invoked. Those declare themselves with
 a ``pytest-zero-collection:`` marker plus a reason. That permanent declaration
 is checked in both directions: a declared file that starts collecting tests
 fails too, so the marker cannot outlive the reason it was written for.

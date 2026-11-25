@@ -173,7 +173,7 @@ If monthly costs exceed $100:
 
 ### Agent Workflows (Approval-Gated, Advisory)
 
-These twelve workflows run a model or an agent. Each model job declares the environment of its provider and runs after a reviewer approves it (ADR-114). Checks from workflows listed as advisory never block merge unless the branch ruleset requires them (ADR-114 Decisions 5 and 7).
+These workflows run on pull requests and stay advisory. The jobs that ran a model behind a provider environment (`agent-claude`, `agent-copilot`) were removed because the reviewer approval was never given. The four environments can be deleted in GitHub settings (ADR-114). Checks from workflows listed as advisory never block merge unless the branch ruleset requires them (ADR-114 Decisions 5 and 7).
 
 | Environment | Provider | Secrets |
 |-------------|----------|---------|
@@ -185,21 +185,11 @@ These twelve workflows run a model or an agent. Each model job declares the envi
 All four require a reviewer. `agent-approval` is deleted (ADR-114 Decision 11 item 6).
 
 - ai-spec-validation
-- slash-command-quality
-- post-pr-retrospective
-- software-engineering-library-activation
-- ai-metrics-analysis
-- pr-maintenance
-- artifact-insight-scanner
-- autoplan-route-eval
-- skill-overlap-eval
 - plugin-cli-smoke
-- copilot-context-synthesis
-- claude
 
-ai-metrics-analysis, pr-maintenance, artifact-insight-scanner, and autoplan-route-eval run Claude in `agent-claude`. No workflow outside plugin-cli-smoke reads `COPILOT_GITHUB_TOKEN`.
+No workflow reads a provider secret or runs in a provider environment now.
 
-plugin-cli-smoke runs on pull requests, only when a change touches a smoke path (`scripts/validation/cli_smoke_paths.py`). It runs one matrix leg per CLI. A Claude or Copilot leg runs in `agent-claude` or `agent-copilot` and receives only that provider's credential. The Codex legs read no credential and run in no environment. plugin-cli-smoke is advisory like the other gated pull-request workflows (owner decision 2026-11-05, ADR-114).
+plugin-cli-smoke runs on pull requests, only when a change touches a smoke path (`scripts/validation/cli_smoke_paths.py`). Its Codex, Pi, and Claude hook discovery legs read no credential and run in no environment. plugin-cli-smoke stays advisory (owner decision 2026-11-05, ADR-114).
 
 ### Claude Max Monthly API Credits
 

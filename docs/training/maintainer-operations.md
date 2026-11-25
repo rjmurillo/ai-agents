@@ -56,9 +56,6 @@ The plugin CLI smoke used to be the one exception. The owner made it advisory on
 
    ```text
      - path: ".github/workflows/ai-spec-validation.yml"
-     - path: ".github/workflows/slash-command-quality.yml"
-     - path: ".github/workflows/post-pr-retrospective.yml"
-     - path: ".github/workflows/claude.yml"
      - path: ".github/workflows/plugin-cli-smoke.yml"
    ```
 
@@ -71,7 +68,7 @@ The plugin CLI smoke used to be the one exception. The owner made it advisory on
    ```
 
    ```text
-   ============================== 83 passed in 9.95s ==============================
+   ============================== 80 passed in 4.29s ==============================
    ```
 
 5. Read a live verdict on any open PR. `--include-non-required` is a diagnostic view that counts waiting optional checks too. The merge gate is the default verdict without it:

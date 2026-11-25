@@ -18,7 +18,6 @@ GREEN = {
     "CHANGES_RESULT": "success",
     "AUTHORIZE_RESULT": "success",
     "TRUSTED": "true",
-    "SMOKE_RESULT": "success",
     "CODEX_RESULT": "success",
     "HOOKS_RESULT": "success",
     "PI_RESULT": "success",

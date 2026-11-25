@@ -13,8 +13,9 @@ to enable testing, debugging, and proper error handling.
 
 This is a Python port of Test-ClaudeAuthorization.ps1 following ADR-042 migration.
 
-pytest-zero-collection: production checker, not a suite. `.github/workflows/claude.yml`
-invokes it as ``--checker ./tests/workflows/test_claude_authorization.py``; its
+pytest-zero-collection: production checker, not a suite. The deleted
+`.github/workflows/claude.yml` invoked it as
+``--checker ./tests/workflows/test_claude_authorization.py``; its
 own tests live in ``tests/test_claude_authorization.py``. The ``test_`` prefix
 is inherited from the PowerShell name it replaced. Issue #4494.
 

@@ -1,11 +1,10 @@
 """The declaration reaches the traceability reviewer as well (issue #5366).
 
-`.github/workflows/ai-spec-review.yml` builds `spec_context` once and hands
-the same string to two steps: traceability (analyst,
-`spec-trace-requirements.md`) and completeness (critic,
-`spec-check-completeness.md`). Only the completeness prompt carries the
-hint-not-override carve-out, so anything the declaration says arrives at the
-analyst with no prompt-side qualification behind it.
+The deleted `ai-spec-review.yml` built `spec_context` once and handed the same
+string to a traceability step (analyst, `spec-trace-requirements.md`) and a
+completeness step (critic, `spec-check-completeness.md`). Only the completeness
+prompt carries the hint-not-override carve-out, so anything the declaration says
+arrives at the analyst with no prompt-side qualification behind it.
 
 Two consequences, fixed in two commits and pinned here:
 
@@ -19,8 +18,7 @@ Two consequences, fixed in two commits and pinned here:
 
 `tests/ci/test_spec_prepare_context.py` covers the hint-not-override wording.
 This file covers the part that is specific to the second consumer: that the
-shared context really does feed both steps, and that the text tells the analyst
-coverage still applies.
+text tells the analyst coverage still applies.
 """
 
 from __future__ import annotations
@@ -28,22 +26,13 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
-from typing import Any
 from unittest.mock import patch
 
 import pytest
-import yaml
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO_ROOT))
 from scripts.ci.spec_prepare_context import run  # noqa: E402
-
-_WORKFLOW = _REPO_ROOT / ".github" / "workflows" / "ai-spec-review.yml"
-_JOB = "review-spec"
-_CONTEXT_EXPRESSION = "${{ steps.prepare-context.outputs.spec_context }}"
-
-_TRACEABILITY_PROMPT = ".github/prompts/spec-trace-requirements.md"
-_COMPLETENESS_PROMPT = ".github/prompts/spec-check-completeness.md"
 
 # Run evidence beside a real requirement, so a declaration is rendered and
 # there is something a misfire could drop from coverage.
@@ -52,20 +41,6 @@ _PR_BODY = (
     "- [x] `uv run python scripts/validation/pre_pr.py` passes\n"
     "- [ ] the parser rejects an empty ref with a non-zero exit\n"
 )
-
-
-def _steps_using_shared_context() -> dict[str, dict[str, Any]]:
-    """Map prompt file to the step fed the shared `spec_context`."""
-    workflow = yaml.safe_load(_WORKFLOW.read_text(encoding="utf-8"))
-    steps = workflow["jobs"][_JOB]["steps"]
-    return {
-        str(step["with"]["prompt-file"]): step
-        for step in steps
-        if isinstance(step, dict)
-        and isinstance(step.get("with"), dict)
-        and step["with"].get("additional-context") == _CONTEXT_EXPRESSION
-        and "prompt-file" in step["with"]
-    }
 
 
 @pytest.fixture(scope="module")
@@ -97,29 +72,6 @@ def declaration(tmp_path_factory: pytest.TempPathFactory) -> str:
         "below would pass vacuously."
     )
     return " ".join(context.split())
-
-
-class TestBothReviewersReadTheSameDeclaration:
-    def test_the_traceability_step_receives_the_shared_context(self) -> None:
-        steps = _steps_using_shared_context()
-
-        assert _TRACEABILITY_PROMPT in steps, (
-            f"The traceability step no longer reads {_CONTEXT_EXPRESSION}. "
-            f"Steps that do: {sorted(steps)}. If the declaration stopped "
-            "reaching this prompt then the coverage sentence below is no "
-            "longer load-bearing, so re-think this file rather than deleting "
-            "the sentence."
-        )
-
-    def test_the_completeness_step_receives_the_same_context(self) -> None:
-        """Control: the shared-source premise, not just one consumer."""
-        steps = _steps_using_shared_context()
-
-        assert _COMPLETENESS_PROMPT in steps
-        assert len(steps) >= 2, (
-            "Only one step reads the shared context, so the two consumers this "
-            f"file exists to keep in step no longer both exist: {sorted(steps)}"
-        )
 
 
 class TestTheDeclarationSplitsTheListForTraceability:

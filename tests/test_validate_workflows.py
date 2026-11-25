@@ -860,7 +860,7 @@ class TestLiveWorkflowTreeHasNoInjection:
         import re
 
         repo_root = Path(__file__).resolve().parents[1]
-        for name in ("agent-metrics.yml", "copilot-context-synthesis.yml"):
+        for name in ("agent-metrics.yml", "pr-maintenance.yml"):
             path = repo_root / ".github" / "workflows" / name
             assert path.is_file(), name
             body = path.read_text(encoding="utf-8")

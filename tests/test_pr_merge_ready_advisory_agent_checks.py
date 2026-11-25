@@ -36,6 +36,11 @@ LISTED = ".github/workflows/ai-spec-review.yml"
 # Listed on purpose (owner decision, issue 6182) but holds no model job: the
 # deterministic Validate Spec Coverage check. The test pins that it stays so.
 DETERMINISTIC_LISTED = ".github/workflows/ai-spec-validation.yml"
+# Listed workflows with no provider-gated job: the deterministic spec check and the
+# CLI smoke, whose Claude and Copilot legs were deleted with their agent-* approvals.
+LISTED_WITHOUT_GATED_JOBS = frozenset(
+    {DETERMINISTIC_LISTED, ".github/workflows/plugin-cli-smoke.yml"}
+)
 UNLISTED = ".github/workflows/pytest.yml"
 AGENT_CHECK = "Review Spec Coverage (Advisory)"
 
@@ -418,26 +423,10 @@ PROVIDER_SECRETS = {
     "droid": ("FACTORY_API_KEY",),
     "copilot": ("COPILOT_GITHUB_TOKEN",),
 }
-# Every gated job and the provider environment it must declare. Jobs that read
-# no provider secret in YAML (the Copilot synthesis scripts, claude.yml's
-# action) are pinned here by name.
-EXPECTED_JOB_ENVIRONMENTS = {
-    ("ai-metrics-analysis.yml", "analyze-metrics"): "agent-claude",
-    ("ai-spec-review.yml", "review-spec"): "agent-claude",
-    ("artifact-insight-scanner.yml", "scan-artifacts"): "agent-claude",
-    ("autoplan-route-eval.yml", "full-suite"): "agent-claude",
-    ("claude.yml", "claude-response"): "agent-claude",
-    ("copilot-context-synthesis.yml", "synthesize-single"): "agent-copilot",
-    ("copilot-context-synthesis.yml", "sweep-missed"): "agent-copilot",
-    ("plugin-cli-smoke.yml", "smoke"): MATRIX_ENVIRONMENT,
-    ("post-pr-retrospective.yml", "retrospective"): "agent-claude",
-    ("pr-maintenance.yml", "process-prs"): "agent-claude",
-    ("skill-overlap-eval.yml", "run-eval"): "agent-claude",
-    ("slash-command-quality.yml", "validate-slash-commands"): "agent-claude",
-    ("software-engineering-library-activation.yml", "activation-gate"): "agent-claude",
-    # Sits in agent-claude for historical reasons (it once read BOT_PAT). It calls no model.
-    ("update-reviewer-stats.yml", "update-stats"): "agent-claude",
-}
+# Every gated job and the provider environment it must declare. Empty: every job that
+# ran in an agent-* environment was deleted because its approval was never given. A
+# job that declares one again must be added here on purpose.
+EXPECTED_JOB_ENVIRONMENTS: dict[tuple[str, str], str] = {}
 
 
 def _is_gated(job: dict) -> bool:
@@ -505,7 +494,7 @@ def test_every_listed_path_exists_and_gates_its_model_jobs() -> None:
     docs = _workflow_docs()
     for entry in _shipped_entries():
         assert entry["path"] in docs, entry["path"]
-        if entry["path"] == DETERMINISTIC_LISTED:
+        if entry["path"] in LISTED_WITHOUT_GATED_JOBS:
             assert not _gated_jobs(docs[entry["path"]]), f"{entry['path']} gained a model job"
             continue
         assert _gated_jobs(docs[entry["path"]]), f"{entry['path']} has no provider-gated job"
@@ -525,8 +514,8 @@ def test_every_pull_request_workflow_with_a_provider_gated_job_is_listed() -> No
         for path, doc in _workflow_docs().items()
         if "pull_request" in _triggers(doc) and _gated_jobs(doc)
     }
-    assert listed - {DETERMINISTIC_LISTED} == expected
-    assert DETERMINISTIC_LISTED in listed
+    assert listed - LISTED_WITHOUT_GATED_JOBS == expected
+    assert LISTED_WITHOUT_GATED_JOBS <= listed
 
 
 SMOKE = ".github/workflows/plugin-cli-smoke.yml"
@@ -535,7 +524,7 @@ PROMOTION_APPLICABILITY = REPO_ROOT / ".agents" / "governance" / "promotion-appl
 
 
 def test_the_cli_smoke_is_listed_as_advisory() -> None:
-    """Owner decision 2026-11-05: the smoke needs provider credentials and an approval."""
+    """Owner decision 2026-11-05: no critical path depends on the CLI smoke."""
     assert SMOKE in {e["path"] for e in _shipped_entries()}
 
 
@@ -545,16 +534,6 @@ def test_the_cli_smoke_is_not_a_required_ruleset_context() -> None:
     assert entries
     assert SMOKE not in {e["workflow"] for e in entries}
     assert "CLI Smoke Result" not in {e["job"] for e in entries}
-
-
-def test_claude_workflow_is_gated_by_agent_claude_and_listed_as_advisory() -> None:
-    """claude.yml triggers on pull_request and waits for approval, so a rejected
-    or timed-out approval must not leave a blocking check (ADR-114 Decision 3)."""
-    doc = _workflow_docs()[".github/workflows/claude.yml"]
-    assert _gated_jobs(doc) == ["claude-response"]
-    assert "pull_request" in _triggers(doc)
-    listed = {e["path"] for e in _shipped_entries()}
-    assert ".github/workflows/claude.yml" in listed
 
 
 def test_no_workflow_uses_the_retired_agent_approval_environment() -> None:
@@ -582,9 +561,8 @@ def test_each_gated_job_declares_the_environment_matching_its_provider() -> None
 
 def test_jobs_reading_a_provider_secret_declare_that_provider_environment() -> None:
     """Drift: a job that reads a provider secret must sit in that provider's environment."""
-    violations, checked = _provider_environment_violations(_workflow_docs())
+    violations, _ = _provider_environment_violations(_workflow_docs())
     assert violations == []
-    assert checked >= 8
 
 
 @pytest.mark.parametrize(
@@ -626,41 +604,10 @@ def test_a_job_with_no_provider_secret_is_not_checked() -> None:
     assert _provider_environment_violations({"fake.yml": {"jobs": {"j": job}}}) == ([], 0)
 
 
-def test_the_matrix_environment_resolves_to_provider_environments_only() -> None:
-    doc = _workflow_docs()[".github/workflows/plugin-cli-smoke.yml"]
-    smoke = doc["jobs"]["smoke"]
-    clis = smoke["strategy"]["matrix"]["cli"]
-    assert {f"agent-{cli}" for cli in clis} <= PROVIDER_ENVIRONMENTS
-
-
-def test_the_thirteen_gated_workflows_are_exactly_the_policy_set() -> None:
+def test_no_workflow_runs_a_job_in_a_provider_environment() -> None:
+    """The agent-* approvals were never given, so their jobs were deleted (ADR-114)."""
     gated = {path for path, doc in _workflow_docs().items() if _gated_jobs(doc)}
-    assert gated == {
-        f".github/workflows/{name}.yml"
-        for name in (
-            "ai-spec-review",
-            "slash-command-quality",
-            "post-pr-retrospective",
-            "software-engineering-library-activation",
-            "ai-metrics-analysis",
-            "pr-maintenance",
-            "artifact-insight-scanner",
-            "autoplan-route-eval",
-            "skill-overlap-eval",
-            "plugin-cli-smoke",
-            "copilot-context-synthesis",
-            "claude",
-            "update-reviewer-stats",
-        )
-    }
-
-
-def test_copilot_context_synthesis_is_gated_but_not_listed() -> None:
-    path = ".github/workflows/copilot-context-synthesis.yml"
-    doc = _workflow_docs()[path]
-    assert sorted(_gated_jobs(doc)) == ["sweep-missed", "synthesize-single"]
-    assert "pull_request" not in _triggers(doc)
-    assert path not in {e["path"] for e in _shipped_entries()}
+    assert gated == set()
 
 
 # ---------------------------------------------------------------------------

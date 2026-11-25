@@ -390,9 +390,8 @@ class TestPremiseVerificationIsDocumented:
     def test_reviewer_findings_names_the_shallow_checkout_caveat(self, plugin_root: Path) -> None:
         """Positive: a shallow CI checkout limits what git log -S can prove (Copilot on PR #5178).
 
-        This repository's CI checks out with fetch-depth: 1
-        (.github/workflows/claude.yml:47,88), so a session running here may
-        be shallow too. Empirically, a shallow clone still answers a
+        actions/checkout defaults to fetch-depth: 1, so a session running
+        in CI may be shallow too. Empirically, a shallow clone still answers a
         single-commit presence question correctly (git diffs the shallow
         boundary as a root commit), but it cannot answer a claim about when
         a value was introduced or removed across commits it never fetched.

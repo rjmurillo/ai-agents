@@ -396,24 +396,6 @@ def test_main_runs_end_to_end(env, monkeypatch):
     assert "VERDICT: PASS" in verdict_file(env)
 
 
-_CLAUDE_CALLERS = (
-    "ai-metrics-analysis.yml",
-    "artifact-insight-scanner.yml",
-    "pr-maintenance.yml",
-    "ai-spec-review.yml",
-)
-
-
-@pytest.mark.parametrize("name", _CLAUDE_CALLERS)
-def test_ai_review_callers_use_claude_and_drop_copilot_token(name):
-    workflow = (_REPO_ROOT / ".github/workflows" / name).read_text(encoding="utf-8")
-
-    assert "COPILOT_GITHUB_TOKEN" not in workflow
-    assert "copilot-token" not in workflow
-    assert "provider:" not in workflow
-    assert "anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}" in workflow
-
-
 def test_ai_review_action_is_claude_only():
     action = (_REPO_ROOT / ".github/actions/ai-review/action.yml").read_text(encoding="utf-8")
 

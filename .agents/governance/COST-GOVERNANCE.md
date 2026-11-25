@@ -24,13 +24,12 @@ This document outlines cost optimization policies and practices for the AI Agent
 
 ### Current Implementation Status
 
-**Migrated to ARM (19 jobs)**:
+**Migrated to ARM (17 jobs)**:
 
 - agent-metrics.yml (2 jobs)
 - ai-issue-triage.yml (1 job)
 - ai-pr-quality-gate.yml (4 jobs)
 - ai-spec-validation.yml (1 job)
-- copilot-context-synthesis.yml (2 jobs)
 - drift-detection.yml (1 job)
 - pester-tests.yml (3 jobs: check-paths, test, skip-tests)
 - validate-generated-agents.yml (1 job)
