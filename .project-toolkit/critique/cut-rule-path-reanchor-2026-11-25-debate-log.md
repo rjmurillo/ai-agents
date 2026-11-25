@@ -94,6 +94,13 @@ Both seats reviewed the round 1 fixes.
 Both fixes are one word or one mark on an existing line.
 No seat raised an open finding after round 2.
 
+### After round 2
+
+- `check_measurement_anchoring.py` flagged four historical counts on ADR-109:33.
+- The line changed only a citation, so the counts now count as added.
+- The line gains a reasoned `measurement-anchor: ignore` HTML comment.
+- No visible text changes, so the panel was not reconvened.
+
 ## Final Verdicts
 
 | Agent | Verdict |
