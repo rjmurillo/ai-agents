@@ -8,8 +8,13 @@ name: Spec Review (Advisory)
 
 on:
   # No pull_request trigger. The agent-claude environment needs a manual
-  # approval that nobody gives, so a PR run waited forever, left the PR
-  # UNSTABLE, and blocked auto-merge. Run it by hand with a PR number.
+  # approval that nobody gives. GitHub's deployment records for the 90
+  # minutes up to 2026-11-25 16:45 UTC showed 100 agent deployments and 0
+  # approvals. A PR run waited forever, left the PR UNSTABLE, and blocked
+  # auto-merge. Run this review by hand with a PR number instead:
+  # Actions, Spec Review (Advisory), Run workflow, then enter the number.
+  # The deterministic Validate Spec Coverage check still runs on every PR.
+  #
   # merge_group is not a trigger: the job needs a pull request, and
   # environment approval cannot happen in a queue run.
   workflow_dispatch:
