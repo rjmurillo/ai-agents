@@ -144,7 +144,8 @@ The deletion ships with that migration. The caller list is under "Ship and push-
 
 Sequencing, from the same rulings:
 
-- The pilot starts after PR #7572 merges. Both edit the same templates. PR #7572 merged on 2026-11-25.
+- The pilot starts after PR #7572 merges. Both edit the same templates. PR #7572 merged as `c0b72f8539` (2026-11-25).
+  That merge changed the `ship` and `push-pr` templates after this audit's anchor. The pilot re-reads both before it trusts a line number here.
 - At most two fix threads run at once.
 - The 8 P0 skills go first. A P1 thread starts only after every P0 thread lands or stops with a reason.
 
@@ -186,8 +187,8 @@ The delegation is the same coordinator thread as the pilot rulings. Treat these 
 | Row | Skill | Ruling | Reason given |
 |---|---|---|---|
 | G-008 | `ai-agents-debugging-playbook` | reference, no script | The merge command at line 78 is a remedy cell the reader applies. The skill does not drive it. |
-| G-049 | `git-advanced-workflows` | reference, P2 | It teaches recipes. `abort_git_operation.py` is optional. No `rewrite_branch_history.py`: a scripted force push breaks decision 3 item 8 and the `AGENTS.md` Never list. |
-| G-101 | `skillopt` | driver, for the deploy step only | `deploy_candidate.py` applies and hash-verifies the accepted candidate. The commit and push stay a handoff to `ship`. |
+| G-049 | `git-advanced-workflows` | reference, P2 | It teaches recipes. The proposed `abort_git_operation.py` is optional. No `rewrite_branch_history.py`: a scripted force push breaks decision 3 item 8 and the `AGENTS.md` Never list. |
+| G-101 | `skillopt` | driver, for the deploy step only | The proposed `deploy_candidate.py` would apply and hash-verify the accepted candidate. The commit and push stay a handoff to `ship`. |
 
 The G-049 ruling overrides a review finding. A reviewer on PR #7579 read the publish procedure at lines 139-146 as an instruction to push.
 The readers first scored the skill `reference`, the audit moved it to `driver` on that finding, and the ruling moves it back.
@@ -218,6 +219,9 @@ Two more calls for the owner:
 ## Proposed rewrite groups
 
 Each group is one fix thread and one small PR series. Groups run two at a time.
+The Order column is the audit's proposal. The scope guard under "Decisions recorded for the pilot" overrides it: P0 skills go first.
+Groups 1, 5, and 6 hold only P0 skills. In group 3 the P0 skill is `pr-review`. In group 4 it is `pr-autofix`.
+Those two go first in their own change. The P1 and P2 members of groups 3 and 4 wait with groups 7 to 9.
 
 | Order | Group | Skills | Why together |
 |---|---|---|---|
@@ -228,7 +232,7 @@ Each group is one fix thread and one small PR series. Groups run two at a time.
 | 5 | Branch rewrite | `modernize`, `takeover` | Both rewrite or replace a PR branch. `modernize` meets the force-push ruling in finding 1. |
 | 6 | Azure DevOps | `pipeline-validator`, `windows-image-updater` | Both drive Azure DevOps and git with no scripts. |
 | 7 | Grants on lifecycle skills | `build`, `review`, `test`, `validate-pr-description`, `pr-quality` | Narrow `Bash(*)` and move the fixed gate steps into scripts. |
-| 8 | Conditional writers | `sol-loop`, `research`, `skillopt` | Each pushes or files only after a user yes. |
+| 8 | Conditional writers | `sol-loop`, `research`, `skillopt` | `sol-loop` and `research` push or file only after a user yes. `skillopt` deploys a candidate and hands the push to `ship`. |
 | 9 | Reference skills at P1 | `analyze`, `benchmark-models`, `checkpoint`, `github-url-intercept`, `memory-consolidate`, `reviewer-findings`, `ai-agents-build-and-env`, `ai-agents-portability-campaign` | Clear script candidates with no remote write. |
 
 Sizing, by ADR-127 decision 7: each gated skill needs at least 8 verdict scenarios before its rewrite.
