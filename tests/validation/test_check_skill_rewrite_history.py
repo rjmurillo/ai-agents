@@ -177,6 +177,31 @@ class TestScenarioFile:
         code, out = run_gated(repo, capsys)
         assert code == 0, out
 
+    def test_duplicate_ids_do_not_satisfy_the_floors(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        rows = [{"id": "S1", "desc": "d", "input": "i", "expected_verdict": "GO"}] * 8
+        on_main(repo, {SCEN: json.dumps({"scenarios": rows})}, "eight copies of one scenario")
+        driver_change(repo)
+        doc = json.loads(results(repo))
+        doc["detail"] = {side: rows[:1] for side, rows in doc["detail"].items()}
+        write(repo, f"{EVID}/run-1.json", json.dumps(doc))
+        commit(repo, "one result row stands in for eight")
+        code, out = run(repo, capsys)
+        assert code == 1
+        assert f"{SCEN} repeats scenario ids ['S1']" in out
+
+    def test_ids_that_collide_after_str_are_duplicates(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        rows = json.loads(scenario_doc())["scenarios"]
+        rows[0]["id"], rows[1]["id"] = 1, "1"
+        write(repo, SCEN, json.dumps({"scenarios": rows}))
+        commit(repo, "int and string id")
+        code, out = run_gated(repo, capsys, evidence=False)
+        assert code == 1
+        assert f"{SCEN} repeats scenario ids ['1']" in out
+
     def test_scenario_without_expected_verdict(
         self, repo: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:

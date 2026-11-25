@@ -9,6 +9,7 @@ scenario it drops. ``check_skill_rewrite_evidence.py`` owns the gate.
 from __future__ import annotations
 
 import json
+from collections import Counter
 from dataclasses import dataclass
 from typing import Any
 
@@ -101,6 +102,16 @@ class Scenarios:
     rows: list[dict[str, Any]]
 
 
+def _repeated_ids(rows: list[dict[str, Any]]) -> list[str]:
+    """Ids used by more than one row, compared as ``str`` as the results check does.
+
+    Results are keyed by that string, so eight rows that share an id would
+    be recomputed from one result row and satisfy the scenario floors.
+    """
+    counts = Counter(str(r["id"]) for r in rows)
+    return sorted(sid for sid, n in counts.items() if n > 1)
+
+
 def load_scenarios(ctx: Context, name: str) -> tuple[Scenarios | None, list[str]]:
     """The head scenario file, plus findings against the merge base."""
     path = f"tests/evals/{name}-scenarios.json"
@@ -110,6 +121,9 @@ def load_scenarios(ctx: Context, name: str) -> tuple[Scenarios | None, list[str]
     rows = scenario_rows(data)
     if rows is None:
         return None, [f"{path} is not valid scenario JSON with an id on every scenario"]
+    repeated = _repeated_ids(rows)
+    if repeated:
+        return None, [f"{path} repeats scenario ids {repeated}; each scenario needs a distinct id"]
     if not all("expected_verdict" in r for r in rows):
         return None, [f"{path} has a scenario with no expected_verdict"]
     problems = _freeze_findings(ctx, name, path)
