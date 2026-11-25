@@ -9,8 +9,8 @@ Each row below is a gap-audit row in ADR-127's terms. Its id is stable.
 1. A scan script read every template. It counted lines, shell blocks, script files, grants, and eval files.
    It also matched commands that push, merge, delete a branch, rewrite history, or write to a PR or issue.
 2. Four Sonnet readers then opened each template and judged shape, prose steps, and missing scripts.
-3. A second pass re-opened the deciding line for every driver, every disputed skill, and every P0 row.
-   It corrected the `push-pr` line numbers. The other cells carry the readers' citations as given.
+3. A second pass re-opened one deciding line for each driver, each disputed skill, and each P0 row.
+   It corrected the `push-pr` line numbers. Every other citation is the reader's, as given.
 
 Limits:
 
@@ -18,6 +18,20 @@ Limits:
 - "Missing scripts" are proposals. A rewrite thread decides the real split.
 - No eval ran for this audit. The eval column says only whether a scenario file exists.
 - The readers judged `allowed-tools` from the template frontmatter.
+- Two `reference` rows rest on a reader's unverified read: `ai-agents-generation-and-release` and `repository-completion-proof`.
+
+## How shape and priority were set
+
+Shape follows ADR-127 decision 1. One test covers conditional writers:
+a skill is a `driver` when its own instructions run the push or the external write, even behind a user yes.
+A skill is `disputed` when it shows such a command as knowledge, or hands the push to another workflow.
+
+| Priority | Meaning |
+|---|---|
+| P0 | A driver that pushes, merges, or writes to a PR, with the mutating step in prose and a wide grant or no script. |
+| P1 | A driver with scripts behind most steps, or a non-driver whose fixed steps or wide grant are clear script work. |
+| P2 | A small gap. Fix it when the skill is next edited. |
+| P3 | No gap worth a rewrite. |
 
 ## Summary
 
@@ -27,8 +41,8 @@ Limits:
 | Shape `driver` at `a7b036aba3` (2026-11-25) | 14 |
 | Shape `disputed`, for the owner at `a7b036aba3` (2026-11-25) | 3 |
 | Shape `reference` at `a7b036aba3` (2026-11-25) | 104 |
-| Priority P0 at `a7b036aba3` (2026-11-25) | 10 |
-| Priority P1 at `a7b036aba3` (2026-11-25) | 18 |
+| Priority P0 at `a7b036aba3` (2026-11-25) | 9 |
+| Priority P1 at `a7b036aba3` (2026-11-25) | 19 |
 | Priority P2 at `a7b036aba3` (2026-11-25) | 27 |
 | Priority P3 at `a7b036aba3` (2026-11-25) | 66 |
 | Templates with no verdict scenario file at `a7b036aba3` (2026-11-25) | 116 |
@@ -41,7 +55,7 @@ Driver skills with no scripts: `modernize`, `pipeline-validator`, `pr-autofix`, 
 
 ## Ship and push-pr first
 
-These two are the pilot. Both are drivers. Neither has a script for its mutating step.
+These two are the pilot. Both are drivers. `ship` has no script. `push-pr` scripts PR creation but not the push.
 
 | | `ship` | `push-pr` |
 |---|---|---|
@@ -49,7 +63,7 @@ These two are the pilot. Both are drivers. Neither has a script for its mutating
 | Template lines at `a7b036aba3` (2026-11-25) | 241 | 215 |
 | Rendered bytes at `a7b036aba3` (2026-11-25) | 24401 | 14890 |
 | Scripts at `a7b036aba3` (2026-11-25) | 0 | 0 |
-| Grant | `Bash(*)` | `Bash(git push:*)` and five more git grants |
+| Grant | `Bash(*)` | `Bash(git push:*)` and seven more git grants |
 | Verdict scenarios at `a7b036aba3` (2026-11-25) | 8 in `tests/evals/ship-scenarios.json`, 6 in `ship-review-coverage-scenarios.json` | none |
 | Activation scenarios at `a7b036aba3` (2026-11-25) | 4 | 3 |
 | Deterministic tests | `tests/skills/ship/test_skill_md_contract.py` | two files under `tests/skills/push-pr/` |
@@ -75,7 +89,7 @@ Prose doing a script's job in `push-pr`:
 
 What the pilot must settle before its rewrite:
 
-- All 8 `ship` verdict scenarios test host detection, mode detection, or the marker check. Those steps move into scripts.
+- All 8 `ship` verdict scenarios at `a7b036aba3` (2026-11-25) test host detection, mode detection, or the marker check. Those steps move into scripts.
   ADR-127 decision 7 needs at least 8 scenarios on kept judgment, with 6 passing on `origin/main`. They do not exist yet.
 - `push-pr` has no verdict scenario file. It is retired into `ship`, so its judgment scenarios belong in the `ship` file.
 - `ship` grants `Bash(*)`. Decision 3 item 7 requires a grant that names each script.
@@ -84,12 +98,13 @@ What the pilot must settle before its rewrite:
 
 The unmerged ship driver draft left three decisions open.
 They were decided on 2026-11-25 by the coordinator under Richard's delegation. Richard can reverse each one.
+The delegation is a coordinator thread the owner opened on 2026-11-25. It is not a repository record, so treat these as provisional until the owner confirms them.
 The draft is not on `main` yet, so the rulings are recorded here.
 
 | # | Decision | Ruling | Reason given |
 |---|---|---|---|
 | 1 | Draft PRs before review | `ship --draft` skips the marker check and opens a draft PR | Spikes and early CI feedback need a PR before `/review`. Draft state already blocks a merge. |
-| 2 | Branch | Build on a fresh branch from `origin/main` | The earlier branch is open as PR #7572. Its commits become history on `main`. |
+| 2 | Branch | Build on a fresh branch from `origin/main` | The earlier branch was open as PR #7572 on 2026-11-25. Its commits become history on `main`. |
 | 3 | Stub | Delete `/push-pr` outright | Its trigger phrases move into the `ship` description. A stub would compete with `ship` on routing. |
 
 Sequencing, from the same rulings:
@@ -112,13 +127,13 @@ Two more calls for the owner:
 
 ## Findings that cross skills
 
-1. **Force push against decision 3 item 8.** `modernize` (lines 61-62) and `pr-autofix` (line 925) tell the model to force push with a lease.
+1. **Force push against decision 3 item 8.** `modernize` (lines 61-62) and `pr-autofix` (lines 925-926) tell the model to force push with a lease.
    `git-advanced-workflows` (line 50) shows the same command. Decision 3 item 8 bars a script from a force push.
    So these steps cannot move into a script as written. A rewrite keeps them with the human, or the ADR changes through `adr-review`.
 2. **`Bash(*)` on four skills.** `build`, `review`, `ship`, and `test` grant `Bash(*)`. Only `ship` is a driver.
    `analyze`, `benchmark-models`, `context-optimizer`, `pr-autofix`, and `requirements-interview` grant bare `Bash`.
 3. **Scripts outside `scripts/`.** `metrics`, `security-detection`, and `stuck-detection` keep scripts at the skill root. `sync` uses a repository path.
-   Decision 3 item 2 puts scripts in `skills/<name>/scripts/`.
+   Decision 3 item 2 puts a driver's scripts in `skills/<name>/scripts/`. These four are not drivers, so this is a note, not a breach.
 4. **Calls that skip the locator.** `planner`, `doc-accuracy`, `memory-enhancement`, and `memory` (line 318) run scripts by bare path.
 5. **The locator one-liner is pasted everywhere.** It is the ADR-121 form and is not a gap by itself. It does inflate many templates.
 6. **Exit code 2 with two meanings.** `cynefin-classifier` and `decision-question` make the model tell a launcher failure from a script result by reading stderr.
@@ -143,6 +158,8 @@ Each group is one fix thread and one small PR series. Groups run two at a time.
 Sizing, by ADR-127 decision 7: each gated skill needs at least 8 verdict scenarios before its rewrite.
 Groups 1 and 3 to 8 cover 21 skills at `a7b036aba3` (2026-11-25). Only `ship` has a verdict file today.
 The P2 and P3 rows need no rewrite thread. A P2 row is a candidate when its skill is next edited.
+One exception: `pr-babysit` is P2 but rides in group 4, because it shares that group's branch update and push steps.
+`git-advanced-workflows` stays in group 5 only if the owner rules it a driver.
 
 ## All rows
 
@@ -172,7 +189,7 @@ The P2 and P3 rows need no rewrite thread. A P2 row is a candidate when its skil
 | G-022 | `autoplan` | reference | line 203 runs `resolve_route.py` | lines 202-203: request text spliced into `--request` in a shell string | none | none | verdict: no; activation: yes | P2 | Request text in a shell string is an injection-shaped gap. |
 | G-023 | `avoiding-manufactured-work` | reference | rule content, no shell | none | none | none | verdict: no; activation: no | P3 | No gap. |
 | G-024 | `benchmark-models` | reference | runs model CLIs; line 87 is a dry run | lines 87-89, 118-121, 139-141: path resolution and env setup as prose | resolve_benchmark.py (locate driver, set allowed roots) | bare `Bash` | verdict: no; activation: no | P1 | Broad grant. Driver path detection is prose. |
-| G-025 | `build` | reference | commits locally; no push, merge, or PR write | lines 108-128: long locator calls with per-path arguments; lines 76-79: exit-code handling | run_validation_gate.py (trigger, classify, record check) | `Bash(*)` | verdict: no; activation: yes | P0 | `Bash(*)` on a high-traffic skill. The model assembles a four-step gate. |
+| G-025 | `build` | reference | commits locally; no push, merge, or PR write | lines 108-128: long locator calls with per-path arguments; lines 76-79: exit-code handling | run_validation_gate.py (trigger, classify, record check) | `Bash(*)` | verdict: no; activation: yes | P1 | `Bash(*)` on a high-traffic skill that is not a driver. The model assembles a four-step gate. |
 | G-026 | `business-strategy` | reference | router, no shell | none | none | none | verdict: no; activation: no | P3 | Routing prose only. |
 | G-027 | `buy-vs-build-framework` | reference | four local scoring scripts | lines 139-150: nine-flag `calculate_tco.py` call | none | none | verdict: no; activation: no | P2 | Scripts exist. The blocks are usage examples. |
 | G-028 | `chaos-experiment` | reference | `generate_experiment.py` writes files | lines 311-318: argument block | none | none | verdict: no; activation: no | P3 | One usage example. |
@@ -183,13 +200,13 @@ The P2 and P3 rows need no rewrite thread. A P2 row is a candidate when its skil
 | G-033 | `codeql-scan` | reference | lines 20-33: runs `invoke_codeql_scan.py`, local SARIF | lines 295-303: a diagnostics call outside the locator | none | none | verdict: no; activation: no | P3 | The script owns the scan. |
 | G-034 | `context-gather` | reference | reads memory, docs, and web; no remote write | none | none | none | verdict: no; activation: no | P3 | No shell. |
 | G-035 | `context-hub-setup` | reference | lines 41, 90: read-only checks | lines 41-48: the model reads `claude plugins list` output by hand | check_plugin_prereqs.py (report missing plugins) | none | verdict: no; activation: yes | P3 | One hand parse of CLI output. |
-| G-036 | `context-optimizer` | reference | line 407: a PR command appears only as example input text | lines 313-314: capture recipe with `echo exit=$?` | none | bare `Bash` | verdict: no; activation: no | P2 | Thirteen scripts exist. The bare grant is the gap. |
+| G-036 | `context-optimizer` | reference | line 407: a PR command appears only as example input text | lines 313-314: capture recipe with `echo exit=$?` | none | bare `Bash` | verdict: no; activation: no | P2 | Scripts exist. The bare grant is the gap. |
 | G-037 | `curating-memories` | reference | line 71: read-only sweep; edits are file edits | lines 111-122: six-step manual edit and verify procedure | none | none | verdict: no; activation: no | P3 | Judgment edits are model work. |
 | G-038 | `cva-analysis` | reference | lines 278-290: validator plus routing | lines 360, 433: exit codes read in prose | none | none | verdict: no; activation: no | P2 | The validator exists. |
 | G-039 | `cynefin-classifier` | reference | lines 263, 376: `classify.py`, local | lines 376-382: the model tells a launcher failure from a domain by reading stderr and exit 2 | none | none | verdict: no; activation: no | P2 | Exit 2 has two meanings the model parses by hand. |
 | G-040 | `decision-critic` | reference | line 47: one local script | none | none | none | verdict: no; activation: yes | P3 | No gap. |
 | G-041 | `decision-question` | reference | lines 64, 91: one local script | lines 66-72: the model parses exit 2 plus a stderr line | none | none | verdict: no; activation: yes | P2 | Launcher failure against incomplete input is parsed in prose. |
-| G-042 | `destructive-change-safety` | reference | lines 55, 153: gate scripts return verdicts; the skill writes nothing | none | none | none | verdict: no; activation: yes | P3 | Six scripts own the work. |
+| G-042 | `destructive-change-safety` | reference | lines 55, 153: gate scripts return verdicts; the skill writes nothing | none | none | none | verdict: no; activation: yes | P3 | Scripts own the work. |
 | G-043 | `doc-accuracy` | reference | lines 93-114: local runs and reports | lines 93-114: 21 lines of raw `python3 scripts/doc_accuracy.py` variants outside the locator | none | none | verdict: no; activation: yes | P3 | A flag catalog, not a fixed step. |
 | G-044 | `domain-design` | reference | line 102: one local script | none | none | none | verdict: no; activation: yes | P3 | No gap. |
 | G-045 | `dx-review` | reference | no shell tools granted | none | none | none | verdict: no; activation: yes | P3 | No shell. |
@@ -197,12 +214,12 @@ The P2 and P3 rows need no rewrite thread. A P2 row is a candidate when its skil
 | G-047 | `execution-plans` | reference | plan writing guidance; no shell | none | none | none | verdict: no; activation: no | P3 | No shell. |
 | G-048 | `fix-markdown-fences` | reference | lines 312-316: a quick check; the fixer writes working-tree files | line 312: a one-line grep fallback | none | none | verdict: no; activation: no | P3 | The fixer and write guard exist. |
 | G-049 | `git-advanced-workflows` | disputed | lines 42-52: `rebase -i` then `git push --force-with-lease` in a recipe; unclear whether the model runs it or learns it | lines 42-52: nine-line fetch, rebase, and push block; lines 65-70: split-commit sequence; lines 249-254: abort block | rewrite_branch_history.py (rebase and lease-pinned push); abort_git_operation.py (abort an in-progress operation) | none | verdict: no; activation: no | P1 | Pushes and rewrites history with no script. Owner rules on shape. |
-| G-050 | `github` | driver | line 130: create PR; line 134: comment; line 149: close PR; line 150: merge | lines 126-150: routing tree to about 20 mutating scripts; lines 166-170: three multi-line locator blocks | route_github_operation.py (map intent to script and args) | none | verdict: no; activation: yes | P0 | Mutating and high traffic. 25.5 KB against a 12 KiB budget. |
+| G-050 | `github` | driver | line 130: create PR; line 134: comment; line 149: close PR; line 150: merge | lines 126-150: routing tree to about 20 mutating scripts; lines 166-170: three multi-line locator blocks | route_github_operation.py (map intent to script and args) | none | verdict: no; activation: yes | P0 | Mutating and high traffic. Over the 12 KiB driver budget. |
 | G-051 | `github-url-intercept` | reference | lines 47-56: read-only `gh api` calls | lines 47-56: the model fills owner, repo, and path; lines 139-146: URL parse in prose; lines 110-130: routing tree | route_github_url.py (parse URL and fetch JSON) | none | verdict: no; activation: no | P1 | A blocking intercept on every GitHub URL. Parsing is a fixed step. |
 | G-052 | `golden-principles` | reference | lines 64-83: read-only scan | lines 64-83: six variants of one scan command | none | none | verdict: no; activation: no | P3 | The script owns the scan. |
 | G-053 | `llm-council` | reference | lines 192-199: local run that calls model APIs | lines 190-199: the model picks locator or direct call | none | none | verdict: no; activation: yes | P3 | Small host-detection fallback. |
 | G-054 | `maintainer-review` | reference | lines 45-46: "No remote writes" | none | none | none | verdict: no; activation: yes | P3 | Read-only by its own text. |
-| G-055 | `memory` | reference | lines 86-109: writes local memory files | line 318: runs a script by bare path, not the locator | none | none | verdict: yes; activation: yes | P3 | Fourteen scripts exist. |
+| G-055 | `memory` | reference | lines 86-109: writes local memory files | line 318: runs a script by bare path, not the locator | none | none | verdict: yes; activation: yes | P3 | Scripts exist. |
 | G-056 | `memory-consolidate` | reference | lines 118-160: memory edits and deletes; no push | lines 114-118: git state block; lines 70-76: file count and size caps enforced by prose; lines 123-126: hand-written manifest JSON | check_memory_tree_clean.py (verify tracked, clean tree); audit_memory_inventory.py (enforce count and size caps) | none | verdict: no; activation: yes | P1 | Deletes memory files with three rules enforced only by prose. |
 | G-057 | `memory-documentary` | reference | lines 104-109: slash invocations | none | none | none | verdict: no; activation: no | P3 | No gap. |
 | G-058 | `memory-enhancement` | reference | lines 122-130, 271-282: read-only module calls | lines 122-130, 271-282: `python -m` calls outside the locator | none | none | verdict: no; activation: no | P3 | Calls a module outside the locator. |
@@ -214,22 +231,22 @@ The P2 and P3 rows need no rewrite thread. A P2 row is a candidate when its skil
 | G-064 | `metrics` | reference | lines 234-235: local add and commit | line 110: fetch before recheck; lines 93-117: ten pasted locator blocks | none | none | verdict: no; activation: yes | P3 | Read-only reports. Scripts sit at the skill root, not in `scripts/`. |
 | G-065 | `modernize` | driver | lines 153-155: push after the user says yes; lines 61-62: pinned force-with-lease | lines 61-62: lease string built by hand; lines 56-60: fork-head against base-repo compare; line 147: range-diff | rebase_pr_branch.py (rebase, abort on conflict); check_pr_head_repo.py (reject a fork head) | none | verdict: no; activation: yes | P0 | History rewrite plus a force push with zero scripts. Decision 3 item 8 bars a script from the force push. |
 | G-066 | `negotiation` | reference | analysis only | none | none | none | verdict: no; activation: no | P3 | Knowledge skill. |
-| G-067 | `observability` | reference | lines 110-145: read-only log queries | none | none | none | verdict: no; activation: no | P3 | Both scripts exist. |
+| G-067 | `observability` | reference | lines 110-145: read-only log queries | none | none | none | verdict: no; activation: no | P3 | Scripts exist. |
 | G-068 | `orphan-ref-validator` | reference | lines 43-60: read-only scan; writes a baseline file | line 47: argument placement rule in prose | none | none | verdict: no; activation: no | P3 | The scan script exists. |
 | G-069 | `panning-for-gold` | reference | lines 49-56: writes under scratch; line 53 `--force` overwrites a file | none | none | none | verdict: no; activation: no | P3 | The scan's history-rewrite hit is false. |
 | G-070 | `pipeline-validator` | driver | line 318: `git push`; line 231: `az pipelines run`; lines 355-361, 440: `az repos pr update` | lines 92-124: repo, branch, and PR detection; lines 132-138: MUST NOT flag list; lines 236-248: poll loop; lines 272-279: timeline parse | detect_pipeline_context.py (repo, branch, PR lookup); run_pipeline.py (trigger and poll to a result); update_pr_description.py (edit the PR body) | none | verdict: no; activation: no | P0 | Azure DevOps and git writes with no scripts. Polling and a flag guard live in prose. |
 | G-071 | `plan` | reference | lines 60-135: spec to plan file | none | none | no Bash | verdict: no; activation: yes | P3 | Judgment skill. |
 | G-072 | `planner` | reference | lines 22-24, 152-158: local script calls; no push | lines 152, 201, 267: bare `python3 scripts/planner.py` calls with no locator | none | none | verdict: no; activation: no | P2 | Script-stepped already, but the calls skip the locator. |
-| G-073 | `pr-autofix` | driver | lines 895-896: merge and push; lines 925-926: force push with lease; line 906: thread reply; line 694: merge script | lines 161-690: one 529-line annotated bash program; lines 80-150: transport preflight; lines 916-936: force-push lease rules | preflight_transport.py (pick the transport); run_pr_pass.py (live gate, tier, disarm, round cap); update_branch_from_base.py (fetch, merge, push base) | bare `Bash` | verdict: no; activation: yes | P0 | 1165 lines and 84 KB. It mutates PRs and pushes. The safety order lives in prose. |
+| G-073 | `pr-autofix` | driver | lines 895-896: merge and push; lines 925-926: force push with lease; line 906: thread reply; line 694: merge script | lines 161-690: one 529-line annotated bash program; lines 80-150: transport preflight; lines 916-936: force-push lease rules | preflight_transport.py (pick the transport); run_pr_pass.py (live gate, tier, disarm, round cap); update_branch_from_base.py (fetch, merge, push base) | bare `Bash` | verdict: no; activation: yes | P0 | The longest template. It mutates PRs and pushes. The safety order lives in prose. |
 | G-074 | `pr-babysit` | driver | line 146: update, push, wait again; lines 143-144: merge when the user asked | lines 135-136: branch update by script or local merge; lines 178-181: exit code to action table | none | none | verdict: no; activation: yes | P2 | Already a script-driven watcher. Push and merge stay prose but are rare. |
-| G-075 | `pr-comment-responder` | driver | lines 76-77: push fix, post reply, resolve thread | lines 96-110: PR number and repo taken from the prompt; lines 126-152: processing order tables; lines 168-177: domain-first loop | order_threads.py (domain then reviewer priority); infer_pr_context.py (PR and repo from prompt or git) | none | verdict: no; activation: yes | P1 | Two scripts exist. Ordering and context inference are prose. |
+| G-075 | `pr-comment-responder` | driver | lines 76-77: push fix, post reply, resolve thread | lines 96-110: PR number and repo taken from the prompt; lines 126-152: processing order tables; lines 168-177: domain-first loop | order_threads.py (domain then reviewer priority); infer_pr_context.py (PR and repo from prompt or git) | none | verdict: no; activation: yes | P1 | Scripts exist. Ordering and context inference are prose. |
 | G-076 | `pr-quality` | reference | lines 71-90: git read commands; a local gate | lines 71-82: base ref check by regex, then two git calls, then a SHA carried by hand | resolve_base_sha.py (validate base, print the merge-base SHA) | five scoped read-only `Bash(git ...)` entries | verdict: no; activation: yes | P1 | A regex check and a two-step git call are prose. |
 | G-077 | `pr-review` | driver | line 220: push per worktree; line 234: thread reply and resolve; lines 194-195: worktree add | lines 109-143 and 243-277: two 17-line bash resolver functions pasted twice; line 183: settle rerun | resolve_pr_paths.py (scripts dir and config); create_pr_worktree.py (add a PR worktree); push_pr_worktrees.py (push each worktree) | `Bash(git:*)`, `Bash(gh:*)`, `Bash(python3:*)`, `Bash(pwsh:*)` | verdict: no; activation: yes | P0 | Broad grants, mutating, duplicated shell resolvers, trust gate in prose. |
 | G-078 | `pre-mortem` | reference | lines 250-281: validates a file | line 291: the model re-checks a triad the script passes too easily | none | none | verdict: no; activation: no | P2 | Prose patches a weak script gate. |
 | G-079 | `programming-advisor` | reference | lines 194-208: commands are shown to the user, not run | lines 182-186: package manager detected by file presence | detect_project_context.py (package manager and framework) | none | verdict: no; activation: no | P2 | Manifest detection has one right answer. |
 | G-080 | `prompt-engineer` | reference | no commands | none | none | none | verdict: no; activation: no | P3 | Judgment content. |
 | G-081 | `prose-self-check` | reference | lines 177-258: local lint scripts | none | none | none | verdict: no; activation: yes | P3 | Scripts own the checks. |
-| G-082 | `push-pr` | driver | line 109: "Push the branch to origin"; lines 110-121: create the PR with `new_pr.py` | line 47: branch name chosen from the change type; lines 54-62: body file allocated, path copied by hand; lines 77-90: preflight call and its rejections; line 91: description check with exit 1 against exit 2 handling; line 109: push with no script | publish_pr.py (check, push, create in one call); create_branch.py (name and create the branch) | `Bash(git push:*)` plus five more git grants and scoped script paths | verdict: no; activation: yes | P0 | High traffic. The push at step 6 has no script, and `Bash(git push:*)` also allows force flags. |
+| G-082 | `push-pr` | driver | line 109: "Push the branch to origin"; lines 110-121: create the PR with `new_pr.py` | line 47: branch name chosen from the change type; lines 54-62: body file allocated, path copied by hand; lines 77-90: preflight call and its rejections; line 91: description check with exit 1 against exit 2 handling; line 109: push with no script | publish_pr.py (check, push, create in one call); create_branch.py (name and create the branch) | `Bash(git push:*)` plus seven more git grants and scoped script paths | verdict: no; activation: yes | P0 | High traffic. The push at step 6 has no script, and `Bash(git push:*)` also allows force flags. |
 | G-083 | `quality-grades` | reference | lines 36-52: writes a report file | lines 129-131: exit code check in prose | none | none | verdict: no; activation: no | P3 | Scripts exist. |
 | G-084 | `reflect` | reference | lines 67-94: local memory write | none | none | none | verdict: no; activation: no | P3 | Judgment skill. |
 | G-085 | `repository-completion-proof` | reference | lines 52-56, 108-112: runs a completion gate; thread work is delegated | lines 52-56, 108-112: env binding blocks; lines 100-104: three consecutive zero readings | run_completion_proof.py (verify config, merged check, gate, settle) | none | verdict: no; activation: yes | P2 | Gate side effects UNVERIFIED. Two pasted blocks and a settle rule are script candidates. |
@@ -237,14 +254,14 @@ The P2 and P3 rows need no rewrite thread. A P2 row is a candidate when its skil
 | G-087 | `repository-pr-recovery` | reference | lines 50-52, 66-68: diagnosis scripts | lines 46-52: three variables set by hand across blocks | none | none | verdict: no; activation: yes | P2 | Diagnosis only. |
 | G-088 | `requirements-interview` | reference | lines 87-89, 114-117: local audit script | none | none | bare `Bash` | verdict: no; activation: yes | P2 | The grant is wider than its two script calls need. |
 | G-089 | `research` | driver | lines 156-161: files an issue after the user confirms | lines 112-127: claim ledger run twice with flag sets; lines 160-162: issue arguments assembled by hand; line 224: no-retry rule | run_claim_gate.py (check draft, copy, recheck); file_issue.py (confirm, create, parse the issue number) | two directory-wildcard script grants | verdict: no; activation: yes | P1 | The external write is conditional. Script wildcards and a retry rule live in prose. |
-| G-090 | `retrospective` | reference | lines 198, 220: says it does not file issues | none | none | none | verdict: no; activation: yes | P3 | Four scripts own the work. |
+| G-090 | `retrospective` | reference | lines 198, 220: says it does not file issues | none | none | none | verdict: no; activation: yes | P3 | Scripts own the work. |
 | G-091 | `review` | reference | lines 172-192: writes a local empty marker commit; no push or external write | line 32: base branch detection; lines 66-80: candidate-path lookup for scripts; lines 174-192: marker commit built from prose | write_review_marker.py (build the SHA-bound marker commit); resolve_review_paths.py (locate chained skill scripts) | `Bash(*)` | verdict: no; activation: yes | P1 | `Bash(*)` on a reference skill. Marker assembly is a fixed step that gates `ship`. |
 | G-092 | `reviewer-findings` | reference | lines 82-140: git grep and log only verify claims | lines 82-100: needle and path files keep untrusted text out of the shell; lines 123-130: flag guard on `git grep` | verify_finding_claim.py (check a finding claim at a commit) | none | verdict: no; activation: yes | P1 | Injection guards live as prose around command flags. |
 | G-093 | `security-detection` | reference | lines 55-61: read-only usage | none | none | none | verdict: no; activation: yes | P3 | Already scripted. |
 | G-094 | `security-review` | reference | no shell; knowledge only | none | none | none | verdict: no; activation: no | P3 | Analysis guidance. |
 | G-095 | `security-scan` | reference | lines 92-119: read-only scanner calls | none | none | none | verdict: no; activation: yes | P3 | Variants of one call. |
-| G-096 | `ship` | driver | line 158: runs `push-pr` to push and open a PR; line 161: `az repos pr create` after a push | lines 52-64: host detection shell; lines 76-78: PR lookup that tells "no PR" from a failed query by stderr text; lines 82-85: owner or contributor mode; lines 100-131: Azure DevOps policy loop with TSV parsing; lines 96, 163: checks rerun on exit 7; lines 137-145: marker validator resolution and exit codes; line 161: PR creation arguments by hand; line 165: a 30 minute wait loop | detect_ship_context.py (host, mode, PR state); check_pipeline_gate.py (CI gate with deferral); evaluate_ado_policies.py (build policy verdict); wait_ado_policies.py (poll until policies settle); create_ado_pr.py (open the Azure DevOps PR); verify_review_marker.py (validate marker, report axes) | `Bash(*)` | verdict: yes; activation: yes | P0 | The front door for every release. 24,401 rendered bytes, no scripts directory, and `Bash(*)`. |
-| G-097 | `skill-bootstrap` | reference | lines 176-229: writes files in the tree only | lines 176-190: hand-built arguments; lines 227-229: flags appended by hand | none | none | verdict: no; activation: yes | P2 | Twenty scripts exist. Argument assembly across phases is the gap. |
+| G-096 | `ship` | driver | line 158: runs `push-pr` to push and open a PR; line 161: `az repos pr create` after a push | lines 52-64: host detection shell; lines 76-78: PR lookup that tells "no PR" from a failed query by stderr text; lines 82-85: owner or contributor mode; lines 100-131: Azure DevOps policy loop with TSV parsing; lines 96, 163: checks rerun on exit 7; lines 137-145: marker validator resolution and exit codes; line 161: PR creation arguments by hand; line 165: a 30 minute wait loop | detect_ship_context.py (host, mode, PR state); check_pipeline_gate.py (CI gate with deferral); evaluate_ado_policies.py (build policy verdict); wait_ado_policies.py (poll until policies settle); create_ado_pr.py (open the Azure DevOps PR); verify_review_marker.py (validate marker, report axes) | `Bash(*)` | verdict: yes; activation: yes | P0 | The front door for every release. No scripts directory, and `Bash(*)`. |
+| G-097 | `skill-bootstrap` | reference | lines 176-229: writes files in the tree only | lines 176-190: hand-built arguments; lines 227-229: flags appended by hand | none | none | verdict: no; activation: yes | P2 | Scripts exist. Argument assembly across phases is the gap. |
 | G-098 | `skill-doctor` | reference | line 136: writes only to a scratch directory | lines 47-50: root check; lines 105-107: repo detection; lines 141-155: collector arguments; line 213: a mean computed by hand | resolve_run_context.py (set root, repo, scratch dir) | none | verdict: no; activation: yes | P2 | Setup and aggregate steps are hand work. |
 | G-099 | `skillforge` | reference | lines 295-312: validators and packager write local files | lines 295-312: six validators and a packager pasted as one block | run_skill_checks.py (run all skill validators once) | none | verdict: no; activation: yes | P2 | Scripts exist. The run order is prose. |
 | G-100 | `skillify` | reference | no shell blocks | none | none | none | verdict: no; activation: yes | P3 | Already gated by a script. |
@@ -257,8 +274,8 @@ The P2 and P3 rows need no rewrite thread. A P2 row is a candidate when its skil
 | G-107 | `steering-matcher` | reference | line 55: read-only matcher | none | none | none | verdict: no; activation: no | P3 | Scripted. |
 | G-108 | `stuck-detection` | reference | lines 207-221: local history only | none | none | none | verdict: no; activation: no | P3 | Scripted. The script sits at the skill root, not in `scripts/`. |
 | G-109 | `style-enforcement` | reference | lines 34-43: read-only checker | none | none | none | verdict: no; activation: no | P3 | Scripted. |
-| G-110 | `sync` | reference | lines 64, 71: read-only drift detector | none | none | one script grant ending in `*` | verdict: no; activation: yes | P3 | The grant's trailing wildcard conflicts with decision 3 item 7. |
-| G-111 | `takeover` | driver | lines 65-70: push to the branch, file a replacement PR, merge or close the original when authorized | lines 45-47: import commits; lines 49-56: credit trailers from git log; line 60: update against base; line 69: follow checks and answer threads | import_commits.py (copy contributor commits to a branch); build_credit_trailers.py (derive verified co-author trailers) | none | verdict: no; activation: yes | P0 | Push, merge, and close authority. The whole lifecycle is prose with no scripts. |
+| G-110 | `sync` | reference | lines 64, 71: read-only drift detector | none | none | one script grant ending in `*` | verdict: no; activation: yes | P3 | The grant's trailing wildcard would conflict with decision 3 item 7 if the skill became a driver. |
+| G-111 | `takeover` | driver | lines 65-71: push to the branch, file a replacement PR, merge or close the original when authorized | lines 45-47: import commits; lines 49-56: credit trailers from git log; line 60: update against base; line 69: follow checks and answer threads | import_commits.py (copy contributor commits to a branch); build_credit_trailers.py (derive verified co-author trailers) | none | verdict: no; activation: yes | P0 | Push, merge, and close authority. The whole lifecycle is prose with no scripts. |
 | G-112 | `taste-lints` | reference | lines 93-112: read-only scanner | line 98: uses a base variable this skill never sets | none | none | verdict: no; activation: no | P3 | Scripted. |
 | G-113 | `technical-writing` | reference | no shell | none | none | none | verdict: no; activation: yes | P3 | Guidance. |
 | G-114 | `test` | reference | lines 71, 142, 157: no push, merge, or external write | lines 71-78: base branch, changed files, then a file-type table by hand; line 142: hand arguments | classify_changed_files.py (map a diff to test gates) | `Bash(*)` | verdict: no; activation: yes | P1 | `Bash(*)` on a reference skill. The classification table has one right answer. |
