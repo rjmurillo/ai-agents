@@ -1,7 +1,7 @@
 ---
 type: requirement
 id: REQ-050
-title: Receipts, an annotate-only Stop check of claims in the final reply
+title: Receipts, a Stop check of claims in the final reply against tool results
 status: draft
 priority: P2
 category: functional
@@ -11,15 +11,16 @@ related:
   - ADR-084
   - "#5817"
   - "#7631"
+  - "#7633"
 ---
 
-# REQ-050: Receipts, an annotate-only Stop check of claims in the final reply
+# REQ-050: Receipts, a Stop check of claims in the final reply against tool results
 
 This file is durable. It lands in git history. It holds counts and paths only, no transcript text.
 
 ## Step 0 First Principles
 
-Answers come from the owner's choices on 2026-11-23 and 2026-11-25, plus the spike measurements in draft PR #7631.
+Answers come from the owner's decisions D1 to D7 on 2026-11-25, plus the spike measurements in draft PR #7631.
 
 Gate result on 2026-11-25: `tests/commands/step0_parser.py` returns H3 on Q1. Q3 passes the specificity test and Q5 passes the speculative test.
 H3 fires because the parser counts a requester only in the form `<Name> on the <Team> team`. The gate policy accepts one named requester on the evidence path (issue #6990).
@@ -27,7 +28,7 @@ REQ-048 and REQ-049 return H3 for the same single-owner answer. Q1 is left as wr
 
 ### Q1
 
-Richard Murillo (repository owner) requested it. On 2026-11-23 he asked for a spike on whether a receipt checker core earns a Phase 1 port. On 2026-11-25 he accepted the round 4 verdict and asked for the port. Single requester, so Q1 passes on the evidence path: specific Q3 plus evidenced Q5.
+Richard Murillo (repository owner) requested it. On 2026-11-23 he asked for a spike on whether a receipt checker earns a Phase 1 port. On 2026-11-25 he accepted the verdict and asked for our own design: "take the idea, customize it. They built a chair. I want a better chair." Single requester, so Q1 passes on the evidence path: specific Q3 plus evidenced Q5.
 
 ### Q2
 
@@ -39,161 +40,200 @@ Today the owner reads each final reply and checks its claims by hand. Step by st
 
 The `evidence-provenance` skill and the voice rule's "Clear the gate or drop the claim" section tell the agent not to overclaim. Nothing checks the reply after it is written.
 
-Reframing: capability invention, check: on a fresh blind sample, the shipped hook's visible stamps keep proven precision at or above 0.90 and the miss rate at or below 0.25.
+Reframing: capability invention, check: on a fresh blind sample, proven precision is at least 0.93 and the miss rate is at most 0.20, the spike's round 4 numbers.
 
 ### Q3
 
-Richard Murillo, reading final replies in Claude Code sessions on `rjmurillo/ai-agents`. He is blocked on trusting completion claims without rereading tool output. The hand check in `.project-toolkit/prototypes/nocap-spike/REPORT.md` (PR #7631) found a reply that said "19 pass" when the cited `gh pr checks` output showed 18.
+Richard Murillo, reading final replies in Claude Code and Copilot CLI sessions on `rjmurillo/ai-agents`. He is blocked on trusting completion claims without rereading tool output. The hand check in `.project-toolkit/prototypes/nocap-spike/REPORT.md` (PR #7631) found a reply that said "19 pass" when the cited `gh pr checks` output showed 18.
 
 ### Q4
 
-The smallest deliverable is the Stop hook alone. It runs the spike's round 4 core over the transcript and prints proven and contradicted stamps as one advisory message. Estimate: 16 hours for a human team, about 1 hour AI-assisted. The `receipts` skill, which shows every stamp on demand, adds 8 hours.
+The smallest deliverable is the Claude Code Stop hook with the tests, ci, and sha kinds. It prints proven and contradicted stamps as one advisory message. Estimate: 40 hours for a human team, about 4 hours AI-assisted. The owner chose the full kind set, the Copilot path, and the `receipts` skill in one release. That totals 120 hours for a human team, about 3 days AI-assisted.
 
 ### Q5
 
-Spike round 4 on 2026-11-25 (`REPORT.md` in draft PR #7631): of 60 unstamped completion replies, 12 carried an unsupported claim, a miss rate of 0.20. In round 1, 56 of 146 stamps were NO RECEIPT, a rate of 0.384. Each is a claim the owner checks by hand today.
+Spike round 4 on 2026-11-25 (`REPORT.md` in draft PR #7631): of 60 unstamped completion replies, 12 carried an unsupported claim, a miss rate of 0.20. In round 1, 56 of 146 stamps were NO RECEIPT, a rate of 0.384. Each is a claim the owner checks by hand today. Round 1 also found 12 of 40 proven stamps citing a call that did not prove the claim.
 
 ### Q6
 
-At 10x more sessions, the per-reply cost is fixed: p95 0.40 s per transcript, with no network or model call. Longer transcripts are the risk. The three largest in the pool, up to 36 MB, took up to 3.5 s. A byte and time budget keeps the hook inside the shared 15 s Stop timeout. A 10x larger claim vocabulary would make the vendored core's regex set the liability. The upstream ReDoS suite runs in tests to hold that.
+At 10x more sessions, the per-reply cost is fixed: the spike measured p95 0.40 s per transcript, with no network or model call. Longer transcripts are the risk. The three largest in the spike pool, up to 36 MB, took up to 3.5 s. A byte and time budget keeps the hook inside the shared 15 s Stop timeout. A 10x larger claim vocabulary makes regex backtracking the liability, so every pattern is bounded and a ReDoS test covers each one.
 
 ## Prior Art / Constraints
 
 ### Direct prior art from memory
 
-- REQ-048 and issue #5817 (`src/claude/hooks/Stop/invoke_reflect_nudge.py`): an advisory, fail-open Stop hook. It reads `transcript_path`, prints a `systemMessage`, never blocks, and exits 0 on every path. Relevance: the same event, output channel, and failure policy. Decision: honor. Receipts copies its registration shape, its `--advisory` launcher flag, and its off switch.
-- `dispatch_groups.json` group `plugin-stop-1-reflect_nudge`: Copilot-excluded under ADR-084 rule 2a, because Copilot has no documented advisory Stop output field or `transcript_path`. Relevance: the same gap applies to receipts. Decision: honor, pending the owner's decision in Open questions.
-- `.serena/memories/decision-claude-hook-group-dispatch.md`: Copilot Stop hooks cannot share a plain observe dispatcher, because decision objects concatenate into invalid JSON. Relevance: the Copilot exclusion avoids this. Decision: honor.
-- `src/claude/lib/failure_classifier/transcript.py`: a shipped mapper from Claude Code records to tool events. Relevance: it covers the same record shapes as the spike adapter. Decision: adapt. The port reuses its record-shape knowledge and the reflect nudge's bounded read, not a second reader.
-- `src/claude/lib/failure_classifier/classifier.py` cites an Apache-2.0 paper with "no code copied". `invoke_reflect_nudge.py` adapts fixed phrases from claude-mem. Relevance: no shipped file yet carries third-party code verbatim. Decision: propose-amend. Vendoring needs an owner decision and, likely, an ADR.
-- chestertons-fence: not run as a separate skill. The change only adds files. It removes and rewrites nothing, so there is no fence to examine. Recommendation: PRESERVE every existing Stop hook unchanged.
+- Draft PR #7631, the spike: an upstream Apache-2.0 checker measured on this repo's sessions. Relevance: it sets the claim kinds, the verdict model, and the eval method. Decision: adapt the idea only. No upstream code is copied (owner decision D3).
+- REQ-048 and issue #5817 (`src/claude/hooks/Stop/invoke_reflect_nudge.py`): an advisory, fail-open Stop hook. It reads `transcript_path`, prints a `systemMessage`, and exits 0 on every path. Relevance: the same event, output channel, and failure policy on Claude Code. Decision: honor. Receipts copies its registration shape, `--advisory` flag, and off switch.
+- `dispatch_groups.json` group `plugin-stop-1-reflect_nudge`: Copilot-excluded under ADR-084 rule 2a, because Copilot had no documented advisory Stop output or `transcript_path`. Relevance: receipts ships to Copilot, so it does not take that exclusion. Decision: adapt. The probe below covers `transcript_path`, and the Copilot output is a block decision (owner decision D6).
+- `.serena/memories/decision-claude-hook-group-dispatch.md`: Copilot Stop hooks cannot share a plain observe dispatcher, because two decision objects concatenate into invalid JSON. Decision: honor. The Copilot receipts hook is its own direct registration.
+- `src/claude/lib/failure_classifier/transcript.py`: a shipped mapper from Claude Code records to tool events. Decision: adapt. Receipts reuses its record-shape knowledge and the reflect nudge's bounded read.
+- chestertons-fence: not run as a separate skill. The change only adds files and one registration per harness. Recommendation: PRESERVE every existing Stop hook unchanged.
+
+### Copilot CLI probe (2026-11-25)
+
+- Tool: GitHub Copilot CLI 1.0.116 installed. A live probe in a scratch repo fired `sessionEnd` only, because the account returned "exceeded your monthly quota" before any model turn.
+- The `sessionEnd` payload keys were `cwd`, `reason`, `sessionId`, and `timestamp`.
+- Logged `hook.start` inputs in `~/.copilot/session-state/*/events.jsonl` held 2,115 `agentStop` runs, from Copilot 1.0.79 to 1.0.105. Keys: `cwd`, `sessionId`, `stopReason`, `stop_hook_active`, `timestamp`, and `transcriptPath`.
+- `transcriptPath` pointed at that session's own `events.jsonl` in 1,258 runs and was empty in 857. Every empty one came from a 1.0.79 build. From 1.0.87 to 1.0.105, all 404 runs carried it.
+- `events.jsonl` records the receipts inputs: `assistant.message` (content, `toolRequests`), `tool.execution_start` (`toolName`, `arguments`), and `tool.execution_complete` (`success`, `shellExecution.exitCode`, `result.content`).
+- Logged `agentStop` outputs were empty (2,066) or `decision` plus `reason` (49). No logged output used any other field. The official sidecar documents only `decision` and `reason`. An advisory display field is DOCS SILENT and untested.
 
 ### Connected context from prior-art search
 
 - Connected entity: `reflect-nudge`, Stop hook. Adjudication: in-scope. Note: it shares the 15 s Stop budget, and receipts must leave it headroom.
-- Connected entity: `evidence-provenance`, skill. Adjudication: out-of-scope. Note: it guides how the agent writes claims. Receipts checks them afterwards. It changes neither.
-- Connected entity: `failure-classifier`, lib. Adjudication: blast-radius. Note: sharing its transcript mapper couples the two hooks. A record-shape change would then touch both.
+- Connected entity: `evidence-provenance`, skill. Adjudication: out-of-scope. Note: it guides how the agent writes claims. Receipts checks them afterwards.
+- Connected entity: `failure-classifier`, lib. Adjudication: blast-radius. Note: sharing its transcript mapper couples the two hooks.
+- Connected entity: `agent-harness-reference`, skill. Adjudication: in-scope. Note: its sidecar gains the probed `agentStop` payload row.
 - Search depth: medium, matched to Tier 3.
 
 ### Coverage notes
 
 - Topic `receipts`: 3 variants (`receipt`, `claim check|verif|overclaim`, `stop hook|systemMessage|advisory stop`) over `.serena/memories`. Results: 0, 1, and 5 files. The one claim hit is about a CI gate, not this feature. Confidence: high.
-- Topic `vendored-third-party-code`: 2 variants over memories and ADRs. Results: 0 memory files, and 6 ADRs that mention vendoring but not shipped third-party source. Confidence: low, because only 2 variants ran.
+- Topic `copilot-agentstop-payload`: the official sidecar, the probe sidecar, and a live probe. Result: payload keys measured from logged runs, display field untested. Confidence: medium.
 - Hindsight MCP was unavailable (connection closed), so only repository memory files were searched.
 - Blast-radius count: 1, under the human-mode threshold of 2. No halt.
 
 ## Problem statement
 
-Final replies carry claims that a tool result should prove. The owner checks them by hand, and the spike measured 12 of 60 completion replies carrying an unsupported claim.
+Final replies carry claims that a tool result should prove. The owner checks them by hand. The spike measured 12 of 60 completion replies carrying an unsupported claim, and 12 of 40 proven stamps citing the wrong call.
 
 ## User stories
 
-1. As the owner, when a turn ends, I see one short line per checked claim. It says whether a tool result proves it or contradicts it, and which call is the receipt.
-2. As the owner, when a reply has no checkable claim, I see nothing.
-3. As the owner, I can run `/receipts` to see every stamp for the last reply, including claims with no receipt.
-4. As the owner, I can turn the hook off with one environment variable.
+1. As the owner in Claude Code, when a turn ends, I see one short line per checked claim. It says whether a tool result proves it or contradicts it, and which call is the receipt.
+2. As the owner in Copilot CLI, when a reply states a claim a tool result contradicts, the agent takes one more turn and corrects the reply.
+3. As the owner, when a reply has no checkable claim, I see nothing and the turn ends normally.
+4. As the owner, I can run `/receipts` to see every stamp for the last reply, including claims with no receipt.
+5. As the owner, I can turn the hook off with one environment variable.
+
+## Design goals: the better chair
+
+The spike found where the upstream design fails on this repo's sessions. Each goal below is a requirement, not a tuning knob.
+
+1. **Receipts come from output, never from the agent's words.** A SHA, count, or URL counts as evidence only when it appears in tool output. The agent's own command text, PR body, or arguments never prove a claim. The spike traced 9 of 12 wrong citations to this.
+2. **A stamp cites the call that proves the claim kind.** A merge claim cites merge output, not a `git fetch`. A count cites the run that printed the count.
+3. **CI checks are their own kind.** "115 checks passed" is checked against check-run output, not test output. This caused 14 spike stamps and the one missed contradiction.
+4. **Freshness counts only real edits to the tested tree.** Reads, `git merge-tree`, quoted `>` in strings, temp-file redirects, and writes outside the repo are not edits.
+5. **Repo scripts are first-class evidence.** JSON envelopes from the `github` skill scripts (`get_pr_checks.py`, `merge_pr.py`, `get_pull_requests.py`) parse like `gh` output.
+6. **One verdict engine, two transcript readers.** Claude Code JSONL and Copilot `events.jsonl` map to the same evidence model.
+7. **Bounded by construction.** Every pattern is linear-time on long input, and the hook stops at a deadline.
 
 ## Ontology
 
-- **Reply**: the main-thread assistant text after the last tool call of a turn. A turn opens at each main-thread user text record.
-- **Claim**: a checkable statement in a reply. Kinds: tests, ci, sha, number, merged, pushed, pr, file, and other kinds the core supports.
-- **Evidence**: one record per tool call: name, arguments, output, exit status, and call index.
+- **Reply**: the main-thread assistant text after the last tool call of a turn. A turn opens at each main-thread user message.
+- **Claim**: a checkable statement in a reply. Kinds: `tests`, `ci`, `build`, `sha`, `committed`, `pushed`, `merged`, `pr_opened`, `deployed`, `url`, `file`, `number`.
+- **Evidence**: one record per completed tool call: tool name, arguments, output text, exit status, success flag, and call index.
 - **Ledger**: the session's evidence, carried across turns.
-- **Stamp**: the verdict on one claim. Values: `proven` (a cited call proves it), `contradicted` (a call disproves it), `no receipt` (nothing proves or disproves it). These labels replace the upstream marks.
+- **Tamper**: a change that makes a failing suite pass without fixing it: a skip marker added, a failing test deleted, or a deselect of the failing test.
+- **Stamp**: the verdict on one claim. Values: `proven`, `contradicted`, and `no receipt`. These labels are this repository's own.
 - **Receipt**: the call a stamp cites, by index, tool name, and a short reason.
 - Decision rule: freshness is by call order, not timestamp.
-- Bounded contexts: the core (claims, evidence, verdict, tamper), the adapter (transcript to core calls), and the hook (budget, output).
+- Bounded contexts: claim finding, evidence building, judging, and the harness readers and outputs.
 
 ## Data model
 
-- `Turn(index, calls, reply, delegated)`: identity is the turn index in one transcript. Invariant: `reply` is non-empty for a judged turn.
-- `ToolCall(name, args, ts, result_text, is_error, has_result)`: identity is the tool-use id. Invariant: a call with no result is not evidence.
-- `Stamp(kind, claim_text, verdict, cite, why)`: identity is `(turn, claim span)`. `verdict` is one of the three labels above.
-- Lifecycle: built in memory per Stop event, printed, and discarded. Nothing persists.
+- `Turn(index, calls, reply)`: identity is the turn index in one transcript. Invariant: `reply` is non-empty for a judged turn.
+- `ToolCall(call_id, name, args, output, exit_code, success)`: identity is the harness tool-call id. Invariant: a call with no completion record is not evidence.
+- `Claim(kind, text, span, values)`: identity is `(turn, span)`. `values` holds the parsed counts, SHAs, URLs, paths, or refs.
+- `Stamp(claim, verdict, receipt, why)`: `verdict` is one of the three labels. Invariant: `proven` and `contradicted` always carry a receipt.
+- Lifecycle: built in memory per Stop event, emitted, and discarded. Nothing persists.
 
 ## Integrations
 
-- **Claude Code Stop event**: payload `session_id`, `transcript_path`, and `cwd`. Failure: a missing or unreadable path. Behavior: print nothing and exit 0.
-- **Transcript JSONL**: read once, bounded by bytes and lines. Failure: a malformed line. Behavior: skip it.
-- **Hook dispatcher** (`invoke_dispatch_claude.py`): runs the shim in an advisory Stop group. Idempotent: the same transcript gives the same stamps.
-- **GitHub Copilot CLI**: excluded, as the reflect nudge is. See Open questions.
+- **Claude Code Stop event**: payload `session_id`, `transcript_path`, and `cwd`. Output: one `systemMessage`. Failure: a missing or unreadable path prints nothing and exits 0.
+- **Copilot CLI agentStop event**: payload `sessionId`, `transcriptPath`, `stop_hook_active`, and `cwd`. Output: `{"decision": "block", "reason": ...}` only when a claim is contradicted and `stop_hook_active` is false. Failure: an empty path, a missing file, or a parse error prints nothing and exits 0.
+- **Transcript files**: read once, bounded by bytes and lines. Malformed lines are skipped.
+- **Hook dispatcher** (`invoke_dispatch_claude.py`): runs the Claude shim in an advisory Stop group. The Copilot hook is a direct registration.
+- Idempotent: the same transcript gives the same stamps.
 
 ## Failure modes
 
-- Budget overrun on a large transcript: stop reading at the byte or time cap, print nothing, and log one stderr line. Early warning: stderr shows a budget stop.
-- A regex backtracks on adversarial input: the vendored ReDoS suite runs in CI. Prevention: patterns stay bounded.
-- A false contradicted stamp erodes trust: the spike saw 0 in 678 runs. Early warning: a user report or eval regression. Prevention: hold the eval baseline in tests.
-- A false proven stamp: 7 of 100 in round 4. Accepted limit, shown in the skill page.
-- Transcript schema change: unknown record types are ignored. A changed tool_result shape yields no stamps, which fails safe.
-- Overlapping Stop events: the hook is stateless, so both print the same stamps.
+- Budget overrun on a large transcript: stop at the byte or time cap, emit nothing, and log one stderr line.
+- Regex backtracking on adversarial input: every pattern has a ReDoS test at 100 KB input.
+- A false contradicted stamp on Copilot costs one wasted turn. `stop_hook_active` caps it at one per stop. The release gate requires zero false contradictions on the eval corpus.
+- A false proven stamp misleads the owner. The release gate requires proven precision of at least 0.93.
+- Transcript schema change: unknown record types are ignored. A changed result shape yields no stamps, which fails safe.
+- Copilot block loop: a second stop in the same chain sees `stop_hook_active` true and passes.
+- Overlapping Stop events: the hook is stateless, so both emit the same stamps.
 
 ## Security
 
 - No authentication, secrets, or network. Input is the local transcript the harness wrote.
-- Trust boundary: transcript text is untrusted data. The hook parses it with bounded regexes and never executes it.
-- PII: output repeats short claim text from the reply into the session only. Nothing is written to disk.
-- Supply chain: the vendored core is pinned to upstream commit `a683c857` with every change listed. It is stdlib only.
-- Abuse case: a crafted reply causes catastrophic backtracking. Mitigation: bounded patterns, the ReDoS suite, and the hook time budget.
+- Trust boundary: transcript text is untrusted data. It is parsed with bounded patterns and never executed.
+- Prompt injection: on Copilot, the block reason is model-visible. The reason holds only fixed template text, the claim kind, the call index, and the tool name. It never echoes reply or tool-output text.
+- PII: the Claude message repeats at most 80 characters of claim text per stamp, to the session only. Nothing is written to disk.
+- Abuse case: a crafted reply causes catastrophic backtracking. Mitigation: bounded patterns, ReDoS tests, and the hook deadline.
 
 ## Observability
 
-- What proves it works: the eval fixture reproduces the spike's stamp set exactly, and the timing test stays under budget.
+- What proves it works: the labeled eval fixtures reproduce their expected stamps exactly, and the timing test stays under budget.
 - Runtime signal: one stderr line on every skip path (off, no transcript, budget, error), as the reflect nudge does.
-- No metrics or alerts, because the hook is local and advisory.
+- No metrics or alerts, because the hook is local.
 
 ## Acceptance criteria
 
-- [ ] AC-1: WHEN a Claude Code Stop event fires with a readable `transcript_path` and the final reply holds a claim stamped `proven` or `contradicted`, the receipts hook SHALL print one `systemMessage` that lists each such stamp with its receipt.
-- [ ] AC-2: The receipts hook SHALL NOT emit `decision: "block"` and SHALL exit 0 on every path.
-- [ ] AC-3: IF the transcript is missing, unreadable, or over the byte cap, THEN the hook SHALL print nothing to stdout and one line to stderr naming the reason.
-- [ ] AC-4: The hook SHALL stop work at an internal deadline of 5 s, so the shared 15 s Stop group keeps at least 10 s for the reflect nudge.
-- [ ] AC-5: WHEN the final reply has no stamp other than `no receipt`, the hook SHALL print nothing to stdout.
-- [ ] AC-6: WHILE `AI_AGENTS_RECEIPTS` is `0` or `off`, the hook SHALL exit 0 before reading any file.
-- [ ] AC-7: WHEN the user invokes the `receipts` skill, its script SHALL print every stamp for the last reply, including `no receipt`, with kind, verdict, cited call index and tool name, and reason.
-- [ ] AC-8: WHERE the skill script gets `--turn N`, it SHALL print stamps for turn N, and SHALL exit 2 when N is out of range.
-- [ ] AC-9: The shipped core SHALL carry upstream's `LICENSE` and `NOTICE` text and a provenance file naming commit `a683c857`. Each modified file SHALL carry a one-line modification notice.
-- [ ] AC-10: No shipped file name, skill name, output label, or doc page SHALL use the upstream product name or its verdict marks.
-- [ ] AC-11: Every module the hook and skill script import SHALL be the standard library or this plugin's own modules.
-- [ ] AC-12: A test SHALL replay the spike's labeled fixtures through the shipped core and match the spike's stamps exactly.
-- [ ] AC-13: A test SHALL run the upstream synthetic battery through the shipped core and pass 125 of 125 cases.
-- [ ] AC-14: A timing test SHALL show the hook finishing a 4 MB transcript in under 2 s.
-- [ ] AC-15: The hook SHALL NOT write transcript text, claim text, or stamps to any file.
-- [ ] AC-16: `docs/skills/receipts.md` SHALL exist with the sibling section order, and `docs/skills/README.md` SHALL list it.
+- [ ] AC-1: WHEN a Claude Code Stop event fires with a readable `transcript_path` and the final reply holds a `proven` or `contradicted` stamp, the receipts hook SHALL print one `systemMessage` that lists each such stamp with its receipt.
+- [ ] AC-2: On Claude Code, the receipts hook SHALL NOT emit `decision: "block"` and SHALL exit 0 on every path.
+- [ ] AC-3: WHEN a Copilot CLI `agentStop` event fires with `stop_hook_active` false and the final reply holds a `contradicted` stamp, the hook SHALL print one `{"decision": "block", "reason": ...}` object naming each contradicted claim's kind, call index, and tool name.
+- [ ] AC-4: WHILE `stop_hook_active` is true, or WHEN no stamp is `contradicted`, the Copilot hook SHALL print nothing to stdout.
+- [ ] AC-5: The Copilot block reason SHALL contain no text copied from the reply or from tool output.
+- [ ] AC-6: IF the transcript path is empty, missing, unreadable, or over the byte cap, THEN the hook SHALL print nothing to stdout, write one stderr line naming the reason, and exit 0.
+- [ ] AC-7: The hook SHALL stop work at an internal deadline of 5 s, so the shared 15 s Stop group keeps at least 10 s for the reflect nudge.
+- [ ] AC-8: WHEN the final reply has no stamp other than `no receipt`, the Claude hook SHALL print nothing to stdout.
+- [ ] AC-9: WHILE `AI_AGENTS_RECEIPTS` is `0` or `off`, the hook SHALL exit 0 before reading any file.
+- [ ] AC-10: The claim finder SHALL recognize the 12 kinds in the Ontology, each covered by positive, negative, and edge tests.
+- [ ] AC-11: Evidence for `sha`, `number`, and `url` claims SHALL come only from tool output. A test SHALL show that a value present only in a call's arguments gives `no receipt`.
+- [ ] AC-12: A `proven` or `contradicted` stamp SHALL cite a call whose tool and output match the claim kind. A test SHALL show that a `git fetch` never proves a `merged` claim.
+- [ ] AC-13: A check-count claim SHALL be judged as `ci` against check-run output from `gh pr checks` or `get_pr_checks.py`.
+- [ ] AC-14: Freshness SHALL count only edits inside the repository at `cwd`. Tests SHALL show that `git merge-tree`, a quoted `>` inside a string, a temp-file redirect, and a write outside the repo are not edits.
+- [ ] AC-15: Tamper detection SHALL stamp a passing-tests claim `contradicted` after a failing run followed by an added skip marker, a deleted failing test, or a deselect of it.
+- [ ] AC-16: WHEN the user invokes the `receipts` skill, its script SHALL print every stamp for the last reply, including `no receipt`, with kind, verdict, receipt, and reason. It SHALL read both transcript formats.
+- [ ] AC-17: WHERE the skill script gets `--turn N`, it SHALL print stamps for turn N, and SHALL exit 2 when N is out of range.
+- [ ] AC-18: No shipped file name, skill name, output label, or doc page SHALL use the upstream product name or its verdict marks. No upstream source code SHALL be copied.
+- [ ] AC-19: Every module the hooks and the skill script import SHALL be the standard library or this plugin's own modules.
+- [ ] AC-20: A ReDoS test SHALL run every claim and evidence pattern against 100 KB adversarial input and finish each in under 1 s.
+- [ ] AC-21: A timing test SHALL show the hook finishing a 4 MB transcript in under 2 s.
+- [ ] AC-22: The hook SHALL NOT write transcript text, claim text, or stamps to any file.
+- [ ] AC-23: A labeled eval set built from the spike's hand-checked replies SHALL run in tests and report proven precision, contradicted precision, and miss rate.
+- [ ] AC-24: Before release, a fresh blind sample using the spike's `sample_blind.py` method SHALL show proven precision of at least 0.93, a miss rate of at most 0.20, and zero false contradicted stamps.
+- [ ] AC-25: `docs/skills/receipts.md` SHALL exist with the sibling section order, and `docs/skills/README.md` SHALL list it.
+- [ ] AC-26: The `agent-harness-reference` sidecar SHALL record the probed `agentStop` payload keys with tool versions and the DOCS SILENT display field.
 
 ## Out of scope
 
-- Blocking mode, or any change to how a turn ends.
-- GitHub Copilot CLI and Codex support.
-- Fixing the three known round 4 defects: missing content verbs, test-description stamps, and SHAs under `"head":` keys.
+- Blocking on Claude Code, or any change to how a Claude turn ends.
+- Codex and other harnesses.
+- Non-English claims. The spike corpus is English. Upstream's Chinese, Thai, and Spanish support waits for a corpus to measure it.
 - Any change to the reflect nudge, the dispatcher, or `evidence-provenance`.
 
 ## Deferred
 
 - Eval expansion to standard suites such as SWE-rebench. Owner: Richard Murillo. Trigger: after this ships.
-- A second independent labeler for the precision and miss samples. Owner: Richard Murillo.
-- The three known defects above. Owner: next receipts change.
+- A second independent labeler for the release sample. Owner: Richard Murillo.
+- A live Copilot probe of advisory display fields, once quota returns. Owner: receipts maintainer.
 
 ## Open questions
 
-1. Vendoring upstream source into the shipped plugin is a first for `src/claude/`. Does it need an ADR before the build? Owner: Richard Murillo.
-2. Does receipts take the reflect nudge's Copilot exclusion, with a new authorizing issue? Owner: Richard Murillo.
-3. Which issue tracks this work? None exists yet. Owner: Richard Murillo.
+None. D3 to D7 settled vendoring, Copilot behavior, the tracking issue (#7633), and the kind set on 2026-11-25.
 
 ## CVA summary
 
-- Common: every Stop advisory reads the transcript under a budget, prints one `systemMessage`, and fails open.
-- Varies: the signal. The reflect nudge scores human corrections. Receipts judges reply claims against tool output.
-- Relationship: both hooks share the Stop group budget and the transcript record shapes. Neither depends on the other's output.
+- Common: every claim kind follows the same flow: find the claim, select evidence of the matching kind, judge it, and cite the receipt. Both harnesses share that engine.
+- Varies: the claim pattern and evidence parser per kind, the transcript reader per harness, and the output per harness (advisory message or block decision).
+- Relationship: the reader feeds the ledger, and the ledger feeds the judge. The output layer is the only harness-specific step after reading.
 
 ## Buy-vs-build decision
 
-- Classification: context, not core. The repository's value is its agents and gates, not claim parsing.
-- Alternatives: (a) depend on the upstream package at install time; (b) vendor the pinned core; (c) write a new checker.
-- Recommendation: partner, by vendoring (b). Option (a) breaks the stdlib-only plugin contract and adds an install step. Option (c) discards a core that met upstream's published claims on this repo's sessions.
-- Rationale: the spike measured the vendored core at 0.93 proven precision and a 0.20 miss rate. Upstream is Apache-2.0, the same license as this plugin.
+- Classification: core. Checking claims against tool output is a capability the owner wants to shape beyond upstream.
+- Alternatives: (a) depend on the upstream package; (b) vendor the pinned upstream core; (c) build our own from the idea and the spike's findings.
+- Recommendation: build (c). The owner ruled out (b): "I don't want to effectively fork" it. Option (a) breaks the stdlib-only plugin contract and keeps every defect the spike found.
+- Rationale: the spike showed the idea works on this repo's sessions, at 0.93 proven precision after fixes. It also named five design defects that a fresh design fixes from the start. Credit for the idea goes to the upstream project in the skill page.
 
 ## Complexity classification
 
-- Engineering tier: 3. One new hook, one new skill, one vendored lib, and tests, inside the existing Stop dispatch.
+- Engineering tier: 4. A new claim engine with 12 kinds, two harness readers, two outputs, a skill, and an eval set.
 - Problem domain: Complicated. The behavior is measured, and the remaining risk is analyzable.
-- Methodology: build in slices. Core and parity tests first, then the hook, then the skill and docs.
+- Methodology: build in slices. Engine and eval first, then the Claude hook, the Copilot hook, and the skill and docs.
+
+## ADR cross-reference
+
+No ADR. Shipping to Copilot reverses no ADR-084 exclusion, because receipts never had one. The build records the probed contract in the harness reference instead. Whether a hook that blocks on Copilot needs an ADR is left to the owner at review.
