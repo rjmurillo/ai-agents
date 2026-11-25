@@ -48,14 +48,14 @@ class TestCommonEdges:
     def test_long_stop_detail_spills_lines_that_fit_the_budget(self, scripts, tmp_path):
         common = scripts[0]
         result = common.Result("t.py", frozenset({"x-failed"}))
-        for index in range(30):
+        for index in range(40):
             result.add("ITEM", f"{index:02d}" + "y" * 1000)
         result.stop("x-failed", 1, "z" * 2500)
         text = common.render(result, "human", tmp_path)
         lines = text.splitlines()
         assert len(text.encode("utf-8")) <= common.MAX_BYTES
         assert any(line.startswith("DETAIL_FILE: ") for line in lines)
-        assert lines[-1] == "STOP: x-failed " + "z" * 2500
+        assert lines[-1] == "STOP: x-failed " + "z" * (common.MAX_DETAIL_CHARS - 3) + "..."
 
     @pytest.mark.parametrize("output_format", ["json", "human"])
     def test_non_ascii_and_quote_heavy_output_stays_under_the_cap(

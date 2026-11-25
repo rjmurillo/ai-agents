@@ -35,6 +35,9 @@ KEY_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
 TOKEN_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 MAX_LINES = 60
 MAX_BYTES = 32000
+# A STOP detail is one line of evidence, never a log. JSON prints it twice
+# (Data.STOP and Error.Message), so it is capped well under MAX_BYTES / 2.
+MAX_DETAIL_CHARS = 500
 # Room kept under the byte cap for the DETAIL_FILE and terminal lines.
 _TAIL_RESERVE = 1024
 
@@ -64,6 +67,7 @@ _REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$")
 ALLOWED_URL_SCHEMES = frozenset({"https", "ssh"})
 _URL_HOST_RE = re.compile(r"^([A-Za-z][A-Za-z0-9+.-]*)://(?:[^/@]*@)?\[?([^/:\]\s]+)")
 _SCP_HOST_RE = re.compile(r"^(?:[^@/:\s]+@)?([^/:\s]+):(?![/:])\S")
+_PLAIN_HOST_RE = re.compile(r"^[a-z0-9][a-z0-9.-]+$")
 _ADO_HOSTS = frozenset({"dev.azure.com", "ssh.dev.azure.com"})
 
 
@@ -149,6 +153,8 @@ class Result:
         if code not in _STOP_CODES:
             raise ValueError(f"STOP needs an exit code 1 to 4, got {code}")
         text = clean(detail)
+        if len(text) > MAX_DETAIL_CHARS:
+            text = text[: MAX_DETAIL_CHARS - 3] + "..."
         self._set_terminal(("STOP", f"{reason} {text}".rstrip()), code)
         return self
 
@@ -366,16 +372,23 @@ def remote_host(url: str) -> str | None:
         match = _URL_HOST_RE.match(url)
         if match is None or match.group(1).lower() not in ALLOWED_URL_SCHEMES:
             return None
-        return match.group(2).lower()
+        return _plain_host(match.group(2).lower())
     if url.startswith(("/", ".", "~")):
         return None
     match = _SCP_HOST_RE.match(url)
     if match is None:
         return None
-    host = match.group(1).lower()
-    # A host is at least two characters and never starts with "-": that
-    # refuses a Windows drive path (C:\\repo) and an ssh option (-oX=y:z).
-    if len(host) < 2 or host.startswith("-"):
+    return _plain_host(match.group(1).lower())
+
+
+def _plain_host(host: str) -> str | None:
+    """Return ``host`` when it is a plain DNS-style name, else None.
+
+    A host is at least two characters, starts with a letter or digit, and
+    holds only letters, digits, dots, and dashes. That refuses a Windows
+    drive path (C:\\repo), an ssh option (-oX=y:z), and a bracket literal.
+    """
+    if _PLAIN_HOST_RE.match(host) is None:
         return None
     return host
 

@@ -70,14 +70,17 @@ Runs the checks that have one right answer.
 | Flag | Prints |
 |---|---|
 | `--check tree` | `CHECK: tree=clean` or `tree=dirty` |
-| `--check reviewed` | `CHECK: reviewed=PASS axes=<list>` or `FAIL` |
-| `--check pipeline` | `CHECK: pipeline=PASS`, `FAIL`, or `DEFERRED` |
+| `--check reviewed` | `CHECK: reviewed=PASS axes=<list>`, `FAIL`, `SKIPPED` (draft), or `ADVISORY` (contributor) |
+| `--check pipeline` | `CHECK: pipeline=PASS`, `FAIL`, `PENDING`, or `DEFERRED` |
 
 - `pipeline` on GitHub wraps `get_pr_checks.py`. It keeps today's rules.
   PASS needs exit 0, `RequiredState == SUCCESS`, and `AllPassing == true`.
 - `pipeline` on ADO moves today's bash policy block into Python.
   Each blocking build policy must be approved on the current merge commit.
-- `pipeline` with `PR: none` prints `DEFERRED` and `NEXT: discharge after publish`.
+- `pipeline` with `PR: none` prints `DEFERRED` and `NEXT: publish-then-discharge`.
+- `pipeline` reads checks only when the PR head branch and SHA match the local branch and HEAD.
+  A stale head is `DEFERRED` before publish and `PENDING` after it.
+- `PENDING` ends on `NEXT: rerun-pipeline` with a `PIPELINE_DEADLINE:` line. Past the 30-minute deadline it is `FAIL`.
 - `reviewed` wraps the existing review-marker validator. It does not reimplement it.
 
 Security scan and tests stay as model-run steps. They need judgment on findings.
@@ -103,7 +106,7 @@ Owns everything `/push-pr` did after the body is written.
 - It reruns `check` and stops on any failure before the push.
 - GitHub create calls `new_pr.py` as today.
 - ADO create builds a fixed argument list and runs it without a shell.
-  Only `--title`, `--description @<checked body file>`, and `--target-branch` are passed.
+  Only `--output json`, `--title`, `--description @<checked body file>`, `--target-branch`, and `--draft true|false` are passed.
 - After an ADO create, it reads the JSON `description`.
   If it starts with `@`, it prints `STOP: description-upload-failed`, exit 3.
   The PR is left open for the user to decide.

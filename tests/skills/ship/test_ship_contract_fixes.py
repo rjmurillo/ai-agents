@@ -38,6 +38,10 @@ class TestRemoteSchemes:
             "C:\\repo",
             "c:/repo",
             "-oProxyCommand=x:y",
+            "https://-h/x",
+            "ssh://-oProxyCommand=x/y",
+            "https://[::1]/x",
+            "@h:p",
         ],
     )
     def test_disallowed_remote_forms_have_no_host(self, scripts, url):
@@ -146,3 +150,42 @@ class TestPathsNotRun:
         assert code == 0
         assert "CHECK: paths=PASS" in lines
         assert "CHECK: paths=CHECKED-BY-HAND" not in lines
+
+
+class TestStopDetailCap:
+    @pytest.mark.parametrize("output_format", ["human", "json"])
+    @pytest.mark.parametrize("script", ["ship_detect.py", "ship_preflight.py", "ship_pr.py"])
+    def test_oversized_argument_keeps_stdout_under_the_cap(
+        self, make_repo, fakes, script, output_format
+    ):
+        repo = make_repo(GITHUB)
+        done = subprocess.run(
+            [
+                sys.executable,
+                "-I",
+                str(SCRIPTS / script),
+                "--output-format",
+                output_format,
+                "--bogus",
+                "x" * 50000,
+            ],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        assert done.returncode == 2
+        assert len(done.stdout.encode("utf-8")) <= 32000
+
+    def test_oversized_stderr_detail_is_truncated(self, make_repo, fakes, scripts, capsys):
+        make_repo(GITHUB)
+        fakes.rule("gh", ["pr", "view"], {"rc": 1, "stderr": "HTTP 502 " + "y" * 50000 + "\n"})
+        code = scripts[1].main(["--output-format", "json"])
+        out = capsys.readouterr().out
+        envelope = json.loads(out)
+        assert code == 3
+        assert len(out.encode("utf-8")) <= 32000
+        assert envelope["Data"]["STOP"].endswith("...")
+        assert len(envelope["Error"]["Message"]) <= 520
