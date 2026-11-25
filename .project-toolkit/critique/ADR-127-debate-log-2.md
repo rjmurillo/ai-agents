@@ -70,11 +70,11 @@ Carried forward from the first log: four dissents and no unresolved P0.
 | Agent | Position | Notes |
 |---|---|---|
 | architect | Accept | Note: "decision 1 says must be one" is a judgment call until the audit assigns shapes. |
-| critic | Disagree-and-Commit | Carried dissent 1 from the first log. Round 1 dissent cleared. |
+| critic | Disagree-and-Commit | Carries standing dissent 1 below. Round 1 dissent cleared. |
 | independent-thinker | Accept | Round 1 dissent closed. Note: ADR-057's MUST is weakly enforced for the excluded case. |
 | security | Accept | Round 1 dissent dropped. Two open recommendations below. |
-| analyst | Disagree-and-Commit | Carried dissent 3 from the first log. |
-| high-level-advisor | Disagree-and-Commit | Carried dissent 4 from the first log. |
+| analyst | Disagree-and-Commit | Carries standing dissent 2 below. |
+| high-level-advisor | Disagree-and-Commit | Carries standing dissent 3 below. |
 
 ## Dissent standing after both debates
 
@@ -98,3 +98,4 @@ The independent-thinker's dissent on the floor of 8 closed when the ADR labeled 
 1. Write the gap audit. It sizes the rollout.
 2. Put the three open `ship` decisions and the standing dissents to the owner.
 3. Run the `ship` and `push-pr` pilot.
+4. Land the decision 9 check with the ADR-057 amendment before a second gated change merges.

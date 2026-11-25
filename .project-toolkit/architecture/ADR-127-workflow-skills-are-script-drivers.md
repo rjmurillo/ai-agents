@@ -10,7 +10,7 @@ implemented: false
 review-by: 2027-05-25
 ---
 
-# ADR-127: Workflow Skills Are Script Drivers, and Evals Gate Every Skill Rewrite
+# ADR-127: Workflow Skills Are Script Drivers, and Evals Gate Skill Rewrites
 
 ## Context
 
@@ -33,7 +33,7 @@ The evidence, and its limits:
 - gstack found that a prose driver alone did not hold its call budget.
   Its conductors made 121 to 308 calls against a driver that planned 9 to 12.
   gstack then moved each phase's commands into one program call.
-  The source is `lib/ship-phase.ts:2-3` in gstack at `ec5d7e6fbd` (2026-11-25).
+  The source is the header comment of gstack's `ship-phase` module at `ec5d7e6fbd` (2026-11-25). Audit rule A3 cites the lines.
   The gstack files read for this record give no count from after that change.
 - This repository has not measured its own call counts. Decision 12 requires that measurement.
 
@@ -400,6 +400,6 @@ Each named record still holds for a driver skill.
 
 - `.project-toolkit/specs/SPEC-skill-driver-shape.md`
 - `.project-toolkit/analysis/gstack-skill-shape-audit-2026-11-25.md`
-- `.project-toolkit/critique/ADR-127-debate-log.md` and `.project-toolkit/critique/ADR-127-debate-log-2.md`
+- `.project-toolkit/critique/ADR-127-debate-log.md`, `ADR-127-debate-log-2.md`, and `ADR-127-debate-log-3.md` in the same directory
 - `scripts/eval/eval-prompt-change.py`
 - gstack, `github.com/garrytan/gstack` at `ec5d7e6fbd` (2026-11-25): `ship/DRIVER.md`, `lib/ship-phase.ts`, `test/ship-driver.test.ts`

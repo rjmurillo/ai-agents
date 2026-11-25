@@ -158,7 +158,7 @@ These bind today.
 | [ADR-122](ADR-122-scoped-parser-dependency-admission.md) | Admit the C# Parser Dependencies Without Hiding Their Coupling | 2026-11-22 | Add one fixed `csharpParserDependencyAdmission` record to `.qualityrc.json`. |
 | [ADR-123](ADR-123-skill-artifact-flow-declarations.md) | Skills Declare the Artifacts They Read and Write | 2026-11-19 | `metadata.outputs` and `metadata.inputs` become mappings keyed by artifact name. |
 | [ADR-125](ADR-125-exact-code-quality-review-approvals.md) | Require Exact Approval of Code-Quality Review Findings | 2026-11-24 | Keep the assessor's scores, output, configuration, and exit behavior. |
-| [ADR-127](ADR-127-workflow-skills-are-script-drivers.md) | Workflow Skills Are Script Drivers, and Evals Gate Every Skill Rewrite | 2026-11-25 | A skill declares `metadata.shape` as `driver` or `reference`. |
+| [ADR-127](ADR-127-workflow-skills-are-script-drivers.md) | Workflow Skills Are Script Drivers, and Evals Gate Skill Rewrites | 2026-11-25 | A skill declares `metadata.shape` as `driver` or `reference`. |
 
 ## Proposed
 
