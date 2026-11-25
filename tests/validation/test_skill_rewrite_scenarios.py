@@ -41,6 +41,15 @@ class TestRunnerShapes:
             runner_accepts = False
         assert (scenarios.scenario_rows(path.read_bytes()) is not None) == runner_accepts
 
+    @pytest.mark.parametrize("corpus", [[], [{"id": "S1"}]])
+    def test_documented_divergence_from_the_runner(self, tmp_path: Path, corpus: Any) -> None:
+        """The runner rejects these; the check reads them and leaves floors to the results."""
+        path = tmp_path / "s.json"
+        path.write_text(json.dumps(corpus), encoding="utf-8")
+        with pytest.raises(RuntimeError):
+            RUNNER.load_scenarios(str(path))
+        assert scenarios.scenario_rows(path.read_bytes()) == corpus
+
     def test_top_level_array_yields_its_rows(self) -> None:
         assert scenarios.scenario_rows(json.dumps(ROWS).encode()) == ROWS
 

@@ -191,6 +191,16 @@ class TestScenarioFile:
         assert code == 1
         assert f"{SCEN} repeats scenario ids ['S1']" in out
 
+    def test_ids_that_differ_only_in_case_are_distinct(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        rows = json.loads(scenario_doc())["scenarios"]
+        rows[0]["id"], rows[1]["id"] = "S1", "s1"
+        write(repo, SCEN, json.dumps({"scenarios": rows}))
+        commit(repo, "case-distinct ids")
+        code, out = run_gated(repo, capsys, evidence=False)
+        assert "repeats scenario ids" not in out
+
     def test_ids_that_collide_after_str_are_duplicates(
         self, repo: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
