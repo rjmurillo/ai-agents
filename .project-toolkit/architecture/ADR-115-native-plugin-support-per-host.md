@@ -139,6 +139,7 @@ In priority order:
      - Staged with the pinned guard, delivery and authoring rate `caution` with no `high` finding beyond main's, and the other four rate `safe`. Four of main's `high` findings are not yet in `FORCE_ALLOWED_FINDINGS`.
      - Migration: one implementation pull request makes every move. Each Hermes user removes and reinstalls each existing pack once, then installs `git` and `azure-devops` if needed. Removing first avoids a `--force` replace, which would accept new `caution` findings without a prompt.
      - The implementation pull request carries a six-pack `RUN_CLI_E2E=1` smoke run in its body, because the smoke is the only runtime check of the pack boundary.
+     - The implementation pull request meets all eight criteria in the analysis section "Implementation pull request: acceptance criteria". Two are named here so they bind: a build check that fails when a pack script joins a path into another skill in code (or an accepted-risk record if it does not land), and a build check that fails when no Hermes pack holds `ship` or `push-pr`.
    - The build fails when any of these hold:
      - a shipped skill is in no pack and not excluded, or is in two;
      - a pack, counting `lib/`, exceeds `packMaxFiles` or 10 MB;

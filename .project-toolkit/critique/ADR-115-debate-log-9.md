@@ -54,4 +54,17 @@ Votes: architect D&C, critic Block, independent-thinker D&C, security D&C, analy
 
 ## Round 2
 
-Recorded below after the convergence vote.
+Votes: architect Accept, critic Accept, independent-thinker Disagree-and-Commit, security Accept, analyst Accept, high-level-advisor Accept. No P0 or P1 open.
+
+Outcome: consensus in round 2, five Accept and one Disagree-and-Commit.
+
+Dissent recorded (independent-thinker): the pinned guard runs in no build or CI job. A reintroduced `critical` line in delivery would block the whole base pack, and only a manual smoke run would catch it. The ADR names the risk in a Negative bullet. The independent-thinker also notes that deleting the CWE-22 section, which `security-scan` says it does not scan, was not weighed against moving it.
+
+## After consensus
+
+Applied 2026-11-25. These are the fixes two seats asked for; no rule changed, so no further round ran.
+
+- Architect and high-level-advisor (P2): acceptance criteria lived only in the analysis. Decision 6 now points to them and names criteria 7 and 8 so they bind.
+- Security (P2, for the implementation PR): the install guide's reviewed list must be updated (criteria 2 and 6) before users follow the remove-then-install steps.
+
+Status stays `proposed`. The owner decides the layout under Decision 6.
