@@ -19,19 +19,19 @@ Group the Hermes packs by the job a user hires them for. Ship six packs:
 
 The rule a user can predict: always install delivery. Add `git` or `azure-devops` for those jobs. Add `knowledge`, `quality`, or `authoring` for theirs.
 
-Hermes opens a PR through `ship`, once the ADR-127 `ship` pilot merges. `ship`, `review`, `security-scan`, `pr-quality`, and `security-detection` return to Hermes. Two one-line rewordings in `security-scan` make that possible. `push-pr` stays on Hermes until that `ship` ships there.
+Hermes opens a PR through `ship`, once the ADR-127 `ship` pilot rewires `ship` to open the PR itself. `ship`, `review`, `security-scan`, `pr-quality`, and `security-detection` return to Hermes. Two one-line rewordings in `security-scan` make that possible. `push-pr` stays on Hermes until that `ship` ships there.
 
 ## Preconditions and order
 
 The layout depends on the pilot `ship`, not main's.
 
 - On main at `71ab5b15b3` (2026-11-25), `ship` hands PR creation to `push-pr` (`src/claude/skills/ship/SKILL.md:4` and `:159`). It has 4 files and no `scripts/`.
-- On the pilot branch at `3a619dabd6` (2026-11-25), `ship` opens the PR itself through `github`'s `new_pr.py`. It has 8 files.
+- On the pilot branch at `3a619dabd6` (2026-11-25), `ship` adds `ship_pr.py`, which can open the PR through `github`'s `new_pr.py`. It has 8 files. Its `SKILL.md` still hands off to `/push-pr` (lines 31 and 159), so the pilot must also rewire the skill text.
 - Every count below uses the pilot `ship`.
 
 Required order:
 
-1. The `ship` pilot merges (#7581).
+1. The `ship` pilot merges (#7581) with `SKILL.md` calling `ship_pr.py`, not `/push-pr`.
 2. The implementation pull request for this layout merges.
 3. The `push-pr` retirement (#7587) merges, with or after step 2.
 
@@ -45,7 +45,7 @@ The brief said delivery holds 400 files. That count is from `d41431afe6` (2026-1
 - PR #7542 landed the quality split after the brief's count. Delivery is not at the cap today.
 - PR #7628 (head `f450839777`, 2026-11-25) predates that split. Its cap reason no longer holds. GitHub reports it `CONFLICTING`, so it needs a rebase.
 
-The cap still matters. Restoring the PR-opening chain adds 60 files. ADR-127 driver scripts add 31 more to delivery's skills.
+The cap still matters. Restoring the PR-opening chain adds 56 files (pilot `ship`, `review`, `security-scan`, `pr-quality`, `security-detection`; 2026-11-25). ADR-127 driver scripts add 31 more to delivery's skills.
 
 ## Constraints the layout must obey
 
@@ -211,6 +211,7 @@ After the edits above, no path crosses a pack. These name-level calls cross pack
 - `build` (delivery) calls `pre-mortem` and `analysis-provenance` (knowledge).
 - `spec-generator` (knowledge) calls `doc-accuracy` and `golden-principles` (delivery), and `slo-designer` and `threat-modeling` (quality).
 - `adr-generator` (knowledge) calls `doc-accuracy` (delivery).
+- `spec-generator` (knowledge) also calls `adr-review` and `cva-analysis`, which stay excluded. On Hermes those two steps have no skill, as today on every host without them.
 - `takeover` and `modernize` (git) hand off to `github`, `pr-autofix`, `pr-comment-responder`, and `push-pr` (delivery) by name.
 - `retrospective` (knowledge) runs `context-optimizer`'s `distill_artifact.py` (authoring), as today.
 
@@ -259,7 +260,7 @@ The build check cannot see paths joined in code, and the smoke is the only runti
 
 ## Rejected alternatives
 
-1. **One delivery pack for every GitHub job, `git` folded in.** It lands at 398 of 400 after P0 and P1 with the five-skill `git` set inside (2026-11-25). The next driver script breaks it.
+1. **Fold `git` into delivery.** Delivery lands at 384 of 400 after P0 and P1, 16 free (2026-11-25). That is under the 20-free split trigger on day one. It saves one pack and one install. It is a real owner option (open question 1).
 2. **Option C: an `azure-devops` pack plus a pack for five P0 skills.** The second pack cannot build. `pr-review` and `pr-autofix` run `github` scripts by path, so they cannot leave `github`'s pack.
 3. **A build pack split from a review-and-ship pack.** Most jobs then need both packs, and `review` reaches its axes only when both are installed. It also leaves eight path edges to cut.
 4. **A five-skill `git` pack.** The first draft put `merge-resolver` and `maintainer-review` in `git`. Both serve J3 (a PR's conflicts, a PR's fate), so a user looks for them beside `pr-review`. Keeping them in delivery costs 10 files of room.
@@ -280,7 +281,7 @@ Recorded for the owner. None is fixed here.
 
 ## Open questions for the owner
 
-1. Approve the six-pack layout, or take the least-change fallback (alternative 5: today's table plus `azure-devops`, delivery at 390 of 400).
+1. Approve the six-pack layout. Or fold `git` into delivery (five packs, delivery at 384 of 400). Or take the least-change fallback (alternative 5: today's table plus `azure-devops`, delivery at 390 of 400).
 2. Approve rewording two `security-scan` lines on every host, or keep `ship` off Hermes.
 3. Lift the no-shipped-edit constraint for this change. You set it for D10 and D11, and ADR-115 says a later change may reword. This layout edits about a dozen shipped files (the prerequisite table). The same lift would allow rewording `skillforge`'s finding, which could rate authoring `safe`.
 4. Close PR #7628 into the implementation pull request (one reinstall), or land it first (two).

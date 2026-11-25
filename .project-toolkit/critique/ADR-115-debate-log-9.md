@@ -68,3 +68,13 @@ Applied 2026-11-25. These are the fixes two seats asked for; no rule changed, so
 - Security (P2, for the implementation PR): the install guide's reviewed list must be updated (criteria 2 and 6) before users follow the remove-then-install steps.
 
 Status stays `proposed`. The owner decides the layout under Decision 6.
+
+## Factual corrections after consensus
+
+Applied 2026-11-25 from a final check. Facts only; no rule or layout changed, so no further round ran.
+
+- The fold-in alternative was priced from an early layout (398). With the three-skill `git` pack folded in, delivery projects to 384 of 400 (16 free). The analysis now offers the fold-in as an owner option.
+- The pilot adds `ship_pr.py` but changes no `SKILL.md`; pilot `ship/SKILL.md:31,159` still hand off to `/push-pr`. The precondition now says the pilot must rewire `ship` before this layout lands.
+- The restored chain is 56 files, not 60.
+- `spec-generator` calls `adr-review` and `cva-analysis` by name; both stay excluded, now stated.
+- The ADR frontmatter `date` stays 2026-11-24, so the generated index `.project-toolkit/architecture/README.md` does not change. PR #7629 edits that file.

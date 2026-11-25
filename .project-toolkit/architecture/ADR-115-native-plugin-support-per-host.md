@@ -1,7 +1,7 @@
 ---
 id: ADR-115
 status: proposed
-date: 2026-11-25
+date: 2026-11-24
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -130,7 +130,7 @@ In priority order:
      - `quality`: harden a system and get a second model's opinion. It gains `benchmark-models`.
      - `authoring`: write skills, prompts, and docs. It gains `prompt-engineer`, `technical-writing`, `fix-markdown-fences`, and `api-doc-authoring`.
      - Still excluded: `skill-doctor`, `adr-review`, `cva-analysis`, `memory-search`, `memory-maintenance`, `planner`, `memory-gate`, and `memory-reflexion`.
-     - Precondition: the layout uses the ADR-127 pilot `ship` (#7581, branch at `3a619dabd6`, 2026-11-25). Main's `ship` still hands PR creation to `push-pr`. So the pilot merges first, then this layout, then the `push-pr` retirement (#7587). Until then `push-pr` stays in delivery.
+     - Precondition: the layout uses the ADR-127 pilot `ship` (#7581, branch at `3a619dabd6`, 2026-11-25). Main's `ship` still hands PR creation to `push-pr`, and at that pilot head `ship/SKILL.md` still does too (lines 31 and 159). So the pilot rewires `ship` to call `ship_pr.py` and merges first, then this layout, then the `push-pr` retirement (#7587). Until then `push-pr` stays in delivery.
      - Why one base pack holds build, review, ship, and the PR skills: the pilot `ship` runs `github`'s `new_pr.py` and `review`'s marker validator through paths joined in code, which `find_references` cannot see. Seven shipped skills run `github` scripts by path. So `ship`, `review`, `github`, and the PR skills share a pack.
      - Hermes opens a PR through `ship`. With the pinned guard, `security-scan` rates `dangerous` from `references/vulnerability-patterns.md:23` and `caution` from `SKILL.md:180`. Both are documentation lines. Rewording them, with their meaning kept, rates it `safe` and clears the exclusion closure over `review`, `ship`, `pr-quality`, `security-detection`, and `spec-generator`. The verdict holds for the pinned guard only. Rewording to clear the guard applies only to prose that does not run, with each line recorded here.
      - Cross-pack reads become name references. Nine files in `review`, `spec-generator`, and `api-doc-authoring` name another pack's skill path. Each line names the skill and file instead, which Hermes reads with `skill_view(name, file_path)` at the pinned commit. After those edits, no path crosses a pack. Without `knowledge` and `quality`, `review` runs without those reading lists.
@@ -202,7 +202,7 @@ In priority order:
 - **Moving a smaller knowledge group into quality (amended 2026-11-19).** `business-strategy` and `decision-critic`, 30 skill files with no `high` finding, would keep three packs and quality `safe`. Knowledge would keep 43 free files and stay `caution`, so the next shared `lib/` growth reopens this question soon. The owner chose a fourth pack (D11).
 - **Rewording the two `skillforge` lines, then moving the group into quality (amended 2026-11-19).** The guard would then rate quality `safe` with three packs. It edits shipped skill files, which this change rules out; the owner set that constraint for D10 and D11. A later change may still reword them.
 - **A smaller third pack (amended 2026-11-19).** Moving 17 review and quality skills, `dx-review` and `quality-grades` among them, leaves delivery at 351 files. `/test` calls both skills, so delivery-only users would lose part of `/test`, and delivery keeps 48 free files.
-- **One delivery pack for every GitHub job (proposed amendment 2026-11-25).** With `takeover`, `modernize`, and `git-advanced-workflows` inside, it projects to 398 of 400 files after P0 and P1, so the next driver script breaks it.
+- **Folding `git` into delivery (proposed amendment 2026-11-25).** Delivery projects to 384 of 400 files after P0 and P1 (16 free, 2026-11-25), under the 20-free split trigger on day one. It saves one pack and one install, so the owner may still choose it.
 - **A pack for five P0 skills beside `azure-devops` (proposed amendment 2026-11-25).** `pr-review` and `pr-autofix` run `github` scripts by path, so that pack cannot build without `github`.
 - **A build pack split from a review-and-ship pack (proposed amendment 2026-11-25).** Most jobs then need both packs, and `review` reaches its axes only when both are installed.
 - **Least change: today's table, plus `azure-devops`, plus the chain restored (proposed amendment 2026-11-25).** It also moves `codeql-scan` and `golden-principles` into delivery, which then projects to 390 of 400 files. It is the owner's fallback option.

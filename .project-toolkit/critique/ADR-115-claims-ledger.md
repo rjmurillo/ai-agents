@@ -16,7 +16,7 @@ Scope: the proposed Decision 6 amendment of 2026-11-25 (issue #7591). Base `71ab
 | C10 | Nine files name another pack's skill path under the layout (round 2 layout) | count | `find_references` under the proposed table, every hit per edge grepped | VERIFIED: `review` 6 files, `spec-generator` 1 (lines 3, 158, 275-280), `api-doc-authoring` 2 (template line 127, `example-verification.md:79`). `merge-resolver` stays in delivery, so its docstrings no longer cross. |
 | C11 | Projected counts: delivery 372, git 70, azure-devops 68, knowledge 268, quality 125, authoring 253 | count | `skill_files` minus `excludedFiles`, plus 58, plus one file per script named in `skill-gap-audit-2026-11-25.md` for P0 and P1 | VERIFIED as arithmetic; growth is a projection |
 | C12 | Staged delivery and authoring rate `caution` with no new `high`; other four `safe` | behavior | Pinned guard on staged copies. Delivery highs match the 13 on main; 2 extra hits came from `test/references/rule-testing.md`, an `excludedFiles` entry the staging kept. | VERIFIED |
-| C13 | One delivery pack for every GitHub job (git folded in) projects to 398 | count | Same method, 41-skill delivery table | VERIFIED |
+| C13 | Folding the three-skill `git` pack into delivery projects to 384 (16 free) | count | Same method, 41-skill delivery table | VERIFIED |
 | C14 | `pr-review` and `pr-autofix` run `github` scripts by path | path | `find_references`: `pr-review/SKILL.md` and `pr-autofix/SKILL.md` match `skills/github/scripts` | VERIFIED |
 | C15 | Least change (today's table, plus `azure-devops`, chain restored, `codeql-scan` and `golden-principles` moved) projects delivery to 390 | count | Same method on today's table plus 5 restored skills | VERIFIED |
 | C16 | The layout moves 13 skills and restores 7 | count | Moves: 3 to git (`takeover`, `modernize`, `git-advanced-workflows`), 2 to azure-devops, `benchmark-models`, `codeql-scan`, `golden-principles`, `style-enforcement`, `technical-writing`, `fix-markdown-fences`, `api-doc-authoring`, `prompt-engineer`. Restores: `ship`, `review`, `security-scan`, `pr-quality`, `security-detection`, `spec-generator`, `stuck-detection` | VERIFIED |
@@ -37,3 +37,9 @@ N1: C5 by-path users are seven skills; with `ship` through code, eight. The ADR 
 - C18: main's `ship` hands PR creation to `push-pr`. `src/claude/skills/ship/SKILL.md:4` and `:159`. VERIFIED. The layout therefore depends on the pilot merging first.
 - C19: 4 `high` findings on main are not in `FORCE_ALLOWED_FINDINGS`: `code-qualities-assessment/references/calibration-examples.md:228,242,249` and `skill-bootstrap/scripts/adr_reason.py:184`. Pinned guard output compared with the security seat's count of 10 delivery and 1 authoring entries. VERIFIED.
 - C20: `scan_bash_heredoc.py:62-63` names `su`, `sudo -i`, `runuser`, `chroot` as readers that may run a here-doc body. VERIFIED by read.
+
+## Post-consensus corrections (2026-11-25)
+
+- C13 corrected: 398 came from an early single-pack run that also held `spec`, `spec-generator`, `api-doc-authoring`, and five git skills. The current fold-in is 384, from `check_layout.py` on the round-2 table with `git` merged.
+- C21: the pilot adds 4 scripts under `ship/scripts/` and changes no `SKILL.md` (`git diff --stat main...3a619dabd6 -- src/claude/skills/ship templates/skills/ship.SKILL.md.tmpl`: 4 files). Pilot `ship/SKILL.md:31,159` still hand off to `/push-pr`. VERIFIED.
+- C22: the chain adds 56 files (pilot `ship` 8, `review` 28, `security-scan` 17, `pr-quality` 1, `security-detection` 2). VERIFIED. The analysis said 60; corrected.
