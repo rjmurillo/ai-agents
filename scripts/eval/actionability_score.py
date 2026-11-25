@@ -23,7 +23,6 @@ one PR are correlated, so a row-level bootstrap gives an interval that is too na
 
 from __future__ import annotations
 
-import math
 import random
 from collections.abc import Callable, Hashable, Mapping, Sequence
 from typing import Any
@@ -38,6 +37,28 @@ from scripts.eval.actionability_labels import (
     STATUS_OK,
     STATUSES,
 )
+
+# The verdict rule and looks moved out to keep this file under the taste size ceiling. Names
+# marked F401 are re-exported for callers and tests that still import them from here.
+from scripts.eval.actionability_looks import (
+    LOOK2_MIN_ADDED_BAND_ROWS,
+    PASS_GAP,  # noqa: F401
+    heldout_band_row_count,
+    is_final,
+    kill_criterion_2,
+    verdict,
+)
+from scripts.eval.actionability_looks import (
+    LOOKS as LOOKS,
+)
+from scripts.eval.actionability_stats import (
+    Z_ALPHA_PLUS_Z_BETA,  # noqa: F401
+    _rank_value,
+    gap_from_counts,
+    metrics,
+    min_detectable_gap,
+    nearest_rank,
+)
 from scripts.eval.actionability_validate import (
     PREDICTION_CHECKS,
     SCORE_CORPUS_CHECKS,
@@ -50,15 +71,8 @@ Arm = Callable[[dict[str, Any], dict[str, Any] | None], bool]
 
 CORPUS_PROVENANCE_FIELDS = ("corpus_seed", "corpus_head_sha")
 
-PASS_GAP = 0.10
 ASSUMED_DISCORDANCE = (0.1, 0.2, 0.3)
-# Two-sided alpha 0.05 and 80 percent power: z(0.975) + z(0.80).
-Z_ALPHA_PLUS_Z_BETA = 1.96 + 0.8416
 
-# Both looks use the same interval. Alpha 0.05 is split over the two looks, 0.025 each, so each
-# look is a two-sided 97.5 percent interval: the 1.25th to 98.75th percentile. Look 1 uses it
-# too, so the total error stays at 0.05 whether or not the extension is taken.
-LOOKS = (1, 2)
 CI_PERCENTILES = (1.25, 98.75)
 CI_LEVEL = 0.975
 BOOTSTRAP_UNIT = "pr"
@@ -66,63 +80,9 @@ MIN_CLUSTERS = 2
 
 BASELINES = ("A", "B")
 
-# Spec, Eval method: "On a look-1 inconclusive, label 100 more band items once".
-LOOK2_MIN_ADDED_BAND_ROWS = 100
-
 
 class ScoreInputError(ValueError):
     """The corpus or predictions cannot be scored. Maps to exit code 2."""
-
-
-def metrics(predicted: Sequence[bool], truth: Sequence[bool]) -> dict[str, Any]:
-    """Accuracy, precision, and recall with actionable as the positive class.
-
-    A zero denominator gives None, not 0.
-    """
-    if len(predicted) != len(truth):
-        raise ValueError(f"length mismatch: {len(predicted)} predicted, {len(truth)} truth")
-    n = len(truth)
-    pairs = list(zip(predicted, truth, strict=True))
-    true_pos = sum(1 for p, t in pairs if p and t)
-    false_pos = sum(1 for p, t in pairs if p and not t)
-    false_neg = sum(1 for p, t in pairs if not p and t)
-    correct = sum(1 for p, t in pairs if p == t)
-    return {
-        "n": n,
-        "accuracy": correct / n if n else None,
-        "precision": true_pos / (true_pos + false_pos) if true_pos + false_pos else None,
-        "recall": true_pos / (true_pos + false_neg) if true_pos + false_neg else None,
-    }
-
-
-def _rank_value(ordered: Sequence[float], percentile: float) -> float:
-    """Value at nearest rank ceil(p/100 * n) of a non-empty, sorted sequence."""
-    rank = math.ceil(round(percentile * len(ordered) / 100, 9))
-    return ordered[min(len(ordered), max(1, rank)) - 1]
-
-
-def nearest_rank(values: Sequence[float], percentile: float) -> float | None:
-    """Nearest-rank percentile: the value at rank ceil(p/100 * n). None when empty."""
-    return _rank_value(sorted(values), percentile) if values else None
-
-
-def min_detectable_gap(n: int, discordance: float) -> float | None:
-    """Smallest accuracy gap a paired test of ``n`` rows detects at 80 percent power.
-
-    This is approximate (normal approximation): it treats rows as independent, which the
-    PR-clustered bootstrap does not. ``discordance`` is the share of rows where the two arms
-    differ in correctness.
-    """
-    if n <= 0:
-        return None
-    return Z_ALPHA_PLUS_Z_BETA * math.sqrt(discordance / n)
-
-
-def gap_from_counts(correct_c: int, correct_best: int, n: int) -> float:
-    """Accuracy gap from integer counts, so a 6-in-60 gap equals 0.1 with no float drift."""
-    if n <= 0:
-        raise ValueError("n must be positive")
-    return (correct_c - correct_best) / n
 
 
 def _cluster_totals(
@@ -215,38 +175,6 @@ def paired_bootstrap_ci(
     gaps = bootstrap_gaps(diffs, seed, iterations, clusters)
     low_pct, high_pct = CI_PERCENTILES
     return _rank_value(gaps, low_pct), _rank_value(gaps, high_pct)
-
-
-def verdict(gap: float, ci_low: float, ci_high: float) -> str:
-    """Apply the verdict rule: pass, fail, or inconclusive.
-
-    Fail needs ``ci_high < PASS_GAP``: only an interval that lies wholly under the bar proves
-    the gain is below it. A small gap whose interval still reaches the bar is inconclusive.
-    """
-    if gap >= PASS_GAP and ci_low > 0:
-        return "pass"
-    if ci_high < PASS_GAP:
-        return "fail"
-    return "inconclusive"
-
-
-def kill_criterion_2(result: str, look: int) -> str:
-    """fired only on fail. Inconclusive is pending at look 1 and not fired at look 2."""
-    if result == "fail":
-        return "fired"
-    if result == "inconclusive" and look == LOOKS[0]:
-        return "pending"
-    return "not_fired"
-
-
-def is_final(result: str, look: int) -> bool:
-    """A result is final unless it is inconclusive at look 1, which may take the one extension."""
-    return result != "inconclusive" or look == LOOKS[-1]
-
-
-def heldout_band_row_count(rows: Sequence[Mapping[str, Any]]) -> int:
-    """Heldout band rows in the corpus, unsure ones included: the rows a labeler had to read."""
-    return sum(1 for r in rows if r["split"] == SPLIT_HELDOUT and r["in_band"])
 
 
 def check_extension(look1_report: object, rows: Sequence[Mapping[str, Any]]) -> None:

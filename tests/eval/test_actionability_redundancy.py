@@ -128,7 +128,12 @@ class TestOneHashHelper:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """predict does not hash on its own."""
-        monkeypatch.setattr(pm, "sha256_hex", lambda _data: "stub-digest")
+        # load_prompt lives in actionability_message, so the patch targets the module that calls it.
+        monkeypatch.setattr(
+            importlib.import_module("scripts.eval.actionability_message"),
+            "sha256_hex",
+            lambda _data: "stub-digest",
+        )
 
         _, digest = pm.load_prompt()
 

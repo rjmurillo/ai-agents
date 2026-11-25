@@ -24,7 +24,6 @@ import json
 import logging
 import os
 import re
-import secrets
 import sys
 import time
 from collections.abc import Callable
@@ -38,13 +37,12 @@ if str(_BOOTSTRAP_ROOT) not in sys.path:
     sys.path.insert(0, str(_BOOTSTRAP_ROOT))
 
 from scripts.eval.actionability_io import (  # noqa: E402
-    REPO_ROOT,
+    REPO_ROOT,  # noqa: F401
     load_jsonl,
-    sha256_hex,
     write_jsonl,
 )
 from scripts.eval.actionability_labels import (  # noqa: E402
-    PROVENANCE_FIELDS,
+    PROVENANCE_FIELDS,  # noqa: F401
     SPLIT_DEV,
     SPLIT_HELDOUT,
     STATUS_AUTH_ERROR,
@@ -54,28 +52,45 @@ from scripts.eval.actionability_labels import (  # noqa: E402
     STATUS_PARSE_ERROR,
     STATUSES,
 )
+
+# The message and resume groups moved out to keep this file under the taste size ceiling. Names
+# marked F401 are re-exported for callers and tests that still import them from here.
+from scripts.eval.actionability_message import (  # noqa: E402
+    MAX_BODY_CHARS,  # noqa: F401
+    MAX_REPLIES,  # noqa: F401
+    MAX_REPLY_CHARS,  # noqa: F401
+    MAX_TOKEN_ATTEMPTS,  # noqa: F401
+    PROMPT_PATH,  # noqa: F401
+    _new_token,  # noqa: F401
+    _sent_fields,  # noqa: F401
+    _wrap,  # noqa: F401
+    build_user_message,
+    input_sha256,
+    load_prompt,
+)
+from scripts.eval.actionability_resume import (  # noqa: E402
+    OutputError,
+    _carried_ok,
+    _check_carried,  # noqa: F401
+    _decode_lines,  # noqa: F401
+    _drop_stale,
+    _read_prior_records,  # noqa: F401
+)
 from scripts.eval.actionability_scan import (  # noqa: E402
     add_allow_hex_argument,
     report_scan,
     scan_secrets,
 )
 from scripts.eval.actionability_validate import (  # noqa: E402
-    PREDICTION_CHECKS,
     SENT_ROW_CHECKS,
     RecordError,
-    finite_number,
     validate_records,
 )
 from scripts.eval.actionability_verdict import parse_verdict  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
-PROMPT_PATH = REPO_ROOT / "evals" / "comment-actionability" / "prompt-v1.md"
-
 # Spec Call contract limits.
-MAX_BODY_CHARS = 4000
-MAX_REPLIES = 3
-MAX_REPLY_CHARS = 500
 MAX_OUTPUT_TOKENS = 100
 
 # Premortem R2: below this many calls a failure rate says nothing. A run with no ok
@@ -98,7 +113,6 @@ API_KEY_ENV = "ANTHROPIC_API_KEY"
 # tools. The Claude and Copilot cells pass `--disallowed-tools` and `--available-tools=`.
 # A prompt-injected comment could therefore make Codex read a local file into the request.
 CODEX_CLI_PROVIDERS = frozenset({"codex-cli", "codex-subscription"})
-MAX_TOKEN_ATTEMPTS = 8
 
 OUTPUT_FILE_MODE = 0o600
 
@@ -117,67 +131,9 @@ Complete = Callable[[str], str]
 Sink = Callable[[dict[str, Any]], None]
 
 
-class OutputError(Exception):
-    """The existing ``--output`` cannot be resumed from. Maps to exit code 2."""
-
-
 def is_auth_failure(exc: BaseException) -> bool:
     """True when ``exc`` carries the fixed HTTP 401 or 403 message of the eval transports."""
     return bool(_AUTH_FAILURE.search(str(exc)))
-
-
-def load_prompt() -> tuple[str, str]:
-    """Return the system prompt text and the SHA-256 of the prompt file bytes."""
-    raw = PROMPT_PATH.read_bytes()
-    return raw.decode("utf-8").strip(), sha256_hex(raw)
-
-
-def _new_token() -> str:
-    return secrets.token_hex(8)
-
-
-def _wrap(name: str, token: str, text: str) -> str:
-    return f"<{name}-{token}>\n{text}\n</{name}-{token}>"
-
-
-def _sent_fields(row: dict[str, Any]) -> tuple[str, str, list[str]]:
-    """The path, body, and replies of ``row`` as the model sees them, after truncation."""
-    path = row.get("path") or ""
-    body = (row.get("body") or "")[:MAX_BODY_CHARS]
-    replies = [r[:MAX_REPLY_CHARS] for r in (row.get("thread_replies") or [])[:MAX_REPLIES]]
-    return path, body, replies
-
-
-def input_sha256(row: dict[str, Any]) -> str:
-    """SHA-256 of what the model is sent for ``row``, minus the per-call delimiter token.
-
-    A resumed run reuses a carried verdict only when this still matches, so an edited body or
-    reply in the corpus is predicted again instead of keeping the verdict for the old text.
-    """
-    payload = json.dumps(_sent_fields(row), ensure_ascii=False).encode("utf-8")
-    return sha256_hex(payload)
-
-
-def build_user_message(row: dict[str, Any], token_factory: Callable[[], str] = _new_token) -> str:
-    """Build the model input. The heuristic score is logged, never sent.
-
-    Each untrusted field (path, comment, replies) is wrapped in tags that carry a
-    per-call random token, so no text a commenter writes can close its own
-    delimiter. The token is re-drawn if it appears anywhere in the data.
-    """
-    path, body, replies = _sent_fields(row)
-    fields = [path, body, *replies]
-    for _ in range(MAX_TOKEN_ATTEMPTS):
-        token = token_factory()
-        if not any(token in field for field in fields):
-            break
-    else:
-        raise ValueError("could not pick a delimiter token that is absent from the data")
-    parts = [f"Delimiter token: {token}", "", _wrap("path", token, path)]
-    parts += ["", _wrap("comment", token, body)]
-    for reply in replies:
-        parts += ["", _wrap("reply", token, reply)]
-    return "\n".join(parts)
 
 
 def _load_eval_module(name: str) -> ModuleType:
@@ -323,103 +279,6 @@ def _predict_config_error(args: argparse.Namespace, has_api_key: bool) -> str | 
     if not has_api_key and _needs_anthropic_key(args.provider):
         return f"{API_KEY_ENV} is not set; set it or select another provider"
     return None
-
-
-def _decode_lines(path: Path) -> list[str | None]:
-    """Split an existing output on newline bytes and decode each line on its own.
-
-    A line that is not valid UTF-8 comes back as None. A crash can tear a multibyte character
-    at the tail, and decoding the whole file first would fail the resume on it.
-    """
-    try:
-        raw = path.read_bytes()
-    except OSError as exc:
-        raise OutputError(f"cannot read {path}: {type(exc).__name__}") from None
-    decoded: list[str | None] = []
-    for chunk in raw.split(b"\n"):
-        try:
-            text = chunk.decode("utf-8")
-        except UnicodeDecodeError:
-            decoded.append(None)
-            continue
-        if text.strip():
-            decoded.append(text)
-    return decoded
-
-
-def _read_prior_records(path: Path) -> list[dict[str, Any]]:
-    """Return the records in an existing output. A torn final line is dropped.
-
-    A torn line is one that does not parse, or does not decode as UTF-8, at the end of the file.
-    Raises OutputError for any other damage: a bad line before the last, or a line that is not
-    a JSON object.
-    """
-    lines = _decode_lines(path)
-    records: list[dict[str, Any]] = []
-    for index, line in enumerate(lines):
-        try:
-            if line is None:
-                raise json.JSONDecodeError("not UTF-8", "", 0)
-            record = json.loads(line)
-        except json.JSONDecodeError:
-            if index == len(lines) - 1:
-                continue
-            raise OutputError(f"line {index + 1} of {path} is not valid JSON") from None
-        if not isinstance(record, dict):
-            raise OutputError(f"line {index + 1} of {path} is not a JSON object")
-        records.append(record)
-    return records
-
-
-def _check_carried(path: Path, index: int, record: dict[str, Any]) -> None:
-    """Raise OutputError unless an ok record holds a well-formed verdict.
-
-    Carrying a malformed record forward would put it into the score input unchecked.
-    """
-    try:
-        validate_records([record], PREDICTION_CHECKS, path.name, numbers=[index])
-    except RecordError as exc:
-        raise OutputError(str(exc)) from None
-    if not isinstance(record["is_actionable"], bool) or not finite_number(record["confidence"]):
-        raise OutputError(
-            f"{path.name} row {index}: an ok record needs a bool is_actionable and a "
-            "finite confidence"
-        )
-
-
-def _carried_ok(path: Path, run: dict[str, str]) -> list[dict[str, Any]]:
-    """Return the ok records of an existing output, one per id, after checking provenance."""
-    carried: list[dict[str, Any]] = []
-    seen: set[str] = set()
-    for index, record in enumerate(_read_prior_records(path), start=1):
-        if record.get("status") != STATUS_OK:
-            continue
-        _check_carried(path, index, record)
-        record_id = record["id"]
-        differing = [f for f in PROVENANCE_FIELDS if record.get(f) != run[f]]
-        if differing:
-            raise OutputError(
-                f"ok records in {path} differ from this run in {', '.join(differing)}; "
-                "use a new --output"
-            )
-        if record_id not in seen:
-            seen.add(record_id)
-            carried.append(record)
-    return carried
-
-
-def _drop_stale(
-    carried: list[dict[str, Any]], selected: list[dict[str, Any]]
-) -> tuple[list[dict[str, Any]], int]:
-    """Drop carried records whose row now sends different text, or that record no input hash.
-
-    Only rows in ``selected`` are judged. A record for another split is left alone.
-    """
-    current = {row["id"]: input_sha256(row) for row in selected}
-    kept = [
-        r for r in carried if r["id"] not in current or r.get("input_sha256") == current[r["id"]]
-    ]
-    return kept, len(carried) - len(kept)
 
 
 def _make_sink(handle: TextIO) -> Sink:
