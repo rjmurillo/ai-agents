@@ -166,6 +166,33 @@ def bootstrap_gaps(
     return sorted(gaps)
 
 
+def bootstrap_gaps_vs_best(
+    correct: Mapping[str, Sequence[int]],
+    seed: int,
+    iterations: int,
+    clusters: Sequence[Hashable],
+) -> list[float]:
+    """Sorted bootstrap gaps of arm C over the better of arms A and B, per draw.
+
+    Each draw takes whole clusters with replacement, then compares C with whichever of A and
+    B scores higher on that draw. Fixing the baseline from the full sample would compare C
+    with an arm that lost its lead in some draws, and the interval would be too narrow.
+    ``correct`` maps "A", "B", and "C" to per-row correctness (0 or 1), aligned with
+    ``clusters``. The random stream matches ``bootstrap_gaps``: one ``choices`` call per draw.
+    """
+    sums = {name: _cluster_totals(correct[name], clusters)[0] for name in ("A", "B", "C")}
+    sizes = _cluster_totals(correct["C"], clusters)[1]
+    count = len(sizes)
+    rng = random.Random(seed)
+    gaps = []
+    for _ in range(iterations):
+        drawn = rng.choices(range(count), k=count)
+        totals = {name: sum(per_cluster[i] for i in drawn) for name, per_cluster in sums.items()}
+        rows = sum(sizes[i] for i in drawn)
+        gaps.append((totals["C"] - max(totals["A"], totals["B"])) / rows)
+    return sorted(gaps)
+
+
 def paired_bootstrap_ci(
     diffs: Sequence[int],
     seed: int,
@@ -174,9 +201,10 @@ def paired_bootstrap_ci(
 ) -> tuple[float, float] | None:
     """97.5 percent CI on the gap, from a bootstrap that resamples clusters of rows.
 
-    ``diffs`` is the per-row C-minus-best correctness difference. The best baseline is chosen
-    once, from the point estimate, before this runs. The bounds are the nearest-rank 1.25th
-    and 98.75th percentiles of the bootstrap gaps. ``None`` for no rows.
+    ``diffs`` is the per-row C-minus-best correctness difference against a fixed baseline. The
+    score report does not use this function. It calls ``bootstrap_gaps_vs_best``. The bounds
+    are the nearest-rank 1.25th and 98.75th percentiles of the bootstrap gaps. ``None`` for
+    no rows.
     """
     if not diffs:
         return None
@@ -306,8 +334,10 @@ def _gap_section(
 ) -> dict[str, Any]:
     """The gap of arm C over the better baseline, its interval, and the verdict.
 
-    The better baseline is arm A or arm B by held-out band accuracy, and A wins ties. It is
-    chosen once from the point estimate. The interval comes from a PR-clustered bootstrap.
+    The reported baseline is arm A or arm B by held-out band accuracy, and A wins ties, for the
+    point estimate. The interval comes from a PR-clustered bootstrap that picks the better of A
+    and B again inside every draw, so a draw where the ranking flips is judged against the
+    arm that led in that draw.
     """
     n = len(items)
     truth = [t for _, t in items]
@@ -323,7 +353,7 @@ def _gap_section(
             f"need heldout band rows from at least {MIN_CLUSTERS} PRs for a PR-clustered "
             f"bootstrap, got {n_clusters}"
         )
-    interval = _rank_pair(bootstrap_gaps(diffs, seed, iterations, clusters))
+    interval = _rank_pair(bootstrap_gaps_vs_best(correct, seed, iterations, clusters))
     discordance = sum(1 for d in diffs if d) / n
     result = verdict(gap, interval[0], interval[1])
     return {
