@@ -8,7 +8,9 @@
 - **Final Status**: unchanged (the edit changes no status or decision)
 - **Panel**: reduced panel, architect and critic. The edit fixes one quoted phrase. It
   changes no enforcement logic and no rule that another gate reads.
-- **Prior debate logs**: `ADR-102-debate-log.md`, closed. This log does not reopen it.
+- **Prior debate log**: `.project-toolkit/critique/ADR-102-debate-log.md`, closed. Two
+  descriptively named logs (`ADR-102-fmt-reason-comments-debate-log.md` and
+  `ADR-102-ruff-format-fmt-markers-debate-log.md`) are also closed. This log reopens none of them.
 
 ## Change
 
