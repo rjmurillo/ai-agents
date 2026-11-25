@@ -261,12 +261,12 @@ def _effective_provider(provider: str | None) -> str:
     return os.environ.get("EVAL_PROVIDER") or "anthropic"
 
 
-def _predict_config_error(args: argparse.Namespace, api_key: str) -> str | None:
+def _predict_config_error(args: argparse.Namespace, has_api_key: bool) -> str | None:
     if not 0.0 <= args.max_failure_rate <= 1.0:
         return "--max-failure-rate must be between 0 and 1"
     if not args.model.strip():
         return "--model must not be empty"
-    if not api_key and args.provider is None:
+    if not has_api_key and args.provider is None:
         return f"{API_KEY_ENV} is not set; set it or pass --provider"
     return None
 
@@ -421,7 +421,7 @@ def _run_pending(
 def cmd_predict(args: argparse.Namespace) -> int:
     """Call the model on in-band rows of one split and log one record per row."""
     api_key = (os.environ.get(API_KEY_ENV) or "").strip()
-    config_error = _predict_config_error(args, api_key)
+    config_error = _predict_config_error(args, bool(api_key))
     if config_error is not None:
         print(f"error: {config_error}", file=sys.stderr)
         return EXIT_CONFIG
