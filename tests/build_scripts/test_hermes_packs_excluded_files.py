@@ -117,20 +117,28 @@ def test_skill_md_keeps_frontmatter_that_names_an_excluded_file(frontmatter: str
     assert out == f"{frontmatter}body\n"
 
 
-def test_excluded_file_reference_does_not_fail_cross_pack_check(tmp_path: Path) -> None:
+def _setup_cross_pack_repo(
+    tmp_path: Path, extra_refs: dict[str, str] | None = None
+) -> tuple[Path, dict[str, dict[str, object]]]:
     repo = make_repo(tmp_path)
     refs_dir = repo / "src/claude/skills/alpha/references"
     refs_dir.mkdir(parents=True, exist_ok=True)
     (refs_dir / "rule-cross.md").write_text(
         "See skills/beta/references/guide.md.\n", encoding="utf-8"
     )
-    packs = {
+    for name, content in (extra_refs or {}).items():
+        (refs_dir / name).write_text(content, encoding="utf-8")
+    packs: dict[str, dict[str, object]] = {
         "one": {"description": "Pack one.", "skills": ["alpha"]},
         "two": {"description": "Pack two.", "skills": ["beta", "gamma"]},
     }
-    without_exclusion = make_config(packs=packs)
+    return repo, packs
+
+
+def test_excluded_file_reference_does_not_fail_cross_pack_check(tmp_path: Path) -> None:
+    repo, packs = _setup_cross_pack_repo(tmp_path)
     with pytest.raises(cfg.HermesPackError, match="beta"):
-        hermes_packs.plan_tree(repo, without_exclusion)
+        hermes_packs.plan_tree(repo, make_config(packs=packs))
 
     with_exclusion = make_config(
         packs=packs,
@@ -143,17 +151,9 @@ def test_excluded_file_reference_does_not_fail_cross_pack_check(tmp_path: Path) 
 def test_non_excluded_file_reference_still_fails_when_another_file_is_excluded(
     tmp_path: Path,
 ) -> None:
-    repo = make_repo(tmp_path)
-    refs_dir = repo / "src/claude/skills/alpha/references"
-    refs_dir.mkdir(parents=True, exist_ok=True)
-    (refs_dir / "rule-cross.md").write_text(
-        "See skills/beta/references/guide.md.\n", encoding="utf-8"
+    repo, packs = _setup_cross_pack_repo(
+        tmp_path, extra_refs={"other.md": "Also uses skills/beta/scripts/run.py.\n"}
     )
-    (refs_dir / "other.md").write_text("Also uses skills/beta/scripts/run.py.\n", encoding="utf-8")
-    packs = {
-        "one": {"description": "Pack one.", "skills": ["alpha"]},
-        "two": {"description": "Pack two.", "skills": ["beta", "gamma"]},
-    }
     config = make_config(
         packs=packs,
         excludedFiles={"alpha/references/rule-cross.md": "Excluded file."},
