@@ -76,7 +76,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--set", choices=("holdout", "measured"), default="measured")
     parser.add_argument("--exclude", type=Path, nargs="*", default=[])
     args = parser.parse_args(argv)
-    used = {s for f in args.exclude for s in json.loads(f.read_text())["selected"]}
+    used = {s for f in args.exclude for s in json.loads(f.read_text(encoding="utf-8"))["selected"]}
 
     args.out.mkdir(parents=True, exist_ok=True)
     pool = [p for p in candidates(args.root) if session_id(p) not in used]
@@ -93,7 +93,7 @@ def main(argv: list[str] | None = None) -> int:
     chosen = eligible[: args.holdout] if args.set == "holdout" else eligible[args.holdout :]
     for result in chosen:
         (args.out / f"{result['session']}.json").write_text(
-            json.dumps(result, indent=1, default=str)
+            json.dumps(result, indent=1, default=str), encoding="utf-8"
         )
     meta = {
         "candidates": len(pool),
@@ -103,7 +103,7 @@ def main(argv: list[str] | None = None) -> int:
         "set": args.set,
         "selected": [r["session"] for r in chosen],
     }
-    (args.out / "_selection.json").write_text(json.dumps(meta, indent=1))
+    (args.out / "_selection.json").write_text(json.dumps(meta, indent=1), encoding="utf-8")
     print(json.dumps(meta))
     return 0 if chosen else 1
 

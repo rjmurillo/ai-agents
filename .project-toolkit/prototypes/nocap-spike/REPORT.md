@@ -401,8 +401,9 @@ Fix 1 and part of Fix 2 were applied in round 2. See above.
 
 ## Scope and limits
 
-- Files outside the spike directory: `pyproject.toml` gained a ruff `per-file-ignores` entry and a
-  format exclude for `vendor/**`. No hook, dispatcher, skill, or other file changed.
+- Files outside the spike directory: `pyproject.toml` gained a ruff `per-file-ignores` entry, a
+  format exclude for `vendor/**`, and a mypy `ignore_errors` override for the `nocap` modules.
+  No hook, dispatcher, skill, or other file changed.
 - Replay reads the filesystem for some subset decisions. Removed worktrees can change those.
 - Upstream's post-judge artifact check (`verify.check_artifacts`) is not vendored and did not run.
 - Spike tests live beside the spike, not under `tests/`, so CI does not collect them.

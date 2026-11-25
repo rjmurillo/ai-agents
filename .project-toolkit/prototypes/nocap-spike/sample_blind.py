@@ -70,7 +70,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--min-calls", type=int, default=0)
     args = parser.parse_args(argv)
 
-    used = {s for f in args.exclude for s in json.loads(f.read_text())["selected"]}
+    used = {s for f in args.exclude for s in json.loads(f.read_text(encoding="utf-8"))["selected"]}
     rng = random.Random(args.seed)
     stamp_items: list[dict[str, Any]] = []
     miss_items: list[dict[str, Any]] = []
@@ -91,9 +91,13 @@ def main(argv: list[str] | None = None) -> int:
             miss_items.append(dict(rng.choice(quiet), session=sid, path=str(path)))
 
     args.out.mkdir(parents=True, exist_ok=True)
-    (args.out / "stamps.json").write_text(json.dumps(stamp_items, indent=1, default=str))
-    (args.out / "misses.json").write_text(json.dumps(miss_items, indent=1, default=str))
-    (args.out / "caps.json").write_text(json.dumps(caps, indent=1, default=str))
+    (args.out / "stamps.json").write_text(
+        json.dumps(stamp_items, indent=1, default=str), encoding="utf-8"
+    )
+    (args.out / "misses.json").write_text(
+        json.dumps(miss_items, indent=1, default=str), encoding="utf-8"
+    )
+    (args.out / "caps.json").write_text(json.dumps(caps, indent=1, default=str), encoding="utf-8")
     meta = {
         "seed": args.seed,
         "excluded": len(used),
@@ -103,7 +107,7 @@ def main(argv: list[str] | None = None) -> int:
         "caps_seen": len(caps),
         "selected": sorted({i["session"] for i in stamp_items + miss_items}),
     }
-    (args.out / "_selection.json").write_text(json.dumps(meta, indent=1))
+    (args.out / "_selection.json").write_text(json.dumps(meta, indent=1), encoding="utf-8")
     print(json.dumps({k: v for k, v in meta.items() if k != "selected"}))
     return 0 if len(stamp_items) == args.stamps and len(miss_items) == args.misses else 1
 

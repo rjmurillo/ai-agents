@@ -21,6 +21,7 @@ Apache-2.0 section 4(b) asks that modified files say so. Each change is listed h
 2. No vendored `.py` file carries a lint suppression comment. Instead `pyproject.toml` sets
    `per-file-ignores = ["ALL"]` and a `ruff format` exclude for `vendor/**`. The pre-commit hook runs
    `ruff check --fix`, which would otherwise rewrite upstream code.
+   A mypy override sets `ignore_errors = true` for the `nocap` modules, because upstream is untyped.
 
 3. `evidence.py`, spike round 2. These change behavior on purpose. Line 1 carries a modification notice.
    - `parse_git`: the `git merge` pattern ends in `merge(?![\w-])`, so `git merge-tree` and `git merge-base`

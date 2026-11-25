@@ -82,7 +82,7 @@ class Transcript:
         return self
 
     def write(self, path: Path) -> Path:
-        path.write_text("\n".join(json.dumps(r) for r in self.records) + "\n")
+        path.write_text("\n".join(json.dumps(r) for r in self.records) + "\n", encoding="utf-8")
         return path
 
 
