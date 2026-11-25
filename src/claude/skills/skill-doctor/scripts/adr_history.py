@@ -24,6 +24,8 @@ SUPERSEDE_VERB = r"(?:supersed|replac|revert|deprecat|drop)\w{0,20}"
 VERB_THEN_ADR = re.compile(rf"{SUPERSEDE_VERB}([^.\n]{{0,60}}?)\b{ADR_NUMBER}", re.IGNORECASE)
 # "superseded by ADR-N" names the successor, not the record that was superseded.
 BY_SUCCESSOR = re.compile(r"\bby\W*\Z", re.IGNORECASE)
+# In "ADR-M supersedes ADR-N", ADR-M is the successor: another ADR follows the verb.
+THEN_ADR = re.compile(rf"[^.\n]{{0,60}}?\b{ADR_NUMBER}", re.IGNORECASE)
 ADR_THEN_VERB = re.compile(rf"\b{ADR_NUMBER}[^.\n]{{0,60}}?{SUPERSEDE_VERB}", re.IGNORECASE)
 SHA_TOKEN = re.compile(r"^[0-9a-f]{40,64}$")
 STATUS_TOKEN = re.compile(r"^[A-Z]\d*$")
@@ -125,7 +127,9 @@ def _commit_evidence(commit: Commit) -> dict[str, Any]:
 
 def superseded_numbers(text: str) -> set[int]:
     """ADR numbers a commit text says were superseded, replaced, reverted, or dropped."""
-    numbers = {int(m.group(1)) for m in ADR_THEN_VERB.finditer(text)}
+    numbers = {
+        int(m.group(1)) for m in ADR_THEN_VERB.finditer(text) if not THEN_ADR.match(text, m.end())
+    }
     for match in VERB_THEN_ADR.finditer(text):
         if not BY_SUCCESSOR.search(match.group(1)):
             numbers.add(int(match.group(2)))
@@ -165,35 +169,32 @@ def superseded_by_commits(commits: Sequence[Commit], docs: Sequence[AdrDoc]) -> 
     return findings
 
 
-def _index_citations(
-    docs: Sequence[AdrDoc],
-) -> tuple[dict[str, list[tuple[AdrDoc, int]]], list[tuple[str, AdrDoc, int]]]:
-    """Cited paths of accepted ADRs: exact files by path, and cited folders as prefixes."""
+def _index_citations(docs: Sequence[AdrDoc]) -> dict[str, list[tuple[AdrDoc, int]]]:
+    """Cited files of accepted ADRs, by path.
+
+    A cited folder is not indexed: deleting one file under a cited folder rarely
+    reverses a decision, and folder matches were 218 of 225 candidates on one repo.
+    """
     exact: dict[str, list[tuple[AdrDoc, int]]] = {}
-    folders: list[tuple[str, AdrDoc, int]] = []
     for doc in docs:
         if status_word(doc.status) != "accepted":
             continue
         for line, path in cited_paths(doc):
-            if path.endswith("/"):
-                folders.append((path, doc, line))
-            else:
+            if not path.endswith("/"):
                 exact.setdefault(path, []).append((doc, line))
-    return exact, folders
+    return exact
 
 
 def contradiction_candidates(commits: Sequence[Commit], docs: Sequence[AdrDoc]) -> list[Finding]:
     """One finding per (commit, accepted ADR), listing the cited paths the commit removed."""
-    exact, folders = _index_citations(docs)
+    exact = _index_citations(docs)
     findings: list[Finding] = []
     for commit in commits:
         hits: dict[str, tuple[AdrDoc, list[tuple[int, str]]]] = {}
         for letter, path in commit.paths:
             if letter != "D":
                 continue
-            matches = list(exact.get(path, []))
-            matches += [(d, ln) for prefix, d, ln in folders if path.startswith(prefix)]
-            for doc, line in matches:
+            for doc, line in exact.get(path, []):
                 hits.setdefault(doc.file.rel, (doc, []))[1].append((line, path))
         findings += [
             _contradiction(commit, doc, cited)

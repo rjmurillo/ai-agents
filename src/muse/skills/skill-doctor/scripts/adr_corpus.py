@@ -12,6 +12,8 @@ Conventions:
   the prefix in any case, and `-` or `_` after the number. A test pins the match.
   skill-bootstrap also reads `.mdx` and `.adoc`. These checks parse Markdown, so
   such a file is listed in `rejected`, unread, and no folder is called missing.
+  One difference is deliberate: skill-bootstrap numbers `2024-01-15-x.md` as ADR
+  2024, while these checks list a date-named record in `rejected`, unnumbered.
 - Every folder found is scanned, not only the first.
 """
 
@@ -177,6 +179,26 @@ class Survey:
     adrs_refused: bool = False
 
 
+def path_exists(path: Path) -> bool:
+    """`Path.exists`, reading any OS error as missing, as Python 3.14 does.
+
+    Before 3.14, a name longer than the OS allows raises instead, so one long name
+    in an ADR or `.adr-dir` would end the scan.
+    """
+    try:
+        return path.exists()
+    except OSError:
+        return False
+
+
+def path_is_dir(path: Path) -> bool:
+    """`Path.is_dir`, reading any OS error as not a folder, like `path_exists`."""
+    try:
+        return path.is_dir()
+    except OSError:
+        return False
+
+
 def _resolve(path: Path) -> Path | None:
     try:
         return path.resolve()
@@ -211,6 +233,13 @@ def load_dir(path: Path, rel: str, survey: Survey, explicit: bool = False) -> Ad
             )
             continue
         parsed = parse_name(entry.name)
+        if parsed is None and DATE_PREFIX.match(entry.name):
+            # A date-named record: skill-bootstrap may number it; these checks do not.
+            survey.adrs_refused = True
+            survey.rejected.append(
+                {"path": f"{rel}/{entry.name}", "reason": "a date-named record, not numbered"}
+            )
+            continue
         if parsed is None:
             other.append(entry.name)
             continue
@@ -244,13 +273,13 @@ def _read_marker(repo: Path, survey: Survey) -> Path | None:
         return None
     candidate = _resolve(repo / first)
     if candidate is None or not within(candidate, repo):
-        if candidate is not None and candidate.is_dir():
+        if candidate is not None and path_is_dir(candidate):
             survey.adrs_refused = True
         survey.rejected.append(
             {"path": ".adr-dir", "reason": f"target {first} resolves outside the repository"}
         )
         return None
-    if not candidate.is_dir():
+    if not path_is_dir(candidate):
         survey.rejected.append(
             {"path": ".adr-dir", "reason": f"target {first} is not a directory or is missing"}
         )
@@ -262,7 +291,7 @@ def _known_folder(repo: Path, rel: str, survey: Survey) -> Path | None:
     """The resolved known folder when it exists inside the repository, else None."""
     link = repo / rel
     path = _resolve(link)
-    if path is None or not path.is_dir():
+    if path is None or not path_is_dir(path):
         if link.is_symlink():
             survey.rejected.append({"path": rel, "reason": "symlink target is missing"})
         return None

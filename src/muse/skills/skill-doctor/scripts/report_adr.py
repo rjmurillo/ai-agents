@@ -180,7 +180,7 @@ def _decision_table(esc: Escape, repo: Mapping[str, Any]) -> str:
     ]
     if not rows:
         return ""
-    headers = ["Title", "Candidate", "Source", "Link", "Reason"]
+    headers = ["Title", "Candidate", "Source", "Source URL", "Reason"]
     title = f"Candidate undocumented decisions for {repo.get('repo', '')}"
     return table_html(esc, title, headers, rows)
 

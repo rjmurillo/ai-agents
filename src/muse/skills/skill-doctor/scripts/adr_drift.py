@@ -44,6 +44,7 @@ from adr_corpus import (
     find_adr_dirs,
     locate,
     make_finding,
+    path_is_dir,
     read_docs,
     within,
 )
@@ -65,7 +66,7 @@ class ExitError(Exception):
 def repo_root(path_arg: str) -> Path:
     """Resolve the git top level for PATH. Exit 2 when it is not a repository."""
     path = Path(path_arg).expanduser()
-    if not path.is_dir():
+    if not path_is_dir(path):
         raise ExitError(2, f"--repo {path_arg} is not a directory")
     if shutil.which("git") is None:
         raise ExitError(3, "git is not on PATH")

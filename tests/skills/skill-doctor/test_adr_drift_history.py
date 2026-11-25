@@ -113,3 +113,11 @@ def test_unrelated_deletion_or_an_older_commit_is_not_a_candidate(tmp_path, caps
 
     assert kinds(scan(capsys, repo, name="a.json"), "adr-contradiction-candidate") == []
     assert kinds(scan(capsys, other, name="b.json"), "adr-contradiction-candidate") == []
+
+
+def test_deleting_a_file_under_a_cited_folder_is_not_a_candidate(tmp_path, capsys):
+    text = adr_text(1, body="Modules live in `src/old/`.")
+    repo = _repo(tmp_path, {adr_path(1): text, "src/old/module.py": "x", "src/old/keep.py": "x"})
+    commit(repo, {"src/old/module.py": None}, "refactor: remove one module")
+
+    assert kinds(scan(capsys, repo), "adr-contradiction-candidate") == []

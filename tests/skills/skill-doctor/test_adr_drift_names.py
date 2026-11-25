@@ -54,6 +54,24 @@ def test_markdown_names_match_what_skill_bootstrap_reads(name):
     assert (adr_corpus.parse_name(name) is not None) == bootstrap
 
 
+def test_a_date_named_record_is_the_one_deliberate_difference():
+    name = "2024-01-15-use-x.md"
+
+    assert _bootstrap_name_pattern().match(name) is not None
+    assert adr_corpus.parse_name(name) is None
+
+
+def test_a_folder_of_date_named_records_is_listed_not_called_missing(tmp_path, capsys):
+    repo = seeded_repo(tmp_path / "repo", {"docs/adr/2024-01-15-use-x.md": "# Use X\n"})
+
+    result = scan(capsys, repo)
+
+    assert kinds(result, "no-adr-directory") == []
+    assert result["locate"]["rejected"] == [
+        {"path": "docs/adr/2024-01-15-use-x.md", "reason": "a date-named record, not numbered"}
+    ]
+
+
 @pytest.mark.parametrize("name", ["0005-z.mdx", "adr-006-z.adoc"])
 def test_bootstrap_reads_the_unread_formats(name):
     assert _bootstrap_name_pattern().match(name) is not None
@@ -117,8 +135,10 @@ def test_locate_records_a_style_read_failure(tmp_path, capsys, monkeypatch):
         (["# ADR-1: x", "", "| Status | Accepted |"], "accepted"),
         (["# ADR-1: x", "<!--", "Status: draft", "-->", "Status: accepted"], "accepted"),
         (["# ADR-1: x", "", "Nothing here"], ""),
+        (["# ADR-1: x", "", "| Status | Deciders | Date |", "| --- | --- | --- |"], ""),
+        (["# ADR-1: x", "", "| Status | Owner |", "|---|---|", "| Accepted | me |"], ""),
     ],
-    ids=["inline", "table-row", "commented-out", "none"],
+    ids=["inline", "table-row", "commented-out", "none", "wide-header", "two-cell-header"],
 )
 def test_status_lines_in_prose(lines, status):
     assert adr_text.status_word(adr_text.doc_status({}, lines, 0)) == status

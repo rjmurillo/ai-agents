@@ -310,6 +310,7 @@ def test_a_candidate_source_url_shows_as_text_never_a_link(tmp_path, capsys):
     _, html, _ = _render_decisions(tmp_path, capsys, {"candidates": [candidate]})
 
     assert "javascript:alert(1)" in html and 'href="javascript' not in html
+    assert "<th>Source URL</th>" in html or ">Source URL<" in html
 
 
 def test_a_null_reason_renders_empty_not_none(tmp_path, capsys):

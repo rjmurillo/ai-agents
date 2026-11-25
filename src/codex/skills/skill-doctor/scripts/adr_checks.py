@@ -31,6 +31,7 @@ from adr_corpus import (
     make_finding,
     next_number,
     parse_name,
+    path_exists,
 )
 from adr_text import (
     ADR_NUMBER,
@@ -249,7 +250,7 @@ def check_links(docs: Sequence[AdrDoc], dirs: Sequence[AdrDir]) -> list[Finding]
                 key = (doc.file.rel, number, target)
                 if os.path.dirname(resolved) not in adr_folders:
                     continue
-                if resolved.exists() or key in seen:
+                if path_exists(resolved) or key in seen:
                     continue
                 seen.add(key)
                 findings.append(_broken_link(doc, number, target, adr_number, by_number))
@@ -380,7 +381,7 @@ def check_supersession(docs: Sequence[AdrDoc]) -> list[Finding]:
             finding = (
                 _missing_target(doc, edge)
                 if target is None
-                else _reciprocity(doc, edge, target, graph[target.file.rel])
+                else _reciprocity(doc, edge, target, graph[target.file.rel], docs)
             )
             if finding is not None and finding["id"] not in seen:
                 seen.add(finding["id"])
@@ -405,10 +406,12 @@ def _missing_target(doc: AdrDoc, edge: Edge) -> Finding:
 
 
 def _reciprocity(
-    doc: AdrDoc, edge: Edge, target: AdrDoc, target_edges: list[Edge]
+    doc: AdrDoc, edge: Edge, target: AdrDoc, target_edges: list[Edge], docs: Sequence[AdrDoc]
 ) -> Finding | None:
+    """A missing back-edge. A back-edge counts only when it resolves, from the target, to `doc`."""
     wanted = "superseded_by" if edge.kind == "supersedes" else "supersedes"
-    if any(e.kind == wanted and e.number == doc.file.number for e in target_edges):
+    back = [e for e in target_edges if e.kind == wanted and e.number == doc.file.number]
+    if any(resolve_number(target, e.number, docs) is doc for e in back):
         return None
     label = "superseded-by" if wanted == "superseded_by" else "supersedes"
     evidence = {
@@ -417,8 +420,12 @@ def _reciprocity(
         "edge": edge.kind,
         "missing_edge": wanted,
     }
+    # From the target's folder, a bare number may name another record, so cite the path.
+    ref = f"ADR-{doc.file.number}"
+    if resolve_number(target, doc.file.number, docs) is not doc:
+        ref = doc.file.rel
     fix = (
-        f"Add `{label}: ADR-{doc.file.number}` to {target.file.rel} "
+        f"Add `{label}: {ref}` to {target.file.rel} "
         f"(or a matching status line), because {doc.file.rel} declares the {edge.kind} edge."
     )
     return _found(
@@ -436,9 +443,9 @@ def check_cited_paths(repo: Path, docs: Sequence[AdrDoc]) -> list[Finding]:
             continue
         for line, path in cited_paths(doc):
             first = path.split("/", 1)[0]
-            if not _exists(repo / first) or _exists(repo / path):
+            if not path_exists(repo / first) or path_exists(repo / path):
                 continue
-            if _exists(doc.file.path.parent / path):
+            if path_exists(doc.file.path.parent / path):
                 continue
             evidence = {"path": doc.file.rel, "line": line, "cited": path}
             fix = (
@@ -454,11 +461,3 @@ def check_cited_paths(repo: Path, docs: Sequence[AdrDoc]) -> list[Finding]:
                 )
             )
     return findings
-
-
-def _exists(path: Path) -> bool:
-    """`Path.exists` that reads an OS error as missing: Python before 3.14 raises on a long name."""
-    try:
-        return path.exists()
-    except OSError:
-        return False

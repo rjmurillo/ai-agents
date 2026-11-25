@@ -73,6 +73,26 @@ def test_a_one_sided_edge_is_reported_on_the_record_in_its_own_folder(tmp_path, 
     assert [f["evidence"]["path"] for f in found] == ["docs/rfcs/0001-a.md"]
 
 
+def test_a_back_edge_must_resolve_to_the_citing_record(tmp_path, capsys):
+    repo = seeded_repo(
+        tmp_path / "repo",
+        {
+            "docs/adr/0003-x.md": _adr(3, supersedes="[ADR-007]"),
+            "docs/rfcs/0003-y.md": _adr(3),
+            "docs/rfcs/0007-z.md": _adr(7, superseded_by="ADR-003"),
+        },
+    )
+
+    found = {
+        f["evidence"]["path"]: f
+        for f in kinds(scan(capsys, repo), "adr-supersession-not-reciprocal")
+    }
+
+    # 0007's back-edge names ADR-003, which from docs/rfcs is 0003-y, not docs/adr/0003-x.
+    assert sorted(found) == ["docs/rfcs/0003-y.md", "docs/rfcs/0007-z.md"]
+    assert "superseded-by: docs/adr/0003-x.md" in found["docs/rfcs/0007-z.md"]["suggested_fix"]
+
+
 def test_a_number_two_other_folders_hold_is_not_called_missing(tmp_path, capsys):
     repo = seeded_repo(
         tmp_path / "repo",
@@ -106,6 +126,38 @@ def test_superseded_by_names_the_successor_not_a_candidate():
     assert adr_history.superseded_numbers("Superseded by ADR-9.") == set()
     assert adr_history.superseded_numbers("this supersedes ADR-9") == {9}
     assert adr_history.superseded_numbers("ADR-9 is deprecated") == {9}
+    assert adr_history.superseded_numbers("ADR-40 supersedes ADR-12") == {12}
+    assert adr_history.superseded_numbers("follow ADR-40, which replaces ADR-12") == {12}
+
+
+def _too_long(real, long: str):
+    def probe(self: Path, **kwargs: object) -> bool:
+        if long in str(self):
+            raise OSError(errno.ENAMETOOLONG, "File name too long")
+        return bool(real(self))
+
+    return probe
+
+
+def test_a_link_name_too_long_for_the_os_is_a_broken_link(tmp_path, capsys, monkeypatch):
+    long = "a" * 300
+    body = f"See [next](ADR-002-{long}.md)."
+    repo = seeded_repo(tmp_path / "repo", {adr_path(1): adr_text(1, body=body)})
+    monkeypatch.setattr(Path, "exists", _too_long(Path.exists, long))
+
+    (found,) = kinds(scan(capsys, repo), "adr-broken-link")
+
+    assert long in found["evidence"]["target"]
+
+
+def test_an_adr_dir_name_too_long_for_the_os_is_rejected(tmp_path, capsys, monkeypatch):
+    long = "d" * 300
+    repo = seeded_repo(tmp_path / "repo", {".adr-dir": f"{long}\n"})
+    monkeypatch.setattr(Path, "is_dir", _too_long(Path.is_dir, long))
+
+    result = scan(capsys, repo)
+
+    assert [r["path"] for r in result["locate"]["rejected"]] == [".adr-dir"]
 
 
 def test_a_name_too_long_for_the_os_is_read_as_missing(tmp_path, capsys, monkeypatch):

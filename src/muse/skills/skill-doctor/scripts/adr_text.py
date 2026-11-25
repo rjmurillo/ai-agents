@@ -14,6 +14,7 @@ BACKTICK = re.compile(r"`([^`\n]+)`")
 PATHLIKE = re.compile(r"^[A-Za-z0-9_.@+-][A-Za-z0-9_.@+/-]*$")
 PLACEHOLDER = re.compile(r"YYYY|MM-DD|NNN|XXX|path/to", re.IGNORECASE)
 FILE_EXTENSION = re.compile(r"\.[A-Za-z0-9]{1,8}$")
+TABLE_SEPARATOR = re.compile(r"^\s*\|?\s*:?-{3,}")
 # An ADR number: one to six digits after any leading zeros, as file names allow. The digit
 # bound keeps a long run of zeros or digits linear and keeps `int()` within its digit limit.
 ADR_NUMBER = r"ADR-0*(\d{1,6})\b"
@@ -110,8 +111,9 @@ def doc_status(frontmatter: dict[str, Any], lines: Sequence[str], start: int) ->
     value = frontmatter.get("status")
     if isinstance(value, str) and value:
         return value.lower()
+    prose = list(prose_lines(lines, start))
     in_section = False
-    for _, line in prose_lines(lines, start):
+    for index, (_, line) in enumerate(prose):
         if STATUS_HEADING.match(line):
             in_section = True
             continue
@@ -121,13 +123,27 @@ def doc_status(frontmatter: dict[str, Any], lines: Sequence[str], start: int) ->
             if line.strip():
                 return line.strip().lower()
             continue
-        # `Status: x`, a `- Status: x` bullet, or a `| Status | x |` table row.
-        inline = re.match(
-            r"^\s*(?:\|\s*|[-*]\s+)?\**status\**\s*[:|]\s*\**\s*(.+)$", line, re.IGNORECASE
-        )
-        if inline:
-            return inline.group(1).strip().rstrip("|").strip().lower()
+        following = prose[index + 1][1] if index + 1 < len(prose) else ""
+        inline = _inline_status(line, following)
+        if inline is not None:
+            return inline
     return ""
+
+
+def _inline_status(line: str, following: str) -> str | None:
+    """`Status: x`, a `- Status: x` bullet, or a two-cell `| Status | x |` row.
+
+    A row with more cells, or one above a `|---|` separator, is a table header,
+    so `| Status | Deciders | Date |` names columns, not a status.
+    """
+    if line.lstrip().startswith("|"):
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) != 2 or TABLE_SEPARATOR.match(following):
+            return None
+        name, value = cells
+        return value.strip("*").strip().lower() if name.strip("*").lower() == "status" else None
+    match = re.match(r"^\s*(?:[-*]\s+)?\**status\**\s*:\s*\**\s*(.+)$", line, re.IGNORECASE)
+    return match.group(1).strip().lower() if match else None
 
 
 def status_word(status: str) -> str:
