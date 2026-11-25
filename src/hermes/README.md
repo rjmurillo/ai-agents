@@ -143,4 +143,6 @@ These files of a shipped skill ship in no pack.
 - `build/references/rule-csharp.md`: Folded path rule kept out of Hermes pack budget (PR #7541).
 - `build/references/rule-powershell.md`: Folded path rule kept out of Hermes pack budget (PR #7541).
 - `pr-comment-responder/references/rule-lossless-queue-reads.md`: Folded path rule kept out of Hermes pack budget (PR #7541).
+- `push-pr/references/rule-push-lock.md`: Folded path rule kept out of Hermes pack budget (PR #7563).
 - `retrospective/scripts/copilot_journal.py`: Needs the skill-doctor parser, which Hermes does not ship, so --journal always reports unavailable there.
+- `test/references/rule-testing.md`: Folded path rule kept out of Hermes pack budget (PR #7563).

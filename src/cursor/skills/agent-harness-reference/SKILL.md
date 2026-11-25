@@ -131,7 +131,7 @@ Re-verified 2026-09-01 against the tree, not carried forward from a prior count:
 Every per-call row below describes retired machinery (ADR-097): no source
 registration exists on either harness today, so "None" everywhere in the
 Copilot-registration column reflects the current, not the historical, state.
-A future re-add must clear `.claude/rules/tool-use-hook-bar.md` first and
+A future re-add must clear the `skillforge` skill's `references/rule-tool-use-hook-bar.md` first and
 rebuild the policy this table records, not inherit it.
 
 | Claude source | Copilot registration | Policy |

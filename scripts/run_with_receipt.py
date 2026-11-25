@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run a command and keep its bulk output out of model context (issue #5851).
 
-Opt-in wrapper. No tool-use hook may intercept output (tool-use-hook-bar.md,
+Opt-in wrapper. No tool-use hook may intercept output (rule-tool-use-hook-bar.md,
 ADR-097), so agents and skills call this explicitly for commands known to be
 large (full test runs, builds, log dumps, wide greps).
 

@@ -100,4 +100,6 @@ artifacts:
       build/references/rule-code-quality.md: "Folded path rule; references observability in the quality pack."
       build/references/rule-powershell.md: "Folded path rule kept out of Hermes pack budget (PR #7541)."
       build/references/rule-csharp.md: "Folded path rule kept out of Hermes pack budget (PR #7541)."
+      push-pr/references/rule-push-lock.md: "Folded path rule kept out of Hermes pack budget (PR #7563)."
+      test/references/rule-testing.md: "Folded path rule kept out of Hermes pack budget (PR #7563)."
       retrospective/scripts/copilot_journal.py: "Needs the skill-doctor parser, which Hermes does not ship, so --journal always reports unavailable there."

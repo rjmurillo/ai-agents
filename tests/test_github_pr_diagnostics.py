@@ -515,7 +515,7 @@ class TestAuditArtifactWriteFailure:
             result = _audit_mod.main(["--artifact", unwritable_artifact, "--output-format", "json"])
 
         assert result == 2
-        # Parsed structure, not a substring match (`.claude/rules/testing.md`
+        # Parsed structure, not a substring match (`rule-testing.md`
         # MUST-9): a substring check on raw stdout would still pass if the
         # JSON were malformed, or if "Error" appeared in an unrelated field
         # such as a message string, and would not prove the real handler
@@ -1431,7 +1431,7 @@ class TestEditPrBodyStaleWriteGuard:
         `--method` flag, update_body's PATCH always does. A position-keyed
         side_effect list would silently pass the fetch's response to the
         update call (or vice versa) if a caller ever adds or removes a
-        subprocess.run invocation ahead of these two (`.claude/rules/testing.md`
+        subprocess.run invocation ahead of these two (`rule-testing.md`
         MUST-11; Copilot review on PR #5283).
         """
 

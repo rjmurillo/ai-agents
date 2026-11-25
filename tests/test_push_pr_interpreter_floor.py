@@ -1,7 +1,7 @@
 """Interpreter-floor regression tests for the push-pr scripts (issue #4764).
 
 The repository develops on Python 3.14, but plugin hooks and skill scripts run
-under the host's ambient interpreter. ``.claude/rules/python.md`` states the
+under the host's ambient interpreter. ``rule-python.md`` states the
 floor:
 
     "plugin hooks and skill scripts run under the host's ambient interpreter,
@@ -222,7 +222,7 @@ def test_push_pr_scripts_avoid_post_310_datetime_alias(relative: Path) -> None:
     at every version this repository targets.
 
     Asserts on the parsed syntax tree rather than on a substring of the source,
-    per ``.claude/rules/testing.md`` MUST 9. A substring check reports a hit
+    per ``rule-testing.md`` MUST 9. A substring check reports a hit
     inside the comment that explains the fix, so it would fail on the fixed file
     and could only be satisfied by deleting the explanation.
     """
@@ -249,7 +249,7 @@ def test_push_pr_scripts_avoid_post_310_datetime_alias(relative: Path) -> None:
 def test_repository_development_floor_is_unchanged() -> None:
     """The 3.10 fix must not lower the repository's own 3.14 development floor.
 
-    ``.claude/rules/python.md`` ties the dev target to ``requires-python`` in
+    ``rule-python.md`` ties the dev target to ``requires-python`` in
     pyproject.toml. Scripts written down to 3.10 are a hook-portability
     concession for the host interpreter, not a change of the project floor.
     """

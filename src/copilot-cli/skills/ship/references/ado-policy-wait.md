@@ -1,6 +1,6 @@
 # ADO first-PR policy wait
 
-`/ship` Process step 4 runs this block for `host=ado` after `az repos pr create` returns `pullRequestId` as `pr_id`.
+`/ship` Process step 4 runs this block for `host=ado` after `/push-pr` returns the ADO `pullRequestId` as `pr_id`.
 It waits until the PR has at least one applied blocking build evaluation and none is `queued` or `running`.
 A `notApplicable` row does not count, because the evaluation skips it too.
 ADO may list no evaluation for a moment after creation, so an empty list keeps waiting.

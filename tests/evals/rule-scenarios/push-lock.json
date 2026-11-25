@@ -1,5 +1,6 @@
 {
-  "rule_path": ".claude/rules/push-lock.md",
+  "skill_path": ".claude/skills/push-pr/SKILL.md",
+  "reference_path": ".claude/skills/push-pr/references/rule-push-lock.md",
   "rule_id": "push-lock",
   "scenarios": [
     {
@@ -53,6 +54,61 @@
       ],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "The command opens no lock and serializes nothing, so the push-lock discipline does not apply."
+    },
+    {
+      "id": "N1",
+      "desc": "Runbook recipe with a machine-specific home directory",
+      "input": "I am adding a push step to a runbook under .claude/ for the other agents. I will write it as flock /home/alex/src/scratch/locks/push-lock-main.lock git push origin main so it is copy-paste ready. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "$HOME",
+        "machine-specific",
+        "branch",
+        "slug",
+        "canonical"
+      ],
+      "expected_gate": "do-not-write-a-machine-specific-home-directory",
+      "rationale": "MUST NOT 1: $HOME expands per user. Writing /home/<name> into a recipe is how the third lock scheme was born. The recipe also keys on main instead of the current branch slug."
+    },
+    {
+      "id": "N2",
+      "desc": "Lock directory assumed to exist before flock",
+      "input": "My push helper in .agents/governance does flock on the push-lock file in scratch/locks and then runs git push. The directory is there on my machine, so no setup line is needed. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "mkdir -p",
+        "same command",
+        "silent",
+        "parent directory",
+        "detached"
+      ],
+      "expected_gate": "create-lock-directory-in-same-command",
+      "rationale": "MUST 3: flock fails when the parent directory is missing, and a failed flock in a detached push is silent. The recipe creates the directory in the same command."
+    },
+    {
+      "id": "N3",
+      "desc": "Commit refused while a push runs, plan to delete the lock file",
+      "input": "git commit was refused and said a push for this branch is still in flight. I will delete the lock file under scratch/locks and commit again. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "wait",
+        "in-flight",
+        "pre-push",
+        "SKIP_PUSH_LOCK_COMMIT_GUARD",
+        "stuck"
+      ],
+      "expected_gate": "wait-for-push-or-bypass-only-when-lock-is-stuck",
+      "rationale": "Commit guard section: the refusal protects live-git-state tests during the 6 to 15 minute pre-push suite. Wait for the push to finish. Only a stuck holder justifies SKIP_PUSH_LOCK_COMMIT_GUARD=1. Deleting the file creates a split lock."
+    },
+    {
+      "id": "N4",
+      "desc": "Retry loop for git fetch in a runbook (negative)",
+      "input": "In a runbook under .agents/governance I want to add a retry with backoff around git fetch origin for flaky network days. Three attempts, two second delay. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "retry",
+        "backoff",
+        "fetch",
+        "attempts"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "git fetch takes no push lock and the change adds no flock recipe. Nothing here touches the push-lock path scheme."
     }
   ]
 }

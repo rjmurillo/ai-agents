@@ -1,7 +1,7 @@
 """Issue #5123: refuse a commit that starts while this branch's own push is
 in flight.
 
-Reuses the canonical per-branch push-lock file (``.claude/rules/push-lock.md``)
+Reuses the canonical per-branch push-lock file (``rule-push-lock.md``)
 rather than a second locking scheme, so these tests probe the same lock a real
 push recipe would take.
 """

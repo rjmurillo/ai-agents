@@ -33,7 +33,7 @@ Coverage:
   vacuously.
 
 The cap is read by parsing ``lefthook.yml`` into its object graph, per
-``.claude/rules/testing.md`` MUST-9: a substring search for ``timeout: 10s``
+``rule-testing.md`` MUST-9: a substring search for ``timeout: 10s``
 matches any job in the file.
 
 Refs #4698.

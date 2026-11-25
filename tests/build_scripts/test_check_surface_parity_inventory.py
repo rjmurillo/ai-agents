@@ -204,6 +204,7 @@ def test_platform_outputs_under_a_surface_pass(repo: Path) -> None:
 
 
 def test_restricted_ancestor_row_does_not_cover_a_new_output(repo: Path) -> None:
+    put(repo, "src/G.md")
     write_manifest(
         repo,
         [
@@ -228,6 +229,7 @@ def test_unrestricted_ancestor_row_covers_a_new_output(repo: Path) -> None:
 
 
 def test_owned_prefix_under_only_a_restricted_ancestor_is_unmanifested(repo: Path) -> None:
+    put(repo, "src/G.md")
     write_manifest(
         repo,
         [
@@ -304,6 +306,31 @@ def test_finding_without_a_surface_renders_a_dash() -> None:
 def test_cli_exits_zero_on_a_clean_repo(repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
     assert csp.main(["--repo-root", str(repo)]) == 0
     assert "OK across 2 surfaces" in capsys.readouterr().out
+
+
+def _guides_manifest(root: Path, include: list[str]) -> None:
+    write_manifest(
+        root,
+        [
+            generated("src/out", "templates/agents", "build/gen.py"),
+            independent("src/notes"),
+            independent("src/guides", include=include),
+        ],
+        ["src"],
+    )
+
+
+def test_cli_exits_1_on_dead_include_and_0_once_removed(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    put(repo, "src/guides/a.md")
+    _guides_manifest(repo, ["a.md", "gone.md"])
+    assert csp.main(["--repo-root", str(repo)]) == 1
+    out = capsys.readouterr().out
+    assert "INCLUDE-UNKNOWN: [src-guides] src/guides/gone.md" in out
+    assert "FAIL: 1 surface parity finding" in out
+    _guides_manifest(repo, ["a.md"])
+    assert csp.main(["--repo-root", str(repo)]) == 0
 
 
 def test_cli_exits_one_and_names_the_file(repo: Path, capsys: pytest.CaptureFixture[str]) -> None:

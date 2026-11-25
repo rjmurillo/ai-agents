@@ -45,8 +45,8 @@ Measured at `8050657d6`:
 
 Constraints that shape the answer:
 
-- ADR-097 retired every tool-use hook. `.claude/rules/tool-use-hook-bar.md`
-  MUST 2 requires a host-native declarative surface to be ruled out first.
+- ADR-097 retired every tool-use hook. MUST 2 of the former `tool-use-hook-bar` rule
+  (now at `.claude/skills/skillforge/references/rule-tool-use-hook-bar.md`) requires a host-native declarative surface to be ruled out first.
 - ADR-085 Decision 1: Copilot CLI has no committed permission surface.
 - ADR-101: enforcement must sit above the actor it constrains.
 - Claude Code evaluates deny, then ask, then allow. Deny holds in

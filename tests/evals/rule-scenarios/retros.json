@@ -1,5 +1,6 @@
 {
-  "rule_path": ".claude/rules/retros.md",
+  "skill_path": ".claude/skills/retrospective/SKILL.md",
+  "reference_path": ".claude/skills/retrospective/references/rule-retros.md",
   "rule_id": "retros",
   "scenarios": [
     {
@@ -79,6 +80,60 @@
       ],
       "expected_gate": "no-retro-on-quiet-day",
       "rationale": "When To Write One: retros are event-triggered, never scheduled. None of the four triggers fired, and no pull request closed, so the Post-PR Retrospective workflow has nothing to run on. A day like that owes no retrospective. The removed daily gate is the carve-out, so no retro file is authored."
+    },
+    {
+      "id": "N1",
+      "desc": "Draft retro blames the person who merged",
+      "input": "Main went red after PR 7412 merged. I am drafting the write-up and want to say that Dana merged without running tests and should be more careful. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "process",
+        "artifact",
+        "no blame",
+        "gate",
+        "evidence"
+      ],
+      "expected_gate": "critique-process-not-individuals",
+      "rationale": "MUST 5: critique processes and artifacts, never individuals. The write-up names the missing gate, not the person, and links the commit and the CI run (MUST 3)."
+    },
+    {
+      "id": "N2",
+      "desc": "Retro saved under an ad hoc name",
+      "input": "I will save the write-up for last night's revert as retro-main-red.md in .project-toolkit/retrospective/ and describe what happened in a few paragraphs. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "YYYY-MM-DD",
+        "slug",
+        "filename",
+        "failure mode",
+        "remediation"
+      ],
+      "expected_gate": "require-dated-slug-filename-and-structure",
+      "rationale": "MUST 1: new retros use YYYY-MM-DD-<slug>.md. MUST 2 to 4 also require a failure-mode class, evidence links, and remediation actions."
+    },
+    {
+      "id": "N3",
+      "desc": "Remediation section that says to be more careful",
+      "input": "The remediation section of my write-up on the broken release says the team should be more careful with config changes and double-check before merging. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "concrete",
+        "owner",
+        "issue",
+        "governance",
+        "ADR"
+      ],
+      "expected_gate": "list-concrete-remediation-with-owners",
+      "rationale": "MUST 4: remediation lists concrete follow-up actions (governance change, ADR, instruction update, skill change) with owners or issues. Be more careful is not an action."
+    },
+    {
+      "id": "N4",
+      "desc": "Weekly changelog entry (negative)",
+      "input": "I need a changelog entry that summarizes this week's merged PRs, grouped by feature, fix, and chore, with PR links. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "changelog",
+        "group",
+        "links"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "A changelog is release communication, not a failure analysis. No retrospective trigger fired and no retro file is involved."
     }
   ]
 }

@@ -48,10 +48,10 @@ RECURRENCE_SURFACES = (
 )
 
 TESTING_SURFACES = (
-    Path("templates/rules/testing.md"),
-    Path(".claude/rules/testing.md"),
-    Path("src/claude/rules/testing.md"),
-    Path("src/cursor/rules/testing.mdc"),
+    Path("src/claude/skills/test/references/rule-testing.md"),
+    Path(".claude/skills/test/references/rule-testing.md"),
+    Path("src/copilot-cli/skills/test/references/rule-testing.md"),
+    Path("src/codex/skills/test/references/rule-testing.md"),
 )
 
 METHODOLOGY_SURFACES = (
@@ -349,7 +349,9 @@ def test_recurrence_clause_lives_in_the_build_skill_and_keeps_its_source_scope()
     assert not any(glob in first for glob in ("tests/**", "Tests.ps1"))
     template = REPO_ROOT / "templates/skills/build.SKILL.md.tmpl"
     assert "rule-code-quality.md" in template.read_text(encoding="utf-8")
-    assert "defect class that returns" not in flat(Path("templates/rules/testing.md"))
+    assert "defect class that returns" not in flat(
+        Path("src/claude/skills/test/references/rule-testing.md")
+    )
     for fixture_id in ACTIVATION_FIXTURE_IDS:
         assert "dates.py" in _structural()[fixture_id].setup_files
 

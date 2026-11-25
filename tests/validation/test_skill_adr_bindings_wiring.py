@@ -5,7 +5,7 @@ file proves the two things those tests structurally cannot: that `pre_pr` reache
 the gate at all, and that the adapter converts each exit code into the right
 boolean.
 
-`.claude/rules/testing.md` SHOULD 6 is the reason this file exists separately. A
+`rule-testing.md` SHOULD 6 is the reason this file exists separately. A
 guard can pass every one of its own tests while no consumer is wired to it, and
 unit tests on the guard cannot observe that. Evidence cited there: a guard written
 for issue #4244 passed nine mutations against its own tests while one of three

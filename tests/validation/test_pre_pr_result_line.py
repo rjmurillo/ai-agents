@@ -15,7 +15,7 @@ stop at did not.
 
 These drive ``main`` through the real sequence and read its stdout, so what is
 pinned is the process's own output rather than a helper's return value
-(``.claude/rules/testing.md`` MUST 8).
+(``rule-testing.md`` MUST 8).
 """
 
 from __future__ import annotations

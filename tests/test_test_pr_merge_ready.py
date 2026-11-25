@@ -2958,7 +2958,7 @@ class TestTierInMergeReadinessOutput:
 class TestSupportedStatesClearTheCompletionGate:
     """Every state that reaches T1 must also clear pr-autofix's Phase 3 gate.
 
-    Wiring proof, per `.claude/rules/testing.md` SHOULD-6. The two halves of
+    Wiring proof, per `rule-testing.md` SHOULD-6. The two halves of
     this contract ship in different files and neither one's unit tests can see
     the other:
 

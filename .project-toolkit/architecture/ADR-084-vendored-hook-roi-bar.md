@@ -273,7 +273,7 @@ hooks. Concretely, the bar is six rules:
    binds this rule exactly as it binds the ROI bar, and rule 6 is a cost test,
    not a route around it.
 
-   The worked cost model lives in `.claude/rules/tool-use-hook-bar.md`. The
+   The worked cost model lives in the former `tool-use-hook-bar` rule (now at `.claude/skills/skillforge/references/rule-tool-use-hook-bar.md`). Since 2026-11-24 that text loads only through the `skillforge` skill, not on hook-path edits. The
    per-event matcher union that makes the cost larger than a Claude-side matcher
    suggests is ADR-068's consolidation decision, not a host property; see
    ADR-068 "Decision" and its re-evaluation trigger on union widening.

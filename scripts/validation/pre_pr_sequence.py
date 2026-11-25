@@ -271,7 +271,7 @@ def _root_only(
     ``_SEQUENCE`` is built once at module import, so capturing the function
     object would freeze it and a wiring test that rebinds the module attribute
     could never observe the call. Per-consumer wiring tests are required here
-    (``testing.md`` SHOULD 6), so the indirection is what keeps them able to
+    (``rule-testing.md`` SHOULD 6), so the indirection is what keeps them able to
     fail.
     """
 

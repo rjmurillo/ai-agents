@@ -164,7 +164,7 @@ This pull request changes six files, all documentation. After a base merge, `scr
 
 The remediation the gate printed does not mention refs. It advises splitting the pull request, stashing work, and offers `SKIP_SCOPE_CHECK=1`. Both of the first two are wrong here, and the third is the flag with a recorded abuse history that item 4 removes. An agent following the printed advice would either fragment a six-file change or reach for the bypass, and the retrospective at `.project-toolkit/retrospective/2026-08-07-pr-4402-scope-bypass.md` records what happens next.
 
-`.claude/rules/ci-scripts.md` MUST-14 already documents stale-ref inflation for the count ratchets and states that a ref fetched earlier in the same session should be treated as stale. The scope gate has the same failure and does not say so.
+MUST-14 of the former `ci-scripts` rule (now at `.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`) already documents stale-ref inflation for the count ratchets and states that a ref fetched earlier in the same session should be treated as stale. The scope gate has the same failure and does not say so.
 
 This does not by itself justify retirement, and it is one observation. It does show the gate blocking on branch bookkeeping rather than on scope, which is the same category error the count ceiling makes on rigor.
 

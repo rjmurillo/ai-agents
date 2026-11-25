@@ -810,7 +810,7 @@ item 5.)
 ## References
 
 - `.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md`. The incident.
-- `.claude/rules/generated-artifacts.md`. The binding rule.
+- The former `generated-artifacts` rule (now at `.claude/skills/ai-agents-generation-and-release/references/rule-generated-artifacts.md`). The binding rule.
 - `.claude/rules/canonical-source-mirror.md`. Self-referential test anti-pattern.
 - `.agents/governance/FAILURE-MODES.md`. FM #11.
 - `scripts/validation/validate_hook_anchoring.py`. The committed-artifact gate.

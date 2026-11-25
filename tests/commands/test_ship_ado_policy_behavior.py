@@ -126,8 +126,9 @@ class TestAdoDischarge:
         assert "pre-flight check 1" in discharge
 
     def test_ado_pr_creation_precedes_its_discharge(self, ship_text: str) -> None:
+        """PR creation moved to `/push-pr`; the ship step that calls it must come first."""
         items = numbered_items(section(ship_text, "Process"))
-        creates = [i for i, item in enumerate(items) if "az repos pr create" in item]
+        creates = [i for i, item in enumerate(items) if "/push-pr" in item and "`host=ado`" in item]
         validates = [i for i, item in enumerate(items) if WAIT_REFERENCE.name in item]
         assert creates
         assert validates
@@ -459,11 +460,6 @@ class TestAdoWaitBehavior:
 
 
 class TestAdoProcessWording:
-    def test_push_precedes_ado_pr_create(self, ship_text: str) -> None:
-        process = section(ship_text, "Process")
-        ado = next(ln for ln in process.splitlines() if "`mode=owner`, `host=ado`" in ln)
-        assert ado.lower().index("push the branch") < ado.index("az repos pr create")
-
     def test_discharge_explains_validator_scope(self, ship_text: str) -> None:
         discharge = numbered_item(section(ship_text, "Process"), "Discharge a deferred")
         assert "host-aware only for ADO" not in discharge

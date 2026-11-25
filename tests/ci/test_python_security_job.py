@@ -3,7 +3,7 @@
 Issue #6028: pip-audit failed on a transitive pyjwt pin, and the default
 success() condition then skipped the scan on every pull request. Bandit was later
 replaced by ruff's equivalent rules. Assertions parse
-the YAML object graph (``.claude/rules/testing.md`` MUST 9).
+the YAML object graph (``rule-testing.md`` MUST 9).
 """
 
 from __future__ import annotations

@@ -41,7 +41,7 @@ reset (`invoke_lsp_session_reset.py`), and the shared state and detection
 modules under `.claude/lib/hook_utilities/` that only those hooks consume
 (`lsp_gate_state.py`, plus any code in `lsp_provider.py`, `lsp_symbols.py`,
 and `lsp_health.py` with no other caller, enumerated during #3216). Keep the static steering: the
-canonical rule `.claude/rules/lsp-first.md` shipped as context every session,
+canonical rule, the former `lsp-first` rule (now at `.claude/skills/using-serena-symbols/references/rule-lsp-first.md`), shipped as context every session,
 the Serena Init BLOCKING step in AGENTS.md, and the removed per-turn
 `invoke_serena_reassertion.py` nudge (issue #1993). Lefthook handles Git events
 and has no user-prompt lifecycle event. Issue #3216 classified this advisory
@@ -62,7 +62,7 @@ Copilot logs). It found:
   every Read to enforce a preference, not a safety property, and paid the 250 ms
   to 1 s Windows spawn tax measured in #3075 on every invocation.
 - The preference now has two enforcement-free carriers.
-  `.claude/rules/lsp-first.md` ships as context every session, Serena Init is
+  The former `lsp-first` rule (now at `.claude/skills/using-serena-symbols/references/rule-lsp-first.md`) shipped as context every session; Serena Init is
   BLOCKING at session start (AGENTS.md). The removed #1993 per-turn reassertion
   hook used to be a third carrier. The runtime block was the most expensive layer
   on a preference the remaining carriers already preserve.
@@ -81,9 +81,9 @@ the other way.
 
 What this amendment does NOT change:
 
-- `.claude/rules/lsp-first.md` and its two mirrors stay. The steering is
-  retained, not retired. The enforcement-layer mechanics that file currently
-  documents (the env-var escape hatches, the hook-tier description) are cleaned
+- The former `lsp-first` rule (now at `.claude/skills/using-serena-symbols/references/rule-lsp-first.md`) and its two mirrors stay. The steering is
+  retained, not retired. The enforcement-layer mechanics that file then
+  documented (the env-var escape hatches, the hook-tier description) are cleaned
   up by the #3216 removal when the hooks they describe are deleted; the
   three-tier navigation preference the file carries is what stays.
 - Serena Init (AGENTS.md BLOCKING) stays. The #1993 re-assertion hook has been

@@ -39,11 +39,11 @@ everywhere would turn a broken ``show`` call into a broken ``list`` call and los
 branch's PR lookup. ``TestCollectionScopedCommandsKeepProjectFlags`` fails if that happens.
 
 Assertions parse each fenced block and prose line into discrete ``az repos pr`` invocations
-rather than substring-matching the file (`.claude/rules/testing.md` MUST 9): a bare
+rather than substring-matching the file (`rule-testing.md` MUST 9): a bare
 ``"--project" not in text`` check would fail on the legitimate ``az repos pr list`` call two
 dozen lines above the defect and prove nothing about which command carries the flag.
 ``TestPreFixControl`` feeds the pre-fix line back through the same parser, so every check
-here is shown to fail on the shape it was written against (`.claude/rules/testing.md`
+here is shown to fail on the shape it was written against (`rule-testing.md`
 SHOULD 10).
 
 ``src/claude/skills/pipeline-validator/SKILL.md`` is the source;
