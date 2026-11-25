@@ -36,7 +36,7 @@ or a recorded review.
 2. **Review the page whenever the source changes.** A change to a skill's
    `SKILL.md`, its template, an agent template, or a rendered agent under
    `src/claude/agents/` or `src/copilot-cli/agents/` needs a same-branch
-   review, made at or after the source's latest change. An edit to a shared
+   review, made at or after each change to the source. An edit to a shared
    partial counts through each file it renders into. Whitespace-only edits
    count on neither side. Edit the page or add a
    `Docs-Reviewed: <name>[, <name>...]` trailer to a commit. For a name shared
@@ -85,7 +85,7 @@ block of a commit made after your last source change, beside
 earlier paragraph. Amend an unpushed commit, or add a new commit with
 `git commit --allow-empty`; never force-push a shared branch. A trailer on a
 commit outside the branch does not count, and neither does a trailer or page
-edit older than the source's latest change. A whole skill or agent that is new
+edit older than a change it must cover. A whole skill or agent that is new
 or removed is left to the page check above. One source file added or removed
 for an existing skill or agent counts as a change.
 

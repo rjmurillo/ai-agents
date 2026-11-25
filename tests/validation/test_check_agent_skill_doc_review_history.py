@@ -155,3 +155,28 @@ def test_untracked_source_is_not_covered_by_an_older_trailer(tmp_path):
     )
     (repo / "templates/agents/critic.claude.md.tmpl").write_text("New.\n", encoding="utf-8")
     assert _paths(review.find_unreviewed(repo, "base")) == ["docs/agents/critic.md"]
+
+
+def test_sibling_source_commits_each_need_a_review(tmp_path):
+    repo, skill, _ = _with_agent(tmp_path)
+    _git(repo, "checkout", "-q", "-b", "side")
+    _edit(skill / "SKILL.md", "| 0 | Success |", "| 0 | Success, unreviewed |")
+    _commit(repo, "side edits alpha with no review")
+    _git(repo, "checkout", "-q", "-b", "feature", "base")
+    _edit(skill / "SKILL.md", _BODY_OLD, _BODY_NEW)
+    _commit(repo, "feature edits alpha\n\nDocs-Reviewed: alpha")
+    _git(
+        repo,
+        "-c",
+        "user.email=t@example.com",
+        "-c",
+        "user.name=t",
+        "merge",
+        "-q",
+        "--no-ff",
+        "-m",
+        "merge side",
+        "side",
+    )
+
+    assert _paths(review.find_unreviewed(repo, "base")) == ["docs/skills/alpha.md"]

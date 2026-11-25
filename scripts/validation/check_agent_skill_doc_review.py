@@ -18,20 +18,21 @@ skill or agent whose page already exists counts as changed too. Sources:
   the rendered agents, so an edit to a shared or host-only agent partial
   counts for every agent it renders into
 
-A changed source passes when either holds, and the review is not older than
-the source's latest change:
+A changed source passes when every one of its changes since the fork point
+has a review that descends from it. A review is either:
 
 - its page (``docs/skills/<name>.md`` or ``docs/agents/<name>.md``) changed
   since the fork point beyond whitespace, in the same or a later commit than
-  the source's latest change, or in the working tree, or
-- a commit in ``<base-ref>..HEAD`` at or after the source's latest change
-  carries a ``Docs-Reviewed:`` trailer that names it. Names are separated by
-  commas or spaces. Use ``skills/<name>`` or ``agents/<name>`` when a skill
+  that change, or in the working tree, or
+- a commit in ``<base-ref>..HEAD`` at or after that change carries a
+  ``Docs-Reviewed:`` trailer that names it. Names are separated by commas
+  or spaces. Use ``skills/<name>`` or ``agents/<name>`` when a skill
   and an agent share the name. A source with uncommitted changes passes only
   on an uncommitted page edit; commit it first to clear it with a trailer.
 
-Only commits that change a file beyond whitespace count as its latest change
-or as a page edit, and merge commits are skipped on both sides.
+Only commits that change a file beyond whitespace count as a change or as a
+page edit. Merge commits are skipped for both, so sibling commits merged into
+the branch each need a review. Trailers are read from every commit.
 
 A whole skill or agent that is new or removed since the fork point is
 skipped: the blocking page check in ``check_agent_skill_docs.py`` owns new
@@ -169,12 +170,13 @@ def _quiet_diff(repo_root: Path, *revs: str, path: str) -> bool:
     return result.returncode == 1
 
 
-def _last_change(repo_root: Path, base_ref: str, path: str) -> str | None:
-    """Return the newest branch commit that changed ``path`` beyond whitespace.
+def _changes(repo_root: Path, base_ref: str, path: str) -> list[str]:
+    """Return every branch commit that changed ``path`` beyond whitespace.
 
-    Returns ``_WORKTREE`` when the working tree changes it beyond whitespace.
-    Merge commits are skipped, so a GitHub merge checkout where the base also
-    changed ``path`` resolves to the branch's own commit.
+    Returns ``[_WORKTREE]`` when the working tree changes it beyond whitespace.
+    Every such commit is returned, so sibling commits merged into the branch
+    each need their own review. Merge commits are skipped, so a GitHub merge
+    checkout where the base also changed ``path`` resolves to branch commits.
     """
     dirty = _git(repo_root, "status", "--porcelain", "--", path)
     if dirty.returncode != 0:
@@ -182,7 +184,7 @@ def _last_change(repo_root: Path, base_ref: str, path: str) -> str | None:
     if dirty.stdout.strip():
         untracked = dirty.stdout.startswith("??")
         if untracked or _quiet_diff(repo_root, "HEAD", path=path):
-            return _WORKTREE
+            return [_WORKTREE]
     log = _git(
         repo_root,
         "log",
@@ -195,10 +197,7 @@ def _last_change(repo_root: Path, base_ref: str, path: str) -> str | None:
     )
     if log.returncode != 0:
         raise _failed(log, f"git log failed for {path}")
-    for sha in log.stdout.split():
-        if _quiet_diff(repo_root, f"{sha}^", sha, path=path):
-            return sha
-    return None
+    return [sha for sha in log.stdout.split() if _quiet_diff(repo_root, f"{sha}^", sha, path=path)]
 
 
 def _not_older(repo_root: Path, change: str | None, review: str | None) -> bool:
@@ -252,15 +251,16 @@ def find_unreviewed(repo_root: Path, base_ref: str) -> Review:
     for (kind, name), paths in sorted(candidates.items()):
         page = f"{DOCS[kind]}/{name}.md"
         token = _review_token(repo_root, kind, name)
-        changes = [_last_change(repo_root, base_ref, path) for path in paths]
+        changes: list[str | None] = [
+            c for path in paths for c in _changes(repo_root, base_ref, path)
+        ]
         named = [sha for sha, names in trailers if token in names or f"{kind}/{name}" in names]
-        page_review = None
+        reviews_for: list[str | None] = list(named)
         if page in changed and _substantive(repo_root, base, page):
-            page_review = _last_change(repo_root, base_ref, page)
+            reviews_for += _changes(repo_root, base_ref, page)
         if all(
-            _not_older(repo_root, change, page_review)
-            or any(_not_older(repo_root, change, sha) for sha in named)
-            for change in changes
+            any(_not_older(repo_root, change, review) for review in reviews_for)
+            for change in changes or [None]
         ):
             continue
         findings.append(
