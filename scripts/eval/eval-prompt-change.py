@@ -177,40 +177,46 @@ def parse_scenarios(raw: bytes, path: str) -> list[dict[str, Any]]:
                 f"Scenario {i} in {path} missing required fields: {missing}. "
                 f"Required: {REQUIRED_SCENARIO_FIELDS}"
             )
-        opts = s.get("verdict_options")
-        if opts is not None:
-            if not isinstance(opts, list) or not opts:
-                raise RuntimeError(
-                    f"Scenario {s['id']} in {path}: 'verdict_options' must be a "
-                    f"non-empty list when present."
-                )
-            opts_upper: list[str] = []
-            seen_opts: set[str] = set()
-            for opt in opts:
-                normalized_opt = str(opt).strip().upper()
-                if not normalized_opt:
-                    raise RuntimeError(
-                        f"Scenario {s['id']} in {path}: 'verdict_options' contains "
-                        f"an empty label after normalization. Remove blank or "
-                        f"whitespace-only entries."
-                    )
-                if normalized_opt in seen_opts:
-                    raise RuntimeError(
-                        f"Scenario {s['id']} in {path}: 'verdict_options' contains "
-                        f"duplicate label {normalized_opt!r} after normalization. "
-                        f"Ensure labels are unique ignoring case and surrounding "
-                        f"whitespace."
-                    )
-                seen_opts.add(normalized_opt)
-                opts_upper.append(normalized_opt)
-            if str(s["expected_verdict"]).strip().upper() not in opts_upper:
-                raise RuntimeError(
-                    f"Scenario {s['id']} in {path}: expected_verdict "
-                    f"{s['expected_verdict']!r} is not in verdict_options "
-                    f"{opts}. Add it or remove verdict_options."
-                )
+        _check_verdict_options(s, path)
 
     return scenarios
+
+
+def _check_verdict_options(s: dict[str, Any], path: str) -> None:
+    """Raise RuntimeError when a scenario's optional `verdict_options` is malformed."""
+    opts = s.get("verdict_options")
+    if opts is None:
+        return
+    if not isinstance(opts, list) or not opts:
+        raise RuntimeError(
+            f"Scenario {s['id']} in {path}: 'verdict_options' must be a "
+            f"non-empty list when present."
+        )
+    opts_upper: list[str] = []
+    seen_opts: set[str] = set()
+    for opt in opts:
+        normalized_opt = str(opt).strip().upper()
+        if not normalized_opt:
+            raise RuntimeError(
+                f"Scenario {s['id']} in {path}: 'verdict_options' contains "
+                f"an empty label after normalization. Remove blank or "
+                f"whitespace-only entries."
+            )
+        if normalized_opt in seen_opts:
+            raise RuntimeError(
+                f"Scenario {s['id']} in {path}: 'verdict_options' contains "
+                f"duplicate label {normalized_opt!r} after normalization. "
+                f"Ensure labels are unique ignoring case and surrounding "
+                f"whitespace."
+            )
+        seen_opts.add(normalized_opt)
+        opts_upper.append(normalized_opt)
+    if str(s["expected_verdict"]).strip().upper() not in opts_upper:
+        raise RuntimeError(
+            f"Scenario {s['id']} in {path}: expected_verdict "
+            f"{s['expected_verdict']!r} is not in verdict_options "
+            f"{opts}. Add it or remove verdict_options."
+        )
 
 
 def _verdict_options(scenario: dict[str, Any]) -> list[str]:
