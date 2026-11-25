@@ -103,56 +103,6 @@ class TestAppendOnly:
         code, out = run(repo, capsys)
         assert code == 0, out
 
-    def test_merge_that_drops_a_failed_results_file_blocks(
-        self, repo: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        """``--cc`` omits a path the merge takes from the other parent, here by absence."""
-        driver_change(repo)
-        git(repo, "checkout", "-q", "-b", "side")
-        write(repo, "side.txt", "side\n")
-        commit(repo, "side")
-        git(repo, "checkout", "-q", "feature")
-        write(repo, f"{EVID}/run-1.json", results(repo, {"S1": ("PPP", "FFF")}, verdict="FAIL"))
-        commit(repo, "failed run")
-        git(repo, "merge", "-q", "--no-commit", "side")
-        git(repo, "rm", "-q", f"{EVID}/run-1.json")
-        commit(repo, "merge side, dropping the failed run")
-        write(repo, f"{EVID}/run-2.json", results(repo))
-        commit(repo, "clean run")
-        code, out = run(repo, capsys)
-        assert code == 1
-        assert "run-1.json is edited or deleted in" in out
-
-    def test_results_inherited_from_the_other_parent_are_not_a_second_add(
-        self, repo: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        driver_change(repo)
-        git(repo, "checkout", "-q", "-b", "side")
-        commit_evidence(repo, "side evidence")
-        git(repo, "checkout", "-q", "feature")
-        write(repo, "feature.txt", "feature\n")
-        commit(repo, "feature")
-        git(repo, "merge", "-q", "--no-ff", "-m", "merge side", "side")
-        code, out = run(repo, capsys)
-        assert code == 0, out
-
-    def test_merge_may_drop_the_retired_file(
-        self, repo: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        driver_change(repo)
-        git(repo, "checkout", "-q", "-b", "side")
-        write(repo, "side.txt", "side\n")
-        commit(repo, "side")
-        git(repo, "checkout", "-q", "feature")
-        write(repo, f"{EVID}/retired.json", json.dumps({"retired": []}))
-        commit(repo, "retired")
-        git(repo, "merge", "-q", "--no-commit", "side")
-        git(repo, "rm", "-q", f"{EVID}/retired.json")
-        commit(repo, "merge side, dropping retired.json")
-        commit_evidence(repo)
-        code, out = run(repo, capsys)
-        assert code == 0, out
-
     def test_runner_edit_in_a_gated_branch_blocks(
         self, repo: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:

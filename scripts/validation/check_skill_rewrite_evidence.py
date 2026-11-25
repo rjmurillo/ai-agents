@@ -38,8 +38,9 @@ For a gated skill the check requires, and fails closed without:
 - each scenario dropped since the merge base listed in ``retired.json`` with
   a test that exists at head;
 - results files that are append-only on the branch: an edit or delete of
-  one fails (item 9), including a merge that drops or changes a file its
-  first parent holds;
+  one fails (item 9), and so does a file missing at head or changed since the
+  first commit on the branch that added it, which catches a merge that drops
+  a run held by either parent;
 - a results file recording the head prompt-surface sha256. The first one
   committed among those that also record the head scenario-file sha256 sets
   the verdict (one already on the base ref counts as first), so a base file
@@ -155,29 +156,43 @@ def _is_results_file(path: str, results_dir: str) -> bool:
     )
 
 
-def _merge_drops(
-    ctx: Context, commit: str, results_dir: str, reported: dict[str, str]
+def _head_blob_findings(
+    ctx: Context, results_dir: str, added: dict[str, int], flagged: set[str]
 ) -> list[str]:
-    """Edits or deletes of a results file that a merge makes against its first parent."""
-    return [
-        f"{path} is edited or deleted in {commit[:10]}; results files are append-only"
-        for path in ctx.merge_edits(commit, results_dir)
-        if path not in reported and _is_results_file(path, results_dir)
-    ]
+    """Each results file the branch added must reach head with its first-added blob.
+
+    ``Context.changes`` sees a path only when a commit differs from every
+    parent. A merge that takes one parent's tree for a path, by dropping a
+    file the other parent holds, never shows there. Comparing head to the blob
+    at the first add needs no per-commit view, whichever parent held the file.
+    A path already named by the per-commit scan is not repeated.
+    """
+    at_head = ctx.git.tree_blobs(ctx.head, results_dir)
+    problems = []
+    for path, index in sorted(added.items()):
+        commit = ctx.commits[index]
+        if path in flagged or at_head.get(path) == ctx.git.tree_blobs(commit, path)[path]:
+            continue
+        state = (
+            "is missing at HEAD"
+            if path not in at_head
+            else "differs at HEAD from its first-added version"
+        )
+        problems.append(f"{path} {state} (added in {commit[:10]}); results files are append-only")
+    return problems
 
 
 def _results_history(ctx: Context, results_dir: str) -> tuple[dict[str, int], list[str]]:
-    """When each results file was added, and every edit or delete of one.
+    """When each results file was added, and every edit, delete, or hidden change of one.
 
     Results files are append-only (ADR-127 decision 7 item 9): a later run is
-    a new file, so the first one keeps setting the verdict. At a merge, a file
-    the first parent holds that the merge deletes or changes also counts.
+    a new file, so the first one keeps setting the verdict.
     """
     added: dict[str, int] = {}
     problems = []
+    flagged: set[str] = set()
     for index, commit in enumerate(ctx.commits):
-        changes = ctx.changes(commit)
-        for path, status in changes.items():
+        for path, status in ctx.changes(commit).items():
             if not _is_results_file(path, results_dir):
                 continue
             # ``--cc`` prints one letter per parent for a merge: ``AA`` is an add.
@@ -185,15 +200,16 @@ def _results_history(ctx: Context, results_dir: str) -> tuple[dict[str, int], li
             if is_add and path not in added:
                 added[path] = index
             elif is_add:
+                flagged.add(path)
                 problems.append(
                     f"{path} is added again in {commit[:10]}; results files are append-only"
                 )
             else:
+                flagged.add(path)
                 problems.append(
                     f"{path} is edited or deleted in {commit[:10]}; results files are append-only"
                 )
-        problems += _merge_drops(ctx, commit, results_dir, changes)
-    return added, problems
+    return added, problems + _head_blob_findings(ctx, results_dir, added, flagged)
 
 
 def _load_results(ctx: Context, results_dir: str) -> tuple[dict[str, Any], list[str]]:

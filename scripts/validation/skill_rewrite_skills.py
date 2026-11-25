@@ -107,6 +107,12 @@ class Git:
         out = self._run("ls-tree", "-r", "-z", "--name-only", ref, "--", prefix).stdout
         return [p for p in out.decode("utf-8", "replace").split("\0") if p]
 
+    def tree_blobs(self, ref: str, prefix: str) -> dict[str, str]:
+        """Path to blob id for each file at *ref* under *prefix* (a file or a directory)."""
+        out = self._run("ls-tree", "-r", "-z", ref, "--", prefix).stdout
+        entries = filter(None, out.decode("utf-8", "replace").split("\0"))
+        return {path: meta.split()[2] for meta, _, path in (e.partition("\t") for e in entries)}
+
     def blob(self, ref: str, path: str) -> bytes:
         return self._run("cat-file", "blob", f"{ref}:{path}").stdout
 

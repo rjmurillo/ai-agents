@@ -44,30 +44,3 @@ class Context:
         parts = [p for p in raw.split("\0") if p]
         self._changes[commit] = {parts[i + 1]: parts[i] for i in range(0, len(parts) - 1, 2)}
         return self._changes[commit]
-
-    def merge_edits(self, commit: str, prefix: str) -> dict[str, str]:
-        """Paths under *prefix* that a merge deletes or changes against its first parent.
-
-        ``changes`` uses ``--cc``, which lists only a path that differs from
-        every parent. A merge that takes the other parent's tree for a path,
-        by deleting a file the first parent holds, never shows there. An add
-        is left out: a file from the other parent is inherited, and a file both
-        parents add is already an ``AA`` in ``changes``. A non-merge commit has
-        no first-parent comparison to make.
-        """
-        parents = self.git.text("rev-list", "--parents", "-n", "1", commit).split()[1:]
-        if len(parents) < 2:
-            return {}
-        raw = self.git.text(
-            "diff-tree",
-            "-r",
-            "-z",
-            "--name-status",
-            "--no-renames",
-            parents[0],
-            commit,
-            "--",
-            prefix,
-        )
-        parts = [p for p in raw.split("\0") if p]
-        return {parts[i + 1]: parts[i] for i in range(0, len(parts) - 1, 2) if parts[i] != "A"}
