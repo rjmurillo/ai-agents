@@ -156,8 +156,12 @@ def _binding(ctx, pr: int, branch: str, sha: str, after_publish: bool) -> Check 
     return None
 
 
-def _read_github_checks(ctx, pr: int) -> tuple[int, dict] | Check | Halt:
-    """Run get_pr_checks.py once; return (exit code, Data), a PENDING check, or a Halt."""
+def _read_github_checks(ctx, pr: int, wait_seconds: int) -> tuple[int, dict] | Check | Halt:
+    """Run get_pr_checks.py once; return (exit code, Data), a PENDING check, or a Halt.
+
+    It waits at most ``min(wait_seconds, CHECKS_TIMEOUT_SECONDS)``. Zero reads once.
+    """
+    budget = max(0, min(wait_seconds, CHECKS_TIMEOUT_SECONDS))
     helper = common.skill_script("github", "pr", "get_pr_checks.py")
     if not helper.is_file():
         return Halt("checks-query-failed", common.EXIT_CONFIG, "get_pr_checks.py not found")
@@ -167,14 +171,12 @@ def _read_github_checks(ctx, pr: int) -> tuple[int, dict] | Check | Halt:
         str(helper),
         "--pull-request",
         str(pr),
-        "--wait",
+        *(["--wait", "--timeout-seconds", str(budget)] if budget else []),
         "--required-only",
-        "--timeout-seconds",
-        str(CHECKS_TIMEOUT_SECONDS),
         "--output-format",
         "json",
     ]
-    done = common.run(argv, cwd=ctx.root, timeout=CHECKS_TIMEOUT_SECONDS + 60)
+    done = common.run(argv, cwd=ctx.root, timeout=budget + 60)
     if done.returncode == 7:
         return Check("pipeline", "PENDING", "required checks still running")
     if done.returncode == 4:
@@ -203,7 +205,7 @@ def _github_verdict(ctx, pr: int, code: int, data: dict) -> Check:
     return Check("pipeline", "FAIL", detail)
 
 
-def _github_pipeline(ctx, pr: int, after_publish: bool) -> Check | Halt:
+def _github_pipeline(ctx, pr: int, after_publish: bool, wait_seconds: int) -> Check | Halt:
     """Read CI only for PR ``pr`` at this branch and HEAD, and re-check the head after."""
     before = _github_head(ctx, pr)
     if isinstance(before, Halt):
@@ -211,7 +213,7 @@ def _github_pipeline(ctx, pr: int, after_publish: bool) -> Check | Halt:
     mismatch = _binding(ctx, pr, *before, after_publish)
     if mismatch is not None:
         return mismatch
-    read = _read_github_checks(ctx, pr)
+    read = _read_github_checks(ctx, pr, wait_seconds)
     if not isinstance(read, tuple):
         return read
     after = _github_head(ctx, pr)
@@ -356,7 +358,7 @@ def check_pipeline(ctx, pr: int | None, wait_seconds: int, after_publish: bool) 
     if pr is None:
         return Check("pipeline", "DEFERRED", "no open PR yet")
     if ctx.host == "github":
-        return _github_pipeline(ctx, pr, after_publish)
+        return _github_pipeline(ctx, pr, after_publish, wait_seconds)
     return _ado_pipeline(ctx, pr, wait_seconds, after_publish)
 
 

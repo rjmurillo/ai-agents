@@ -314,6 +314,30 @@ class TestPublishGitHub:
         assert exit_code == code
         assert lines[-1].startswith(f"STOP: {reason}")
 
+    def test_bare_403_in_stderr_is_not_an_auth_failure(self, owner, scripts, capsys, monkeypatch):
+        _repo, body = owner
+        common = scripts[0]
+        real_git = common.git
+
+        def failing(args, cwd=None, timeout=60):
+            if args[:1] == ["push"]:
+                return common.Completed(128, "", "fatal: connect to host port 2403 refused\n")
+            return real_git(args, cwd=cwd, timeout=timeout)
+
+        monkeypatch.setattr(common, "git", failing)
+        code, lines = run_pr(
+            scripts,
+            capsys,
+            "publish",
+            "--paths-checked-by-hand",
+            "--title",
+            TITLE,
+            "--body-file",
+            str(body),
+        )
+        assert code == 3
+        assert lines[-1].startswith("STOP: push-failed")
+
     @pytest.mark.parametrize(
         "response",
         [{"rc": 1, "stderr": "gh: GraphQL error\n"}, {"rc": 0, "stdout": "no url here\n"}],

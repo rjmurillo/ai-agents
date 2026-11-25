@@ -83,7 +83,8 @@ _PUSH_AUTH_SIGNALS = (
     "authentication failed",
     "permission denied",
     "could not read username",
-    "403",
+    "returned error: 403",
+    "http 403",
 )
 
 

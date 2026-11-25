@@ -73,6 +73,11 @@ _PLAIN_HOST_RE = re.compile(rf"^(?=.{{2,253}}$){_LABEL}(?:\.{_LABEL})*$")
 _ADO_HOSTS = frozenset({"dev.azure.com", "ssh.dev.azure.com"})
 
 
+# A token ends only at ASCII whitespace. Unicode spaces and control
+# characters stay inside it, so a password holding one is still cut.
+_ASCII_SPACE = frozenset(" \t\n\r\v\f")
+
+
 def _strip_userinfo(text: str) -> str:
     """Drop everything between ``://`` and the last ``@`` of the same token.
 
@@ -90,7 +95,7 @@ def _strip_userinfo(text: str) -> str:
             return "".join(out)
         token_start = marker + 3
         token_end = token_start
-        while token_end < len(text) and not text[token_end].isspace():
+        while token_end < len(text) and text[token_end] not in _ASCII_SPACE:
             token_end += 1
         token = text[token_start:token_end]
         out.append(text[start:token_start])
@@ -363,10 +368,24 @@ class Completed:
     stderr: str
 
 
-# gh reads GH_REPO to pick its target repository, which would let the
-# environment point a query at a repository other than origin (ADR-127
-# decision 3 item 6). GH_HOST stays: GitHub Enterprise needs it to authenticate.
-CHILD_ENV_DROP = frozenset({"GH_REPO"})
+# Variables that would point a child at another repository or host than the
+# checkout and its origin (ADR-127 decision 3 item 6). gh takes its host from
+# the origin remote inside a checkout, so GitHub Enterprise needs no GH_HOST.
+# Git configuration (GIT_CONFIG_*, GIT_SSH_COMMAND) is user setup, not a
+# target, and passes through.
+CHILD_ENV_DROP = frozenset(
+    {
+        "GH_REPO",
+        "GH_HOST",
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_COMMON_DIR",
+        "GIT_INDEX_FILE",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_NAMESPACE",
+    }
+)
 
 
 def child_env() -> dict[str, str]:

@@ -43,6 +43,9 @@ class TestClean:
             ("https://user:pa/ss@github.com/o/r", "pa/ss"),
             ("https://u:" + "s" * 300 + "@github.com/o/r", "s" * 300),
             ("fatal: unable to access 'https://bob:t0k3n@github.com/o/r.git/': 403", "t0k3n"),
+            ("https://u:pw\u2028x@github.com/o/r", "pw"),
+            ("https://u:pw\u00a0x@github.com/o/r", "pw"),
+            ("https://u:pw\x1cx@github.com/o/r", "pw"),
         ],
     )
     def test_userinfo_never_survives(self, raw, secret):
@@ -362,14 +365,38 @@ class TestHelpers:
 
 
 class TestChildEnv:
-    def test_gh_repo_never_reaches_a_child(self, monkeypatch):
-        monkeypatch.setenv("GH_REPO", "attacker/other")
-        monkeypatch.setenv("GH_HOST", "github.example.com")
-        done = common.run(
+    @pytest.mark.parametrize("name", sorted(common.CHILD_ENV_DROP))
+    def test_target_changing_variables_never_reach_a_child(self, monkeypatch, name):
+        monkeypatch.setenv(name, "/elsewhere")
+        done = common.run([os.sys.executable, "-c", f"import os; print(os.environ.get({name!r}))"])
+        assert done.stdout.strip() == "None"
+
+    def test_git_dir_cannot_redirect_the_checkout(self, tmp_path, monkeypatch):
+        import subprocess
+
+        other = tmp_path / "other"
+        subprocess.run(["git", "init", "-q", str(other)], check=True)
+        subprocess.run(
             [
-                os.sys.executable,
-                "-c",
-                "import os; print(os.environ.get('GH_REPO'), os.environ.get('GH_HOST'))",
-            ]
+                "git",
+                "-C",
+                str(other),
+                "remote",
+                "add",
+                "origin",
+                "https://github.com/evil/other.git",
+            ],
+            check=True,
         )
-        assert done.stdout.split() == ["None", "github.example.com"]
+        mine = tmp_path / "mine"
+        subprocess.run(["git", "init", "-q", str(mine)], check=True)
+        monkeypatch.setenv("GIT_DIR", str(other / ".git"))
+        done = common.git(["remote", "get-url", "origin"], cwd=mine)
+        assert "evil/other" not in done.stdout
+
+    def test_user_git_configuration_passes_through(self, monkeypatch):
+        monkeypatch.setenv("GIT_SSH_COMMAND", "ssh -i key")
+        done = common.run(
+            [os.sys.executable, "-c", "import os; print(os.environ.get('GIT_SSH_COMMAND'))"]
+        )
+        assert done.stdout.strip() == "ssh -i key"

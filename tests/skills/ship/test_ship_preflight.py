@@ -185,12 +185,24 @@ def test_github_green_needs_success_and_all_passing(github_pr, fakes, scripts, c
         "--pull-request",
         "9",
         "--wait",
-        "--required-only",
         "--timeout-seconds",
         "300",
+        "--required-only",
         "--output-format",
         "json",
     ]
+
+
+@pytest.mark.parametrize(("wait", "expected"), [("0", None), ("45", "45"), ("540", "300")])
+def test_wait_seconds_bounds_the_github_wait(github_pr, fakes, scripts, capsys, wait, expected):
+    fakes.rule("get_pr_checks", [], _green())
+    code, _lines = _preflight(scripts, capsys, "--check", "pipeline", "--wait-seconds", wait)
+    call = fakes.calls("get_pr_checks")[0]
+    assert code == 0
+    if expected is None:
+        assert "--wait" not in call and "--timeout-seconds" not in call
+    else:
+        assert call[call.index("--timeout-seconds") + 1] == expected
 
 
 @pytest.mark.parametrize(
