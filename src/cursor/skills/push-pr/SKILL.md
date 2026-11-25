@@ -1,7 +1,7 @@
 ---
 name: push-pr
 version: 1.0.0
-description: Commit the working tree, push the branch, and open a pull request on GitHub or Azure DevOps with the repository template filled in from the real diff. This is the only skill that creates a PR. Use when you say `push and open a PR`, `open a pull request`, or `push this branch`. Do NOT use to run the pre-ship review gates (use ship), and do NOT use to validate PR metadata alone (use validate-pr-description).
+description: Commit the working tree, push the branch, and open a pull request on GitHub or Azure DevOps with the repository template filled in from the real diff. This is the only skill that creates a PR. Use when you say `push and open a PR`, `open a pull request`, or `push this branch`. Also use when writing a push recipe or runbook step, serializing pushes with flock or a push lock file (the lock file under $HOME/src/scratch/locks), or quoting the old /tmp push lock. Do NOT use to run the pre-ship review gates (use ship), and do NOT use to validate PR metadata alone (use validate-pr-description).
 license: Apache-2.0
 metadata:
   routing:
@@ -63,6 +63,8 @@ When the working tree is clean, `/push-pr` MUST NOT create a commit. It pushes
 `HEAD` as it stands. `/ship` relies on this: its owner-mode check requires the
 tree to be clean after `/review`, so the push carries the reviewed marker commit
 and nothing newer.
+
+Folded rule: before you write, run, or quote a push lock or any command that serializes `git push`, read [push-lock](references/rule-push-lock.md).
 
 ## Process
 

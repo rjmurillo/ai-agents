@@ -133,7 +133,7 @@ Walk these in order. Skip a branch only with explicit justification.
 3. **Data model.** What entities exist? What identity, invariants, and lifecycle do they have? What persists, what is derived?
 4. **Integrations.** Which external systems does this touch? What are their failure modes and idempotency guarantees?
 5. **Failure modes.** Retries, partial failures, conflicting writes, replay, schema evolution. Each gets an explicit answer.
-6. **Security.** Authentication, authorization, secrets, PII, input validation. Cite the relevant rule under `.claude/rules/security.md` or `.agents/governance/SECURITY-REVIEW-PROTOCOL.md`.
+6. **Security.** Authentication, authorization, secrets, PII, input validation. Cite the relevant rule under the `security-review` skill's `references/rule-security.md` or `.agents/governance/SECURITY-REVIEW-PROTOCOL.md`.
 7. **Observability.** What signals prove the feature works in production? Logs, metrics, traces, alerts.
 8. **Scope boundaries.** What is explicitly out of scope? What is deferred to a follow-up? What is rejected and why?
 
@@ -177,6 +177,6 @@ Every PRD section reaches the spec-generator unchanged so it does not re-ask que
 - [Ambiguity audit reference](references/ambiguity-audit.md) - Ledger schema, question rules, batching, and rebuild verification for existing specs
 - [Circle of Competence](references/mental-models-circle-of-competence.md) - Calibrate confidence in a recommended answer by whether the decision sits inside the team's tested knowledge
 - Related skills: `decision-critic`, `pre-mortem`, `cynefin-classifier`
-- Related references: `software-engineering-library` clean-architecture and domain-driven-design references, plus `.claude/rules/security.md`
+- Related references: `software-engineering-library` clean-architecture and domain-driven-design references, plus the `security-review` skill's `references/rule-security.md`
 
-<!-- vendor-portability: declared. This skill writes interview transcripts and the REQ/DESIGN/TASK spec tier under .project-toolkit/specs/ and cites .agents/governance/SECURITY-REVIEW-PROTOCOL.md. The specs paths are write targets created on demand; the governance file is a citation with a .claude/rules/security.md fallback named inline. -->
+<!-- vendor-portability: declared. This skill writes interview transcripts and the REQ/DESIGN/TASK spec tier under .project-toolkit/specs/ and cites .agents/governance/SECURITY-REVIEW-PROTOCOL.md. The specs paths are write targets created on demand; the governance file is a citation with a the `security-review` skill's `references/rule-security.md` fallback named inline. -->

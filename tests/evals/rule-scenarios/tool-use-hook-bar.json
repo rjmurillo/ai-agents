@@ -1,5 +1,6 @@
 {
-  "rule_path": ".claude/rules/tool-use-hook-bar.md",
+  "skill_path": ".claude/skills/skillforge/SKILL.md",
+  "reference_path": ".claude/skills/skillforge/references/rule-tool-use-hook-bar.md",
   "rule_id": "tool-use-hook-bar",
   "scenarios": [
     {
@@ -121,6 +122,61 @@
       ],
       "expected_gate": "unreducible-matcher-disqualifying",
       "rationale": "MUST 4. event_matcher_union at generate_dispatcher.py:556 returns None when any matcher fails to reduce to a known tool name, and its docstring states the consequence: emit no matcher, the dispatcher fires on every call. One unreducible matcher therefore deletes the matcher for every hook on that event."
+    },
+    {
+      "id": "N1",
+      "desc": "Argument that the spawn is cheap next to the work it guards",
+      "input": "I want a PreToolUse hook on Agent and Task that rejects a subagent launch with no model set. A subagent run costs far more than one hook spawn, so the cost is easy to justify. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "amortization",
+        "outcome",
+        "cost of a wrong deny",
+        "not precedent",
+        "price the machinery"
+      ],
+      "expected_gate": "reject-amortization-argument",
+      "rationale": "What ships today, item 2: the spawn is cheap relative to the work guarded is amortization, which MUST 1 does not accept. MUST 1 weighs outcome against cost, and ADR-097 retired that exact hook."
+    },
+    {
+      "id": "N2",
+      "desc": "Bumping the zero-hooks ratchet to land an audit hook",
+      "input": "tests/hooks/test_zero_tool_use_hooks.py fails after I registered a PostToolUse audit logger in hooks.json. I will change the expected count in that test from 0 to 1. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "ratchet",
+        "first",
+        "bar",
+        "justify",
+        "matcher union"
+      ],
+      "expected_gate": "refuse-ratchet-bump-without-clearing-the-bar",
+      "rationale": "What ships today: the ratchet fails when you are proposing the first tool-use hook. Changing the count skips MUST 1 to 5, and a first re-add also owes the one-entry pin and the hardening tests."
+    },
+    {
+      "id": "N3",
+      "desc": "Linter hook on Edit for faster feedback",
+      "input": "I want a PostToolUse hook on Edit that runs ruff on the changed file right away, so the agent sees lint errors immediately instead of at commit. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "feedback loop",
+        "not sufficient",
+        "pre-commit",
+        "lefthook",
+        "Bash blast radius"
+      ],
+      "expected_gate": "reject-shorter-feedback-loop-justification",
+      "rationale": "MUST NOT 2: a tool-use hook is not justified by a shorter feedback loop alone. MUST 2 requires ruling out a Git hook or lefthook job that runs correctly at commit time. Edit is also a hot tool under MUST NOT 1."
+    },
+    {
+      "id": "N4",
+      "desc": "New lefthook pre-commit job (negative)",
+      "input": "I want a lefthook pre-commit job that runs ruff check on staged Python files, skipped during merges. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "lefthook",
+        "staged",
+        "ruff",
+        "skip merge"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "A lefthook job runs at commit time, a Git hook surface the rule names as the preferred placement. It registers no PreToolUse, PostToolUse, PermissionRequest, or PostToolUseFailure hook."
     }
   ]
 }

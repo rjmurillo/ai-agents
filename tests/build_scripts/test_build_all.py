@@ -3518,7 +3518,7 @@ def test_cli_exits_3_when_git_state_is_unreadable(
 ) -> None:
     """The CLI, not just ``run()``, must return the external code.
 
-    ``.claude/rules/testing.md`` MUST 8: a test for a gate drives ``main(argv)``
+    ``rule-testing.md`` MUST 8: a test for a gate drives ``main(argv)``
     and asserts the integer the program returns. Every caller of this script
     reads a process exit code, and ``run()``'s return value only becomes one
     because ``main`` passes it through: this asserts the thing callers see.

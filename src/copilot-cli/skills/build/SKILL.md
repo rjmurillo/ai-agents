@@ -1,7 +1,7 @@
 ---
 name: build
 version: 1.0.0
-description: Implement a planned change in thin vertical slices, test-first, with atomic commits and four mandatory exit gates. Use when you say `build this`, `implement this slice`, or `write the code for this task`, and run it after plan. Do NOT use to decide what to build (use spec) or to sequence the work (use plan), and do NOT use to review a finished diff (use review).
+description: Implement a planned change in thin vertical slices, test-first, with atomic commits and four mandatory exit gates. Use when you say `build this`, `implement this slice`, or `write the code for this task`, and run it after plan. Also use when editing a .py file, pyproject.toml, or requirements*.txt (typing, idioms, ruff and uv tooling, error handling, nullable JSON .get defaults, Python version syntax), PowerShell (.ps1), or C# (.cs). Do NOT use to decide what to build (use spec) or to sequence the work (use plan), and do NOT use to review a finished diff (use review).
 license: Apache-2.0
 allowed-tools: Task, Skill, Read, Write, Edit, Glob, Grep, Bash(*)
 argument-hint: plan-step-or-task-description
@@ -67,7 +67,7 @@ translation:
 
 ## Process
 
-Folded rules: before you write or change code, read [code-quality](references/rule-code-quality.md); for PowerShell files also read [powershell](references/rule-powershell.md), and for C# files [csharp](references/rule-csharp.md).
+Folded rules: before you write or change code, read [code-quality](references/rule-code-quality.md); for PowerShell files also read [powershell](references/rule-powershell.md), and for C# files [csharp](references/rule-csharp.md); for Python files (`.py`, `pyproject.toml`, `requirements*.txt`) read [python](references/rule-python.md).
 
 **Delegation on each host.** "Delegate to the `X` agent" means the host's subagent tool: Claude Code `Task` with `subagent_type="X"`; Copilot CLI `task` with `agent_type="project-toolkit:X"`; Codex `spawn_agent` with `agent_type="X"`, plus `fork_turns="none"` when the agent reviews or judges work (the default hands it your whole history); Muse Code `subagent_spawn` with `role="X"` and an `objective`, plus `worktree_isolation: true` for an agent that writes files. If the host has no subagent tool, or no `X` agent is installed, run the step yourself in this session.
 

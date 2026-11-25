@@ -65,7 +65,7 @@ def completed(
 def subprocess_dispatcher(responses, *, default=None):
     """Return a ``subprocess.run`` fake that dispatches on the argument vector.
 
-    ``.claude/rules/testing.md`` SHOULD 11 requires this shape. A positional
+    ``rule-testing.md`` SHOULD 11 requires this shape. A positional
     ``side_effect`` list encodes an unstated assumption about call order, and
     when a branch skips a call every later entry is consumed by the wrong
     command while the test keeps passing. That measurably broke three lists in

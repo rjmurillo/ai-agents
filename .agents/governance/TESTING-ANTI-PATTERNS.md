@@ -157,7 +157,7 @@ Measured on `agent_signal` in `scripts/quality_gate/external_signal_gate.py` (is
 
 Where a warning is genuinely wrong, the other discriminators are a counter or a structured result that names which branch produced the value. Asserting on the return value alone is what does not work.
 
-**Related**: `.claude/rules/testing.md` SHOULD 15 (catch-all fallback), added in the same change; `TESTING-RIGOR.md` positive/negative/edge requirement
+**Related**: `.claude/skills/test/references/rule-testing.md` SHOULD 15 (catch-all fallback), added in the same change; `TESTING-RIGOR.md` positive/negative/edge requirement
 
 ---
 
