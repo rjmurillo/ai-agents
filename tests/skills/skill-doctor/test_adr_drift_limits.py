@@ -267,3 +267,23 @@ def test_adr_references_read_one_to_six_digits(text, numbers):
 
 def test_a_link_title_with_brackets_keeps_its_target():
     assert adr_checks._targets('[x](a.md "see [1]")') == ["a.md"]
+
+
+def test_a_huge_bare_number_in_frontmatter_is_ignored_not_fatal(tmp_path, capsys):
+    huge = "9" * 5_000
+    text = f"---\nstatus: accepted\nsuperseded-by: {huge}\n---\n\n# 1. A\n"
+    repo = seeded_repo(tmp_path / "repo", {"docs/adr/0001-a.md": text})
+    out = tmp_path / "out" / "scan.json"
+
+    code, _, err = run_cli(capsys, "scan", "--repo", str(repo), "--out", str(out))
+
+    assert code == 0, err
+    assert out.is_file()
+
+
+@pytest.mark.parametrize(
+    ("value", "numbers"),
+    [("12", [12]), ("000012", [12]), ("1234567", []), ("9" * 5_000, [])],
+)
+def test_frontmatter_bare_numbers_read_one_to_six_digits(value, numbers):
+    assert adr_checks._frontmatter_numbers(value) == numbers

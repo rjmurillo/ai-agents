@@ -60,7 +60,8 @@ LINKED_EDGE = re.compile(
 )
 SUPERSEDED_BY_TEXT = re.compile(r"supersed\w{0,20}\s+by\s+(.*)", re.IGNORECASE)
 PATH_RUN = re.compile(r"[\w./-]+")
-BARE_NUMBER = re.compile(r"^\d+$")
+# Bounded like ADR_NUMBER, so a hostile frontmatter value cannot overflow int().
+BARE_NUMBER = re.compile(r"^\d{1,6}$")
 EDGE_KEYS = (
     ("supersedes", "supersedes"),
     ("superseded-by", "superseded_by"),

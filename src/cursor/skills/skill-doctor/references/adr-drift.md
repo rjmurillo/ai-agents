@@ -62,7 +62,8 @@ The summary line on stdout repeats the finding count, the commits examined,
    `docs/rfcs`, `docs/rfc`, `rfcs`, `rfc`. A folder counts when it holds a
    numbered ADR or a template.
 3. Filename convention per folder: `ADR-NNN-slug.md` or `NNNN-slug.md`, with one
-   to six digits. A name
+   to six digits. `ADR-N` references and bare frontmatter numbers read the same
+   one to six digits; a longer number is ignored. A name
    that starts with a date (`2024-01-15-x.md`, `20200925-x.md`) is a note, not a
    numbered ADR. `README`, `index`, `ADR-INDEX`, `adr-log`, and template names
    are not numbered and are never flagged as unparseable.
