@@ -196,3 +196,20 @@ def body_file():
         return path
 
     return factory
+
+
+@pytest.fixture
+def owner(make_repo, fakes, body_file):
+    """A GitHub owner repo with no PR, a valid marker, a working create, and a body file."""
+    repo = make_repo("https://github.com/rjmurillo/ai-agents.git")
+    fakes.no_pr_github()
+    fakes.marker(0)
+    fakes.rule(
+        "new_pr",
+        ["--title"],
+        {
+            "stdout": "Creating PR...\nhttps://github.com/rjmurillo/ai-agents/pull/501\n"
+            "PR created successfully!\n"
+        },
+    )
+    return repo, body_file(repo)

@@ -34,6 +34,8 @@ def test_script_runs_under_isolated_mode(make_repo, fakes, script, argv, termina
         cwd=repo,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     lines = done.stdout.splitlines()

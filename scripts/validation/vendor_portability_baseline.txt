@@ -70,3 +70,10 @@ src/cursor/skills/skill-doctor/scripts/session_discovery.py
 src/muse/skills/skill-doctor/scripts/session_discovery.py
 src/claude/skills/steering-matcher/scripts/get_applicable_steering.py
 src/claude/skills/taste-lints/scripts/taste_lints.py
+
+# The ship driver scripts read and write the consumer's .project-toolkit/scratch/
+# directory, the same consumer-workspace path new_pr.py --prepare-body-file
+# allocates and checks. ADR-127 decision 3 item 6 bars reading an environment
+# variable that changes a target, so the AI_AGENTS_ARTIFACT_ROOT override in
+# paths.py does not apply. Added for issue #7583 on 2026-11-25.
+src/claude/skills/ship/scripts/_ship_common.py

@@ -29,6 +29,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any, NoReturn
 
 KEY_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
 TOKEN_RE = re.compile(r"^[a-z][a-z0-9-]*$")
@@ -80,11 +81,11 @@ class ResultParser(argparse.ArgumentParser):
     always sees a terminal line (ADR-127 decision 4 item 7).
     """
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         kwargs["allow_abbrev"] = False
         super().__init__(*args, **kwargs)
 
-    def error(self, message: str):  # type: ignore[override]
+    def error(self, message: str) -> NoReturn:
         raise UsageError(message)
 
 
@@ -385,6 +386,7 @@ def skill_script(skill: str, *parts: str) -> Path:
 def parse_json(text: str) -> object | None:
     """Parse ``text`` as JSON; return None when it does not parse."""
     try:
-        return json.loads(text)
+        value: object = json.loads(text)
+        return value
     except (json.JSONDecodeError, ValueError):
         return None

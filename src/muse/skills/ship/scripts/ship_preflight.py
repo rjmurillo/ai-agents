@@ -156,13 +156,8 @@ def _binding(ctx, pr: int, branch: str, sha: str, after_publish: bool) -> Check 
     return None
 
 
-def _github_pipeline(ctx, pr: int, after_publish: bool) -> Check | Halt:
-    before = _github_head(ctx, pr)
-    if isinstance(before, Halt):
-        return before
-    mismatch = _binding(ctx, pr, *before, after_publish)
-    if mismatch is not None:
-        return mismatch
+def _read_github_checks(ctx, pr: int) -> tuple[int, dict] | Check | Halt:
+    """Run get_pr_checks.py once; return (exit code, Data), a PENDING check, or a Halt."""
     helper = common.skill_script("github", "pr", "get_pr_checks.py")
     if not helper.is_file():
         return Halt("checks-query-failed", common.EXIT_CONFIG, "get_pr_checks.py not found")
@@ -191,16 +186,12 @@ def _github_pipeline(ctx, pr: int, after_publish: bool) -> Check | Halt:
         return Halt(
             "checks-query-failed", common.EXIT_EXTERNAL, f"get_pr_checks exit {done.returncode}"
         )
-    after = _github_head(ctx, pr)
-    if isinstance(after, Halt):
-        return after
-    if after != before:
-        return Check("pipeline", "PENDING", f"pr={pr} head moved during the check")
-    if (
-        done.returncode == 0
-        and data.get("RequiredState") == "SUCCESS"
-        and data.get("AllPassing") is True
-    ):
+    return done.returncode, data
+
+
+def _github_verdict(ctx, pr: int, code: int, data: dict) -> Check:
+    """Turn one get_pr_checks.py result into PASS or FAIL. Exit 0 alone is not green."""
+    if code == 0 and data.get("RequiredState") == "SUCCESS" and data.get("AllPassing") is True:
         return Check("pipeline", "PASS", f"pr={pr} head={ctx.head[:12]}")
     names = []
     for key in ("FailedRequiredChecks", "MissingRequiredChecks", "PendingRequiredChecks"):
@@ -210,6 +201,25 @@ def _github_pipeline(ctx, pr: int, after_publish: bool) -> Check | Halt:
     if names:
         detail += " failing=" + ",".join(names[:10])
     return Check("pipeline", "FAIL", detail)
+
+
+def _github_pipeline(ctx, pr: int, after_publish: bool) -> Check | Halt:
+    """Read CI only for PR ``pr`` at this branch and HEAD, and re-check the head after."""
+    before = _github_head(ctx, pr)
+    if isinstance(before, Halt):
+        return before
+    mismatch = _binding(ctx, pr, *before, after_publish)
+    if mismatch is not None:
+        return mismatch
+    read = _read_github_checks(ctx, pr)
+    if not isinstance(read, tuple):
+        return read
+    after = _github_head(ctx, pr)
+    if isinstance(after, Halt):
+        return after
+    if after != before:
+        return Check("pipeline", "PENDING", f"pr={pr} head moved during the check")
+    return _github_verdict(ctx, pr, *read)
 
 
 def _ado_policy_rows(ctx, pr: int) -> list[dict] | Halt:
@@ -382,6 +392,32 @@ def _validate(args) -> str | None:
     return None
 
 
+def _run_check(name, ctx, args, pr, wait_seconds, after_publish, deadline) -> Check | Halt:
+    """Run one named check. A pipeline still pending past the deadline is a FAIL."""
+    if name == "tree":
+        return check_tree(ctx.root)
+    if name == "reviewed":
+        return check_reviewed(ctx, args.draft, args.require_axis)
+    outcome = check_pipeline(ctx, pr, wait_seconds, after_publish)
+    if isinstance(outcome, Check) and outcome.state == "PENDING" and time.time() >= deadline:
+        return Check("pipeline", "FAIL", f"still pending after {TOTAL_WAIT_SECONDS // 60} minutes")
+    return outcome
+
+
+def _terminal(result, checks: list[Check], deadline: int, ends_on_report: bool):
+    """Set the terminal line from the check states."""
+    failed = [check.name for check in checks if check.failed]
+    states = {check.name: check.state for check in checks}
+    if failed:
+        return result.stop("check-failed", common.EXIT_LOGIC, ",".join(failed))
+    if states.get("pipeline") == "PENDING":
+        result.add("PIPELINE_DEADLINE", deadline)
+        return result.next("rerun-pipeline")
+    if states.get("pipeline") == "DEFERRED":
+        return result.next("publish-then-discharge")
+    return result.next("report" if ends_on_report else "write-body")
+
+
 def run(argv: list[str]):
     result = common.Result(SCRIPT, REASONS)
     try:
@@ -403,37 +439,16 @@ def run(argv: list[str]):
 
     checks: list[Check] = []
     for name in args.check:
-        if name == "tree":
-            outcome = check_tree(ctx.root)
-        elif name == "reviewed":
-            outcome = check_reviewed(ctx, args.draft, args.require_axis)
-        else:
-            outcome = check_pipeline(ctx, pr, wait_seconds, after_publish)
-            if (
-                isinstance(outcome, Check)
-                and outcome.state == "PENDING"
-                and time.time() >= deadline
-            ):
-                outcome = Check(
-                    "pipeline", "FAIL", f"still pending after {TOTAL_WAIT_SECONDS // 60} minutes"
-                )
+        outcome = _run_check(name, ctx, args, pr, wait_seconds, after_publish, deadline)
         if isinstance(outcome, Halt):
             return result.stop(outcome.reason, outcome.code, outcome.detail), fmt, ctx.root
         checks.append(outcome)
         result.add("CHECK", f"{outcome.name}={outcome.state} {outcome.detail}".rstrip())
-
-    failed = [check.name for check in checks if check.failed]
-    states = {check.name: check.state for check in checks}
-    if failed:
-        return result.stop("check-failed", common.EXIT_LOGIC, ",".join(failed)), fmt, ctx.root
-    if states.get("pipeline") == "PENDING":
-        result.add("PIPELINE_DEADLINE", deadline)
-        return result.next("rerun-pipeline"), fmt, ctx.root
-    if states.get("pipeline") == "DEFERRED":
-        return result.next("publish-then-discharge"), fmt, ctx.root
-    if after_publish or ctx.mode == "contributor":
-        return result.next("report"), fmt, ctx.root
-    return result.next("write-body"), fmt, ctx.root
+    return (
+        _terminal(result, checks, deadline, after_publish or ctx.mode == "contributor"),
+        fmt,
+        ctx.root,
+    )
 
 
 def main(argv: list[str] | None = None) -> int:

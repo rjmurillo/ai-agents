@@ -168,8 +168,8 @@ def _ado_user(root: Path) -> str | Halt:
     return name
 
 
-def detect(cwd: Path | None = None, base: str | None = None) -> Context | Halt:
-    """Return the ship context, or the Halt that stops the run."""
+def _checkout(cwd: Path | None) -> tuple[Path, str, str, str, str] | Halt:
+    """Return root, host, remote host, branch, and HEAD of the local checkout."""
     root = common.repo_root(cwd)
     if root is None:
         return Halt("no-repo", common.EXIT_CONFIG, "not inside a git work tree")
@@ -179,7 +179,6 @@ def detect(cwd: Path | None = None, base: str | None = None) -> Context | Halt:
     host_name = common.remote_host(origin.stdout)
     if host_name is None:
         return Halt("unsupported-remote", common.EXIT_CONFIG, "origin is a local path")
-    host = common.classify_host(host_name)
     branch_done = common.git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=root)
     branch = branch_done.stdout.strip()
     if branch_done.returncode != 0 or branch in ("", "HEAD"):
@@ -187,27 +186,38 @@ def detect(cwd: Path | None = None, base: str | None = None) -> Context | Halt:
     if not common.safe_ref(branch):
         return Halt("bad-arguments", common.EXIT_CONFIG, "branch name is not a plain ref")
     head = common.git(["rev-parse", "HEAD"], cwd=root).stdout.strip()
-    target = base or _default_base(root)
+    return root, common.classify_host(host_name), host_name, branch, head
 
+
+def _mode(root: Path, host: str, pr: int | None, author: str) -> str | Halt:
+    """Return owner or contributor. An open PR needs a positive identity match."""
+    if pr is None:
+        return "owner"
+    # A PR whose author the host did not return cannot prove the branch is yours.
+    if not author.strip():
+        return Halt(
+            "pr-author-unknown", common.EXIT_EXTERNAL, f"PR {pr} has no author in the host reply"
+        )
+    me = _github_user(root) if host == "github" else _ado_user(root)
+    if isinstance(me, Halt):
+        return me
+    return "owner" if author.strip().lower() == me.strip().lower() else "contributor"
+
+
+def detect(cwd: Path | None = None, base: str | None = None) -> Context | Halt:
+    """Return the ship context, or the Halt that stops the run."""
+    checkout = _checkout(cwd)
+    if isinstance(checkout, Halt):
+        return checkout
+    root, host, host_name, branch, head = checkout
+    target = base or _default_base(root)
     pr_query = _github_pr(root) if host == "github" else _ado_pr(root, branch)
     if isinstance(pr_query, Halt):
         return pr_query
     pr, pr_url, author, pr_draft = pr_query
-    mode = "owner"
-    if pr is not None:
-        # Owner mode on an open PR needs a positive identity match. A PR whose
-        # author the host did not return cannot prove the branch is yours.
-        if not author.strip():
-            return Halt(
-                "pr-author-unknown",
-                common.EXIT_EXTERNAL,
-                f"PR {pr} has no author in the host reply",
-            )
-        me = _github_user(root) if host == "github" else _ado_user(root)
-        if isinstance(me, Halt):
-            return me
-        if author.strip().lower() != me.strip().lower():
-            mode = "contributor"
+    mode = _mode(root, host, pr, author)
+    if isinstance(mode, Halt):
+        return mode
     if mode == "owner" and pr is None and branch == target:
         return Halt("on-base-branch", common.EXIT_LOGIC, f"on {target}; create a feature branch")
     return Context(root, host, host_name, branch, target, head, pr, pr_url, author, mode, pr_draft)

@@ -326,6 +326,8 @@ def test_script_runs_as_a_subprocess_under_isolated_mode(make_repo, fakes, scrip
         cwd=repo,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     lines = done.stdout.splitlines()

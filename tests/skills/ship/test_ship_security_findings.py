@@ -8,14 +8,13 @@ checkout code) is an owner decision and stays open; it has no test here.
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 from pathlib import Path
 
 import pytest
 
 from tests.skills.ship.conftest import git
-from tests.skills.ship.ship_helpers import invoke, values
+from tests.skills.ship.ship_helpers import invoke, symlink_or_skip, values
 
 GITHUB = "https://github.com/rjmurillo/ai-agents.git"
 ADO = "https://dev.azure.com/contoso/p/_git/r"
@@ -77,10 +76,10 @@ class TestSymlinkedScratch:
         (outside / "scratch" / "pr-body.md").write_text("secret", encoding="utf-8")
         (outside / "pr-body.md").write_text("secret", encoding="utf-8")
         if component == ".project-toolkit":
-            os.symlink(outside, root / ".project-toolkit")
+            symlink_or_skip(root / ".project-toolkit", outside)
         else:
             (root / ".project-toolkit").mkdir()
-            os.symlink(outside, root / ".project-toolkit" / "scratch")
+            symlink_or_skip(root / ".project-toolkit" / "scratch", outside)
         target = root / ".project-toolkit" / "scratch" / "pr-body.md"
         assert target.exists(), "the link really reaches the outside file"
         assert common.scratch_dir(root) is None
@@ -92,7 +91,7 @@ class TestSymlinkedScratch:
         (root / ".project-toolkit").mkdir(parents=True)
         outside = tmp_path / "outside"
         outside.mkdir()
-        os.symlink(outside, root / ".project-toolkit" / "scratch")
+        symlink_or_skip(root / ".project-toolkit" / "scratch", outside)
         assert common.write_detail_file(["a"], root) == "unavailable"
         assert list(outside.iterdir()) == []
 
@@ -116,7 +115,7 @@ class TestSymlinkedScratch:
         outside.mkdir()
         (outside / "pr-body.md").write_text("## Summary\n\nok\n", encoding="utf-8")
         (repo / ".project-toolkit").mkdir()
-        os.symlink(outside, repo / ".project-toolkit" / "scratch")
+        symlink_or_skip(repo / ".project-toolkit" / "scratch", outside)
         code, lines = invoke(
             scripts[3],
             ["publish", "--title", TITLE, "--body-file", ".project-toolkit/scratch/pr-body.md"],

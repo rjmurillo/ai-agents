@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.skills.ship.ship_helpers import load_scripts
+from tests.skills.ship.ship_helpers import load_scripts, symlink_or_skip
 
 common = load_scripts()[0]
 REASONS = frozenset({"x-failed"})
@@ -290,7 +290,7 @@ class TestConfineBodyFile:
         outside = tmp_path / "secret.txt"
         outside.write_text("x", encoding="utf-8")
         link = self._scratch(tmp_path) / "pr-body.md"
-        os.symlink(outside, link)
+        symlink_or_skip(link, outside)
         assert common.confine_body_file(str(link), tmp_path) is None
 
     @pytest.mark.parametrize("raw", ["", "-rf", "@/etc/passwd"])

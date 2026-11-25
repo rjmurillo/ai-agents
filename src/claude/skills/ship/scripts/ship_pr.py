@@ -168,79 +168,76 @@ def body_problem(text: str) -> str | None:
     return None
 
 
-def run_checks(ctx, title: str, body_file: Path, base: str, result) -> list[str]:
-    """Run every body and title check; add CHECK lines; return failed check names."""
-    failed: list[str] = []
-    problem = title_problem(title)
-    result.add("CHECK", f"title={'FAIL ' + problem if problem else 'PASS'}")
-    if problem:
-        failed.append("title")
-    text = body_file.read_text(encoding="utf-8", errors="replace")
-    problem = body_problem(text)
-    result.add("CHECK", f"body={'FAIL ' + problem if problem else 'PASS'}")
-    if problem:
-        failed.append("body")
-
+def _check_paths(ctx, body_file: Path, base: str, result) -> bool:
+    """Run the checkout's paths-in-diff validator when present; return False on a failure."""
     local_check = ctx.root / LOCAL_PATH_CHECK
     uv = shutil.which("uv")
-    if local_check.is_file() and uv:
-        done = common.run(
-            [
-                uv,
-                "run",
-                "--frozen",
-                "python",
-                "-I",
-                str(LOCAL_PATH_CHECK),
-                "--body-file",
-                str(body_file),
-                "--base",
-                f"origin/{base}",
-            ],
-            cwd=ctx.root,
-            timeout=300,
-        )
-        if done.returncode == 0:
-            result.add("CHECK", "paths=PASS")
-        else:
-            failed.append("paths")
-            findings = [
-                line
-                for line in done.stdout.splitlines()
-                if "not in diff" in line or "CRITICAL" in line
-            ]
-            result.add("CHECK", f"paths=FAIL exit={done.returncode}")
-            for line in findings[:10]:
-                result.add("FINDING", line)
-    else:
+    if not (local_check.is_file() and uv):
         result.add(
             "CHECK", "paths=NOT-RUN no local path validator; compare the body to the diff by hand"
         )
+        return True
+    done = common.run(
+        [
+            uv,
+            "run",
+            "--frozen",
+            "python",
+            "-I",
+            str(LOCAL_PATH_CHECK),
+            "--body-file",
+            str(body_file),
+            "--base",
+            f"origin/{base}",
+        ],
+        cwd=ctx.root,
+        timeout=300,
+    )
+    if done.returncode == 0:
+        result.add("CHECK", "paths=PASS")
+        return True
+    result.add("CHECK", f"paths=FAIL exit={done.returncode}")
+    findings = [
+        line for line in done.stdout.splitlines() if "not in diff" in line or "CRITICAL" in line
+    ]
+    for line in findings[:10]:
+        result.add("FINDING", line)
+    return False
 
+
+def _check_ado_description(ctx, title: str, body_file: Path, result) -> bool:
+    """Run the offline Azure DevOps description validator; return False on a failure."""
+    helper = _validate_description()
+    if not helper.is_file():
+        result.add("CHECK", "description=FAIL validate_pr_description.py not found")
+        return False
+    done = common.run(
+        [sys.executable, "-I", str(helper), "--title", title, "--body-file", str(body_file)],
+        cwd=ctx.root,
+    )
+    if done.returncode != 0 or re.search(r"(?m)^\s*Errors\b", done.stdout):
+        result.add("CHECK", f"description=FAIL exit={done.returncode}")
+        return False
+    result.add("CHECK", "description=PASS")
+    return True
+
+
+def _report(result, name: str, problem: str | None) -> bool:
+    result.add("CHECK", f"{name}={'FAIL ' + problem if problem else 'PASS'}")
+    return problem is None
+
+
+def run_checks(ctx, title: str, body_file: Path, base: str, result) -> list[str]:
+    """Run every body and title check; add CHECK lines; return failed check names."""
+    text = body_file.read_text(encoding="utf-8", errors="replace")
+    outcomes = [
+        ("title", _report(result, "title", title_problem(title))),
+        ("body", _report(result, "body", body_problem(text))),
+        ("paths", _check_paths(ctx, body_file, base, result)),
+    ]
     if ctx.host == "ado":
-        helper = _validate_description()
-        if not helper.is_file():
-            failed.append("description")
-            result.add("CHECK", "description=FAIL validate_pr_description.py not found")
-        else:
-            done = common.run(
-                [
-                    sys.executable,
-                    "-I",
-                    str(helper),
-                    "--title",
-                    title,
-                    "--body-file",
-                    str(body_file),
-                ],
-                cwd=ctx.root,
-            )
-            if done.returncode != 0 or re.search(r"(?m)^\s*Errors\b", done.stdout):
-                failed.append("description")
-                result.add("CHECK", f"description=FAIL exit={done.returncode}")
-            else:
-                result.add("CHECK", "description=PASS")
-    return failed
+        outcomes.append(("description", _check_ado_description(ctx, title, body_file, result)))
+    return [name for name, ok in outcomes if not ok]
 
 
 def _detect(args, result):
@@ -357,6 +354,45 @@ def _create_ado(ctx, args, body: Path, result):
     return result.next("discharge")
 
 
+def _review_gate(ctx, args, result) -> bool:
+    """Refuse a dirty tree or an unreviewed HEAD; return False after a STOP."""
+    tree = preflight_mod.check_tree(ctx.root)
+    if isinstance(tree, preflight_mod.Halt):
+        result.stop(tree.reason, tree.code, tree.detail)
+        return False
+    if tree.failed:
+        result.stop("tree-dirty", common.EXIT_LOGIC, tree.detail)
+        return False
+    reviewed = preflight_mod.check_reviewed(ctx, args.draft, args.require_axis)
+    if isinstance(reviewed, preflight_mod.Halt):
+        result.stop(reviewed.reason, reviewed.code, reviewed.detail)
+        return False
+    result.add("CHECK", f"reviewed={reviewed.state} {reviewed.detail}".rstrip())
+    if reviewed.state not in ("PASS", "SKIPPED"):
+        result.stop("head-not-reviewed", common.EXIT_LOGIC, reviewed.detail)
+        return False
+    return True
+
+
+def _checked_snapshot(ctx, args, body: Path, result) -> Path | None:
+    """Snapshot the body once, check the snapshot, and return it; None after a STOP.
+
+    The host gets the snapshot, never the original path, so the bytes that
+    passed the checks are the bytes that publish.
+    """
+    snapshot = common.write_private(
+        ctx.root, "pr-body-publish", ".md", body.read_text(encoding="utf-8", errors="replace")
+    )
+    if snapshot is None:
+        result.stop("bad-body-file", common.EXIT_CONFIG, "could not write the body snapshot")
+        return None
+    failed = run_checks(ctx, args.title, snapshot, ctx.base, result)
+    if failed:
+        result.stop("check-failed", common.EXIT_LOGIC, ",".join(failed))
+        return None
+    return snapshot
+
+
 def cmd_publish(args, result, _root: Path):
     ctx = _detect(args, result)
     if ctx is None:
@@ -366,38 +402,17 @@ def cmd_publish(args, result, _root: Path):
             "contributor-mode", common.EXIT_LOGIC, "the open PR belongs to another author"
         )
     body = _body_file(args, result, ctx)
-    if body is None:
+    if body is None or not _review_gate(ctx, args, result):
         return result
-    tree = preflight_mod.check_tree(ctx.root)
-    if isinstance(tree, preflight_mod.Halt):
-        return result.stop(tree.reason, tree.code, tree.detail)
-    if tree.failed:
-        return result.stop("tree-dirty", common.EXIT_LOGIC, tree.detail)
-    reviewed = preflight_mod.check_reviewed(ctx, args.draft, args.require_axis)
-    if isinstance(reviewed, preflight_mod.Halt):
-        return result.stop(reviewed.reason, reviewed.code, reviewed.detail)
-    result.add("CHECK", f"reviewed={reviewed.state} {reviewed.detail}".rstrip())
-    if reviewed.state not in ("PASS", "SKIPPED"):
-        return result.stop("head-not-reviewed", common.EXIT_LOGIC, reviewed.detail)
-    # Validate and publish the same bytes: read the body once into a private
-    # snapshot, check the snapshot, and hand only the snapshot to the host.
-    snapshot = common.write_private(
-        ctx.root, "pr-body-publish", ".md", body.read_text(encoding="utf-8", errors="replace")
-    )
-    if snapshot is None:
-        return result.stop("bad-body-file", common.EXIT_CONFIG, "could not write the body snapshot")
-    body = snapshot
-    failed = run_checks(ctx, args.title, body, ctx.base, result)
-    if failed:
-        return result.stop("check-failed", common.EXIT_LOGIC, ",".join(failed))
-    if not _push(ctx, result):
+    snapshot = _checked_snapshot(ctx, args, body, result)
+    if snapshot is None or not _push(ctx, result):
         return result
     if ctx.pr is not None:
         result.add("PR", f"host={ctx.host} number={ctx.pr} url={ctx.pr_url or 'unknown'} existing")
         return result.next("discharge")
     if ctx.host == "github":
-        return _create_github(ctx, args, body, result)
-    return _create_ado(ctx, args, body, result)
+        return _create_github(ctx, args, snapshot, result)
+    return _create_ado(ctx, args, snapshot, result)
 
 
 def build_parser():
