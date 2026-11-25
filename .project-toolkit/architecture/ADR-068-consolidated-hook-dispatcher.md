@@ -864,7 +864,7 @@ generated surfaces. Sources:
 | `.claude/hooks/hooks.json` | Two vendored plugin registrations: the advisory Stop group `plugin-stop-1-reflect_nudge` (REQ-048 TASK-006) and the UserPromptSubmit recall group `plugin-userpromptsubmit-1-memory_recall` (ADR-109 amendment 2026-11-20). History, oldest first: four before issues #4917, #5061, and #5154; three after merging them; zero after ADR-097 retired every tool-call hook; one after REQ-048 TASK-006; two after the recall group; must not carry removed or local-only hooks | Medium |
 | `.claude/hooks/dispatch_groups.json` | Grouped hook source; must not carry the removed approval producer | Medium |
 | `.github/hooks/require-subagent-model.json` | Retired by ADR-097; the file is deleted. Was a repo-local direct registration of the same canonical script (matcher `task`, repo-root cwd), with cloud coverage beginning at default-branch merge | Medium |
-| `.claude/rules/lsp-first.md` | Static cross-harness source for Serena symbolic-tool steering | Medium |
+| The former `lsp-first` rule (now at `.claude/skills/using-serena-symbols/references/rule-lsp-first.md`) | Static cross-harness source for Serena symbolic-tool steering | Medium |
 | `.claude/skills/agent-harness-reference/references/official-hook-contracts.md` | Pinned output-field authority and docs-silent ledger | High |
 | `tests/test_hook_dispatch.py` | In-process output-policy and merger contract tests | High |
 | `tests/build_scripts/test_copilot_dispatcher_artifact.py` | Proves the producer, generated event directory, and all permission allow rules remain absent | High |

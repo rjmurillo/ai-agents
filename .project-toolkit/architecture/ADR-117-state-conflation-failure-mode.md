@@ -14,7 +14,7 @@ review-by: 2027-04-13
 
 ## Context
 
-`.claude/rules/retros.md` MUST 2 says each retrospective classifies its failure against `.agents/governance/FAILURE-MODES.md`. When no class matches, the retrospective proposes a new class in a linked ADR.
+MUST 2 of the former `retros` rule (now at `.claude/skills/retrospective/references/rule-retros.md`) says each retrospective classifies its failure against `.agents/governance/FAILURE-MODES.md`. When no class matches, the retrospective proposes a new class in a linked ADR.
 
 The retrospective for issue #5097 (`.project-toolkit/retrospective/2026-08-17-issue-5097-aggregator-cancelled-guard.md`) filed its root cause under FM-10, Silent Defaults and Guard-Clause Suppression. A Copilot review of PR #5103 disputed that (issue #5139), and the retrospective's correction section retracted the citation. The reason: FM-10 requires that the execution succeeds and the failure is invisible. The `always()` aggregators did the opposite. Their failures were loud red check runs. A `cancelled` result was reported as `failure`, and both were real signals.
 
@@ -80,7 +80,7 @@ Severity is Medium. The outcome is visible, so a reader can reach the cause. The
 |-----------|--------|
 | `.agents/governance/FAILURE-MODES.md` | New Index row, new section 13, FM-10 pointer |
 | `.project-toolkit/retrospective/2026-08-17-issue-5097-aggregator-cancelled-guard.md` | Appended correction section |
-| `.claude/rules/retros.md` | None. MUST 2 is satisfied by this ADR. |
+| The former `retros` rule (now at `.claude/skills/retrospective/references/rule-retros.md`) | None. MUST 2 is satisfied by this ADR. |
 | Gates | None. No script reads the class list. |
 
 ## Reversibility Assessment
@@ -95,6 +95,6 @@ Review ran under the `adr-review` skill with the reduced panel (architect and cr
 
 - Issue #5145 (this decision), #5097, #5103, #5139, #1168, #5104
 - `.agents/governance/FAILURE-MODES.md`, sections 10 and 13
-- `.claude/rules/retros.md` MUST 2 and MUST NOT 1
+- The former `retros` rule (now at `.claude/skills/retrospective/references/rule-retros.md`), MUST 2 and MUST NOT 1
 - `.claude/rules/governance.md` MUST 2 and 4
 - ADR-105 (precedent: FM-12 landed with its ADR)
