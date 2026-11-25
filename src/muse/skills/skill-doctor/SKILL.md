@@ -85,7 +85,7 @@ Create the report directory only after the startup gate and scope choices.
 | `session_muse.py` | Muse journal adapter. |
 
 Every CLI accepts `--help`.
-Exit 0 means success, 1 means failure (for `audit_scores.py`, `audit_manifest.py`, `audit_batches.py`, `public_export.py`, and `render_report.py`: invalid input, an unsupported claim, or a private value in an export; nothing is written), 2 means invalid CLI arguments or an unreadable file (for `adr_drift.py` also an `--out` that is not allowed or a path that is not a git repository), and 3 means a git command failed in `adr_drift.py`.
+Exit 0 means success, 1 means failure (for `audit_scores.py`, `audit_manifest.py`, `audit_batches.py`, `public_export.py`, and `render_report.py`: invalid input, an unsupported claim, or a private value in an export; nothing is written), 2 means invalid CLI arguments or an unreadable file (for `adr_drift.py` also a disallowed `--out`, a result over 5,000,000 bytes, or a non-git path), and 3 means a git command failed in `adr_drift.py`.
 Use absolute script paths, as shown below, from any working directory.
 
 ## Process

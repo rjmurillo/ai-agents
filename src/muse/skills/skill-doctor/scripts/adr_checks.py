@@ -47,7 +47,9 @@ KIND_PROFILE = {
     "adr-cited-path-missing": (LINKS, "low"),
 }
 
-INLINE_LINK = re.compile(r"\[[^\]\n]*\]\(\s*<?([^)\s>]+)>?(?:\s+\"[^\"]*\")?\s*\)")
+# Link text, target, and title never span a `[`, so each match attempt stops at the next
+# one. That keeps a long line of brackets linear instead of quadratic.
+INLINE_LINK = re.compile(r"\[[^\[\]\n]*\]\(\s*<?([^()\[\]\s<>]+)>?(?:\s+\"[^\"\[\]\n]*\")?\s*\)")
 REF_LINK = re.compile(r"^\s{0,3}\[[^\]]+\]:\s*<?(\S+?)>?(?:\s|$)")
 CODE_SPAN = re.compile(r"`[^`\n]*`")
 EDGE_LINE = re.compile(
@@ -57,7 +59,7 @@ LINKED_EDGE = re.compile(
     r"^\s*(?:[-*>]\s+)*\**(supersedes|superseded[ -]by)\**\s+(?=\[)(.*)$", re.IGNORECASE
 )
 SUPERSEDED_BY_TEXT = re.compile(r"supersed\w*\s+by\s+(.*)", re.IGNORECASE)
-MD_PATH = re.compile(r"[\w./-]+\.md")
+PATH_RUN = re.compile(r"[\w./-]+")
 BARE_NUMBER = re.compile(r"^\d+$")
 EDGE_KEYS = (
     ("supersedes", "supersedes"),
@@ -254,10 +256,20 @@ def _broken_link(
     )
 
 
+def _md_paths(text: str) -> list[str]:
+    """Each path-like run cut after its last `.md`: what `[\\w./-]+\\.md` finds, in linear time."""
+    found = []
+    for run in PATH_RUN.findall(text):
+        end = run.rfind(".md")
+        if end >= 1:
+            found.append(run[: end + 3])
+    return found
+
+
 def _refs(text: str, include_paths: bool) -> list[int]:
     """ADR numbers named by `ADR-N`, by link targets, and (when asked) by bare .md paths."""
     numbers = {int(n) for n in ADR_REF.findall(text)}
-    targets = _targets(text) + (MD_PATH.findall(text) if include_paths else [])
+    targets = _targets(text) + (_md_paths(text) if include_paths else [])
     for raw in targets:
         parsed = _adr_link_target(raw)
         if parsed is not None:

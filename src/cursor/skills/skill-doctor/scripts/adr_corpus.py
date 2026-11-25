@@ -238,6 +238,8 @@ class Survey:
     markers: list[str] = field(default_factory=list)
     rejected: list[dict[str, str]] = field(default_factory=list)
     read_errors: list[dict[str, str]] = field(default_factory=list)
+    # True when a folder exists but resolves outside the repository, so ADRs may exist unread.
+    folder_outside: bool = False
 
 
 def _resolve(path: Path) -> Path | None:
@@ -300,6 +302,7 @@ def _read_marker(repo: Path, survey: Survey) -> Path | None:
         return None
     candidate = _resolve(repo / first)
     if candidate is None or not within(candidate, repo):
+        survey.folder_outside = candidate is not None and candidate.is_dir()
         survey.rejected.append(
             {"path": ".adr-dir", "reason": f"target {first} resolves outside the repository"}
         )
@@ -321,6 +324,7 @@ def _known_folder(repo: Path, rel: str, survey: Survey) -> Path | None:
             survey.rejected.append({"path": rel, "reason": "symlink target is missing"})
         return None
     if not within(path, repo):
+        survey.folder_outside = True
         survey.rejected.append({"path": rel, "reason": "resolves outside the repository"})
         return None
     return path

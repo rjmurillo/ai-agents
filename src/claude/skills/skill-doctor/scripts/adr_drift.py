@@ -132,7 +132,7 @@ def _write_json(out: Path, text: str) -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
     handle, temp_name = tempfile.mkstemp(dir=out.parent, prefix=f".{out.name}.", suffix=".tmp")
     try:
-        with os.fdopen(handle, "w", encoding="utf-8") as stream:
+        with os.fdopen(handle, "w", encoding="utf-8", newline="\n") as stream:
             stream.write(text)
         os.replace(temp_name, out)
     except BaseException:
@@ -150,7 +150,7 @@ def run_scan(args: argparse.Namespace) -> int:
     survey = find_adr_dirs(repo)
     docs = read_docs(survey)
     findings: list[Finding] = []
-    if not survey.dirs and not survey.read_errors and not survey.rejected:
+    if not survey.dirs and not survey.read_errors and not survey.folder_outside:
         findings.append(_no_directory_finding())
     findings += check_numbering(survey.dirs, docs) + check_links(docs, survey.dirs)
     findings += check_supersession(docs) + check_cited_paths(repo, docs)

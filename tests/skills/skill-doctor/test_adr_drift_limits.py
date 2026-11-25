@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 
+import adr_checks
 import adr_drift
 import adr_text
 import pytest
@@ -120,3 +121,60 @@ def test_strip_comment_is_linear_on_a_long_blank_run():
     adr_text._strip_comment(value)
 
     assert time.monotonic() - started < 2
+
+
+def test_an_adr_dir_naming_a_missing_folder_still_gets_the_create_fix(tmp_path, capsys):
+    repo = seeded_repo(tmp_path / "repo", {".adr-dir": "doc/adr\n"})
+
+    result = scan(capsys, repo)
+
+    assert len(kinds(result, "no-adr-directory")) == 1
+    assert [r["path"] for r in result["locate"]["rejected"]] == [".adr-dir"]
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "[" * 200_000,
+        "a" * 200_000,
+        "[x](a" * 40_000,
+        '[x](a "' * 30_000,
+    ],
+    ids=["brackets", "path-run", "open-links", "open-titles"],
+)
+def test_link_and_path_parsing_is_linear_on_a_hostile_line(line):
+    started = time.monotonic()
+    adr_checks._refs(line, include_paths=True)
+    adr_checks._targets(line)
+
+    assert time.monotonic() - started < 2
+
+
+@pytest.mark.parametrize(
+    ("text", "paths"),
+    [
+        ("see docs/adr/0003-z.md, 0004.md", ["docs/adr/0003-z.md", "0004.md"]),
+        ("a.md.x b/c.md", ["a.md", "b/c.md"]),
+        ("..md .md", ["..md"]),
+        ("x.mdx", ["x.md"]),
+        ("no paths here", []),
+    ],
+)
+def test_md_paths_match_the_pattern_they_replace(text, paths):
+    import re
+
+    assert adr_checks._md_paths(text) == paths == re.findall(r"[\w./-]+\.md", text)
+
+
+@pytest.mark.parametrize(
+    ("line", "targets"),
+    [
+        ('see [ADR 1](ADR-001-x.md) and [two](./0002-y.md "t")', ["ADR-001-x.md", "./0002-y.md"]),
+        ("[a [b](x.md)", ["x.md"]),
+        ("[x](<a.md>)", ["a.md"]),
+        ("[x]( a.md )", ["a.md"]),
+        ("`[x](a.md)` in code", []),
+    ],
+)
+def test_inline_links_keep_their_targets(line, targets):
+    assert adr_checks._targets(line) == targets
