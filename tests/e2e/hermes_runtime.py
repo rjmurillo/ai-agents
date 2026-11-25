@@ -98,19 +98,19 @@ FORCE_ALLOWED_FINDINGS: dict[str, frozenset[ReviewedFinding]] = {
             (
                 "inline_shell_exec",
                 "skills/push-pr/SKILL.md",
-                30,
+                33,
                 "3bf15d66448dee25466cf8e62241abc4aded65669586a53e2b8c741654e0f47e",
             ),
             (
                 "inline_shell_exec",
                 "skills/push-pr/SKILL.md",
-                31,
+                34,
                 "bb91750fc659d56fc8c4ca22cb1cf2e484ddce69f3ba3cbea3f2e24f0a8953ac",
             ),
             (
                 "inline_shell_exec",
                 "skills/push-pr/SKILL.md",
-                32,
+                35,
                 "b6d90e26d7b0c71c7cec3facc4d6df85ec16906a41768c0ba638f968cfaf44c5",
             ),
         }
