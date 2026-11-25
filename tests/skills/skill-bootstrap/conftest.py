@@ -15,11 +15,22 @@ sys.path[:0] = _IMPORT_PATHS
 try:
     # Cached in sys.modules so the test modules' top-level imports resolve
     # after the paths are removed again.
+    import adr_commits  # noqa: F401
+    import adr_docs  # noqa: F401
+    import adr_helpers  # noqa: F401
+    import adr_locate  # noqa: F401
+    import adr_log  # noqa: F401
+    import adr_reason  # noqa: F401
+    import adr_scan  # noqa: F401
+    import adr_shape  # noqa: F401
+    import bootstrap_adr  # noqa: F401
     import bootstrap_boundary  # noqa: F401
     import bootstrap_helpers  # noqa: F401
     import bootstrap_review  # noqa: F401
     import bootstrap_sweep  # noqa: F401
     import bootstrap_sweep_import  # noqa: F401
+    import draft_helpers  # noqa: F401
+    import reason_helpers  # noqa: F401
     import review_clusters  # noqa: F401
     import sweep_helpers
 finally:

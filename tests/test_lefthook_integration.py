@@ -113,6 +113,7 @@ def _git(
     repo: Path,
     *args: str,
     check: bool = True,
+    timeout: int | None = None,
 ) -> subprocess.CompletedProcess[str]:
     # GIT_EDITOR and GIT_SEQUENCE_EDITOR outrank -c core.editor, so a developer
     # who exports either one can make an editor-launching git command in a test
@@ -128,6 +129,7 @@ def _git(
         capture_output=True,
         check=check,
         env=env,
+        timeout=timeout,
     )
 
 
@@ -206,6 +208,7 @@ def _run_lefthook(
     stdin: str | None = None,
     check: bool = True,
     env: Mapping[str, str] | None = None,
+    timeout: int | None = None,
 ) -> subprocess.CompletedProcess[str]:
     assert LEFTHOOK is not None
     process_env = os.environ.copy()
@@ -221,6 +224,7 @@ def _run_lefthook(
         errors="replace",
         capture_output=True,
         check=False,
+        timeout=timeout,
     )
     if check and result.returncode != 0:
         pytest.fail(f"lefthook failed:\n{result.stdout}\n{result.stderr}")
@@ -244,6 +248,62 @@ def _job_map(config: dict[str, object], hook: str) -> dict[str, dict[str, object
     jobs = hook_config["jobs"]
     assert isinstance(jobs, list)
     return {str(job["name"]): job for job in _flatten_jobs(jobs)}
+
+
+@pytest.mark.skipif(LEFTHOOK is None or not shutil.which("uv"), reason="requires lefthook and uv")
+def test_installed_python_hooks_run_ruff_and_preserve_exit_policy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _git(repo, "commit", "--allow-empty", "-qm", "test: seed hook fixture")
+    config = yaml.safe_load((PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
+    jobs = _job_map(config, "pre-commit")
+    names = ("python-autofix", "python-check", "python-quality-advisory")
+    _write_lf(
+        repo / "lefthook.yml", yaml.safe_dump({"pre-commit": {"jobs": [jobs[n] for n in names]}})
+    )
+    for path in ("scripts/ci/report_advisory_result.py", "scripts/validation/evidence.py"):
+        _write_file(repo, path, (PROJECT_ROOT / path).read_text(encoding="utf-8"))
+    monkeypatch.setenv("UV_PROJECT", str(PROJECT_ROOT))
+    monkeypatch.delenv("SKIP_AUTOFIX", raising=False)
+    monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+    monkeypatch.setenv("PYTHONUTF8", "1")
+    assert LEFTHOOK is not None
+    monkeypatch.setenv("LEFTHOOK_BIN", Path(LEFTHOOK).as_posix())
+    _run_lefthook(repo, "install", timeout=30)
+    source = "src/two words.py"
+    _write_file(repo, source, '"""Sample."""\nVALUE = 1\n')
+    _write_file(repo, "src/untracked.py", "VALUE = untracked_name\n")
+    _git(repo, "add", "--", source)
+
+    def run_hook() -> tuple[int, str]:
+        result = _git(repo, "hook", "run", "pre-commit", check=False, timeout=60)
+        return result.returncode, result.stdout + result.stderr
+
+    code, output = run_hook()
+    assert code == 0, output
+    for name in names:
+        assert f"[PASS] {name} scope=staged Python files" in output, output
+
+    _write_file(repo, source, "import os\nVALUE = 1\n")
+    _git(repo, "add", "--", source)
+    code, output = run_hook()
+    assert code == 0, output
+    assert "D100" in output and "[FAIL] python-quality-advisory" in output, output
+    assert _git(repo, "show", f":{source}").stdout == "VALUE = 1\n"
+
+    _write_file(repo, source, '"""Sample."""\nVALUE = missing_name\n')
+    _git(repo, "add", "--", source)
+    code, output = run_hook()
+    assert code == 0, output
+    assert "F821" in output and "[FAIL] python-check" in output, output
+
+    _write_file(repo, "ruff.toml", "not valid toml\n")
+    code, output = run_hook()
+    assert code != 0, output
+    assert "[BLOCKED] python-check" in output, output
 
 
 def _completed(
