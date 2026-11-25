@@ -11,6 +11,15 @@ from collections.abc import Sequence
 from pathlib import Path
 
 GIT_TIMEOUT_SECONDS = 120
+# The variables `git rev-parse --local-env-vars` lists, plus the namespace and discovery
+# ceiling. Inherited, any of them points git at another repository whatever `-C` says.
+# skill-bootstrap's adr_scan.py strips the same set.
+LOCAL_GIT_ENV = frozenset(
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_CEILING_DIRECTORIES GIT_COMMON_DIR GIT_CONFIG "
+    "GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS GIT_DIR "
+    "GIT_GRAFT_FILE GIT_IMPLICIT_WORK_TREE GIT_INDEX_FILE GIT_NAMESPACE GIT_NO_REPLACE_OBJECTS "
+    "GIT_OBJECT_DIRECTORY GIT_PREFIX GIT_REPLACE_REF_BASE GIT_SHALLOW_FILE GIT_WORK_TREE".split()
+)
 
 
 class GitError(Exception):
@@ -66,7 +75,7 @@ def run_git(repo: Path, args: Sequence[str]) -> str:
 
 
 def _git_env() -> dict[str, str]:
-    env = dict(os.environ)
-    env["GIT_OPTIONAL_LOCKS"] = "0"
-    env["GIT_TERMINAL_PROMPT"] = "0"
+    """No repository redirection, no prompt, no lock writes, and no replacement objects."""
+    env = {key: value for key, value in os.environ.items() if key not in LOCAL_GIT_ENV}
+    env.update(GIT_OPTIONAL_LOCKS="0", GIT_TERMINAL_PROMPT="0", GIT_NO_REPLACE_OBJECTS="1")
     return env

@@ -91,8 +91,9 @@ def prose_lines(lines: Sequence[str], start: int = 0) -> Iterator[tuple[int, str
         if commented:
             commented = "-->" not in line
             continue
-        if stripped.startswith("<!--") and "-->" not in line:
-            commented = True
+        if stripped.startswith("<!--"):
+            # A one-line comment is skipped too; an open one runs to its `-->` line.
+            commented = "-->" not in line
             continue
         yield index + 1, line
 

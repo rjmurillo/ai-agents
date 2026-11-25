@@ -321,8 +321,14 @@ def _frontmatter_edges(doc: AdrDoc) -> list[Edge]:
 
 
 def edges(doc: AdrDoc) -> list[Edge]:
-    """Supersession edges from frontmatter and Status-style prose, one per (kind, number)."""
-    found = _frontmatter_edges(doc)
+    """Supersession edges from frontmatter and Status-style prose, one per (kind, number).
+
+    Frontmatter wins: when it declares an edge kind, prose edges of that kind are dropped,
+    because prose often tells a longer chain ("superseded by ADR-91, later by ADR-92").
+    """
+    declared = _frontmatter_edges(doc)
+    declared_kinds = {edge.kind for edge in declared}
+    found = list(declared)
     in_status = False
     for number, line in prose_lines(doc.lines, doc.body_start):
         if STATUS_HEADING.match(line):
@@ -330,7 +336,9 @@ def edges(doc: AdrDoc) -> list[Edge]:
             continue
         if line.startswith("#"):
             in_status = False
-        found.extend(_prose_edges(line, number, in_status))
+        found.extend(
+            e for e in _prose_edges(line, number, in_status) if e.kind not in declared_kinds
+        )
     unique: dict[tuple[str, int], Edge] = {}
     for edge in found:
         unique.setdefault((edge.kind, edge.number), edge)

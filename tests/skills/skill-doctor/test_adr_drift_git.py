@@ -163,3 +163,26 @@ def test_a_non_repository_still_exits_2(tmp_path, capsys):
     code, _, err = run_cli(capsys, "scan", "--repo", str(plain), "--out", str(tmp_path / "o.json"))
 
     assert code == 2 and "not a git repository" in err
+
+
+def test_an_inherited_git_dir_does_not_redirect_the_scan(tmp_path, capsys, monkeypatch):
+    repo = seeded_repo(tmp_path / "repo")
+    other = seeded_repo(tmp_path / "other", {"docs/adr/0001-o.md": "# 1. O\n"})
+    monkeypatch.setenv("GIT_DIR", str(other / ".git"))
+    monkeypatch.setenv("GIT_WORK_TREE", str(other))
+
+    result = scan(capsys, repo)
+
+    monkeypatch.delenv("GIT_DIR")
+    monkeypatch.delenv("GIT_WORK_TREE")
+    assert result["head"] == git(repo, "rev-parse", "HEAD") != git(other, "rev-parse", "HEAD")
+
+
+def test_the_git_env_drops_every_local_redirection_variable(monkeypatch):
+    for name in adr_git.LOCAL_GIT_ENV:
+        monkeypatch.setenv(name, "/elsewhere")
+
+    env = adr_git._git_env()
+
+    assert not adr_git.LOCAL_GIT_ENV & env.keys() - {"GIT_NO_REPLACE_OBJECTS"}
+    assert env["GIT_NO_REPLACE_OBJECTS"] == "1" and env["GIT_TERMINAL_PROMPT"] == "0"

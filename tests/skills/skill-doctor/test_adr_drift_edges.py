@@ -7,6 +7,7 @@ from typing import Any
 
 import adr_checks
 import adr_corpus
+import adr_text as text_module
 import pytest
 from adr_drift_helpers import adr_path, adr_text, kinds, scan, seeded_repo
 
@@ -180,3 +181,31 @@ def test_edges_lists_one_edge_per_kind_and_number(tmp_path):
 
     found = adr_checks.edges(doc)
     assert sorted((e.kind, e.number) for e in found) == [("superseded_by", 5), ("supersedes", 777)]
+
+
+def test_a_one_line_html_comment_is_not_prose():
+    lines = ["<!-- Supersedes [1. Old](0001-old.md) -->", "Live text"]
+
+    assert [text for _, text in text_module.prose_lines(lines)] == ["Live text"]
+
+
+def test_frontmatter_edges_win_over_a_longer_prose_chain(tmp_path, capsys):
+    old = adr_text(1, status="superseded").replace("superseded-by: null", "superseded-by: ADR-002")
+    old = old.replace(
+        "## Status\n\nsuperseded\n",
+        "## Status\n\nSuperseded by ADR-002, which ADR-003 later replaced.\n",
+    )
+    repo = seeded_repo(
+        tmp_path / "repo",
+        {
+            adr_path(1): old,
+            adr_path(2): adr_text(2, status="superseded").replace(
+                "supersedes: []", "supersedes: [ADR-001]"
+            ),
+            adr_path(3): adr_text(3).replace("supersedes: []", "supersedes: [ADR-002]"),
+        },
+    )
+
+    found = kinds(scan(capsys, repo), "adr-supersession-not-reciprocal")
+
+    assert [f["evidence"]["path"] for f in found] == [adr_path(2)]
