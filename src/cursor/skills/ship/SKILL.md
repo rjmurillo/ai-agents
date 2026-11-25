@@ -1,7 +1,7 @@
 ---
 name: ship
 version: 1.0.0
-description: Run the four pre-flight checks, then create the PR or validate a contributor branch without touching it. Use when you say `ship it`, `ship this branch`, or `run pre-flight and open the PR`, and run it after review. Do NOT use to open a PR without the gates (use push-pr), and do NOT use to run the review axes themselves (use review).
+description: Run the four pre-flight checks, then hand PR creation to push-pr or validate a contributor branch without touching it. Use when you say `ship it`, `ship this branch`, or `run pre-flight and open the PR`, and run it after review. Do NOT use to open a PR without the gates (use push-pr, which owns all PR creation on GitHub and Azure DevOps), and do NOT use to run the review axes themselves (use review).
 license: Apache-2.0
 metadata:
   capability:
@@ -24,8 +24,9 @@ metadata:
 
 # Ship
 
-Pre-flight validation, CI check, and PR creation, branching on VCS host and on
-whether the branch is yours.
+Pre-flight validation and CI check, branching on VCS host and on whether the
+branch is yours. `/push-pr` creates the PR on both hosts; `/ship` only decides
+whether to call it and checks the result.
 
 ## Triggers
 
@@ -128,10 +129,10 @@ Delegate to `devops` (Claude Code Task, Copilot CLI task, Codex spawn_agent, Mus
      ```
 
      PASS only on exit 0. Exit 1 is FAIL: a required policy is queued, running, rejected, or bound to an older revision, or the PR has no blocking build policy evaluation to inspect. A `notApplicable` evaluation (a path-filtered build policy the PR's changes do not touch) is skipped, but at least one blocking build evaluation must apply. Exit 3 means an `az` query failed (authentication, network, or query error); report it as FAIL with the `az` stderr, never as PASS. Build fields are read one per call: Azure CLI TSV prints a flat list one value per line.
-   - `host=ado`, `pr=none` (no open PR; `mode=owner` only): pipeline-validator does not apply, and pipeline validation is DEFERRED, not skipped. ADO build policies evaluate a pull request, so a branch with no PR has no policy evaluation to read. A fresh branch also has no completed build. Gating here on either one stops the run before Process step 3, which creates the first PR, so the branch can never leave this state (the ADO twin of the GitHub case). Record `Pipeline: DEFERRED (pr=none; validated in Process step 4)` and run checks 2-4. Process step 4 discharges the deferral against the PR that `az repos pr create` opens; a failure there fails the ship.
+   - `host=ado`, `pr=none` (no open PR; `mode=owner` only): pipeline-validator does not apply, and pipeline validation is DEFERRED, not skipped. ADO build policies evaluate a pull request, so a branch with no PR has no policy evaluation to read. A fresh branch also has no completed build. Gating here on either one stops the run before Process step 3, which creates the first PR, so the branch can never leave this state (the ADO twin of the GitHub case). Record `Pipeline: DEFERRED (pr=none; validated in Process step 4)` and run checks 2-4. Process step 4 discharges the deferral against the PR that `/push-pr` opens; a failure there fails the ship.
 2. **Security posture** - Invoke Skill(skill="security-scan"). No new CWE findings? No secrets in diff? This check is host-agnostic: the scan is regex over the diff and applies identically to GitHub and ADO repos.
 3. **Reviewed on this SHA** - The shipped code must carry SHA-bound `/review` proof. The proof shape depends on `mode`:
-   - **`mode=owner` (marker commit required; behavior unchanged).** First confirm `git status --porcelain` is empty. If any file is staged or modified, this check FAILS: commit the change, re-run `/review`, then re-run `/ship`. `/push-pr` must only push the existing marker commit; it must not create a new commit after this check passes. Then run the review-skill validator:
+   - **`mode=owner` (marker commit required; behavior unchanged).** First confirm `git status --porcelain` is empty. If any file is staged or modified, this check FAILS: commit the change, re-run `/review`, then re-run `/ship`. `/push-pr` must only push the existing marker commit; it must not create a new commit after this check passes. Its clean-tree contract keeps the reviewed SHA unchanged. Then run the review-skill validator:
      - Resolve the validator through the skill dir when available, otherwise
        through the portable plugin-root form. The root walk and its exit-code
        table live in `references/review-marker-resolution.md`; run the command
@@ -152,14 +153,11 @@ Delegate to `devops` (Claude Code Task, Copilot CLI task, Codex spawn_agent, Mus
 1. Run all 4 pre-flight checks, branching by `host`, `mode`, and `pr`.
 2. If a blocking check fails: report what failed, why, and how to fix. Stop. `Pipeline: DEFERRED` is not a failure.
 3. If no blocking check failed:
-   - `mode=owner`, `host=github`: run /validate-pr-description to validate PR metadata, then run /push-pr to commit, push, and open the GitHub PR.
-
-     Commit messages MUST follow `<type>(<scope>): <desc>` and include a `Co-Authored-By:` trailer when authored with an AI agent.
-   - `mode=owner`, `host=ado`: run /validate-pr-description, push the branch, then create the PR with `az repos pr create --output json` (the gh-based /push-pr does not apply to ADO). Capture `pullRequestId` from the JSON output as `pr_id`. A non-zero exit means no PR was created: report FAIL with the `az` stderr and stop.
+   - `mode=owner` (both hosts): run /push-pr to push and open the PR. `/push-pr` detects the host itself and owns the title, the body, the body validation, and the PR creation, so `/ship` does not validate PR metadata or create the PR. Capture the PR number (`host=github`) or `pullRequestId` (`host=ado`, as `pr_id`) from the `/push-pr` output. If `/push-pr` reports FAIL, report it and stop. Name any `pullRequestId` it returns; that PR exists.
    - `mode=contributor`: do NOT create a PR and do NOT merge. The PR already exists and is the owner's call. Emit the ship report with `RESULT: VALIDATED` and the recorded `/review` attestation.
 4. Discharge a deferred pipeline check. When check 1 recorded `Pipeline: DEFERRED` (`mode=owner`, `pr=none`), validate CI on the PR that step 3 just created. For `host=github`, that PR comes from `/push-pr`. Capture the PR number from the `/push-pr` output. Use the same GitHub check-status flow as check 1 (`python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request <number> --wait --required-only --timeout-seconds 300`, where `SCRIPTS_DIR` is resolved per the GitHub skill pattern), never the ADO-only pipeline-validator skill. Exit code 7 means checks are still pending: re-run the same command (do not raise `--timeout-seconds` past 570) before reporting `DEFERRED->FAIL`. The discharge requires exit code 0, `Data.RequiredState == "SUCCESS"`, AND `Data.AllPassing == true`; a no-check PR exits 0 with `AllPassing: false`, so exit code alone is insufficient. That result makes the check `DEFERRED->PASS`. Otherwise it is `DEFERRED->FAIL`, `RESULT: BLOCKED`, and the report names the failing checks; the PR stays open and the fix lands on the branch. A deferred check MUST NOT be reported as PASS without this run.
 
-   For `host=ado`, use the `pullRequestId` captured from `az repos pr create` as `pr_id`. Run the wait block in `references/ado-policy-wait.md` until the PR's blocking build evaluations exist and none is `queued` or `running` (30 minutes total, re-run on exit 75). Then run the ADO policy evaluation from pre-flight check 1 with that `pr_id`. Exit 0 from the wait and exit 0 from the evaluation make the check `DEFERRED->PASS`. Any other result, including the 30-minute timeout, an `az` query failure (exit 3), or a PR with no blocking build policy evaluation, is `DEFERRED->FAIL` with `RESULT: BLOCKED`; the report names the failing policies and the PR stays open.
+   For `host=ado`, use the `pullRequestId` captured from the `/push-pr` output as `pr_id`. Run the wait block in `references/ado-policy-wait.md` until the PR's blocking build evaluations exist and none is `queued` or `running` (30 minutes total, re-run on exit 75). Then run the ADO policy evaluation from pre-flight check 1 with that `pr_id`. Exit 0 from the wait and exit 0 from the evaluation make the check `DEFERRED->PASS`. Any other result, including the 30-minute timeout, an `az` query failure (exit 3), or a PR with no blocking build policy evaluation, is `DEFERRED->FAIL` with `RESULT: BLOCKED`; the report names the failing policies and the PR stays open.
 5. Report: host, mode, `pr` at pre-flight time, what was validated or shipped, PR link, any warnings.
 6. Use `memory` for durable outcomes. Cite the PR and its rationale.
 

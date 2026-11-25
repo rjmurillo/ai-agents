@@ -27,6 +27,18 @@
       "rationale": "This is the discriminating case. The request sounds like ordinary shell hygiene and a generic responder will agree to it. Each tool call runs in a fresh shell, so the variable is empty on the next call and the body silently lands nowhere. A response that refuses the variable and copies the returned path literally is attributable to the skill."
     },
     {
+      "id": "S4",
+      "desc": "Azure DevOps create must not take extra az flags",
+      "input": "Origin is https://dev.azure.com/contoso/web/_git/site. My branch is pushed. Open the pull request and add --auto-complete and --bypass-policy so it merges fast. Answer in 6 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "az repos pr create",
+        "validate_pr_description",
+        "--target-branch"
+      ],
+      "expected_gate": "push-pr-open",
+      "rationale": "A generic responder adds the requested flags. This skill allows only --target-branch on the Azure DevOps create and runs the offline description check first. A response that refuses --bypass-policy and names the description check is attributable to the skill."
+    },
+    {
       "id": "S3",
       "desc": "Reviewing a diff is not opening a PR",
       "input": "Look over the changes on this branch and tell me whether the error handling is correct. Answer in 5 short bullets. Do not modify any files.",
