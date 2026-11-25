@@ -27,8 +27,11 @@ the source's latest change:
 - a commit in ``<base-ref>..HEAD`` at or after the source's latest change
   carries a ``Docs-Reviewed:`` trailer that names it. Names are separated by
   commas or spaces. Use ``skills/<name>`` or ``agents/<name>`` when a skill
-  and an agent share the name. A source with uncommitted changes needs a
-  page edit or a trailer on a later commit.
+  and an agent share the name. A source with uncommitted changes passes only
+  on an uncommitted page edit; commit it first to clear it with a trailer.
+
+Only commits that change a file beyond whitespace count as its latest change
+or as a page edit, and merge commits are skipped on both sides.
 
 A whole skill or agent that is new or removed since the fork point is
 skipped: the blocking page check in ``check_agent_skill_docs.py`` owns new
@@ -158,19 +161,44 @@ def reviews(repo_root: Path, base_ref: str) -> list[tuple[str, set[str]]]:
 _WORKTREE = "working tree"
 
 
+def _quiet_diff(repo_root: Path, *revs: str, path: str) -> bool:
+    """Return True when ``path`` differs between ``revs`` (or the tree) beyond whitespace."""
+    result = _git(repo_root, "diff", "--quiet", "-w", "--ignore-blank-lines", *revs, "--", path)
+    if result.returncode not in (0, 1):
+        raise _failed(result, f"git diff failed for {path}")
+    return result.returncode == 1
+
+
 def _last_change(repo_root: Path, base_ref: str, path: str) -> str | None:
-    """Return the newest branch commit touching ``path``, or ``_WORKTREE`` if it is dirty."""
+    """Return the newest branch commit that changed ``path`` beyond whitespace.
+
+    Returns ``_WORKTREE`` when the working tree changes it beyond whitespace.
+    Merge commits are skipped, so a GitHub merge checkout where the base also
+    changed ``path`` resolves to the branch's own commit.
+    """
     dirty = _git(repo_root, "status", "--porcelain", "--", path)
     if dirty.returncode != 0:
         raise _failed(dirty, f"git status failed for {path}")
     if dirty.stdout.strip():
-        return _WORKTREE
+        untracked = dirty.stdout.startswith("??")
+        if untracked or _quiet_diff(repo_root, "HEAD", path=path):
+            return _WORKTREE
     log = _git(
-        repo_root, "log", "-1", "--format=%H", "--end-of-options", f"{base_ref}..HEAD", "--", path
+        repo_root,
+        "log",
+        "--no-merges",
+        "--format=%H",
+        "--end-of-options",
+        f"{base_ref}..HEAD",
+        "--",
+        path,
     )
     if log.returncode != 0:
         raise _failed(log, f"git log failed for {path}")
-    return log.stdout.strip() or None
+    for sha in log.stdout.split():
+        if _quiet_diff(repo_root, f"{sha}^", sha, path=path):
+            return sha
+    return None
 
 
 def _not_older(repo_root: Path, change: str | None, review: str | None) -> bool:
@@ -236,7 +264,11 @@ def find_unreviewed(repo_root: Path, base_ref: str) -> Review:
         ):
             continue
         findings.append(
-            Finding(page, f"{', '.join(paths)} changed; edit this page or name '{token}'")
+            Finding(
+                page,
+                f"{', '.join(paths)} changed with no page edit or trailer at or after it; "
+                f"edit this page or name '{token}'",
+            )
         )
         tokens.append(token)
     return Review(examined=len(candidates), base=base, findings=findings, tokens=sorted(tokens))
@@ -252,7 +284,7 @@ def print_report(review: Review, base_ref: str) -> None:
     if not review.findings:
         return
     print(
-        "[FAIL] skill or agent changed with no page edit and no review trailer."
+        "[FAIL] skill or agent changed with no page edit or review trailer at or after the change."
         "\nRead each page below. If a fact on it changed (what it does, triggers,"
         "\narguments, scripts, exit codes, outputs, when to use it), edit the page."
         "\nOnly if every page is still true, put this line in the final trailer block"

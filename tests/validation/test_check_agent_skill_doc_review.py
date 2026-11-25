@@ -423,3 +423,58 @@ def test_missing_git_is_config_error(tmp_path, monkeypatch):
     monkeypatch.setattr(review, "_git", absent)
 
     assert review.main([str(repo), "--base-ref", "base"]) == 2
+
+
+# Round 4 review fixes: merge checkouts and whitespace-only commits
+
+
+def test_ci_merge_where_base_also_changed_the_source_honours_trailer(tmp_path):
+    repo, skill, _ = _with_agent(tmp_path)
+    _edit(skill / "SKILL.md", "| 0 | Success |", "| 0 | Success, all checks clean |")
+    _commit(repo, "base edits the same source far away")
+    _git(repo, "branch", "-f", "base", "HEAD")
+    _git(repo, "checkout", "-q", "HEAD~1")
+    _git(repo, "checkout", "-q", "-b", "feature")
+    _edit(skill / "SKILL.md", _BODY_OLD, _BODY_NEW)
+    _commit(repo, "change alpha\n\nDocs-Reviewed: alpha")
+    _git(repo, "checkout", "-q", "--detach", "base")
+    _git(
+        repo,
+        "-c",
+        "user.email=t@example.com",
+        "-c",
+        "user.name=t",
+        "merge",
+        "-q",
+        "--no-ff",
+        "-m",
+        "Merge feature into base",
+        "feature",
+    )
+
+    assert review.main([str(repo), "--base-ref", "base"]) == 0
+
+
+def test_whitespace_page_commit_after_source_change_does_not_clear(tmp_path):
+    repo, skill, _ = _with_agent(tmp_path)
+    page = repo / "docs" / "skills" / "alpha.md"
+    _edit(page, "## Related\n\nText.", "## Related\n\nReal early edit.")
+    _commit(repo, "page edit first")
+    _edit(skill / "SKILL.md", _BODY_OLD, _BODY_NEW)
+    _commit(repo, "change alpha")
+    page.write_text(page.read_text(encoding="utf-8") + "\n\n", encoding="utf-8")
+    _commit(repo, "format page")
+
+    assert _paths(review.find_unreviewed(repo, "base")) == ["docs/skills/alpha.md"]
+
+
+def test_whitespace_source_commit_after_trailer_still_clears(tmp_path):
+    repo, skill, _ = _with_agent(tmp_path)
+    _edit(skill / "SKILL.md", _BODY_OLD, _BODY_NEW)
+    _commit(repo, "change alpha\n\nDocs-Reviewed: alpha")
+    (skill / "SKILL.md").write_text(
+        (skill / "SKILL.md").read_text(encoding="utf-8") + "\n\n", encoding="utf-8"
+    )
+    _commit(repo, "format source")
+
+    assert review.find_unreviewed(repo, "base").findings == []

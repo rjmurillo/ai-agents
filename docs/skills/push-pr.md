@@ -46,7 +46,7 @@ The body must include an `## Acceptance criteria` heading with `- [ ]` or `* [ ]
 6. Push the branch to `origin`.
 7. On GitHub, run `new_pr.py --title ... --body-file ...` to create the PR. On Azure DevOps, see the next paragraph.
 
-**Azure DevOps.** Steps 1 to 6 run the same. Step 7 first runs `validate_pr_description.py` on the same title and body file, then a dash check by eye, because that validator has none. Then it runs `az repos pr create --output json --title ... --description '@<body file>'`. `az` is not in `allowed-tools`, so you see and approve every flag. No other flag is allowed except `--target-branch` for a non-default target. Then step 5 must run with `--base origin/<branch>`, so the path check reads the diff the PR shows. If the returned `description` starts with `@`, Azure CLI sent the path instead of the file. The skill reports FAIL with the `pullRequestId` and asks you whether to fix or abandon that PR.
+**Azure DevOps.** Steps 1 to 6 run the same. Step 7 first runs `validate_pr_description.py` on the same title and body file, then a dash check by eye, because that validator has none. Then it runs `az repos pr create --output json --title ... --description '@<body file>'`. `az` is not in `allowed-tools`, so you see and approve every flag. No other flag is allowed except `--target-branch` for a non-default target. Step 5 must have used `--base origin/<branch>`, so the path check read the diff the PR shows. If the returned `description` starts with `@`, Azure CLI sent the path instead of the file. The skill reports FAIL with the `pullRequestId` and asks you whether to fix or abandon that PR.
 
 The skill never applies the `description-validation-bypass` label. A human maintainer decides that.
 
