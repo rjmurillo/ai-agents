@@ -208,7 +208,7 @@ Rank 1 needs a stdlib `urllib` client to meet the no-vendor-SDK rule. See Open q
 | Rank | Transport | Failure mode |
 |---|---|---|
 | 1 | Either HTTP transport above, when configured | As above. |
-| 2 | The user's CLI, by explicit opt-in only: `claude-cli`, `codex-cli`, or `copilot-cli` cell | Binary missing or not logged in: `unavailable`. Runs with tools off and metered env stripped, as those cells already do. Spends the login's quota. |
+| 2 | The user's CLI, by explicit opt-in only: `claude-cli`, `codex-cli`, or `copilot-cli` cell | Binary missing or not logged in: `unavailable`. Runs with tools off and metered env stripped, as the `claude-cli` and `copilot-cli` cells already do. `codex-cli` 0.172.0 has no flag that turns tools off, and `--sandbox read-only` still allows file reads. So `codex-cli` is refused until such a flag exists. Spends the login's quota. |
 | Excluded | Cursor, Muse | No evidence of a tool-less one-shot mode. Comment text is untrusted, so a mode with shell access is a prompt-injection path. Re-admit when a probe proves tools are off. |
 | Excluded | Hermes | No one-shot mechanism found. |
 | Rejected | Hand the prompt back to the host agent | No repo convention, and the only consumer has no agent in the loop. |
@@ -356,7 +356,7 @@ Drop the model fallback, and delete `scripts/llm_classification`, if any holds:
 2. The verdict is fail: the CI upper bound on the gap is under 10 points. A one-character tie-break rule would then do the job.
 3. The signal table's reviewer ranking is the same under A and C. Nobody downstream would act differently.
 4. The `agent-claude` environment's `ANTHROPIC_API_KEY` cannot reach a model from the CI runner, and no other transport is configured. (Owner, 2026-11-24: a CI secret is acceptable if the eval passes. The secret already exists.)
-5. At steady state, the chosen CI transport still caps out: `fallback_capped` above 10 percent of `band_total` under the 600 s budget at measured p95. Steady state starts after `band_total / min(LLM_FALLBACK_MAX_CALLS, 600 / p50)` daily runs, or after one backfill run with the caps raised. The M1 decision record projects that run count.
+5. At steady state, the chosen CI transport still caps out: `fallback_capped` above 10 percent of `band_total` under the 600 s budget at measured p95. The projection also adds failed-call wall time (`n_call_error`, `call_error_s_total`), since timeouts spend the budget too. Steady state starts after `band_total / min(LLM_FALLBACK_MAX_CALLS, 600 / p50)` daily runs, or after one backfill run with the caps raised. The M1 decision record projects that run count.
 
 ## Failure modes
 
