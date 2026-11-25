@@ -100,6 +100,8 @@ API_KEY_ENV = "ANTHROPIC_API_KEY"
 CODEX_CLI_PROVIDERS = frozenset({"codex-cli", "codex-subscription"})
 MAX_TOKEN_ATTEMPTS = 8
 
+OUTPUT_FILE_MODE = 0o600
+
 EXIT_SECRET = 1
 EXIT_CONFIG = 2
 EXIT_FAILURES = 3
@@ -495,7 +497,10 @@ def _run_pending(
         )
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    with args.output.open("a", encoding="utf-8") as handle:
+    # Owner-only on first creation, like the 0600 files `atomic_write_text` makes: the records
+    # name the provider and model, and a shared umask must not widen who can read them.
+    fd = os.open(args.output, os.O_WRONLY | os.O_APPEND | os.O_CREAT, OUTPUT_FILE_MODE)
+    with os.fdopen(fd, "a", encoding="utf-8") as handle:
         return predict_rows(
             pending,
             complete=complete,
