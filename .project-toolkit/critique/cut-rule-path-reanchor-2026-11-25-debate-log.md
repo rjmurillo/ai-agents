@@ -5,7 +5,7 @@
 - **Rounds**: 2 of 10
 - **Outcome**: Consensus after round 2 fixes
 - **Final Status**: unchanged for every ADR. No status or decision changes.
-- **Scope**: 46 citation lines in 20 ADRs:
+- **Scope**: 47 changed lines in 20 ADRs: 41 citation lines, 4 marker lines, and 2 tense fixes. The ADRs:
   - ADR-062
   - ADR-066
   - ADR-068
