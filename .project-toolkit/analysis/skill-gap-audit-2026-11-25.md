@@ -96,28 +96,33 @@ What the pilot must settle before its rewrite:
 - `ship` grants `Bash(*)`. Decision 3 item 7 requires a grant that names each script.
 - Retiring `push-pr` leaves callers that name it. Moving its trigger phrases does not migrate them.
   A repo-wide `git grep -l push-pr` at `bb7319281d` (2026-11-25) lists 174 files outside its own files and this audit.
+  Its own files are its template, its `docs/skills/` page, its skill directories under `src/`, `tests/skills/push-pr/`, and `tests/evals/skill-scenarios/push-pr.json`.
   They fall into four classes. The pilot owns the first three.
   - Skills that call or route to it, by template line.
     `autoplan` line 161 routes push-only requests to `/push-pr`. `takeover` line 65 uses `push-pr` to file a replacement PR.
     `src/claude/skills/takeover/references/upstream-sync.md` line 23 maps `file-pr` to `push-pr`.
     `ship` line 158 runs it. `validate-pr-description` line 19 names it as the next step.
-    Each generated copy under `src/` regenerates from these sources.
-  - Gates and tests bound to its id or path. These fail, or lose their subject, when the directory goes.
+    The `SKILL.md` copies under `src/` regenerate from the templates.
+  - Gates and tests that read its id or path. Each needs an edit when the directory goes.
     `scripts/validation/check_projection_invariants.py` line 81 pins `push-pr` as a pilot skill.
     Three baselines under `scripts/validation/` key on its paths: `skill_md_portability_baseline.json`, `skill_md_exec_portability_baseline.json`, and `skill_trigger_resolution_baseline.json`.
     `templates/platforms/hermes.yaml` lines 53 and 98 list the skill and its rule file.
     `tests/test_fixed_tmp_path_guidance.py` lines 9 and 43 read its `SKILL.md`.
     `tests/eval/test_eval_suite_routing.py` line 374 and `tests/build_scripts/test_rule_distribution.py` line 262 name its id.
-    `tests/validation/test_check_route_scenario_coverage.py` line 260 asserts the `autoplan` route text.
+    `tests/validation/test_check_projection_invariants.py` lines 266 and 278 read its real source and projection.
+    `tests/build_scripts/test_copilot_skill_allowed_tools_projection.py` line 201 asserts its id is in the scoped set.
+    `tests/validation/test_check_route_scenario_coverage.py` line 260 holds the `autoplan` route text as a fixture string. It reads no skill file.
     `tests/commands/test_ship_first_pr_ordering.py` line 171 finds the PR step by the string `/push-pr`.
     `tests/evals/skill-scenarios/push-pr.json` and `tests/evals/rule-scenarios/push-lock.json` point at its `SKILL.md`.
+    `tests/evals/skill-scenarios/ship.json` line 33 names it in an eval input.
   - The push lock rule. `references/rule-push-lock.md` lives inside `push-pr`, so the rule needs a new home.
     `check_push_lock_paths.py` and `check_push_lock_before_commit.py` cite that path in their failure messages.
   - Documents that tell a reader to use it.
     Eight pages under `docs/skills/` besides its own name it at `a7b036aba3` (2026-11-25): `README`, `autoplan`, `checkpoint`, `git-advanced-workflows`, `github`, `ship`, `takeover`, and `validate-pr-description`.
     Four runbooks under `docs/runbooks/` at `bb7319281d` (2026-11-25) say to open the PR with `push-pr`.
     So do `docs/project-structure.md` line 65 and two pages under `docs/training/`.
-  The rest are history: session logs, retrospectives, ADRs, eval corpora, and code comments. They stay as written.
+  The rest were not opened one by one. By directory, most are session logs, retrospectives, ADRs, eval corpora, and code comments.
+  The pilot runs the full test suite after the deletion to find any binding this list missed.
   The pilot must migrate the first three classes in the same change, or the retirement breaks them.
 
 ## Decisions recorded for the pilot
