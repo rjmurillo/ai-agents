@@ -24,8 +24,6 @@ The setup_hook_lib_path function handles:
 
 The resolve_plugin_lib_dir function is also available for cases where you
 need the lib path without auto-setup.
-
-ADR-047 documents load_skill_paths() for llm-council and sol-loop.
 """
 
 from __future__ import annotations
@@ -38,20 +36,18 @@ from pathlib import Path
 from types import ModuleType
 
 
-def _resolve_skill_paths_lib(own_lib: Path) -> Path:
-    """Find the first lib with paths.py in the two harness roots and own root."""
+def load_skill_paths(own_lib: Path, script: str) -> ModuleType:
+    """Load paths.py from the first harness root or own lib that has it.
+
+    Then put the script's own directory first on sys.path for sibling imports.
+    """
     roots = (os.environ.get("COPILOT_PLUGIN_ROOT"), os.environ.get("CLAUDE_PLUGIN_ROOT"))
     candidates = [Path(root) / "lib" for root in roots if root]
     candidates.append(own_lib)
-    for lib_dir in candidates:
-        if (lib_dir / "paths.py").is_file():
-            return lib_dir.resolve()
-    raise RuntimeError(f"paths.py not found in any of: {', '.join(map(str, candidates))}")
-
-
-def load_skill_paths(own_lib: Path, script: str) -> ModuleType:
-    """Load the selected paths file, then enable resolved sibling skill imports."""
-    paths_file = _resolve_skill_paths_lib(own_lib) / "paths.py"
+    found = [lib / "paths.py" for lib in candidates if (lib / "paths.py").is_file()]
+    if not found:
+        raise RuntimeError(f"paths.py not found in any of: {', '.join(map(str, candidates))}")
+    paths_file = found[0].resolve()
     spec = importlib.util.spec_from_file_location("_skill_paths", paths_file)
     if spec is None or spec.loader is None:
         raise ImportError(f"Cannot load skill paths from {paths_file}")
