@@ -255,6 +255,31 @@ def test_an_unusable_scan_file_exits_2(tmp_path, capsys, setup, message):
     assert code == 2 and html == "" and message in err
 
 
+@pytest.mark.parametrize("label", ["adr_drift scan", "adr_drift decisions"])
+def test_an_input_file_over_the_size_cap_exits_2(tmp_path, capsys, monkeypatch, label):
+    """The cap sits between the two file sizes, so only the named file is over it."""
+    decisions = "adr_drift/decisions.json"
+    _scan_file(tmp_path, [_finding()])
+    padding = "x" * 4000 if label.endswith("decisions") else ""
+    _write(tmp_path / decisions, {"candidates": [], "pad": padding})
+    sizes = sorted((tmp_path / name).stat().st_size for name in (SCAN, decisions))
+    monkeypatch.setattr(report_adr, "MAX_FILE_BYTES", sizes[0])
+
+    report = _adr_only(**_section(decisions=decisions))
+    if label.endswith("scan"):
+        _write(tmp_path / SCAN, {"findings": [_finding()], "pad": "y" * 8000})
+    code, html, err = _run(tmp_path, report, capsys)
+
+    assert code == 2 and html == "" and f"{label} " in err and "larger than" in err
+
+
+@pytest.mark.parametrize("name", [7, "", "   "], ids=["number", "empty", "blank"])
+def test_a_scan_path_that_is_not_a_path_string_exits_2(tmp_path, capsys, name):
+    code, html, err = _run(tmp_path, _adr_only(repos=[{"repo": "r", "scan": name}]), capsys)
+
+    assert code == 2 and html == "" and "must be a path string" in err
+
+
 def test_a_section_with_neither_skipped_nor_repos_exits_2(tmp_path, capsys):
     code, _, err = _run(tmp_path, _adr_only(repos=[]), capsys)
 

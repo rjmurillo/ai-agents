@@ -10,6 +10,7 @@ from pathlib import Path
 
 import adr_drift
 import adr_git
+import adr_history
 import adr_text
 import pytest
 from adr_drift_helpers import adr_path, commit, git, kinds, run_cli, scan, seeded_repo
@@ -139,6 +140,44 @@ def test_a_git_that_honors_no_lazy_fetch_allows_a_blobless_clone(monkeypatch, tm
     monkeypatch.setattr(adr_git, "run_git", lambda repo, args: replies[args[0]])
 
     assert adr_git.partial_clone_refusal(tmp_path) is None
+
+
+def test_a_config_probe_that_git_rejects_raises(monkeypatch, tmp_path):
+    def fail(repo, args):
+        raise adr_git.GitError("bad config file", returncode=128)
+
+    monkeypatch.setattr(adr_git, "run_git", fail)
+
+    with pytest.raises(adr_git.GitError, match="bad config file"):
+        adr_git.partial_clone_refusal(tmp_path)
+
+
+def test_a_config_probe_with_no_matching_key_is_a_full_clone(monkeypatch, tmp_path):
+    def no_match(repo, args):
+        raise adr_git.GitError("", returncode=1)
+
+    monkeypatch.setattr(adr_git, "run_git", no_match)
+
+    assert adr_git.partial_clone_refusal(tmp_path) is None
+
+
+def test_a_failed_partial_clone_probe_exits_3(tmp_path, capsys, monkeypatch):
+    repo = seeded_repo(tmp_path / "repo")
+
+    def fail(repo):
+        raise adr_git.GitError("git config --get-regexp failed")
+
+    monkeypatch.setattr(adr_drift, "partial_clone_refusal", fail)
+    out = tmp_path / "out" / "scan.json"
+
+    code, _, err = run_cli(capsys, "scan", "--repo", str(repo), "--out", str(out))
+
+    assert code == 3 and "git config --get-regexp failed" in err and not out.exists()
+
+
+def test_a_truncated_rename_record_raises():
+    with pytest.raises(adr_git.GitError, match="unexpected git log output"):
+        adr_history._parse_paths(["R100", "docs/adr/0001-old.md"], 0)
 
 
 def test_the_refusal_exits_2(tmp_path, capsys, monkeypatch):

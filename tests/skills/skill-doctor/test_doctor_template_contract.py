@@ -1,13 +1,26 @@
 """Verify canonical template and generated entry points remain synchronized."""
 
 import ast
+import json
 from pathlib import Path
-
-import yaml
 
 from tests.skills._template_contract import assert_template_owned_contract
 
 REPO = Path(__file__).resolve().parents[3]
+
+
+def _frontmatter_fields(frontmatter: str) -> tuple[str, list[str]]:
+    """Return the `description` value and the `metadata.routing.intents` items, stdlib only."""
+    lines = frontmatter.splitlines()
+    description = next(line for line in lines if line.startswith("description: "))
+    start = next(i for i, line in enumerate(lines) if line.strip() == "intents:")
+    indent = len(lines[start]) - len(lines[start].lstrip())
+    intents = []
+    for line in lines[start + 1 :]:
+        if len(line) - len(line.lstrip()) <= indent or not line.lstrip().startswith("- "):
+            break
+        intents.append(line.lstrip()[2:].strip())
+    return json.loads(description.removeprefix("description: ")), intents
 
 
 def _step_1a() -> str:
@@ -31,10 +44,10 @@ def test_template_routes_adr_drift_to_its_step() -> None:
     text = (REPO / "templates/skills/skill-doctor.SKILL.md.tmpl").read_text(encoding="utf-8")
     frontmatter, body = text.split("\n---\n", 1)
 
-    meta = yaml.safe_load(frontmatter.removeprefix("---\n"))
+    description, intents = _frontmatter_fields(frontmatter.removeprefix("---\n"))
 
-    assert "`check ADR drift`" in meta["description"]
-    assert "check ADR drift" in meta["metadata"]["routing"]["intents"]
+    assert "`check ADR drift`" in description
+    assert "check ADR drift" in intents
     assert "- `check ADR drift`" in body.split("## Triggers", 1)[1].split("\n## ", 1)[0]
     assert "#### ADR-only fast path" in body
     assert "### Step 1a: ADR drift" in body
