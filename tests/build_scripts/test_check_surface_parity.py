@@ -234,7 +234,6 @@ def test_include_limits_which_authority_files_are_required(mirror: Path) -> None
                 owner="o",
                 include=["one.md"],
             ),
-            independent("copy", id="copy-two", include=["two.md"]),
             independent("canon"),
         ],
         ["copy", "canon"],
@@ -267,6 +266,42 @@ def test_authority_exclude_naming_nothing_is_reported(mirror: Path) -> None:
     )
     write_manifest(mirror, [entry, independent("canon")], ["copy", "canon"])
     assert kinds(findings(mirror)) == ["EXCLUSION-UNKNOWN"]
+
+
+# --- Include globs -------------------------------------------------------
+
+
+def _guides(root: Path, include: list[str], *extra: dict[str, Any]) -> list[sm.Finding]:
+    put(root, "guides/a.md")
+    write_manifest(root, [independent("guides", include=include), *extra], ["guides"])
+    manifest = sm.load_manifest(root)
+    assert manifest is not None
+    return csp.check_includes(manifest, sm.list_files(root))
+
+
+@pytest.mark.parametrize("include", [["a.md"], ["*.md"], ["**"]])
+def test_include_matching_a_file_is_clean(tmp_path: Path, include: list[str]) -> None:
+    assert _guides(tmp_path, include) == []
+
+
+@pytest.mark.parametrize("dead", ["gone.md", "*.txt", "sub/**"])
+def test_include_matching_no_file_is_reported(tmp_path: Path, dead: str) -> None:
+    found = _guides(tmp_path, ["a.md", dead])
+    assert [(f.kind, f.surface, f.path) for f in found] == [
+        ("INCLUDE-UNKNOWN", "guides", f"guides/{dead}")
+    ]
+
+
+def test_include_ignores_same_name_outside_surface(tmp_path: Path) -> None:
+    put(tmp_path, "other/gone.md")
+    found = _guides(tmp_path, ["a.md", "gone.md"], independent("other"))
+    assert kinds(found) == ["INCLUDE-UNKNOWN"]
+
+
+def test_run_checks_reports_dead_include(tmp_path: Path) -> None:
+    put(tmp_path, "guides/a.md")
+    write_manifest(tmp_path, [independent("guides", include=["a.md", "gone.md"])], ["guides"])
+    assert kinds(findings(tmp_path)) == ["INCLUDE-UNKNOWN"]
 
 
 # --- Translated surfaces --------------------------------------------------

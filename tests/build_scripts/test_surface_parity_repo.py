@@ -76,6 +76,7 @@ def any_finding(manifest: sm.Manifest, files: list[str], rooted_files: list[str]
         lambda: csp.check_declarations(REPO_ROOT, manifest),
         lambda: csp.check_inventory(REPO_ROOT, manifest, build_all.OWNED_PREFIXES),
         lambda: csp.check_hand_maintained(REPO_ROOT, manifest, files),
+        lambda: csp.check_includes(manifest, files),
         lambda: csp.check_classification(manifest, rooted_files),
     )
     return any(check() for check in checks)

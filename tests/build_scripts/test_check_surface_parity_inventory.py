@@ -204,6 +204,7 @@ def test_platform_outputs_under_a_surface_pass(repo: Path) -> None:
 
 
 def test_restricted_ancestor_row_does_not_cover_a_new_output(repo: Path) -> None:
+    put(repo, "src/G.md")
     write_manifest(
         repo,
         [
@@ -228,6 +229,7 @@ def test_unrestricted_ancestor_row_covers_a_new_output(repo: Path) -> None:
 
 
 def test_owned_prefix_under_only_a_restricted_ancestor_is_unmanifested(repo: Path) -> None:
+    put(repo, "src/G.md")
     write_manifest(
         repo,
         [
