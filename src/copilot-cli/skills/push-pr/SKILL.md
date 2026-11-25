@@ -198,7 +198,7 @@ Then create the PR. `az` is not in `allowed-tools`, so this command prompts
 the user, who sees every flag before it runs:
 
 ```bash
-az repos pr create --output json --title "<conventional commit title>" --description @<body-file-path-from-step-3>
+az repos pr create --output json --title "<conventional commit title>" --description '@<body-file-path-from-step-3>'
 ```
 
 - Azure CLI replaces an argument that starts with `@` by the contents of that
@@ -231,7 +231,8 @@ az repos pr create --output json --title "<conventional commit title>" --descrip
 - On Windows, the Windows PR Body Fallback replaces steps 3 to 5 only. Use
   `pr-body-windows.md`, the scratch file it creates for step 5, as the body
   file in both commands above. Skip its step 7 item. The `az`
-  command stays the same.
+  command stays the same. Keep the single quotes around `'@<path>'`:
+  PowerShell reads an unquoted `@name` as splatting, not as text.
 
 ## Output
 

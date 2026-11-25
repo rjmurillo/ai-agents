@@ -60,7 +60,9 @@ class TestPushPrOwnsAdoCreation:
         ado = section(push_pr_text, "Azure DevOps PR Creation")
         assert "`host=ado`" in ado
         assert "az repos pr create --output json" in ado
-        assert "--description @<body-file-path-from-step-3>" in ado
+        assert "--description '@<body-file-path-from-step-3>'" in ado, (
+            "quote it: PowerShell splats @name"
+        )
         assert "--title" in ado
 
     def test_ado_branch_reports_pull_request_id(self, push_pr_text: str) -> None:
