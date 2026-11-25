@@ -17,6 +17,7 @@ Limits:
 - Line numbers are template lines. A cell that was not re-opened may be off by a few lines.
 - "Missing scripts" are proposals. A rewrite thread decides the real split.
 - No eval ran for this audit. The eval column says only whether a scenario file exists.
+- The all-rows table scores decisions 1 and 3. A separate table scores decisions 2, 4, 6, and 8 for the drivers.
 - The readers judged `allowed-tools` from the template frontmatter.
 - Two `reference` rows rest on a reader's unverified read: `ai-agents-generation-and-release` and `repository-completion-proof`.
 
@@ -38,20 +39,20 @@ A skill is `disputed` when it shows such a command as knowledge, or hands the pu
 | Measure | Count |
 |---|---|
 | Templates scored at `a7b036aba3` (2026-11-25) | 121 |
-| Shape `driver` at `a7b036aba3` (2026-11-25) | 14 |
-| Shape `disputed`, for the owner at `a7b036aba3` (2026-11-25) | 3 |
+| Shape `driver` at `a7b036aba3` (2026-11-25) | 15 |
+| Shape `disputed`, for the owner at `a7b036aba3` (2026-11-25) | 2 |
 | Shape `reference` at `a7b036aba3` (2026-11-25) | 104 |
-| Priority P0 at `a7b036aba3` (2026-11-25) | 8 |
-| Priority P1 at `a7b036aba3` (2026-11-25) | 20 |
+| Priority P0 at `a7b036aba3` (2026-11-25) | 9 |
+| Priority P1 at `a7b036aba3` (2026-11-25) | 19 |
 | Priority P2 at `a7b036aba3` (2026-11-25) | 27 |
 | Priority P3 at `a7b036aba3` (2026-11-25) | 66 |
 | Templates with no verdict scenario file at `a7b036aba3` (2026-11-25) | 116 |
 | Rendered skills over the 12 KiB driver budget at `a7b036aba3` (2026-11-25) | 69 |
-| Driver skills with no scripts directory at `a7b036aba3` (2026-11-25) | 9 |
+| Driver skills with no scripts directory at `a7b036aba3` (2026-11-25) | 10 |
 
-Drivers: `github`, `merge-resolver`, `modernize`, `pipeline-validator`, `pr-autofix`, `pr-babysit`, `pr-comment-responder`, `pr-review`, `push-pr`, `research`, `ship`, `sol-loop`, `takeover`, `windows-image-updater`.
+Drivers: `git-advanced-workflows`, `github`, `merge-resolver`, `modernize`, `pipeline-validator`, `pr-autofix`, `pr-babysit`, `pr-comment-responder`, `pr-review`, `push-pr`, `research`, `ship`, `sol-loop`, `takeover`, `windows-image-updater`.
 
-Driver skills with no scripts: `modernize`, `pipeline-validator`, `pr-autofix`, `pr-review`, `push-pr`, `research`, `ship`, `takeover`, `windows-image-updater`.
+Driver skills with no scripts: `git-advanced-workflows`, `modernize`, `pipeline-validator`, `pr-autofix`, `pr-review`, `push-pr`, `research`, `ship`, `takeover`, `windows-image-updater`.
 
 ## Ship and push-pr first
 
@@ -93,6 +94,10 @@ What the pilot must settle before its rewrite:
   ADR-127 decision 7 needs at least 8 scenarios on kept judgment, with 6 passing on `origin/main`. They do not exist yet.
 - `push-pr` has no verdict scenario file. It is retired into `ship`, so its judgment scenarios belong in the `ship` file.
 - `ship` grants `Bash(*)`. Decision 3 item 7 requires a grant that names each script.
+- Retiring `push-pr` leaves callers that name it. Moving its trigger phrases does not migrate them.
+  `autoplan` line 161 routes push-only requests to `/push-pr`. `takeover` line 65 uses `push-pr` to file a replacement PR.
+  `ship` line 158 and `validate-pr-description` also name it, as do six pages under `docs/skills/`.
+  The pilot must update each caller in the same change, or the retirement breaks them.
 
 ## Decisions recorded for the pilot
 
@@ -112,12 +117,40 @@ Sequencing, from the same rulings:
 - The pilot starts after PR #7572 merges. Both edit the same templates.
 - At most two fix threads run at once.
 
+## Driver contract, decisions 2, 4, 6, and 8
+
+The rows below score each driver on the rest of the contract. The numbers are measured, not judged.
+
+| Skill | Rendered bytes at `a7b036aba3` (2026-11-25) | Within the 12 KiB budget | States a call budget | Scripts that end on `NEXT:` or `STOP:` | STOP table | Test files under `tests/skills/<name>/` |
+|---|---|---|---|---|---|---|
+| `git-advanced-workflows` | 15145 | no | no | 0 of 0 | no | 1 |
+| `github` | 25548 | no | no | 0 of 1 | no | 68 |
+| `merge-resolver` | 18317 | no | no | 0 of 2 | no | 14 |
+| `modernize` | 10726 | yes | no | 0 of 0 | no | 1 |
+| `pipeline-validator` | 19660 | no | no | 0 of 0 | no | 1 |
+| `pr-autofix` | 84393 | no | no | 0 of 0 | no | 14 |
+| `pr-babysit` | 11184 | yes | no | 0 of 3 | no | 7 |
+| `pr-comment-responder` | 22518 | no | no | 0 of 2 | no | 5 |
+| `pr-review` | 24449 | no | no | 0 of 0 | no | 1 |
+| `push-pr` | 14890 | no | no | 0 of 0 | no | 2 |
+| `research` | 15590 | no | no | 0 of 0 | no | 1 |
+| `ship` | 24401 | no | no | 0 of 0 | no | 1 |
+| `sol-loop` | 13624 | no | no | 0 of 5 | no | 10 |
+| `takeover` | 4418 | yes | no | 0 of 0 | no | 2 |
+| `windows-image-updater` | 14367 | no | no | 0 of 0 | no | 1 |
+
+Reading the table at `a7b036aba3` (2026-11-25):
+
+- 3 of 15 drivers fit the 12 KiB budget at `a7b036aba3` (2026-11-25): `modernize`, `pr-babysit`, `takeover`.
+- No driver states a call budget, has a STOP table, or has a script that ends on `NEXT:` or `STOP:` at `a7b036aba3` (2026-11-25). The protocol is new, so every driver starts at zero.
+- The test file counts say only that tests exist. None is a decision 8 contract test, because no driver has a STOP table or result lines to test yet.
+- The two disputed skills are not scored here. They get this table when the owner rules on their shape.
+
 ## Disputed shapes, for the owner
 
 | Row | Skill | Why it is unclear |
 |---|---|---|
 | G-008 | `ai-agents-debugging-playbook` | line 78: a table cell says `git fetch origin main && git merge origin/main` |
-| G-049 | `git-advanced-workflows` | lines 42-52: `rebase -i` then `git push --force-with-lease` in a recipe; unclear whether the model runs it or learns it |
 | G-101 | `skillopt` | line 283: "Commit and push through the owner's repository workflow" |
 
 Two more calls for the owner:
@@ -128,7 +161,7 @@ Two more calls for the owner:
 ## Findings that cross skills
 
 1. **Force push against decision 3 item 8.** `modernize` (lines 61-62) and `pr-autofix` (lines 925-926) tell the model to force push with a lease.
-   `git-advanced-workflows` (line 50) shows the same command. Decision 3 item 8 bars a script from a force push.
+   `git-advanced-workflows` (line 50) gives the same command. Decision 3 item 8 bars a script from a force push.
    So these steps cannot move into a script as written. A rewrite keeps them with the human, or the ADR changes through `adr-review`.
 2. **`Bash(*)` on four skills.** `build`, `review`, `ship`, and `test` grant `Bash(*)`. Only `ship` is a driver.
    `analyze`, `benchmark-models`, `context-optimizer`, `pr-autofix`, and `requirements-interview` grant bare `Bash`.
@@ -156,10 +189,11 @@ Each group is one fix thread and one small PR series. Groups run two at a time.
 | 9 | Reference skills at P1 | `analyze`, `benchmark-models`, `checkpoint`, `github-url-intercept`, `memory-consolidate`, `reviewer-findings`, `ai-agents-build-and-env`, `ai-agents-portability-campaign` | Clear script candidates with no remote write. |
 
 Sizing, by ADR-127 decision 7: each gated skill needs at least 8 verdict scenarios before its rewrite.
-Groups 1 and 3 to 8 cover 21 skills at `a7b036aba3` (2026-11-25). Only `ship` has a verdict file today.
+Groups 1 and 3 to 9 cover 29 skills at `a7b036aba3` (2026-11-25): 21 in groups 1 and 3 to 8, and 8 reference skills in group 9. Only `ship` has a verdict file today.
+Decision 7 gates a reference skill too when a rewrite implements its audit row. So the floor is 28 new scenario files of at least 8 scenarios each, 224 scenarios or more.
 The P2 and P3 rows need no rewrite thread. A P2 row is a candidate when its skill is next edited.
 One exception: `pr-babysit` is P2 but rides in group 4, because it shares that group's branch update and push steps.
-`git-advanced-workflows` stays in group 5 only if the owner rules it a driver.
+`git-advanced-workflows` is a driver, so it stays in group 5.
 
 ## All rows
 
@@ -213,7 +247,7 @@ One exception: `pr-babysit` is P2 but rides in group 4, because it shares that g
 | G-046 | `evidence-provenance` | reference | line 62: one local script | none | none | none | verdict: no; activation: yes | P3 | The script owns classification. |
 | G-047 | `execution-plans` | reference | plan writing guidance; no shell | none | none | none | verdict: no; activation: no | P3 | No shell. |
 | G-048 | `fix-markdown-fences` | reference | lines 312-316: a quick check; the fixer writes working-tree files | line 312: a one-line grep fallback | none | none | verdict: no; activation: no | P3 | The fixer and write guard exist. |
-| G-049 | `git-advanced-workflows` | disputed | lines 42-52: `rebase -i` then `git push --force-with-lease` in a recipe; unclear whether the model runs it or learns it | lines 42-52: nine-line fetch, rebase, and push block; lines 65-70: split-commit sequence; lines 249-254: abort block | rewrite_branch_history.py (rebase and lease-pinned push); abort_git_operation.py (abort an in-progress operation) | none | verdict: no; activation: no | P1 | Pushes and rewrites history with no script. Owner rules on shape. |
+| G-049 | `git-advanced-workflows` | driver | lines 139-146: the publish procedure says to commit, rebase, and "Push the topic branch"; lines 42-52: `rebase -i` then a lease-pinned force push | lines 42-52: nine-line fetch, rebase, and push block; lines 65-70: split-commit sequence; lines 249-254: abort block | rewrite_branch_history.py (rebase and lease-pinned push); abort_git_operation.py (abort an in-progress operation) | none | verdict: no; activation: no | P0 | Pushes and rewrites history with no script. A reviewer on PR #7579 showed the publish procedure is an instruction, not an example. |
 | G-050 | `github` | driver | line 130: create PR; line 134: comment; line 149: close PR; line 150: merge | lines 126-150: routing tree to about 20 mutating scripts; lines 166-170: three multi-line locator blocks | route_github_operation.py (map intent to script and args) | none | verdict: no; activation: yes | P1 | Mutating and high traffic, with a script behind each write. Over the 12 KiB driver budget. |
 | G-051 | `github-url-intercept` | reference | lines 47-56: read-only `gh api` calls | lines 47-56: the model fills owner, repo, and path; lines 139-146: URL parse in prose; lines 110-130: routing tree | route_github_url.py (parse URL and fetch JSON) | none | verdict: no; activation: no | P1 | A blocking intercept on every GitHub URL. Parsing is a fixed step. |
 | G-052 | `golden-principles` | reference | lines 64-83: read-only scan | lines 64-83: six variants of one scan command | none | none | verdict: no; activation: no | P3 | The script owns the scan. |
@@ -227,7 +261,7 @@ One exception: `pr-babysit` is P2 but rides in group 4, because it shares that g
 | G-060 | `memory-maintenance` | reference | lines 51-63, 125-130: local memory scripts | lines 51-63: four locator calls | none | none | verdict: no; activation: no | P3 | Lists scripts that live in the `memory` skill. |
 | G-061 | `memory-reflexion` | reference | lines 68-70: `--force` overwrites a local episode file | lines 70, 134, 141: `--force` against `--preserve` explained in prose | none | none | verdict: no; activation: no | P3 | Local write only. The scan's history-rewrite hit is false. |
 | G-062 | `memory-search` | reference | lines 25-40: search and read only | lines 33-39: tool choice is a prose decision tree | none | none | verdict: no; activation: yes | P3 | Read-only lookup. |
-| G-063 | `merge-resolver` | driver | lines 51, 55: `git merge`, commit, `git push` | lines 66-69: PR view, checkout, merge as a prose table; lines 74-80: auto-resolve staging; phases 3.2-3.5: validate, commit, push | push_branch.py (push the resolved merge, no force); gather_pr_context.py (fetch PR, checkout, start merge) | none | verdict: no; activation: no | P1 | Scripts cover resolve and marker checks only. Commit and push are prose. |
+| G-063 | `merge-resolver` | driver | lines 51, 55: `git merge`, commit, `git push` | lines 66-69: PR view, checkout, merge as a prose table; phases 3.2-3.5: validate, commit, and push for conflicts the model resolves by hand | push_branch.py (push a hand-resolved merge, no force); gather_pr_context.py (fetch PR, checkout, start merge) | none | verdict: no; activation: no | P1 | `resolve_pr_conflicts.py` already commits and pushes automatic resolutions. Only the hand-resolved path commits and pushes in prose. |
 | G-064 | `metrics` | reference | lines 234-235: local add and commit | line 110: fetch before recheck; lines 93-117: ten pasted locator blocks | none | none | verdict: no; activation: yes | P3 | Read-only reports. Scripts sit at the skill root, not in `scripts/`. |
 | G-065 | `modernize` | driver | lines 153-155: push after the user says yes; lines 61-62: pinned force-with-lease | lines 61-62: lease string built by hand; lines 56-60: fork-head against base-repo compare; line 147: range-diff | rebase_pr_branch.py (rebase, abort on conflict); check_pr_head_repo.py (reject a fork head) | none | verdict: no; activation: yes | P0 | History rewrite plus a force push with zero scripts. Decision 3 item 8 bars a script from the force push. |
 | G-066 | `negotiation` | reference | analysis only | none | none | none | verdict: no; activation: no | P3 | Knowledge skill. |
