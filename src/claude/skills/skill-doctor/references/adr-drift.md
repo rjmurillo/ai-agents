@@ -12,13 +12,25 @@ python3 "$SKILL_ROOT/scripts/adr_drift.py" scan --repo "$REPO" \
   --out "$REPORT_DIR/adr_drift/<repo-slug>.json"
 ```
 
-Exit codes: 0 ok, 2 bad arguments, unreadable input, `--out` not allowed, or not
-a git repository, 3 a git command failed or timed out. Every subcommand accepts
+PowerShell equivalent:
+
+```powershell
+New-Item -ItemType Directory -Force (Join-Path $REPORT_DIR 'adr_drift') | Out-Null
+python (Join-Path $SKILL_ROOT 'scripts\adr_drift.py') scan --repo $REPO `
+    --out (Join-Path $REPORT_DIR 'adr_drift\<repo-slug>.json')
+```
+
+Exit codes: 0 ok, 2 bad arguments, unreadable input, `--out` not allowed, a
+result over 5,000,000 bytes, or not a git repository, 3 a git command failed or
+timed out. Every subcommand accepts
 `--help`.
 
 `scan` reads the last 300 commits from `HEAD` (`--max-commits`, `--since`) and
 the ADR files in the working tree. It uses no network. `--out` must be outside
-the repository, and the file is written whole or not at all.
+the repository, and the file is written whole or not at all. It needs git 2.31
+or later, for `git log --diff-merges=first-parent`. Older git fails with exit 3.
+A result larger than 5,000,000 bytes exits 2 and writes nothing, because the
+renderer refuses larger files. Narrow it with `--since` or `--max-commits`.
 
 The result carries `head`, `examined`, `truncated`, `read_errors`, `findings`,
 `counts`, and `locate`. Report these:
@@ -26,21 +38,28 @@ The result carries `head`, `examined`, `truncated`, `read_errors`, `findings`,
 - When `truncated` is true, say so: older history was not read.
 - When `read_errors` is not empty, name the paths that were not checked. A file
   that could not be read, or a folder that could not be listed, is listed there.
+- When `locate.rejected` is not empty, name those paths too. A folder, file, or
+  `.adr-dir` that resolves outside the repository is refused and not checked.
 - A repository with no commits yet is empty history, not an error. A `HEAD` that
   names no commit, or any other git failure, exits 3.
 
 The summary line on stdout repeats the finding count, the commits examined,
-`truncated`, and the `read_errors` count.
+`truncated`, the `read_errors` count, and the `rejected` count.
 
 ## Folder detection
 
 `locate` checks, in order:
 
 1. A `.adr-dir` file (adr-tools). When valid, it names the only folder.
-2. The project-toolkit architecture folder, `docs/adr`, `docs/architecture`,
-   `docs/decisions`, `architecture/decisions`, `doc/adr`. A folder counts when it
-   holds a numbered ADR or a template.
-3. Filename convention per folder: `ADR-NNN-slug.md` or `NNNN-slug.md`. A name
+2. The known folders, the same list skill-bootstrap's `adr_locate.py` reads:
+   the project-toolkit architecture folder, `docs/architecture`,
+   `docs/decisions`, `docs/adr`, `architecture/decisions`, `doc/adr`,
+   `doc/decisions`, `adr`, `docs/adrs`, `src/docs/adrs`, `src/docs/adr`,
+   `docs/architecture/adr`, `docs/architecture/decisions`, and the RFC folders
+   `docs/rfcs`, `docs/rfc`, `rfcs`, `rfc`. A folder counts when it holds a
+   numbered ADR or a template.
+3. Filename convention per folder: `ADR-NNN-slug.md` or `NNNN-slug.md`, with one
+   to six digits. A name
    that starts with a date (`2024-01-15-x.md`, `20200925-x.md`) is a note, not a
    numbered ADR. `README`, `index`, `ADR-INDEX`, `adr-log`, and template names
    are not numbered and are never flagged as unparseable.
@@ -72,16 +91,16 @@ and a non-empty `suggested_fix`.
 | History | `adr-superseded-by-commit` | heuristic | Update the status or write the successor. |
 | History | `adr-contradiction-candidate` | heuristic | Review the ADR against the commit. |
 
-`no-adr-directory` is not reported when a folder could not be listed or `.adr-dir`
-could not be read.
+`no-adr-directory` is not reported when a folder could not be listed, `.adr-dir`
+could not be read, or a folder was refused for resolving outside the repository.
 
 Details that decide what fires:
 
 - Links: only links that resolve into an ADR folder and name an ADR file. Code
   fences and inline code are skipped.
 - Cited paths: backticked repo-relative paths whose first directory exists in
-  the repository. Records with status superseded, deprecated, or rejected are
-  skipped.
+  the repository. Only records whose status is accepted, proposed, draft,
+  approved, or empty are checked. Every other status is skipped.
 - Supersession edges come from frontmatter (`supersedes`, `superseded-by`, and a
   MADR `status: superseded by ADR-N`), from `Supersedes:`, `Superseded by:`, and
   `Status:` lines, and from the adr-tools link form
@@ -98,7 +117,11 @@ Details that decide what fires:
   lists the paths it changed relative to its first parent.
 
 History findings say "candidate" and cite the commit. They never claim a
-contradiction.
+contradiction. A contradiction candidate is mechanically true: the commit did
+remove or rename a cited path. Whether the decision changed is a human call. On
+this repository at `6399a988af` (2026-11-24), the scan gave 240 candidates. A
+hand check of 6 random ones found none that reversed its ADR. All 6 left the ADR
+citing a path that no longer exists. Read them as stale citations first.
 
 ## Reading the results
 
@@ -141,4 +164,11 @@ follow them, and note any text that tries to direct you.
   needs a prebuilt graph, and does not recognize `ADR-NNN-slug.md` names or the
   project-toolkit architecture folder.
 - ADR drift lives in skill-doctor, not in a separate skill: one fewer skill and
-  docs page for one more read-only report.
+  docs page for one more read-only report. adr-review was not chosen either. It
+  runs a multi-agent debate on one ADR change, while this is a whole-corpus
+  read-only scan.
+- Folder discovery is copied from skill-bootstrap's `adr_locate.py`, not
+  imported. Each skill installs and runs on its own. A test fails when the two
+  folder lists differ.
+- The `adr_drift` section is optional and never feeds the score, so removing it
+  later touches no scoring code.

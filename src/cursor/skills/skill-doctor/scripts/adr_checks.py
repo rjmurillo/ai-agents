@@ -13,6 +13,7 @@ import re
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
+from itertools import islice
 from pathlib import Path
 from typing import Any
 from urllib.parse import unquote
@@ -147,15 +148,19 @@ def _gaps(folder: AdrDir) -> list[Finding]:
     numbers = sorted({f.number for f in folder.files})
     if len(numbers) < 2:
         return []
-    present = set(numbers)
-    missing = [n for n in range(numbers[0], numbers[-1] + 1) if n not in present]
-    if not missing:
+    missing_count = numbers[-1] - numbers[0] + 1 - len(numbers)
+    if missing_count == 0:
         return []
+    present = set(numbers)
+    # Walk only far enough to fill the evidence cap: the span can be large.
+    shown = list(
+        islice((n for n in range(numbers[0], numbers[-1]) if n not in present), GAP_EVIDENCE_CAP)
+    )
     evidence = {
         "path": folder.rel,
-        "missing_count": len(missing),
-        "missing": missing[:GAP_EVIDENCE_CAP],
-        "truncated": len(missing) > GAP_EVIDENCE_CAP,
+        "missing_count": missing_count,
+        "missing": shown,
+        "truncated": missing_count > GAP_EVIDENCE_CAP,
     }
     fix = "None needed. Report only: gaps are usually withdrawn or renumbered records."
     return [_found("adr-number-gap", evidence, fix, (folder.rel,))]

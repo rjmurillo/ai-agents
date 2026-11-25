@@ -1,15 +1,16 @@
 """ADR folder discovery, ADR file parsing, and the finding record for adr_drift.py.
 
-Stdlib only, Python 3.10+, no network. Git runs through argument lists, never a shell.
+python3, stdlib only, no network. Git runs through argument lists, never a shell.
 
 Conventions:
 
-- The known-folder list matches the adr-review skill's `detect_adr_changes.py`
-  (`.project-toolkit/architecture`, `docs/adr`, `docs/architecture`,
-  `docs/decisions`, `architecture/decisions`) plus the adr-tools default
-  `doc/adr`. A test pins that the adr-review folders stay a subset.
-- Filenames follow `ADR-NNN-slug.md`, widened to digit runs of any length and
-  to the plain `NNNN-slug.md` form that adr-tools and MADR use.
+- The known-folder list equals skill-bootstrap's `KNOWN_FOLDERS` in
+  `adr_locate.py`, which already holds adr-review's folders. A test pins both.
+  Each skill installs on its own, so the list is copied, not imported.
+- Filenames follow `ADR-NNN-slug.md` or the plain `NNNN-slug.md` form that
+  adr-tools and MADR use, with one to six digits, as skill-bootstrap reads them.
+  skill-bootstrap also reads `.mdx`, `.adoc`, `_` separators, and a lowercase
+  `adr-` prefix. These checks parse Markdown text, so they read `.md` files only.
 - Every folder found is scanned, not only the first.
 """
 
@@ -37,18 +38,31 @@ from adr_text import (
 
 KNOWN_DIRS = (
     ".project-toolkit/architecture",
-    "docs/adr",
     "docs/architecture",
     "docs/decisions",
+    "docs/adr",
     "architecture/decisions",
     "doc/adr",
+    "doc/decisions",
+    "adr",
+    "docs/adrs",
+    "src/docs/adrs",
+    "src/docs/adr",
+    "docs/architecture/adr",
+    "docs/architecture/decisions",
+    "docs/rfcs",
+    "docs/rfc",
+    "rfcs",
+    "rfc",
 )
-PREFIXED_NAME = re.compile(r"^ADR-(\d+)-(.+)\.md$")
-PLAIN_NAME = re.compile(r"^(\d+)-(.+)\.md$")
+PREFIXED_NAME = re.compile(r"^ADR-(\d{1,6})-(.+)\.md$")
+PLAIN_NAME = re.compile(r"^(\d{1,6})-(.+)\.md$")
 DATE_PREFIX = re.compile(r"^(?:\d{4}-\d{2}-\d{2}|\d{8})(?!\d)")
 INDEX_STEMS = frozenset({"readme", "index", "adr-index", "adr-log"})
 DEFAULT_HEADINGS = ("Status", "Context", "Decision", "Consequences")
 GIT_TIMEOUT_SECONDS = 120
+# The largest scan file adr_drift.py writes and report_adr.py reads.
+SCAN_MAX_BYTES = 5_000_000
 
 SETUP = "Setup"
 NUMBERING = "Numbering"

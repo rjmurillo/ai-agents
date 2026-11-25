@@ -20,11 +20,11 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from adr_corpus import GROUPS
+from adr_corpus import GROUPS, SCAN_MAX_BYTES
 from report_audit import Code, Escape, details_html, table_html
 
 ADR_ONLY_MODE = "adr_only"
-MAX_FILE_BYTES = 5_000_000
+MAX_FILE_BYTES = SCAN_MAX_BYTES
 
 
 class AdrInputError(Exception):
@@ -72,9 +72,9 @@ def _load_decisions(base: Path, name: Any) -> list[dict[str, str]]:
         candidates.append(
             {
                 "id": _text(item.get("id")),
-                "kind": _text(item.get("kind")),
                 "title": _text(item.get("title")),
                 "sha": _text(source.get("sha")),
+                "file": _text(source.get("file")),
                 "url": _text(source.get("pr_url") or source.get("url")),
                 "reason": _text(item.get("reason")),
             }
@@ -87,6 +87,7 @@ def _load_repo(base: Path, entry: Mapping[str, Any]) -> dict[str, Any]:
     scan = _read_json(base, name, "adr_drift scan")
     if not isinstance(scan, dict) or not isinstance(scan.get("findings"), list):
         raise AdrInputError(f"adr_drift scan {name} holds no findings list")
+    locate = scan.get("locate")
     repo: dict[str, Any] = {
         "repo": entry.get("repo") or scan.get("repo") or "",
         "head": scan.get("head"),
@@ -94,6 +95,7 @@ def _load_repo(base: Path, entry: Mapping[str, Any]) -> dict[str, Any]:
         "truncated": bool(scan.get("truncated")),
         "findings": _dicts(scan["findings"]),
         "read_errors": _dicts(scan.get("read_errors")),
+        "rejected": _dicts(locate.get("rejected")) if isinstance(locate, dict) else [],
     }
     if entry.get("decisions") is not None:
         repo["decisions"] = _load_decisions(base, entry["decisions"])
@@ -165,14 +167,19 @@ def _finding_table(esc: Escape, repo: Mapping[str, Any]) -> str:
     return table_html(esc, f"ADR drift findings for {repo.get('repo', '')}", headers, rows)
 
 
+def _decision_source(row: Mapping[str, Any]) -> str:
+    """The commit for a commit or PR candidate, else the decision-log file it came from."""
+    return str(row.get("sha") or "")[:10] or str(row.get("file") or "")
+
+
 def _decision_table(esc: Escape, repo: Mapping[str, Any]) -> str:
     rows = [
-        [row["title"], Code(row["id"]), Code(row["sha"][:10]), row["url"], row["reason"]]
+        [row["title"], Code(row["id"]), Code(_decision_source(row)), row["url"], row["reason"]]
         for row in _dicts(repo.get("decisions"))
     ]
     if not rows:
         return ""
-    headers = ["Title", "Candidate", "Commit", "Link", "Reason"]
+    headers = ["Title", "Candidate", "Source", "Link", "Reason"]
     title = f"Candidate undocumented decisions for {repo.get('repo', '')}"
     return table_html(esc, title, headers, rows)
 
@@ -183,6 +190,16 @@ def _read_error_list(esc: Escape, repo: Mapping[str, Any]) -> str:
         return ""
     items = "".join(f"<li>{esc(e.get('path', ''))}: {esc(e.get('error', ''))}</li>" for e in errors)
     return f'<p class="muted">Unreadable paths, not checked:</p><ul>{items}</ul>'
+
+
+def _rejected_list(esc: Escape, repo: Mapping[str, Any]) -> str:
+    rejected = _dicts(repo.get("rejected"))
+    if not rejected:
+        return ""
+    items = "".join(
+        f"<li>{esc(e.get('path', ''))}: {esc(e.get('reason', ''))}</li>" for e in rejected
+    )
+    return f'<p class="muted">Refused paths, not checked:</p><ul>{items}</ul>'
 
 
 def _counts_line(repo: Mapping[str, Any]) -> str:
@@ -210,7 +227,11 @@ def render_adr_drift(report: Mapping[str, Any], esc: Escape) -> str:
         parts = [f"<h3>{esc(repo.get('repo', ''))}</h3>", f"<p>{esc(_counts_line(repo))}</p>"]
         if _findings(repo):
             parts.append(_finding_table(esc, repo))
-        parts += [_decision_table(esc, repo), _read_error_list(esc, repo)]
+        parts += [
+            _decision_table(esc, repo),
+            _read_error_list(esc, repo),
+            _rejected_list(esc, repo),
+        ]
         blocks.append("".join(parts))
     return _wrap("".join(blocks), esc)
 

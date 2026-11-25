@@ -333,3 +333,77 @@ def test_a_repo_without_decisions_renders_no_candidate_table(tmp_path, capsys):
     _, html, _ = _run(tmp_path, _adr_only(), capsys)
 
     assert "Candidate undocumented decisions" not in html
+
+
+def test_a_history_finding_renders_its_commit_and_subject(tmp_path, capsys):
+    history = _finding(
+        kind="adr-contradiction-candidate",
+        group="History",
+        confidence="heuristic",
+        evidence={"sha": "c" * 40, "subject": "refactor: drop <old> path", "adr": "docs/adr/x.md"},
+        suggested_fix="Review the ADR against the commit.",
+    )
+    _scan_file(tmp_path, [history])
+
+    code, html, _ = _run(tmp_path, _adr_only(), capsys)
+
+    assert code == 0
+    assert "c" * 10 + " refactor: drop &lt;old&gt; path" in html and "c" * 11 not in html
+
+
+def test_a_decision_log_candidate_shows_its_source_file(tmp_path, capsys):
+    candidate = {
+        **_bootstrap_candidate(),
+        "kind": "decision-log",
+        "source": {"file": "docs/decisions.md", "entry_id": "use-uv"},
+    }
+
+    code, html, _ = _render_decisions(tmp_path, capsys, {"candidates": [candidate]})
+
+    assert code == 0 and "<code>docs/decisions.md</code>" in html
+
+
+def test_refused_paths_from_the_scan_file_are_listed(tmp_path, capsys):
+    rejected = [{"path": "docs/adr", "reason": "resolves <outside> the repository"}]
+    _scan_file(tmp_path, [], locate={"rejected": rejected})
+
+    code, html, _ = _run(tmp_path, _adr_only(), capsys)
+
+    assert code == 0 and "Refused paths, not checked:" in html
+    assert "docs/adr: resolves &lt;outside&gt; the repository" in html
+
+
+def test_a_scan_without_refused_paths_lists_none(tmp_path, capsys):
+    _scan_file(tmp_path, [])
+
+    _, html, _ = _run(tmp_path, _adr_only(), capsys)
+
+    assert "Refused paths" not in html
+
+
+def test_open_opens_an_adr_only_report_and_skips_the_share_hint(tmp_path, capsys, monkeypatch):
+    import render_report
+
+    opened: list[Path] = []
+    monkeypatch.setattr(render_report, "open_report", lambda path: opened.append(path) or True)
+    _scan_file(tmp_path, [])
+    _write(tmp_path / "report.json", _adr_only())
+
+    main([str(tmp_path / "report.json"), "--open"])
+
+    out = capsys.readouterr().out
+    assert opened == [tmp_path / "report.html"]
+    assert "opened in the default browser" in out and "Share button" not in out
+
+
+def test_without_open_an_adr_only_report_is_not_opened(tmp_path, capsys, monkeypatch):
+    import render_report
+
+    opened: list[Path] = []
+    monkeypatch.setattr(render_report, "open_report", lambda path: opened.append(path) or True)
+    _scan_file(tmp_path, [])
+    _write(tmp_path / "report.json", _adr_only())
+
+    main([str(tmp_path / "report.json")])
+
+    assert opened == []

@@ -469,15 +469,15 @@ def main(argv: Any = None) -> None:
     if report_adr.is_adr_only(r):
         exit_on_claim_errors(report_adr.validate_adr_drift(r))
         write_report(out_path, render_adr_page(r))
-        return
-    r.setdefault("grade", grade_for(r["scores"]["overall"]))
-    exit_on_claim_errors(
-        report_evaluation.validate_report(r)
-        + report_audit.validate_audit(r)
-        + report_adr.validate_adr_drift(r)
-    )
-    write_report(out_path, render_page(r))
-    print(f"evaluation: {report_evaluation.evaluation_summary(r)}")
+    else:
+        r.setdefault("grade", grade_for(r["scores"]["overall"]))
+        exit_on_claim_errors(
+            report_evaluation.validate_report(r)
+            + report_audit.validate_audit(r)
+            + report_adr.validate_adr_drift(r)
+        )
+        write_report(out_path, render_page(r))
+        print(f"evaluation: {report_evaluation.evaluation_summary(r)}")
     if args.open_browser:
         if open_report(out_path):
             print("        opened in the default browser")
@@ -486,7 +486,8 @@ def main(argv: Any = None) -> None:
                 "warning: could not open the report in the default browser",
                 file=sys.stderr,
             )
-    print("        use the Share button to save a 2400x1350 PNG")
+    if not report_adr.is_adr_only(r):
+        print("        use the Share button to save a 2400x1350 PNG")
 
 
 if __name__ == "__main__":

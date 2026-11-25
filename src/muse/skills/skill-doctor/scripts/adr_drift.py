@@ -13,8 +13,8 @@ Subcommands:
       and write one JSON result to FILE. FILE must be outside the repository.
       Reads git history and working-tree ADR files. Never uses the network.
 
-Exit codes: 0 ok, 2 bad arguments, unreadable input, `--out` not allowed, or not
-a git repository, 3 a git command failed.
+Exit codes: 0 ok, 2 bad arguments, unreadable input, `--out` not allowed, a
+result over 5,000,000 bytes, or not a git repository, 3 a git command failed.
 
 python3, stdlib only.
 """
@@ -39,6 +39,7 @@ from adr_checks import (
 )
 from adr_corpus import (
     GROUPS,
+    SCAN_MAX_BYTES,
     SETUP,
     AdrDoc,
     Finding,
@@ -126,15 +127,15 @@ def _history(repo: Path, args: argparse.Namespace, docs: Sequence[AdrDoc]) -> di
     }
 
 
-def _write_json(out: Path, result: dict[str, Any]) -> None:
-    """Write JSON to a temp file beside OUT, then replace OUT, so a failure leaves no partial file."""
+def _write_json(out: Path, text: str) -> None:
+    """Write TEXT to a temp file beside OUT, then replace OUT, so a failure leaves no partial file."""
     out.parent.mkdir(parents=True, exist_ok=True)
     handle, temp_name = tempfile.mkstemp(dir=out.parent, prefix=f".{out.name}.", suffix=".tmp")
     try:
         with os.fdopen(handle, "w", encoding="utf-8") as stream:
-            stream.write(json.dumps(result, indent=2) + "\n")
+            stream.write(text)
         os.replace(temp_name, out)
-    except OSError:
+    except BaseException:
         Path(temp_name).unlink(missing_ok=True)
         raise
 
@@ -149,7 +150,7 @@ def run_scan(args: argparse.Namespace) -> int:
     survey = find_adr_dirs(repo)
     docs = read_docs(survey)
     findings: list[Finding] = []
-    if not survey.dirs and not survey.read_errors:
+    if not survey.dirs and not survey.read_errors and not survey.rejected:
         findings.append(_no_directory_finding())
     findings += check_numbering(survey.dirs, docs) + check_links(docs, survey.dirs)
     findings += check_supersession(docs) + check_cited_paths(repo, docs)
@@ -172,14 +173,22 @@ def run_scan(args: argparse.Namespace) -> int:
         "findings": findings,
         "counts": _counts(findings),
     }
+    text = json.dumps(result, indent=2) + "\n"
+    size = len(text.encode("utf-8"))
+    if size > SCAN_MAX_BYTES:
+        raise ExitError(
+            2,
+            f"scan result is {size} bytes, over the {SCAN_MAX_BYTES}-byte limit the renderer "
+            "reads; narrow it with --since or --max-commits",
+        )
     try:
-        _write_json(out, result)
+        _write_json(out, text)
     except OSError as exc:
         raise ExitError(2, f"cannot write {args.out}: {exc}") from exc
     print(
         f"adr drift: {result['counts']['total']} finding(s), {result['examined']} commit(s) "
         f"examined, truncated: {str(result['truncated']).lower()}, "
-        f"read_errors: {len(survey.read_errors)}: {out}"
+        f"read_errors: {len(survey.read_errors)}, rejected: {len(survey.rejected)}: {out}"
     )
     return 0
 

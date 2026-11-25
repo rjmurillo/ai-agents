@@ -82,21 +82,21 @@ inside it. A path outside it, a missing or unreadable file, invalid JSON, or an
 unexpected shape makes `render_report.py` exit 2.
 
 From the scan file the renderer reads `findings` (a list, required), `head`,
-`examined`, `truncated`, and `read_errors`. A truncated scan and any unreadable
-paths are shown in the report. Each finding needs a non-empty `suggested_fix`,
+`examined`, `truncated`, `read_errors`, and `locate.rejected`. A truncated scan,
+any unreadable paths, and any refused paths are shown in the report. Each finding needs a non-empty `suggested_fix`,
 or `render_report.py` exits 1.
 
 The `decisions` file is an object with a `candidates` list. The renderer reads
 these fields from each candidate and ignores the rest: `id`, `title`, `reason`,
-and from `source`, `sha` and `pr_url` (or `url`). A file with no `candidates`
+and from `source`, `sha`, `file`, and `pr_url` (or `url`). The Source column shows
+the commit, or the decision-log `file` when a candidate has no commit. A file with no `candidates`
 list makes `render_report.py` exit 2.
 
 ### ADR-only report
 
 An ADR-only report has no scorecard. It needs `"mode": "adr_only"` and an
-`adr_drift` object. Without the marker, a report with no `scores.overall` exits
-
-1. `title` and `generated_at` are optional. The smallest valid file:
+`adr_drift` object. Without the marker, a report with no `scores.overall` exits with code 1.
+`title` and `generated_at` are optional. The smallest valid file:
 
 ```json
 {

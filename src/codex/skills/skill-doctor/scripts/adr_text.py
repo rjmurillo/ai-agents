@@ -17,7 +17,12 @@ FILE_EXTENSION = re.compile(r"\.[A-Za-z0-9]{1,8}$")
 
 
 def _strip_comment(value: str) -> str:
-    return re.sub(r"\s+#.*$", "", value).strip().strip("'\"")
+    """Drop a YAML comment: a `#` after whitespace. A linear scan, since `\\s+#` is quadratic."""
+    for index in range(1, len(value)):
+        if value[index] == "#" and value[index - 1].isspace():
+            value = value[:index]
+            break
+    return value.strip().strip("'\"")
 
 
 def _scalar(raw: str) -> Any:
