@@ -15,7 +15,6 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-import yaml
 
 from tests.lib.cli_smoke_workflow import (
     INSTALL_JOBS,
@@ -41,7 +40,7 @@ def test_environment_is_not_the_retired_shared_gate() -> None:
 
 def test_no_job_reads_the_secrets_context(workflow_doc: dict[Any, Any]) -> None:
     """Negative: setup and npm lifecycle scripts cannot read secrets in any job."""
-    assert "secrets." not in yaml.safe_dump(workflow_doc)
+    assert "secrets." not in str(workflow_doc)
 
 
 def test_job_scope_contains_no_smoke_credentials(workflow_doc: dict[Any, Any]) -> None:
