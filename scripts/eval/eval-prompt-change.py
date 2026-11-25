@@ -60,6 +60,7 @@ Verdict matching contract:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -1061,6 +1062,58 @@ def _load_before_across_rename(args: argparse.Namespace) -> tuple[str, str]:
         return args.renamed_from, load_prompt_surface_from_ref(args.renamed_from, args.base_ref)
 
 
+def _sha256_hex(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def resolve_base_commit(ref: str) -> str | None:
+    """Commit SHA *ref* names now, or None when git cannot resolve it."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    sha = result.stdout.strip()
+    return sha if result.returncode == 0 and re.fullmatch(r"[0-9a-f]{40}", sha) else None
+
+
+def run_identity(args: argparse.Namespace, after_text: str) -> dict[str, Any]:
+    """Identities ADR-127 decision 9 requires in every `--output` file.
+
+    `prompt_surface_sha256` hashes the exact after-side text the model read:
+    the rendered prompt plus every `references/*.md` beside it, joined as
+    `load_prompt_surface_from_file` joins them. `base_commit` is the commit
+    `--base-ref` named at the run, or None in `--before/--after` mode, where
+    no base commit exists. A missing value is recorded as None, never guessed,
+    so the evidence check can fail closed on it.
+    """
+    prompt = getattr(args, "prompt", None)
+    scenarios = getattr(args, "scenarios", None)
+    scenarios_sha = None
+    if scenarios:
+        try:
+            scenarios_sha = _sha256_hex(Path(scenarios).read_bytes())
+        except OSError:
+            scenarios_sha = None
+    base_ref = getattr(args, "base_ref", None)
+    return {
+        "prompt_path": prompt,
+        "prompt_surface_sha256": _sha256_hex(after_text.encode("utf-8")),
+        "scenarios_path": scenarios,
+        "scenarios_sha256": scenarios_sha,
+        "base_ref": base_ref if prompt else None,
+        "base_commit": resolve_base_commit(base_ref) if prompt and base_ref else None,
+        "model": args.model,
+    }
+
+
 def _run_and_report(
     api_key: str,
     before_text: str,
@@ -1075,6 +1128,10 @@ def _run_and_report(
     print(msg, file=sys.stderr)
     print(f"{'=' * 60}", file=sys.stderr)
 
+    # Resolved before the model calls start, so a fetch during a long run
+    # cannot move the recorded base. The before side was read from the same
+    # ref moments earlier, in `_load_prompts`.
+    identity = run_identity(args, after_text)
     comparison = run_comparison(
         api_key,
         before_text,
@@ -1092,6 +1149,7 @@ def _run_and_report(
         "eval_type": "prompt-change",
         "adr": "ADR-057",
         "model": args.model,
+        "identity": identity,
         "source": source,
         "runs_per_scenario": args.runs,
         "max_tokens": args.max_tokens,
