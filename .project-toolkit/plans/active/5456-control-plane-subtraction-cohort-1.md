@@ -116,7 +116,7 @@ a process reminder alone.
 - ADR-100 item 5 (`post_qa_code_changes` rebind churn) and item 6 (REQ-023
   Out of Scope / Deferred).
 - **PR3 as originally seeded ("delete duplicate gate execution in
-  pre_pr_sequence.py:255-257")**: dropped entirely from this cohort. See
+  pre_pr_sequence.py:256-258")**: dropped entirely from this cohort. See
   Decision Log below.
 - A follow-up correction to
   `.serena/memories/ci/ci-pre-push-wall-clock-is-python-tests.md`'s "The
