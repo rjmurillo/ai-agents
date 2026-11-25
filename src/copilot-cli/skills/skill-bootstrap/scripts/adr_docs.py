@@ -94,7 +94,7 @@ _CHANGELOG_CATEGORY = re.compile(r"^(?:added|changed|deprecated|removed|fixed|se
 # `[1.2.0] - 2026-01-01`, `2026-07-07`, `v2`, `Unreleased`: a release entry, never a rule. A
 # major-only version needs its `v` and a token boundary, so `v2a` and `2 rules` stay headings.
 _RELEASE_HEADING = re.compile(
-    r"^\[?(?:v?\d+\.\d|v\d+\b)|^\[?unreleased\b|\d{4}-\d{2}(?:-\d{2})?", _I
+    r"^\[?(?:v?\d+\.\d|v\d+\b)|^\[?unreleased\b|^\[?\d{4}-\d{2}(?:-\d{2})?", _I
 )
 _VERSIONED_RELEASE_HEADING = re.compile(r"^release:?\s+v?\d", _I)
 _H2_HEADING = re.compile(r"##\s+(.+)\Z", _A)
@@ -104,7 +104,7 @@ _FENCE = re.compile(r" {0,3}(`{3,}|~{3,})(.*)", _A)
 _ID_RUN = re.compile(r"[\w.-]+", _A)
 _DOC_EXTENSION = re.compile(r"\.(?:md|mdx|markdown|adoc|rst|txt)\Z", _A)
 # A pull request page: the query, fragment, and trailing slash are not part of its identity.
-_PR_PAGE = re.compile(r"/[^/]+/[^/]+/pull/[0-9]+/?\Z", _A)
+_PR_PAGE = re.compile(r"/[^/]+/[^/]+/pull/[0-9]+/?\Z", _I)
 
 
 class RuleSection(NamedTuple):
@@ -128,13 +128,21 @@ def fence_after(fence: str | None, line: str, any_indent: bool = False) -> str |
     when ``any_indent``. A backtick opener's info string holds no backtick, so a line that is
     only a code span opens nothing. A closer uses the opener's mark, at least as many times,
     with only spaces or tabs after it, so a three-backtick line inside a four-backtick fence is
-    text, and so is a closer followed by a nonbreaking space.
+    text, and so is a closer followed by a nonbreaking space. Under ``any_indent`` the returned
+    fence keeps its opener's indent, and a marker indented four or more spaces past it is text.
     """
-    mark = _FENCE.match(line.lstrip() if any_indent else line)
+    stripped = line.lstrip() if any_indent else line
+    indent, mark = len(line) - len(stripped), _FENCE.match(stripped)
     if fence is None:
-        return mark[1] if mark and (mark[1][0] == "~" or "`" not in mark[2]) else None
+        opens = mark and (mark[1][0] == "~" or "`" not in mark[2])
+        return " " * indent + mark[1] if opens and mark else None
+    opener = fence.lstrip(" ")
     closes = (
-        mark and mark[1][0] == fence[0] and len(mark[1]) >= len(fence) and not mark[2].strip(" \t")
+        mark
+        and indent <= len(fence) - len(opener) + 3
+        and mark[1][0] == opener[0]
+        and len(mark[1]) >= len(opener)
+        and not mark[2].strip(" \t")
     )
     return None if closes else fence
 
@@ -189,6 +197,7 @@ def is_rule_section(kind: DocKind, heading: str, body: str) -> bool:
         h = heading.strip()
         return not (
             _RELEASE_HEADING.search(h)
+            or is_versioned_release_heading(h)
             or _CHANGELOG_CATEGORY.search(h)
             or not _CHANGELOG_POLICY_HEADING.search(h)
         )

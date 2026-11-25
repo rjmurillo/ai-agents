@@ -128,7 +128,8 @@ def is_release_or_bump_subject(subject: str) -> bool:
     if STATED_WHY.search(body):
         return False
     if bump := _BARE_BUMP_OR_RELEASE.search(body):  # "Release 2.4 under the canary policy"
-        return not _DECISION_SHAPED.search(body, bump.end())
+        rest = body[bump.end() :]  # "Release 2.4 should not ship on Fridays" states a rule
+        return not (_DECISION_SHAPED.search(rest) or states_subject_rule(rest))
     return bool(_VERSION_ONLY.search(body) or _DEPENDENCY_MOVE.search(body))
 
 

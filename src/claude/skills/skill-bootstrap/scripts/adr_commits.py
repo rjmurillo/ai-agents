@@ -252,7 +252,7 @@ def word_tokens(text: str) -> set[str]:
 # --- Pull request selection and commit/PR dedup (src/lib/first-run-pr-import.ts) ---
 
 BODY_CAP = 8000
-_BOT_LOGIN = re.compile(r"(?:dependabot|renovate)\b", re.IGNORECASE | re.ASCII)
+_BOT_LOGIN = re.compile(r"(?:dependabot|renovate)(?:-preview)?(?:\[bot\])?", re.I | re.ASCII)
 _BOT_SUFFIX = re.compile(r"\[bot\]\Z", re.IGNORECASE | re.ASCII)
 _TRAILING_PR = re.compile(r"\(#([0-9]{1,9})\)\s*\Z", re.ASCII)
 _MERGE_PR = re.compile(r"Merge pull request #([0-9]{1,9})(?![0-9])", re.ASCII)
@@ -294,10 +294,11 @@ def _is_bot(item: dict[str, Any]) -> bool | None:
     """Is the author a bot? None, an incomplete row, unless it has a nonblank string ``login``."""
     user = item.get("author") or item.get("user")
     login = user.get("login") if isinstance(user, dict) else None
-    if not isinstance(user, dict) or not isinstance(login, str) or not login.strip():
+    flag = user.get("is_bot") if isinstance(user, dict) else None  # a bool when present
+    if not isinstance(login, str) or not login.strip() or not isinstance(flag, bool | None):
         return None
-    bot = user.get("is_bot") is True or user.get("type") == "Bot"
-    return bot or bool(_BOT_SUFFIX.search(login) or _BOT_LOGIN.match(login))
+    bot = flag is True or user.get("type") == "Bot"
+    return bot or bool(_BOT_SUFFIX.search(login) or _BOT_LOGIN.fullmatch(login))
 
 
 def _merge_sha(item: dict[str, Any]) -> str | None:
@@ -438,13 +439,12 @@ _HOSTED = re.compile(r"(?:github|gitlab)\.[a-z0-9.-]+\Z", re.ASCII)
 
 
 def web_base(remote: str) -> tuple[str, str] | None:
-    """``(kind, https base)`` for an https or ssh GitHub or GitLab remote (``kind`` is ``github``
-    or ``gitlab``), else None. Only host and path are kept: a ``user:token@`` never leaks."""
+    """``(github or gitlab, https base)`` of a remote, else None; ``user:token@`` never leaks."""
     text = remote.strip()
     match = _URL_REMOTE.fullmatch(text) or _SCP_REMOTE.fullmatch(text)
     if match is None:
         return None
-    host = match["host"].lower()
+    host = {"ssh.github.com": "github.com"}.get(h := match["host"].lower(), h)  # ssh over 443
     path = match["path"].strip("/").removesuffix(".git").strip("/")
     if not _HOSTED.fullmatch(host) or not _REPO_PATH.fullmatch(path):
         return None

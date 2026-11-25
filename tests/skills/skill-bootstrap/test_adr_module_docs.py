@@ -73,10 +73,11 @@ def _reference() -> str:
     return (SKILL_SCRIPTS.parent / "references" / "scripts.md").read_text(encoding="utf-8")
 
 
-def test_the_reference_does_not_call_every_exit_three_git_or_io() -> None:
+def test_the_reference_says_which_scripts_report_io_with_exit_three() -> None:
+    # bootstrap_mine, bootstrap_boundary and bootstrap_eval print `io` with exit 3 (pass 6, 37).
     text = _reference()
-    assert "`git` or `io` for exit 3" not in text
-    assert "`git` for exit 3" in text
+    assert "`git` or `io` for exit 3" in text
+    assert "`bootstrap_adr.py` reports only `git` with exit 3" in text
     assert "report `io` with exit 2" in text
 
 

@@ -181,7 +181,7 @@ def _strip_markup(text: str) -> str:
     out = _HTML_TAG.sub(" ", out)
     out = re.sub(r"https?://[^\s`]+", f" {_URL_HOLE} ", out)
     out = re.sub(r"(\*\*|__)(.+?)\1", r"\2", out)
-    out = re.sub(r"(?<!`)(``?)(?!`)([^`]+)\1(?!`)", rf"{_CODE_MARK}\2{_CODE_MARK}", out)
+    out = re.sub(r"(?<!`)(`+)(?!`)([\s\S]+?)(?<!`)\1(?!`)", rf"{_CODE_MARK}\2{_CODE_MARK}", out)
     out = re.sub(r"(^|\s)[*_]([^*_\s][^*_]*)[*_](?=\s|[.,;:!?]|\Z)", r"\1\2", out)
     return flat(out)
 
@@ -203,8 +203,7 @@ def _repeats_title(sentence: str, title_words: list[str], title_body_words: list
     in_title = set(title_words)
     if sum(1 for w in sw if w in in_title) / len(sw) >= 0.8:  # an echo unless new words say why
         return _score(" ".join(w for w in sw if w not in in_title), False) == 0
-    # The importer cuts titles at 80 characters: a body opening with the title is an echo,
-    # unless what follows the title states a reason.
+    # The importer cuts titles at 80 characters: a body opening with the title is an echo.
     head = title_body_words[:-1]
     opens = len(head) >= 3 and all(i < len(sw) and sw[i] == w for i, w in enumerate(head))
     return opens and _score(" ".join(sw[len(head) :]), False) == 0
@@ -340,13 +339,11 @@ def _prepare_text(title: str, body: str, flat_title: str) -> str | None:
     first_line = flat(trimmed if newline < 0 else trimmed[:newline])
     if flat_title and first_line == flat_title:
         text = "" if newline < 0 else trimmed[newline:]
-    # Code and comments go first: an example in them is not the body's own bump or changelog.
+    # Code and comments go first, then someone else's changes: bumps and release notes.
     text = _CODE.sub("\n", text)
-    # Someone else's changes: bumps and release notes say what a dependency did.
-    if _BUMP_BODY.search(text):
-        return None
     dump = _DUMP_HEADING.search(text)
-    return text if dump is None else text[: dump.start()]
+    text = text if dump is None else text[: dump.start()]
+    return None if _BUMP_BODY.search(text) else text
 
 
 def _unit_text(unit: _Unit) -> tuple[str, bool, bool] | None:
@@ -448,7 +445,7 @@ def breaking_change(subject: str, body: str) -> bool:
     """Does the commit mark itself as a breaking change? True for a ``type!:`` subject, and for a
     ``BREAKING CHANGE:`` or ``BREAKING-CHANGE:`` line in a footer paragraph: the last one, or an
     earlier one when only trailer paragraphs (``Co-Authored-By``, ``Refs #1``) follow it. The
-    phrase in prose or in a fenced example, closed or not (CommonMark), does not count."""
+    phrase in prose, a fenced example (closed or not) or an HTML comment does not count."""
     if _BREAKING_SUBJECT.search(subject.strip()):
         return True
     paragraphs = _BLANK_LINES.split(_outside_fences(body.replace("\r\n", "\n")).strip())
@@ -470,17 +467,20 @@ def _breaking_footer_paragraph(paragraph: str) -> bool:
 
 
 def _outside_fences(text: str) -> str:
-    """``text`` minus its fences; an unclosed one runs to the end. Inline code opens none."""
+    """``text`` minus its fences and HTML comments; an unclosed one runs to the end."""
     out: list[str] = []
     fence = ""
+    comment = False
     for line in text.split("\n"):
         mark = _FENCE_LINE.match(line)
         if fence:
             fence = "" if _closes(fence, mark) else fence
-        elif mark and not (mark[1][0] == "`" and "`" in mark[2]):
+        elif not comment and mark and not (mark[1][0] == "`" and "`" in mark[2]):
             fence = mark[1]
         else:
-            out.append(line)
+            head, *opened = ("<!--" * comment + line).split("<!--")  # linear, no backtracking
+            comment = bool(opened) and "-->" not in opened[-1]
+            out.append(head + "".join(part.partition("-->")[2] for part in opened))
     return "\n".join(out)
 
 
