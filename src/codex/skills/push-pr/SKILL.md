@@ -176,11 +176,14 @@ needs no `gh` and makes no network call. Use the same title and body file
 that passed steps 4 and 5:
 
 ```bash
-( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 -I "$d/lib/ptk_run.py" skills/github/scripts/pr/validate_pr_description.py --title "<conventional commit title>" --body-file ".project-toolkit/scratch/pr-body-<returned-uuid>.md" --fail-on-violation; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 -I "$d/lib/ptk_run.py" skills/github/scripts/pr/validate_pr_description.py --title "<conventional commit title>" --body-file ".project-toolkit/scratch/pr-body-<returned-uuid>.md"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
-A non-zero exit means a violation or a check that could not run. Fix the title
-or body file, then re-run steps 4 and 5 and this check. Do not create the PR.
+Run it without `--fail-on-violation`, as `new_pr.py` does on GitHub. Warnings,
+such as a missing `Closes #N` keyword or an Azure Boards `AB#` link, are
+advisory: report them and go on. A non-zero exit means an error, such as a
+title that is not a conventional commit, or a check that could not run. Fix the
+title or body file, then re-run steps 4 and 5 and this check. Do not create the PR.
 
 Then create the PR. `az` is not in `allowed-tools`, so this command prompts
 the user, who sees every flag before it runs:

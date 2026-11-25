@@ -107,8 +107,13 @@ class TestPushPrOwnsAdoCreation:
         check = ado.find("validate_pr_description.py")
         create = ado.find("az repos pr create --output json")
         assert check != -1
-        assert "--fail-on-violation" in ado
         assert check < create
+        command = next(
+            ln
+            for ln in ado.splitlines()
+            if "exec python3" in ln and "validate_pr_description.py" in ln
+        )
+        assert "--fail-on-violation" not in command, "warnings must stay advisory, as on GitHub"
         assert VALIDATOR_GRANT in grants_of(push_pr_text)
 
     def test_ado_forbids_extra_az_flags(self, push_pr_text: str) -> None:
@@ -127,6 +132,11 @@ class TestPushPrOwnsAdoCreation:
         assert "`description` field" in ado
         assert "If it starts with `@`" in " ".join(ado.split())
         assert "Do not abandon or edit it without their answer" in ado
+
+    def test_ado_warnings_are_advisory(self, push_pr_text: str) -> None:
+        ado = " ".join(section(push_pr_text, "Azure DevOps PR Creation").split())
+        assert "are advisory" in ado
+        assert "`AB#`" in ado
 
     def test_identity_hardened_forms_unchanged(self, push_pr_text: str) -> None:
         grants = grants_of(push_pr_text)
@@ -182,6 +192,13 @@ class TestShipCreatesNothing:
         check = numbered_item(section(ship_text, "Pre-flight Checks"), "**Reviewed on this SHA**")
         assert "`/push-pr` must only push the existing marker commit" in check
         assert "clean-tree contract" in check
+
+    def test_ship_failure_names_an_existing_ado_pr(self, ship_text: str) -> None:
+        """The `@` fallback FAIL arrives after a PR exists, so ship must not say none was made."""
+        step = numbered_item(section(ship_text, "Process"), "If no blocking check failed")
+        owner = next(ln for ln in step.splitlines() if "`mode=owner`" in ln)
+        assert "no PR was created" not in owner
+        assert "that PR exists" in owner
 
     def test_ship_keeps_pipeline_policy_scripts(self, ship_text: str) -> None:
         """Inverse guard: pipeline checks stay in ship when PR creation moves out."""
