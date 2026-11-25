@@ -57,12 +57,15 @@ gstack rows were read from a clone of `github.com/garrytan/gstack` at `ec5d7e6fb
 | 48 | ADR-057 records 108 commits touching eval-scoped prompts against 1 with evidence | quote | `sed -n 273p` on ADR-057 | VERIFIED |
 | 49 | ADR-112 puts force push and hook bypass in the consequential tier, enforced by `permissions.deny` | quote | `sed -n 85,104p` on ADR-112 | VERIFIED |
 | 50 | The gstack files read give no call count from after the phase change | absence | read `lib/ship-phase.ts`, `lib/ship-clock.ts`, `ship/DRIVER.md`; a panel seat also searched `CHANGELOG.md` and one eval preregistration file | VERIFIED for those files only. Not a whole-repository search |
+| 51 | ADR-103 is accepted and requires `--output-format` with `json`, `human`, `auto`; `auto` resolves to `json` when stdout is redirected | quote | `sed -n 3p`; `sed -n 92,100p` on ADR-103 | VERIFIED: decision items 2, 3, and 4 |
+| 52 | The runner records the base as a ref name, not a commit | path | `sed -n 1031p scripts/eval/eval-prompt-change.py` | VERIFIED: `source = f"git: {args.base_ref}:{before_path} -> working copy"` |
+| 53 | The runner excludes a scenario with an unstable base from regressions | path | `sed -n 769,772p scripts/eval/eval-prompt-change.py` | VERIFIED: `if is_base_unstable(...)` appends to `base_unstable_scenarios` and skips the regression branch |
 
 ## Gate results
 
 | Gate | Result |
 |---|---|
-| Claims ledger | VERIFIED: 50 rows. Rows 33 to 47 were added in debate round 1 and rows 48 to 50 in round 2 |
+| Claims ledger | VERIFIED: 50 rows. Rows 33 to 47 were added in debate round 1 and rows 48 to 50 in round 2. Rows 51 to 53 were added in the fourth debate |
 | Documentation accuracy | Phase 4 ran once on 2026-11-25 (Sonnet, 11 tool uses, 61 s). 7 findings: 2 High, 2 Medium, 3 Low. All 7 fixed in the draft before the panel. High 1: the eval command pointed at the template, which feeds raw partial tags and skips `references/`. High 2: the draft called the grade deterministic and cited ADR-058. VERIFIED after the fixes by rows 28 to 31 |
 | Self-consistency | FAILED on the first draft, as the panel showed: freeze against retire inside decision 7, the gate trigger in decision 7 against decision 9, and the unfunded-key row against the NOT RUN rule. Re-run on the round 1 revision: VERIFIED for decisions 1 to 13 against each other and Consequences |
 | Refuting seat | Ran once on 2026-11-25 (`analyst`, Haiku, 52 tool uses, 126 s). 25 rows CONFIRMED. Row 6 not reproduced by the seat (no shell); row 14 not rerun by the seat. One finding outside the ledger: the ADR cited `SPEC-ship-driver.md`, which is not in this tree. Fixed by naming the unmerged branch instead. VERIFIED after the fix: `grep -c SPEC-ship-driver` on the ADR returns 0 |

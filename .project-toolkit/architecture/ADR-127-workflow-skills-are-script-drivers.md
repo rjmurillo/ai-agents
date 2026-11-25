@@ -110,6 +110,12 @@ Detail lives in `references/`. The model reads a reference only when a phase or 
 10. A script strips URL userinfo. It never prints a token, a header, or an environment value.
     The detail file follows the same rule and is never committed.
 11. Diagnostics go to stderr.
+12. A driver script keeps ADR-103. It accepts `--output-format` with `json`, `human`, and `auto`.
+    The result lines above are its `human` format. They carry no color codes.
+    `json` emits the ADR-103 envelope. Its `Data` holds the same keys, and its `Error.Code` equals the exit code.
+    ADR-103 resolves `auto` to `json` when stdout is captured. So a driver passes `--output-format human` on every call.
+    Items 8, 9, and 10 bind both formats. An envelope that reaches the model has no terminal line, so item 7 makes it a STOP.
+    This departs from ADR-103 item 5, which gives human mode a color-coded status. Captured output is the reason.
 
 gstack reserves exit 3 for STOP. This repository keeps ADR-035, where 3 means an external service error.
 
@@ -141,7 +147,7 @@ This record calls a skill rewrite a **gated change**. It is any PR that does one
 The four triggers cover every rewrite this program launches.
 One case stays outside: a prose-only edit to a `reference` skill that moves nothing and implements no audit row.
 That edit is an ordinary prompt change. ADR-057 already makes its eval a MUST for the author.
-A PR that only adds `metadata.shape: reference` and changes no prompt surface is not a gated change.
+A PR that adds `metadata.shape: reference` and changes nothing else in the skill is not a gated change.
 
 The prompt surface is the rendered `SKILL.md` plus every `references/*.md` beside it.
 
@@ -163,8 +169,10 @@ The prompt surface is the rendered `SKILL.md` plus every `references/*.md` besid
    The model under test reads the skill and picks one verdict label per scenario.
    The runner compares that label to `expected_verdict`. It scores 3 runs per scenario.
 4. **Scenario floor.** The scenario file holds at least 8 scenarios.
-   At least 6 of them pass every scored run on `origin/main`. These are the carried scenarios.
-   The base is the `origin/main` commit the first run records. A later `origin/main` does not change the carried set.
+   At least 6 of them pass all three scored runs on `origin/main`. These are the carried scenarios.
+   The base is the `origin/main` commit at the first run.
+   The runner records only the ref name until the decision 9 check lands, so the author puts that commit SHA in the PR body.
+   A later `origin/main` does not change the carried set.
    Eight matches the fixture floor ADR-111 rule 2 sets for pins. That is an analogy, not a measurement.
    Both numbers are provisional until decision 12 reports.
 5. **Scenarios test kept judgment, in shape-neutral words.**
@@ -174,10 +182,14 @@ The prompt surface is the rendered `SKILL.md` plus every `references/*.md` besid
 6. **Hold.** The runner reports `ACCEPTANCE GATE: PASS`.
    `acceptance_gate` requires the after score to be at least the before score.
    It also requires that no stable scenario flips from pass to fail.
-7. **Floor for scenarios the base fails.** A scenario that fails on `origin/main` cannot regress in the runner.
-   Each such scenario must pass every scored run on the after side. Otherwise the change does not merge.
+7. **Floor for scenarios outside the carried set.** A scenario that fails on `origin/main` cannot regress in the runner.
+   The runner excludes a scenario whose base is unstable and lists it in `base_unstable_scenarios`.
+   A base is unstable when it passes some runs and fails others, or has fewer than three scored runs.
+   Each scenario of either kind must pass every scored run on the after side. Otherwise the change does not merge.
    The runner does not compute this floor. Until the decision 9 check lands, the reviewer reads it from the after results.
 8. **Scenario commit.** Scenarios land in their own commit, before any template edit.
+   The author runs the scenarios against `origin/main` first. A scenario with an unstable base is rewritten or removed before the freeze.
+   That base run's output is committed with the scenario commit.
    That commit also removes any scenario for a step that moves into a script.
    It lists each removed scenario in `evals/skill-rewrites/<name>/retired.json` with the pytest test that replaces it.
    The gated change must contain each named test.
@@ -201,6 +213,7 @@ Each driver skill has these tests under `tests/skills/<name>/`:
 - the driver is within its byte budget;
 - the phase list makes no more calls than the stated budget;
 - each script's last stdout line is `NEXT:` or `STOP:` on every tested path, and it agrees with the exit code;
+- `--output-format json` emits a valid ADR-103 envelope with the same keys and exit code;
 - a value holding a newline and a line that starts with `NEXT:` cannot forge a control line;
 - stdout stays within the line and byte caps on an oversized input;
 - an argument that starts with `-` is rejected or passed after `--`;
@@ -245,12 +258,15 @@ Generated files carry no header. gstack's "do not edit" header is rejected.
 
 ### 12. Pilot, measures, and exit
 
-`ship` and `push-pr` are the pilot. The pilot reports four numbers in its PR body:
+`ship` and `push-pr` are the pilot. The pilot reports five measures in its PR body:
 
 - tool calls for a clean `ship` run, before and after, each the median of three runs;
 - the eval scores, before and after;
 - the count of `STOP:` lines in that run;
-- the largest stdout a script printed, in lines and bytes.
+- the largest stdout a script printed, in lines and bytes;
+- one driver run in each output format, with the count of misread control values and the tokens per call.
+
+The last measure tests whether the result lines earn their place beside the ADR-103 envelope.
 
 The owner reads those numbers and decides whether the rollout continues.
 The pilot may show that a number or rule in decision 4 or 7 is wrong. A change to either goes through `adr-review`.
@@ -383,6 +399,7 @@ No decision here adds a vendor or a runtime dependency.
 | ADR-049 | Not superseded here. It names `push-pr`. The `push-pr` retirement PR amends it through `adr-review`. |
 | ADR-057 | Kept at merge: the eval is a MUST, read at review. Amended later by the decision 9 check's change. |
 | ADR-058 | Kept. It governs the agent-versus-baseline eval, which this record does not use. |
+| ADR-103 | Kept, except item 5's color for driver scripts. The result lines are a driver script's `human` format (decision 4 item 12). The pilot's change amends ADR-103 item 5 through `adr-review`. |
 | ADR-064 | Not superseded here. It lists `push-pr`. The retirement PR amends that list. |
 | ADR-107 | Not superseded. A driver is a semantic contract in its terms. The template is its canonical source per ADR-108. |
 | ADR-108 | Kept. Templates stay the source. |
@@ -400,6 +417,6 @@ Each named record still holds for a driver skill.
 
 - `.project-toolkit/specs/SPEC-skill-driver-shape.md`
 - `.project-toolkit/analysis/gstack-skill-shape-audit-2026-11-25.md`
-- `.project-toolkit/critique/ADR-127-debate-log.md`, `ADR-127-debate-log-2.md`, and `ADR-127-debate-log-3.md` in the same directory
+- `.project-toolkit/critique/ADR-127-debate-log.md`, `ADR-127-debate-log-2.md`, `ADR-127-debate-log-3.md`, and `ADR-127-debate-log-4.md` in the same directory
 - `scripts/eval/eval-prompt-change.py`
 - gstack, `github.com/garrytan/gstack` at `ec5d7e6fbd` (2026-11-25): `ship/DRIVER.md`, `lib/ship-phase.ts`, `test/ship-driver.test.ts`
