@@ -18,7 +18,7 @@ from typing import NamedTuple
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from memory_core.memory_store import (  # noqa: E402
+from memory_core.memory_store import (
     STORE_DIRS,
     contained_stores,
     find_memory_root,
