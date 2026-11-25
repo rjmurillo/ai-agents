@@ -103,8 +103,9 @@ Based on the above changes:
 
    `--preflight` checks the title format and the body file: its path, that it is a regular UTF-8 file, and that the placeholder line is gone.
    It makes no network call and creates nothing. On `host=github` the dash and
-   escaped newline checks run again at step 7. On `host=ado` the Azure DevOps
-   section runs its own description check instead. Fix a rejection here.
+   escaped newline checks run at step 7. On `host=ado` the Azure DevOps
+   section checks escaped newlines but not dashes, so it also requires a manual
+   dash check. Fix a rejection here.
 5. Check that the body names only files the diff touches, before the push. The
    required `Validate PR` check fails on a path the diff does not touch, and the
    fix costs a CI round after the PR opens. Commit first: local mode reads
@@ -178,6 +179,9 @@ advisory: report them and go on. A non-zero exit means an error, such as a
 title that is not a conventional commit, or a check that could not run. Fix the
 title or body file, then re-run steps 4 and 5 and this check. Do not create the PR.
 
+This validator has no dash check. Read the title and the body file for an em
+dash (U+2014) or an en dash (U+2013). Replace each one before the create.
+
 Then create the PR. `az` is not in `allowed-tools`, so this command prompts
 the user, who sees every flag before it runs:
 
@@ -193,14 +197,16 @@ az repos pr create --output json --title "<conventional commit title>" --descrip
   start with `@`: Azure CLI reads any `@<path>` argument from disk and sends the
   file to the server.
 - The title MUST be the exact string that passed step 4 and this check. It MUST
-  NOT contain `"`, `$`, or a backtick.
+  NOT start with `@`, and MUST NOT contain `"`, `$`, or a backtick. Azure CLI
+  would read a title that starts with `@` as a file path.
 - Run the command as shown. MUST NOT add any other flag, including
   `--auto-complete`, `--bypass-policy`, `--bypass-policy-reason`,
   `--delete-source-branch`, `--merge-commit-message`, `--org`, `--project`,
   `--repository`, `--reviewers`, `--required-reviewers`, `--work-items`,
   `--transition-work-items`, `--open`, or `--source-branch`. The one exception:
   add `--target-branch <branch>` only when the PR must not target the
-  repository default branch.
+  repository default branch. Then step 5 MUST have run with
+  `--base origin/<branch>`, so the path check reads the same diff the PR shows.
 - A non-zero exit means no PR was created. Report FAIL with the `az` stderr and
   stop. Never retry with a different command shape.
 - On exit 0, check the `description` field of the JSON output. If it starts
@@ -210,8 +216,10 @@ az repos pr create --output json --title "<conventional commit title>" --descrip
   Do not abandon or edit it without their answer.
 - Otherwise read `pullRequestId` from the JSON output. Report it, and the PR
   link `<repository.webUrl>/pullrequest/<pullRequestId>`, in the Output block.
-- The Windows PR Body Fallback below changes only how the body file is made.
-  The `az` command stays the same.
+- On Windows, the Windows PR Body Fallback replaces steps 3 to 5 only. Use
+  `pr-body-windows.md`, the scratch file it creates for step 5, as the body
+  file in both commands above. Skip its step 7 item. The `az`
+  command stays the same.
 
 ## Output
 

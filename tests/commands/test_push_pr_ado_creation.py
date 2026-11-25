@@ -138,6 +138,24 @@ class TestPushPrOwnsAdoCreation:
         assert "are advisory" in ado
         assert "`AB#`" in ado
 
+    def test_ado_requires_manual_dash_check(self, push_pr_text: str) -> None:
+        ado = " ".join(section(push_pr_text, "Azure DevOps PR Creation").split())
+        assert "has no dash check" in ado
+        assert "U+2014" in ado and "U+2013" in ado
+
+    def test_ado_title_cannot_start_with_at(self, push_pr_text: str) -> None:
+        ado = " ".join(section(push_pr_text, "Azure DevOps PR Creation").split())
+        assert "NOT start with `@`" in ado
+
+    def test_ado_target_branch_aligns_diff_base(self, push_pr_text: str) -> None:
+        ado = " ".join(section(push_pr_text, "Azure DevOps PR Creation").split())
+        assert "`--base origin/<branch>`" in ado
+
+    def test_ado_windows_uses_fallback_body_file(self, push_pr_text: str) -> None:
+        ado = " ".join(section(push_pr_text, "Azure DevOps PR Creation").split())
+        assert "`pr-body-windows.md`, the scratch file" in ado
+        assert "Skip its step 7 item" in ado
+
     def test_identity_hardened_forms_unchanged(self, push_pr_text: str) -> None:
         grants = grants_of(push_pr_text)
         assert "Bash(python3:-I */pr/new_pr.py*)" in grants
