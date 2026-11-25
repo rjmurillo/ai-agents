@@ -1,4 +1,6 @@
-# Modified for an ai-agents spike: dash escapes (lines 69, 375) and check counts routed to ci (round 3). See VENDORED.md.
+# Modified for an ai-agents spike: dash escapes (lines 71, 377) and check counts routed to ci (round 3). See VENDORED.md.
+# taste-lint: ignore file-size, vendored upstream code, kept close to upstream for diffing; see VENDORED.md.
+# taste-lint: ignore complexity, vendored upstream code, kept close to upstream for diffing; see VENDORED.md.
 """Find checkable claims in a final reply. Deterministic, stdlib only. English here; Chinese, Thai and Spanish for
 tests / push / merge / deploy in lang.py.
 

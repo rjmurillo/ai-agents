@@ -1,4 +1,6 @@
 # Modified for an ai-agents spike (round 3): SHA, merge, CI and PR-state judging. See VENDORED.md.
+# taste-lint: ignore file-size, vendored upstream code, kept close to upstream for diffing; see VENDORED.md.
+# taste-lint: ignore complexity, vendored upstream code, kept close to upstream for diffing; see VENDORED.md.
 """Match claims to the turn's evidence ledger: NO_CAP (proven), CAP (contradicted), NO_RECEIPT.
 
 Precision first: CAP is only returned when a tool output in this turn says the opposite of the claim.

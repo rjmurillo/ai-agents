@@ -1,4 +1,6 @@
 # Modified for an ai-agents spike (rounds 2 and 3): SHA, merge, CI, PR-script and freshness parsing. See VENDORED.md.
+# taste-lint: ignore file-size, vendored upstream code, kept close to upstream for diffing; see VENDORED.md.
+# taste-lint: ignore complexity, vendored upstream code, kept close to upstream for diffing; see VENDORED.md.
 """Turn one tool call into an evidence record: the facts a reply's claims can be checked against.
 
 Stdlib only. Raw output is scanned here and never stored; only the extracted

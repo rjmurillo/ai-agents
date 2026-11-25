@@ -1,3 +1,4 @@
+# taste-lint: ignore complexity, vendored upstream code, kept close to upstream for diffing; see VENDORED.md.
 """Claims in Chinese, Thai and Spanish, for the kinds the ledger can check: tests, push, merge, deploy.
 
 Deterministic and stdlib only, like claims.py. A clause is cut into pieces at CJK / Thai / Latin punctuation and each

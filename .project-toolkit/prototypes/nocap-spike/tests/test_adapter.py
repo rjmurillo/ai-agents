@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size, spike-only tests with inline fixtures; CI does not collect them.
 """SPIKE ONLY. Adapter tests and synthetic positive controls.
 
 The positive controls are hand-built Claude Code shaped transcripts. They prove

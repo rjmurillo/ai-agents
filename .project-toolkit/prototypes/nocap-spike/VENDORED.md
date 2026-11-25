@@ -15,13 +15,16 @@ The vendored name and marks belong to their author. This spike does not use them
 
 Apache-2.0 section 4(b) asks that modified files say so. Each change is listed here.
 
-1. `claims.py` lines 69 and 375 (68 and 374 upstream): four literal dash characters (code points U+2014 and U+2013) became
+1. `claims.py` lines 71 and 377 (68 and 374 upstream): four literal dash characters (code points U+2014 and U+2013) became
    Python Unicode escape sequences. The repo bans those bytes in `.py` files. The compiled regex and token
    set are unchanged. Line 1 of `claims.py` now carries a one-line modification notice.
-2. No vendored `.py` file carries a lint suppression comment. Instead `pyproject.toml` sets
+2. No vendored `.py` file carries a ruff or mypy suppression comment. Instead `pyproject.toml` sets
    `per-file-ignores = ["ALL"]` and a `ruff format` exclude for `vendor/**`. The pre-commit hook runs
    `ruff check --fix`, which would otherwise rewrite upstream code.
    A mypy override sets `ignore_errors = true` for the `nocap` modules, because upstream is untyped.
+   The taste-lint ratchet has no path exclude, so it needs comments in the files themselves.
+   `claims.py`, `evidence.py`, and `verdict.py` gained two `# taste-lint: ignore` lines after line 1, and `lang.py` gained one at line 1.
+   These are comments only.
 
 3. `evidence.py`, spike round 2. These change behavior on purpose. Line 1 carries a modification notice.
    - `parse_git`: the `git merge` pattern ends in `merge(?![\w-])`, so `git merge-tree` and `git merge-base`
