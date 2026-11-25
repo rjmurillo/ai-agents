@@ -9,7 +9,7 @@ runner could not have produced.
 
 ``main`` is exercised through ``pre_pr_sequence._SEQUENCE``, patched to a single
 gate, so the exit code is measured on the process's own return value rather
-than on a helper's (``.claude/rules/testing.md`` MUST 8).
+than on a helper's (``rule-testing.md`` MUST 8).
 """
 
 from __future__ import annotations
@@ -282,7 +282,7 @@ class TestMainSummaryJson:
         The chdir is load-bearing. Without it ``main`` is never told about
         ``tmp_path``, so an assertion that the directory stayed empty holds no
         matter what the writer does, which is the vacuous shape
-        ``.claude/rules/testing.md`` MUST 14 and SHOULD 14 forbid. Standing in
+        ``rule-testing.md`` MUST 14 and SHOULD 14 forbid. Standing in
         ``tmp_path`` is what makes a stray relative write land where this test
         is looking.
         """
@@ -379,7 +379,7 @@ class TestMainWithAnEmptySequence:
     """``main`` must not report success when the sequence ran no gate at all.
 
     Driven through the real ``main`` rather than through ``aggregate`` so the
-    assertion is on the process exit code (``.claude/rules/testing.md`` MUST 8):
+    assertion is on the process exit code (``rule-testing.md`` MUST 8):
     the aggregate-level unit tests in ``test_evidence_contract.py`` prove the
     contract, and this proves the runner is wired to it. Requested by review
     on PR #5641.

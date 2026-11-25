@@ -21,7 +21,7 @@ only when every slot stayed busy for that long.
 
 Slots are ``fcntl.flock`` locks. The kernel drops a lock when its holder dies,
 so a crashed push never leaks a slot. The slot files live under the user's
-cache directory, not ``/tmp``, for the reason ``push-lock.md`` gives: a ``/tmp``
+cache directory, not ``/tmp``, for the reason ``rule-push-lock.md`` gives: a ``/tmp``
 wipe splits one lock name into two inodes. This is a concurrency cap across
 branches. It does not replace the per-branch push lock, which serializes one
 branch's ref update.

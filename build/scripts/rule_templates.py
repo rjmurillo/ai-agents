@@ -71,7 +71,7 @@ Stricter/looser/different than canonical (``agent_templates.py``):
   during migration, TASK-032's "Rule with no template during migration:
   untouched" edge case) is simply absent from :func:`discover`'s mapping;
   the compile step never touches it. Every rule in this repository is
-  templated as of ADR-109 B2: ``testing.md`` carries a literal
+  templated as of ADR-109 B2: ``knowledge-persistence.md`` carries a literal
   ``${{ a && b }}`` GitHub Actions example and writes it as ``$\{{``,
   the literal-brace escape ``skill_template_grammar`` added for exactly
   this case (ADR-108, amended 2026-09-14).

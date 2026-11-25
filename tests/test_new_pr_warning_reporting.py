@@ -49,7 +49,7 @@ def _completed(
 def _dispatcher(*, validator_rc: int, validator_stderr: str = ""):
     """Dispatch on the argument vector, never on call order.
 
-    ``.claude/rules/testing.md`` SHOULD 11 requires this: a positional
+    ``rule-testing.md`` SHOULD 11 requires this: a positional
     ``side_effect`` list silently shifts when a branch skips a call, and three
     such lists in ``tests/test_new_pr.py`` broke for exactly that reason.
     """
@@ -156,7 +156,7 @@ def test_failed_git_diff_is_tracked_as_a_warning(tmp_path, capsys) -> None:
 
     The changed-file set being unknown means Validations 1 and 2 measured
     nothing. Announcing that as a pass is the scope-measurement failure named in
-    ``.claude/rules/testing.md`` MUST 10: a zero-finding result whose examined
+    ``rule-testing.md`` MUST 10: a zero-finding result whose examined
     count is unknown.
     """
 

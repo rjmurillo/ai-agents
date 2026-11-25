@@ -1,7 +1,7 @@
 """Claim detection and exit codes for the measurement-anchoring gate (issue #5771).
 
 Every case drives ``main(argv)`` against a real throwaway repository and
-asserts the exit code, per ``.claude/rules/testing.md`` MUST 8. The pure
+asserts the exit code, per ``rule-testing.md`` MUST 8. The pure
 classifier is also pinned directly, because its regexes are the part that
 drifts.
 """

@@ -34,11 +34,9 @@ _PINNED_REPO_ONLY = frozenset(
         "knowledge-persistence",
         "plugin-self-containment",
         "plugin-version-bump",
-        "push-lock",
         "secret-redaction",
         "session-logs",
         "templates",
-        "tool-use-hook-bar",
     }
 )
 
@@ -164,9 +162,7 @@ def test_always_on_rules_are_unchanged_and_ship() -> None:
         assert _ALWAYS_ON <= _names_in(directory, suffix)
 
 
-@pytest.mark.parametrize(
-    "name", ["testing", "retros", "security", "python", "unified-software-engineering"]
-)
+@pytest.mark.parametrize("name", ["unified-software-engineering"])
 def test_rules_with_a_consumer_shaped_glob_keep_shipping(name: str) -> None:
     """Generic ``tests/`` and ``scripts/`` globs never flip a rule by themselves."""
     assert name not in _PINNED_REPO_ONLY
@@ -263,6 +259,12 @@ _FOLDED_RULES = {
     "lossless-queue-reads": "pr-comment-responder",
     "lsp-first": "using-serena-symbols",
     "powershell": "build",
+    "push-lock": "push-pr",
+    "python": "build",
+    "retros": "retrospective",
+    "security": "security-review",
+    "testing": "test",
+    "tool-use-hook-bar": "skillforge",
 }
 
 

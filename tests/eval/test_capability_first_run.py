@@ -210,14 +210,20 @@ class TestRunVerdictFollowsTheDecision:
 
     The judge scores how much a response sounds like the rule. These runs force
     the judge verdict to PASS, the keyword-pass path, and check what the run
-    reports and exits with. `python.md` carries a `description:`, so the
+    reports and exits with. `unified-software-engineering.md` carries a `description:`, so the
     `description` mechanism is measurable.
     """
 
     def _run(
         self, monkeypatch: pytest.MonkeyPatch, styles: dict[str, str], **kwargs: Any
     ) -> dict[str, Any]:
-        return _stub_run(monkeypatch, styles, rule_name="python.md", judge_verdict="PASS", **kwargs)
+        return _stub_run(
+            monkeypatch,
+            styles,
+            rule_name="unified-software-engineering.md",
+            judge_verdict="PASS",
+            **kwargs,
+        )
 
     def test_every_call_wrong_turns_a_judge_pass_into_fail_decision(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -277,7 +283,7 @@ class TestRunVerdictFollowsTheDecision:
         result = _stub_run(
             monkeypatch,
             styles,
-            rule_name="python.md",
+            rule_name="unified-software-engineering.md",
             judge_verdict="FAIL_OVER_ACTIVATION",
         )
         assert result["summary"]["verdict"] == "FAIL_OVER_ACTIVATION"

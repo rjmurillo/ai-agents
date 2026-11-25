@@ -1,7 +1,7 @@
 """Wiring test for the index-line-endings gate in the pre-PR runner (#5475).
 
 The gate's own unit tests prove the gate. They cannot prove any call site
-reached it (`.claude/rules/testing.md` SHOULD 6), and the sequence registry
+reached it (`rule-testing.md` SHOULD 6), and the sequence registry
 test pins only the label and its position: `_record`'s fake runner never
 invokes the callback, so `Index Line Endings` could be wired to a different
 validator and that test would still pass.

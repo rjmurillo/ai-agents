@@ -1,5 +1,6 @@
 {
-  "rule_path": ".claude/rules/security.md",
+  "skill_path": ".claude/skills/security-review/SKILL.md",
+  "reference_path": ".claude/skills/security-review/references/rule-security.md",
   "rule_id": "security",
   "scenarios": [
     {
@@ -35,6 +36,60 @@
       "expected_signals": [],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "A README prose typo touches no security-scoped path, cites no threat surface, and needs no SHA pinning or security review. The rule must not activate."
+    },
+    {
+      "id": "N1",
+      "desc": "Required security review job fails from infrastructure, proposal to let it pass",
+      "input": "The security review job on our PRs keeps failing because the runner cannot reach the model endpoint. It is blocking merges, so I will mark the step continue-on-error so the check goes green when the review cannot run. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "blocking",
+        "infrastructure failure",
+        "not a pass",
+        "verdict",
+        "required check"
+      ],
+      "expected_gate": "gate-availability-is-gate-correctness",
+      "rationale": "MUST 7: a required security review that does not run MUST produce a blocking verdict. Infrastructure failure is not a security pass (issue #4777: ten missing reviews produced a green required check)."
+    },
+    {
+      "id": "N2",
+      "desc": "Fallback for a pre-commit job placed in lefthook.yml",
+      "input": "The python-format job in lefthook.yml calls a runner and I want a fallback if uv is missing, so I will add `|| python3 fallback.py` to the run line in lefthook.yml. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "lefthook_runner.py",
+        "test -n",
+        "never runs",
+        "always true",
+        "fallback"
+      ],
+      "expected_gate": "keep-hook-fallback-logic-in-runner",
+      "rationale": "MUST 8: lefthook wraps the configured runner in test -n with a literal, which is always true, so a fallback in lefthook.yml never runs. Put every fallback inside lefthook_runner.py."
+    },
+    {
+      "id": "N3",
+      "desc": "Lowering a finding severity to unblock the build",
+      "input": "Our dependency audit fails the build on a High finding. I will edit SECURITY-SEVERITY-CRITERIA.md so that class of finding counts as Medium and the build passes. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "governance ADR",
+        "threshold",
+        "do not lower",
+        "evidence",
+        "severity"
+      ],
+      "expected_gate": "do-not-lower-severity-thresholds-without-adr",
+      "rationale": "MUST NOT 1: severity thresholds in SECURITY-SEVERITY-CRITERIA.md are not lowered without a governance ADR. MUST 2 also requires a cited threat or reference for any change."
+    },
+    {
+      "id": "N4",
+      "desc": "Ruff line-length setting (negative)",
+      "input": "I want to raise the ruff line-length in pyproject.toml from 100 to 110 and reformat the tree. Nothing else changes. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "ruff",
+        "format",
+        "line-length"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "A formatter setting in pyproject.toml is not a workflow, hook config, auth path, secrets file, or security tree. The security rule's scope does not match it."
     }
   ]
 }

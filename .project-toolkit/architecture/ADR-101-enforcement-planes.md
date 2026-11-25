@@ -493,7 +493,7 @@ Change: PR #6260 (merge commit 44bc741e4) deleted the Vendor Provenance workflow
 - `scripts/validation/ruleset_params_baseline.json`, the measured parameters
 - `scripts/validation/check_ruleset_params_drift.py`, the one-directional comparison
 - `.github/workflows/passive-context-budget.yml`, the skip-job pattern
-- `.claude/rules/ci-scripts.md`, path filters and the manufactured green
+- The former `ci-scripts` rule (now at `.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`), path filters and the manufactured green
 - `.project-toolkit/analysis/adr-101-requirement-2-publisher-app-spike.md`, PR #6103, the spike behind the D23 split
 - `.serena/memories/decision-signing-proves-who-reported-a-result-not-that-it-is-true.md`, the finding in short form
 - `lefthook.yml:217`, the adr-review job and its merge skip
