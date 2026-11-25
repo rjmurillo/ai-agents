@@ -33,8 +33,8 @@ Scores are 1 to 5. `+` means positive scenarios, `-` means negative scenarios.
 
 | Rule | Baseline + | Rule + | Routed + | Gap | Rule - | Routed - | Route hits | Judge samples | Verdict |
 |---|---|---|---|---|---|---|---|---|---|
-| push-lock | 2.42 | 4.83 | 4.83 | 0.00 | 2.67 | 5.00 | 4/4 | 1 | Cut |
-| security | 1.92 | 5.00 | 4.83 | 0.17 | 3.33 | 5.00 | 4/4 | 1 | Cut |
+| push-lock | 2.42 | 4.83 | 4.83 | 0.00 | 3.17 | 5.00 | 4/4 | 3 (2026-11-25) | Cut |
+| security | 1.67 | 5.00 | 5.00 | 0.00 | 3.17 | 5.00 | 4/4 | 3 (2026-11-25) | Cut |
 | tool-use-hook-bar | 1.71 | 4.76 | 4.81 | -0.05 | 4.17 | 4.83 | 7/7 | 3 | Cut |
 | python | 4.00 | 4.80 | 4.93 | -0.13 | 4.67 | 5.00 | 5/5 | 3 | Cut |
 | retros | 2.60 | 5.00 | 4.93 | 0.07 | 4.00 | 5.00 | 5/5 | 3 | Cut |
@@ -66,6 +66,8 @@ Scores are 1 to 5. `+` means positive scenarios, `-` means negative scenarios.
 ## Limits
 
 - Held-out sets are small: 6 to 9 scenarios per rule.
-- push-lock and security used 1 judge sample. Both cleared the gate by 0.18 or more.
+- push-lock and security first used 1 judge sample, with gaps of 0.00 and 0.17.
+- On 2026-11-25 at d8d140bb2e, both were re-scored with 3 judge samples.
+- Both 3-sample gaps are 0.00, and routed negatives scored 5.00 against 3.17.
 - The distractor pick is lexical. Production routing sees about 120 skills, not 9.
 - Global user instructions loaded in every arm, as in the earlier diet eval.
