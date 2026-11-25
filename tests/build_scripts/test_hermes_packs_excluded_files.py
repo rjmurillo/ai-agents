@@ -115,3 +115,48 @@ def test_skill_md_keeps_frontmatter_that_names_an_excluded_file(frontmatter: str
     out = hermes_packs.drop_excluded_pointer_lines(text, "alpha", ["alpha/references/r.md"])
 
     assert out == f"{frontmatter}body\n"
+
+
+def test_excluded_file_reference_does_not_fail_cross_pack_check(tmp_path: Path) -> None:
+    repo = make_repo(tmp_path)
+    refs_dir = repo / "src/claude/skills/alpha/references"
+    refs_dir.mkdir(parents=True, exist_ok=True)
+    (refs_dir / "rule-cross.md").write_text(
+        "See skills/beta/references/guide.md.\n", encoding="utf-8"
+    )
+    packs = {
+        "one": {"description": "Pack one.", "skills": ["alpha"]},
+        "two": {"description": "Pack two.", "skills": ["beta", "gamma"]},
+    }
+    without_exclusion = make_config(packs=packs)
+    with pytest.raises(cfg.HermesPackError, match="beta"):
+        hermes_packs.plan_tree(repo, without_exclusion)
+
+    with_exclusion = make_config(
+        packs=packs,
+        excludedFiles={"alpha/references/rule-cross.md": "References beta in pack two."},
+    )
+    tree = hermes_packs.plan_tree(repo, with_exclusion)
+    assert "project-toolkit-one/skills/alpha/references/rule-cross.md" not in tree
+
+
+def test_non_excluded_file_reference_still_fails_when_another_file_is_excluded(
+    tmp_path: Path,
+) -> None:
+    repo = make_repo(tmp_path)
+    refs_dir = repo / "src/claude/skills/alpha/references"
+    refs_dir.mkdir(parents=True, exist_ok=True)
+    (refs_dir / "rule-cross.md").write_text(
+        "See skills/beta/references/guide.md.\n", encoding="utf-8"
+    )
+    (refs_dir / "other.md").write_text("Also uses skills/beta/scripts/run.py.\n", encoding="utf-8")
+    packs = {
+        "one": {"description": "Pack one.", "skills": ["alpha"]},
+        "two": {"description": "Pack two.", "skills": ["beta", "gamma"]},
+    }
+    config = make_config(
+        packs=packs,
+        excludedFiles={"alpha/references/rule-cross.md": "Excluded file."},
+    )
+    with pytest.raises(cfg.HermesPackError, match=r"other\.md.*beta"):
+        hermes_packs.plan_tree(repo, config)
