@@ -1,0 +1,194 @@
+# Policy for scripts/validation/check_unused_dependencies.py and
+# scripts/validation/check_dependency_drift.py.
+#
+# Every exemption here is granular (one package, one reason, one evidence
+# pattern). The unused-dependency checker fails an entry as stale when its
+# evidence no longer matches a tracked file or when deptry stops reporting the
+# package as unused, so an exemption cannot outlive the use that justified it.
+
+# ---------------------------------------------------------------------------
+# Unused-dependency scan (deptry)
+# ---------------------------------------------------------------------------
+
+[[manifest]]
+path = "."
+# Optional groups (dev, eval) are scanned as ordinary dependencies: a dev tool
+# that nothing imports or runs must be justified under tool_only.
+# Each of these directories has its own manifest and is scanned on its own
+# entry below. Generated and vendored trees are scanned: their imports are real
+# imports of the shipped plugin and must resolve to a declared dependency.
+extend_exclude = ["packages/semantic-hooks", "build/plugin-scanner"]
+
+# Declared packages are mapped to import names from the installed environment,
+# so the checker must run under 'uv run --frozen --extra dev --extra eval'.
+
+[[manifest.tool_only]]
+package = "deptry"
+reason = "dependency scanner run as a module by check_unused_dependencies.py, which the dependency-hygiene workflow invokes"
+evidence_file = ".github/workflows/dependency-hygiene.yml"
+evidence_pattern = '^\s+python scripts/validation/check_unused_dependencies\.py\s*$'
+
+[[manifest.tool_only]]
+package = "pytest-cov"
+reason = "pytest plugin; loaded by entry point when --cov is passed, never imported"
+evidence_file = ".github/workflows/pytest.yml"
+evidence_pattern = "--cov"
+
+[[manifest.tool_only]]
+package = "pytest-timeout"
+reason = "pytest plugin; addopts passes --timeout, never imported"
+evidence_file = "pyproject.toml"
+evidence_pattern = "--timeout=\\d+"
+
+[[manifest.tool_only]]
+package = "pytest-xdist"
+reason = "pytest plugin; the CI test legs run with -n auto, never imported"
+evidence_file = ".github/workflows/pytest.yml"
+evidence_pattern = "-n auto"
+
+[[manifest.tool_only]]
+package = "pytest-split"
+reason = "pytest plugin; CI restores .pytest-split durations and splits the suite"
+evidence_file = ".github/workflows/pytest.yml"
+evidence_pattern = "\\.pytest-split/durations\\.json"
+
+[[manifest.tool_only]]
+package = "pip-audit"
+reason = "vulnerability auditor run as a CLI"
+evidence_file = ".github/workflows/pytest.yml"
+evidence_pattern = '^\s+pip-audit\s*$'
+
+[[manifest.tool_only]]
+package = "ruff"
+reason = "lint and format CLI"
+evidence_file = "lefthook.yml"
+evidence_pattern = '\brun:.*\bruff (?:check|format)\b'
+
+[[manifest.tool_only]]
+package = "lefthook"
+reason = "git hook runner installed as a binary wheel; has no importable module"
+evidence_file = "lefthook.yml"
+evidence_pattern = "^pre-push:"
+
+[[manifest.tool_only]]
+package = "import-linter"
+reason = "architecture contract checker run as lint-imports"
+evidence_file = "lefthook.yml"
+evidence_pattern = "lint-imports"
+
+# DEP003 (transitive import) exemptions: tests import a module that a declared
+# package pulls in. Each is valid only under tests/ and only while the declared
+# parent stays in the manifest. A non-test import of a transitive module must
+# instead be declared directly.
+[[manifest.transitive_ok]]
+module = "httpx2"
+via = "anthropic"
+only_under = "tests/"
+reason = "provider SDK contract tests inspect the HTTP client the SDKs bring"
+
+[[manifest.transitive_ok]]
+module = "wcmatch"
+via = "semgrep"
+only_under = "tests/"
+reason = "gate latency test reuses the glob engine semgrep ships to match its scope"
+
+[[manifest.transitive_ok]]
+module = "grimp"
+via = "import-linter"
+only_under = "tests/"
+reason = "contract tests query the import graph library import-linter is built on"
+
+[[manifest.transitive_ok]]
+module = "jwt"
+via = "semgrep"
+only_under = "tests/"
+reason = "test_semgrep_pyjwt_override.py verifies the pinned PyJWT that semgrep resolves"
+
+[[manifest.transitive_ok]]
+module = "cryptography"
+via = "semgrep"
+only_under = "tests/"
+reason = "same test checks the PyJWT crypto extra resolved through semgrep"
+
+# DEP001 exemptions for bare module names that one test file imports from a
+# throwaway fixture tree; they are not packages. 'used_in' names that file (or a
+# directory prefix ending in '/'). The entry covers only DEP001 findings for the
+# module inside that scope, and fails as stale when no such finding remains.
+[[manifest.fixture_module]]
+module = "imported_only"
+used_in = "tests/validation/test_pre_pr_covers_workflow_validators.py"
+reason = "fixture module the test writes into a temporary validators tree"
+
+[[manifest.fixture_module]]
+module = "docstring_only"
+used_in = "tests/validation/test_pre_pr_covers_workflow_validators.py"
+reason = "fixture module the test writes into a temporary validators tree"
+
+[[manifest]]
+path = "packages/semantic-hooks"
+
+[[manifest.tool_only]]
+package = "pytest-cov"
+reason = "pytest plugin for the package's own test run"
+evidence_file = "packages/semantic-hooks/pyproject.toml"
+evidence_pattern = "pytest-cov"
+
+[[manifest.tool_only]]
+package = "ruff"
+reason = "lint CLI configured in the package's [tool.ruff]"
+evidence_file = "packages/semantic-hooks/pyproject.toml"
+evidence_pattern = "^\\[tool\\.ruff\\]"
+
+[[manifest]]
+path = "build/plugin-scanner"
+
+# module_map is a mapping, not an exemption: it names the import modules a
+# declared package provides when they differ from the package name, so deptry
+# counts those imports as uses. It never hides an unused or undeclared finding.
+[manifest.module_map]
+"plugin-scanner" = "plugin_scanner"
+
+[[manifest.tool_only]]
+package = "plugin-scanner"
+reason = "HOL scanner run as the plugin-scanner CLI; this project holds no code (package = false)"
+evidence_file = ".github/workflows/plugin-scanner.yml"
+evidence_pattern = "plugin-scanner"
+
+# ---------------------------------------------------------------------------
+# Version drift (cross-manifest constraint consistency)
+# ---------------------------------------------------------------------------
+
+[drift]
+python_manifests = [
+  "pyproject.toml",
+  "packages/semantic-hooks/pyproject.toml",
+  "build/plugin-scanner/pyproject.toml",
+]
+npm_manifests = [
+  "package.json",
+  "packages/ai-agents-cli/package.json",
+  ".github/cli-smoke/claude/package.json",
+  ".github/cli-smoke/codex/package.json",
+  ".github/cli-smoke/copilot/package.json",
+  ".github/cli-smoke/pi/package.json",
+]
+
+# A floor difference is allowed only for a named (package, manifest) pair with a
+# reason. The entry fails as stale once the floors agree again.
+
+# The library supports older interpreters and SDKs than repository development.
+# Keep those runtime floors separate without allowing development tools to drift.
+[[drift.allow]]
+package = "python"
+manifest = "packages/semantic-hooks/pyproject.toml"
+reason = "package classifiers promise Python 3.11 to 3.14; the root project requires 3.14"
+
+[[drift.allow]]
+package = "pyyaml"
+manifest = "packages/semantic-hooks/pyproject.toml"
+reason = "library floor kept wide for consumers; root pins 6.0.3 exactly for the repository environment"
+
+[[drift.allow]]
+package = "openai"
+manifest = "packages/semantic-hooks/pyproject.toml"
+reason = "library floor kept wide for consumers; root only needs 2.x for the eval extra"

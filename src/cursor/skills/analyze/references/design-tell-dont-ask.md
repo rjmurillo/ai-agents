@@ -6,6 +6,8 @@ review-by: 2026-07-11
 
 # Tell, Don't Ask
 
+<!-- doc-accuracy: external-sdk dotnet -- C# examples use the .NET base class library, not this repository -->
+
 > "Tell objects what to do, don't ask them for data and act on it yourself."
 
 Attribution: Pragmatic Programmers, related to Law of Demeter.
@@ -17,14 +19,37 @@ Instead of asking an object for data and making decisions based on that data, te
 ## Ask vs Tell
 
 ```csharp
+const decimal amount = 20m;
+
 // ASK (procedural, avoid)
-if (account.Balance >= amount)
+var exposedAccount = new ExposedAccount { Balance = 100m };
+if (exposedAccount.Balance >= amount && amount > 0)
 {
-    account.Balance -= amount;
+    exposedAccount.Balance -= amount;
 }
 
 // TELL (object-oriented, prefer)
+var account = new Account(100m);
 account.Withdraw(amount);
+
+sealed class ExposedAccount
+{
+    public decimal Balance { get; set; }
+}
+
+sealed class Account(decimal openingBalance)
+{
+    public decimal Balance { get; private set; } = openingBalance;
+
+    public bool Withdraw(decimal amount)
+    {
+        if (amount <= 0 || amount > Balance)
+            return false;
+
+        Balance -= amount;
+        return true;
+    }
+}
 ```
 
 ## Why It Matters
@@ -43,22 +68,52 @@ account.Withdraw(amount);
 Code more interested in another object's data than its own:
 
 ```csharp
-// BAD: Feature envy
-if (order.Customer.IsPremium && order.Items.Count > 5)
-    return order.Total * 0.1m;
+using System.Collections.Generic;
+using System.Linq;
+
+static decimal AskForDiscount(Order order)
+{
+    // BAD: Feature envy
+    if (order.Customer.IsPremium && order.Items.Count > 5)
+        return order.Total * 0.1m;
+
+    return 0m;
+}
 
 // GOOD: Tell the order
-return order.CalculateDiscount();
+static decimal TellOrderToCalculateDiscount(Order order) => order.CalculateDiscount();
+
+sealed record Customer(bool IsPremium);
+
+sealed record Order(Customer Customer, IReadOnlyList<decimal> Items)
+{
+    public decimal Total => Items.Sum();
+
+    public decimal CalculateDiscount() => Customer.IsPremium && Items.Count > 5 ? Total * 0.1m : 0m;
+}
 ```
 
 ### Getter Chains (Law of Demeter violations)
 
 ```csharp
+using System;
+
+var customer = new Customer(new Address("Seattle"));
+
 // BAD: Asking through a chain
 var city = customer.Address.City;
+Console.WriteLine(city);
 
 // GOOD: Tell the customer what you need
-if (customer.IsLocatedIn("Seattle")) { ... }
+if (customer.IsLocatedIn("Seattle"))
+    Console.WriteLine("Customer qualifies for Seattle delivery.");
+
+sealed record Address(string City);
+
+sealed record Customer(Address Address)
+{
+    public bool IsLocatedIn(string city) => string.Equals(Address.City, city, StringComparison.OrdinalIgnoreCase);
+}
 ```
 
 ## Detection Checklist for Analysis

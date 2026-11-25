@@ -160,7 +160,9 @@ def render_index(config: HermesConfig) -> bytes:
         "",
         "Each folder below is a portable Agent Plugins v1 package for Hermes.",
         "A pack holds the skills listed under it and one copy of `lib/`.",
-        "Skills in one pack never refer to skills in another pack by path.",
+        "No skill links to a script, reference, or other support file in another pack by path.",
+        "Some skills name a skill or script from another pack.",
+        "Install every pack for the full set.",
         "",
     ]
     for pack in config.packs:
@@ -190,7 +192,7 @@ def plan_tree(repo_root: Path, config: HermesConfig) -> dict[str, PackFile]:
     shipped = discover_skills(source_root)
     problems = check_assignment(shipped, config)
     problems += check_excluded_files(source_root, config)
-    refs = find_references(source_root, shipped)
+    refs = find_references(source_root, shipped, config.excluded_files)
     problems += check_references(config, refs)
     if problems:
         raise HermesPackError(problems)

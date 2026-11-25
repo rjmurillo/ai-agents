@@ -84,10 +84,16 @@ counter += 1
 ### Good (explains why)
 
 ```python
-# The vendor API returns 200 even on validation failure; check the
-# `error` field before treating the response as success.
-if "error" in response_body:
-    raise VendorValidationError(response_body["error"])
+class VendorValidationError(ValueError):
+    """The vendor rejected the request and returned an error field."""
+
+
+def read_vendor_result(response_body: dict[str, object]) -> dict[str, object]:
+    # The vendor API returns 200 even on validation failure. Check the
+    # `error` field before treating the response as success.
+    if "error" in response_body:
+        raise VendorValidationError(str(response_body["error"]))
+    return response_body
 ```
 
 ## Complex-Logic Annotations

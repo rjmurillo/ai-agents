@@ -132,14 +132,6 @@
       [
         "result = subprocess.run(",
         0
-      ],
-      [
-        "result = subprocess.run(",
-        1
-      ],
-      [
-        "result = subprocess.run(",
-        2
       ]
     ],
     "github/scripts/pr/post_pr_comment_reply.py": [
@@ -195,24 +187,6 @@
       ]
     ],
     "memory/memory_core/schema_validation.py": [
-      [
-        "result = subprocess.run(",
-        0
-      ]
-    ],
-    "memory/scripts/convert_index_table_links.py": [
-      [
-        "result = subprocess.run(",
-        0
-      ]
-    ],
-    "memory/scripts/convert_memory_references.py": [
-      [
-        "result = subprocess.run(",
-        0
-      ]
-    ],
-    "memory/scripts/improve_memory_graph_density.py": [
       [
         "result = subprocess.run(",
         0

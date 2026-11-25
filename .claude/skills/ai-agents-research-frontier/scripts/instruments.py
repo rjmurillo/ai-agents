@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
-"""Instrument table for ai-agents-research-frontier.
-
-`list` prints every instrument row with exists true/false (exit 1 if any is missing).
-`run <id> [-- args]` execs the instrument from the repo root and passes its exit code through.
-Exit codes: 0 ok, 1 missing instrument, 2 bad arguments or unknown id, 3 run target failed to start.
-"""
+"""Instrument table for ai-agents-research-frontier."""
 
 from __future__ import annotations
 
-import argparse
-import json
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
+
+from scripts.instrument_cli import (
+    InstrumentDispatcher,
+    InstrumentHelp,
+    instrument_epilog,
+    python_script_exists,
+)
 
 SKILL = "ai-agents-research-frontier"
 SK = ".claude/skills"
@@ -67,79 +68,18 @@ INSTRUMENTS: list[dict[str, Any]] = [
 ]
 
 
-def _exists(repo: Path, argv: list[str]) -> bool:
-    for tok in argv[1:]:
-        if tok.endswith(".py"):
-            return (repo / tok).is_file()
-    return True
+_HELP_EPILOG = instrument_epilog("corpus-counts")
 
 
-def cmd_list(repo: Path) -> int:
-    rows = [{**r, "exists": _exists(repo, r["argv"])} for r in INSTRUMENTS]
-    missing = [r["id"] for r in rows if not r["exists"]]
-    print(
-        json.dumps(
-            {"skill": SKILL, "instruments": rows, "examined": len(rows), "missing": missing},
-            indent=2,
-        )
-    )
-    return 1 if missing else 0
-
-
-def cmd_run(repo: Path, ident: str, extra: list[str]) -> int:
-    row = next((r for r in INSTRUMENTS if r["id"] == ident), None)
-    if row is None:
-        print(
-            json.dumps(
-                {
-                    "error": f"unknown instrument id: {ident}",
-                    "known": [r["id"] for r in INSTRUMENTS],
-                }
-            ),
-            file=sys.stderr,
-        )
-        return 2
-    try:
-        sys.stdout.flush()
-        return subprocess.run(row["argv"] + extra, cwd=repo, check=False).returncode
-    except OSError as exc:
-        print(json.dumps({"error": f"failed to start: {exc}"}), file=sys.stderr)
-        return 3
-
-
-_HELP_EPILOG = """\
-run passes a started child process exit code through unchanged.
-
-examples:
-  %(prog)s --repo . list
-  %(prog)s --repo . run corpus-counts
-
-exit codes:
-  0  ok
-  1  a listed instrument file is missing
-  2  bad arguments or unknown id
-  3  the run target failed to start
-"""
-
-
-def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(
-        description="List or run this skill's instruments.",
-        epilog=_HELP_EPILOG,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    p.add_argument("--repo", default=".", help="repository root (default: .)")
-    sub = p.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("list", help="print every instrument row")
-    r = sub.add_parser("run", help="run one instrument")
-    r.add_argument("id")
-    r.add_argument("args", nargs=argparse.REMAINDER)
-    a = p.parse_args(argv)
-    repo = Path(a.repo).resolve()
-    if a.cmd == "list":
-        return cmd_list(repo)
-    extra = a.args[1:] if a.args[:1] == ["--"] else a.args
-    return cmd_run(repo, a.id, extra)
+_dispatcher = InstrumentDispatcher(
+    InstrumentHelp(SKILL, __doc__ or "", _HELP_EPILOG, "json"),
+    lambda: INSTRUMENTS,
+    python_script_exists,
+)
+main = _dispatcher.main
+cmd_list = _dispatcher.cmd_list
+cmd_run = _dispatcher.cmd_run
+build_parser = _dispatcher.build_parser
 
 
 if __name__ == "__main__":

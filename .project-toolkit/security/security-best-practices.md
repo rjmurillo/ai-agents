@@ -1,5 +1,7 @@
 # Security Best Practices Enforcement Guide
 
+<!-- doc-accuracy: external-sdk dotnet -- C# examples use the .NET base class library, ASP.NET Core Identity, BCrypt.Net, and Microsoft.Data.SqlClient, not this repository -->
+
 ## Purpose
 
 This guide defines security best practices that should be enforced during code review and development. It covers input validation, error handling, logging, cryptography, and testing requirements.
@@ -22,25 +24,41 @@ This guide defines security best practices that should be enforced during code r
 #### Do: Allowlist Validation
 
 ```csharp
-// GOOD: Explicit allowlist
-var allowedRoles = new[] { "user", "admin", "moderator" };
-if (!allowedRoles.Contains(input.Role))
-    throw new ValidationException("Invalid role");
+using System;
+using System.ComponentModel.DataAnnotations;
+using System.Linq;
+using System.Text.RegularExpressions;
 
-// GOOD: Regex with bounded pattern
-var emailPattern = @"^[a-zA-Z0-9._%+-]{1,64}@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$";
-if (!Regex.IsMatch(input.Email, emailPattern))
-    throw new ValidationException("Invalid email");
+static void ValidateRegistration(RegistrationInput input)
+{
+    // Check allowed values here. Authorize privileged role assignments separately.
+    var allowedRoles = new[] { "user", "admin", "moderator" };
+    if (!allowedRoles.Contains(input.Role, StringComparer.Ordinal))
+        throw new ValidationException("Invalid role");
+
+    // This pattern describes the application's accepted subset of addresses.
+    const string emailPattern = @"\A[a-zA-Z0-9._%+-]{1,64}@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\z";
+    if (input.Email.Length > 254 ||
+        !Regex.IsMatch(input.Email, emailPattern, RegexOptions.NonBacktracking))
+        throw new ValidationException("Invalid email");
+}
+
+record RegistrationInput(string Role, string Email);
 ```
 
 #### Don't: Denylist Validation
 
 ```csharp
-// BAD: Denylist (can be bypassed)
-var blockedChars = new[] { '<', '>', '&', '"', '\'' };
-if (input.Any(c => blockedChars.Contains(c)))
-    throw new ValidationException("Invalid characters");
-// Attacker can use: %3C (URL-encoded <), &#60; (HTML entity), etc.
+using System.ComponentModel.DataAnnotations;
+using System.Linq;
+
+static void ValidateByDenylist(string input)
+{
+    // BAD: A list of literal characters misses encoded forms such as %3C and &#60;.
+    var blockedChars = new[] { '<', '>', '&', '"', '\'' };
+    if (input.Any(c => blockedChars.Contains(c)))
+        throw new ValidationException("Invalid characters");
+}
 ```
 
 ### Input Validation Checklist
@@ -76,30 +94,49 @@ if (input.Any(c => blockedChars.Contains(c)))
 #### Do: Safe Error Responses
 
 ```csharp
-// GOOD: Generic message, detailed logging
-try
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
+
+static async Task<IResult> AuthenticateAsync(
+    string userId,
+    Func<CancellationToken, Task<bool>> verifyCredentials,
+    ILogger logger,
+    CancellationToken cancellationToken)
 {
-    await AuthenticateUser(credentials);
-}
-catch (Exception ex)
-{
-    _logger.LogWarning(ex, "Authentication failed for user {UserId}", credentials.UserId);
-    return Unauthorized("Authentication failed");  // Generic
+    if (await verifyCredentials(cancellationToken))
+        return Results.NoContent();
+
+    logger.LogWarning("Authentication failed for user {UserId}", userId);
+    return Results.Unauthorized();
 }
 ```
 
 #### Don't: Verbose Error Responses
 
 ```csharp
-// BAD: Exposes system details
-catch (SqlException ex)
+using System;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Data.SqlClient;
+
+static IResult FindUser(Func<User?> queryUser)
 {
-    return BadRequest($"Database error: {ex.Message} - Stack: {ex.StackTrace}");
+    try
+    {
+        var user = queryUser();
+        // BAD: Reveals whether the supplied account exists.
+        return user is null ? Results.NotFound("User john@example.com not found") : Results.Ok(user);
+    }
+    catch (SqlException ex)
+    {
+        // BAD: Exposes system details.
+        return Results.BadRequest($"Database error: {ex.Message} - Stack: {ex.StackTrace}");
+    }
 }
 
-// BAD: Reveals user existence
-if (user == null)
-    return NotFound("User john@example.com not found");  // Information leak
+record User(string Id);
 ```
 
 ### Error Handling Checklist
@@ -134,26 +171,38 @@ if (user == null)
 #### Do: Structured, Safe Logging
 
 ```csharp
-// GOOD: Structured logging without sensitive data
-_logger.LogInformation(
-    "User {UserId} accessed resource {ResourceId} at {Timestamp}",
-    userId, resourceId, DateTime.UtcNow);
+using System;
+using Microsoft.Extensions.Logging;
 
-// GOOD: Masked sensitive data
-_logger.LogDebug("Processing payment for card ending in {CardLast4}", card.Last4);
+static void LogResourceAccess(ILogger logger, string userId, string resourceId) =>
+    logger.LogInformation(
+        "User {UserId} accessed resource {ResourceId} at {Timestamp}",
+        userId, resourceId, DateTimeOffset.UtcNow);
+
+// The payment provider gives this code only the masked suffix.
+static void LogPayment(ILogger logger, MaskedCard card) =>
+    logger.LogDebug("Processing payment for card ending in {CardLast4}", card.Last4);
+
+record MaskedCard(string Last4);
 ```
 
 #### Don't: Dangerous Logging
 
 ```csharp
-// BAD: Logging password
-_logger.LogDebug($"Login attempt: {username}/{password}");
+using System.Text.Json;
+using Microsoft.Extensions.Logging;
 
-// BAD: Logging full request
-_logger.LogDebug($"Request body: {JsonSerializer.Serialize(request)}");
+static void LogSecrets(ILogger logger, string username, string password, object request, string jwtToken)
+{
+    // BAD: Logging password
+    logger.LogDebug($"Login attempt: {username}/{password}");
 
-// BAD: Logging token
-_logger.LogInfo($"Generated token: {jwtToken}");
+    // BAD: Logging full request
+    logger.LogDebug($"Request body: {JsonSerializer.Serialize(request)}");
+
+    // BAD: Logging token
+    logger.LogInformation($"Generated token: {jwtToken}");
+}
 ```
 
 ### Logging Checklist
@@ -187,28 +236,53 @@ _logger.LogInfo($"Generated token: {jwtToken}");
 
 #### Do: Use Standard Libraries
 
-```csharp
-// GOOD: Using built-in secure password hashing
-using BCrypt.Net;
-var hash = BCrypt.HashPassword(password, BCrypt.GenerateSalt(12));
-var valid = BCrypt.Verify(password, storedHash);
+The password example requires the `BCrypt.Net-Next` NuGet package.
+Store the nonce and authentication tag alongside the ciphertext.
 
-// GOOD: Using AES-GCM for encryption
-using var aesGcm = new AesGcm(key);
-aesGcm.Encrypt(nonce, plaintext, ciphertext, tag);
+```csharp
+using System;
+using System.Security.Cryptography;
+using PasswordHasher = BCrypt.Net.BCrypt;
+
+static string HashPassword(string password) => PasswordHasher.HashPassword(password, workFactor: 12);
+
+static bool VerifyPassword(string password, string storedHash) => PasswordHasher.Verify(password, storedHash);
+
+static (byte[] Nonce, byte[] Ciphertext, byte[] Tag) Encrypt(ReadOnlySpan<byte> key, ReadOnlySpan<byte> plaintext)
+{
+    if (key.Length != 32)
+        throw new ArgumentException("AES-256 requires a 32-byte key.", nameof(key));
+
+    var nonce = RandomNumberGenerator.GetBytes(AesGcm.NonceByteSizes.MaxSize);
+    var ciphertext = new byte[plaintext.Length];
+    var tag = new byte[AesGcm.TagByteSizes.MaxSize];
+    using var aesGcm = new AesGcm(key, tag.Length);
+    aesGcm.Encrypt(nonce, plaintext, ciphertext, tag);
+    return (nonce, ciphertext, tag);
+}
 ```
 
 #### Don't: Roll Your Own Crypto
 
 ```csharp
-// BAD: Custom encryption
-var encrypted = XorWithKey(data, secretKey);
+using System;
+using System.Security.Cryptography;
+using System.Text;
 
-// BAD: Weak hashing for passwords
-var hash = MD5.Create().ComputeHash(Encoding.UTF8.GetBytes(password));
+// BAD: Reusing the same XOR key exposes relationships between plaintexts.
+static byte[] XorWithKey(ReadOnlySpan<byte> data, byte key)
+{
+    var encrypted = new byte[data.Length];
+    for (int i = 0; i < data.Length; i++)
+        encrypted[i] = (byte)(data[i] ^ key);
+    return encrypted;
+}
 
-// BAD: Hardcoded IV
-var iv = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 };
+// BAD: Weak hashing for passwords.
+static byte[] WeakPasswordHash(string password) => MD5.HashData(Encoding.UTF8.GetBytes(password));
+
+// BAD: Every encryption would reuse the same IV.
+static byte[] FixedIv() => new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 };
 ```
 
 ### Cryptography Checklist
@@ -228,75 +302,8 @@ var iv = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 };
 
 ## 5. Testing Requirements
 
-### Security Testing Coverage
-
-| Code Area | Coverage Target | Test Types |
-|-----------|-----------------|------------|
-| Authentication | 95% | Unit + Integration |
-| Authorization | 95% | Unit + Integration |
-| Input validation | 90% | Unit + Fuzzing |
-| Cryptography | 95% | Unit |
-| Error handling | 85% | Unit + Integration |
-| Security middleware | 90% | Integration |
-
-### Required Security Tests
-
-#### Authentication Tests
-
-```csharp
-[Fact]
-public void Login_ValidCredentials_ReturnsToken() { ... }
-
-[Fact]
-public void Login_InvalidPassword_ReturnsUnauthorized() { ... }
-
-[Fact]
-public void Login_NonexistentUser_ReturnsUnauthorized() { ... }
-
-[Fact]
-public void Login_LockedAccount_ReturnsLocked() { ... }
-
-[Fact]
-public void Login_BruteForce_RateLimits() { ... }
-```
-
-#### Authorization Tests
-
-```csharp
-[Fact]
-public void GetResource_OwnerAccess_ReturnsOk() { ... }
-
-[Fact]
-public void GetResource_OtherUserAccess_ReturnsForbidden() { ... }
-
-[Fact]
-public void AdminEndpoint_NonAdmin_ReturnsForbidden() { ... }
-
-[Fact]
-public void AdminEndpoint_Admin_ReturnsOk() { ... }
-```
-
-#### Input Validation Tests
-
-```csharp
-[Theory]
-[InlineData("<script>alert('xss')</script>")]
-[InlineData("'; DROP TABLE users; --")]
-[InlineData("../../../etc/passwd")]
-public void Endpoint_MaliciousInput_Sanitized(string input) { ... }
-```
-
-### Security Testing Checklist
-
-```markdown
-- [ ] All auth paths have positive/negative tests
-- [ ] Authorization tested for each role
-- [ ] Input validation has boundary tests
-- [ ] Error responses tested for information leak
-- [ ] Crypto functions have correctness tests
-- [ ] Rate limiting tested
-- [ ] Session handling tested
-```
+The [Security Testing Reference](./security-testing.md) contains the coverage targets,
+required security test examples, and checklist.
 
 ---
 

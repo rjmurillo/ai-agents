@@ -120,7 +120,7 @@ def test_a_single_module_pool_fills_one_group_and_leaves_the_rest_empty(
     monkeypatch.setattr(group_collection, "collect", fake)
     collected = group_collection.collect_groups(tmp_path / "durations.json")
     sizes = sorted(len(collected[name]) for name in runner.split_names())
-    assert sizes == [0, 0, 0, 0, 6]
+    assert sizes == [0, 0, 0, 0, 0, 6]
 
 
 def test_an_empty_pool_gives_empty_groups(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

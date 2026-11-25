@@ -1,0 +1,91 @@
+# Workflow Failure Alert
+#
+# Files one deduplicated GitHub issue when an unattended workflow fails. Scheduled
+# and dispatch-only runs have no pull request to show a red check, so a failure
+# otherwise stays in the Actions tab. The alert channel is GitHub issue
+# notifications, the same channel the drift checks use (docs/agent-readiness.md).
+#
+# The `workflows:` list below must equal WATCHED in
+# scripts/ci/workflow_failure_alert.py; tests/ci/test_workflow_failure_alert.py
+# pins both and checks every scheduled workflow is watched or self-alerting.
+#
+# Trust boundary: a `workflow_run` job runs this file from the default branch with
+# a write token. The job checks out the default branch only, never the triggering
+# run's commit, and the script reads event metadata, never logs or artifacts.
+# Runbook: docs/runbooks/workflow-failure-alert.md
+
+name: Workflow Failure Alert
+
+on:
+  workflow_run:
+    workflows:
+      - "Agent Metrics"
+      - "Agent-Skill Discriminator Check"
+      - "AI Metrics Analysis"
+      - "Artifact Insight Scanner"
+      - "Autoplan Route Eval"
+      - "CodeQL Analysis"
+      - "Copilot Context Synthesis"
+      - "Enforcement Closure"
+      - "npm Publish"
+      - "PR Maintenance"
+      - "Skill Overlap Eval"
+      - "Software Engineering Library Activation"
+      - "Update Reviewer Signal Stats"
+      - "Workflow Coalescing Metrics"
+    types: [completed]
+
+permissions: {}
+
+jobs:
+  eligibility:
+    name: Classify workflow completion
+    runs-on: ubuntu-26.04-arm
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      eligible: ${{ steps.classify.outputs.eligible }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - name: Check out the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Classify with the alert policy
+        id: classify
+        run: python3 scripts/ci/workflow_failure_alert.py --classify
+
+  alert:
+    name: Alert on failed workflow
+    needs: eligibility
+    # Ignored completions never enter the publishing job's concurrency group.
+    if: ${{ needs.eligibility.outputs.eligible == 'true' }}
+    concurrency:
+      group: workflow-failure-alert-${{ github.event.workflow_run.name }}
+      cancel-in-progress: true
+    runs-on: ubuntu-26.04-arm
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - name: Check out the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Publish the alert
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/ci/workflow_failure_alert.py

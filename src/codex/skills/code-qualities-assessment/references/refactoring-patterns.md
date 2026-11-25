@@ -126,6 +126,51 @@ processor = OrderProcessor(MockPayment(), MockEmail())
 - Coupling: 3 → 9 (depends on abstractions)
 - Testability: 2 → 10 (trivial to mock)
 
+### SQLite directory example
+
+Both versions read names from a `users(id, name)` table.
+
+```python
+import sqlite3
+from contextlib import closing
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Protocol
+
+
+class DatabaseInterface(Protocol):
+    def name_for(self, user_id: int) -> str | None:
+        """Return the stored name, or None if the user does not exist."""
+
+
+@dataclass(frozen=True)
+class DatabaseConnection:
+    path: Path
+
+    def name_for(self, user_id: int) -> str | None:
+        with closing(sqlite3.connect(self.path)) as db:
+            row = db.execute("SELECT name FROM users WHERE id = ?", (user_id,)).fetchone()
+        return row[0] if row is not None else None
+
+
+# Before
+class HardcodedUserDirectory:
+    def __init__(self) -> None:
+        self.db = DatabaseConnection(Path("users.db"))
+
+    def name_for(self, user_id: int) -> str | None:
+        return self.db.name_for(user_id)
+
+
+# After
+class UserDirectory:
+    def __init__(self, db: DatabaseInterface):
+        self.db = db  # Injected dependency
+
+    def name_for(self, user_id: int) -> str | None:
+        return self.db.name_for(user_id)
+```
+
 ---
 
 ## Poor Encapsulation → Facade Pattern

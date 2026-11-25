@@ -2,9 +2,9 @@
 
 Each repository has one memory store: `.serena/memories` when that folder
 exists, else `.project-toolkit/memory/notes`. This module is stdlib-only so the
-router can use it in a plugin install. `scripts/store_resolution.py` keeps the
-search script's copy and the `memory_enhancement` package keeps a third; the
-test_memory_root_parity tests hold all three together.
+router and `scripts/store_resolution.py` can share it in a plugin install. The
+`memory_enhancement` package keeps its own copy for repo hooks; the
+test_memory_root_parity tests hold both together.
 """
 
 from __future__ import annotations

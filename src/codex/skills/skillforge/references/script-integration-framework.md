@@ -217,20 +217,40 @@ def execute_and_check(input_data):
 Scripts should attempt recovery before failing:
 
 ```python
-def resilient_operation(max_retries=3):
-    """Operation with automatic retry on recoverable errors."""
-    for attempt in range(max_retries):
+import logging
+import time
+from collections.abc import Callable
+
+
+class RecoverableError(Exception):
+    """An operation failure that is safe to retry."""
+
+
+def resilient_operation[T](
+    perform_operation: Callable[[], T],
+    fast_fail_check: Callable[[T], tuple[bool, str]],
+    fallback_result: Callable[[], T],
+    max_attempts: int = 3,
+) -> T:
+    """Retry recoverable failures and reject output that fails validation."""
+    if max_attempts < 1:
+        raise ValueError("max_attempts must be positive")
+
+    logger = logging.getLogger(__name__)
+    for attempt in range(1, max_attempts + 1):
         try:
             result = perform_operation()
             is_valid, reason = fast_fail_check(result)
             if is_valid:
                 return result
-            log(f"Attempt {attempt + 1} rejected: {reason}, retrying...")
-        except RecoverableError as e:
-            if attempt == max_retries - 1:
-                raise  # Final attempt, propagate error
-            log(f"Attempt {attempt + 1} failed: {e}, retrying...")
-            time.sleep(1)  # Brief delay before retry
+            logger.warning("Attempt %d rejected: %s", attempt, reason)
+        except RecoverableError as error:
+            if attempt == max_attempts:
+                raise
+            logger.warning("Attempt %d failed: %s", attempt, error)
+
+        if attempt < max_attempts:
+            time.sleep(1)
 
     return fallback_result()
 ```

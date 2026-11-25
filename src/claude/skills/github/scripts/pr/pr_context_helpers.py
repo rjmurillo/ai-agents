@@ -3,28 +3,12 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-from pathlib import Path
 from typing import Any
 
-_plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
-if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
-    _lib_dir = os.path.join(_plugin_root, "lib")
-else:
-    _lib_dir = ""
-    for parent in Path(__file__).resolve().parents:
-        candidate = parent / ".claude-plugin" / "plugin.json"
-        if candidate.is_file():
-            _lib_dir = str(parent / "lib")
-            break
-    if not _lib_dir:
-        _lib_dir = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
-        )
-if not os.path.isdir(_lib_dir):
-    print(f"Plugin lib directory not found: {_lib_dir}", file=sys.stderr)
-    sys.exit(2)
-if _lib_dir not in sys.path:
-    sys.path.insert(0, _lib_dir)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from skill_bootstrap import ensure_plugin_paths
+
+ensure_plugin_paths(__file__, discovery="manifest")
 
 from github_core.bot_config import canonicalize_login, is_bot
 

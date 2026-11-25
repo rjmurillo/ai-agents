@@ -24,6 +24,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 _PROBES = (
     "from hook_utilities.frontmatter_block import",
     "from hook_utilities import frontmatter_block",
+    "from hook_utilities.scan_rules import",
 )
 _BOOTSTRAP = "_LIB_DIR = Path(__file__).resolve().parents[3]"
 
