@@ -40,6 +40,33 @@ class TestFrontmatter:
         assert code == 1
         assert "frontmatter is not valid YAML" in out
 
+    @pytest.mark.parametrize("fence", ["----", "--- ", "---\t", "-----  "])
+    def test_fence_variants_the_shared_parser_accepts_are_read(
+        self, repo: Path, capsys: pytest.CaptureFixture[str], fence: str
+    ) -> None:
+        front = "name: demo\nallowed-tools: Read\nmetadata:\n  shape: driver\n"
+        write(repo, SKILL, f"{fence}\n{front}{fence}\n\n# Demo\n\nBody.\n")
+        commit(repo, "driver behind a variant fence")
+        code, out = run(repo, capsys)
+        assert code == 1
+        assert "metadata.shape changes from None to driver" in out
+
+    def test_unterminated_frontmatter_is_untagged(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        write(repo, SKILL, "---\nname: demo\nmetadata:\n  shape: driver\n\nBody.\n")
+        commit(repo, "no closing fence")
+        assert run(repo, capsys)[0] == 0
+
+    def test_malformed_yaml_behind_a_variant_fence_errors(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        write(repo, SKILL, "----\nname: [unclosed\n----\n\nBody\n")
+        commit(repo, "bad yaml")
+        code, out = run(repo, capsys)
+        assert code == 1
+        assert "frontmatter is not valid YAML" in out
+
     def test_no_frontmatter_is_untagged(
         self, repo: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:

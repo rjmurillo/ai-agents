@@ -12,10 +12,16 @@ import ast
 import difflib
 import re
 import subprocess
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path[:0] = [p for p in (str(_REPO_ROOT),) if p not in sys.path]
+
+from scripts.hook_utilities.frontmatter_block import split_frontmatter  # noqa: E402
 
 SHAPES = frozenset({"driver", "reference"})
 _SKILL_DIRS = ("src/claude/skills/{n}", ".claude/skills/{n}")
@@ -156,9 +162,16 @@ def read_skill(git: Git, ref: str, name: str) -> SkillSide:
 
 
 def _read_frontmatter(side: SkillSide, ref: str) -> None:
-    match = re.match(r"^---\n(.*?)\n---\n", side.skill_md, re.DOTALL)
+    """Fill shape and grants from the leading block.
+
+    The fences come from ``scripts/hook_utilities/frontmatter_block.py``, so
+    a ``----`` or ``--- `` fence reads here as it does for every other check.
+    The YAML load stays ``yaml.safe_load``: a skill file that repeats a key
+    is the frontmatter validator's finding, not this one.
+    """
+    split = split_frontmatter(side.skill_md)
     try:
-        front = yaml.safe_load(match.group(1)) if match else None
+        front = yaml.safe_load(split.raw) if split.found else None
     except yaml.YAMLError as exc:
         side.error = f"{ref}: frontmatter is not valid YAML: {exc}"
         return
