@@ -22,6 +22,8 @@ from tests.validation.skill_rewrite_helpers import (
 
 __all__ = ["repo"]
 
+import skill_rewrite_skills as skills
+
 
 class TestFrontmatter:
     def test_invalid_shape_value(self, repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -249,7 +251,7 @@ class TestDefinesTest:
         ],
     )
     def test_defined_in_the_named_chain(self, classes: list[str], func: str) -> None:
-        assert checker.defines_test(_TESTS, classes, func)
+        assert skills.defines_test(_TESTS, classes, func)
 
     @pytest.mark.parametrize(
         ("classes", "func"),
@@ -265,7 +267,7 @@ class TestDefinesTest:
         ],
     )
     def test_not_defined_in_the_named_chain(self, classes: list[str], func: str) -> None:
-        assert not checker.defines_test(_TESTS, classes, func)
+        assert not skills.defines_test(_TESTS, classes, func)
 
     def test_unparseable_source_is_not_defined(self) -> None:
-        assert not checker.defines_test("def test_x(:\n", [], "test_x")
+        assert not skills.defines_test("def test_x(:\n", [], "test_x")

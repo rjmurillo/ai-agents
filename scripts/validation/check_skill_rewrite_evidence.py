@@ -77,31 +77,27 @@ import hashlib
 import json
 import re
 import sys
-from dataclasses import dataclass, field
 from pathlib import Path
-from types import ModuleType
 from typing import Any
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _SCRIPT_DIR.parent.parent
 sys.path[:0] = [p for p in (str(_REPO_ROOT), str(_SCRIPT_DIR)) if p not in sys.path]
 
+from skill_rewrite_context import EVIDENCE_ROOT, RETIRED_FILE, Context  # noqa: E402
 from skill_rewrite_evidence import Expected, load_runner, verify_results  # noqa: E402
+from skill_rewrite_scenarios import load_scenarios  # noqa: E402
 from skill_rewrite_skills import (  # noqa: E402
-    _SKILL_DIRS,
     MOVE_MIN_LINES,
     Git,
     GitError,
     SkillSide,
-    defines_test,
     moved_lines,
     read_skill,
     reference_grant_findings,
 )
 
 EXIT_OK, EXIT_FINDINGS, EXIT_CONFIG = 0, 1, 2
-EVIDENCE_ROOT = "evals/skill-rewrites"
-RETIRED_FILE = "retired.json"
 _SKILL_PATH_PATTERNS = (
     re.compile(r"^templates/skills/(?P<n>[^/]+)\.SKILL\.md\.tmpl$"),
     re.compile(r"^src/claude/skills/(?P<n>[^/]+)/"),
@@ -143,94 +139,6 @@ def gate_reasons(name: str, base: SkillSide, head: SkillSide, paths: dict[str, s
     return reasons
 
 
-@dataclass
-class Context:
-    git: Git
-    base_ref: str
-    head: str
-    merge_base: str
-    commits: list[str]
-    runner: ModuleType
-    _changes: dict[str, dict[str, str]] = field(default_factory=dict)
-
-    def changes(self, commit: str) -> dict[str, str]:
-        """Path to status for one commit. ``--cc`` keeps a merge's own edits."""
-        if commit in self._changes:
-            return self._changes[commit]
-        raw = self.git.text(
-            "diff-tree",
-            "--no-commit-id",
-            "-r",
-            "-z",
-            "--cc",
-            "--name-status",
-            "--no-renames",
-            commit,
-        )
-        parts = [p for p in raw.split("\0") if p]
-        self._changes[commit] = {parts[i + 1]: parts[i] for i in range(0, len(parts) - 1, 2)}
-        return self._changes[commit]
-
-
-def _freeze_findings(ctx: Context, name: str, scenario_path: str) -> list[str]:
-    surface = (
-        f"templates/skills/{name}.SKILL.md.tmpl",
-        *(f"{d.format(n=name)}/" for d in _SKILL_DIRS),
-    )
-    last_scenario = first_surface = None
-    for index, commit in enumerate(ctx.commits):
-        files = ctx.changes(commit)
-        if scenario_path in files:
-            last_scenario = index
-        if first_surface is None and any(f.startswith(surface) for f in files):
-            first_surface = index
-    if last_scenario is not None and first_surface is not None and last_scenario >= first_surface:
-        return [
-            f"{scenario_path} changes in or after the first commit that touches the skill; "
-            "scenarios land in their own earlier commit and stay frozen"
-        ]
-    return []
-
-
-def _scenario_rows(data: bytes) -> list[dict[str, Any]] | None:
-    """The scenario rows, each a mapping with an ``id``, or None when the file is not that."""
-    try:
-        parsed = json.loads(data)
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        return None
-    rows = parsed.get("scenarios") if isinstance(parsed, dict) else None
-    if not isinstance(rows, list) or not all(isinstance(r, dict) and "id" in r for r in rows):
-        return None
-    return rows
-
-
-def _retired_findings(ctx: Context, name: str, dropped: list[str]) -> list[str]:
-    if not dropped:
-        return []
-    path = f"{EVIDENCE_ROOT}/{name}/{RETIRED_FILE}"
-    if path not in ctx.git.files(ctx.head, path):
-        return [f"scenarios {dropped} were dropped and {path} does not exist"]
-    try:
-        rows = json.loads(ctx.git.blob(ctx.head, path)).get("retired")
-    except (json.JSONDecodeError, UnicodeDecodeError, AttributeError):
-        rows = None
-    if not isinstance(rows, list):
-        return [f"{path} is not valid JSON with a 'retired' list"]
-    tests = {r.get("scenario"): r.get("test") for r in rows if isinstance(r, dict)}
-    problems = []
-    for sid in dropped:
-        test = tests.get(sid)
-        if not isinstance(test, str) or "::" not in test:
-            problems.append(f"dropped scenario {sid} has no replacing test in {path}")
-            continue
-        test_path, *classes, func = test.split("::")
-        found = test_path in ctx.git.files(ctx.head, test_path)
-        text = ctx.git.blob(ctx.head, test_path).decode("utf-8", "replace") if found else ""
-        if not (found and defines_test(text, classes, func)):
-            problems.append(f"dropped scenario {sid}: test {test} does not exist at HEAD")
-    return problems
-
-
 def _results_history(ctx: Context, results_dir: str) -> tuple[dict[str, int], list[str]]:
     """When each results file was added, and every edit or delete of one.
 
@@ -260,51 +168,6 @@ def _results_history(ctx: Context, results_dir: str) -> tuple[dict[str, int], li
     return added, problems
 
 
-def _label_findings(base: list[dict[str, Any]], head: list[dict[str, Any]]) -> list[str]:
-    """A kept scenario may not change its label (ADR-127 decision 7 item 10)."""
-    before = {str(r["id"]): str(r.get("expected_verdict")).strip().upper() for r in base}
-    return [
-        f"scenario {s['id']} changes expected_verdict from {before[str(s['id'])]!r} "
-        f"to {s['expected_verdict']!r}; a kept scenario's label may not change"
-        for s in head
-        if str(s["id"]) in before
-        and before[str(s["id"])] != str(s["expected_verdict"]).strip().upper()
-    ]
-
-
-@dataclass
-class _Scenarios:
-    path: str
-    data: bytes
-    rows: list[dict[str, Any]]
-
-
-def _load_scenarios(ctx: Context, name: str) -> tuple[_Scenarios | None, list[str]]:
-    """The head scenario file, plus findings against the merge base."""
-    path = f"tests/evals/{name}-scenarios.json"
-    if path not in ctx.git.files(ctx.head, path):
-        return None, [f"{path} does not exist; a gated skill needs a scenario file"]
-    data = ctx.git.blob(ctx.head, path)
-    rows = _scenario_rows(data)
-    if rows is None:
-        return None, [f"{path} is not valid scenario JSON with an id on every scenario"]
-    if not all("expected_verdict" in r for r in rows):
-        return None, [f"{path} has a scenario with no expected_verdict"]
-    problems = _freeze_findings(ctx, name, path)
-    if path in ctx.git.files(ctx.merge_base, path):
-        base = _scenario_rows(ctx.git.blob(ctx.merge_base, path))
-        if base is None:
-            return None, [
-                f"{path} does not parse at the merge base, so dropped scenarios and "
-                "label changes cannot be checked"
-            ]
-        head_ids = {str(r["id"]) for r in rows}
-        dropped = [str(r["id"]) for r in base if str(r["id"]) not in head_ids]
-        problems += _retired_findings(ctx, name, dropped)
-        problems += _label_findings(base, rows)
-    return _Scenarios(path, data, rows), problems
-
-
 def _load_results(ctx: Context, results_dir: str) -> tuple[dict[str, Any], list[str]]:
     """Every results file under *results_dir* at head, parsed."""
     paths = [
@@ -331,7 +194,8 @@ def _surface_sha(result: object) -> object:
 
 def verify_skill(ctx: Context, name: str, head: SkillSide) -> list[str]:
     """Findings for one gated skill's evidence."""
-    scen, problems = _load_scenarios(ctx, name)
+    scen, scenario_problems = load_scenarios(ctx, name)
+    problems: list[str] = list(scenario_problems)
     if scen is None:
         return problems
     results_dir = f"{EVIDENCE_ROOT}/{name}/"
@@ -374,7 +238,9 @@ _JUDGE_PATHS = (
     "scripts/eval/eval-prompt-change.py",
     "scripts/eval/_",
     "scripts/validation/check_skill_rewrite_evidence.py",
+    "scripts/validation/skill_rewrite_context.py",
     "scripts/validation/skill_rewrite_evidence.py",
+    "scripts/validation/skill_rewrite_scenarios.py",
     "scripts/validation/skill_rewrite_skills.py",
     "scripts/validation/checks_ci_parity.py",
     "scripts/validation/pre_pr_sequence.py",
