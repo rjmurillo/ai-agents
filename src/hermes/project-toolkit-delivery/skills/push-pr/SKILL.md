@@ -4,7 +4,7 @@ version: 1.0.0
 description: Commit the working tree, push the branch, and open a pull request on GitHub or Azure DevOps with the repository template filled in from the real diff. This is the only skill that creates a PR. Use when you say `push and open a PR`, `open a pull request`, or `push this branch`. Do NOT use to run the pre-ship review gates (use ship), and do NOT use to validate PR metadata alone (use validate-pr-description).
 license: Apache-2.0
 # Security note: python3 -I is the identity-hardened form.
-# The az grant is scoped to `az repos pr create` only. Never widen it to `az:*` or `Bash(*)`.
+# az is deliberately NOT granted. A prefix grant cannot limit its flags, so each ADO create prompts.
 # The Edit entry above is scoped to the secure allocator's output file only.
 # The Bash tool executor must sanitize arguments to prevent command injection (CWE-78).
 # Shell metacharacters (; && | etc.) should be escaped/rejected before execution.
@@ -102,8 +102,9 @@ Based on the above changes:
    ```
 
    `--preflight` checks the title format and the body file: its path, that it is a regular UTF-8 file, and that the placeholder line is gone.
-   It makes no network call and creates nothing. The dash and escaped newline
-   checks still run at step 7. Fix a rejection here.
+   It makes no network call and creates nothing. On `host=github` the dash and
+   escaped newline checks run again at step 7. On `host=ado` the Azure DevOps
+   section runs its own description check instead. Fix a rejection here.
 5. Check that the body names only files the diff touches, before the push. The
    required `Validate PR` check fails on a path the diff does not touch, and the
    fix costs a CI round after the PR opens. Commit first: local mode reads
@@ -163,18 +164,48 @@ step 3, the local checks from steps 4 and 5, and the push from step 6. Step 5
 carries its own fallback when the local validator is absent, such as in a
 plugin install.
 
+First check the title and body with the offline description validator. It
+needs no `gh` and makes no network call. Use the same title and body file
+that passed steps 4 and 5:
+
+```bash
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 -I "$d/lib/ptk_run.py" skills/github/scripts/pr/validate_pr_description.py --title "<conventional commit title>" --body-file ".project-toolkit/scratch/pr-body-<returned-uuid>.md" --fail-on-violation; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+```
+
+A non-zero exit means a violation or a check that could not run. Fix the title
+or body file, then re-run steps 4 and 5 and this check. Do not create the PR.
+
+Then create the PR. `az` is not in `allowed-tools`, so this command prompts
+the user, who sees every flag before it runs:
+
 ```bash
 az repos pr create --output json --title "<conventional commit title>" --description @<body-file-path-from-step-3>
 ```
 
 - Azure CLI replaces an argument that starts with `@` by the contents of that
   file, so `--description @<path>` sends the filled body file and never a shell
-  variable. Use the literal path from step 3.
-- Add `--target-branch <branch>` only when the PR must not target the
-  repository default branch. `--source-branch` defaults to the current branch.
+  variable.
+- The path MUST be the exact body file path from step 3 that passed steps 4
+  and 5, run from the same directory. No other argument may
+  start with `@`: Azure CLI reads any `@<path>` argument from disk and sends the
+  file to the server.
+- The title MUST be the exact string that passed step 4 and this check. It MUST
+  NOT contain `"`, `$`, or a backtick.
+- Run the command as shown. MUST NOT add any other flag, including
+  `--auto-complete`, `--bypass-policy`, `--bypass-policy-reason`,
+  `--delete-source-branch`, `--merge-commit-message`, `--org`, `--project`,
+  `--repository`, `--reviewers`, `--required-reviewers`, `--work-items`,
+  `--transition-work-items`, `--open`, or `--source-branch`. The one exception:
+  add `--target-branch <branch>` only when the PR must not target the
+  repository default branch.
 - A non-zero exit means no PR was created. Report FAIL with the `az` stderr and
   stop. Never retry with a different command shape.
-- On success, read `pullRequestId` from the JSON output. Report it, and the PR
+- On exit 0, check the `description` field of the JSON output. If it starts
+  with `@`, Azure CLI could not read the body file and sent the path text
+  instead. It does this silently, logging only at debug level. Report FAIL
+  with the `pullRequestId` and ask the user whether to fix or abandon that PR.
+  Do not abandon or edit it without their answer.
+- Otherwise read `pullRequestId` from the JSON output. Report it, and the PR
   link `<repository.webUrl>/pullrequest/<pullRequestId>`, in the Output block.
 - The Windows PR Body Fallback below changes only how the body file is made.
   The `az` command stays the same.
@@ -261,7 +292,7 @@ You have the capability to call multiple tools in a single response. You MUST do
 | Numbered acceptance criteria | The Validate Spec Coverage job reads `- [ ]` and `* [ ]` only, so numbered items are invisible to it | Use checkbox bullets |
 | Checking a criterion box before it is met | The signal reports a pass the PR does not have, and the FAIL it should have shown does not block merge | Check a box only once the criterion holds |
 | Widening the `allowed-tools` grant to bare `Bash` | Removes the CWE-78 argument scoping that makes this skill safe to auto-approve | Add a specific scoped entry |
-| Granting `az:*` or `Bash(*)` for the ADO branch | Lets any `az` subcommand run unreviewed | Keep `Bash(az repos pr create:*)` only |
+| Granting any `az` entry, including `az repos pr create:*`, for the ADO branch | A prefix grant auto-approves every flag, such as `--bypass-policy`, `--auto-complete`, or an `@<path>` that uploads a local file | Leave `az` ungranted so each create prompts |
 | Creating a PR from `/ship` or any other skill | Splits title, body, and validation rules across two places | Call `/push-pr` and read its Output block |
 | Committing when the tree is clean | Moves HEAD off the `/review` marker commit `/ship` verified | Push `HEAD` as it stands |
 

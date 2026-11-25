@@ -5,12 +5,14 @@
 overlapped with `/push-pr`, which already validates title and body. These tests pin the
 split in both rendered copies (Claude and Copilot):
 
-- `/push-pr` owns the ADO branch, a scoped `az` grant, and the clean-tree contract.
+- `/push-pr` owns the ADO branch and the clean-tree contract. It grants no `az`
+  entry, so each ADO create prompts the user.
 - `/ship` step 3 calls `/push-pr` for both hosts and creates nothing itself.
 - `/ship` still discharges the ADO deferred pipeline with `pullRequestId` from `/push-pr`.
 
-Inverse failure modes pinned: an unscoped `az` or `Bash(*)` grant on `/push-pr`, and a
-ship step 4 that no longer reads the PR id from `/push-pr`.
+Inverse failure modes pinned: any `az` or `Bash(*)` grant on `/push-pr`, an ADO create
+with no description check or no `@`-fallback check, and a ship step 4 that no longer
+reads the PR id from `/push-pr`.
 """
 
 from __future__ import annotations
@@ -31,7 +33,7 @@ from tests.commands.test_ship_first_pr_ordering import (
 
 PUSH_PR_PATH = REPO_ROOT / ".claude" / "skills" / "push-pr" / "SKILL.md"
 PUSH_PR_MIRROR_PATH = REPO_ROOT / "src" / "copilot-cli" / "skills" / "push-pr" / "SKILL.md"
-SCOPED_AZ_GRANT = "Bash(az repos pr create:*)"
+VALIDATOR_GRANT = "Bash(python3:-I */pr/validate_pr_description.py*)"
 _ALLOWED_TOOLS_RE = re.compile(r"^allowed-tools: (?P<value>.*)$", re.MULTILINE)
 _GRANT_RE = re.compile(r"Bash\((?:[^()]|\([^()]*\))*\)|[A-Za-z]+\([^)]*\)|[A-Za-z]+")
 
@@ -100,8 +102,31 @@ class TestPushPrOwnsAdoCreation:
         assert "Co-Authored-By" in contract
         assert push_pr_text.count("MUST NOT create a commit") == 1
 
-    def test_scoped_az_grant_present(self, push_pr_text: str) -> None:
-        assert SCOPED_AZ_GRANT in grants_of(push_pr_text)
+    def test_ado_validates_description_before_create(self, push_pr_text: str) -> None:
+        ado = section(push_pr_text, "Azure DevOps PR Creation")
+        check = ado.find("validate_pr_description.py")
+        create = ado.find("az repos pr create --output json")
+        assert check != -1
+        assert "--fail-on-violation" in ado
+        assert check < create
+        assert VALIDATOR_GRANT in grants_of(push_pr_text)
+
+    def test_ado_forbids_extra_az_flags(self, push_pr_text: str) -> None:
+        ado = section(push_pr_text, "Azure DevOps PR Creation")
+        assert "MUST NOT add any other flag" in ado
+        for flag in ("--auto-complete", "--bypass-policy", "--org", "--project", "--source-branch"):
+            assert f"`{flag}`" in ado
+
+    def test_ado_binds_body_path_and_bans_other_at_arguments(self, push_pr_text: str) -> None:
+        ado = section(push_pr_text, "Azure DevOps PR Creation")
+        assert "No other argument may" in ado
+        assert "passed steps 4 and 5" in " ".join(ado.split())
+
+    def test_ado_detects_silent_at_fallback(self, push_pr_text: str) -> None:
+        ado = section(push_pr_text, "Azure DevOps PR Creation")
+        assert "`description` field" in ado
+        assert "If it starts with `@`" in " ".join(ado.split())
+        assert "Do not abandon or edit it without their answer" in ado
 
     def test_identity_hardened_forms_unchanged(self, push_pr_text: str) -> None:
         grants = grants_of(push_pr_text)
@@ -110,9 +135,15 @@ class TestPushPrOwnsAdoCreation:
 
 
 class TestPushPrGrantIsNotBroadened:
-    def test_no_unscoped_az_grant(self, push_pr_text: str) -> None:
-        az = [g for g in grants_of(push_pr_text) if "az" in g.replace("--frozen", "")]
-        assert az == [SCOPED_AZ_GRANT]
+    def test_no_az_grant_at_all(self, push_pr_text: str) -> None:
+        """A prefix grant would auto-approve `--bypass-policy` and `@<path>` uploads."""
+        az = [g for g in grants_of(push_pr_text) if re.search(r"\baz\b", g)]
+        assert az == []
+
+    def test_az_detector_sees_a_scoped_az_grant(self) -> None:
+        """Negative control: the `az` detector fires on the grant this file bans."""
+        grants = grants_of("allowed-tools: Bash(git add:*), Bash(az repos pr create:*)\n")
+        assert [g for g in grants if re.search(r"\baz\b", g)] == ["Bash(az repos pr create:*)"]
 
     def test_no_wildcard_bash_grant(self, push_pr_text: str) -> None:
         grants = grants_of(push_pr_text)
