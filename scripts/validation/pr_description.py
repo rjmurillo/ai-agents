@@ -1284,8 +1284,8 @@ def validate_pr_description(
                         "change claims; paths elsewhere are informational. "
                         "Remove the path, move it out of that heading, or wrap "
                         "it in a code fence. "
-                        # CONTRIBUTING.md:1076, section "Bypassing Description
-                        # Validation", reads verbatim: "1. A human maintainer
+                        # CONTRIBUTING.md:1076, in the section Bypassing
+                        # Description Validation, reads verbatim: "1. A human maintainer
                         # MUST add the `description-validation-bypass` label
                         # (case-insensitive match)". Naming it as the reader's
                         # own next step tells an agent to grant itself a
