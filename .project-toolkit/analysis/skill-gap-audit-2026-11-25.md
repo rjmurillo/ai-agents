@@ -194,8 +194,9 @@ Richard reversed the G-049 ruling the same day.
 
 The G-049 row follows a review finding. A reviewer on PR #7579 read the publish procedure at lines 139-146 as an instruction to push.
 That procedure tells the reader to push the topic branch, so the skill meets the driver test above.
-The row again proposes `rewrite_branch_history.py`. Finding 1 below still bars a script from a force push.
-So the rewrite thread can script the rebase, and the lease-pinned push stays a human step.
+The row again proposes `rewrite_branch_history.py`. As first scored, that script also made the lease-pinned push.
+Finding 1 below still bars a script from a force push, so the row now scopes the script to the rebase.
+The lease-pinned push stays a human step.
 
 Two more calls for the owner:
 
@@ -232,7 +233,7 @@ Those two go first in their own change. The P1 and P2 members of groups 3 and 4 
 | 2 | Evidence check | none (decision 9 check and the ADR-057 amendment) | No second gated change merges before it. |
 | 3 | PR write surface | `github`, `pr-comment-responder`, `pr-review` | They share the PR and thread scripts. |
 | 4 | PR automation | `pr-autofix`, `pr-babysit`, `merge-resolver` | They share branch update and push steps. |
-| 5 | Branch rewrite | `modernize`, `takeover`, `git-advanced-workflows` | All three meet the force-push ruling in finding 1. |
+| 5 | Branch rewrite | `modernize`, `takeover`, `git-advanced-workflows` | All three rewrite or replace a PR branch. `modernize` and `git-advanced-workflows` meet the force-push ruling in finding 1. |
 | 6 | Azure DevOps | `pipeline-validator`, `windows-image-updater` | Both drive Azure DevOps and git with no scripts. |
 | 7 | Grants on lifecycle skills | `build`, `review`, `test`, `validate-pr-description`, `pr-quality` | Narrow `Bash(*)` and move the fixed gate steps into scripts. |
 | 8 | Conditional writers | `sol-loop`, `research`, `skillopt` | `sol-loop` and `research` push or file only after a user yes. `skillopt` deploys a candidate and hands the push to `ship`. |
@@ -299,7 +300,7 @@ One exception: `pr-babysit` is P2 but rides in group 4, because it shares that g
 | G-046 | `evidence-provenance` | reference | line 62: one local script | none | none | none | verdict: no; activation: yes | P3 | The script owns classification. |
 | G-047 | `execution-plans` | reference | plan writing guidance; no shell | none | none | none | verdict: no; activation: no | P3 | No shell. |
 | G-048 | `fix-markdown-fences` | reference | lines 312-316: a quick check; the fixer writes working-tree files | line 312: a one-line grep fallback | none | none | verdict: no; activation: no | P3 | The fixer and write guard exist. |
-| G-049 | `git-advanced-workflows` | driver | lines 139-146: the publish procedure says to commit, rebase, and "Push the topic branch"; lines 42-52: `rebase -i` then a lease-pinned force push | lines 42-52: nine-line fetch, rebase, and push block; lines 65-70: split-commit sequence; lines 249-254: abort block | rewrite_branch_history.py (rebase and lease-pinned push); abort_git_operation.py (abort an in-progress operation) | none | verdict: no; activation: no | P0 | Pushes and rewrites history with no script. A reviewer on PR #7579 showed the publish procedure is an instruction, not an example. |
+| G-049 | `git-advanced-workflows` | driver | lines 139-146: the publish procedure says to commit, rebase, and "Push the topic branch"; lines 42-52: `rebase -i` then a lease-pinned force push | lines 42-52: nine-line fetch, rebase, and push block; lines 65-70: split-commit sequence; lines 249-254: abort block | rewrite_branch_history.py (rebase only; the lease-pinned push stays a human step); abort_git_operation.py (abort an in-progress operation) | none | verdict: no; activation: no | P0 | Pushes and rewrites history with no script. A reviewer on PR #7579 showed the publish procedure is an instruction, not an example. |
 | G-050 | `github` | driver | line 130: create PR; line 134: comment; line 149: close PR; line 150: merge | lines 126-150: routing tree to about 20 mutating scripts; lines 166-170: three multi-line locator blocks | route_github_operation.py (map intent to script and args) | none | verdict: no; activation: yes | P1 | Mutating and high traffic, with a script behind each write. Over the 12 KiB driver budget. |
 | G-051 | `github-url-intercept` | reference | lines 47-56: read-only `gh api` calls | lines 47-56: the model fills owner, repo, and path; lines 139-146: URL parse in prose; lines 110-130: routing tree | route_github_url.py (parse URL and fetch JSON) | none | verdict: no; activation: no | P1 | A blocking intercept on every GitHub URL. Parsing is a fixed step. |
 | G-052 | `golden-principles` | reference | lines 64-83: read-only scan | lines 64-83: six variants of one scan command | none | none | verdict: no; activation: no | P3 | The script owns the scan. |
