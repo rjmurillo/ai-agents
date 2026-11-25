@@ -149,7 +149,12 @@ class TestFlagsMatchRealDelegateContracts:
         assert exit_code == 3
         err = capsys.readouterr().err
         assert "install_codeql.py --add-to-path" in err
-        assert "pwsh" not in err
+        # The hint embeds the interpreter and checkout paths. A path may itself
+        # contain "pwsh" (a branch named fix-pwsh-...), so mask them first.
+        hint = err.replace(wrapper._python_executable(), "<python>").replace(
+            str(tmp_path), "<repo>"
+        )
+        assert "pwsh" not in hint
 
 
 class TestWrapperRunsInThisRepository:
