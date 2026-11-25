@@ -9,7 +9,7 @@ import sys
 import pytest
 
 from tests.skills.ship.conftest import git
-from tests.skills.ship.ship_helpers import SCRIPTS, invoke, values
+from tests.skills.ship.ship_helpers import SCRIPTS, approved_ado_build, invoke, values
 
 GITHUB = "https://github.com/rjmurillo/ai-agents.git"
 ADO = "https://dev.azure.com/contoso/p/_git/r"
@@ -240,16 +240,7 @@ class TestPreflightEdges:
             {"stdout": json.dumps(state)},
             {"rc": 1, "stderr": "TF000\n"},
         )
-        fakes.rule(
-            "az",
-            ["repos", "pr", "policy", "list"],
-            {"stdout": json.dumps([{"status": "approved", "buildId": 5}])},
-        )
-        fakes.rule(
-            "az",
-            ["pipelines", "build", "show"],
-            {"stdout": json.dumps({"result": "succeeded", "sourceVersion": MERGE})},
-        )
+        approved_ado_build(fakes, MERGE)
         code, lines = invoke(scripts[2], ["--check", "pipeline", "--wait-seconds", "0"], capsys)
         assert code == 3
         assert lines[-1].startswith("STOP: pipeline-query-failed")

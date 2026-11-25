@@ -160,3 +160,17 @@ Path(os.environ["SHIP_BRANCH_SENTINEL"]).write_text("branch validator ran")
 print("CRITICAL: branch copy")
 raise SystemExit(1)
 """
+
+
+def approved_ado_build(fakes, merge: str) -> None:
+    """Return an approved build for the supplied merge commit."""
+    fakes.rule(
+        "az",
+        ["repos", "pr", "policy", "list"],
+        {"stdout": json.dumps([{"status": "approved", "buildId": 5}])},
+    )
+    fakes.rule(
+        "az",
+        ["pipelines", "build", "show"],
+        {"stdout": json.dumps({"result": "succeeded", "sourceVersion": merge})},
+    )

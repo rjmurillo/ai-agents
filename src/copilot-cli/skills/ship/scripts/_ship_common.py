@@ -91,7 +91,7 @@ def _strip_userinfo(text: str) -> str:
         start = token_end
 
 
-def _load_sibling(
+def load_sibling(
     name: str,
 ):  # pragma: no cover - runs only in a fresh interpreter; see test_ship_edges.py::test_script_runs_under_isolated_mode
     if name in sys.modules:
@@ -106,8 +106,8 @@ def _load_sibling(
     return module
 
 
-_remote = _load_sibling("_ship_remote")
-_paths = _load_sibling("_ship_paths")
+_remote = load_sibling("_ship_remote")
+_paths = load_sibling("_ship_paths")
 SCRATCH_REL = _paths.SCRATCH_REL
 scratch_dir = _paths.scratch_dir
 write_private = _paths.write_private

@@ -27,29 +27,19 @@ def scratch_dir(root: Path, create: bool = False) -> Path | None:
     """
     try:
         real_root = root.resolve(strict=True)
-    except (OSError, RuntimeError):
-        return None
-    current = real_root
-    for part in SCRATCH_REL.parts:
-        current = current / part
-        if current.is_symlink():
-            return None
-        if not current.exists():
-            if not create:
+        current = real_root
+        for part in SCRATCH_REL.parts:
+            current /= part
+            if current.is_symlink():
                 return None
-            try:
+            if create and not current.exists():
                 current.mkdir(mode=0o700)
-            except OSError:
+            if not current.is_dir():
                 return None
-        if not current.is_dir():
-            return None
-    try:
         resolved = current.resolve(strict=True)
     except (OSError, RuntimeError):
         return None
-    if resolved != real_root / SCRATCH_REL:
-        return None
-    return resolved
+    return resolved if resolved == real_root / SCRATCH_REL else None
 
 
 def _create_private(path: Path, text: str) -> bool:
@@ -95,18 +85,10 @@ def stored_int(root: Path, name: str, initial: int) -> int:
 
 def confine_body_file(raw: str, root: Path) -> Path | None:
     """Return the resolved body file when it is a regular file in the scratch dir."""
-    if not raw or raw.startswith("-") or raw.startswith("@"):
-        return None
-    candidate = Path(raw)
-    if not candidate.is_absolute():
-        candidate = root / candidate
-    scratch = scratch_dir(root)
-    if scratch is None:
+    if not raw or raw.startswith(("-", "@")) or (scratch := scratch_dir(root)) is None:
         return None
     try:
-        resolved = candidate.resolve(strict=True)
+        resolved = (root / raw).resolve(strict=True)
     except (OSError, RuntimeError):
         return None
-    if scratch not in resolved.parents or not resolved.is_file():
-        return None
-    return resolved
+    return resolved if scratch in resolved.parents and resolved.is_file() else None

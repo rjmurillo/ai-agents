@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from tests.skills.ship.conftest import git
-from tests.skills.ship.ship_helpers import invoke, symlink_or_skip, values
+from tests.skills.ship.ship_helpers import approved_ado_build, invoke, symlink_or_skip, values
 
 GITHUB = "https://github.com/rjmurillo/ai-agents.git"
 ADO = "https://dev.azure.com/contoso/p/_git/r"
@@ -389,16 +389,7 @@ class TestCiBinding:
             {"stdout": json.dumps(first)},
             {"stdout": json.dumps(moved)},
         )
-        fakes.rule(
-            "az",
-            ["repos", "pr", "policy", "list"],
-            {"stdout": json.dumps([{"status": "approved", "buildId": 5}])},
-        )
-        fakes.rule(
-            "az",
-            ["pipelines", "build", "show"],
-            {"stdout": json.dumps({"result": "succeeded", "sourceVersion": MERGE})},
-        )
+        approved_ado_build(fakes, MERGE)
         code, lines = invoke(scripts[2], ["--check", "pipeline", "--wait-seconds", "0"], capsys)
         assert code == 0
         assert values(lines, "CHECK") == ["pipeline=PENDING pr=77 head moved during the check"]

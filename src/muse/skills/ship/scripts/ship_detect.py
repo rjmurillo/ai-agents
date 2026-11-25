@@ -19,22 +19,15 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-
-def _load_common():  # pragma: no cover - runs only in a fresh interpreter; see test_ship_edges.py::test_script_runs_under_isolated_mode
-    name = "_ship_common"
-    path = Path(__file__).resolve().with_name(f"{name}.py")
-    if name in sys.modules:
-        return sys.modules[name]
-    spec = importlib.util.spec_from_file_location(name, path)
-    if spec is None or spec.loader is None:  # pragma: no cover - defensive
-        raise ImportError(f"cannot load {path}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-common = _load_common()
+# Absolute loading works under -I without adding a directory to sys.path.
+if "_ship_common" not in sys.modules:  # pragma: no cover - exercised by the isolated CLI tests
+    spec = importlib.util.spec_from_file_location(
+        "_ship_common", Path(__file__).with_name("_ship_common.py")
+    )
+    assert spec is not None and spec.loader is not None
+    sys.modules[spec.name] = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(sys.modules[spec.name])
+common = sys.modules["_ship_common"]
 
 SCRIPT = "ship_detect.py"
 REASONS = frozenset(
