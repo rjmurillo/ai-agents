@@ -291,9 +291,9 @@ five hooks retired here is a security control by property. All five are
 cost or correctness guards (session-model spend, cross-worktree data
 integrity, memory bookkeeping), not authentication, injection, or
 secret-handling controls, which is what the carve-out's operative sentence
-protects. `.claude/rules/tool-use-hook-bar.md` already states of
+protects. The former `tool-use-hook-bar` rule stated, when this record was written, of
 `require_subagent_model`: "it is not a security boundary; its own docstring
-says so." The two Serena guards could plausibly be read as security-adjacent
+says so." (The rule now lives at `.claude/skills/skillforge/references/rule-tool-use-hook-bar.md` and no longer carries that sentence.) The two Serena guards could plausibly be read as security-adjacent
 (Serena memories are agent-steering instructions, so a misplaced write puts
 unreviewed instruction content into a tree a later PR commits), but no
 adversary is required to trigger them, the trigger is the Serena server
@@ -355,8 +355,8 @@ overrides for these five specifically.
   post-failure memory suggestion no longer run automatically; a contributor
   who wants either must invoke the underlying scripts by hand until a future
   decision lands a CI or Lefthook equivalent.
-- `.claude/rules/tool-use-hook-bar.md`'s "Applying the bar to what ships
-  today" section becomes stale the moment this merges (it names hooks 1 and
+- The "Applying the bar to what ships today" section of the former `tool-use-hook-bar` rule (now at `.claude/skills/skillforge/references/rule-tool-use-hook-bar.md`, where it reads "What ships today: nothing")
+  becomes stale the moment this merges (it names hooks 1 and
   4 as live) and must be rewritten in the same or immediately following
   change, or it misleads the next reader about what is actually registered.
 - Re-adding any tool-call hook in the future means rebuilding the Copilot
@@ -385,7 +385,7 @@ overrides for these five specifically.
 
 | Component | Dependency Type | Required Update | Risk |
 |---|---|---|---|
-| `.claude/rules/tool-use-hook-bar.md` (+ generated mirrors `.github/instructions/tool-use-hook-bar.instructions.md`, `src/copilot-cli/instructions/`) | Direct | Rewrite "Applying the bar to what ships today" to state zero hooks are registered (it is already stale before this merges: it names `require_subagent_model` as "the only one," which stopped being true when the two Serena guards landed); regenerate mirrors with `build/scripts/generate_rules.py` per `.claude/rules/generated-artifacts.md` | Medium: an always-on injected rule actively misleads every agent session until fixed |
+| The former `tool-use-hook-bar` rule (now at `.claude/skills/skillforge/references/rule-tool-use-hook-bar.md`) (then with generated mirrors `.github/instructions/tool-use-hook-bar.instructions.md`, `src/copilot-cli/instructions/`) | Direct | Rewrite "Applying the bar to what ships today" to state zero hooks are registered (it is already stale before this merges: it names `require_subagent_model` as "the only one," which stopped being true when the two Serena guards landed); regenerate mirrors with `build/scripts/generate_rules.py` per `.claude/rules/generated-artifacts.md` | Medium: an always-on injected rule actively misleads every agent session until fixed |
 | `tests/hooks/test_dispatch_groups_parity.py` | Direct | Remove the 5 retired entries from `AUTHORIZED_HOOKS`; confirm `test_the_customer_value_check_examines_a_nonempty_surface` handles a deliberately empty vendored surface (its own docstring anticipates this case) | Low: test already anticipates this |
 | `src/copilot-cli/hooks/` generated tree | Direct (generated) | Regenerate via `build/scripts/build_all.py`; never hand-edit; investigate the orphaned `src/copilot-cli/hooks/PreToolUse/markdownlint-safe-config.yaml` and `.claude/hooks/PreToolUse/_bootstrap.py` the regeneration left behind | Low: generator confirmed idempotent on the empty case (re-ran `build_all.py`, zero further diff), orphans are cleanup not correctness. Amended 2026-10-11: PR #6260 (merge commit 44bc741e4) deleted every copy of the config, and `_bootstrap.py` is now a canonical template at `templates/hooks/PreToolUse/_bootstrap.py`. |
 | `scripts/validation/validate_hook_anchoring.py` | Direct | Currently red: `uv run --frozen python scripts/validation/validate_hook_anchoring.py` exits 2 ("no hook events in src/copilot-cli/hooks/hooks.json", "no command hooks in .claude/hooks/hooks.json"). Wired into `pre_pr.py`, `lefthook.yml`, and `.github/workflows/validate-plugin-manifests.yml`. Needs an explicit disposition: permit zero hooks as a valid anchored state, or retire the validator | High: blocks every push and PR until resolved |
@@ -455,8 +455,8 @@ rule 6), push, and confirm the draft PR.
   this ADR takes one increment further, from reduced-but-nonzero spawns to
   zero, for the same root cause (issue #3075).
 - ADR-084 (Vendored Hook ROI Bar). Its security carve-out does not apply
-  here (see Decision section 4). Its rule 6 cost bar
-  (`.claude/rules/tool-use-hook-bar.md`) becomes largely moot for the
+  here (see Decision section 4). Its rule 6 cost bar,
+  the former `tool-use-hook-bar` rule (now at `.claude/skills/skillforge/references/rule-tool-use-hook-bar.md`), becomes largely moot for the
   vendored surface once it carries zero tool-use hooks, though the rule
   itself is not retired by this ADR and needs its own follow-up edit.
 - ADR-085 (Cross-Harness Permission-Surface Asymmetry and Hook Survivor

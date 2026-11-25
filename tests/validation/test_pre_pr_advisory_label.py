@@ -6,7 +6,7 @@ code is 0 by design. A reader scanning the run still saw the word "FAIL" and the
 word "passed" together and could not tell which one governed the push.
 
 These drive the real ``main`` and read its stdout, so what is pinned is the
-process's own output (``.claude/rules/testing.md`` MUST 8). Each JSON row keeps
+process's own output (``rule-testing.md`` MUST 8). Each JSON row keeps
 its typed ``FAIL``. Only the console label and the JSON parent state change.
 """
 

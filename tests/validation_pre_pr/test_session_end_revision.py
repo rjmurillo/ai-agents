@@ -12,7 +12,7 @@ against"; a placeholder names a revision the reader cannot falsify, which is
 indistinguishable from naming nothing.
 
 The subprocess fake dispatches on ``argv`` rather than on call order, per
-``.claude/rules/testing.md`` SHOULD 11: ``validate_session_end`` issues its diff
+``rule-testing.md`` SHOULD 11: ``validate_session_end`` issues its diff
 and its rev-parse from two different branches, and a positional list would hand
 the rev-parse response to the diff the moment either branch changed.
 """

@@ -1,6 +1,6 @@
 """The untrusted-content policy has one text, rendered from two partial trees.
 
-`templates/rules/security.md` owns the capability `untrusted-content-handling`
+`templates/rules/universal.md` owns the capability `untrusted-content-handling`
 (ADR-110). Skills and agents include its text rather than restating it, and the
 skill renderer and the agent renderer read separate partial directories, so the
 canonical text exists as two files. This pins them byte-identical, because a
@@ -34,10 +34,11 @@ def test_the_partial_states_the_invariant() -> None:
 
 
 def test_the_owning_rule_declares_the_capability() -> None:
-    rule = (_REPO_ROOT / "templates" / "rules" / "security.md").read_text(encoding="utf-8")
+    owner = (_REPO_ROOT / "templates" / "rules" / "universal.md").read_text(encoding="utf-8")
+    frontmatter = owner.split("---", 2)[1]
 
-    assert "untrusted-content-handling" in rule
-    assert "capability:" in rule
+    assert "capability:" in frontmatter
+    assert "owns:\n      - untrusted-content-handling" in frontmatter
 
 
 def test_no_skill_template_restates_the_policy_it_includes() -> None:

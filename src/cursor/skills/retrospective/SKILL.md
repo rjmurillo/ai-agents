@@ -1,7 +1,7 @@
 ---
 name: retrospective
 version: 0.1.0
-description: Extract learnings from a session or task through structured retrospective frameworks. Gathers evidence, runs Five Whys and fishbone diagnosis, scores atomicity, and writes a canonical retrospective artifact. Use to turn execution experience into institutional knowledge. Use when you say "run a retrospective", "retro fill", "list pending retros", or "extract learnings from this session". Do NOT use for in-conversation correction capture (use the reflect skill).
+description: Extract learnings from a session or task through structured retrospective frameworks. Gathers evidence, runs Five Whys and fishbone diagnosis, scores atomicity, and writes a canonical retrospective artifact. Use to turn execution experience into institutional knowledge. Use when you say "run a retrospective", "retro fill", "list pending retros", or "extract learnings from this session". Also use when creating or editing a file under .project-toolkit/retrospective or docs/retros (filename, failure-mode class, evidence, remediation), or deciding whether a retro is owed after a red main, revert, or user correction. Do NOT use for in-conversation correction capture (use the reflect skill).
 license: Apache-2.0
 metadata:
   domains: [retrospective, learning-extraction, root-cause-analysis, continuous-improvement]
@@ -102,6 +102,8 @@ Artifact) and use the digest to locate evidence. When it lacks a detail, search 
 raw source for that detail and read the matching lines with their context.
 
 ---
+
+Folded rule: before you create or edit a retrospective file under `.project-toolkit/retrospective/` or `docs/retros/`, or decide whether a retro is owed, read [retros](references/rule-retros.md).
 
 ## Process
 

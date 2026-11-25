@@ -229,7 +229,7 @@ class TestBundledLibStaysAtTheFloor:
         Written under tmp_path, not into the repository. An earlier version
         planted the probe beside this file, which leaves a stray module in the
         working tree whenever the assertion fails before the unlink
-        (`.claude/rules/testing.md` MUST NOT 4).
+        (`rule-testing.md` MUST NOT 4).
 
         `asyncio.timeout` is the case the anywhere-table deliberately cannot
         see, so it also proves the from-import table is doing work of its own.

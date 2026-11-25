@@ -44,15 +44,9 @@ EXPECTED_RULES = frozenset(
         "knowledge-persistence",
         "plugin-self-containment",
         "plugin-version-bump",
-        "push-lock",
-        "python",
-        "retros",
         "secret-redaction",
-        "security",
         "session-logs",
         "templates",
-        "testing",
-        "tool-use-hook-bar",
         "unified-software-engineering",
         "universal",
         "voice",
@@ -150,10 +144,14 @@ class TestLosslessRendering:
         installed = {p.stem for p in (_REPO_ROOT / ".claude" / "rules").glob("*.md")}
         assert installed == EXPECTED_RULES
 
-    def test_testing_rule_uses_the_literal_brace_escape(self) -> None:
-        """testing.md templates its GitHub Actions example through the escape."""
-        template = (_REPO_ROOT / "templates" / "rules" / "testing.md").read_text(encoding="utf-8")
-        rendered = (_REPO_ROOT / ".claude" / "rules" / "testing.md").read_text(encoding="utf-8")
+    def test_knowledge_persistence_rule_uses_the_literal_brace_escape(self) -> None:
+        """knowledge-persistence.md templates its GitHub Actions example through the escape."""
+        template = (_REPO_ROOT / "templates" / "rules" / "knowledge-persistence.md").read_text(
+            encoding="utf-8"
+        )
+        rendered = (_REPO_ROOT / ".claude" / "rules" / "knowledge-persistence.md").read_text(
+            encoding="utf-8"
+        )
         assert "$\\{{ a && b }}" in template
         assert "${{ a && b }}" in rendered
         assert "\\{{" not in rendered

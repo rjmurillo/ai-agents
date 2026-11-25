@@ -1,7 +1,7 @@
 ---
 name: push-pr
 version: 1.0.0
-description: Commit the working tree, push the branch, and open a pull request with the repository template filled in from the real diff. Use when you say `push and open a PR`, `open a pull request`, or `push this branch`. Do NOT use to run the pre-ship review gates (use ship), and do NOT use to validate PR metadata alone (use validate-pr-description).
+description: Commit the working tree, push the branch, and open a pull request with the repository template filled in from the real diff. Use when you say `push and open a PR`, `open a pull request`, or `push this branch`. Also use when writing a push recipe or runbook step, serializing pushes with flock or a push lock file (the lock file under $HOME/src/scratch/locks), or quoting the old /tmp push lock. Do NOT use to run the pre-ship review gates (use ship), and do NOT use to validate PR metadata alone (use validate-pr-description).
 license: Apache-2.0
 metadata:
   routing:
@@ -31,6 +31,8 @@ carry over unchanged: they are the security contract, not formatting.
 - Current git status: !`git status`
 - Current git diff (staged and unstaged changes): !`git diff HEAD`
 - Current branch: !`git branch --show-current`
+
+Folded rule: before you write, run, or quote a push lock or any command that serializes `git push`, read [push-lock](references/rule-push-lock.md).
 
 ## Process
 

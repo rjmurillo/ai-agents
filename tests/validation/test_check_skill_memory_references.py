@@ -8,7 +8,7 @@ not resolve, the blocking phase failed for any agent that followed the
 instruction literally, and nothing in the repository could observe it.
 
 Every behavioral test drives ``main(argv)`` and asserts the integer it
-returns, per ``.claude/rules/testing.md`` MUST 8. Asserting that
+returns, per ``rule-testing.md`` MUST 8. Asserting that
 ``collect_findings`` returned a non-empty list would prove detection and say
 nothing about whether the program fails, which is the silent-pass shape this
 repository has hit six times (Issue #4068).

@@ -90,7 +90,7 @@ def _track(repo: Path, relative: str) -> None:
 
     Without this the file is untracked, the gate never reads it, and a test
     asserting the tree is clean passes because nothing was examined. That is the
-    vacuous shape `.claude/rules/testing.md` SHOULD 14 names.
+    vacuous shape `rule-testing.md` SHOULD 14 names.
     """
     _git(repo, "add", "--force", "--", relative)
     assert relative in _git(repo, "ls-files", "--", relative).stdout

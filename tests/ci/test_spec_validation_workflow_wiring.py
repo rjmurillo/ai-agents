@@ -14,7 +14,7 @@ appears and the gate goes back to failing closed on command-execution criteria,
 which is the bug issue #5366 exists to fix.
 
 Asserted against the parsed object graph, never a substring of the YAML text,
-per `.claude/rules/testing.md` MUST-9, quoted verbatim:
+per `rule-testing.md` MUST-9, quoted verbatim:
 
     Assert on parsed structure, never on a substring of a structured file. A
     test that checks wiring in YAML, JSON, or TOML MUST parse the document and

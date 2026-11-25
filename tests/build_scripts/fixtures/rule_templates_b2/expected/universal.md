@@ -1,6 +1,12 @@
 ---
 paths: ["**"]
 priority: critical
+metadata:
+  capability:
+    kind: cross-cutting-rule
+    owns:
+      - untrusted-content-handling
+    status: active
 ---
 
 # Universal Rules

@@ -6,7 +6,7 @@ Split from ``test_detect_adr_changes.py`` rather than appended to it. These
 six cases were ported from the stale, colocated
 ``.claude/skills/adr-review/tests/test_detect_adr_changes.py`` (removed:
 PR #5209 round-4 review; that copy predated the ``tests/skills/`` relocation
-and violated ``.claude/rules/testing.md`` MUST 6 / ``.claude/rules/claude-agents.md``
+and violated ``rule-testing.md`` MUST 6 / ``.claude/rules/claude-agents.md``
 MUST 3, tests must live under repo ``tests/``, never a shipped skill
 directory). Appending them to the main module pushed it from 494 to 601
 lines, over the 500-line ceiling the taste-lint file-size rule enforces. A
