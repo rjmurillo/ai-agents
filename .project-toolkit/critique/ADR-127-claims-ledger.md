@@ -66,7 +66,7 @@ gstack rows were read from a clone of `github.com/garrytan/gstack` at `ec5d7e6fb
 | 57 | The check runs in the `Validate PR` CI job | path | `grep -n "name: Validate PR\|check_skill_rewrite_evidence" .github/workflows/pr-validation.yml` | VERIFIED: job name at line 43, step at line 328, command at line 336 |
 | 58 | The runner records all four identities in an `identity` block built by `run_identity` | behavior | read `scripts/eval/eval-prompt-change.py:1087-1114`, the call at line 1134, and the output key at line 1152 | VERIFIED: `prompt_surface_sha256`, `scenarios_sha256`, `base_commit`, `model` |
 | 59 | The check recomputes the item 7 floor from the after results | behavior | read `_floor_findings`, `scripts/validation/skill_rewrite_evidence.py:229` | VERIFIED: `TestFloors` at `tests/validation/test_skill_rewrite_evidence.py:278` covers it |
-| 60 | A brand-new skill is not gated; a new skill beside a deleted one is gated | behavior | read `_gate_or_skip` in `check_skill_rewrite_evidence.py`; `uv run pytest tests/validation -k skill_rewrite` | VERIFIED: 244 passed at `26cb7876e8` (2026-11-25) |
+| 60 | A brand-new skill is not gated; a new skill beside a deleted one is gated | behavior | read `_gate_or_skip` in `check_skill_rewrite_evidence.py`; `uv run pytest tests/validation -k skill_rewrite` | VERIFIED: 187 passed at `ddf10d447a` (2026-11-25) |
 | 61 | The owner confirmed the new-skill reading on 2026-11-25 | quote | owner answer to decision brief D1 in the #7589 session, option "Amend ADR-127 here" | VERIFIED |
 
 ## Gate results
