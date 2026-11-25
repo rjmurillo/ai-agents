@@ -68,6 +68,9 @@ Scores are 1 to 5. `+` means positive scenarios, `-` means negative scenarios.
 - Held-out sets are small: 6 to 9 scenarios per rule.
 - push-lock and security first used 1 judge sample, with gaps of 0.00 and 0.17.
 - On 2026-11-25 at d8d140bb2e, both were re-scored with 3 judge samples.
+- d8d140bb2e no longer holds either rule file.
+- The rule arm used the rule text from c77c9ba999^, restored for the run.
+- The routed arm used the skill text at d8d140bb2e.
 - Both 3-sample gaps are 0.00, and routed negatives scored 5.00 against 3.17.
 - The distractor pick is lexical. Production routing sees about 120 skills, not 9.
 - Global user instructions loaded in every arm, as in the earlier diet eval.
