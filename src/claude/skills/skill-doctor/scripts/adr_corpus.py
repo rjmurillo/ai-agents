@@ -1,6 +1,6 @@
 """ADR folder discovery, ADR file parsing, and the finding record for adr_drift.py.
 
-python3, stdlib only, no network. Git runs through argument lists, never a shell.
+python3, stdlib only, no network, no git. adr_git.py runs git.
 
 Conventions:
 
@@ -8,18 +8,17 @@ Conventions:
   `adr_locate.py`, which already holds adr-review's folders. A test pins both.
   Each skill installs on its own, so the list is copied, not imported.
 - Filenames follow `ADR-NNN-slug.md` or the plain `NNNN-slug.md` form that
-  adr-tools and MADR use, with one to six digits, as skill-bootstrap reads them.
-  skill-bootstrap also reads `.mdx`, `.adoc`, `_` separators, and a lowercase
-  `adr-` prefix. These checks parse Markdown text, so they read `.md` files only.
+  adr-tools and MADR use, with one to six digits, as skill-bootstrap reads them:
+  the prefix in any case, and `-` or `_` after the number. A test pins the match.
+  skill-bootstrap also reads `.mdx` and `.adoc`. These checks parse Markdown, so
+  such a file is listed in `rejected`, unread, and no folder is called missing.
 - Every folder found is scanned, not only the first.
 """
 
 from __future__ import annotations
 
 import hashlib
-import os
 import re
-import subprocess
 from collections import Counter
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
@@ -27,6 +26,7 @@ from pathlib import Path
 from typing import Any, TypedDict
 
 from adr_text import (
+    ADR_MAX_BYTES,
     BACKTICK,
     clean_path,
     doc_status,
@@ -55,20 +55,12 @@ KNOWN_DIRS = (
     "rfcs",
     "rfc",
 )
-PREFIXED_NAME = re.compile(r"^ADR-(\d{1,6})-(.+)\.md$")
-PLAIN_NAME = re.compile(r"^(\d{1,6})-(.+)\.md$")
+PREFIXED_NAME = re.compile(r"ADR-(\d{1,6})[-_](.+)\.md\Z", re.IGNORECASE | re.ASCII)
+PLAIN_NAME = re.compile(r"(\d{1,6})[-_](.+)\.md\Z", re.IGNORECASE | re.ASCII)
+UNREAD_NAME = re.compile(r"(?:ADR-)?\d{1,6}[-_].+\.(?:mdx|adoc)\Z", re.IGNORECASE | re.ASCII)
 DATE_PREFIX = re.compile(r"^(?:\d{4}-\d{2}-\d{2}|\d{8})(?!\d)")
 INDEX_STEMS = frozenset({"readme", "index", "adr-index", "adr-log"})
 DEFAULT_HEADINGS = ("Status", "Context", "Decision", "Consequences")
-GIT_TIMEOUT_SECONDS = 120
-# The largest scan file adr_drift.py writes and report_adr.py reads.
-SCAN_MAX_BYTES = 5_000_000
-
-SETUP = "Setup"
-NUMBERING = "Numbering"
-LINKS = "Links"
-HISTORY = "History"
-GROUPS = (SETUP, NUMBERING, LINKS, HISTORY)
 
 
 class Finding(TypedDict):
@@ -79,65 +71,6 @@ class Finding(TypedDict):
     confidence: str
     evidence: dict[str, Any]
     suggested_fix: str
-
-
-class GitError(Exception):
-    """A git command failed, timed out, or could not run.
-
-    `returncode` is git's exit status when it ran and failed, else None.
-    `timed_out` is True when the command hit GIT_TIMEOUT_SECONDS.
-    """
-
-    def __init__(
-        self, message: str, returncode: int | None = None, timed_out: bool = False
-    ) -> None:
-        super().__init__(message)
-        self._returncode = returncode
-        self._timed_out = timed_out
-
-    @property
-    def returncode(self) -> int | None:
-        return self._returncode
-
-    @property
-    def timed_out(self) -> bool:
-        return self._timed_out
-
-
-def run_git(repo: Path, args: Sequence[str]) -> str:
-    """Run `git -C repo ARGS` with an argument list and return stdout."""
-    argv = ["git", "-C", str(repo), "-c", "core.quotepath=off", *args]
-    try:
-        proc = subprocess.run(
-            argv,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=GIT_TIMEOUT_SECONDS,
-            stdin=subprocess.DEVNULL,
-            env=_git_env(),
-            check=False,
-        )
-    except subprocess.TimeoutExpired as exc:
-        raise GitError(
-            f"git {args[0] if args else ''} timed out after {GIT_TIMEOUT_SECONDS} s", timed_out=True
-        ) from exc
-    except OSError as exc:
-        raise GitError(f"git {args[0] if args else ''} could not run: {exc}") from exc
-    if proc.returncode != 0:
-        tail = proc.stderr.strip().splitlines()[-1:] or ["no stderr"]
-        raise GitError(
-            f"git {args[0] if args else ''} exited {proc.returncode}: {tail[0]}", proc.returncode
-        )
-    return proc.stdout
-
-
-def _git_env() -> dict[str, str]:
-    env = dict(os.environ)
-    env["GIT_OPTIONAL_LOCKS"] = "0"
-    env["GIT_TERMINAL_PROMPT"] = "0"
-    return env
 
 
 def make_finding(
@@ -238,8 +171,9 @@ class Survey:
     markers: list[str] = field(default_factory=list)
     rejected: list[dict[str, str]] = field(default_factory=list)
     read_errors: list[dict[str, str]] = field(default_factory=list)
-    # True when an existing folder or ADR file was refused for resolving outside the
-    # repository or its folder, so ADRs may exist unread.
+    # True when an existing folder or ADR file was refused, for resolving outside the
+    # repository or its folder or for a format this scan does not read, so ADRs may
+    # exist unread.
     adrs_refused: bool = False
 
 
@@ -261,7 +195,13 @@ def load_dir(path: Path, rel: str, survey: Survey, explicit: bool = False) -> Ad
         entries = []
     root = _resolve(path)
     for entry in entries:
-        if entry.suffix != ".md" or not entry.is_file():
+        if UNREAD_NAME.match(entry.name) and entry.is_file():
+            survey.adrs_refused = True
+            survey.rejected.append(
+                {"path": f"{rel}/{entry.name}", "reason": "a format this scan does not read"}
+            )
+            continue
+        if entry.suffix.lower() != ".md" or not entry.is_file():
             continue
         target = _resolve(entry)
         if root is None or target is None or not within(target, root):
@@ -383,7 +323,10 @@ def find_h1(doc: AdrDoc) -> tuple[int, str] | None:
 
 
 def read_doc(file: AdrFile) -> AdrDoc:
-    """Read and parse one ADR file. Raises OSError when it cannot be read."""
+    """Read and parse one ADR file. Raises OSError when it cannot be read or is too large."""
+    size = file.path.stat().st_size
+    if size > ADR_MAX_BYTES:
+        raise OSError(f"{size} bytes, over the {ADR_MAX_BYTES}-byte limit for one ADR")
     text = file.path.read_text(encoding="utf-8", errors="replace")
     lines = text.splitlines()
     frontmatter, key_lines, body_start = parse_frontmatter(lines)
@@ -399,12 +342,23 @@ def read_docs(survey: Survey) -> list[AdrDoc]:
             try:
                 docs.append(read_doc(file))
             except OSError as exc:
-                survey.read_errors.append({"path": file.rel, "error": str(exc)})
+                _record_read_error(survey, file.rel, exc)
     return docs
 
 
-def folder_style(folder: AdrDir | None, dirs: Sequence[AdrDir] = ()) -> FolderStyle:
-    """Style a new record should follow: prefix, padding, H1 form, headings, frontmatter."""
+def _record_read_error(survey: Survey, rel: str, exc: OSError) -> None:
+    if all(entry["path"] != rel for entry in survey.read_errors):
+        survey.read_errors.append({"path": rel, "error": str(exc)})
+
+
+def folder_style(
+    folder: AdrDir | None, dirs: Sequence[AdrDir] = (), survey: Survey | None = None
+) -> FolderStyle:
+    """Style a new record should follow: prefix, padding, H1 form, headings, frontmatter.
+
+    When the newest ADR cannot be read, the style falls back to defaults and the
+    failure goes to `survey.read_errors`, so a fallback is never silent.
+    """
     pool = [folder] if folder is not None and folder.files else list(dirs)
     newest = newest_file(pool)
     if newest is None:
@@ -415,8 +369,10 @@ def folder_style(folder: AdrDir | None, dirs: Sequence[AdrDir] = ()) -> FolderSt
     prefix = "ADR-" if convention == "ADR-NNN" else ""
     try:
         doc: AdrDoc | None = read_doc(newest)
-    except OSError:
+    except OSError as exc:
         doc = None
+        if survey is not None:
+            _record_read_error(survey, newest.rel, exc)
     form = "adr-colon" if convention == "ADR-NNN" else "number-dot"
     headings: tuple[str, ...] = DEFAULT_HEADINGS
     keys: tuple[str, ...] = ()
@@ -443,7 +399,7 @@ def locate(repo: Path, survey: Survey) -> dict[str, Any]:
     dirs = survey.dirs
     entries = []
     for folder in dirs:
-        style = folder_style(folder)
+        style = folder_style(folder, survey=survey)
         entries.append(
             {
                 "path": folder.rel,
@@ -454,7 +410,7 @@ def locate(repo: Path, survey: Survey) -> dict[str, Any]:
                 "count": len(folder.files),
             }
         )
-    reference = folder_style(None, dirs)
+    reference = folder_style(None, dirs, survey)
     return {
         "repo": str(repo.resolve()),
         "adr_dirs": entries,

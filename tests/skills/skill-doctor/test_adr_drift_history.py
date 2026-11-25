@@ -93,6 +93,7 @@ def test_deleting_a_cited_path_after_the_adr_date_is_a_candidate(tmp_path, capsy
 
     assert len(found) == 1 and found[0]["evidence"]["cited"] == ["src/old/module.py"]
     assert "Candidate" in found[0]["suggested_fix"]
+    assert (found[0]["severity"], found[0]["confidence"]) == ("low", "heuristic")
 
 
 def test_renaming_a_cited_path_counts_as_removal(tmp_path, capsys):

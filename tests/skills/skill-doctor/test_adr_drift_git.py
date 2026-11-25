@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import adr_corpus
 import adr_drift
+import adr_git
 import adr_history
 import pytest
 from adr_drift_helpers import (
@@ -69,7 +69,7 @@ def test_empty_commits_and_a_pathless_tip_parse(tmp_path):
     ids=["bad-sha", "truncated-header", "status-without-path"],
 )
 def test_malformed_log_output_raises_instead_of_guessing(output):
-    with pytest.raises(adr_corpus.GitError, match="unexpected git log output"):
+    with pytest.raises(adr_git.GitError, match="unexpected git log output"):
         adr_history._parse_log(output)
 
 
@@ -135,10 +135,10 @@ def test_a_detached_head_at_a_missing_object_exits_3(tmp_path, capsys):
 
 def test_run_git_flags_a_timeout(tmp_path, monkeypatch):
     repo = seeded_repo(tmp_path / "repo")
-    monkeypatch.setattr(adr_corpus, "GIT_TIMEOUT_SECONDS", 0.0001)
+    monkeypatch.setattr(adr_git, "GIT_TIMEOUT_SECONDS", 0.0001)
 
-    with pytest.raises(adr_corpus.GitError) as raised:
-        adr_corpus.run_git(repo, ["log"])
+    with pytest.raises(adr_git.GitError) as raised:
+        adr_git.run_git(repo, ["log"])
 
     assert raised.value.timed_out is True and raised.value.returncode is None
 
@@ -147,7 +147,7 @@ def test_a_timeout_resolving_the_repository_exits_3_not_2(tmp_path, capsys, monk
     repo = seeded_repo(tmp_path / "repo")
 
     def slow(path, args):
-        raise adr_corpus.GitError("git rev-parse timed out", timed_out=True)
+        raise adr_git.GitError("git rev-parse timed out", timed_out=True)
 
     monkeypatch.setattr(adr_drift, "run_git", slow)
 

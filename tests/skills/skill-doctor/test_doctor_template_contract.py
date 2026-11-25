@@ -8,6 +8,18 @@ from tests.skills._template_contract import assert_template_owned_contract
 REPO = Path(__file__).resolve().parents[3]
 
 
+def _step_1a() -> str:
+    text = (REPO / "templates/skills/skill-doctor.SKILL.md.tmpl").read_text(encoding="utf-8")
+    return text.split("### Step 1a: ADR drift", 1)[1].split("\n### ", 1)[0]
+
+
+def _reference_section(heading: str) -> str:
+    reference = (REPO / "src/claude/skills/skill-doctor/references/adr-drift.md").read_text(
+        encoding="utf-8"
+    )
+    return reference.split(f"\n## {heading}\n", 1)[1].split("\n## ", 1)[0]
+
+
 def test_skill_doctor_template_contract() -> None:
     assert_template_owned_contract("skill-doctor")
 
@@ -27,16 +39,13 @@ def test_template_routes_adr_drift_to_its_step() -> None:
 
 def test_step_1a_reports_undocumented_decisions_unavailable_without_bootstrap() -> None:
     """A missing skill-bootstrap is reported as UNAVAILABLE in Step 1a itself."""
-    text = (REPO / "templates/skills/skill-doctor.SKILL.md.tmpl").read_text(encoding="utf-8")
-    step = text.split("### Step 1a: ADR drift", 1)[1].split("\n### ", 1)[0]
+    step = _step_1a()
 
     assert '"Undocumented decisions: UNAVAILABLE" and continue' in step
     assert "exits 2" in step and "`ptk_run:`" in step
-    reference = (REPO / "src/claude/skills/skill-doctor/references/adr-drift.md").read_text(
-        encoding="utf-8"
-    )
     assert "PowerShell form" in step and "Git Bash" in step
-    assert "```powershell" in reference.split("## Commands", 1)[1].split("\n## ", 1)[0]
+    assert "```powershell" in _reference_section("Commands")
+    assert "Without Git Bash" in _reference_section("Workflow")
 
 
 def _module_tuple(relative: str, name: str) -> list[str]:
@@ -58,12 +67,8 @@ def _module_tuple(relative: str, name: str) -> list[str]:
 
 def test_step_1a_points_to_a_workflow_that_holds_the_moved_steps() -> None:
     """Step 1a defers to the reference Workflow, which keeps every command it moved."""
-    text = (REPO / "templates/skills/skill-doctor.SKILL.md.tmpl").read_text(encoding="utf-8")
-    step = text.split("### Step 1a: ADR drift", 1)[1].split("\n### ", 1)[0]
-    reference = (REPO / "src/claude/skills/skill-doctor/references/adr-drift.md").read_text(
-        encoding="utf-8"
-    )
-    workflow = reference.split("\n## Workflow\n", 1)[1].split("\n## ", 1)[0]
+    step = _step_1a()
+    workflow = _reference_section("Workflow")
 
     assert "follow the Workflow in `$SKILL_ROOT/references/adr-drift.md`" in step
     assert "`--all-conversations`" in workflow

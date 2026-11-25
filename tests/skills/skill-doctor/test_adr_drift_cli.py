@@ -11,8 +11,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
-import adr_corpus
 import adr_drift
+import adr_git
 import pytest
 from adr_drift_helpers import (
     ADR_DIR,
@@ -236,7 +236,7 @@ def test_exit_3_when_a_git_command_fails_or_git_is_missing(tmp_path, capsys, mon
     args = ["scan", "--repo", str(repo), "--out", str(tmp_path / "o.json")]
 
     def fail(*_args, **_kwargs):
-        raise adr_corpus.GitError("git log exited 128: boom")
+        raise adr_git.GitError("git log exited 128: boom")
 
     monkeypatch.setattr(adr_drift, "read_commits", fail)
     failed = run_cli(capsys, *args)

@@ -15,8 +15,8 @@ python3, stdlib only. Uses system fonts so the page and the exported PNG
 render the same everywhere.
 
 Exit codes: 0 report.html was written; 1 report.json has no numeric
-scores.overall, makes an unsupported claim, or carries an adr_drift finding
-with an empty suggested_fix; 2 bad arguments, report.json is unreadable or not
+scores.overall, makes an unsupported claim, carries an adr_drift finding with
+an empty suggested_fix, or is adr_only with no adr_drift object; 2 bad arguments, report.json is unreadable or not
 JSON, an adr_drift scan or decisions file cannot be read, or report.html cannot
 be written.
 """

@@ -14,6 +14,10 @@ import adr_text
 import pytest
 from adr_drift_helpers import kinds, run_cli, scan, seeded_repo, symlink_or_skip
 
+# About 40x the slowest measured case (0.26 s), so a loaded CI runner does not fail a
+# linear pattern, while a quadratic one on 200,000 characters still takes minutes.
+LINEAR_SECONDS = 10
+
 
 def test_a_wide_number_gap_is_counted_without_listing_every_number(tmp_path, capsys):
     repo = seeded_repo(
@@ -98,7 +102,7 @@ def test_a_result_over_the_size_cap_exits_2_and_writes_nothing(tmp_path, capsys,
 def test_the_writer_and_the_reader_share_one_size_limit():
     import report_adr
 
-    assert adr_drift.SCAN_MAX_BYTES == report_adr.MAX_FILE_BYTES == adr_corpus.SCAN_MAX_BYTES
+    assert adr_drift.SCAN_MAX_BYTES == report_adr.MAX_FILE_BYTES == adr_text.SCAN_MAX_BYTES
 
 
 @pytest.mark.parametrize(
@@ -123,7 +127,7 @@ def test_strip_comment_is_linear_on_a_long_blank_run():
     started = time.monotonic()
     adr_text._strip_comment(value)
 
-    assert time.monotonic() - started < 2
+    assert time.monotonic() - started < LINEAR_SECONDS
 
 
 def test_an_adr_dir_naming_a_missing_folder_still_gets_the_create_fix(tmp_path, capsys):
@@ -150,7 +154,7 @@ def test_link_and_path_parsing_is_linear_on_a_hostile_line(line):
     adr_checks._refs(line, include_paths=True)
     adr_checks._targets(line)
 
-    assert time.monotonic() - started < 2
+    assert time.monotonic() - started < LINEAR_SECONDS
 
 
 @pytest.mark.parametrize(
@@ -222,7 +226,7 @@ def test_adr_reference_patterns_are_linear_on_a_hostile_line(pattern, line):
     started = time.monotonic()
     pattern.findall(line)
 
-    assert time.monotonic() - started < 2
+    assert time.monotonic() - started < LINEAR_SECONDS
 
 
 def test_h1_and_h2_parsing_is_linear_on_a_hostile_line():
@@ -232,7 +236,7 @@ def test_h1_and_h2_parsing_is_linear_on_a_hostile_line():
     adr_text.h1_number("# ADR-" + "0" * 200_000 + "x")
     headings = list(adr_corpus._h2_headings(doc))
 
-    assert time.monotonic() - started < 2
+    assert time.monotonic() - started < LINEAR_SECONDS
     assert headings == ["a" + " " * 20_000 + "b"]
 
 

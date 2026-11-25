@@ -20,7 +20,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from adr_corpus import GROUPS, SCAN_MAX_BYTES
+from adr_text import GROUPS, SCAN_MAX_BYTES
 from report_audit import Code, Escape, details_html, table_html
 
 ADR_ONLY_MODE = "adr_only"
@@ -68,7 +68,8 @@ def _load_decisions(base: Path, name: Any) -> list[dict[str, str]]:
         raise AdrInputError(f"adr_drift decisions {name} has no `candidates` list")
     candidates = []
     for item in _dicts(items):
-        source = item.get("source") if isinstance(item.get("source"), dict) else {}
+        raw = item.get("source")
+        source: Mapping[str, Any] = raw if isinstance(raw, dict) else {}
         candidates.append(
             {
                 "id": _text(item.get("id")),
@@ -116,12 +117,12 @@ def resolve_adr_drift(report: Mapping[str, Any], base: Path) -> dict[str, Any]:
     return {**report, "adr_drift": resolved}
 
 
-def _repos(report: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+def _repos(report: Mapping[str, Any]) -> list[dict[str, Any]]:
     section = report.get("adr_drift")
     return _dicts(section.get("repos")) if isinstance(section, dict) else []
 
 
-def _findings(repo: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+def _findings(repo: Mapping[str, Any]) -> list[dict[str, Any]]:
     return _dicts(repo.get("findings"))
 
 
@@ -184,22 +185,13 @@ def _decision_table(esc: Escape, repo: Mapping[str, Any]) -> str:
     return table_html(esc, title, headers, rows)
 
 
-def _read_error_list(esc: Escape, repo: Mapping[str, Any]) -> str:
-    errors = _dicts(repo.get("read_errors"))
-    if not errors:
+def _path_list(esc: Escape, entries: Any, detail: str, label: str) -> str:
+    """A labeled list of `path: detail` items, or "" when there are none."""
+    rows = _dicts(entries)
+    if not rows:
         return ""
-    items = "".join(f"<li>{esc(e.get('path', ''))}: {esc(e.get('error', ''))}</li>" for e in errors)
-    return f'<p class="muted">Unreadable paths, not checked:</p><ul>{items}</ul>'
-
-
-def _rejected_list(esc: Escape, repo: Mapping[str, Any]) -> str:
-    rejected = _dicts(repo.get("rejected"))
-    if not rejected:
-        return ""
-    items = "".join(
-        f"<li>{esc(e.get('path', ''))}: {esc(e.get('reason', ''))}</li>" for e in rejected
-    )
-    return f'<p class="muted">Refused paths, not checked:</p><ul>{items}</ul>'
+    items = "".join(f"<li>{esc(e.get('path', ''))}: {esc(e.get(detail, ''))}</li>" for e in rows)
+    return f'<p class="muted">{label}, not checked:</p><ul>{items}</ul>'
 
 
 def _counts_line(repo: Mapping[str, Any]) -> str:
@@ -229,8 +221,8 @@ def render_adr_drift(report: Mapping[str, Any], esc: Escape) -> str:
             parts.append(_finding_table(esc, repo))
         parts += [
             _decision_table(esc, repo),
-            _read_error_list(esc, repo),
-            _rejected_list(esc, repo),
+            _path_list(esc, repo.get("read_errors"), "error", "Unreadable paths"),
+            _path_list(esc, repo.get("rejected"), "reason", "Refused paths"),
         ]
         blocks.append("".join(parts))
     return _wrap("".join(blocks), esc)

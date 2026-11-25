@@ -304,12 +304,12 @@ def test_bootstrap_candidates_render_as_an_escaped_table(tmp_path, capsys):
     assert "c-aaaaaaa" in html and "a" * 10 in html and "a" * 11 not in html
 
 
-def test_a_candidate_without_pr_url_links_its_source_url(tmp_path, capsys):
-    candidate = _bootstrap_candidate(sha="b" * 40, url="https://example.com/commit/b")
+def test_a_candidate_source_url_shows_as_text_never_a_link(tmp_path, capsys):
+    candidate = _bootstrap_candidate(sha="b" * 40, url="javascript:alert(1)")
 
     _, html, _ = _render_decisions(tmp_path, capsys, {"candidates": [candidate]})
 
-    assert "https://example.com/commit/b" in html
+    assert "javascript:alert(1)" in html and 'href="javascript' not in html
 
 
 def test_a_null_reason_renders_empty_not_none(tmp_path, capsys):

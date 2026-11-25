@@ -2,8 +2,10 @@
 
 Stdlib only. Every check reads the working tree and never writes.
 
-Conventions: filenames are `ADR-NNN-slug.md` or `NNNN-slug.md` with a digit run
-of any length, and every ADR folder found is scanned, not only the first.
+Conventions: filenames are `ADR-NNN-slug.md` or `NNNN-slug.md` with one to six
+digits, as `adr_corpus.parse_name` reads them, and every ADR folder found is
+scanned, not only the first. Two folders may reuse a number, so a bare number or
+`ADR-N` resolves in the citing record's own folder first.
 """
 
 from __future__ import annotations
@@ -11,16 +13,14 @@ from __future__ import annotations
 import os
 import re
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
-from itertools import islice
+from itertools import count, islice
 from pathlib import Path
 from typing import Any
 from urllib.parse import unquote
 
 from adr_corpus import (
-    LINKS,
-    NUMBERING,
     AdrDir,
     AdrDoc,
     AdrFile,
@@ -32,7 +32,15 @@ from adr_corpus import (
     next_number,
     parse_name,
 )
-from adr_text import ADR_NUMBER, STATUS_HEADING, h1_number, prose_lines, status_word
+from adr_text import (
+    ADR_NUMBER,
+    LINKS,
+    NUMBERING,
+    STATUS_HEADING,
+    h1_number,
+    prose_lines,
+    status_word,
+)
 
 ACTIVE_STATUSES = frozenset({"", "accepted", "proposed", "draft", "approved"})
 GAP_EVIDENCE_CAP = 50
@@ -90,9 +98,10 @@ def _found(kind: str, evidence: dict[str, Any], suggested_fix: str, key: Sequenc
 
 def check_numbering(dirs: Sequence[AdrDir], docs: Sequence[AdrDoc]) -> list[Finding]:
     findings: list[Finding] = []
-    upcoming = next_number(dirs)
+    # One counter for the whole repository, so no two suggested renames share a number.
+    free = count(next_number(dirs))
     for folder in dirs:
-        findings.extend(_duplicates(folder, upcoming))
+        findings.extend(_duplicates(folder, free))
         findings.extend(_unparseable(folder))
         findings.extend(_gaps(folder))
     for doc in docs:
@@ -102,7 +111,7 @@ def check_numbering(dirs: Sequence[AdrDir], docs: Sequence[AdrDoc]) -> list[Find
     return findings
 
 
-def _duplicates(folder: AdrDir, upcoming: int) -> list[Finding]:
+def _duplicates(folder: AdrDir, free: Iterator[int]) -> list[Finding]:
     by_number: dict[int, list[AdrFile]] = defaultdict(list)
     for file in folder.files:
         by_number[file.number].append(file)
@@ -110,12 +119,19 @@ def _duplicates(folder: AdrDir, upcoming: int) -> list[Finding]:
     for number, files in sorted(by_number.items()):
         if len(files) < 2:
             continue
-        later = sorted(files, key=lambda f: f.path.name)[-1]
+        keep, *later = sorted(files, key=lambda f: f.path.name)
+        renames = [(f.rel, pad(next(free), folder)) for f in later]
+        steps = "; ".join(f"rename {rel} to number {new}" for rel, new in renames)
         fix = (
-            f"Rename {later.rel} to number {pad(upcoming, folder)} (next free in this repository)"
-            " and update its H1 and references. Keep the earlier file as is."
+            f"Keep {keep.rel} as is; {steps} (next free in this repository)."
+            " Update each renamed file's H1 and references."
         )
-        evidence = {"path": later.rel, "paths": [f.rel for f in files], "number": number}
+        evidence = {
+            "path": later[0].rel,
+            "paths": [f.rel for f in files],
+            "number": number,
+            "renames": [{"path": rel, "number": new} for rel, new in renames],
+        }
         findings.append(
             _found(
                 "adr-duplicate-number",
@@ -339,10 +355,18 @@ def _prose_edges(line: str, number: int, in_status: bool) -> list[Edge]:
     return _edges_of("superseded_by", by.group(1), number) if by else []
 
 
+def resolve_number(doc: AdrDoc, number: int, docs: Sequence[AdrDoc]) -> AdrDoc | None:
+    """The record `number` names from `doc`: its own folder first, else the only other match."""
+    same = [
+        d for d in docs if d.file.number == number and d.file.path.parent == doc.file.path.parent
+    ]
+    if same:
+        return same[0]
+    others = [d for d in docs if d.file.number == number]
+    return others[0] if len(others) == 1 else None
+
+
 def check_supersession(docs: Sequence[AdrDoc]) -> list[Finding]:
-    by_number: dict[int, AdrDoc] = {}
-    for doc in docs:
-        by_number.setdefault(doc.file.number, doc)
     graph = {doc.file.rel: edges(doc) for doc in docs}
     findings: list[Finding] = []
     seen: set[tuple[str, ...]] = set()
@@ -350,7 +374,9 @@ def check_supersession(docs: Sequence[AdrDoc]) -> list[Finding]:
         for edge in graph[doc.file.rel]:
             if edge.number == doc.file.number:
                 continue
-            target = by_number.get(edge.number)
+            target = resolve_number(doc, edge.number, docs)
+            if target is None and any(d.file.number == edge.number for d in docs):
+                continue  # several other folders hold this number: no single target to check
             finding = (
                 _missing_target(doc, edge)
                 if target is None
@@ -410,9 +436,9 @@ def check_cited_paths(repo: Path, docs: Sequence[AdrDoc]) -> list[Finding]:
             continue
         for line, path in cited_paths(doc):
             first = path.split("/", 1)[0]
-            if not (repo / first).exists() or (repo / path).exists():
+            if not _exists(repo / first) or _exists(repo / path):
                 continue
-            if (doc.file.path.parent / path).exists():
+            if _exists(doc.file.path.parent / path):
                 continue
             evidence = {"path": doc.file.rel, "line": line, "cited": path}
             fix = (
@@ -428,3 +454,11 @@ def check_cited_paths(repo: Path, docs: Sequence[AdrDoc]) -> list[Finding]:
                 )
             )
     return findings
+
+
+def _exists(path: Path) -> bool:
+    """`Path.exists` that reads an OS error as missing: Python before 3.14 raises on a long name."""
+    try:
+        return path.exists()
+    except OSError:
+        return False

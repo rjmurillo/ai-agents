@@ -2,7 +2,8 @@
 
 Stdlib only, local git only, no network.
 
-Every finding here is heuristic. It names a candidate and cites the commit.
+Every finding here is heuristic and low severity. It names a candidate and cites
+the commit. Hand checks on one repository found no real reversal among them.
 """
 
 from __future__ import annotations
@@ -13,21 +14,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from adr_corpus import (
-    HISTORY,
-    AdrDoc,
-    Finding,
-    GitError,
-    cited_paths,
-    make_finding,
-    run_git,
-)
-from adr_text import ADR_NUMBER, status_word
+from adr_corpus import AdrDoc, Finding, cited_paths, make_finding
+from adr_git import GitError, run_git
+from adr_text import ADR_NUMBER, HISTORY, status_word
 
 MAX_CITED_EVIDENCE = 10
 # Word suffixes are bounded so a long run of verbs cannot make each match attempt rescan it.
 SUPERSEDE_VERB = r"(?:supersed|replac|revert|deprecat|drop)\w{0,20}"
-VERB_THEN_ADR = re.compile(rf"{SUPERSEDE_VERB}[^.\n]{{0,60}}?\b{ADR_NUMBER}", re.IGNORECASE)
+VERB_THEN_ADR = re.compile(rf"{SUPERSEDE_VERB}([^.\n]{{0,60}}?)\b{ADR_NUMBER}", re.IGNORECASE)
+# "superseded by ADR-N" names the successor, not the record that was superseded.
+BY_SUCCESSOR = re.compile(r"\bby\W*\Z", re.IGNORECASE)
 ADR_THEN_VERB = re.compile(rf"\b{ADR_NUMBER}[^.\n]{{0,60}}?{SUPERSEDE_VERB}", re.IGNORECASE)
 SHA_TOKEN = re.compile(r"^[0-9a-f]{40,64}$")
 STATUS_TOKEN = re.compile(r"^[A-Z]\d*$")
@@ -127,13 +123,27 @@ def _commit_evidence(commit: Commit) -> dict[str, Any]:
     return {"sha": commit.sha, "date": commit.date, "subject": commit.subject}
 
 
+def superseded_numbers(text: str) -> set[int]:
+    """ADR numbers a commit text says were superseded, replaced, reverted, or dropped."""
+    numbers = {int(m.group(1)) for m in ADR_THEN_VERB.finditer(text)}
+    for match in VERB_THEN_ADR.finditer(text):
+        if not BY_SUCCESSOR.search(match.group(1)):
+            numbers.add(int(match.group(2)))
+    return numbers
+
+
 def superseded_by_commits(commits: Sequence[Commit], docs: Sequence[AdrDoc]) -> list[Finding]:
-    by_number = {d.file.number: d for d in docs if status_word(d.status) == "accepted"}
+    """One candidate per (commit, accepted ADR). Every folder that holds the number is a candidate."""
+    by_number: dict[int, list[AdrDoc]] = {}
+    for doc in docs:
+        if status_word(doc.status) == "accepted":
+            by_number.setdefault(doc.file.number, []).append(doc)
     findings: list[Finding] = []
     for commit in commits:
-        numbers = {int(n) for rx in (VERB_THEN_ADR, ADR_THEN_VERB) for n in rx.findall(commit.text)}
-        for number in sorted(numbers & by_number.keys()):
-            doc = by_number[number]
+        numbers = superseded_numbers(commit.text)
+        for number, doc in [
+            (n, d) for n in sorted(numbers & by_number.keys()) for d in by_number[n]
+        ]:
             if _touches_doc(commit, doc):
                 continue
             evidence = {**_commit_evidence(commit), "adr": doc.file.rel, "number": number}
@@ -145,7 +155,7 @@ def superseded_by_commits(commits: Sequence[Commit], docs: Sequence[AdrDoc]) -> 
                 make_finding(
                     "adr-superseded-by-commit",
                     HISTORY,
-                    "medium",
+                    "low",
                     "heuristic",
                     evidence,
                     fix,
@@ -218,7 +228,7 @@ def _contradiction(commit: Commit, doc: AdrDoc, cited: list[tuple[int, str]]) ->
     return make_finding(
         "adr-contradiction-candidate",
         HISTORY,
-        "medium",
+        "low",
         "heuristic",
         evidence,
         fix,

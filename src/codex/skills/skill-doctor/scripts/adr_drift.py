@@ -5,8 +5,8 @@ Subcommands:
 
   locate --repo PATH
       Print JSON: ADR folders and their convention, `primary` (the folder when
-      exactly one exists, else null), `next_number`, `template_headings`, and
-      `markers`. Reads only.
+      exactly one exists, else null), `next_number`, `template_headings`,
+      `markers`, `rejected`, and `read_errors`. Reads only.
 
   scan --repo PATH --out FILE [--max-commits N] [--since DATE]
       Run the numbering, link, supersession, cited-path, and git-history checks
@@ -14,7 +14,8 @@ Subcommands:
       Reads git history and working-tree ADR files. Never uses the network.
 
 Exit codes: 0 ok, 2 bad arguments, unreadable input, `--out` not allowed, a
-result over 5,000,000 bytes, or not a git repository, 3 a git command failed.
+result over 5,000,000 bytes, or not a git repository, 3 a git command failed,
+timed out, or could not run (git not on PATH).
 
 python3, stdlib only.
 """
@@ -38,20 +39,17 @@ from adr_checks import (
     check_supersession,
 )
 from adr_corpus import (
-    GROUPS,
-    SCAN_MAX_BYTES,
-    SETUP,
     AdrDoc,
     Finding,
-    GitError,
     find_adr_dirs,
     locate,
     make_finding,
     read_docs,
-    run_git,
     within,
 )
+from adr_git import GitError, run_git
 from adr_history import head_commit, history_findings, read_commits
+from adr_text import GROUPS, SCAN_MAX_BYTES, SETUP
 
 SCHEMA_VERSION = 1
 DEFAULT_MAX_COMMITS = 300

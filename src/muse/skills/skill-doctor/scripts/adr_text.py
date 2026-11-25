@@ -17,6 +17,16 @@ FILE_EXTENSION = re.compile(r"\.[A-Za-z0-9]{1,8}$")
 # An ADR number: one to six digits after any leading zeros, as file names allow. The digit
 # bound keeps a long run of zeros or digits linear and keeps `int()` within its digit limit.
 ADR_NUMBER = r"ADR-0*(\d{1,6})\b"
+# The largest scan file adr_drift.py writes and report_adr.py reads.
+SCAN_MAX_BYTES = 5_000_000
+# The largest ADR file read. A larger one goes to read_errors unread.
+ADR_MAX_BYTES = 1_000_000
+
+SETUP = "Setup"
+NUMBERING = "Numbering"
+LINKS = "Links"
+HISTORY = "History"
+GROUPS = (SETUP, NUMBERING, LINKS, HISTORY)
 
 
 def _strip_comment(value: str) -> str:
@@ -111,9 +121,12 @@ def doc_status(frontmatter: dict[str, Any], lines: Sequence[str], start: int) ->
             if line.strip():
                 return line.strip().lower()
             continue
-        inline = re.match(r"^\s*(?:[-*]\s+)?\**status\**\s*[:|]\s*\**\s*(.+)$", line, re.IGNORECASE)
+        # `Status: x`, a `- Status: x` bullet, or a `| Status | x |` table row.
+        inline = re.match(
+            r"^\s*(?:\|\s*|[-*]\s+)?\**status\**\s*[:|]\s*\**\s*(.+)$", line, re.IGNORECASE
+        )
         if inline:
-            return inline.group(1).strip().lower()
+            return inline.group(1).strip().rstrip("|").strip().lower()
     return ""
 
 
