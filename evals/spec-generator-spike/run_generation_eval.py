@@ -26,9 +26,12 @@ from typing import Any
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "scripts" / "eval"))
+sys.path.insert(0, str(REPO))
 
 from _anthropic_api import call_api, load_api_key  # noqa: E402
 from _eval_common import MalformedProviderMetadataError  # noqa: E402
+
+from scripts.hook_utilities.frontmatter_block import FM_BOUNDARY, split_frontmatter  # noqa: E402
 
 VALIDATOR = REPO / ".claude/skills/spec-generator/scripts/validate_spec_frontmatter.py"
 MODEL = "claude-sonnet-4-20250514"
@@ -94,21 +97,15 @@ def extract_frontmatter_block(text: str) -> str:
     m = re.search(r"```(?:ya?ml)?\s*\n(.*?)```", text, re.DOTALL)
     if m:
         text = m.group(1).strip()
-    if not text.startswith("---"):
-        first = text.find("---")
-        if first != -1:
-            text = text[first:]
-    lines = text.splitlines()
-    if not lines or lines[0].strip() != "---":
-        return text if text.startswith("---") else f"---\n{text}\n---\n"
-    out = ["---"]
-    for line in lines[1:]:
-        out.append(line)
-        if line.strip() == "---":
-            break
-    if out[-1].strip() != "---":
-        out.append("---")
-    return "\n".join(out) + "\n"
+    # Model output may carry a preamble, so start at the first fence line.
+    opening = FM_BOUNDARY.search(text)
+    if opening is None:
+        return f"---\n{text}\n---\n"
+    text = text[opening.start() :]
+    split = split_frontmatter(text)
+    if split.found:
+        return text[: split.fence_end].rstrip("\n") + "\n"
+    return text.rstrip("\n") + "\n---\n"
 
 
 def validate(block: str) -> tuple[bool, str]:

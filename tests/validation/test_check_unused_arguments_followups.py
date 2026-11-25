@@ -41,7 +41,13 @@ from tests.validation.unused_arguments_helpers import (
     write_baseline,
 )
 
-MIRRORED_PACKAGES = ("ai_review_common", "failure_classifier", "github_core", "hook_utilities")
+MIRRORED_PACKAGES = (
+    "ai_review_common",
+    "failure_classifier",
+    "github_core",
+    "hook_utilities",
+    "memory_enhancement",
+)
 
 
 def _tracked(*roots: str) -> list[str]:

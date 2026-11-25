@@ -73,6 +73,8 @@ from nl_debt_ceiling import (  # noqa: E402
     remediation,
 )
 
+from scripts.hook_utilities.frontmatter_block import split_frontmatter  # noqa: E402
+
 BASELINE_PATH = "scripts/validation/nl_structural_debt_baseline.json"
 MIN_BLOCK_LINES = 5
 MIN_BLOCK_CHARS = 200
@@ -132,13 +134,9 @@ def authored_files(repo_root: Path) -> list[Path]:
 
 def _body_lines(text: str) -> list[str]:
     """Return normalized non-trivial lines outside frontmatter and code fences."""
-    lines = text.splitlines()
-    if lines and lines[0].strip() == "---":
-        end = next((i for i in range(1, len(lines)) if lines[i].strip() == "---"), None)
-        # No closing delimiter: this is not frontmatter, so scan the whole file
-        # rather than a partial parse that drops only the first line.
-        if end is not None:
-            lines = lines[end + 1 :]
+    # `scripts/hook_utilities/frontmatter_block.py` returns the whole text as the body when
+    # no closed block exists, so an unterminated opener is scanned, not half-dropped.
+    lines = split_frontmatter(text).body.splitlines()
     kept: list[str] = []
     fence: Fence | None = None
     for line in lines:

@@ -81,11 +81,11 @@ _REPO_ROOT = _SCRIPT_DIR.parent.parent
 # 11 distinct fence contracts in this repo; this module used to hold the
 # strictest, which rejected a closing fence padded with one trailing space and
 # raised where the lifecycle gate accepted the same file. Both now read
-# scripts/validation/frontmatter_contract, which delegates to python-frontmatter.
+# scripts/hook_utilities/frontmatter_block, the repository's one parser.
 sys.path.insert(0, str(_REPO_ROOT))
 
-from scripts.validation.frontmatter_contract import FrontmatterStatus  # noqa: E402
-from scripts.validation.frontmatter_contract import (  # noqa: E402
+from scripts.hook_utilities.frontmatter_block import FrontmatterStatus  # noqa: E402
+from scripts.hook_utilities.frontmatter_block import (  # noqa: E402
     parse_frontmatter as _parse_frontmatter_block,
 )
 
@@ -228,12 +228,12 @@ def parse_frontmatter(content: str, path: Path) -> tuple[dict[str, object] | Non
     closing fence to be three dashes followed immediately by ``\r?\n``, so a
     fence padded with one trailing space raised ``AdrIndexError`` while
     ``check_adr_lifecycle.py`` parsed the same file cleanly and ran all its
-    checks. The contract now accepts a padded fence, a tab, and four or more
+    checks. The one parser now accepts a padded fence, a tab, and four or more
     dashes, matching ``python-frontmatter``'s own boundary, and still rejects
     ``--- trailing text``. Duplicate-key rejection is unchanged: it moved into
-    the contract, which hooks the constructor the same way this module did.
+    ``frontmatter_block``, which hooks the constructor as this module did.
     """
-    result = _parse_frontmatter_block(content)
+    result = _parse_frontmatter_block(content, yaml)
 
     if result.status is FrontmatterStatus.ABSENT:
         return None, result.body
@@ -698,22 +698,21 @@ _INTRO = (
     "Regenerate after any ADR change with `uv run python build/scripts/build_all.py`.\n\n"
     "## Querying the corpus directly\n\n"
     "This table is a convenience, not the source of truth. The frontmatter is, and\n"
-    "Python reads it with no extra dependency:\n\n"
+    "Python reads it with the repository's one frontmatter parser. Run it from the\n"
+    "repository root:\n\n"
     "```python\n"
-    "import pathlib, yaml\n"
-    "from frontmatter.default_handlers import YAMLHandler\n"
+    "import pathlib, sys, yaml\n"
     "\n"
-    "_HANDLER = YAMLHandler()\n"
+    'sys.path.insert(0, ".")\n'
+    "from scripts.hook_utilities.frontmatter_block import parse_frontmatter\n"
     "\n"
     'for path in sorted(pathlib.Path(".project-toolkit/architecture").glob("ADR-[0-9]*.md")):\n'
-    '    text = path.read_text(encoding="utf-8")\n'
-    "    if not _HANDLER.detect(text):\n"
+    '    result = parse_frontmatter(path.read_text(encoding="utf-8"), yaml)\n'
+    "    if not result.present:\n"
     "        continue  # no frontmatter: see Needs backfill below\n"
-    "    try:\n"
-    "        raw, _body = _HANDLER.split(text)\n"
-    "    except ValueError:\n"
-    '        raise ValueError(f"{path.name}: opens with --- but never closes it")\n'
-    "    front = yaml.safe_load(raw) or {}\n"
+    "    if not result.ok:\n"
+    '        raise ValueError(f"{path.name}: {result.error}")\n'
+    "    front = result.metadata\n"
     '    if str(front.get("status", "")).strip().lower() == "accepted":\n'
     '        print(front.get("id") or path.name)\n'
     "```\n\n"
@@ -725,14 +724,12 @@ _INTRO = (
     "the table below, while a bare `== 'accepted'` misses it. Every record carries\n"
     "a lowercase value today, which is exactly why the mismatch would not announce\n"
     "itself.\n\n"
-    "**This snippet does not detect duplicate keys, and the gates do.**\n"
-    "`yaml.safe_load` resolves a repeated `status:` last-wins and silently, so a\n"
-    "record declaring `proposed` in the line a human reads and `accepted` lower in\n"
-    "the same block would print as accepted here. `check_adr_lifecycle` and this\n"
-    "generator both reject that at the parser, so a corpus passing the gates has\n"
-    "none. Run the gate before trusting a query on a tree you have not validated;\n"
-    "the snippet is a convenience for reading a known-good corpus, not an\n"
-    "independent check.\n\n"
+    "**This snippet rejects duplicate keys, as the gates do.** `yaml.safe_load`\n"
+    "would resolve a repeated `status:` last-wins and silently, so a record\n"
+    "declaring `proposed` in the line a human reads and `accepted` lower in the\n"
+    "same block would print as accepted. `parse_frontmatter` rejects that by\n"
+    "default, and so do `check_adr_lifecycle` and this generator. The snippet is a\n"
+    "convenience for reading a corpus, not a replacement for the gate.\n\n"
     "Python rather than `yq` deliberately. Python is the repo's native tooling\n"
     "(ADR-042) and `yaml` is already a dependency, so this adds nothing. The `yq` on\n"
     "PATH here is the jq wrapper, which has no front-matter mode and fails on a\n"
@@ -743,29 +740,24 @@ _INTRO = (
     "records that have it while appearing to answer for all of them. The Needs\n"
     "backfill section below is the honest denominator, and issue #5190 closes it.\n\n"
     "**This snippet crashes on unterminated frontmatter; it does not silently\n"
-    "drop it.** `detect()` is false only for a record with no schema at all,\n"
-    "which `continue`s past. A record whose opening `---` fence never closes\n"
-    "still opens one, so it skips that `continue`, and `split()` raises\n"
-    "`ValueError` because it cannot find a second boundary. The real\n"
-    "generator's `parse_frontmatter` raises the same way, on purpose: a\n"
-    "malformed schema is an author's defect to see, not a record to drop\n"
-    "quietly into Needs backfill. The distinction matters because\n"
-    "`frontmatter.loads` alone does NOT make it: an absent block and an\n"
-    "unterminated one both come back with empty metadata, which is why this\n"
-    "snippet calls `detect` and `split` rather than the convenience API\n"
-    "(issue #5275). Run the gate rather than this snippet when that\n"
-    "distinction matters.\n\n"
+    "drop it.** `result.present` is false only for a record with no schema at\n"
+    "all, which `continue`s past. A record whose opening `---` fence never closes\n"
+    "is present but not `ok`, so it raises `ValueError`. The real generator raises the\n"
+    "same way, on purpose: a malformed schema is an author's defect to see, not a\n"
+    "record to drop quietly into Needs backfill. `frontmatter.loads` alone does\n"
+    "NOT make that distinction: an absent block and an unterminated one both come\n"
+    "back with empty metadata (issue #5275).\n\n"
     "**One fence contract, shared, and it is the library's.** Issue #5275 found\n"
     "three ADR parsers disagreeing on which closing fences they accept: a\n"
     'closing line padded with one trailing space (`"--- \\n"` instead of\n'
     '`"---\\n"`, a plausible editor artifact) parsed cleanly in\n'
     "`check_adr_lifecycle.py` and crashed this generator, so the same corpus\n"
     "could pass the lifecycle gate and break the index build. A repo-wide sweep\n"
-    "found at least 11 distinct fence contracts. Both now delegate to\n"
-    "`scripts/validation/frontmatter_contract.py`, which delegates in turn to\n"
+    "found at least 11 distinct fence contracts. Both now call\n"
+    "`scripts/hook_utilities/frontmatter_block.py`, which uses\n"
     "`python-frontmatter`'s own boundary, `^-{3,}\\s*$`. That accepts a padded\n"
     "fence, a tab, and four or more dashes, and still rejects `--- trailing\n"
-    "text`. The snippet above uses the same handler, so it and the generator\n"
+    "text`. The snippet above calls the same function, so it and the generator\n"
     "cannot drift: agreement is a property of calling one parser, not of\n"
     "keeping two regexes in step by hand.\n\n"
 )
@@ -1017,7 +1009,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         # script from a different worktree (or via a symlink into this one)
         # writes into _REPO_ROOT silently, with no signal that the write
         # landed outside the caller's own checkout. Mirrors
-        # scripts/generate_third_party_notices.py:479-485 verbatim:
+        # the project-root check in main() of scripts/generate_third_party_notices.py verbatim:
         #   project_root = PROJECT_ROOT
         #   if not Path.cwd().resolve().is_relative_to(project_root.resolve()):
         #       print(f"ERROR: current directory is outside project root: {Path.cwd()}", ...)

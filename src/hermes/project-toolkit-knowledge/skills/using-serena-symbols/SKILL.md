@@ -1,7 +1,7 @@
 ---
 name: using-serena-symbols
 description: Guidance for using Serena's LSP-powered symbol analysis. Use when you say "how do I find a symbol", "trace references for this method", "explore this file's structure", or when grep/text search would be imprecise. Do NOT use for memory guidance (use memory).
-license: MIT
+license: Apache-2.0
 version: 1.0.0
 ---
 
@@ -207,7 +207,7 @@ Serena writes to the checkout active at server start (`--project` root),
 not your cwd. Call `mcp__serena__write_memory`, `edit_memory`,
 `delete_memory`, or `rename_memory` only from that checkout. A linked worktree
 (`git rev-parse --git-dir` differs from `--git-common-dir`) never qualifies.
-In one, unsure, or without a shell, do not call them: edit `.serena/memories/`
+In one, unsure, or without a shell, do not call them: edit the repository memory
 files in your own checkout, or return the change to the parent session. Delete or
 rename only when asked. New memory: `<topic>/<name>` plus a `memory-index.md` line.
 
@@ -278,3 +278,5 @@ Serena works with any language that has an LSP server configured:
 - And more...
 
 The specific features available depend on the language server's capabilities.
+
+Folded rule: before you navigate or search code, read [lsp-first](references/rule-lsp-first.md).

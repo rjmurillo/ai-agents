@@ -10,23 +10,22 @@ Regenerate after any ADR change with `uv run python build/scripts/build_all.py`.
 ## Querying the corpus directly
 
 This table is a convenience, not the source of truth. The frontmatter is, and
-Python reads it with no extra dependency:
+Python reads it with the repository's one frontmatter parser. Run it from the
+repository root:
 
 ```python
-import pathlib, yaml
-from frontmatter.default_handlers import YAMLHandler
+import pathlib, sys, yaml
 
-_HANDLER = YAMLHandler()
+sys.path.insert(0, ".")
+from scripts.hook_utilities.frontmatter_block import parse_frontmatter
 
 for path in sorted(pathlib.Path(".project-toolkit/architecture").glob("ADR-[0-9]*.md")):
-    text = path.read_text(encoding="utf-8")
-    if not _HANDLER.detect(text):
+    result = parse_frontmatter(path.read_text(encoding="utf-8"), yaml)
+    if not result.present:
         continue  # no frontmatter: see Needs backfill below
-    try:
-        raw, _body = _HANDLER.split(text)
-    except ValueError:
-        raise ValueError(f"{path.name}: opens with --- but never closes it")
-    front = yaml.safe_load(raw) or {}
+    if not result.ok:
+        raise ValueError(f"{path.name}: {result.error}")
+    front = result.metadata
     if str(front.get("status", "")).strip().lower() == "accepted":
         print(front.get("id") or path.name)
 ```
@@ -40,14 +39,12 @@ the table below, while a bare `== 'accepted'` misses it. Every record carries
 a lowercase value today, which is exactly why the mismatch would not announce
 itself.
 
-**This snippet does not detect duplicate keys, and the gates do.**
-`yaml.safe_load` resolves a repeated `status:` last-wins and silently, so a
-record declaring `proposed` in the line a human reads and `accepted` lower in
-the same block would print as accepted here. `check_adr_lifecycle` and this
-generator both reject that at the parser, so a corpus passing the gates has
-none. Run the gate before trusting a query on a tree you have not validated;
-the snippet is a convenience for reading a known-good corpus, not an
-independent check.
+**This snippet rejects duplicate keys, as the gates do.** `yaml.safe_load`
+would resolve a repeated `status:` last-wins and silently, so a record
+declaring `proposed` in the line a human reads and `accepted` lower in the
+same block would print as accepted. `parse_frontmatter` rejects that by
+default, and so do `check_adr_lifecycle` and this generator. The snippet is a
+convenience for reading a corpus, not a replacement for the gate.
 
 Python rather than `yq` deliberately. Python is the repo's native tooling
 (ADR-042) and `yaml` is already a dependency, so this adds nothing. The `yq` on
@@ -61,18 +58,13 @@ records that have it while appearing to answer for all of them. The Needs
 backfill section below is the honest denominator, and issue #5190 closes it.
 
 **This snippet crashes on unterminated frontmatter; it does not silently
-drop it.** `detect()` is false only for a record with no schema at all,
-which `continue`s past. A record whose opening `---` fence never closes
-still opens one, so it skips that `continue`, and `split()` raises
-`ValueError` because it cannot find a second boundary. The real
-generator's `parse_frontmatter` raises the same way, on purpose: a
-malformed schema is an author's defect to see, not a record to drop
-quietly into Needs backfill. The distinction matters because
-`frontmatter.loads` alone does NOT make it: an absent block and an
-unterminated one both come back with empty metadata, which is why this
-snippet calls `detect` and `split` rather than the convenience API
-(issue #5275). Run the gate rather than this snippet when that
-distinction matters.
+drop it.** `result.present` is false only for a record with no schema at
+all, which `continue`s past. A record whose opening `---` fence never closes
+is present but not `ok`, so it raises `ValueError`. The real generator raises the
+same way, on purpose: a malformed schema is an author's defect to see, not a
+record to drop quietly into Needs backfill. `frontmatter.loads` alone does
+NOT make that distinction: an absent block and an unterminated one both come
+back with empty metadata (issue #5275).
 
 **One fence contract, shared, and it is the library's.** Issue #5275 found
 three ADR parsers disagreeing on which closing fences they accept: a
@@ -80,11 +72,11 @@ closing line padded with one trailing space (`"--- \n"` instead of
 `"---\n"`, a plausible editor artifact) parsed cleanly in
 `check_adr_lifecycle.py` and crashed this generator, so the same corpus
 could pass the lifecycle gate and break the index build. A repo-wide sweep
-found at least 11 distinct fence contracts. Both now delegate to
-`scripts/validation/frontmatter_contract.py`, which delegates in turn to
+found at least 11 distinct fence contracts. Both now call
+`scripts/hook_utilities/frontmatter_block.py`, which uses
 `python-frontmatter`'s own boundary, `^-{3,}\s*$`. That accepts a padded
 fence, a tab, and four or more dashes, and still rejects `--- trailing
-text`. The snippet above uses the same handler, so it and the generator
+text`. The snippet above calls the same function, so it and the generator
 cannot drift: agreement is a property of calling one parser, not of
 keeping two regexes in step by hand.
 
@@ -119,7 +111,7 @@ These bind today.
 | [ADR-043](ADR-043-scoped-tool-execution.md) | Scoped Tool Execution | 2026-01-21 | Session protocol tools MUST scope to changed files rather than the entire repository. |
 | [ADR-045](ADR-045-framework-extraction-via-plugin-marketplace.md) | Framework Extraction via Plugin Marketplace | 2026-02-07 | Extract the reusable multi-agent framework from `rjmurillo/ai-agents` into a new repository `rjmurillo/awesome-ai`, published as a Claude Code plugin marketplace with 4 plugins. |
 | [ADR-046](ADR-046-planning-agent-rename.md) | Planning Agent Rename for Role Clarity | 2026-02-08 | Rename all three planning agents to reflect their distinct roles: |
-| [ADR-047](ADR-047-plugin-mode-hook-behavior.md) | Plugin-Mode Hook Behavior | 2026-04-29 | All hooks and skills run in plugin mode. |
+| [ADR-047](ADR-047-plugin-mode-hook-behavior.md) | Plugin-Mode Hook Behavior | 2026-11-24 | All hooks and skills run in plugin mode. |
 | [ADR-051](ADR-051-synthesis-panel-frontmatter-standard.md) | Synthesis Panel Frontmatter Standard | 2026-03-07 | All DESIGN-REVIEW documents MUST include YAML frontmatter with structured metadata. |
 | [ADR-053](ADR-053-adr-exception-criteria.md) | ADR Exception Criteria (Chesterton's Fence) | 2026-03-07 | ADR exceptions MUST include a Chesterton's Fence analysis before approval. |
 | [ADR-054](ADR-054-local-security-scanning.md) | Local Security Scanning | 2026-07-20 | Add a Lefthook pre-push job that scans changed code files. |
@@ -132,8 +124,9 @@ These bind today.
 | [ADR-063](ADR-063-memory-skill-decomposition.md) | Decompose the Memory Skill Into Focused Sub-Skills | 2026-07-27 | Decompose the monolithic `memory` skill into focused sub-skills split by operation, keep `memory` as a thin router that delegates, and preserve the `memory` skill name so existing callers do not... |
 | [ADR-064](ADR-064-commands-to-skills-migration.md) | Retire `.claude/commands/` as a Canonical Authoring Surface; Skills Are the Single User-Invocable Surface | 2026-06-01 | Retire `.claude/commands/` as a canonical authoring surface. |
 | [ADR-066](ADR-066-hook-fail-open-reconciliation.md) | Hook Fail-Open Reconciliation (Prevention-First, Fail-Closed-and-Loud) | 2026-07-19 | Chosen option: 3 - prevention-first, fail-closed-and-loud, because the #2205 incident proved that launcher-level fail-open does not protect users. |
-| [ADR-068](ADR-068-consolidated-hook-dispatcher.md) | Consolidated Per-Event Hook Dispatcher | 2026-11-04 | Generate one dispatcher host entry per active, safely consolidatable Copilot hook event. |
-| [ADR-071](ADR-071-plugin-hook-runtime-contract-verification.md) | Plugin Hook Runtime-Contract Verification | 2026-11-04 | Anchor every plugin hook command to the plugin root. |
+| [ADR-068](ADR-068-consolidated-hook-dispatcher.md) | Consolidated Per-Event Hook Dispatcher | 2026-11-20 | Generate one dispatcher host entry per active, safely consolidatable Copilot hook event. |
+| [ADR-069](ADR-069-context-corpus-is-the-product.md) | The Curated Context Corpus IS the Product, Orchestration Is Plumbing | 2026-11-20 | Adopt the principle that the curated context corpus is the product and orchestration is plumbing. |
+| [ADR-071](ADR-071-plugin-hook-runtime-contract-verification.md) | Plugin Hook Runtime-Contract Verification | 2026-11-22 | Anchor every plugin hook command to the plugin root. |
 | [ADR-072](ADR-072-jtbd-plugin-architecture.md) | JTBD-Based Plugin Architecture with Per-Harness Emission | 2026-06-09 | Adopt two coupled changes. |
 | [ADR-073](ADR-073-adr-lifecycle-frontmatter.md) | Machine-Readable ADR Lifecycle Frontmatter | 2026-06-19 | Adopt a queryable lifecycle frontmatter schema as the machine-readable source of truth for ADR state, keeping a human-readable `## Status` prose section as an optional secondary rendering, present... |
 | [ADR-074](ADR-074-security-review-quick-pass-mode.md) | Bounded Security-Review Quick-Pass Mode | 2026-06-17 | Add a bounded quick-pass mode to security review, governed by a diff-scope classifier, a caller-enforced deadline, and an extended verdict taxonomy. |
@@ -156,15 +149,15 @@ These bind today.
 | [ADR-105](ADR-105-terminal-state-completion-contract.md) | Terminal-State Completion Contract | 2026-09-03 | Put the whole completion contract on the always-on rule path, and keep exactly one operational procedure delegated to the skill that already owned it. |
 | [ADR-106](ADR-106-serena-only-memory-architecture.md) | Serena-Only Memory Architecture | 2026-09-08 | The memory-first principle survives unchanged. |
 | [ADR-108](ADR-108-template-owned-skill-files.md) | Template-Owned Skill Files Under `.claude/skills/` | 2026-09-11 | Adopt one new artifact class and amend the three texts that forbid it: REQ-003-010, REQ-003 decision D4, and ADR-107 property 1. |
-| [ADR-109](ADR-109-template-first-plugin-distribution.md) | Template-First Plugin Distribution | 2026-11-09 | Adopt template-first distribution for every artifact class the plugins ship, with one stated exception for imported Python library code, and supersede ADR-052 with an inverted direction. |
+| [ADR-109](ADR-109-template-first-plugin-distribution.md) | Template-First Plugin Distribution | 2026-11-22 | Adopt template-first distribution for every artifact class the plugins ship, with one stated exception for imported Python library code, and supersede ADR-052 with an inverted direction. |
 | [ADR-111](ADR-111-skill-model-pins-project-per-harness.md) | Skill Model Pins Project Per Harness | 2026-10-29 | Default every skill, agent, and command to the harness-inherited model. |
 | [ADR-113](ADR-113-promotion-gate-evidence-and-exceptions.md) | Promotion Gate Evidence, Artifact Binding, and Governed Exceptions | 2026-09-30 | One aggregator, one manifest. |
 | [ADR-117](ADR-117-state-conflation-failure-mode.md) | Add FM-13, State Conflation in a Boolean Guard, to the Failure Taxonomy | 2026-10-13 | Add one class to `FAILURE-MODES.md`, FM-13, State Conflation in a Boolean Guard. |
 | [ADR-118](ADR-118-widen-fm-11-to-hand-authored-cross-harness-instructions.md) | Widen FM-11 to Cover Hand-Authored Cross-Harness Instructions | 2026-10-13 | Widen FM-11. |
 | [ADR-120](ADR-120-completion-gate-unknown-verdict.md) | The Completion Gate Reports a Refused Session as Unknown | 2026-11-04 | `fail_open` stays false. |
-| [ADR-122](ADR-122-scoped-parser-dependency-admission.md) | Admit the C# Parser Dependencies Without Hiding Their Coupling | 2026-11-18 | Add one fixed `csharpParserDependencyAdmission` record to `.qualityrc.json`. |
+| [ADR-122](ADR-122-scoped-parser-dependency-admission.md) | Admit the C# Parser Dependencies Without Hiding Their Coupling | 2026-11-22 | Add one fixed `csharpParserDependencyAdmission` record to `.qualityrc.json`. |
 | [ADR-123](ADR-123-skill-artifact-flow-declarations.md) | Skills Declare the Artifacts They Read and Write | 2026-11-19 | `metadata.outputs` and `metadata.inputs` become mappings keyed by artifact name. |
-| [ADR-125](ADR-125-exact-code-quality-review-approvals.md) | Require Exact Approval of Code-Quality Review Findings | 2026-11-21 | Keep the assessor's scores, output, configuration, and exit behavior. |
+| [ADR-125](ADR-125-exact-code-quality-review-approvals.md) | Require Exact Approval of Code-Quality Review Findings | 2026-11-24 | Keep the assessor's scores, output, configuration, and exit behavior. |
 
 ## Proposed
 
@@ -183,7 +176,6 @@ Recorded, not yet binding. The last column is what each record says is holding i
 | [ADR-049](ADR-049-pre-pr-validation-gates.md) | Pre-PR Validation Gates | 2026-02-24 | All PRs MUST pass a local validation gate before creation. | - |
 | [ADR-065](ADR-065-orchestrator-as-router.md) | Orchestrator Is a Deterministic Router and Retry Policy, Not a Supervisor | 2026-05-29 | The orchestrator is a deterministic router with a retry policy. | - |
 | [ADR-067](ADR-067-validate-pr-change-claim-context.md) | validate-pr Check 1 default-flip - change-claim context required | 2026-06-02 | Adopt Option (c) Hybrid: keep patterns 1 (bold `path.ext`) and 2 (bullet-list `^[-*+] path.ext`) firing in any context. | - |
-| [ADR-069](ADR-069-context-corpus-is-the-product.md) | The Curated Context Corpus IS the Product, Orchestration Is Plumbing | 2026-05-02 | Adopt the following architectural principle: | - |
 | [ADR-070](ADR-070-memory-first-gate-spec-pipeline.md) | Memory-First Gate Is a BLOCKING Step in the Spec Pipeline | 2026-07-27 | The Memory-First Gate is a BLOCKING step (Step 0.5) in the `/spec` pipeline, running after Step 0 and before Step 1. | - |
 | [ADR-075](ADR-075-form-factor-eval-methodology.md) | Form-Factor Evaluation Methodology (Agent vs Skill) | 2026-07-20 | Adopt a three-variant eval. | Requested by issue [#1875](https://github.com/rjmurillo/ai-agents/issues/1875). Follow-on to ADR-058 (agent eval discipline), which scoped the form-factor question out and tracked it here. |
 | [ADR-077](ADR-077-flip-stale-contract-tests.md) | Flip Stale Contract Tests | 2026-06-29 | Add a governance rule to `.agents/governance/TESTING-RIGOR.md`: when a change alters an observable contract, the author must find and flip stale tests in the same diff. | review by 2026-09-27; This is a 90-day experimental governance rule. The review checkpoint is 2026-09-27. |
@@ -197,10 +189,11 @@ Recorded, not yet binding. The last column is what each record says is holding i
 | [ADR-110](ADR-110-capability-ownership-dag.md) | Capability Ownership and the Artifact Dependency DAG | 2026-09-22 | Behavior-driving artifacts compose a capability DAG, and each capability has one canonical owner that declares itself in its own frontmatter. | review by 2027-03-22; The record defines where capability ownership is declared and what a gate may refuse. The gate ships with it and finds nothing yet, because no artifact declares a capability... |
 | [ADR-112](ADR-112-risk-tiered-action-boundaries.md) | Risk-Tiered Action Boundaries for Agent Tools | 2026-09-28 | Sort every agent action into four tiers, deny the highest tier at the Claude harness, check shared-repository mutations inside the script that performs them, and record every gap this leaves open. | review by 2027-03-28; The record was filed on 2026-09-28 for issue #5767, a child of epic #5456. It is implemented in the same change. Requirement: REQ-043. Tasks: TASK-052. |
 | [ADR-114](ADR-114-agent-workflows-approval-and-non-blocking.md) | Agent Workflows Run Only After Approval and Never Block Merges (Except the Plugin CLI Smoke) | 2026-11-07 | Approval before running, one environment per provider. | review by 2027-04-03 |
-| [ADR-115](ADR-115-native-plugin-support-per-host.md) | Native Plugin Support for Cursor, Codex, Grok Build, Hermes, Devin, Pi, and Muse | 2026-11-15 | A generated plugin tree for each host whose native format differs. | review by 2027-04-12; ADR-115 refines ADR-072 Decision 2 and Decision 5 for seven more hosts. A reduced `adr-review` panel (architect and critic) reached consensus in round 3 on the first four hosts.... |
+| [ADR-115](ADR-115-native-plugin-support-per-host.md) | Native Plugin Support for Cursor, Codex, Grok Build, Hermes, Devin, Pi, and Muse | 2026-11-24 | A generated plugin tree for each host whose native format differs. | review by 2027-04-12; ADR-115 refines ADR-072 Decision 2 and Decision 5 for seven more hosts. A reduced `adr-review` panel (architect and critic) reached consensus in round 3 on the first four hosts.... |
 | [ADR-116](ADR-116-unchecked-in-context-rule-violation-failure-mode.md) | Propose a Failure Mode for Unchecked In-Context Rule Violations | 2026-10-13 | Propose a class named Unchecked In-Context Rule Violation, numbered with the next free FM number at acceptance (FM #14 on 2026-10-13, because ADR-117 took FM #13), for... | review by 2027-04-13; The owner has not accepted the class, and `FAILURE-MODES.md` is unchanged until then. |
 | [ADR-119](ADR-119-symlinked-dogfood-agents-and-skills.md) | Symlink the Agent and Skill Dogfood Trees to the Plugin Tree | 2026-11-04 | A binplace manifest row may set `link: true` (`templates/platforms/binplace.yaml`). | review by 2027-04-17; This record amends ADR-109 and ADR-108; see Related Decisions. |
 | [ADR-121](ADR-121-one-resolver-for-plugin-root-commands.md) | One Resolver Launches Every Shipped Plugin-Root Shell Command | 2026-11-14 | Three classes of site. | review by 2027-02-11 |
+| [ADR-126](ADR-126-repository-resolved-memory-store.md) | Repository-Resolved Memory Store | 2026-11-23 | Each repository has exactly one memory store, resolved by folder. | - |
 
 ## Retired
 

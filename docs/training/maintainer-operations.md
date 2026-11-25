@@ -76,7 +76,7 @@ The plugin CLI smoke used to be the one exception. The owner made it advisory on
    ============================== 83 passed in 9.95s ==============================
    ```
 
-5. Read a live verdict on any open PR. Add `--include-non-required` so waiting checks count too:
+5. Read a live verdict on any open PR. `--include-non-required` is a diagnostic view that counts waiting optional checks too. The merge gate is the default verdict without it:
 
    ```bash
    uv run python .claude/skills/github/scripts/pr/test_pr_merge_ready.py \
@@ -293,11 +293,11 @@ Read [RELEASING.md](../../RELEASING.md) first. It owns the one-time setup (npm s
 
 If a bad version already reached npm, follow [Bad plugin or package release](../runbooks/bad-release-rollback.md).
 
-### Part 6: Renovate automerge limits for workflow bumps
+### Part 6: Automerge rules for workflow bumps
 
-Issue #7129 closed a gap. A bump to a workflow that holds secrets used to merge with no human approval. Now neither Renovate nor Dependabot merges a PR that touches `.github/workflows/**` or `.github/cli-smoke/**`:
+Issue #7129 made both tools wait for a human on a PR that touches `.github/workflows/**` or `.github/cli-smoke/**`. On 2026-11-23 Richard removed that wait for Renovate (PR #7521). CI is the gate now. Dependabot still waits:
 
-- **Renovate.** A `packageRules` entry in `renovate.json` sets `automerge: false` for those paths. It sits after every rule that turns automerge on, because Renovate applies rules in order. A second entry keeps the weekly lock-file refresh of `.github/cli-smoke/**` on its own branch, so the repository-root refresh can still automerge.
+- **Renovate.** Every update automerges, including these paths and the devcontainer manager. No `packageRules` entry sets `automerge: false`. The weekly lock-file refresh of `.github/cli-smoke/**` rides the shared lock-file branch.
 - **Dependabot.** `dependabot-approve-and-auto-merge.yml` reads the PR file list and skips the merge for both directories. A failed read fails the step.
 
 The CLI smoke installs each CLI with `npm ci` from a committed lockfile under `.github/cli-smoke/<cli>/`. Renovate maintains each pair.
@@ -310,15 +310,15 @@ The CLI smoke installs each CLI with `npm ci` from a committed lockfile under `.
    ```
 
    ```text
-   ============================== 30 passed in 0.56s ==============================
+   ============================== 29 passed in 0.53s ==============================
    ```
 
-2. When one of these PRs opens, review the diff and merge it yourself. The tool will not.
+2. When Dependabot opens one of these PRs, review the diff and merge it yourself. Dependabot will not.
 
 Watch for these failures:
 
-- **A workflow bump merged on its own.** Check the rule order in `renovate.json`. An automerge rule placed after the exemption would turn it back on.
-- **A new directory needs the same limit.** Add it to the Renovate globs and to the Dependabot step. A drift test ties the two lists together.
+- **A Renovate workflow bump waits for a human.** Look for a rule in `renovate.json` that sets `automerge: false`. The tests reject one.
+- **A new directory needs the Dependabot limit.** Add it to the Dependabot step and to the globs in `tests/test_renovate_config.py`. A drift test ties the two lists together.
 
 ## Check your result
 
@@ -331,7 +331,7 @@ Every row must match. If one does not, start at the source in the last column.
 | 3 | Both checks exit 0 | [Ruleset drift alert runbook](../runbooks/ruleset-drift-alert.md) |
 | 4 | `WOULD BLOCK` with exit 0, then `[PASS]` exit 0, then `[FAIL]` exit 1 | [Publish failure runbook](../runbooks/publish-failure.md) |
 | 5 | `E404` with exit 1 until the first publish | [RELEASING.md](../../RELEASING.md) |
-| 6 | `30 passed` | `renovate.json` |
+| 6 | `29 passed` | `renovate.json` |
 
 ## Next
 

@@ -2,7 +2,7 @@
 name: programming-advisor
 version: 1.0.0
 description: Evaluate existing solutions (libraries, SaaS, open source) AND internal prior-art before custom development to avoid reinventing the wheel. Use when considering building new features, asking "should I build or use existing", "do we already have this", "is there existing code for X in this repo", "is there a library for this", or need build vs buy cost analysis with token estimates. Checks internal reuse (leverage/extend) before external. Do NOT use for strategic multi-option TCO (use buy-vs-build-framework).
-license: MIT
+license: Apache-2.0
 ---
 
 # Programming Advisor - "Reinventing the Wheel" Detector
@@ -401,3 +401,5 @@ See [references/pricing-data.md](references/pricing-data.md) for SaaS pricing an
 See [references/bitter-lesson-llms.md](references/bitter-lesson-llms.md) for why simpler integrations with better models beat complex scaffolding.
 
 See [references/search-before-building.md](references/search-before-building.md) for when to trigger a search, the three layers of knowledge, and the pre-code self-review checklist.
+
+Folded rule: before you add code, a dependency, or an abstraction, read [efficiency](references/rule-efficiency.md).

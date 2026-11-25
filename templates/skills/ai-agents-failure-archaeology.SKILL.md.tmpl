@@ -2,7 +2,7 @@
 name: ai-agents-failure-archaeology
 description: The chronicle of this repo's settled battles. Maps each major incident to symptom, root cause, evidence path, and the artifact that fixed it, so nobody re-fights a decided question. Use when you say `has this failed before`, `why does this rule exist`, `failure archaeology`, `what happened with the customer wedge`. Do NOT use for triaging a live failure (use `ai-agents-debugging-playbook`) or for extracting learnings from the current session (use `retrospective`).
 version: 1.0.0
-license: MIT
+license: Apache-2.0
 metadata:
   distribution: repo-local
   routing:
@@ -200,6 +200,6 @@ Primary sources: the eight retros named in Phase 1;
 `copilot-hooks-observations.md`, `root-cause-governance-enforcement.md`,
 `root-cause-late-feedback.md`, `root-cause-scope-creep-tools.md`,
 `ci-infrastructure-observations.md` (reproduce-on-main rule);
-`.claude/rules/generated-artifacts.md`, `canonical-source-mirror.md`,
+the repo-local `ai-agents-generation-and-release` skill's `references/rule-generated-artifacts.md`, `canonical-source-mirror.md`,
 `retros.md`. Update this skill when FAILURE-MODES.md gains a pattern or a new
 incident retro of customer-wedge-class severity lands.

@@ -1,14 +1,9 @@
 #!/usr/bin/env python3
 # taste-lint: ignore complexity -- pre-existing debt, unlinted before the ADR-119 source classification
-"""Unified memory search across Serena and the episode store.
+"""Search repository notes, legacy memories, and session episodes.
 
-Agent-facing script that searches the two file-based memory stores and
+Agent-facing script that searches local memory stores and
 reports a token budget warning for large memories.
-
-The semantic backend this script also queried is decommissioned (issue
-#5574), and with it the two flags that chose between the stores. Both
-remaining stores are local files, so there is nothing left to select
-between and nothing that can be unavailable.
 
 The lexical path also searches the Tier 2 episode store. Before that was
 wired, nothing outside the episode tests read those records, so the write
@@ -23,11 +18,21 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import sys
 from pathlib import Path
 from typing import Any
+
+# Bootstrap inline (ADR-047): `python3 -I` leaves the script directory off
+# sys.path, and the store rule lives in the sibling store_resolution module.
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+
+from store_resolution import (  # noqa: E402
+    Stores,
+    resolve_stores,
+)
 
 TOKEN_WARN_THRESHOLD = 5000
 TOKEN_DECOMPOSE_THRESHOLD = 10000
@@ -82,16 +87,29 @@ def estimate_tokens(file_path: Path) -> int:
         return 0
     try:
         return round(len(file_path.read_text(encoding="utf-8")) / 4)
-    except OSError:
+    except (OSError, UnicodeError):
         return 0
+
+
+def _corpus_files(corpus: Path) -> list[Path]:
+    # A linked memory must resolve inside its own store, so a committed link
+    # cannot surface another file in the repository, such as `.env`.
+    resolved = corpus.resolve()
+    return [
+        path
+        for path in corpus.rglob("*.md")
+        if path.is_file() and (not path.is_symlink() or path.resolve().is_relative_to(resolved))
+    ]
 
 
 def search_serena(
     query: str,
     memory_path: Path,
     max_results: int,
+    *,
+    source: str = "Serena",
 ) -> list[dict[str, Any]]:
-    """Search Serena memories by keyword matching on memory names.
+    """Search Markdown memories by keyword matching on memory names.
 
     A name is the path relative to ``memory_path``, without ``.md``. Content
     is read only for the result preview and is never matched.
@@ -102,7 +120,7 @@ def search_serena(
     keywords = query_keywords(query)
 
     results: list[dict[str, Any]] = []
-    for md_file in sorted(memory_path.rglob("*.md")):
+    for md_file in sorted(_corpus_files(memory_path)):
         rel = md_file.relative_to(memory_path).with_suffix("")
         name = rel.as_posix().lower()
         stem = name.rpartition("/")[2]
@@ -114,13 +132,13 @@ def search_serena(
         score = weighted / len(keywords) if keywords else 0
         try:
             content = md_file.read_text(encoding="utf-8")
-        except OSError:
-            content = ""
+        except (OSError, UnicodeError):
+            continue
         preview = re.sub(r"\s+", " ", content).strip()
         results.append(
             {
                 "Name": rel.as_posix(),
-                "Source": "Serena",
+                "Source": source,
                 "Score": round(score, 2),
                 "Path": str(md_file),
                 "Content": preview[:200] if preview else "",
@@ -152,7 +170,11 @@ def search_episodes(
 
     keywords = query_keywords(query)
     results: list[dict[str, Any]] = []
+    scope = episodes_path.resolve()
     for episode_file in sorted(episodes_path.glob("episode-*.json")):
+        # Same rule as _corpus_files: a linked episode must stay in its store.
+        if episode_file.is_symlink() and not episode_file.resolve().is_relative_to(scope):
+            continue
         try:
             episode = json.loads(episode_file.read_text(encoding="utf-8"))
         except (OSError, ValueError):
@@ -197,32 +219,36 @@ def search_episodes(
 
 
 def get_memory_router_status(
-    serena_path: Path, episodes_path: Path | None = None
+    serena_path: Path | None,
+    episodes_path: Path | None = None,
+    notes_path: Path | None = None,
+    shadowed_notes: Path | None = None,
 ) -> dict[str, dict[str, object]]:
-    """Return diagnostic status of memory systems."""
-    serena_available = serena_path.is_dir()
-    serena_count = 0
-    if serena_available:
-        serena_count = len(list(serena_path.rglob("*.md")))
+    """Return diagnostic status of memory systems.
 
-    episodes_available = False
-    episode_count = 0
-    if episodes_path is not None and episodes_path.is_dir():
-        episodes_available = True
-        episode_count = len(list(episodes_path.glob("episode-*.json")))
-
-    return {
-        "Serena": {
-            "Available": serena_available,
-            "MemoryCount": serena_count,
-            "Path": str(serena_path),
-        },
-        "Episodes": {
-            "Available": episodes_available,
-            "MemoryCount": episode_count,
-            "Path": str(episodes_path) if episodes_path is not None else "",
-        },
-    }
+    ``shadowed_notes`` is a notes folder the Serena store hides (ADR-126). It
+    is reported with ``Shadowed: true`` and was not searched.
+    """
+    stores = {"Serena": serena_path, "Episodes": episodes_path}
+    if notes_path is not None or shadowed_notes is not None:
+        stores["RepositoryNotes"] = notes_path or shadowed_notes
+    status: dict[str, dict[str, object]] = {}
+    for name, path in stores.items():
+        count = 0
+        if path is not None and path.is_dir():
+            count = (
+                len(list(path.glob("episode-*.json")))
+                if name == "Episodes"
+                else len(_corpus_files(path))
+            )
+        status[name] = {
+            "Available": path is not None and path.is_dir(),
+            "MemoryCount": count,
+            "Path": str(path) if path is not None else "",
+        }
+    if shadowed_notes is not None and notes_path is None:
+        status["RepositoryNotes"]["Shadowed"] = True
+    return status
 
 
 _HELP_EPILOG = """\
@@ -233,13 +259,17 @@ examples:
 exit codes:
   0  search ran (results may be empty)
   1  query failed validation (1-500 characters)
-  2  a store path contains '..', or AI_AGENTS_REPO_ROOT is not a directory
+  2  a store path contains '..'
+
+environment:
+  CLAUDE_PROJECT_DIR  project to search; defaults to the checkout holding the
+                      current directory
 """
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Unified memory search across Serena and episodes.",
+        description="Search repository notes, legacy memories, and session episodes.",
         epilog=_HELP_EPILOG,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -264,7 +294,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--serena-path",
         type=Path,
         default=None,
-        help="Path to Serena memories directory",
+        help="Memory folder to search; overrides the resolved repository store",
     )
     parser.add_argument(
         "--episodes-path",
@@ -284,26 +314,17 @@ def validate_query(query: str) -> str | None:
     return None
 
 
-SERENA_REL = Path(".serena", "memories")
-EPISODES_REL = Path(".project-toolkit", "memory", "episodes")
-
-
-def resolve_repo_root(script_dir: Path) -> Path:
-    """Pick the checkout that owns the memory stores.
-
-    An installed plugin lives outside the consumer checkout, so the path
-    relative to this file points at the plugin directory. Prefer the
-    consumer project (CLAUDE_PROJECT_DIR, then the working directory) when
-    it holds a memory store; fall back to the path relative to this file.
-    """
-    candidates = [os.environ.get("CLAUDE_PROJECT_DIR", ""), str(Path.cwd())]
-    for candidate in candidates:
-        if not candidate:
-            continue
-        root = Path(candidate).resolve()
-        if (root / SERENA_REL).is_dir() or (root / EPISODES_REL.parent).is_dir():
-            return root
-    return script_dir.parent.parent.parent.parent
+def _resolve_stores(args: argparse.Namespace) -> Stores:
+    """Pick the one memory store, the episode store, and any shadowed notes."""
+    stores = resolve_stores(args.serena_path, args.episodes_path)
+    if stores.shadowed_notes is not None:
+        print(
+            f"memory search: {stores.shadowed_notes} holds notes this search skips because"
+            " .serena/memories exists (ADR-126). Move them with"
+            f" `git mv {stores.shadowed_notes.relative_to(stores.root)}/* .serena/memories/`.",
+            file=sys.stderr,
+        )
+    return stores
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -319,39 +340,20 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(error_output, indent=2))
         return 1
 
-    # Determine store paths
-    script_dir = Path(__file__).resolve().parent
-    repo_root = resolve_repo_root(script_dir)
+    if any(path and ".." in path.parts for path in (args.serena_path, args.episodes_path)):
+        print(
+            json.dumps({"Error": "Security: path must not contain traversal sequences."}, indent=2)
+        )
+        return 2
+    stores = _resolve_stores(args)
+    serena_path, episodes_path, notes_path = stores.serena, stores.episodes, stores.notes
+    shadowed_notes = stores.shadowed_notes
 
-    if args.serena_path:
-        if ".." in args.serena_path.parts:
-            msg = "Security: path must not contain traversal sequences."
-            print(json.dumps({"Error": msg}, indent=2))
-            return 2
-        serena_path = args.serena_path.resolve()
-    else:
-        serena_path = repo_root / SERENA_REL
-
-    if args.episodes_path:
-        if ".." in args.episodes_path.parts:
-            msg = "Security: path must not contain traversal sequences."
-            print(json.dumps({"Error": msg}, indent=2))
-            return 2
-        episodes_path = args.episodes_path.resolve()
-    else:
-        episodes_path = repo_root / EPISODES_REL
-
-    search_status: dict[str, Any] = {
-        "SerenaQueried": True,
-        "EpisodesQueried": True,
-        "SerenaSucceeded": False,
-        "EpisodesSucceeded": False,
-    }
-
-    results = search_serena(query, serena_path, max_results)
-    search_status["SerenaSucceeded"] = True
-    results += search_episodes(query, episodes_path, max_results)
-    search_status["EpisodesSucceeded"] = True
+    results = search_episodes(query, episodes_path, max_results) if episodes_path else []
+    if serena_path is not None:
+        results = search_serena(query, serena_path, max_results) + results
+    if notes_path is not None:
+        results = search_serena(query, notes_path, max_results, source="RepositoryNotes") + results
     results.sort(key=lambda r: float(r["Score"]), reverse=True)
     results = results[:max_results]
 
@@ -376,14 +378,14 @@ def main(argv: list[str] | None = None) -> int:
         if not results:
             print(f"No results found for: {query}")
         else:
-            print(f"{'Name':<40} {'Source':<10} {'Score':<8} {'Tokens':<10} Preview")
+            print(f"{'Name':<40} {'Source':<15} {'Score':<8} {'Tokens':<10} Preview")
             print("-" * 100)
             for r in results:
                 preview = r.get("Content", "")
                 if len(preview) > 60:
                     preview = preview[:57] + "..."
                 print(
-                    f"{r['Name']:<40} {r['Source']:<10} "
+                    f"{r['Name']:<40} {r['Source']:<15} "
                     f"{r['Score']:<8} {r.get('TokenEstimate', 0):<10} "
                     f"{preview}",
                 )
@@ -394,6 +396,18 @@ def main(argv: list[str] | None = None) -> int:
             for warning in token_budget["Warnings"]:
                 print(f"WARNING: {warning}", file=sys.stderr)
     else:
+        # A queried store that is not a directory returned no hits by absence,
+        # not by search, so report it as not succeeded.
+        search_status = {
+            "SerenaQueried": serena_path is not None,
+            "SerenaSucceeded": serena_path is not None and serena_path.is_dir(),
+            "EpisodesQueried": episodes_path is not None,
+            "EpisodesSucceeded": episodes_path is not None and episodes_path.is_dir(),
+        }
+        if notes_path is not None:
+            search_status.update(
+                RepositoryNotesQueried=True, RepositoryNotesSucceeded=notes_path.is_dir()
+            )
         output = {
             "Query": query,
             "Count": len(results),
@@ -402,7 +416,9 @@ def main(argv: list[str] | None = None) -> int:
             "SearchStatus": search_status,
             "TokenBudget": token_budget,
             "Results": results,
-            "Diagnostic": get_memory_router_status(serena_path, episodes_path),
+            "Diagnostic": get_memory_router_status(
+                serena_path, episodes_path, notes_path, shadowed_notes
+            ),
         }
         print(json.dumps(output, indent=2))
 

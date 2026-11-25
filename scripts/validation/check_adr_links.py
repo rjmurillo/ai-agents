@@ -262,7 +262,7 @@ def _merge_base(repo_root: Path, base_ref: str) -> str:
     """Return the merge base of HEAD and ``base_ref``, or ``base_ref`` itself.
 
     Comparing against the merge base, not the ref tip, is what
-    ``scripts/validation/memory_index.py`` (:491-505) does for the same
+    ``scripts/validation/memory_index.py`` (:495-509) does for the same
     reason: once the base branch advances past the point this branch forked
     from, its tip carries entries this branch never saw, and every one of
     them would read as an entry this branch is missing rather than one it
@@ -765,7 +765,7 @@ def _has_adr_corpus(scanned: list[str]) -> bool:
     reason unrelated to what they test.
 
     Kin to ``check_adr_lifecycle.py``'s own corpus sentinel (quoted verbatim
-    from ``scripts/validation/check_adr_lifecycle.py:1121-1130``): "An
+    from ``scripts/validation/check_adr_lifecycle.py:1124-1133``): "An
     emptied or misrouted corpus (wrong --repo-root, or every record moved
     out) still passes the `is_dir()` check above. `scan()` would then walk
     zero records, `tally()` would report every check at 0, and `run()` would

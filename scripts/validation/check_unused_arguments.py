@@ -136,10 +136,10 @@ SCAN_ROOTS = ("scripts", "src/claude", "templates/hooks", ".claude/lib", ".claud
 # are skipped by directory name in _is_excluded. Linked files need no entry:
 # the scan skips every tracked symlink (mode 120000), which covers the
 # .claude/lib links into src/claude/lib. The src/claude/lib packages
-# (ai_review_common, failure_classifier, github_core, hook_utilities) and
-# bootstrap.py are not original files: build/scripts/lib_mirror.py renders them
-# from scripts/<package>/ (bootstrap.py from scripts/hook_utilities/), which is
-# in SCAN_ROOTS, so each is scanned once there. A test pins that every such
+# (ai_review_common, failure_classifier, github_core, hook_utilities,
+# memory_enhancement) and bootstrap.py are not original files: lib_mirror.py
+# renders them from scripts/<package>/ (bootstrap.py from scripts/hook_utilities/),
+# which is in SCAN_ROOTS, so each is scanned once there. A test pins that every such
 # entry has a scanned counterpart. The seven top-level src/claude/lib
 # modules below are byte-identical copies of real files in .claude/lib. The
 # skill-bundled copies of redact_secrets.py and metrics_writer.py are real
@@ -157,6 +157,7 @@ EXCLUDED_PATHS = (
     "src/claude/lib/hook_dispatch_protocol.py",
     "src/claude/lib/hook_dispatch_timeout.py",
     "src/claude/lib/hook_utilities/",
+    "src/claude/lib/memory_enhancement/",
     "src/claude/lib/output_capture.py",
     "src/claude/lib/shim_loader.py",
     "src/claude/skills/review/scripts/validate_review_marker.py",

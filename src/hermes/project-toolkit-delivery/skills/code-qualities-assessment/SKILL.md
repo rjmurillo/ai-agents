@@ -2,7 +2,7 @@
 name: code-qualities-assessment
 description: Assess maintainability of code through 5 foundational qualities (cohesion, coupling, encapsulation, testability, non-redundancy) with quantifiable scoring rubrics. assess.py scores source code only; rules, skills, and agents are assessed manually against the same qualities per references/executable-nl-artifacts.md. Works at method/class/module levels across multiple languages. Produces markdown reports with remediation guidance. Use when you ask to "assess maintainability", "score cohesion/coupling/testability" on specific code. Do NOT use for a full pre-merge review (use review) or repo-wide domain grading (use quality-grades).
 version: 1.2.0
-license: MIT
+license: Apache-2.0
 ---
 
 # Code Qualities Assessment
@@ -173,7 +173,7 @@ Growth costs more than the tolerance absorbs, and cohesion is where it shows.
 The score is `10 - LOC/120 - 0.3 * (definitions - 1)` at confidence 0.4, so
 three added functions and 100 lines lose about 1.7 points with nothing worse.
 Read the named delta before acting on an exit 10: this heuristic cannot tell
-growth from decay.
+growth from decay. Cohesion drops are never admitted; only some coupling and non-redundancy drops are (see [rule admissions](references/rule-admissions.md)).
 
 The JSON report carries `gate_mode`, a `comparisons` array with per-quality `base`, `head`, `delta`, and `status`, and a `threshold_gate` on each file.
 `threshold_gate` holds `failed`, `unscored_supported_source`, and a `below_threshold` list of `quality`, `score`, `minimum`, `confidence`, and `advisory`. It is null for a file the absolute gate did not check, such as a regression-mode file with a comparable base.
@@ -182,7 +182,7 @@ The JSON report carries `gate_mode`, a `comparisons` array with per-quality `bas
 
 | Code | Meaning |
 |------|---------|
-| 0 | Gate passed. It can also carry one explicitly admitted regression, recorded under `csharp_parser_dependency_admission`, `typescript_parser_dependency_admission`, or `python_parser_dependency_admission` in the JSON; the review adapter reports that as WARN, never PASS. The scanner accepts only the records built into it, which cover its own parser dependencies; any other config value fails with exit 1. |
+| 0 | Gate passed. It can also carry one explicitly admitted regression, recorded under `csharp_parser_dependency_admission`, `typescript_parser_dependency_admission`, or `python_parser_dependency_admission` in the JSON; the review adapter reports that as WARN, never PASS. The scanner accepts only the records built into it, which cover its own parser dependencies; any other config value fails with exit 1. A run that exits 0 can also carry `rule_admissions`; the review adapter reports those as WARN. An invalid `firstPartyCouplingAdmission` fails with exit 1. |
 | 10 | Regression mode: a comparable quality regressed, or scored evidence was lost |
 | 11 | Below configured thresholds (absolute mode, or a new file in regression mode); below-threshold qualities at or above `minConfidence`; lower-confidence misses warn only. Every file and quality is checked first, so stderr names each failure |
 | 1 | Script error (invalid args, unresolvable base, file not found, or, for C#, TypeScript, JavaScript, or Python, a missing parser package, a parser startup failure, or source the pinned grammar cannot parse; or, for PowerShell, `pwsh` missing from PATH, a PowerShell parser failure or timeout, or a syntax error) |

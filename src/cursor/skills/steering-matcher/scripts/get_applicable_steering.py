@@ -11,9 +11,30 @@ EXIT CODES (ADR-035):
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
+
+# ADR-047 keeps this bootstrap inline because imports need sys.path first.
+# This file's own plugin lib wins when it holds the shared frontmatter parser,
+# so a foreign or older plugin root in the environment cannot shadow it. The
+# environment root is the fallback for a script copied outside its plugin.
+_PLUGIN_ROOT = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+_LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+if _PLUGIN_ROOT and not os.path.isfile(_LIB_DIR / "hook_utilities" / "frontmatter_block.py"):
+    _LIB_DIR = Path(_PLUGIN_ROOT) / "lib"
+
+if not os.path.isdir(_LIB_DIR):
+    raise RuntimeError(
+        "Expected portability helper lib directory not found: "
+        f"{_LIB_DIR}. Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT to the "
+        "plugin root, or run from an ai-agents checkout."
+    )
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from hook_utilities.frontmatter_block import split_frontmatter  # noqa: E402
 
 
 def glob_to_regex(pattern: str) -> str:
@@ -87,11 +108,11 @@ def get_applicable_steering(
         except OSError:
             continue
 
-        fm_match = re.search(r"(?s)^---\s*\n(.*?)\n---", content)
-        if not fm_match:
+        split = split_frontmatter(content)
+        if not split.found:
             continue
 
-        front_matter = fm_match.group(1)
+        front_matter = split.raw
 
         apply_to_match = re.search(r'applyTo:\s*"([^"]+)"', front_matter)
         apply_to = apply_to_match.group(1) if apply_to_match else None

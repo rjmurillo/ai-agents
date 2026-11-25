@@ -26,10 +26,15 @@ _DETECTOR_TREES = [
 ]
 
 
+def _doc(frontmatter: str) -> str:
+    """Wrap raw frontmatter lines in fences so the shared parser reads them."""
+    return f"---\n{frontmatter}---\n"
+
+
 class TestDuplicateKeySpellings:
     """Quoting must not launder a duplicate past the exemption guard.
 
-    `_has_duplicate_keys` matched `^[A-Za-z0-9_-]+:` line prefixes,
+    The retired `_has_duplicate_keys` matched `^[A-Za-z0-9_-]+:` line prefixes,
     which asks a different question than YAML does. Measured on that revision,
     three of these four spellings walked through while `yaml.safe_load` resolved
     every one of them to `accepted`, so a record could declare `proposed` in the
@@ -55,14 +60,14 @@ class TestDuplicateKeySpellings:
         detector = import_skill_script(tree)
         frontmatter = f"id: A\n{first_line}\nstatus: accepted\n"
 
-        assert detector._has_duplicate_keys(frontmatter) is True
+        assert detector._parse_frontmatter(_doc(frontmatter)) is None
 
     @pytest.mark.parametrize("tree", _DETECTOR_TREES)
     def test_a_nested_duplicate_is_caught(self, tree: str) -> None:
         """A line scan structurally cannot reach this; the parser can."""
         detector = import_skill_script(tree)
 
-        assert detector._has_duplicate_keys("id: A\nmeta:\n  n: 1\n  n: 2\n") is True
+        assert detector._parse_frontmatter(_doc("id: A\nmeta:\n  n: 1\n  n: 2\n")) is None
 
     @pytest.mark.parametrize("tree", _DETECTOR_TREES)
     def test_clean_frontmatter_is_not_flagged(self, tree: str) -> None:
@@ -73,14 +78,17 @@ class TestDuplicateKeySpellings:
         """
         detector = import_skill_script(tree)
 
-        assert detector._has_duplicate_keys("id: A\nstatus: accepted\n") is False
+        assert detector._parse_frontmatter(_doc("id: A\nstatus: accepted\n")) == {
+            "id": "A",
+            "status": "accepted",
+        }
 
     @pytest.mark.parametrize("tree", _DETECTOR_TREES)
     def test_a_distinct_nested_mapping_is_not_flagged(self, tree: str) -> None:
         """Second negative control: nesting alone is not duplication."""
         detector = import_skill_script(tree)
 
-        assert detector._has_duplicate_keys("id: A\nmeta:\n  n: 1\n  other: 2\n") is False
+        assert detector._parse_frontmatter(_doc("id: A\nmeta:\n  n: 1\n  other: 2\n")) is not None
 
 
 class TestExemptionFailsClosed:
@@ -100,7 +108,7 @@ class TestExemptionFailsClosed:
         old = "status: proposed\nimplemented: false\n"
         new = "status: accepted\nimplemented: true\nstatus: proposed\n"
 
-        assert detector._only_non_decision_fields_changed(old, new) is False
+        assert detector._only_non_decision_fields_changed(_doc(old), _doc(new)) is False
 
     @pytest.mark.parametrize("tree", _DETECTOR_TREES)
     def test_a_quoted_duplicate_also_denies_the_exemption(self, tree: str) -> None:
@@ -114,4 +122,4 @@ class TestExemptionFailsClosed:
         old = "status: proposed\nimplemented: false\n"
         new = 'status: accepted\nimplemented: true\n"status": proposed\n'
 
-        assert detector._only_non_decision_fields_changed(old, new) is False
+        assert detector._only_non_decision_fields_changed(_doc(old), _doc(new)) is False

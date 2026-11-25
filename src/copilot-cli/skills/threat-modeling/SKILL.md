@@ -2,7 +2,7 @@
 name: threat-modeling
 version: 1.0.0
 description: Structured security analysis using OWASP Four-Question Framework and STRIDE methodology. Generates threat matrices with risk ratings, mitigations, and prioritization. Use for attack surface analysis, security architecture review, or when asking what can go wrong. Do NOT use for per-change diff or snippet risk review; use security-review instead.
-license: MIT
+license: Apache-2.0
 metadata:
   routing:
     role: lifecycle
@@ -403,7 +403,7 @@ Serena writes to the checkout active at server start (`--project` root),
 not your cwd. Call `mcp__serena__write_memory`, `edit_memory`,
 `delete_memory`, or `rename_memory` only from that checkout. A linked worktree
 (`git rev-parse --git-dir` differs from `--git-common-dir`) never qualifies.
-In one, unsure, or without a shell, do not call them: edit `.serena/memories/`
+In one, unsure, or without a shell, do not call them: edit the repository memory
 files in your own checkout, or return the change to the parent session. Delete or
 rename only when asked. New memory: `<topic>/<name>` plus a `memory-index.md` line.
 

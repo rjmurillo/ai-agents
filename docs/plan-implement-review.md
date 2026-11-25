@@ -203,7 +203,7 @@ The loop in step 6 depends on who rejects. A failed QA run returns to the orches
 | Plan before code | A teammate spawned from a lead in plan mode stays read-only until its plan is ready. The plan is auto-approved. Permission prompts are the gate | Plan mode, with `Shift`+`Tab` or `--plan` | The plan skill in Claude Code. The milestone-planner and critic agents in both CLIs |
 | Parallel work | Yes. Teammates run as separate sessions | Yes, with `/fleet` or the `--fleet` flag | Yes, where the work is independent. The orchestrator routes in parallel where possible and combines the results |
 | Review gates | Hooks you write: `TeammateIdle`, `TaskCreated`, `TaskCompleted` | A reviewer agent you write. Copilot CLI also has a built-in code review agent | Critic, QA, and security agents, plus the review skill |
-| Status | Experimental and off by default | The `--agent`, `--plan`, and `--fleet` flags are in Copilot CLI 1.0.95 | MIT licensed. Both installs ran clean on 2026-10-11 |
+| Status | Experimental and off by default | The `--agent`, `--plan`, and `--fleet` flags are in Copilot CLI 1.0.95 | Apache 2.0 licensed. Both installs ran clean on 2026-10-11 |
 
 Sources, by column:
 

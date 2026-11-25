@@ -7,7 +7,7 @@ description: Memory-system maintenance operations, split out of the memory route
   canonical memory scripts. Use when you say `check memory tier health`, `count memory
   tokens`, or `benchmark memory performance`. Do NOT use for Tier 1 search (use
   memory-search) or recording a session (use memory-reflexion).
-license: MIT
+license: Apache-2.0
 metadata:
   adr: ADR-063, ADR-106
   capability:
@@ -32,6 +32,11 @@ Maintenance is a family of read-mostly checks over the memory stores. Every
 operation delegates to a canonical script under `.claude/skills/memory/scripts/`;
 this sub-skill owns the operator guidance, not the script implementations. The
 scripts are shared with the router and are not reimplemented here.
+
+For local Markdown, use the current repository's corpus path. Pass the
+individual file or directory to the token and size checks. The benchmark
+measures the Serena corpus. Use a connected service's own health capability
+for its remote store, when available.
 
 ## Triggers
 
@@ -202,8 +207,8 @@ targets.
 
 ## References
 
-- ADR-007: Memory-first architecture (canonical store, local-only posture)
-- ADR-037: Memory router architecture (the router this sub-skill delegates from)
+- ADR-106: Memory-first principle and single store (superseded ADR-007)
+- ADR-126: Repository-resolved memory store (amends ADR-106, which superseded ADR-037)
 - ADR-063: Memory skill decomposition (this extraction)
 - [references/benchmarking.md](references/benchmarking.md): benchmark method,
   query set, and target ratios

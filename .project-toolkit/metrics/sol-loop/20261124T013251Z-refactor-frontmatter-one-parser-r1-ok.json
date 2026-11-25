@@ -1,0 +1,99 @@
+{
+  "author_family": "anthropic",
+  "branch": "refactor/frontmatter-one-parser",
+  "counts": {
+    "dropped": 2,
+    "kept": 4,
+    "overlap": 0,
+    "raw": 6,
+    "sol_only": 4
+  },
+  "critic_sha256": "3133605ecb7549491917d89aa55bd22c3429e535526735a044b41857f87a0442",
+  "dropped": [
+    {
+      "finding": {
+        "claim": "splits the document twice and changes the value of a final block scalar",
+        "file": "build/scripts/agent_tree_copy.py",
+        "fix": "Decode the already-extracted `frontmatter_raw` through the core.",
+        "id": "S5",
+        "line": 143,
+        "repro": "Pass `---\\nname: agent\\ndescription: |\\n  Example\\n---\\n# Body\\n` to `parse_agent`. Base returns \"Example\", and HEAD returns \"Example\\n\"",
+        "severity": "nit"
+      },
+      "reason": "nit"
+    },
+    {
+      "finding": {
+        "claim": "pins the private `_strict_loader` name",
+        "file": "tests/skills/adr-review/test_detect_adr_changes_citation.py",
+        "fix": "Drop the private-name assertion and keep the duplicate-key behavior tests.",
+        "id": "S6",
+        "line": 59,
+        "repro": "Rename the helper and update its reference. The test fails with identical parser behavior",
+        "severity": "nit"
+      },
+      "reason": "nit"
+    }
+  ],
+  "failure_class": "",
+  "findings": [
+    {
+      "claim": "and src/claude/skills/adr-review/scripts/detect_adr_changes.py:290 exempt edits that change the body",
+      "evidence": "bc362e471: git_hook_policy._split_frontmatter and detect_adr_changes compare from fence_end; tests test_a_blank_line_added_after_the_fence_is_a_body_change and test_blank_line_after_the_fence_is_a_body_change fail without the fix",
+      "file": "scripts/validation/git_hook_policy.py",
+      "fix": "Compare the original slices starting at `fence_end`.",
+      "id": "S1",
+      "line": 1586,
+      "outcome": "fixed",
+      "repro": "Change `model: sonnet` to `model: haiku` in a skill, or flip `implemented: false` in an ADR, and insert a blank line immediately after the closing fence. HEAD classifies both edits as metadata-only",
+      "severity": "blocker",
+      "sol_only": true
+    },
+    {
+      "claim": "loses a tab-only first payload line before the tab check and YAML load",
+      "evidence": "bc362e471: skill_frontmatter slices the payload from the first newline to raw_end; TestTabOnlyFirstLine fails without the fix",
+      "file": "scripts/validation/skill_frontmatter.py",
+      "fix": "Validate and decode the full payload between the fence lines.",
+      "id": "S2",
+      "line": 244,
+      "outcome": "fixed",
+      "repro": "Call `parse_frontmatter(\"---\\n\\t\\nname: demo\\ndescription: Example use case.\\n---\\n\")`. Base reports a tab violation and a YAML error. HEAD reports zero errors",
+      "severity": "blocker",
+      "sol_only": true
+    },
+    {
+      "claim": "changes the staged exemption's duplicate-key policy and rejects valid YAML merges",
+      "evidence": "bc362e471: _parse_frontmatter restores the top-level duplicate scan and decodes with allow_duplicate_keys=True; nested repeat and merge test fails without the fix",
+      "file": "scripts/validation/git_hook_policy.py",
+      "fix": "Retain the original top-level duplicate check and pass the extracted payload to `decode_frontmatter_yaml` with `allow_duplicate_keys=True`.",
+      "id": "S3",
+      "line": 1599,
+      "outcome": "fixed",
+      "repro": "Call `_only_model_pin_fields_changed` with a `sonnet` to `haiku` change and unchanged `metadata: {label: a, label: b}`. Base returns True, and HEAD returns False. The same regression occurs with an unchanged `<<` merge",
+      "severity": "should",
+      "sol_only": true
+    },
+    {
+      "claim": "changes the malformed-frontmatter warning",
+      "evidence": "bc362e471: resolve_route decodes via decode_frontmatter_yaml and prints exc.__class__.__name__; repro prints (ParserError)",
+      "file": "src/claude/skills/autoplan/scripts/resolve_route.py",
+      "fix": "Decode through the core and keep the exception class name in the warning.",
+      "id": "S4",
+      "line": 316,
+      "outcome": "fixed",
+      "repro": "Read a skill with `name: [` between valid fences. Base prints `(ParserError)`. HEAD prints `(invalid YAML frontmatter: while parsing a flow node)`",
+      "severity": "should",
+      "sol_only": true
+    }
+  ],
+  "head_sha": "6a58560336e832c2ca9335fd021b7e231e6793b6",
+  "key": "refactor/frontmatter-one-parser",
+  "model": "gpt-6.2-sol",
+  "overlap_rule": "same file and line within 3 of a critic path:line or range",
+  "pr": "",
+  "round": 1,
+  "schema_version": 2,
+  "status": "ok",
+  "timestamp": "2026-11-24T01:32:51Z",
+  "verdict": "CHANGES"
+}

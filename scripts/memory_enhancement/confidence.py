@@ -6,7 +6,7 @@ memory age, update recency, and link count as weighted factors.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .models import MemoryWithCitations, VerificationResult
@@ -105,7 +105,7 @@ def _validity_factor(results: list[VerificationResult]) -> float:
 
 def _recency_factor(memory: MemoryWithCitations) -> float:
     """Score based on how recently the memory was updated. Recent = higher."""
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
     days_since_update = max(0.0, (now - memory.updated_at).total_seconds() / 86400.0)
     return max(0.0, 1.0 - (days_since_update / _MAX_RECENCY_DAYS))
 
@@ -117,6 +117,6 @@ def _links_factor(memory: MemoryWithCitations) -> float:
 
 def _freshness_factor(memory: MemoryWithCitations) -> float:
     """Score based on memory age. Newer memories score higher."""
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
     age_days = max(0.0, (now - memory.created_at).total_seconds() / 86400.0)
     return max(0.0, 1.0 - (age_days / _MAX_AGE_DAYS))

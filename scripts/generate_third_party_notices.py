@@ -165,6 +165,36 @@ FORKED_COMPONENTS: dict[str, dict[str, str]] = {
         ),
         "license_blank_line_prefix": "",
     },
+    "align-cli ADR detection": {
+        "license": "MIT",
+        "url": "https://github.com/aligndottech/align-cli",
+        "author": "Align Tech Ltd",
+        "local_path": "src/claude/skills/skill-bootstrap",
+        "license_text": (
+            "MIT License\n\nCopyright (c) 2026 Align Tech Ltd\n\n" + _MIT_PERMISSION_TEXT
+        ),
+        "license_blank_line_prefix": "",
+    },
+    "aspire.dev doc-writer": {
+        "license": "MIT",
+        "url": "https://github.com/microsoft/aspire.dev",
+        "author": "Microsoft Corporation",
+        "local_path": "src/claude/skills/technical-writing",
+        "license_text": (
+            "MIT License\n\nCopyright (c) Microsoft Corporation.\n\n" + _MIT_PERMISSION_TEXT
+        ),
+        "license_blank_line_prefix": "",
+    },
+    "agent-stylebooks": {
+        "license": "MIT",
+        "url": "https://github.com/Neeeophytee/agent-stylebooks",
+        "author": "Shilpa Mitra",
+        "local_path": "src/claude/skills/technical-writing",
+        "license_text": (
+            "MIT License\n\nCopyright (c) 2026 Shilpa Mitra\n\n" + _MIT_PERMISSION_TEXT
+        ),
+        "license_blank_line_prefix": "",
+    },
 }
 
 # Runtime dependencies declared in requirements.txt files within shipped paths.

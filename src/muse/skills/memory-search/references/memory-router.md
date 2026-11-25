@@ -11,12 +11,12 @@ it up:
 
 | Artifact | Role |
 |----------|------|
-| `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/memory_core/memory_router.py` | Importable module. Serena only. |
+| `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/memory_core/memory_router.py` | Importable module. Searches the repository's one memory store (ADR-126). |
 | `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py` | CLI wrapper. Adds the Tier 2 episode store. |
 
 Agents call the CLI. Python callers import the module.
 
-**ADR**: ADR-037 Memory Router Architecture
+**ADR**: ADR-126 Repository-Resolved Memory Store (amends ADR-106, which superseded ADR-037)
 
 **Task**: M-003 (Phase 2A Memory System)
 
@@ -32,10 +32,10 @@ Agents call the CLI. Python callers import the module.
 │                ┌───────────────┴───────────────┐                     │
 │                ▼                               ▼                     │
 │         ┌──────────────┐              ┌──────────────────┐           │
-│         │ Serena       │              │ Episodes         │           │
-│         │ (Canonical)  │              │ (Tier 2)         │           │
-│         │ .serena/     │              │ .project-toolkit/memory/  │           │
-│         │   memories   │              │   episodes       │           │
+│         │ Memory store │              │ Episodes         │           │
+│         │ (one/repo)   │              │ (Tier 2)         │           │
+│         │ Serena, else │              │ .project-toolkit/memory/  │           │
+│         │   notes      │              │   episodes       │           │
 │         │              │              │                  │           │
 │         │ Always avail │              │ Always avail     │           │
 │         │ Git-synced   │              │ Git-synced       │           │
@@ -49,9 +49,12 @@ Agents call the CLI. Python callers import the module.
 
 ### One Store, No Routing
 
-Serena is the only backend. It travels with the Git repository as plain
-markdown under `.serena/memories/`, so a search reads the working tree and
-cannot fail the way a network service can.
+Each repository has one memory store (ADR-126): `.serena/memories/` when that
+folder exists, else the repository notes folder. Either travels with the Git
+repository as plain markdown, so a search reads the working tree and cannot
+fail the way a network service can. When both folders exist, the notes are
+shadowed: the CLI reports them in `Diagnostic.RepositoryNotes.Shadowed` and
+prints the `git mv` step on stderr.
 
 The second, semantic backend this router augmented with was decommissioned in
 issue #5574. Nothing replaced it. What went with it: the availability probe
@@ -75,7 +78,7 @@ Full option set:
 | `query` (positional) | required | Search query, 1-500 chars |
 | `--max-results N` | 10 | Maximum results (1-100) |
 | `--format {json,table}` | `json` | Output format |
-| `--serena-path PATH` | `.serena/memories` | Override the Serena store |
+| `--serena-path PATH` | resolved store | Search this folder instead of the resolved store |
 | `--episodes-path PATH` | `.project-toolkit/memory/episodes` | Override the episode store |
 
 The CLI is the only path that searches the Tier 2 episode store. Results from
@@ -130,7 +133,7 @@ def search_memory(
 |-------|------|-------------|
 | `name` | `str` | Memory name |
 | `content` | `str \| None` | Full memory content. Always populated by `search_memory`. |
-| `source` | `str` | `"Serena"` |
+| `source` | `str` | `"Serena"`, or `"RepositoryNotes"` for the notes store |
 | `score` | `float` | Percent of query keywords matched. |
 | `path` | `str \| None` | File path |
 | `hash` | `str \| None` | SHA-256 content hash. Always populated by `search_memory`. |
@@ -173,9 +176,9 @@ because they mirror the module `_config` dict verbatim.
 
 ```json
 {
- "Serena":        {"Available": true,  "Path": ".serena/memories"},
+ "Serena":        {"Available": true,  "Path": "/repo/.serena/memories"},
  "Configuration": {
-   "serena_path": ".serena/memories",
+   "serena_path": null,
    "max_results": 10
  }
 }
@@ -193,14 +196,14 @@ def reset_caches() -> None: ...
 
 ### invoke_serena_search
 
-Performs lexical search across Serena memory files.
+Performs lexical search across the files of one memory store.
 
 **Scoring**: percent of query keywords matching in the filename.
 
 **Steps**:
 
 1. Extract keywords from query (length > 2 chars)
-2. List all `.md` files in `.serena/memories/` (10s cached listing)
+2. List all `.md` files in the store (10s cached listing)
 3. Match keywords against file basenames
 4. Score as `(matching_keywords / total_keywords) * 100`
 5. Read content for matched files, unless `skip_content` is set
@@ -215,11 +218,18 @@ SHA-256 over UTF-8 bytes, lowercase hex output. Used for deduplication.
 Configuration lives in a module-level dict:
 
 ```python
-_config: dict[str, Any] = {
-    "serena_path": ".serena/memories",
+_config = {
+    "serena_path": None,
     "max_results": 10,
 }
 ```
+
+A `serena_path` of `None` resolves the store on each call with
+`memory_core.memory_store.resolve_memory_store`, starting from `CLAUDE_PROJECT_DIR`, else the current
+directory.
+
+`get_memory_router_status` keys its store entry `RepositoryNotes` when the
+resolved store is the notes folder.
 
 The leading underscore marks it private; prefer the CLI `--serena-path` and
 `--episodes-path` flags over mutating it.
@@ -293,20 +303,20 @@ search_memory("test", lexical_only=True)
 
 ## Troubleshooting
 
-### No Serena Results
+### No Results
 
 **Symptoms**: `search_memory` returns an empty list while memories exist.
 
 **Diagnosis**:
 
 ```bash
-ls .serena/memories/*.md | head
+ls .serena/memories/*.md .project-toolkit/memory/notes/*.md 2>/dev/null | head
 ```
 
 **Solutions**:
 
-1. Verify `.serena/memories/` exists
-2. Serena scores on the **filename**, so keywords must appear in the file name
+1. Verify the store exists, and check `Diagnostic` for shadowed notes
+2. Search scores on the **filename**, so keywords must appear in the file name
 3. Try a broader query with common terms
 
 ### Slow Searches

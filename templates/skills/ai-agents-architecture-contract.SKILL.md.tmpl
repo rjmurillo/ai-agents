@@ -2,7 +2,7 @@
 name: ai-agents-architecture-contract
 description: Load-bearing design decisions for this repo as a contract you check before changing anything. Covers the asymmetric generation seam, source-of-truth per tree, hook runtime failure policy, memory tiers, plugin surfaces, invariants, and known-weak points. Use when you say `which tree is canonical`, `architecture contract`, `why is this designed this way`. Do NOT use for operating the build pipeline (use `ai-agents-generation-and-release`) or CI triage (use `ai-agents-debugging-playbook`).
 version: 1.0.0
-license: MIT
+license: Apache-2.0
 metadata:
   distribution: repo-local
   routing:
@@ -47,7 +47,7 @@ The decision table (decision, record, note, why) is in `references/adr-decisions
 - Memory: ADR-007 is superseded by ADR-106 (Serena-Only Memory Architecture). Cite ADR-106.
 - Agent templates: ADR-036 is superseded by ADR-052, which ADR-109 superseded. Cite ADR-109.
 - Hooks: ADR-097 retired every tool-call hook. ADR-066, ADR-068, and ADR-071 still own the policy and dispatcher rationale for a future re-add.
-- Proposed records: ADR-069, ADR-089, and ADR-119 are proposed. ADR-072 is accepted with `implemented: false`, so accepting it moved no code.
+- Status: ADR-089 and ADR-119 are proposed. ADR-069 was accepted on 2026-11-20 as a principle, and its effect is not established. ADR-072 is accepted with `implemented: false`, so accepting it moved no code.
 - ADR-030 is rejected. The skill-first rule lives in `SKILL-CREATION-CRITERIA.md`.
 
 The command does not say whether a mechanism is still enforced. Check the gate, not the status.
@@ -66,7 +66,7 @@ parity twins:
 | Surface | File | Registered (re-verified 2026-10-31) |
 |---|---|---|
 | Claude Code direct | `.claude/settings.json` `hooks` key | 5 events, 8 groups |
-| Vendored plugin source | `.claude/hooks/hooks.json` | 1 events, 1 groups |
+| Vendored plugin source | `.claude/hooks/hooks.json` | 2 events, 2 groups |
 | Copilot CLI mirror | `src/copilot-cli/hooks/` plus its `hooks.json` | 0 events, 0 registrations |
 
 Run the `hook-counts` instrument for the events and registrations in each file. It counts registrations only; it does not say whether a hook is repository-only or vendored.
@@ -100,7 +100,7 @@ now the binplaced dogfood copy, not a separately marketplace-listed root):
 | `src/claude/.claude-plugin/plugin.json` | `project-toolkit` | canonical Claude Code manifest, compiled from templates; the sole Claude Code plugin root the marketplace lists |
 | `src/copilot-cli/.claude-plugin/plugin.json` | `project-toolkit` | generated Copilot CLI mirror of the same plugin |
 
-Other hosts ship their own manifests, outside this contract: `src/codex/plugin.json`, `src/cursor/.cursor-plugin/plugin.json`, and `src/hermes/project-toolkit-delivery/plugin.json` plus `src/hermes/project-toolkit-knowledge/plugin.json`.
+Other hosts ship their own manifests, outside this contract: `src/codex/plugin.json`, `src/cursor/.cursor-plugin/plugin.json`, and `src/hermes/project-toolkit-delivery/plugin.json`, `src/hermes/project-toolkit-knowledge/plugin.json`, and `src/hermes/project-toolkit-authoring/plugin.json`.
 
 No manifest may carry a `version` field, and neither may a marketplace entry.
 With the field absent, Claude Code resolves freshness from the git commit SHA,
@@ -132,7 +132,7 @@ belong to `ai-agents-generation-and-release`. Run the `version-gate` instrument 
 
 State these plainly when working near them; do not design as if they were sound. The dated evidence and consequence for each are in `references/weak-points.md`.
 
-- **Hook sources serve different consumers**: the three sources are not parity twins. Do not force parity; verify repository-only vs vendored before editing either source. ADR-097 retired every tool-call hook, so the vendored surface ships no tool-call hooks and the generated Copilot tree carries no dispatcher. The vendored source registers one advisory Stop group (REQ-048 TASK-006), excluded from Copilot. Counts on 2026-11-04: 5 events and 8 groups in settings, 1 events and 1 groups in the vendored source. Run the `hook-counts` instrument for current numbers.
+- **Hook sources serve different consumers**: the three sources are not parity twins. Do not force parity; verify repository-only vs vendored before editing either source. ADR-097 retired every tool-call hook, so the vendored surface ships no tool-call hooks and the generated Copilot tree carries no dispatcher. The vendored source registers one advisory Stop group (REQ-048 TASK-006) and one UserPromptSubmit memory recall group, both excluded from Copilot. Counts on 2026-11-20: 5 events and 8 groups in settings, 2 events and 2 groups in the vendored source. Run the `hook-counts` instrument for current numbers.
 - **Stale docs contradict reality**: following docs verbatim fails; quote the canonical source when correcting (FM-9).
 - **Ruff debt is ratcheted, not eliminated**: changed-file and whole-tree count gates block regressions; existing debt remains.
 - **Skill tests split by location**: green CI does not prove skill tests ran; run them explicitly (`ai-agents-validation-and-qa`).
@@ -156,7 +156,7 @@ Before relying on or amending this contract:
 
 - [ ] Ran `uv run python build/scripts/build_all.py --check` and `uv run python build/generate_agents.py --validate` from repo root; both exit 0 on a clean tree
 - [ ] Confirmed the canonical side of any file you plan to edit against `references/source-of-truth.md` (and `GENERATOR-FILES.md`, minding its known `src/claude` row error)
-- [ ] Ran the `hook-counts` instrument and used its numbers, not a remembered count; on 2026-11-04 local settings print `5 8` and vendored source prints `1 1`
+- [ ] Ran the `hook-counts` instrument and used its numbers, not a remembered count; on 2026-11-20 local settings print `5 8` and vendored source prints `2 2`
 - [ ] Ran the `adr-status` instrument for any decision you cite (statuses drift; content beats number, and ADR numbers have collided historically)
 - [ ] If you touched `.claude/`, `src/claude/`, or `src/copilot-cli/`: left the manifests version-free (the `version-gate` instrument exits 0)
 

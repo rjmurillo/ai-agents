@@ -1,0 +1,1139 @@
+#!/usr/bin/env python3
+# taste-lint: ignore complexity -- pre-existing debt, unlinted before the ADR-119 source classification
+# taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification
+# taste-lint: ignore naming -- pre-existing debt, unlinted before the ADR-119 source classification
+"""
+validate-skill.py - Structural validation for Claude Code skills
+
+Validates that a SKILL.md file meets the requirements defined in
+SkillForge 4.1's quality standards.
+
+Usage:
+    python validate-skill.py <path-to-skill-directory> [--root DIR]
+    python validate-skill.py ~/.claude/skills/my-skill/
+
+The skill directory must resolve inside the current working directory (CWE-22
+guard). Pass --root DIR to opt in to a different trusted root, for example
+``--root /other/repo`` to validate ``/other/repo/skills/my-skill`` from anywhere.
+"""
+
+import os
+import posixpath
+import re
+import sys
+from pathlib import Path
+from typing import Any
+
+# ADR-047 keeps this bootstrap inline because imports need sys.path first.
+# This file's own plugin lib wins when it holds the shared frontmatter parser,
+# so a foreign or older plugin root in the environment cannot shadow it. The
+# environment root is the fallback for a script copied outside its plugin.
+_PLUGIN_ROOT = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+_LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+if _PLUGIN_ROOT and not os.path.isfile(_LIB_DIR / "hook_utilities" / "frontmatter_block.py"):
+    _LIB_DIR = Path(_PLUGIN_ROOT) / "lib"
+
+if not os.path.isdir(_LIB_DIR):
+    raise RuntimeError(
+        "Expected portability helper lib directory not found: "
+        f"{_LIB_DIR}. Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT to the "
+        "plugin root, or run from an ai-agents checkout."
+    )
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from hook_utilities.frontmatter_block import FrontmatterStatus, parse_frontmatter, split_frontmatter  # noqa: E402
+
+# Shared CWE-22 containment and CLI parsing, same module quick_validate.py uses.
+# Same fallback as package_skill.py: put this file's directory on sys.path when it
+# is loaded from elsewhere.
+try:
+    from _path_guard import contained_realpath, is_within, parse_args, resolve_root
+except ImportError:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from _path_guard import contained_realpath, is_within, parse_args, resolve_root
+
+
+# Markdown inline link or image target: [text](target) or [text](target "title").
+_LINK_TARGET_REGEX = re.compile(r"!?\[[^\]]*\]\(\s*<?([^)\s>]+)>?(?:\s+[\"'][^\"']*[\"'])?\s*\)")
+# Fenced code block delimiters (backtick or tilde fences).
+_FENCE_REGEX = re.compile(r"^\s*(```|~~~)")
+
+
+def _unquote_scalar(value: str) -> str:
+    """Strip matching YAML quotes from a plain one-line scalar.
+
+    The agentskills.io guidance asks authors to quote values that contain a
+    colon, so the fallback parser must read ``name: "x"`` as ``x``.
+    """
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+        inner = value[1:-1]
+        return inner.replace('\\"', '"') if value[0] == '"' else inner.replace("''", "'")
+    return value
+
+
+_YAML_NULL = {"", "~", "null", "Null", "NULL"}
+_YAML_BOOL = {
+    "true": True,
+    "True": True,
+    "TRUE": True,
+    "false": False,
+    "False": False,
+    "FALSE": False,
+}
+
+
+def _typed_scalar(value: str) -> Any:
+    """Read an inline value with the YAML types a type check needs.
+
+    Without PyYAML, the fallback parser would read ``compatibility: null`` or
+    ``compatibility: [git, docker]`` as text and pass a string check. Return
+    None, a bool, or a list or dict for those unquoted forms, and a string
+    otherwise, so the type checks reject what PyYAML would.
+    """
+    if value in _YAML_NULL:
+        return None
+    if value in _YAML_BOOL:
+        return _YAML_BOOL[value]
+    if value.startswith("[") and value.endswith("]"):
+        return [_unquote_scalar(item.strip()) for item in value[1:-1].split(",") if item.strip()]
+    if value.startswith("{") and value.endswith("}"):
+        pairs = [item.split(":", 1) for item in value[1:-1].split(",") if ":" in item]
+        return {k.strip(): _unquote_scalar(v.strip()) for k, v in pairs}
+    return _unquote_scalar(value)
+
+
+def split_allowed_tools(value: str) -> list[str]:
+    """Split an allowed-tools string on commas and whitespace outside parentheses.
+
+    The agentskills.io specification uses a space-separated string such as
+    ``Bash(git:*) Bash(jq:*) Read``. Comma-separated strings stay supported.
+    Whitespace inside parentheses is kept so ``Bash(git log:*)`` is one token.
+    """
+    tokens: list[str] = []
+    current: list[str] = []
+    depth = 0
+    for char in value:
+        if char == "(":
+            depth += 1
+        elif char == ")" and depth > 0:
+            depth -= 1
+        if depth == 0 and (char == "," or char.isspace()):
+            if current:
+                tokens.append("".join(current))
+                current = []
+            continue
+        current.append(char)
+    if current:
+        tokens.append("".join(current))
+    return tokens
+
+
+def _strip_fenced_code(content: str) -> str:
+    """Return content with fenced code block lines removed."""
+    kept: list[str] = []
+    fence: str | None = None
+    for line in content.split("\n"):
+        match = _FENCE_REGEX.match(line)
+        if match:
+            marker = match.group(1)
+            if fence is None:
+                fence = marker
+            elif fence == marker:
+                fence = None
+            continue
+        if fence is None:
+            kept.append(line)
+    return "\n".join(kept)
+
+
+class SkillValidator:
+    """Validates skill files against SkillForge 4.1 standards."""
+
+    def __init__(self, skill_path: str, root: str | None = None):
+        # SECURITY: Validate path stays within allowed base directory (CWE-22).
+        # The base is the current working directory unless the caller opts in to
+        # another trusted root.
+        self.root = resolve_root(root)
+        resolved = os.path.normcase(os.path.realpath(str(skill_path)))
+        if not is_within(resolved, self.root):
+            raise ValueError(f"Path traversal detected: {skill_path}")
+        self.skill_path = Path(skill_path)
+        self.skill_md_path = self._find_skill_md()
+        self.content = ""
+        self.frontmatter: dict[str, Any] = {}
+        self.errors: list[str] = []
+        self.warnings: list[str] = []
+        self.checks_passed = 0
+        self.checks_total = 0
+
+    def _find_skill_md(self) -> Path:
+        """Find the main skill file (SKILL.md or skill.md)."""
+        for name in ["SKILL.md", "skill.md"]:
+            path = self.skill_path / name
+            if path.exists():
+                return path
+        return self.skill_path / "SKILL.md"  # Default
+
+    def load_skill(self) -> bool:
+        """Load the skill file content."""
+        if not self.skill_md_path.exists():
+            self.errors.append(f"Skill file not found: {self.skill_md_path}")
+            return False
+
+        # SECURITY (CWE-22): the skill directory is inside the root, but SKILL.md
+        # can be a symlink that points outside it. Read the resolved real path so
+        # the containment check and the read target cannot diverge.
+        read_target = contained_realpath(self.skill_md_path, self.root)
+        if read_target is None:
+            self.errors.append(
+                f"SKILL.md resolves outside the permitted root: {self.skill_md_path}"
+            )
+            return False
+
+        try:
+            self.content = Path(read_target).read_text(encoding="utf-8")
+            return True
+        except Exception as e:
+            self.errors.append(f"Failed to read skill file: {e}")
+            return False
+
+    def parse_frontmatter(self) -> bool:
+        """Parse YAML frontmatter from skill file.
+
+        The block comes from ``hook_utilities.frontmatter_block``. Without
+        PyYAML, the basic reader runs over the block text.
+        """
+        split = split_frontmatter(self.content)
+        if not split.found:
+            self.errors.append("Missing YAML frontmatter")
+            return False
+
+        try:
+            import yaml
+
+            result = parse_frontmatter(self.content, yaml, allow_duplicate_keys=True)
+            error = result.error or ""
+            if result.status is FrontmatterStatus.NOT_A_MAPPING:
+                self.errors.append(
+                    f"Frontmatter must be a YAML dictionary, got {result.value_type}"
+                )
+                return False
+            if result.status is FrontmatterStatus.MALFORMED:
+                detail = error.removeprefix("invalid YAML frontmatter: ")
+                self.errors.append(f"Failed to parse frontmatter: {detail}")
+                return False
+            self.frontmatter = result.metadata or {}
+            return True
+        except ImportError:
+            # Parse basic fields without yaml library (handles folded scalars)
+            self._parse_frontmatter_fallback(split.raw.strip("\r\n"))
+            return True
+        except Exception as e:
+            self.errors.append(f"Failed to parse frontmatter: {e}")
+            return False
+
+    def _parse_frontmatter_fallback(self, frontmatter_text: str) -> None:
+        """Fallback YAML parser for when PyYAML is not available."""
+        lines = frontmatter_text.split("\n")
+        current_key = None
+        current_value_lines: list[str] = []
+        is_folded = False  # Track folded scalar (>)
+        is_literal = False  # Track literal scalar (|)
+
+        for line in lines:
+            # A YAML comment line is not a key.
+            if line.startswith("#"):
+                continue
+            # Check for top-level key
+            if ":" in line and not line.startswith(" ") and not line.startswith("\t"):
+                # Save previous key if exists
+                if current_key and (is_folded or is_literal):
+                    self.frontmatter[current_key] = " ".join(current_value_lines).strip()
+
+                key, value = line.split(":", 1)
+                current_key = key.strip()
+                value = value.strip()
+
+                # Check for folded (>) or literal (|) scalar
+                if value == ">" or value == ">-":
+                    is_folded = True
+                    is_literal = False
+                    current_value_lines = []
+                elif value == "|" or value == "|-":
+                    is_literal = True
+                    is_folded = False
+                    current_value_lines = []
+                else:
+                    is_folded = False
+                    is_literal = False
+                    self.frontmatter[current_key] = _typed_scalar(value)
+                    current_value_lines = []
+
+            elif (is_folded or is_literal) and (line.startswith("  ") or line.startswith("\t")):
+                # Continuation of folded/literal scalar
+                current_value_lines.append(line.strip())
+
+            elif (
+                current_key
+                and line.lstrip().startswith("- ")
+                and isinstance(self.frontmatter.get(current_key), (list, type(None)))
+            ):
+                # A block sequence item under a bare key, such as an allowed-tools list
+                items = self.frontmatter.get(current_key)
+                if not isinstance(items, list):
+                    items = self.frontmatter[current_key] = []
+                items.append(_unquote_scalar(line.lstrip()[2:].strip()))
+
+            elif line.startswith("  ") and current_key == "metadata":
+                # Basic nested parsing for metadata
+                metadata_val = self.frontmatter.get("metadata")
+                if "metadata" not in self.frontmatter or not isinstance(metadata_val, dict):
+                    self.frontmatter["metadata"] = {}
+                if ":" in line:
+                    nested_key, nested_value = line.strip().split(":", 1)
+                    self.frontmatter["metadata"][nested_key.strip()] = nested_value.strip()
+
+        # Save final key if it was a folded/literal scalar
+        if current_key and (is_folded or is_literal) and current_value_lines:
+            self.frontmatter[current_key] = " ".join(current_value_lines).strip()
+
+    def check(
+        self,
+        name: str,
+        condition: bool,
+        error_msg: str | None = None,
+        warning: bool = False,
+    ):
+        """Run a check and record result."""
+        self.checks_total += 1
+        if condition:
+            self.checks_passed += 1
+            return True
+        else:
+            if warning:
+                self.warnings.append(error_msg or f"Check failed: {name}")
+            else:
+                self.errors.append(error_msg or f"Check failed: {name}")
+            return False
+
+    def validate_frontmatter(self):
+        """Validate frontmatter fields."""
+        # Import or define constants
+        try:
+            from _constants import (
+                ALLOWED_PROPERTIES,
+                COMPATIBILITY_MAX_LENGTH,
+                DESCRIPTION_MAX_LENGTH,
+                NAME_MAX_LENGTH,
+                NAME_REGEX,
+                RECOMMENDED_PROPERTIES,
+                REQUIRED_PROPERTIES,
+                SEMVER_REGEX,
+                VALID_AGENT_TYPES,
+            )
+        except ImportError:
+            ALLOWED_PROPERTIES = {  # noqa: N806
+                "name",
+                "description",
+                "license",
+                "allowed-tools",
+                "compatibility",
+                "metadata",
+                "model",
+                "context",
+                "agent",
+                "hooks",
+                "user-invocable",
+                "version",
+                "argument-hint",
+                "size-exception",
+            }
+            REQUIRED_PROPERTIES = {"name", "description"}  # noqa: N806
+            RECOMMENDED_PROPERTIES = {"license"}  # noqa: N806
+            VALID_AGENT_TYPES = {"Explore", "Plan", "general-purpose"}  # noqa: N806
+            NAME_MAX_LENGTH = 64  # noqa: N806
+            DESCRIPTION_MAX_LENGTH = 1024  # noqa: N806
+            COMPATIBILITY_MAX_LENGTH = 500  # noqa: N806
+            SEMVER_REGEX = r"^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$"  # noqa: N806
+            NAME_REGEX = r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"  # noqa: N806
+
+        # Check required fields
+        for field in REQUIRED_PROPERTIES:
+            self.check(
+                f"frontmatter.{field}",
+                field in self.frontmatter and self.frontmatter[field],
+                f"Missing required frontmatter field: {field}",
+            )
+
+        # Warn about recommended fields (not required)
+        for field in RECOMMENDED_PROPERTIES:
+            self.check(
+                f"frontmatter.{field}",
+                field in self.frontmatter,
+                f"Recommended frontmatter field missing: {field}",
+                warning=True,
+            )
+
+        # Validate allowed properties
+        unexpected_keys = set(self.frontmatter.keys()) - ALLOWED_PROPERTIES
+        if unexpected_keys:
+            self.check(
+                "frontmatter.allowed_properties",
+                False,
+                f"Unexpected frontmatter properties: {', '.join(sorted(unexpected_keys))}. "
+                f"Allowed: {', '.join(sorted(ALLOWED_PROPERTIES))}",
+            )
+
+        # Validate name field (format and length)
+        if "name" in self.frontmatter:
+            name = str(self.frontmatter["name"])
+            self.check(
+                "frontmatter.name.format",
+                re.match(NAME_REGEX, name) and "--" not in name,
+                "Skill name should be hyphen-case (lowercase letters, digits, hyphens; "
+                f"no leading, trailing, or consecutive hyphens): {name}",
+            )
+            self.check(
+                "frontmatter.name.length",
+                len(name) <= NAME_MAX_LENGTH,
+                f"Skill name too long ({len(name)} chars, max {NAME_MAX_LENGTH})",
+            )
+            # Name must equal the containing directory name (agentskills.io
+            # specification, name field). A mismatch breaks tooling that maps a
+            # registry name back to a case-sensitive directory. Refs #4812.
+            dir_name = self.skill_path.name or self.skill_path.resolve().name
+            self.check(
+                "frontmatter.name.matches_directory",
+                name == dir_name,
+                f"Skill name {name!r} must match its directory name {dir_name!r}",
+            )
+
+        # Validate description field (no angle brackets, length limit)
+        if "description" in self.frontmatter:
+            raw_desc = self.frontmatter["description"]
+            self.check(
+                "frontmatter.description.type",
+                isinstance(raw_desc, str),
+                f"Description must be a string (got {type(raw_desc).__name__})",
+            )
+            # Measure the stripped text, as quick_validate.py does, so a folded
+            # scalar's trailing newline does not count toward the limit.
+            desc = raw_desc.strip() if isinstance(raw_desc, str) else ""
+            self.check(
+                "frontmatter.description.characters",
+                "<" not in desc and ">" not in desc,
+                "Description cannot contain angle brackets (< or >)",
+            )
+            self.check(
+                "frontmatter.description.length",
+                len(desc) <= DESCRIPTION_MAX_LENGTH,
+                f"Description too long ({len(desc)} chars, max {DESCRIPTION_MAX_LENGTH})",
+            )
+            word_count = len(desc.split())
+            self.check(
+                "frontmatter.description.word_count",
+                word_count >= 5,
+                f"Description too short ({word_count} words, minimum 5)",
+            )
+
+        # Validate compatibility (agentskills.io spec: optional string, 1-500 chars)
+        if "compatibility" in self.frontmatter:
+            self._validate_compatibility(
+                self.frontmatter["compatibility"], COMPATIBILITY_MAX_LENGTH
+            )
+
+        # Validate version format (top-level or in metadata)
+        if "version" in self.frontmatter:
+            version = self.frontmatter["version"]
+            self.check(
+                "frontmatter.version.format",
+                re.match(SEMVER_REGEX, str(version)),
+                f"Version should be semver format (e.g., 1.0.0 or 1.0.0-beta.1): {version}",
+                warning=True,
+            )
+        elif "metadata" in self.frontmatter and isinstance(self.frontmatter["metadata"], dict):
+            version = self.frontmatter["metadata"].get("version")
+            if version:
+                self.check(
+                    "metadata.version.format",
+                    re.match(SEMVER_REGEX, str(version)),
+                    f"Version should be semver format (e.g., 1.0.0 or 1.0.0-beta.1): {version}",
+                    warning=True,
+                )
+
+        # Validate context field - warning not error for future-proofing
+        if "context" in self.frontmatter:
+            context = self.frontmatter["context"]
+            self.check(
+                "frontmatter.context.value",
+                context == "fork",
+                f"context should be 'fork' (got '{context}'). Other values may be added in future.",
+                warning=True,
+            )
+
+        # Validate agent field
+        if "agent" in self.frontmatter:
+            agent = self.frontmatter["agent"]
+            self.check(
+                "frontmatter.agent.value",
+                agent in VALID_AGENT_TYPES,
+                f"agent should be one of {VALID_AGENT_TYPES} (got '{agent}')",
+                warning=True,
+            )
+            # Agent requires context: fork
+            if "context" not in self.frontmatter or self.frontmatter.get("context") != "fork":
+                self.check(
+                    "frontmatter.agent.requires_context",
+                    False,
+                    "'agent' field requires 'context: fork' to be set",
+                    warning=True,
+                )
+
+        # Validate user-invocable field
+        if "user-invocable" in self.frontmatter:
+            value = self.frontmatter["user-invocable"]
+            self.check(
+                "frontmatter.user-invocable.type",
+                isinstance(value, bool),
+                f"user-invocable must be a boolean (got {type(value).__name__})",
+            )
+
+        # Validate allowed-tools field
+        self.validate_allowed_tools()
+
+        # Validate hooks field
+        self.validate_hooks()
+
+    def _validate_compatibility(self, value: Any, max_length: int) -> None:
+        """Validate the optional compatibility field."""
+        is_string = isinstance(value, str)
+        self.check(
+            "frontmatter.compatibility.type",
+            is_string,
+            f"compatibility must be a string (got {type(value).__name__})",
+        )
+        if not is_string:
+            return
+        text = value.strip()
+        self.check(
+            "frontmatter.compatibility.non_empty",
+            bool(text),
+            "compatibility must not be empty (1-500 chars)",
+        )
+        self.check(
+            "frontmatter.compatibility.length",
+            len(text) <= max_length,
+            f"compatibility too long ({len(text)} chars, max {max_length})",
+        )
+
+    def validate_allowed_tools(self):
+        """Validate allowed-tools field if present."""
+        if "allowed-tools" not in self.frontmatter:
+            return
+
+        tools_value = self.frontmatter["allowed-tools"]
+
+        # Parse as space-separated string (spec), comma-separated string, or YAML list
+        if isinstance(tools_value, str):
+            tools = split_allowed_tools(tools_value)
+        elif isinstance(tools_value, list):
+            tools = [str(t) for t in tools_value]
+        else:
+            self.check(
+                "frontmatter.allowed-tools.type",
+                False,
+                f"allowed-tools should be string or list (got {type(tools_value).__name__})",
+            )
+            return
+
+        # Import known tools
+        try:
+            from _constants import KNOWN_TOOLS
+        except ImportError:
+            KNOWN_TOOLS = {  # noqa: N806
+                "Read",
+                "Glob",
+                "Grep",
+                "Write",
+                "Edit",
+                "Bash",
+                "Task",
+                "WebFetch",
+                "WebSearch",
+                "TodoWrite",
+                "NotebookEdit",
+                "AskUserQuestion",  # Claude Code tool name
+            }
+
+        # Check for unknown tools (warning only - custom tools may exist)
+        # A scoped entry such as Bash(git:*) is checked by its base tool name.
+        unknown_tools = [t for t in tools if t.split("(", 1)[0] not in KNOWN_TOOLS]
+        if unknown_tools:
+            self.check(
+                "frontmatter.allowed-tools.values",
+                False,
+                f"Unknown tool(s): {unknown_tools}. Known tools: {sorted(KNOWN_TOOLS)}. "
+                "This may be intentional for custom tools.",
+                warning=True,
+            )
+
+    def validate_hooks(self):
+        """Validate hooks object structure if present."""
+        if "hooks" not in self.frontmatter:
+            return
+
+        hooks = self.frontmatter["hooks"]
+
+        # Hooks must be a dictionary
+        if not isinstance(hooks, dict):
+            self.check(
+                "frontmatter.hooks.type",
+                False,
+                f"hooks must be an object/dictionary (got {type(hooks).__name__})",
+            )
+            return
+
+        # Import valid hook events
+        try:
+            from _constants import VALID_HOOK_EVENTS, VALID_HOOK_TYPES
+        except ImportError:
+            VALID_HOOK_EVENTS = {"PreToolUse", "PostToolUse", "Stop"}  # noqa: N806
+            VALID_HOOK_TYPES = {"command", "prompt"}  # noqa: N806
+
+        # Validate each hook event
+        for hook_name, hook_config in hooks.items():
+            # Check hook name is valid
+            self.check(
+                f"frontmatter.hooks.{hook_name}.name",
+                hook_name in VALID_HOOK_EVENTS,
+                f"Unknown hook event: '{hook_name}'. Valid events: {VALID_HOOK_EVENTS}",
+            )
+
+            # Hook config should be a list
+            if not isinstance(hook_config, list):
+                self.check(
+                    f"frontmatter.hooks.{hook_name}.type",
+                    False,
+                    f"Hook '{hook_name}' config should be a list of matchers",
+                )
+                continue
+
+            # Validate each matcher in the hook
+            for i, matcher_config in enumerate(hook_config):
+                if not isinstance(matcher_config, dict):
+                    self.check(
+                        f"frontmatter.hooks.{hook_name}[{i}].type",
+                        False,
+                        "Hook matcher should be an object with 'matcher' and 'hooks' keys",
+                    )
+                    continue
+
+                # PreToolUse and PostToolUse require matcher field
+                if hook_name in {"PreToolUse", "PostToolUse"}:
+                    self.check(
+                        f"frontmatter.hooks.{hook_name}[{i}].matcher",
+                        "matcher" in matcher_config,
+                        f"'{hook_name}' hook requires 'matcher' field",
+                        warning=True,
+                    )
+
+                # Validate inner hooks array
+                inner_hooks = matcher_config.get("hooks", [])
+                if not isinstance(inner_hooks, list):
+                    self.check(
+                        f"frontmatter.hooks.{hook_name}[{i}].hooks.type",
+                        False,
+                        "Inner 'hooks' should be a list",
+                    )
+                    continue
+
+                for j, inner_hook in enumerate(inner_hooks):
+                    if not isinstance(inner_hook, dict):
+                        continue
+
+                    # Validate hook type
+                    hook_type = inner_hook.get("type")
+                    if hook_type:
+                        self.check(
+                            f"frontmatter.hooks.{hook_name}[{i}].hooks[{j}].type",
+                            hook_type in VALID_HOOK_TYPES,
+                            f"Hook type should be one of {VALID_HOOK_TYPES} (got '{hook_type}')",
+                        )
+
+                    # command type requires command field
+                    if hook_type == "command":
+                        self.check(
+                            f"frontmatter.hooks.{hook_name}[{i}].hooks[{j}].command",
+                            "command" in inner_hook and inner_hook["command"],
+                            "Hook with type 'command' requires non-empty 'command' field",
+                        )
+
+                    # Validate 'once' field if present
+                    if "once" in inner_hook:
+                        self.check(
+                            f"frontmatter.hooks.{hook_name}[{i}].hooks[{j}].once",
+                            isinstance(inner_hook["once"], bool),
+                            "'once' field must be a boolean",
+                        )
+
+    def validate_triggers(self):
+        """Validate trigger phrases section."""
+        # Find triggers section
+        triggers_match = re.search(
+            r"##\s*Triggers\s*\n(.*?)(?=\n##|\Z)", self.content, re.DOTALL | re.IGNORECASE
+        )
+
+        self.check("section.triggers", triggers_match is not None, "Missing Triggers section")
+
+        if triggers_match:
+            triggers_section = triggers_match.group(1)
+            # Extract trigger phrases (backtick-wrapped)
+            trigger_phrases = re.findall(r"`([^`]+)`", triggers_section)
+            trigger_count = len(trigger_phrases)
+
+            self.check(
+                "triggers.count",
+                1 <= trigger_count <= 5,
+                f"Should have 1-5 trigger phrases (found {trigger_count})",
+            )
+
+            # Validate trigger phrase characters (CWE-94 mitigation)
+            # Block shell metacharacters that enable command injection:
+            # ; | & $ < > \ (newline already stripped)
+            # Allow common punctuation: {} for templates, # for refs, ! for commands
+            safe_pattern = re.compile(r"^[a-zA-Z0-9 \-:,./\'\"(){}#!_=+@*?]+$")
+            unsafe_triggers = [t for t in trigger_phrases if not safe_pattern.match(t)]
+            if unsafe_triggers:
+                self.check(
+                    "triggers.safe_characters",
+                    False,
+                    f"Trigger phrases contain unsafe characters: {unsafe_triggers}",
+                )
+
+    def validate_process(self):
+        """Validate process/phases section."""
+        # Look for Process section or phases
+        has_process = bool(re.search(r"##\s*Process", self.content, re.IGNORECASE))
+        has_phases = bool(re.search(r"###\s*Phase\s*\d", self.content, re.IGNORECASE))
+
+        self.check(
+            "section.process",
+            has_process or has_phases,
+            "Missing Process section or Phase definitions",
+        )
+
+        # Count phases if present
+        if has_phases:
+            phase_count = len(re.findall(r"###\s*Phase\s*\d", self.content, re.IGNORECASE))
+            self.check(
+                "phases.count",
+                1 <= phase_count <= 3,
+                f"Recommend 1-3 phases, not over-engineered (found {phase_count})",
+                warning=True,
+            )
+
+    def validate_verification(self):
+        """Validate verification/success criteria section."""
+        has_verification = bool(
+            re.search(
+                r"##\s*(Verification|Success Criteria|Checklist)", self.content, re.IGNORECASE
+            )
+        )
+
+        self.check(
+            "section.verification",
+            has_verification,
+            "Missing Verification/Success Criteria section",
+        )
+
+        # Check for checkboxes
+        checkbox_count = len(re.findall(r"\[\s*\]", self.content))
+        self.check(
+            "verification.checkboxes",
+            checkbox_count >= 2,
+            f"Verification should have concrete checkboxes (found {checkbox_count})",
+            warning=True,
+        )
+
+    def validate_anti_patterns(self):
+        """Validate anti-patterns section."""
+        has_anti_patterns = bool(re.search(r"##\s*Anti[-\s]?Patterns", self.content, re.IGNORECASE))
+
+        self.check(
+            "section.anti_patterns",
+            has_anti_patterns,
+            "Missing Anti-Patterns section",
+            warning=True,
+        )
+
+    def validate_structure(self):
+        """Validate overall document structure."""
+        # Check for H1 title
+        split = split_frontmatter(self.content)
+        has_h1 = split.found and bool(re.match(r"#\s+", split.body))
+        self.check("structure.h1_title", has_h1, "Missing H1 title after frontmatter")
+
+        # Check for tables (should prefer tables over prose)
+        table_count = len(re.findall(r"\|.*\|.*\|", self.content))
+        self.check(
+            "structure.tables",
+            table_count >= 1,
+            "Should use tables for structured information",
+            warning=True,
+        )
+
+        # Check for extension points
+        has_extensions = bool(
+            re.search(r"##\s*(Extension|Future|Evolution)", self.content, re.IGNORECASE)
+        )
+        self.check(
+            "section.extension_points",
+            has_extensions,
+            "Missing Extension Points section",
+            warning=True,
+        )
+
+        self.validate_body_token_budget()
+
+    def validate_body_token_budget(self):
+        """Warn when the SKILL.md body likely exceeds the 5,000-token budget.
+
+        agentskills.io specification, progressive disclosure: the full body
+        loads on activation, so keep it under about 5,000 tokens and move
+        detail to references/. Tokens are estimated as characters / 4.
+        """
+        try:
+            from _constants import BODY_TOKEN_BUDGET, CHARS_PER_TOKEN_ESTIMATE
+        except ImportError:
+            BODY_TOKEN_BUDGET = 5000  # noqa: N806
+            CHARS_PER_TOKEN_ESTIMATE = 4  # noqa: N806
+        split = split_frontmatter(self.content)
+        body = self.content[split.fence_end :] if split.found else self.content
+        estimate = len(body) // CHARS_PER_TOKEN_ESTIMATE
+        self.check(
+            "structure.body_token_budget",
+            estimate <= BODY_TOKEN_BUDGET,
+            f"SKILL.md body is about {estimate} tokens (characters / "
+            f"{CHARS_PER_TOKEN_ESTIMATE}); keep it under {BODY_TOKEN_BUDGET} and "
+            "move detail to references/",
+            warning=True,
+        )
+
+    def _subdirectory_contained(self, dir_path: Path, label: str) -> bool:
+        """Return False, recording one error, when a skill subdirectory escapes the root.
+
+        SECURITY (CWE-22): ``scripts/`` and ``references/`` can be directory
+        symlinks. Listing one that points outside the root would read, and could
+        report, outside filenames. A missing path is fine: nothing to contain.
+        """
+        if not os.path.lexists(dir_path):
+            return True
+        if contained_realpath(dir_path, self.root) is not None:
+            return True
+        self.check(
+            f"{label}.contained",
+            False,
+            f"{label}/ resolves outside the permitted root",
+        )
+        return False
+
+    def validate_references_directory(self):
+        """Validate references directory if skill is complex."""
+        refs_path = self.skill_path / "references"
+        if not self._subdirectory_contained(refs_path, "references"):
+            return
+
+        # Complex skills should have references
+        line_count = len(self.content.split("\n"))
+        if line_count > 200:
+            self.check(
+                "structure.references",
+                refs_path.exists() and any(refs_path.iterdir()),
+                "Complex skill (>200 lines) should have references/ directory",
+                warning=True,
+            )
+
+    def validate_reference_depth(self):
+        """Warn on SKILL.md links nested deeper than one level or escaping the skill root.
+
+        agentskills.io specification: keep file references one level deep from
+        SKILL.md. Relative links only; http(s), mailto, anchors, absolute paths,
+        and links inside fenced code blocks are ignored.
+        """
+        body = _strip_fenced_code(self.content)
+        seen: set[str] = set()
+        for raw_target in _LINK_TARGET_REGEX.findall(body):
+            target = raw_target.split("#", 1)[0].split("?", 1)[0]
+            if not target or target in seen:
+                continue
+            if "://" in target or target.startswith(("/", "mailto:")):
+                continue
+            seen.add(target)
+            normalized = posixpath.normpath(target)
+            if normalized == ".." or normalized.startswith("../"):
+                self.check(
+                    f"references.escape.{target}",
+                    False,
+                    f"SKILL.md link escapes the skill root: {target}",
+                    warning=True,
+                )
+                continue
+            if len(normalized.split("/")) > 2:
+                self.check(
+                    f"references.depth.{target}",
+                    False,
+                    f"SKILL.md link nested more than one level deep: {target}",
+                    warning=True,
+                )
+
+    def validate_scripts_directory(self):
+        """Validate scripts directory if present."""
+        scripts_path = self.skill_path / "scripts"
+        if not self._subdirectory_contained(scripts_path, "scripts"):
+            return
+
+        if not scripts_path.exists():
+            # Skills tagged vendor-portability intentionally reference upstream repo
+            # paths (scripts/, build/) for contributors, not plugin consumers.
+            if "vendor-portability" in self.content:
+                return
+
+            # Scripts are optional - only warn if skill has bash examples suggesting scripts
+            bash_example_count = len(re.findall(r"```bash", self.content))
+            python_example_count = len(re.findall(r"python\s+scripts/", self.content))
+
+            if python_example_count > 0:
+                self.check(
+                    "scripts.presence",
+                    False,
+                    "SKILL.md references scripts/ but no scripts directory exists",
+                    warning=False,
+                )
+            elif bash_example_count > 3:
+                self.check(
+                    "scripts.presence",
+                    False,
+                    f"Skill has {bash_example_count} bash examples - consider adding scripts/",
+                    warning=True,
+                )
+            return
+
+        # Validate each Python script
+        scripts = list(scripts_path.glob("*.py"))
+        for script in scripts:
+            self._validate_script(script)
+
+        # Validate script documentation in SKILL.md
+        self._validate_script_documentation(scripts)
+
+    def _validate_script(self, script_path: Path):
+        """Validate a single Python script file."""
+        # SECURITY (CWE-22): a scripts/*.py symlink can point outside the root.
+        read_target = contained_realpath(script_path, self.root)
+        if read_target is None:
+            self.check(
+                f"script.{script_path.name}.contained",
+                False,
+                f"Script {script_path.name} resolves outside the permitted root",
+            )
+            return
+
+        try:
+            content = Path(read_target).read_text(encoding="utf-8")
+        except Exception as e:
+            self.check(
+                f"script.{script_path.name}.readable",
+                False,
+                f"Cannot read script {script_path.name}: {e}",
+            )
+            return
+
+        script_name = script_path.name
+
+        # Skip private modules (starting with _) for CLI-related checks
+        # They are helper/config modules, not runnable scripts
+        is_private_module = script_name.startswith("_")
+
+        # Check for shebang and docstring (applies to all Python files)
+        has_shebang = content.strip().startswith("#!/usr/bin/env python3")
+        has_docstring = '"""' in content[:500] or "'''" in content[:500]
+        self.check(
+            f"script.{script_name}.header",
+            has_shebang and has_docstring,
+            f"Script {script_name} should have shebang and docstring",
+            warning=True,
+        )
+
+        # Skip CLI-related checks for private modules
+        if is_private_module:
+            return
+
+        # Check for argparse usage (if main function exists)
+        has_main = "def main():" in content or "if __name__" in content
+        has_argparse = "argparse" in content or "sys.argv" in content
+        if has_main:
+            self.check(
+                f"script.{script_name}.argparse",
+                has_argparse,
+                f"Script {script_name} should use argparse for CLI",
+                warning=True,
+            )
+
+        # Check for explicit exit codes
+        has_exit = "sys.exit" in content or "exit(" in content
+        self.check(
+            f"script.{script_name}.exit_codes",
+            has_exit,
+            f"Script {script_name} should use explicit exit codes",
+            warning=True,
+        )
+
+        # Check for error handling
+        has_try_except = "try:" in content and "except" in content
+        self.check(
+            f"script.{script_name}.error_handling",
+            has_try_except,
+            f"Script {script_name} should have error handling",
+            warning=True,
+        )
+
+        # Check for result class or validation result pattern
+        # Matches: Result, ValidationResult, return (True/False, or return True/False,
+        has_result_pattern = (
+            "Result" in content
+            or "ValidationResult" in content
+            or re.search(r"return\s*\(?\s*(True|False)\s*,", content) is not None
+        )
+        self.check(
+            f"script.{script_name}.result_pattern",
+            has_result_pattern,
+            f"Script {script_name} should use Result/ValidationResult pattern",
+            warning=True,
+        )
+
+    def _validate_script_documentation(self, scripts: list[Path]):
+        """Check that scripts are documented in SKILL.md."""
+        if not scripts:
+            return
+
+        # Check for Scripts section in SKILL.md
+        has_scripts_section = bool(re.search(r"##\s*Scripts", self.content, re.IGNORECASE))
+
+        self.check(
+            "scripts.documented.section",
+            has_scripts_section,
+            "Skills with scripts should have a Scripts section documenting usage",
+        )
+
+        # Check that each script is mentioned in SKILL.md
+        for script in scripts:
+            script_mentioned = script.name in self.content
+            self.check(
+                f"scripts.documented.{script.name}",
+                script_mentioned,
+                f"Script {script.name} should be documented in SKILL.md",
+                warning=True,
+            )
+
+        # Check for exit code documentation
+        has_exit_docs = bool(
+            re.search(r"Exit\s*Code|exit\s+code|Exit:\s*\d", self.content, re.IGNORECASE)
+        )
+        if len(scripts) > 0:
+            self.check(
+                "scripts.documented.exit_codes",
+                has_exit_docs,
+                "Skills with scripts should document exit codes",
+                warning=True,
+            )
+
+    def validate(self) -> tuple[bool, str]:
+        """Run all validations and return result."""
+        if not self.load_skill():
+            return False, self._format_report()
+
+        if not self.parse_frontmatter():
+            return False, self._format_report()
+
+        self.validate_frontmatter()
+        self.validate_triggers()
+        self.validate_process()
+        self.validate_verification()
+        self.validate_anti_patterns()
+        self.validate_structure()
+        self.validate_references_directory()
+        self.validate_reference_depth()
+        self.validate_scripts_directory()
+
+        return len(self.errors) == 0, self._format_report()
+
+    def _format_report(self) -> str:
+        """Format validation report."""
+        lines = [
+            f"\n{'=' * 60}",
+            f"Skill Validation Report: {self.skill_path.name}",
+            f"{'=' * 60}",
+            f"\nFile: {self.skill_md_path}",
+            f"Checks: {self.checks_passed}/{self.checks_total} passed",
+        ]
+
+        if self.errors:
+            lines.append(f"\n{'ERRORS':=^60}")
+            for error in self.errors:
+                lines.append(f"  ✗ {error}")
+
+        if self.warnings:
+            lines.append(f"\n{'WARNINGS':=^60}")
+            for warning in self.warnings:
+                lines.append(f"  ⚠ {warning}")
+
+        if not self.errors and not self.warnings:
+            lines.append("\n✓ All checks passed!")
+
+        lines.append(f"\n{'=' * 60}\n")
+
+        return "\n".join(lines)
+
+
+def main():
+    """Main entry point."""
+    if len(sys.argv) >= 2 and sys.argv[1] == "--help":
+        print("Usage: python validate-skill.py <path-to-skill-directory> [--root DIR]")
+        print("\nValidate a skill's structure and SKILL.md. The skill directory must be under the")
+        print("current directory, or under DIR when --root DIR is given.")
+        print("\nExamples:")
+        print("  python validate-skill.py skills/my-skill/")
+        print("  python validate-skill.py /other/repo/skills/my-skill --root /other/repo")
+        print(
+            "\nExit codes: 0 all checks passed, 1 a check failed or the path escapes the root,"
+            " 2 usage error (bad or missing arguments, --root not a directory)."
+        )
+        sys.exit(0)
+
+    parsed = parse_args(sys.argv[1:])
+    if parsed is None:
+        print(
+            "Usage: python validate-skill.py <path-to-skill-directory> [--root DIR]",
+            file=sys.stderr,
+        )
+        print("Example: python validate-skill.py ~/.claude/skills/my-skill/", file=sys.stderr)
+        sys.exit(2)
+
+    skill_path, root = parsed
+    if root is not None and not Path(root).is_dir():
+        print(f"Error: --root is not a directory: {root}", file=sys.stderr)
+        sys.exit(2)
+    try:
+        validator = SkillValidator(skill_path, root=root)
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
+    passed, report = validator.validate()
+
+    print(report)
+    sys.exit(0 if passed else 1)
+
+
+if __name__ == "__main__":
+    main()

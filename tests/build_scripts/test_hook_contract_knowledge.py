@@ -136,8 +136,13 @@ ROUTING_FILES = (
     REPO_ROOT / "templates" / "AGENTS.md",
 )
 
-GENERATED_INSTRUCTION_MIRRORS = (
-    REPO_ROOT / ".github" / "instructions" / "generated-artifacts.instructions.md",
+FOLDED_GENERATED_ARTIFACTS_RULE = (
+    REPO_ROOT
+    / ".claude"
+    / "skills"
+    / "ai-agents-generation-and-release"
+    / "references"
+    / "rule-generated-artifacts.md"
 )
 
 RUNTIME_ROUTING_FILES = (
@@ -405,7 +410,15 @@ def test_stop_hook_is_registered_only_as_the_local_reflect_nudge() -> None:
     # group, Stop only, absent from the Copilot tree (owner decision D20).
     (vendored_stop,) = [h["command"] for entry in vendored_hooks["Stop"] for h in entry["hooks"]]
     assert "--group plugin-stop-1-reflect_nudge --advisory" in vendored_stop
-    assert list(vendored_hooks) == ["Stop"]
+    # Issue #7493 added the UserPromptSubmit memory recall group. It is not a
+    # Stop registration and carries no --advisory flag (it is prompt-preserving
+    # instead, see invoke_dispatch_claude._PROMPT_PRESERVING_GROUP_IDS).
+    assert list(vendored_hooks) == ["Stop", "UserPromptSubmit"]
+    (vendored_recall,) = [
+        h["command"] for entry in vendored_hooks["UserPromptSubmit"] for h in entry["hooks"]
+    ]
+    assert "--group plugin-userpromptsubmit-1-memory_recall;" in vendored_recall
+    assert "--advisory" not in vendored_recall
     assert "Stop" not in generated_hooks
     assert "agentStop" not in generated_hooks
     assert [group_id for group_id in dispatch_groups if group_id.startswith("stop-")] == []
@@ -436,7 +449,7 @@ def test_stop_hook_is_registered_only_as_the_local_reflect_nudge() -> None:
 
 def test_reference_preserves_single_structured_output_boundary() -> None:
     sidecar = _normalized_text(OFFICIAL_SOURCES)
-    rule = (REPO_ROOT / ".claude" / "rules" / "generated-artifacts.md").read_text(encoding="utf-8")
+    rule = FOLDED_GENERATED_ARTIFACTS_RULE.read_text(encoding="utf-8")
 
     assert "performs one `JSON.parse`" in sidecar
     assert "Two final JSON objects concatenate into invalid JSON and are ignored." in sidecar
@@ -471,9 +484,10 @@ def test_authoring_surfaces_route_to_settled_contract() -> None:
         assert "agent-harness-reference" in text, path
         assert "ai-agents-portability-campaign" in text, path
 
-    rule = (REPO_ROOT / ".claude" / "rules" / "generated-artifacts.md").read_text(encoding="utf-8")
+    rule = FOLDED_GENERATED_ARTIFACTS_RULE.read_text(encoding="utf-8")
     assert "references/official-hook-contracts.md" in rule
     assert "Do not infer one harness from another." in rule
+    assert "ai-agents-portability-campaign" in rule
 
 
 def test_runtime_routes_load_hook_contract_before_hook_work() -> None:
@@ -493,14 +507,6 @@ def test_generated_copilot_skill_mirrors_settled_contract() -> None:
     assert "| PreCompact | None | Supported observe/discard policy" in reference
     assert "| Stop | None | Direct entries if added" in reference
     assert "A translated `ask` emits nothing" in _normalized_text(COPILOT_REFERENCE)
-
-
-def test_generated_instruction_mirrors_route_to_contract() -> None:
-    for path in GENERATED_INSTRUCTION_MIRRORS:
-        text = path.read_text(encoding="utf-8")
-        assert "agent-harness-reference" in text, path
-        assert "references/official-hook-contracts.md" in text, path
-        assert "ai-agents-portability-campaign" in text, path
 
 
 def test_requirement_and_historical_audit_do_not_reassert_old_contract() -> None:
@@ -1574,18 +1580,21 @@ def test_adr_068_dependent_components_table_matches_the_registration_count() -> 
     # ADR-097 retired every tool-call hook, so the count is now zero. The row
     # keeps its historical chain (three after the three-way merge, four before
     # it) because those are dated records, not live claims.
-    # REQ-048 TASK-006 registered one advisory Stop group, so the live count is
-    # one. ADR-068's 2026-11-04 amendment records it in the table row.
-    assert registrations == 1
+    # REQ-048 TASK-006 registered one advisory Stop group, and the ADR-109
+    # amendment of 2026-11-20 (issue #7493) added the UserPromptSubmit memory
+    # recall group, so the live count is two. The table row records both.
+    assert registrations == 2
     assert (
-        "One vendored plugin registration after REQ-048 TASK-006 added the "
-        "advisory Stop group `plugin-stop-1-reflect_nudge` (zero after ADR-097 "
-        "retired every tool-call hook; three after merging issues #4917, #5061, "
-        "and #5154; four before any of the three)" in text
+        "Two vendored plugin registrations: the advisory Stop group "
+        "`plugin-stop-1-reflect_nudge` (REQ-048 TASK-006) and the UserPromptSubmit "
+        "recall group `plugin-userpromptsubmit-1-memory_recall` (ADR-109 amendment "
+        "2026-11-20). History, oldest first: four before issues #4917, #5061, and "
+        "#5154; three after merging them; zero after ADR-097 retired every tool-call "
+        "hook; one after REQ-048 TASK-006; two after the recall group" in text
     )
     _refute(text, "| Four vendored plugin registrations", source=DISPATCHER_ADR)
     _refute(text, "One vendored plugin registration after issue #5154", source=DISPATCHER_ADR)
-    _refute(text, "| Two vendored plugin registrations", source=DISPATCHER_ADR)
+    _refute(text, "| One vendored plugin registration", source=DISPATCHER_ADR)
     _refute(text, "| Three vendored plugin registrations", source=DISPATCHER_ADR)
 
 

@@ -2,7 +2,7 @@
 name: ai-agents-portability-campaign
 description: Execute cross-harness hook changes for Claude Code and GitHub Copilot CLI using the settled official contract, versioned probes, generators, and runtime tests. Use for `run the portability campaign`, `port hooks to a new harness`, `copilot hook timeout regression`, or `new copilot cli release, recheck the contract`. Do NOT use for fact lookup alone (use `agent-harness-reference`) or release generation ownership (use `ai-agents-generation-and-release`).
 version: 1.1.0
-license: MIT
+license: Apache-2.0
 metadata:
   distribution: repo-local
   routing:
@@ -40,7 +40,7 @@ Read:
 4. `.project-toolkit/architecture/ADR-068-consolidated-hook-dispatcher.md`
 5. `.project-toolkit/architecture/ADR-071-plugin-hook-runtime-contract-verification.md`
 6. `.project-toolkit/architecture/ADR-097-zero-tool-use-hooks.md`
-7. `.claude/rules/generated-artifacts.md`
+7. the repo-local `ai-agents-generation-and-release` skill's `references/rule-generated-artifacts.md`
 
 Do not run open-ended documentation research. Re-search or re-probe only when
 the reference skill's refresh rules apply.

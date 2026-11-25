@@ -7,7 +7,7 @@ description: Tier 2 episode extraction, the reflexion write path split out of th
   `extract episode from session`, `record what happened this session`, or
   `re-extract this episode`. Do NOT use for Tier 1 lookups (use memory-search),
   for adding citations (use memory-enhancement), or to capture a correction or lesson (use reflect).
-license: MIT
+license: Apache-2.0
 metadata:
   adr: ADR-038, ADR-063, ADR-089, ADR-103, ADR-106
   capability:
@@ -120,10 +120,10 @@ is committed, so it outlives the session that produced it.
 
 ## Graceful Degradation
 
-The reflexion write path is local-only. Serena is the canonical store and
-travels with the repository (ADR-007). Episode extraction reads a session log
-and writes an episode record. It requires no network store, so there is no
-fallback to invoke here.
+Episode extraction reads a completed session log and writes a repository
+episode. Use `memory` for a durable fact or outcome when no episode source
+exists. Host hooks may prompt for reflection or report corpus health. Use the
+skill when you need to extract an episode.
 
 ## Verification
 
@@ -188,8 +188,8 @@ consumer that is not itself memory tooling.
 
 ## References
 
-- ADR-007: Memory-first architecture (canonical store, local-only posture)
-- ADR-037: Memory router architecture (the router this sub-skill delegates from)
+- ADR-106: Memory-first principle and single store (superseded ADR-007)
+- ADR-126: Repository-resolved memory store (amends ADR-106, which superseded ADR-037)
 - ADR-038: Reflexion memory schema (episode shape)
 - ADR-056: Skill output format standardization (the envelope this sub-skill emits)
 - ADR-063: Memory skill decomposition (this extraction)

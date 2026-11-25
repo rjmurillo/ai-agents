@@ -2,7 +2,7 @@
 name: context-optimizer
 version: 1.2.0
 description: Analyze skill content for optimal placement (Skill vs Passive Context vs Hybrid), compress markdown to pipe-delimited format, and validate compliance against the decision framework. Passive context wins for what the model cannot know (post-cutoff APIs, repo gotchas); pre-trained knowledge belongs in progressive disclosure. Use for "analyze skill placement", "compress markdown", "optimize context", "extract and index", or "audit always-on rules". Do NOT use for gathering knowledge before a task (use context-gather), for creating or improving a skill (use skillforge), or for eval-gated skill tuning (use skillopt).
-license: MIT
+license: Apache-2.0
 user-invocable: true
 allowed-tools:
   - Read
@@ -54,6 +54,8 @@ eliminating retrieval decisions.
 | `extract_and_index.py` | Extract sections into detail files with pipe-delimited index | 0=success, 1=error, 2=config, 3=external |
 | `distill_artifact.py` | Distill a log, diff, or long text once into a cached digest with line citations; no model call | 0=success, 2=config, 3=external |
 | `path_validation.py` | Shared CWE-22 repo-root-anchored path validation | N/A (library module) |
+
+Run a command you expect to print thousands of lines (full test run, build, log dump) through the repository's `run_with_receipt` wrapper when the checkout ships it. Never trade a gate, a test, or evidence in a report for tokens. The full redacted output lands in a file and you read a bounded receipt.
 
 ## Prerequisites
 

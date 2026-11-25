@@ -3,7 +3,7 @@ name: fix-ci
 description: Autonomously inspect failing GitHub Actions CI checks, fetch logs, analyze
   failures, and implement fixes without user approval. Integrates with get_pr_check_logs.py
   for log retrieval. Use for "fix ci", "why is ci failing", "debug ci failures".
-license: MIT
+license: Apache-2.0
 version: 1.0.0
 metadata:
   domains:
@@ -89,7 +89,7 @@ Use the GitHub skill to retrieve CI check status:
 **Decision Point:**
 
 - `MissingRequiredChecks` non-empty and `MissingRequiredQueued` false --> Follow [Required check never reported](#required-check-never-reported)
-- `MissingRequiredChecks` non-empty, `MissingRequiredQueued` true, and `FailedCount` 0 --> The head commit is inside the grace window (45 minutes by default), so the check may be queued. Run `get_pr_checks.py --wait --timeout-seconds 540` again; do not close and reopen yet. A failed check ends the wait at once, so take the Failures bullet instead
+- `MissingRequiredChecks` non-empty, `MissingRequiredQueued` true, and `FailedCount` 0 --> The head commit is inside the grace window (45 minutes by default), so the check may be queued. Run `get_pr_checks.py --wait --required-only --timeout-seconds 540` again; do not close and reopen yet. A failed check ends the wait at once, so take the Failures bullet instead
 - All passing --> Report success, exit
 - Pending only --> Wait or report status
 - Failures --> Continue to Phase 3

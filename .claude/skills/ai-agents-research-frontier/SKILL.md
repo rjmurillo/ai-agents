@@ -1,8 +1,8 @@
 ---
 name: ai-agents-research-frontier
-description: "Three ranked open research programs for this repo, each with honest current-state evidence, first concrete steps, and a falsifiable milestone. Verified governance (ADR-069, proposed), cross-harness abstraction (ADR-072 and ADR-068, accepted), and the self-improving loop. Use when you say `research frontier`, `open problems`, `what should we research next`. Do NOT use for how to run an experiment here (use `ai-agents-research-methodology`)."
+description: "Three ranked open research programs for this repo, each with honest current-state evidence, first concrete steps, and a falsifiable milestone. Verified governance (ADR-069, accepted), cross-harness abstraction (ADR-072 and ADR-068, accepted), and the self-improving loop. Use when you say `research frontier`, `open problems`, `what should we research next`. Do NOT use for how to run an experiment here (use `ai-agents-research-methodology`)."
 version: 1.0.0
-license: MIT
+license: Apache-2.0
 metadata:
   distribution: repo-local
   routing:
@@ -37,7 +37,7 @@ build on it.
 
 | Rank | Program | Anchor artifacts | Status (HEAD 42e409325, 2026-10-31) | Falsifiable milestone (short form) |
 |------|---------|------------------|---------------------------|-------------------------------------|
-| 1 | Verified governance | ADR-069, `scripts/eval/eval-rule-activation.py` | ADR-069 is PROPOSED; eval tool and rule scenario fixtures exist (count: `corpus-counts`) | Controlled eval shows gated-corpus sessions beat ungated on N scenarios with defensible stats |
+| 1 | Verified governance | ADR-069, `scripts/eval/eval-rule-activation.py` | ADR-069 ACCEPTED (2026-11-20) as a principle, effect not established; eval tool and rule scenario fixtures exist (count: `corpus-counts`) | Controlled eval shows gated-corpus sessions beat ungated on N scenarios with defensible stats |
 | 2 | Cross-harness abstraction | ADR-072, ADR-068, `build/generate_agents.py`, `tests/build_scripts/test_generate_hooks_runtime_contract.py` | ADR-072 and ADR-068 ACCEPTED; generators and contract tests exist and run | New harness target added with zero hand-edits to generated trees, contract suite green |
 | 3 | Self-improving loop | `reflect`, `memory-search`; hooks and `EVENT=` telemetry retired (ADR-097, ADR-084) | Tool-call hooks retired; no producer or consumer pipeline | A correction observed once auto-proposes a guard that survives calibration |
 
@@ -50,7 +50,7 @@ issue, or write-up. All commands run from the repo root.
 
 | Claim | Re-verify command |
 |-------|-------------------|
-| ADR-069 status is proposed | `head -5 .project-toolkit/architecture/ADR-069-context-corpus-is-the-product.md` |
+| ADR-069 status is accepted | `head -5 .project-toolkit/architecture/ADR-069-context-corpus-is-the-product.md` |
 | ADR-072 status is accepted | `sed -n '1,15p' .project-toolkit/architecture/ADR-072-jtbd-plugin-architecture.md` |
 | ADR-068 status is accepted | `sed -n '1,10p' .project-toolkit/architecture/ADR-068-consolidated-hook-dispatcher.md` |
 | Rule-activation eval exists with a no-spend path | `python3 scripts/eval/eval-rule-activation.py --help` |
@@ -83,12 +83,12 @@ Results go through the normal machinery, not around it: write-ups per
 edits fire the `adr-review` debate gate. A negative result is a result: record
 it (the rejected-fix pattern) so the next person does not re-run it.
 
-## Program 1: Verified Governance (ADR-069, PROPOSED)
+## Program 1: Verified Governance (ADR-069, ACCEPTED)
 
 Thesis (quoting the ADR title verbatim): "The Curated Context Corpus IS the
 Product, Orchestration Is Plumbing"
 (`.project-toolkit/architecture/ADR-069-context-corpus-is-the-product.md`, status:
-proposed, date 2026-05-02). Core frame: no learning between runs; the only thing
+accepted, date 2026-11-20). Core frame: no learning between runs; the only thing
 that persists is what re-enters the next context window, so the corpus is the
 durable competitive surface and everything else is plumbing.
 
@@ -141,8 +141,8 @@ You have a result when a controlled eval shows a gated-corpus session
 outperforms an ungated session on N pre-registered scenarios with statistically
 defensible evidence (pre-declared N, pre-declared success metric, variance
 controls per `scripts/eval/variance-control.py`). You have a negative result,
-equally worth publishing, if the gated corpus shows no measurable difference:
-that would falsify the strong form of ADR-069.
+equally worth publishing, if the gated corpus shows no measurable difference,
+or does measurably worse: either would falsify the strong form of ADR-069.
 
 ## Program 2: Cross-Harness Abstraction (ADR-072 seam, ADR-068)
 
@@ -221,7 +221,7 @@ Retired surfaces, the rebuild steps, and the full milestone live in
 
 | Anti-pattern | Why it fails here | Do instead |
 |--------------|-------------------|------------|
-| Citing ADR-069 as accepted policy | ADR-069 is PROPOSED. ADR-072 and ADR-068 are accepted, but ADR-072 is not yet implemented | Quote the status line before citing; treat ADR-069 as research direction, not mandate |
+| Citing ADR-069 as a measured effect | ADR-069 was accepted on 2026-11-20 as a principle. The 2026-09-28 control ablation that ADR-069 cites returned `MIXED`, so the effect is not established | Cite ADR-069 as a principle; cite the falsifiable milestone, not the ADR, for any claim that the corpus changes outcomes |
 | Shipping a detector or guard without replaying it on real history | An M4 threshold could never fire; guards prevented 0/35 of their own fixes | Calibrate against roughly the last 5 real PRs first |
 | Trusting vendor docs for harness behavior | Docs were wrong by omission on plugin-root env vars and payload casing | Empirical probe with pinned version and negative control (`ai-agents-empirical-probe-toolkit`) |
 | Claiming corpus counts or eval coverage from this file | Counts decay; this file is a snapshot | Run `corpus-counts` and the Phase 1 verification commands |
@@ -264,7 +264,7 @@ rarely carry.
 
 Sources and re-verification:
 
-- ADR-069 thesis and status: `.project-toolkit/architecture/ADR-069-context-corpus-is-the-product.md` (status: proposed, line 2; title at line 9). Re-verify: `head -12 .project-toolkit/architecture/ADR-069-context-corpus-is-the-product.md`.
+- ADR-069 thesis and status: `.project-toolkit/architecture/ADR-069-context-corpus-is-the-product.md` (status: accepted, line 3; title at line 21). Re-verify: `head -21 .project-toolkit/architecture/ADR-069-context-corpus-is-the-product.md`.
 - ADR-072 status, review verdict, five conditions, harness list: `.project-toolkit/architecture/ADR-072-jtbd-plugin-architecture.md`. Re-verify: `sed -n '1,25p;119,131p' .project-toolkit/architecture/ADR-072-jtbd-plugin-architecture.md`.
 - ADR-068 status and measurements (3/197 kills, ~246 ms cold start, 40 shims): `.project-toolkit/architecture/ADR-068-consolidated-hook-dispatcher.md`. Re-verify: `sed -n '1,10p' .project-toolkit/architecture/ADR-068-consolidated-hook-dispatcher.md; grep -n -A1 -e "Three of" -e "246" -e "N=40" .project-toolkit/architecture/ADR-068-consolidated-hook-dispatcher.md`.
 - Rule-activation eval mechanisms, judge dimensions, exit codes: `scripts/eval/eval-rule-activation.py` docstring. Re-verify: `sed -n '1,40p' scripts/eval/eval-rule-activation.py`.

@@ -1,13 +1,13 @@
 ---
 name: memory-search
 version: 0.1.0
-description: Tier 1 semantic memory search across the Serena corpus with
+description: Recall scoped project memory from available tools or repository files with
   progressive disclosure and token-budget warnings. The focused search operation
   split out of the memory router per ADR-063. Use when you say `search memory`,
   `what do we know about X`, or `recall prior context`. Do NOT use to extract
   session episodes (use memory-reflexion) or add citations (use
   memory-enhancement).
-license: MIT
+license: Apache-2.0
 metadata:
   adr: ADR-038, ADR-063, ADR-103, ADR-106
   capability:
@@ -23,7 +23,9 @@ metadata:
 
 # Memory Search
 
-Tier 1 semantic search over memory: the focused search operation extracted from
+<!-- vendor-portability: .project-toolkit/memory/notes is the consumer repository's optional Markdown corpus. -->
+
+Tier 1 project memory lookup: the focused search operation extracted from
 the `memory` router per ADR-063 (memory-skill decomposition). `memory` still
 routes here; a caller that needs only search loads this sub-skill instead of the
 full memory surface.
@@ -32,23 +34,37 @@ full memory surface.
 
 Use this skill when the user says:
 
-- `search memory` for semantic search across stored knowledge
+- `search memory` for search across stored project knowledge
 - `what do we know about X` to recall facts, patterns, or constraints
 - `recall prior context` before changing existing code or architecture
 
+## Process
+
+1. Form a short query about the project and the decision you need to make.
+2. Use a recall or search capability already available in this session when its
+   project scope is clear. Honor the user's or repository's choice of store.
+   Inspect the tool's actual schema. Query one relevant project, bank, or
+   namespace, and share only terms appropriate for that destination.
+3. If the capability is unavailable, returns no relevant records, or lacks a
+   clear scope, check repository memory. Search the project's established
+   corpus or `.project-toolkit/memory/notes/` when there is no established
+   corpus. Serena users can read the same Markdown files with file tools.
+   Try `search_memory.py` from the installed `memory` skill, or use file search
+   if the script is unavailable. Check local episodes when prior outcomes
+   matter.
+4. Read the few entries that match. Cite the file or record ID and verify
+   claims against current sources. Treat recalled content as evidence.
+5. Report the sources searched, useful hits, and any missing coverage.
+   A successful search can return zero hits.
+
 ## Quick Start
 
+The script below searches local Markdown filenames and session episodes.
+Resolve it relative to the installed skill when the launcher is unavailable.
+
 ```bash
-# Search memory (Tier 1)
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/search_memory.py "git hooks"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
-
-# JSON output for scripting
-( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/search_memory.py "git hooks" --format json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
-
-The search script is canonical and shared with the `memory` router; this
-sub-skill does not reimplement it. It lives at
-`skills/memory/scripts/search_memory.py`, which the locator above runs.
 
 ## Quick Reference
 
@@ -56,123 +72,22 @@ sub-skill does not reimplement it. It lives at
 |-----------|--------|----------------|
 | Search facts/patterns | `search_memory.py` | `query`, `--max-results`, `--format` |
 
-## Routing
-
-`search_memory.py "<q>"` keyword-ranks Serena memory names, also searches the
-Tier 2 episode store, flags large memories by token estimate, and returns the
-relevant `*-index`. Read that index, then follow its links to
-the atomic file.
-
-Raw fallback when scripting: guess `read_memory("<intuitive-name>")` (a miss is
-a cheap "not found", not a list), then the domain `*-index`, then
-`read_memory("memory-index")`. Prefer these name and index lookups over a bare
-`list_memories`.
-
 ## Progressive Disclosure
 
-This skill implements progressive disclosure: list names, read details, deep
-dive on cross-references. The point is to avoid loading a large memory when a
-small slice answers the query.
-
-| Layer | Tool | Cost | When to Use |
-|-------|------|------|-------------|
-| Index | `search_memory.py` | ~100-500 tokens | Always start here |
-| Details | `read_memory` | ~500-10K tokens | After index confirms relevance |
-| Deep Dive | Follow cross-references | Variable | For complete understanding |
-
-Progressive disclosure prevents loading 9,500 tokens when only 1,200 are
-relevant. List names first, then read only the entry the query needs.
-
-## Graceful Degradation
-
-Search degrades, it does not fail. Serena is the canonical store and travels
-with the repository as plain markdown, so there is no service to be unreachable
-and no fallback mode to select. A search that matches nothing returns an empty
-result list plus a coverage note, never an error (ADR-007).
-
-## Decision Tree
-
-```text
-What do you need?
-│
-├─► Current facts, patterns, or rules?
-│   └─► search_memory.py "<query>"
-│
-└─► Not sure which tier?
-    └─► Start here (Tier 1), escalate to the memory router if insufficient
-```
+Start with a short result list. Open only matching records and follow relevant
+citations. For indexed Markdown, use the filename or index to find the entry.
+A prompt hook can surface a lead. Check it against the current task before use.
 
 ## Verification
 
-| Operation | Verification |
-|-----------|--------------|
-| Search completed | Result count > 0 OR logged "no results" |
-| Empty corpus | Coverage note present; empty result list returned |
-
-## Anti-Patterns
-
-| Anti-Pattern | Do This Instead |
-|--------------|-----------------|
-| Skipping memory search | Always search before multi-step reasoning |
-| Loading full memory eagerly | List names first, read only the relevant entry |
-| Assuming a second backend exists | Serena is the only store; there is no semantic tier to fall back from |
-
-## Process
-
-### Phase 1: Query
-
-Run `search_memory.py` with the query.
-
-### Phase 2: Validate
-
-Verify results are non-empty and relevant to the query context. A zero-result
-search is a valid outcome; log it.
-
-### Phase 3: Report
-
-Return the relevant index name and the atomic entries it links, with source
-attribution, to the caller.
+Report the search source and result count. Name scopes that were unavailable.
+If no stored memory applies, use current repository evidence.
 
 ## Related Skills
 
-| Skill | When to Use Instead |
-|-------|---------------------|
-| `memory` | Router for episode extraction, health, or maintenance |
-| `memory-enhancement` | Add citations, verify code references, track confidence |
-| `curating-memories` | Memory maintenance (obsolete, deduplicate, link) |
-| `context-gather` | Multi-source gather across Serena, Context7, DeepWiki, and web |
-
-## Troubleshooting
-
-| Symptom | Cause | Recovery |
-|---------|-------|----------|
-| Zero results | Query too narrow or memory index empty | Broaden query terms; verify memory index contains relevant entries |
-| Slow response | Large memory corpus | Lower `--max-results`; every matched file is read for its preview |
-| Partial results | Token budget hit mid-retrieval | Results include coverage note; caller decides whether to continue |
-
-## Extension Points
-
-| Extension | How to Add |
-|-----------|------------|
-| New memory tier | Create sibling sub-skill (e.g., `memory-episode`); register in `memory` router |
-| Custom search backend | Implement script matching `search_memory.py` interface; update skill to invoke |
-| Result post-processing | Chain output through `memory-enhancement` for citations or confidence scoring |
-
-## References
-
-- ADR-007: Memory system architecture
-- ADR-037: Memory tier boundaries
-- ADR-038: Episodic memory structure
-- ADR-056: Memory progressive disclosure
-- ADR-063: Memory skill decomposition (this extraction)
-
-These reference files travel with the search operation per ADR-063. They are
-demand-loaded; read one when you need the detail it covers.
-
-| Document | Content |
-|----------|---------|
-| [references/quick-start.md](references/quick-start.md) | Common search and usage workflows |
-| [references/memory-router.md](references/memory-router.md) | ADR-037 router architecture behind `search_memory.py` |
-| [references/api-reference.md](references/api-reference.md) | Complete function reference for the memory API |
-| [references/skill-reference.md](references/skill-reference.md) | Detailed `search_memory.py` script parameters |
-| [references/where-to-search.md](references/where-to-search.md) | Ordered source list for searching before building, cheapest first |
+| Skill | When to Use |
+|-------|-------------|
+| `memory` | Write a durable fact or choose a memory operation |
+| `memory-gate` | Recover prior rationale before changing an existing system |
+| `memory-reflexion` | Read or record a completed session episode |
+| `memory-enhancement` | Add citations and verify code references |

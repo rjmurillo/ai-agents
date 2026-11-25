@@ -2,7 +2,7 @@
 name: plan
 version: 1.0.0
 description: Decompose a spec into milestones and atomic tasks with dependency ordering, risk register, and complexity sizing. Use when you say `plan how to build this`, `break this into milestones`, or `decompose this spec`, and run it after spec. Do NOT use to decide what to build (use spec), to write the code (use build), or to run or resume an approved plan file through script-driven delegation (use planner).
-license: MIT
+license: Apache-2.0
 argument-hint: spec-output-or-issue-number
 user-invocable: true
 ---
@@ -42,7 +42,9 @@ none is found, ask what to plan rather than inferring it.
 
 **Delegation on each host.** "Delegate to the `X` agent" means the host's subagent tool: Claude Code `Task` with `subagent_type="X"`; Copilot CLI `task` with `agent_type="project-toolkit:X"`; Codex `spawn_agent` with `agent_type="X"`, plus `fork_turns="none"` when the agent reviews or judges work (the default hands it your whole history); Muse Code `subagent_spawn` with `role="X"` and an `objective`, plus `worktree_isolation: true` for an agent that writes files. If the host has no subagent tool, or no `X` agent is installed, run the step yourself in this session.
 
-1. Read the spec or issue.
+1. Read the spec or issue. Carry forward prior-art citations and coverage gaps.
+   For missing rationale, use `memory-search` or the `memory` recall procedure.
+   When both are absent, try scoped recall, repository memory, or Git history.
 2. Map sub-problems to existing code. What already exists? Use Grep and Glob to
    verify rather than assuming.
 

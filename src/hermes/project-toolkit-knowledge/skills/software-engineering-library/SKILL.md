@@ -2,14 +2,14 @@
 name: software-engineering-library
 version: 1.0.0
 description: Route design and code-risk tasks to engineering references. Use for architecture boundaries, interfaces, domain modeling, refactoring, and legacy tests. Also cover data consistency, resilience, and forbidden patterns. Route prior-art questions to programming-advisor. Route scoring to code-qualities-assessment, and CVA to cva-analysis.
-license: MIT
+license: Apache-2.0
 ---
 
 # Software Engineering Library
 
 This skill routes software engineering design work to deeper book-derived references without loading them on every turn.
 
-For the everyday default, none loads on every turn and code-quality and unified-software-engineering load on code files; open a reference here only when the task needs that specific book's depth (start with one, add a second only when it changes a decision).
+For the everyday default, none loads on every turn and unified-software-engineering loads on code files; open a reference here only when the task needs that specific book's depth (start with one, add a second only when it changes a decision).
 
 ## Triggers
 

@@ -186,17 +186,20 @@ fi
 ## CI Check Verification
 
 ```bash
-# Quick check - get current status
-checks=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_checks.py --pull-request 50; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) )
+# Quick check - get current status of the required checks. Optional checks
+# never block a merge; see required-vs-optional-checks.md.
+checks=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_checks.py --pull-request 50 --required-only; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) )
 
 merge_ref_usable=$(echo "$checks" | jq -r '.Data.MergeRefUsable')
-all_passing=$(echo "$checks" | jq -r '.Data.AllPassing')
+required_state=$(echo "$checks" | jq -r '.Data.RequiredState')
 failed_count=$(echo "$checks" | jq '.Data.FailedCount')
 
 if [ "$merge_ref_usable" = "false" ]; then
     echo "BLOCKED: PR merge ref cannot be built, so CI status is incomplete"
-elif [ "$all_passing" = "true" ]; then
-    echo "All CI checks passing"
+elif [ "$required_state" = "SUCCESS" ] && [ "$(echo "$checks" | jq '.Data.Checks | length')" -eq 0 ]; then
+    echo "The ruleset requires no checks; re-run without --required-only to judge CI"
+elif [ "$required_state" = "SUCCESS" ]; then
+    echo "All required CI checks passing"
 elif [ "$failed_count" -gt 0 ]; then
     echo "BLOCKED: $failed_count check(s) failed"
     echo "$checks" | jq -r '.Data.Checks[] | select(.Conclusion != "SUCCESS" and .Conclusion != "NEUTRAL" and .Conclusion != "SKIPPED" and .Conclusion != null) | "  - \(.Name): \(.DetailsUrl)"'
@@ -206,9 +209,9 @@ else
     echo "Pending: $pending check(s) still running"
 fi
 
-# Poll until all checks complete (or timeout). Keep --timeout-seconds at or below
+# Poll until the required checks complete (or timeout). Never wait on optional ones. Keep --timeout-seconds at or below
 # 570: a 600 second tool call is killed with no result.
-checks=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_checks.py --pull-request 50 --wait --timeout-seconds 540; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) )
+checks=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_checks.py --pull-request 50 --wait --required-only --timeout-seconds 540; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) )
 
 if [ $? -eq 7 ]; then
     echo "Timeout waiting for checks (exit 7 also means ChecksIncomplete: check it before re-running)"
@@ -234,9 +237,14 @@ if [ "$success" != "true" ]; then
     exit 1
 fi
 
-checks=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_checks.py --pull-request 50 --wait; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) )
+checks=$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/get_pr_checks.py --pull-request 50 --wait --required-only; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) )
+required_state=$(echo "$checks" | jq -r '.Data.RequiredState')
 all_passing=$(echo "$checks" | jq -r '.Data.AllPassing')
-if [ "$all_passing" = "true" ]; then
+# AllPassing is false when the branch requires no checks; then re-run without
+# --required-only before merging. RequiredState alone is SUCCESS there.
+if [ "$required_state" = "SUCCESS" ] && [ "$all_passing" = "true" ]; then
     ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/github/scripts/pr/merge_pr.py --pull-request 50 --strategy squash; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+else
+    echo "Not merging: RequiredState=$required_state AllPassing=$all_passing $(echo "$checks" | jq -r '.Data.MergeStateWarning')"
 fi
 ```

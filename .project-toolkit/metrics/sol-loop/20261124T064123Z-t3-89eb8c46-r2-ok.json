@@ -1,0 +1,38 @@
+{
+  "author_family": "anthropic",
+  "branch": "t3/89eb8c46",
+  "counts": {
+    "dropped": 1,
+    "kept": 0,
+    "overlap": 0,
+    "raw": 1,
+    "sol_only": 0
+  },
+  "critic_sha256": "608f6b5abd3e09e93478bad58478c11612b652d605346b84eeb56b42255a6add",
+  "dropped": [
+    {
+      "finding": {
+        "claim": "One unresolvable entry skips the remaining siblings in its directory",
+        "file": "scripts/memory_enhancement/search.py",
+        "fix": "Catch resolution errors around the individual entry.",
+        "id": "S4",
+        "line": 158,
+        "repro": "Return `gamma-loop.md` before a filename-only `gamma-notes.md` from `scandir`, then raise `RuntimeError` when resolving the first entry. `gamma-notes.md` is never examined",
+        "severity": "nit"
+      },
+      "reason": "nit"
+    }
+  ],
+  "failure_class": "",
+  "findings": [],
+  "head_sha": "9a025510c7ec59721d7c260df331fc594b5b5c9f",
+  "key": "t3/89eb8c46",
+  "model": "gpt-6.2-sol",
+  "overlap_rule": "same file and line within 3 of a critic path:line or range",
+  "pr": "7523",
+  "round": 2,
+  "schema_version": 2,
+  "status": "ok",
+  "timestamp": "2026-11-24T06:41:23Z",
+  "verdict": "APPROVE"
+}

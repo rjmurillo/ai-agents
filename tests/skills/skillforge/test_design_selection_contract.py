@@ -31,7 +31,7 @@ _MIRROR_ROOTS = (
     "src/codex",
     "src/copilot-cli",
     "src/cursor",
-    "src/hermes/project-toolkit-knowledge",
+    "src/hermes/project-toolkit-authoring",
 )
 _MIRRORED = (
     ("skillforge", "references/script-integration-framework.md"),

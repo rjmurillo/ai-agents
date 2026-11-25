@@ -54,7 +54,7 @@ version: 1.0.0
 description: >-
   One-paragraph description of what the skill does.
   Starts with a verb. Under 200 characters.
-license: MIT
+license: Apache-2.0
 ---
 ```
 

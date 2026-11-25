@@ -48,4 +48,4 @@ Claude Code or GitHub Copilot CLI with plugin marketplace support. In Claude Cod
 
 ### Is it free?
 
-The toolkit is MIT licensed. Your Claude or GitHub Copilot plan bills the model usage.
+The toolkit is Apache 2.0 licensed. Your Claude or GitHub Copilot plan bills the model usage.

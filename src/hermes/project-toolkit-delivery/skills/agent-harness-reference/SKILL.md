@@ -2,7 +2,7 @@
 name: agent-harness-reference
 description: Field reference for Claude Code and GitHub Copilot CLI hook contracts. Covers hook locations, events, matchers, payloads, decisions, exit codes, timeouts, plugin roots, and cloud limits with official URLs and versioned probes. Use for `harness contract`, `copilot cli hook behavior`, `hook payload format`, `stale plugin root`, `Errno 2 _dispatch.py`, or before changing cross-harness hooks. Do NOT use to run the porting campaign (in the ai-agents repository, use `ai-agents-portability-campaign`).
 version: 1.1.0
-license: MIT
+license: Apache-2.0
 ---
 
 # Agent Harness Reference
@@ -355,8 +355,8 @@ skill behavior.
 - `.serena/memories/decision-copilot-cli-hook-plugin-root-contract.md` (probe evidence, docs wrong by omission)
 - `.serena/memories/copilot-hooks-observations.md` (payload casing, exit 143, toolArgs JSON string)
 - `.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md` and `2026-06-02-issue-2290-copilot-hook-payload-format.md`
-- `build/scripts/generate_hooks_emit.py:335-421`; `build/scripts/generate_hooks_events.py:381-385`; `templates/platforms/copilot-cli.yaml:52-62`
-- `.claude/rules/generated-artifacts.md`; `.claude/rules/lsp-first.md`; `.claude/rules/claude-agents.md` (MUST 2)
+- `build/scripts/generate_hooks_emit.py:335-421`; `build/scripts/generate_hooks_events.py:381-385`; `templates/platforms/copilot-cli.yaml:52-62` <!-- citation-freshness: ignore -- source list as the contract was researched; ranges predate the context diet -->
+- the repo-local `ai-agents-generation-and-release` skill's `references/rule-generated-artifacts.md`; the `using-serena-symbols` skill's `references/rule-lsp-first.md`; `.claude/rules/claude-agents.md` (MUST 2)
 - `.claude/lib/claude_hook_protocol.py`; `.claude/lib/hook_dispatch_protocol.py`
 - Manifests and `.mcp.json` read directly 2026-07-03
 

@@ -57,8 +57,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+import yaml
+
+from scripts.hook_utilities.frontmatter_block import FrontmatterStatus, parse_frontmatter
 from scripts.validation.check_adr_uniqueness import ADR_FILENAME_RE
-from scripts.validation.frontmatter_contract import FrontmatterStatus, parse_frontmatter
 
 EXIT_OK = 0
 EXIT_VIOLATION = 1
@@ -111,7 +113,9 @@ class ConfigError(Exception):
 def _status_of(path: Path) -> str:
     """Lowercased frontmatter status, or "" when unreadable, absent, or not a scalar."""
     try:
-        result = parse_frontmatter(path.read_text(encoding="utf-8"), allow_duplicate_keys=True)
+        result = parse_frontmatter(
+            path.read_text(encoding="utf-8"), yaml, allow_duplicate_keys=True
+        )
     except (OSError, UnicodeDecodeError):
         return ""
     if result.status is not FrontmatterStatus.VALID or result.metadata is None:

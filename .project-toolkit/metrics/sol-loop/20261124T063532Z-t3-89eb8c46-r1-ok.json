@@ -1,0 +1,63 @@
+{
+  "author_family": "anthropic",
+  "branch": "t3/89eb8c46",
+  "counts": {
+    "dropped": 1,
+    "kept": 2,
+    "overlap": 1,
+    "raw": 3,
+    "sol_only": 1
+  },
+  "critic_sha256": "34a0e0e1d4d40cea2702ba038b232f3dd3ae0a77f6452913b8f401c55bd3aee3",
+  "dropped": [
+    {
+      "finding": {
+        "claim": "If neither content search succeeds, the independent filename scan is skipped",
+        "file": "scripts/memory_enhancement/search.py",
+        "fix": "start with an empty content candidate list and let the filename scan use the remaining budget.",
+        "id": "S3",
+        "line": 138,
+        "repro": "stub both searchers to return `None` and query a matching filename with time remaining",
+        "severity": "nit"
+      },
+      "reason": "nit"
+    }
+  ],
+  "failure_class": "",
+  "findings": [
+    {
+      "claim": "`.strip()` accepts padded text at the shim's import boundary",
+      "evidence": "Shim compares raw link text to LINK_TEXT with no strip; padded and newline params in test_any_other_link_text_is_ignored fail on the old code.",
+      "file": "templates/hooks/UserPromptSubmit/invoke_memory_recall.py",
+      "fix": "compare the raw bytes to the exact Git link target and test that padded text is rejected.",
+      "id": "S1",
+      "line": 66,
+      "outcome": "fixed",
+      "repro": "a `.claude/lib/memory_enhancement` file containing ` ../../src/claude/lib/memory_enhancement\\n` redirects to `src/claude/lib`",
+      "severity": "blocker",
+      "sol_only": true
+    },
+    {
+      "claim": "The `for` loop fetches a directory entry before checking the scan cutoff",
+      "evidence": "Scan reads entries with a while loop that checks the clock before next(); test_no_entry_is_read_after_the_cutoff fails on the old code.",
+      "file": "scripts/memory_enhancement/search.py",
+      "fix": "check the cutoff before advancing the iterator.",
+      "id": "S2",
+      "line": 149,
+      "outcome": "fixed",
+      "repro": "with a clock starting at `0` and a deadline of `10`, mock `scandir` to return at `6`. The iterator still receives one `next()` call after the cutoff at `5`",
+      "severity": "blocker",
+      "sol_only": false
+    }
+  ],
+  "head_sha": "9a025510c7ec59721d7c260df331fc594b5b5c9f",
+  "key": "t3/89eb8c46",
+  "model": "gpt-6.2-sol",
+  "overlap_rule": "same file and line within 3 of a critic path:line or range",
+  "pr": "7523",
+  "round": 1,
+  "schema_version": 2,
+  "status": "ok",
+  "timestamp": "2026-11-24T06:35:32Z",
+  "verdict": "CHANGES"
+}

@@ -1,0 +1,54 @@
+{
+  "skill_path": ".claude/skills/github/SKILL.md",
+  "skill_id": "github",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Failing PR check: decide whether main is also red",
+      "input": "PR 412 has a failing CI check named 'unit-tests'. Before I touch the PR, how do I find out whether that check is also red on main? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "triage_red_check",
+        "exit 1",
+        "red on main"
+      ],
+      "expected_gate": "github-script-routing",
+      "rationale": "Decision Tree routes 'Failing check also red on main?' to triage_red_check.py, and the Script Reference gives exit 0 green, 1 red, 3 cannot determine. A generic answer would suggest browsing Actions history by hand."
+    },
+    {
+      "id": "S2",
+      "desc": "Stale bot CHANGES_REQUESTED review blocks merge",
+      "input": "All review threads on PR 77 are resolved, yet a bot's CHANGES_REQUESTED review still blocks the merge. Which script classifies this, and does it dismiss the review for me? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "detect_stale_bot_review",
+        "never dismisses",
+        "handoff"
+      ],
+      "expected_gate": "github-script-routing",
+      "rationale": "The Script Reference row for detect_stale_bot_review.py says it classifies a stale bot review and emits a human dismissal handoff, never dismisses. Only this skill names that script and its limit."
+    },
+    {
+      "id": "S3",
+      "desc": "Server-side branch update with head pin",
+      "input": "PR 233 is behind its base. Update the branch server side from an unattended job and make it safe if someone pushes meanwhile. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "update_pr_branch",
+        "expected-head-sha",
+        "head_moved"
+      ],
+      "expected_gate": "github-script-routing",
+      "rationale": "The update_pr_branch.py row requires unattended callers to pass --expected-head-sha, and exit 1 means head_moved. A generic answer would say git merge locally."
+    },
+    {
+      "id": "S4",
+      "desc": "Reading a pasted github.com URL is not this skill (negative)",
+      "input": "Here is a link: https://github.com/example/repo/blob/main/README.md . Read it and summarize what it says. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "set_issue_relationship.py",
+        "check_github_transport.py",
+        "adr-051"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The description says 'Do NOT use to read a pasted github.com URL (use github-url-intercept)'. This is the adjacent near-miss."
+    }
+  ]
+}

@@ -2,7 +2,7 @@
 name: spec
 version: 1.0.0
 description: Turn a problem into testable requirements with acceptance criteria, through a first-principles gate, a memory-first prior-art gate, and a PRD schema. Use when you say `spec this out`, `what should we build`, or `define the requirements`, and run it before plan. Do NOT use to sequence work into milestones (use plan), do NOT use to write the code (use build), and do NOT use to emit the REQ, DESIGN and TASK files directly (use spec-generator, which this invokes).
-license: MIT
+license: Apache-2.0
 allowed-tools: Task, Skill, Read, Write, Glob, Grep
 argument-hint: problem-statement-or-issue-number
 user-invocable: true
@@ -83,6 +83,9 @@ End the Q2 answer with one sentence recording the outcome: `Reframing: skipped (
 ### Step 0.5: Memory-First Gate
 
 {{> bound-the-search}}
+
+Use the prior-art gate to search memory. Record sources and coverage gaps in
+the PriorArtBlock.
 
 Runs after Step 0 and before Step 1. It searches prior art before any new spec
 work, halts when the blast-radius count meets the mode threshold (2 in human

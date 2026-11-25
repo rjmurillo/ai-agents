@@ -1,0 +1,361 @@
+---
+name: skillopt
+version: 1.0.0
+description: Improve a skill, agent file, or prompt through bounded patches and a held-out, per-task acceptance gate. Use when you say `optimize this skill`, `make this skill better`, `compress these skills safely`, `tune this prompt against an eval`, or a skill keeps failing the same way. To find why a skill failed in past sessions, use skill-doctor first. Do NOT use to create or route skills (use skillforge) or to decide skill placement or compress markdown without an eval (use context-optimizer).
+license: Apache-2.0
+user-invocable: true
+---
+
+# SkillOpt
+
+> A candidate lands only when it adds at least one held-out pass and loses
+> none. No scored eval set means no gate, and no gate means no edit.
+
+SkillOpt treats a skill document as the trainable state of a frozen model.
+You run rollouts and reflect on failures. The bundled scripts decide whether
+an edit may exist: the edit budget, the patch applier, the protected-section
+guard, the rejected-edit buffer, and the acceptance gate are deterministic.
+Do not edit the target by hand. Route every edit through the scripts so the
+gate is real. Method: Yang et al., arXiv:2605.23904. The paper's reported
+gains are its claims; this skill does not reproduce them.
+
+## Triggers
+
+| Phrase | Action |
+|--------|--------|
+| `optimize this skill` | Run the Process below against a scored eval set |
+| `make this skill better` | Same, after the Preconditions pass |
+| `compress these skills safely` | Declare a resource task up front, then gate |
+| `tune this prompt against an eval` | Same loop with a prompt as the target |
+| A skill keeps failing the same way | Mine sessions, confirm the defect, then gate |
+
+## Boundaries
+
+| Need | Owner |
+|------|-------|
+| Create a skill, find one, or route a request to one | `skillforge` |
+| Decide skill vs passive context, or compress markdown with no eval | `context-optimizer` |
+| Measured improvement of an existing skill, agent file, or prompt | this skill |
+| Held-out optimization of agents, rules, and hooks inside the `rjmurillo/ai-agents` checkout | `optimize-artifact.py` in that repository's eval tooling (not shipped) |
+
+## Preconditions (hard stop if unmet)
+
+1. **Target artifact.** A `SKILL.md`, agent file, or prompt.
+2. **Scored eval set.** A nonempty held-out `sel` split with per-task pass or
+   fail verifiers (`references/eval-set-format.md`). Without one, stop and say
+   so. `score` and `pair-gate` exit 2 on a missing or empty split.
+3. **Canonical owner.** Name the versioned source, its generated mirrors, and
+   the live install path before any candidate runs. A file in an eval
+   workspace is not deployed behavior.
+4. **Two isolated runners.** The candidate author and the `sel` runner must
+   be separate: a fresh subagent or another session. The `sel` runner writes
+   and holds the full `eval.json`. The author gets a train-only copy that
+   keeps the `sel` task ids but drops the `sel` task bodies; `apply` reads
+   only those ids. In every step the author must not write, run, or see the
+   `sel` prompts, verifiers, or per-task results. Only the gate verdict goes
+   back. If the harness cannot provide both, do not run skillopt. Report that the gate cannot be
+   independent. Replacement holdouts written by the same agent are still
+   exposed.
+
+Freeze the `train` and `sel` task lists before authoring any candidate. Keep
+`sel` prompts, verifiers, and outcomes away from the candidate author for the
+whole run (Precondition 4). If they were exposed, list them under `exposed` in
+the manifest, move them to `train`, and add untouched holdout tasks written
+by a runner who has not seen the candidate (Precondition 4).
+`pair-gate` exits 2 while an exposed or invalid task sits in the `sel` split.
+
+Deterministic tasks taken from a written spec before any candidate exists
+are frozen once their list and verifiers stop changing. Freezing is not
+isolation. If the agent that wrote them also writes the candidate, it has
+seen every verifier, so list them under `exposed` and keep them in `train`.
+They still catch regressions. They count as `sel` only when a different
+author or session wrote them and kept them from the candidate author.
+
+Read `references/target-selection.md` before you fund rollouts for a target,
+and when a patch fails to apply. It covers confirming the defect, splitting
+after baseline, anchor rules, and library-wide passes.
+
+## Scripts
+
+Every subcommand takes explicit file paths, so it runs from any working
+directory and needs no clone of the source repository. Pure standard library.
+
+```bash
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillopt/scripts/skillopt.py --help; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillopt/scripts/mine_sessions.py --help; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+SKILLOPT_FOUND="$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillopt/scripts/skillopt.py where; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 ) )" && SKILLOPT_DIR="$SKILLOPT_FOUND"
+: "${SKILLOPT_DIR:?no plugin root holds skillopt.py; set SKILLOPT_DIR to the scripts folder beside this SKILL.md}"
+```
+
+The `where` command prints the scripts folder of the same plugin root the other
+commands use. When no plugin root holds it (for example Codex, or a plain
+checkout under PowerShell), set `SKILLOPT_DIR` first to the `scripts` folder
+beside this SKILL.md, then run the block above; a found root still wins:
+
+```bash
+SKILLOPT_DIR="<folder that holds this SKILL.md>/scripts"
+python3 "${SKILLOPT_DIR:?}/skillopt.py" --help
+```
+
+On Windows PowerShell, no Bash required:
+
+```powershell
+$Found = @($env:CLAUDE_PLUGIN_ROOT, $env:COPILOT_PLUGIN_ROOT, '.claude') | Where-Object {
+    $_ -and (Test-Path -LiteralPath (Join-Path $_ 'lib/ptk_run.py') -PathType Leaf) -and
+    (Test-Path -LiteralPath (Join-Path $_ 'skills/skillopt/scripts/skillopt.py') -PathType Leaf)
+} | Select-Object -First 1
+if ($Found) { $SkillOptDir = Join-Path $Found 'skills/skillopt/scripts' }
+if (-not $SkillOptDir) { throw 'No plugin root holds lib/ptk_run.py and skillopt.py; set $SkillOptDir to the scripts folder beside this SKILL.md' }
+$SkillOpt = Join-Path $SkillOptDir 'skillopt.py'
+py -3 $SkillOpt --help
+```
+
+Below, `skillopt.py` means that resolved path. References use `$SKILLOPT_DIR`
+(`$SkillOptDir` in PowerShell) for the same folder.
+
+| Command | Exit codes |
+|---------|------------|
+| `skillopt.py budget`, `apply`, `score`, `buffer-add` | 0 success, 2 usage or validation error |
+| `skillopt.py gate`, `pair-gate` | 0 accept, 1 reject, 2 usage or validation error |
+| `skillopt.py efficiency-gate` | 0 `ACCEPT_EFFICIENCY`, 1 reject, 2 usage or validation error |
+| `skillopt.py report` | 0 report printed, 2 usage or validation error. Never gates |
+| `skillopt.py run` | 0 results written, 1 results written with a task `UNVERIFIED`, 2 refused or invalid (no results written) |
+| `skillopt.py hash PATH...` | 0 digests printed; a directory hashes as one whole bundle |
+| `skillopt.py hash PATH --expect SHA` | 0 match, 1 `MISMATCH`, 2 usage or validation error |
+| `skillopt.py buffer-check` | 0 `KNOWN-BAD` (discard), 1 `NOVEL` (proceed), 2 usage or validation error |
+| `mine_sessions.py sources`, `rank`, `tasks`, `collect`, `merge` | 0 success, 2 usage or validation error |
+
+`buffer-check` is inverted on purpose: exit 0 means the edit was already
+rejected. Branch on the printed word or the exact code, never on `&&`.
+
+Modules named `_skillopt_*.py` and `_mine_*.py` are internal helpers the
+two entry scripts import. Do not call them directly.
+
+## Process
+
+One optimization step:
+
+1. **Baseline.** Read `references/rollout-validity.md` before the first
+   rollout. Split the roles first. The candidate author sees only
+   `train` tasks and their results. A separate runner, such as a fresh
+   subagent or another session (Precondition 4), holds the `sel` prompts,
+   verifiers, and results in every step, and reports only the verdict back.
+   Each runner preflights its own tasks: prompt, verifier, inputs, fixtures,
+   and permitted scope. Run the rollout under exactly the scope the task grants.
+   A rollout with the wrong artifact or a scope change is invalid, not a pass
+   or a fail; mark the task `"status": "invalid"` and replace it. Grade the
+   complete persisted output against every clause of the verifier. A runner's
+   self-check or summary is not proof. A clipped or missing answer is
+   `"UNVERIFIED"` in the results file, which the gate refuses to count.
+   Record `{"task_id": true|false}` to `incumbent_results.json` and hash the
+   incumbent: `skillopt.py hash target.md`. For tasks with an argv `command`,
+   `skillopt.py run --eval eval.json --bundle DIR --role incumbent --out-dir
+   results/` runs them and writes `results/incumbent_results.json`. It
+   replaces the whole file, so run it first and add your grades for tasks with
+   no `command` after it finishes. Read the security note in
+   `references/eval-set-format.md` first, because `eval.json` commands run any
+   binary on `PATH`. When the target is a skill directory with scripts, pass
+   the directory to `hash` and `apply`; it hashes as one whole bundle. When the
+   manifest sets
+   `"scorer": "nondeterministic"`, the `sel` runner also reruns the
+   byte-identical incumbent into `null_results.json` now (see Before
+   promotion, step 2).
+2. **Budget.** `skillopt.py budget --step T --total N` prints L_t, the
+   cosine-decayed cap on atomic patches this step. T is 0-based, from 0 to
+   N-1; `--step N` exits 2 with `out of range`.
+3. **Reflect.** Failures become corrective rules; successes become behaviors
+   to preserve. Write at most L_t patches to `patches.json`. Use only `train`
+   evidence.
+   Read train traces and train-split reviewer notes, not only outputs. Propose
+   `delete` patches for instructions that cause wasted work or when the gate
+   plateaus. Helper code every rollout rewrites becomes a bundled script; hash
+   the final candidate directory.
+4. **Buffer check.** `skillopt.py buffer-check --buffer rejected.jsonl
+   --patches patches.json`. Exit 0 prints `KNOWN-BAD`: discard and reflect
+   again. Exit 1 prints `NOVEL`: proceed.
+5. **Apply to a candidate.** `skillopt.py apply --skill target.md --eval
+   eval.json --patches patches.json --budget L_t --out candidate.md`. The
+   incumbent is never written; an `--out` that resolves to the incumbent exits
+   2. Exit 2 is a usage or validation error, not a gate loss: an empty `sel`
+   split, an incumbent `--out`, budget overflow, a bad anchor, a protected
+   fence, marker text in a patch, or a new MUST failure from skillforge's
+   `lint_skill_frontmatter.py`.
+6. **Re-roll** every task on `candidate.md` into `candidate_results.json`.
+   For a bundle, `apply` writes a new directory. Finish every edit to its
+   scripts first, then run the command tasks, then `hash` the final
+   `CANDIDATE_DIR`. That digest is the candidate's identity, so results from
+   an earlier state of the bundle would gate a different candidate. The `sel`
+   runner does the `sel` half. For command tasks, run
+   `skillopt.py run --eval eval.json --bundle CANDIDATE_DIR --role candidate
+   --out-dir results/`, then add your grades for tasks with no `command`.
+7. **Gate.** `skillopt.py pair-gate --eval eval.json --incumbent-results
+   incumbent_results.json --candidate-results candidate_results.json`. If you
+   used `run --out-dir results/`, pass the files under `results/`. For a
+   nondeterministic scorer, add `--null-results null_results.json
+   --incumbent-sha256 <sha> --null-sha256 <sha>`; without them the gate exits
+   2.
+   - Exit 0, `ACCEPT_PARETO`: at least one held-out gain, zero held-out
+     regressions, every held-out result a literal boolean.
+   - Verdict precedence: `REJECT_UNVERIFIED` first (a missing or non-boolean
+     result), then `REJECT_NULL_CONTROL` (the null run moved and no genuine
+     gain remains), then `REJECT_CEILING` (the incumbent already passes every
+     `sel` task and the candidate regresses none), then `ACCEPT_PARETO` or
+     `REJECT`.
+   - Exit 1, `REJECT`, `REJECT_UNVERIFIED`, or `REJECT_NULL_CONTROL`: record
+     it with `skillopt.py buffer-add --buffer rejected.jsonl --patches
+     patches.json --score <cand> --incumbent <best> --note "..." --step T`.
+   - Exit 1, `REJECT_CEILING`: the edit lost nothing and is not bad. Do not
+     buffer it. No candidate can pass a gate that has no headroom, so stop the
+     loop and read the `hint`: freeze a new `sel` set of harder tasks that
+     sample the failure mode, re-score the incumbent on it, then author a
+     fresh candidate. Never re-gate this candidate on tasks written after it.
+     For a first draft whose `sel` tasks came from its own requirements, hand
+     back to `skillforge`.
+   - Cost, latency, or token claim at the ceiling: when the incumbent passes
+     every `sel` task and the claim is a gain declared in the frozen manifest
+     before authoring, run `skillopt.py efficiency-gate --eval eval.json
+     --incumbent-results incumbent_results.json --candidate-results
+     candidate_results.json --measurements measurements.json`. Read
+     `references/eval-set-format.md` (Efficiency measurements, Efficiency
+     gate) first. It never replaces `pair-gate` for a claim of better behavior.
+8. **Repeat** until the budget reaches its floor and several steps reject, or
+   the step budget runs out.
+
+Use `pair-gate` as the acceptance decision. Scalar `gate --candidate X
+--incumbent Y` (exit 0 `ACCEPT`, exit 1 `REJECT`, ties reject) is only for a
+single-objective experiment declared before the candidate existed. A resource
+objective such as context reduction may be one `sel` task with
+`"kind": "resource"`, declared before candidate creation. It cannot offset a
+semantic regression, because `pair-gate` rejects any regression.
+
+## Before promotion
+
+`ACCEPT_PARETO` is necessary, not sufficient:
+
+1. **Training review.** Run `pair-gate --split train` and read its
+   `regressions`. A lost training pass on a load-bearing verifier blocks
+   promotion. If fixing it changes the candidate, freeze a fresh `sel` set.
+2. **Null control** for nondeterministic scorers. It runs at baseline and
+   feeds the step 7 gate. Set `"scorer": "nondeterministic"` in the manifest;
+   `pair-gate` on `sel` then exits 2 without `--null-results`. Rerun the
+   byte-identical incumbent (confirm with
+   `skillopt.py hash target.md --expect <sha256>`, exit 1 on `MISMATCH`) into
+   `null_results.json`, then pass `--null-results null_results.json
+   --incumbent-sha256 <sha> --null-sha256 <sha>` to `pair-gate`, using the
+   digests `hash` printed for the incumbent and for the file the null run
+   used. Both are required, and a mismatch exits 2. A gain the no-op also
+   produced is noise; if no genuine gain remains the verdict is
+   `REJECT_NULL_CONTROL`.
+3. **Evidence.** Keep incumbent, candidate, patches, every results file, the
+   pair report, hashes, `rejected.jsonl`, and one line of evidence per task.
+   `skillopt.py report` lays out the evidence, benchmark spread, and case
+   signals (`references/eval-set-format.md`, Run report). It explains, never gates.
+   Act on a signal with `references/eval-authoring.md`.
+
+## Promotion
+
+1. Confirm the canonical source still hashes to the evaluated incumbent.
+2. Apply the accepted candidate to the canonical source, not to an eval copy
+   or a generated mirror.
+3. Hash the canonical source after applying it
+   (`skillopt.py hash canonical.md --expect <candidate sha256>`). It must
+   equal the accepted candidate's hash before you check the live copy.
+4. Regenerate mirrors, run the owner's tests, and load the skill once.
+5. Commit and push through the owner's repository workflow.
+6. Reload the live skill and confirm its hash matches the canonical file.
+
+If any step stops short, report `ACCEPTED_NOT_DEPLOYED`. Never call an
+eval-workspace candidate installed.
+
+## Protected sections
+
+Fence guidance that step edits must never touch:
+
+```text
+<!-- SLOW_UPDATE_START -->
+Durable guidance changed only by hand, at epoch boundaries.
+<!-- SLOW_UPDATE_END -->
+```
+
+Contract: `references/slow-section-convention.md`.
+
+## Finding targets from sessions
+
+`mine_sessions.py` ranks skills by usage and a weak correction signal from
+local transcripts, and pulls the prompts that triggered a skill. Read
+`references/cross-machine-mining.md` for its subcommands, supported sources,
+and the `session-patterns/1` handoff before you run it. A correction nominates
+a candidate. It is not a gold label. Confirm the defect in the target and in
+two distinct sessions before funding rollouts. Session data stays local; keep
+extracted prompts out of git unless the user names another destination.
+
+## Description changes
+
+Read `references/description-optimization.md` before you edit a `description`
+field or claim a skill triggers better. Output-quality rollouts do not measure
+activation, so score a description candidate on trigger rate instead.
+
+When a candidate patch adds or rewrites skill prose, read
+`../skillforge/references/skill-content-rules.md` first.
+
+## Limits
+
+The gate needs tasks with checkable pass or fail outcomes. A style guide or
+taste document with no measurable success signal has no `sel` split, so the
+gate cannot run. Say that you are flagging, not gating, and do not invent a
+score to make the gate pass.
+
+A harness that cannot run a separate `sel` runner must not run skillopt at
+all, not even to flag. See Precondition 4.
+
+SkillOpt compares incumbent against candidate. It never measures skill against
+no skill. That baseline lives in `skill-bootstrap`'s `bootstrap_eval.py score`.
+
+## Anti-Patterns
+
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| Editing the target by hand | The gate never sees the edit | Route every edit through `apply` |
+| Promoting on a higher aggregate score | It can hide a lost behavior | Use `pair-gate` |
+| Reflecting on `sel` tasks | That trains on the test set | Reflect on `train` only |
+| Treating a correction as a defect | Corrections are weak signals | Confirm in the target and two sessions |
+| Calling an accepted candidate installed | Acceptance is not deployment | Report `ACCEPTED_NOT_DEPLOYED` until promoted |
+
+## Verification
+
+- [ ] `eval.json` has a nonempty `sel` split frozen before the candidate.
+- [ ] A runner other than the candidate author wrote and ran the `sel` tasks,
+      and the author never saw them.
+- [ ] No `sel` task is exposed or invalid.
+- [ ] The incumbent hash is recorded and unchanged after `apply`.
+- [ ] `pair-gate` returned `ACCEPT_PARETO` with no unverified task.
+- [ ] Training regressions were reviewed.
+- [ ] A null control ran when the scorer is nondeterministic.
+- [ ] The live copy hashes to the canonical source, or the report says
+      `ACCEPTED_NOT_DEPLOYED`.
+
+## Extension Points
+
+- A new acceptance rule belongs in `pair-gate`, with a test, not in prose.
+- A new session source belongs in `mine_sessions.py sources` and its table
+  in `references/cross-machine-mining.md`.
+
+## Close-out
+
+After each run, check this skill and its references for a reusable lesson
+from a user correction, failed verifier, or tool discovery. Patch the
+class-level guidance; do not add an incident-named reference.
+
+## References
+
+- `references/eval-set-format.md`: eval manifest, patch, and results schemas.
+- `references/eval-authoring.md`: read when you draft tasks and verifiers, lay
+  out a step's artifacts, or act on a report signal.
+- `references/description-optimization.md`: trigger-rate eval for `description` edits.
+- `references/rollout-validity.md`: preflight, grading, and audit rules for rollouts.
+- `references/target-selection.md`: defect confirmation, split timing, anchors, cohorts.
+- `references/slow-section-convention.md`: protected-fence contract.
+- `references/mechanism.md`: the training analogy and paper citation.
+- `references/cross-machine-mining.md`: session sources and the handoff.
+- `references/example-eval.json` with `example-incumbent-results.json` and
+  `example-candidate-results.json`: a runnable `pair-gate` example.

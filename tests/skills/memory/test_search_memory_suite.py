@@ -424,6 +424,40 @@ class TestMainFunction:
         }
         assert set(output["Diagnostic"]) == {"Serena", "Episodes"}
 
+    def test_searches_repository_notes_from_subdirectory(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        (tmp_path / ".git").mkdir()
+        notes = tmp_path / ".project-toolkit" / "memory" / "notes"
+        notes.mkdir(parents=True)
+        note = notes / "client-retry.md"
+        note.write_text("# Client retries\n\nRetry on rate limiting.\n", encoding="utf-8")
+        monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+        monkeypatch.chdir(notes)
+
+        assert main(["client retry"]) == 0
+
+        output = json.loads(capsys.readouterr().out)
+        (result,) = output["Results"]
+        assert result["Path"] == str(note)
+        assert result["Source"] == "RepositoryNotes"
+        assert output["SearchStatus"]["RepositoryNotesSucceeded"] is True
+        assert output["SearchStatus"]["SerenaQueried"] is False
+        assert output["SearchStatus"]["SerenaSucceeded"] is False
+        assert output["Diagnostic"]["RepositoryNotes"]["MemoryCount"] == 1
+
+    def test_missing_explicit_store_is_not_reported_as_succeeded(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        missing = tmp_path / "no-such-store"
+
+        assert main(["retry", "--serena-path", str(missing), "--episodes-path", str(missing)]) == 0
+
+        status = json.loads(capsys.readouterr().out)["SearchStatus"]
+        assert status["SerenaQueried"] is True
+        assert status["SerenaSucceeded"] is False
+        assert status["EpisodesSucceeded"] is False
+
     def test_empty_results(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         serena = tmp_path / "memories"
         serena.mkdir()

@@ -1,7 +1,7 @@
 ---
 name: ai-agents-research-methodology
 version: 1.0.0
-license: MIT
+license: Apache-2.0
 description: How a hunch becomes an accepted result in this repo. Covers the
   evidence bar, hypothesis-predicts-numbers discipline, and the idea lifecycle
   from contradiction log through probe, eval baseline, ADR debate, calibrated
@@ -197,8 +197,8 @@ memory, eval numbers, ADR (if governance), calibrated gate, monitoring hook.
 Retirement gets recorded, never silenced. The exemplar is the fail-open wrapper proposal: a
 launcher-level fail-open wrapper was proposed, evaluated, and REJECTED as a
 silent-failure anti-pattern; the rejection is recorded with rationale in the customer wedge retro decision table
-(.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:297 and :393) and
-the binding principle lives in `.claude/rules/generated-artifacts.md`. Because
+(.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:297 and :393) and <!-- citation-freshness: ignore -- historical retro citation; the range predates the context diet -->
+the binding principle lives in the repo-local `ai-agents-generation-and-release` skill's `references/rule-generated-artifacts.md`. Because
 the rejection was written down, nobody re-proposes it. An unrecorded rejection
 is a future duplicate proposal.
 
@@ -236,8 +236,8 @@ is a future duplicate proposal.
 Route write-ups through the documents of record (`ai-agents-docs-of-record`
 for templates and house style). Non-negotiables for research prose:
 
-- No oversell. Proposed things stay labeled: ADR-069 carries
-  `status: proposed` (as of 2026-07-03); citing it as settled is a defect.
+- No oversell. Keep a principle apart from a measured effect: ADR-069 carries
+  `status: accepted` (as of 2026-11-20), but its effect is not established; citing it as proven is a defect.
 - Date-stamp volatile facts inline: "(as of 2026-07-03)".
 - Quote canonical sources verbatim when claiming a mirror "matches" (FM-9,
   `.agents/governance/FAILURE-MODES.md`; one round-cap PR paid 7 fix commits for
@@ -282,7 +282,7 @@ volatile facts:
 | buy-vs-build Quick tier ends in a Go/No-go | `.claude/skills/buy-vs-build-framework/SKILL.md:92` (`Go/No-go`) | verified directly against the cited line; no command needed that would read a sibling skill's directory <!-- citation-freshness: ignore -- symlinked shipped skill; tracked at src/claude/skills/buy-vs-build-framework/SKILL.md --> |
 | eval scripts and `--dry-run` | `scripts/eval/eval-prompt-change.py:961` (`Validate inputs, no API calls`); `scripts/eval/` listing | `ls scripts/eval/ && grep -n "dry-run" scripts/eval/eval-prompt-change.py` |
 | Contradiction log format | `.claude/skills/memory-gate/references/contradiction-log.md` | `grep -n "decision-" .claude/skills/memory-gate/references/contradiction-log.md` |
-| ADR-069 still proposed | `.project-toolkit/architecture/ADR-069-context-corpus-is-the-product.md:3` (`status: proposed`) | `head -5 .project-toolkit/architecture/ADR-069-context-corpus-is-the-product.md` |
+| ADR-069 accepted, effect not established | `.project-toolkit/architecture/ADR-069-context-corpus-is-the-product.md:3` (`status: accepted`) | `head -5 .project-toolkit/architecture/ADR-069-context-corpus-is-the-product.md` |
 | Retro corpus size | `.project-toolkit/retrospective/` | `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-failure-archaeology/scripts/corpus_index.py --repo .; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )` (`retro_files`; exits 1 while INDEX.md covers 11 of 241 retros at 42e409325, so read the JSON, not the exit code) |
 
 Uncertainty flag: the `EVENT=` telemetry consumer pipeline was never fully

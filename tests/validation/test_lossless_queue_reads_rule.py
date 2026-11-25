@@ -6,19 +6,11 @@ import re
 from pathlib import Path
 
 import pytest
-import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-RULE = REPO_ROOT / "templates" / "rules" / "lossless-queue-reads.md"
-CLUSTER = (
-    REPO_ROOT
-    / "src"
-    / "claude"
-    / "skills"
-    / "pr-comment-responder"
-    / "scripts"
-    / "cluster_threads.py"
-)
+SKILL_DIR = REPO_ROOT / "src" / "claude" / "skills" / "pr-comment-responder"
+RULE = SKILL_DIR / "references" / "rule-lossless-queue-reads.md"
+CLUSTER = SKILL_DIR / "scripts" / "cluster_threads.py"
 MAX_BYTES = 2200
 REASONS = (
     "missing pagination info",
@@ -30,12 +22,6 @@ CITATION = re.compile(r"`(?P<path>[^`]*cluster_threads\.py):(?P<lo>\d+)-(?P<hi>\
 
 def _rule_text() -> str:
     return RULE.read_text(encoding="utf-8")
-
-
-def test_rule_is_always_on() -> None:
-    match = re.match(r"^---\n(.*?)\n---\n", _rule_text(), re.DOTALL)
-    assert match
-    assert yaml.safe_load(match.group(1))["paths"] == ["**"]
 
 
 def test_rule_stays_under_the_size_budget() -> None:

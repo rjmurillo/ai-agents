@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
 # taste-lint: ignore complexity -- pre-existing debt, unlinted before the ADR-119 source classification
-# taste-lint: ignore file-size -- was already at the 500-line cap before issue
-# #5275; the lines added are the verbatim library citation and divergence note
-# that canonical-source-mirror.md requires for the mirrored fence boundary,
-# and this script ships inside a plugin root where a sibling import would add
-# a second portability surface to keep in step across three trees.
 """Detect ADR file changes (create, update, delete) for automatic skill triggering.
 
 Monitors ADR file patterns in designated directories and detects changes
@@ -32,8 +27,32 @@ import os
 import re
 import subprocess
 import sys
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
+
+# ADR-047 keeps this bootstrap inline because imports need sys.path first.
+# This file's own plugin lib wins when it holds the shared frontmatter parser,
+# so a foreign or older plugin root in the environment cannot shadow it. The
+# environment root is the fallback for a script copied outside its plugin.
+_PLUGIN_ROOT = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+_LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+if _PLUGIN_ROOT and not os.path.isfile(_LIB_DIR / "hook_utilities" / "frontmatter_block.py"):
+    _LIB_DIR = Path(_PLUGIN_ROOT) / "lib"
+
+if not os.path.isdir(_LIB_DIR):
+    raise RuntimeError(
+        "Expected portability helper lib directory not found: "
+        f"{_LIB_DIR}. Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT to the "
+        "plugin root, or run from an ai-agents checkout."
+    )
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from hook_utilities.frontmatter_block import (  # noqa: E402
+    FrontmatterStatus,
+    decode_frontmatter_yaml,
+    split_frontmatter,
+)
 
 # PyYAML is optional. This script runs under a consumer's bare ``python3``
 # (`.claude/rules/plugin-self-containment.md` MUST 4), where PyYAML is not
@@ -97,30 +116,6 @@ def _run_git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
-# Frontmatter boundary, MIRRORED because it cannot be imported. This file ships
-# inside the plugin and may import only the standard library at import time
-# (`.claude/rules/plugin-self-containment.md` MUST 4), so neither `python-frontmatter`
-# nor `scripts/validation/frontmatter_contract.py` is reachable here. Quoted
-# citation-freshness: ignore -- cites the installed python-frontmatter package, which is a pinned dependency in pyproject.toml and is deliberately not tracked in this repo; the parity tests assert the quoted pattern against the live library rather than against HEAD
-# verbatim from `frontmatter/default_handlers.py:252`, which that contract
-# delegates to:
-#
-#   FM_BOUNDARY = re.compile(r"^-{3,}\s*$", re.MULTILINE)
-#
-# THREE OR MORE dashes, and trailing whitespace is part of the fence.
-# `tests/skills/adr-review/test_detect_adr_changes_frontmatter_parity.py` pins
-# this constant against the installed library shape by shape, and carries the
-# issue #4918 evidence for why an unpinned mirror is not safe.
-#
-# Stricter/looser/different than canonical: identical boundary. Matched line by
-# line rather than with re.MULTILINE over the whole text, because this module
-# needs the index of the closing line to slice the body and only ever considers
-# the first two boundaries.
-FRONTMATTER_BOUNDARY = re.compile(r"^-{3,}\s*$")
-
-# Retained for callers comparing a literal fence. The boundary above decides.
-FRONTMATTER_DELIM = "---"
-
 # Frontmatter keys whose value can change without altering the ADR's decision
 # content, so a change confined to them does not need adr-review. Per ADR-073
 # (.project-toolkit/architecture/ADR-073-adr-lifecycle-frontmatter.md:57,61), `status`,
@@ -131,135 +126,54 @@ FRONTMATTER_DELIM = "---"
 # is exempt; that is the case #2845 was filed for.
 _NON_DECISION_FRONTMATTER_KEYS = frozenset({"implemented"})
 
-# Top-level ``key:`` frontmatter line, used only to detect duplicate keys.
-# Value parsing is delegated to PyYAML so block-style lists, multi-line
-# values, and blank lines inside blocks are handled correctly.
-_FRONTMATTER_FIELD_RE = re.compile(r"^([A-Za-z0-9_-]+):(.*)$")
 
+def _parse_frontmatter(content: str) -> dict[str, object] | None:
+    """Parse the leading frontmatter block of ``content`` into a mapping.
 
-def _parse_frontmatter(frontmatter: str) -> dict[str, object] | None:
-    """Parse frontmatter into a key -> value mapping.
+    Uses ``split_frontmatter`` and ``decode_frontmatter_yaml`` from
+    ``hook_utilities.frontmatter_block``, so the fence rule and the YAML load are the
+    ones every other gate uses. Returns ``None`` when the block is absent,
+    unterminated, malformed, not a mapping, or repeats a key at any mapping
+    depth, so callers fail closed (the gate still fires). An empty block is
+    ``{}``. Also returns ``None`` when PyYAML is not installed: no parse is
+    possible.
 
-    Delegates to :func:`yaml.safe_load` so block-style lists, multi-line
-    values, and blank lines inside block values are parsed the same way the
-    real ADR tooling and CI parse them. Returns ``None`` on malformed input or
-    a non-mapping document so callers can fail closed (still trip the gate).
-    Also returns ``None`` when PyYAML is not installed: no parse is possible.
+    Duplicate keys are rejected, not resolved last-wins. A second ``status:``
+    line would otherwise mask the first, and a guard a forger can evade with
+    quotation marks (``"status": proposed``) is worse than none. The core
+    detects duplicates in the parser, not by line prefix, so quoting and
+    nesting do not hide them.
     """
     if not _HAVE_YAML:
         return None
+    split = split_frontmatter(content)
+    if not split.found:
+        return None
+    # From the physical opening line: the fence match absorbs whitespace-only lines.
     try:
-        loaded = yaml.safe_load(frontmatter)
+        loaded = decode_frontmatter_yaml(content[split.open_end : split.raw_end], yaml)
     except yaml.YAMLError:
         return None
     if loaded is None:
         return {}
-    if not isinstance(loaded, dict):
-        return None
-    return loaded
+    return loaded if isinstance(loaded, dict) else None
 
 
-def _has_duplicate_keys(frontmatter: str) -> bool:
-    """True when a frontmatter mapping declares the same key twice, at any
-    mapping depth: the constructor below is registered for every YAML
-    mapping node PyYAML visits, top-level or nested, so a duplicate nested
-    one level down is caught the same way a top-level one is
-    (``test_a_nested_duplicate_is_caught``). Renamed from
-    `_has_duplicate_top_level_keys`, independently on both PR #5209 and PR
-    #5230's Copilot review rounds: that name was accurate before the
-    parser-level rewrite, when the detection was a top-level-only line
-    regex; it now misstates the contract.
-
-    Duplicate keys are malformed YAML and can hide a governance change (a
-    second ``status:`` line masking the first). PyYAML resolves duplicates
-    last-wins without error, so this explicit check lets the exemption fail
-    closed on them and the adr-review gate still fires.
-
-    Detected at the parser rather than by matching line prefixes. The earlier
-    regex recognised only ``^[A-Za-z0-9_-]+:``, a different question than
-    YAML asks: three of ``status: proposed``, ``"status": proposed``,
-    ``status : proposed``, and ``'status': proposed`` walked through it while
-    ``yaml.safe_load`` enforced ``accepted`` for every one (Copilot, PR
-    #5230). A guard the forger evades with quotation marks is worse than
-    none, since it reports clean.
-
-    Mirrors `_no_duplicate_keys` in scripts/validation/frontmatter_contract.py,
-    which is canonical. The detection is quoted verbatim from it
-    (`scripts/validation/frontmatter_contract.py:150`)::
-
-        seen: list[Any] = []
-        for key_node, _value_node in node.value:
-            key = loader.construct_object(key_node, deep=True)
-            if any(key == earlier for earlier in seen):
-                raise yaml.constructor.ConstructorError(
-                    None, None, f"duplicate key {key!r} in frontmatter mapping", key_node.start_mark
-                )
-            seen.append(key)
-        mapping: dict[Any, Any] = loader.construct_mapping(node, deep=True)
-        return mapping
-
-    Stricter/looser/different than canonical: the same detection, but the body
-    below differs from the quote. It raises a local `_Dup` (a `yaml.YAMLError`)
-    instead of `ConstructorError`, and types the key list `list[object]`
-    instead of `list[Any]`. This returns a bool because callers only branch on
-    it, and swallows a YAML parse error as False because a malformed block is
-    already handled by the callers' own parse path. This file ships inside the plugin and may import only the
-    standard library at import time, so the loader is duplicated here rather than
-    shared (`.claude/rules/plugin-self-containment.md`). Keys are compared with
-    ``==`` in a list, not a set: a YAML key need not be hashable (``? [a, b]``
-    builds a list key) and a set raises ``TypeError`` on it.
-
-    Without PyYAML this returns True. Absence of a duplicate cannot be proven
-    without a parser, and both callers read True as "do not trust this block":
-    the exemption is refused and the status is ``unknown``.
-    """
-    if not _HAVE_YAML:
-        return True
-
-    class _Dup(yaml.YAMLError):
-        pass
-
-    class _Loader(yaml.SafeLoader):
-        pass
-
-    def _check(loader: yaml.SafeLoader, node: yaml.MappingNode) -> dict[object, object]:
-        seen: list[object] = []
-        for key_node, _ in node.value:
-            key = loader.construct_object(key_node, deep=True)
-            if any(key == earlier for earlier in seen):
-                raise _Dup
-            seen.append(key)
-        mapping: dict[object, object] = loader.construct_mapping(node, deep=True)
-        return mapping
-
-    _Loader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _check)
-
-    try:
-        yaml.load(frontmatter, Loader=_Loader)
-    except _Dup:
-        return True
-    except yaml.YAMLError:
-        return False
-    return False
-
-
-def _only_non_decision_fields_changed(old_frontmatter: str, new_frontmatter: str) -> bool:
+def _only_non_decision_fields_changed(old_content: str, new_content: str) -> bool:
     """True when every frontmatter key that changed is a non-decision field.
 
-    Compares parsed field maps. A key that was added, removed, or whose value
-    changed counts as "changed". The change is exempt only when all such keys
-    are in :data:`_NON_DECISION_FRONTMATTER_KEYS`; any governance key change
-    (for example ``status: proposed`` -> ``accepted``) makes this False so the
-    adr-review gate still fires (ADR-073).
+    Takes the two full documents. Compares parsed field maps. A key that was
+    added, removed, or whose value changed counts as "changed". The change is
+    exempt only when all such keys are in :data:`_NON_DECISION_FRONTMATTER_KEYS`;
+    any governance key change (for example ``status: proposed`` -> ``accepted``)
+    makes this False so the adr-review gate still fires (ADR-073).
 
     Fails closed when either side has a duplicate key (at any mapping depth)
     or malformed frontmatter: a duplicated or unparseable governance key
     could otherwise mask a status change.
     """
-    if _has_duplicate_keys(old_frontmatter) or _has_duplicate_keys(new_frontmatter):
-        return False
-    old_fields = _parse_frontmatter(old_frontmatter)
-    new_fields = _parse_frontmatter(new_frontmatter)
+    old_fields = _parse_frontmatter(old_content)
+    new_fields = _parse_frontmatter(new_content)
     if old_fields is None or new_fields is None:
         return False
     changed_keys = {
@@ -273,27 +187,15 @@ def _only_non_decision_fields_changed(old_frontmatter: str, new_frontmatter: str
 
 
 def _split_frontmatter(content: str) -> tuple[str, str]:
-    r"""Split content into (frontmatter, body).
+    """Split content into (frontmatter, body).
 
-    Frontmatter is the YAML block opened by a leading boundary line and closed
-    by the next one. Returns ``("", content)`` when no complete block is present.
-
-    Issue #5275 found this function, the lifecycle gate, and the index
-    generator disagreeing on which closing fences they accept, so one corpus
-    could pass the governance gate and crash the index build. All three now use
-    the same boundary: :data:`FRONTMATTER_BOUNDARY`, mirrored from
-    ``python-frontmatter``. The literal ``line.strip() == "---"`` this used to
-    perform rejected a fence of four dashes that the other two accepted.
+    Uses ``hook_utilities.frontmatter_block.split_frontmatter``. Returns
+    ``("", content)`` when no complete block is present.
     """
-    lines = content.splitlines(keepends=True)
-    if not lines or not FRONTMATTER_BOUNDARY.match(lines[0].rstrip("\r\n")):
+    split = split_frontmatter(content)
+    if split.status is not FrontmatterStatus.VALID:
         return "", content
-    for idx in range(1, len(lines)):
-        if FRONTMATTER_BOUNDARY.match(lines[idx].rstrip("\r\n")):
-            frontmatter = "".join(lines[1:idx])
-            body = "".join(lines[idx + 1 :])
-            return frontmatter, body
-    return "", content
+    return split.raw, split.body
 
 
 STATUS_UNKNOWN = "unknown"
@@ -349,20 +251,11 @@ def _get_adr_status(file_path: Path) -> str:
         # record with a stray byte raises past this handler instead of taking
         # the unknown-status path the caller is written to expect.
         return STATUS_UNKNOWN
-    frontmatter, _body = _split_frontmatter(content)
-    if not frontmatter:
-        return STATUS_UNKNOWN
-    if _has_duplicate_keys(frontmatter):
-        # PyYAML resolves duplicates last-wins and reports nothing, so a record
-        # carrying `status: proposed` near the top and `status: accepted` lower
-        # in the same block parses as accepted while reading as proposed to
-        # anyone scanning the first lines. This module already treats that as a
-        # governance risk and fails its frontmatter-only exemption closed on it
-        # (see _frontmatter_only_change); the status path was not wired to the
-        # same helper, so the two disagreed about whether such a record is
-        # readable at all. Undeclared, not last-wins.
-        return STATUS_UNKNOWN
-    fields = _parse_frontmatter(frontmatter)
+    # A duplicate `status:` key parses to None here, so it is undeclared, not
+    # last-wins: a record with `status: proposed` near the top and
+    # `status: accepted` lower would otherwise read as accepted to PyYAML and
+    # as proposed to anyone scanning the first lines.
+    fields = _parse_frontmatter(content)
     if fields is None:
         return STATUS_UNKNOWN
     status = fields.get("status")
@@ -397,13 +290,15 @@ def _is_frontmatter_only_change(file_path: str, since_commit: str, base_path: Pa
         new_content = resolved_path.read_text(encoding="utf-8")
     except (OSError, RuntimeError, ValueError):
         return False
-    old_frontmatter, old_body = _split_frontmatter(show.stdout)
-    new_frontmatter, new_body = _split_frontmatter(new_content)
-    if not old_frontmatter or not new_frontmatter:
+    old_split = split_frontmatter(show.stdout)
+    new_split = split_frontmatter(new_content)
+    if not old_split.found or not new_split.found:
         return False
-    if old_body != new_body:
+    # Compare from just past the closing fence line, so a blank line added
+    # right after the fence counts as a body change.
+    if show.stdout[old_split.fence_end :] != new_content[new_split.fence_end :]:
         return False
-    return _only_non_decision_fields_changed(old_frontmatter, new_frontmatter)
+    return _only_non_decision_fields_changed(show.stdout, new_content)
 
 
 _HELP_EPILOG = """\
@@ -547,7 +442,7 @@ def main(argv: list[str] | None = None) -> int:
             # count as actionable ADR changes for adr-review triggering.
             "HasChanges": len(created) + len(substantive_modified) + len(deleted) > 0,
             "RecommendedAction": recommended_action,
-            "Timestamp": datetime.now(UTC).isoformat(),
+            "Timestamp": datetime.now(timezone.utc).isoformat(),
             "SinceCommit": args.since_commit,
         }
 

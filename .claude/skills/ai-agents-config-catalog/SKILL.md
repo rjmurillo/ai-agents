@@ -2,7 +2,7 @@
 name: ai-agents-config-catalog
 description: Catalog of every configuration axis in this repo, env vars, commit markers, frontmatter keys, QA skip verdicts, and escape hatches, each with its enforcement point and abuse story, plus the checklist for adding a new flag safely. Use when you say `what does a skip flag do`, `list escape hatches`, `can I skip this gate`, `add a config flag`. Do NOT use for hook runtime behavior (use `agent-harness-reference`) or change gating policy (use `ai-agents-change-control`).
 version: 1.0.0
-license: MIT
+license: Apache-2.0
 metadata:
   distribution: repo-local
   routing:
@@ -53,7 +53,7 @@ using or documenting an environment variable.
 |---|---|---|
 | `SKIP_PREPUSH` | REMOVED | Historical: abused 3x within hours of creation (session 1187, retro `.project-toolkit/retrospective/2026-02-08-session-1187-skip-prepush-abuse.md`) |
 | `SKIP_TESTS` | REMOVED | Removed from the pre-push hook during the Lefthook migration, but it outlived that as the env default for `pre_pr.py --skip-tests`, which was parsed and never read; flag, env default, and the `--verbose` beside it were deleted once no gate set `skip_flag` |
-| `SKIP_LSP_GATE`, `LSP_GATE_MODE`, `LSP_DOWN` | REMOVED | LSP-first runtime gate retired (ADR-062 amended); guidance is static steering in `.claude/rules/lsp-first.md` |
+| `SKIP_LSP_GATE`, `LSP_GATE_MODE`, `LSP_DOWN` | REMOVED | LSP-first runtime gate retired (ADR-062 amended); guidance is static steering in the `using-serena-symbols` skill's `references/rule-lsp-first.md` |
 
 Lesson encoded: a global bypass with no teeth (no telemetry, no approval step) will be reached for under pressure. New escape hatches must be narrow, announced in output, and observable.
 
@@ -137,7 +137,7 @@ every tool-call hook.
 | Surface | Consumer | Shape re-verified 2026-10-31 (`hook-counts`) |
 |---|---|---|
 | `.claude/settings.json` | Claude Code direct in this repository | run `hook-counts` (5 events, 8 groups on 2026-10-31) |
-| `.claude/hooks/hooks.json` | Symlink to `src/claude/hooks/hooks.json` (ADR-119) | run `hook-counts` (1 events, 1 groups on 2026-11-04) |
+| `.claude/hooks/hooks.json` | Symlink to `src/claude/hooks/hooks.json` (ADR-119) | run `hook-counts` (2 events, 2 groups on 2026-11-20) |
 
 Chain: `templates/hooks/hooks.json` (source) renders to `src/claude/hooks/hooks.json` (plugin tree, the Copilot generator input, `settingsSource` in `templates/platforms/copilot-cli.yaml`), then binplace links `.claude/hooks/hooks.json` to it (relative symlink, ADR-119; Claude Code auto-discovers plugin hooks only at `<plugin-root>/hooks/hooks.json`). The generator reads the plugin tree, not local settings. A
 one-file registration is valid only when its consumer scope is deliberate.

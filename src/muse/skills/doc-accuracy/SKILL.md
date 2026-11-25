@@ -8,7 +8,7 @@ description: >-
   pre-release doc audits and checking behavioral claims. Do NOT use for broad
   codebase analysis (use analyze) or fixing markdown fence syntax (use
   fix-markdown-fences).
-license: MIT
+license: Apache-2.0
 metadata:
   routing:
     role: lifecycle

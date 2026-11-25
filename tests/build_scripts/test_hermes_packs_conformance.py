@@ -49,7 +49,16 @@ def test_lib_render_equals_the_committed_claude_lib_tree() -> None:
     claude_only = set(lib_render.CLAUDE_ONLY_LIB_FILES)
     assert claude_only <= committed.keys(), "a Claude-only lib file is missing from the plugin"
     assert not claude_only & rendered.keys(), "Claude-only lib files must not be rendered"
-    assert rendered == {k: v for k, v in committed.items() if k not in claude_only}
+    excluded_packages = tuple(f"{package}/" for package in lib_render.HERMES_EXCLUDED_PACKAGES)
+    assert excluded_packages, "the exclusion is the subject of the assertions below"
+    assert not [k for k in rendered if k.startswith(excluded_packages)], (
+        "Claude-only packages must not be rendered into a Hermes pack"
+    )
+    assert rendered == {
+        k: v
+        for k, v in committed.items()
+        if k not in claude_only and not k.startswith(excluded_packages)
+    }
 
 
 def test_committed_hermes_tree_equals_the_render(real_config: cfg.HermesConfig) -> None:
@@ -181,6 +190,7 @@ def test_the_real_tree_has_no_dash_characters() -> None:
         "README.md",
         "project-toolkit-delivery/plugin.json",
         "project-toolkit-knowledge/plugin.json",
+        "project-toolkit-authoring/plugin.json",
     ):
         text = (out / name).read_text(encoding="utf-8")
         assert EM_DASH not in text and EN_DASH not in text, name

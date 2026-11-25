@@ -1,12 +1,12 @@
 ---
 name: memory-documentary
 version: 1.0.0
-description: Generate evidence-based documentary reports by searching across all 3
-  memory systems (Claude-Mem, Serena, DeepWiki), .agents/ artifacts, and
+description: Generate evidence-based documentary reports by searching across
+  available project memory, reference sources, repository artifacts, and
   GitHub issues. Produces investigative journalism-style analysis with full citation
   chains. Use when you ask for an "evidence-based report", "investigate across all
   memory systems", "what happened with X over time". Do NOT use for a single semantic recall (use memory-search) or for citation hygiene (use memory-enhancement).
-license: MIT
+license: Apache-2.0
 metadata:
   timelessness: 8/10
   category: analysis
@@ -20,7 +20,7 @@ metadata:
 
 Generate comprehensive documentary-style reports from your memory systems with full evidence chains.
 
-<!-- vendor-portability: declared. This skill searches the consumer's .agents/ artifacts (sessions, retrospectives, analysis) alongside the three memory systems as evidence inputs, and writes the report under .project-toolkit/. The .project-toolkit/ reads are best-effort evidence sources; a vendored install without that tree produces a report from whatever memory systems and artifacts the consumer repo does have, not a silent no-op. -->
+<!-- vendor-portability: .project-toolkit/retrospective, .project-toolkit/sessions, .project-toolkit/analysis, and .project-toolkit/architecture are optional sources inside the consumer repository. The report uses available sources. -->
 
 ---
 
@@ -79,13 +79,10 @@ Use `memory` skill instead when:
 
 ## Process
 
-The skill searches ALL available data sources systematically:
-
-**Memory Systems (3 MCP servers)**:
-
-- Claude-Mem: Timeline observations via 3-layer workflow
-- Serena: Project-specific lexical memory
-- DeepWiki: Documentation resources
+Find project records through `memory-search` or the `memory` skill's recall
+procedure. Use timeline and
+documentation tools when their project scope is clear. Choose sources that
+answer the question and record coverage gaps.
 
 **Project Artifacts**:
 
@@ -127,9 +124,9 @@ The skill searches ALL available data sources systematically:
 
 Full citation for each finding:
 
-- Source system (Claude-Mem/Serena/DeepWiki)
-- Retrieval key with its command: an observation id for Claude-Mem, a memory file name for Serena
-- Date, from the source for Claude-Mem, from git history for a Serena file
+- Source system or repository path
+- Record ID or file path used for retrieval
+- Date from the record or version history
 - Direct quote from source
 - Links to related evidence
 
@@ -157,7 +154,7 @@ Cross-system synthesis revealing:
 ### Synthesis
 
 - What all systems agree on
-- What's recent (Claude-Mem) vs durable (Serena)
+- Which observations are recent and which patterns persist
 - Actionable recommendations
 
 ---
@@ -180,7 +177,7 @@ Cross-system synthesis revealing:
 | Partial searches | Miss critical evidence | Search ALL systems |
 | Paraphrasing | Loses verifiability | Direct quotes only |
 | Single query | Miss variations | 3+ query variants per system |
-| Skipping systems | Incomplete picture | Check all 3 MCP servers |
+| Missing source coverage | Incomplete picture | Name the sources the report could access |
 
 ---
 
@@ -190,8 +187,8 @@ After execution:
 
 - [ ] Report saved to `.project-toolkit/analysis/[topic]-documentary-[date].md`
 - [ ] Every claim has a citation with source system, retrieval key, and direct quote
-- [ ] All 3 MCP servers were queried (or documented as unavailable)
-- [ ] Meta-pattern stored in memory (Phase 5)
+- [ ] Evidence and source coverage are recorded
+- [ ] Verified durable patterns use the `memory` write procedure when retained
 
 ## Output Location
 

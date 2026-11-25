@@ -622,7 +622,7 @@ and push enforcement runs through Lefthook, `pre_pr.py`, and CI under ADR-084.
 
 | Hook | File | Purpose | Bypass env var |
 |------|------|---------|----------------|
-| SessionStart | `invoke_context_loader.py` | Reminds about unfilled retrospective skeletons; injects no retrospective content | none (fail-open) |
+| SessionStart | `invoke_context_loader.py` | Prints a static guide to finding past retrospectives and reminds about unfilled skeletons; injects no retrospective content | none (fail-open) |
 | SessionStart | `invoke_checkout_freshness_check.py` | Reports how far HEAD is behind origin/main | none (fail-open) |
 | UserPromptSubmit | `invoke_memory_recall.py` | Recalls relevant memories for the prompt | none (fail-open) |
 | SessionEnd | `invoke_memory_reflection.py` | Persists memory confidence scores | none (fail-open) |
@@ -1178,7 +1178,7 @@ license attribution in `THIRD-PARTY-NOTICES.TXT`.
 
 ### Adding a New Third-Party Component
 
-1. Verify the license is compatible with MIT (see `docs/third-party-license-attribution.md`)
+1. Verify the license is compatible with Apache-2.0 (see `docs/third-party-license-attribution.md`)
 2. Add the component to `FORKED_COMPONENTS` or `RUNTIME_DEPENDENCIES` in
    `scripts/generate_third_party_notices.py`
 3. Run `uv run python3 scripts/generate_third_party_notices.py` to regenerate
