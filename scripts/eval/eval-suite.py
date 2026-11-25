@@ -807,7 +807,7 @@ def run_rule_activation(files: list[str], model: str) -> dict[str, Any]:
     evaluators this suite calls, `eval-rule-activation.py` prints a
     human-readable table to stdout and serializes JSON only to the output
     path. Verified against the real CLI at
-    `scripts/eval/eval-rule-activation.py:3544-3546`:
+    `scripts/eval/eval-rule-activation.py:3555-3557`:
 
         if args.output:
             Path(args.output).write_text(json.dumps(all_results, indent=2), encoding="utf-8")
