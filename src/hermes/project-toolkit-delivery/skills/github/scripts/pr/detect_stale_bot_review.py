@@ -209,7 +209,7 @@ def build_dismissal_command(pr: int, review_id: object) -> str:
     --owner/--repo.
     """
     return (
-        "dismiss_pr_review.py (github skill, scripts/pr/) "
+        "dismiss_pr_review.py (github skill) "
         f"--pull-request {pr} --review-id {review_id} "
         f'--message "{_DISMISS_MESSAGE}"'
     )
@@ -247,8 +247,6 @@ def _aggregate(bots: list[dict[str, Any]]) -> str:
 
 
 def build_handoff(
-    owner: str,
-    repo: str,
     pr: int,
     head_sha: str,
     bots: list[dict[str, Any]],
@@ -310,9 +308,7 @@ def classify(
     data["verdict"] = _aggregate(data["bots"])
     if data["verdict"] == "DISMISSAL_HANDOFF":
         stale = [b for b in data["bots"] if b["action"] == "DISMISSAL_HANDOFF"]
-        data["handoff"] = build_handoff(
-            owner, repo, pr_number, head_sha, stale, data["human_changes_requested"]
-        )
+        data["handoff"] = build_handoff(pr_number, head_sha, stale, data["human_changes_requested"])
     return data
 
 

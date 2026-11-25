@@ -1031,6 +1031,34 @@ def _run_gh_api_page(url: str) -> subprocess.CompletedProcess[str]:
     raise RuntimeError("unreachable REST pagination retry loop")
 
 
+def gh_api_get(endpoint: str, timeout: int = 30) -> tuple[object, str]:
+    """GET one GitHub REST endpoint. Return (payload, error); payload None on error.
+
+    Shared single-page read for skill scripts. Unlike ``gh_api_paginated`` this
+    never exits, so read-only scripts can distinguish a 404 (a missing object)
+    from a transport or permission failure.
+    """
+    result = subprocess.run(
+        ["gh", "api", endpoint],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=timeout,
+        check=False,
+    )
+    if result.returncode != 0:
+        detail = (
+            result.stderr.strip()
+            or result.stdout.strip()
+            or f"gh api {endpoint} failed with no stderr or stdout output"
+        )
+        return None, detail
+    try:
+        return json.loads(result.stdout), ""
+    except json.JSONDecodeError as exc:
+        return None, f"Failed to decode response for {endpoint}: {exc}"
+
+
 def gh_api_paginated(endpoint: str, page_size: int = 100) -> list[dict]:
     """Fetch all pages from a GitHub REST API endpoint.
 

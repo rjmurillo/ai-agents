@@ -2,18 +2,9 @@
 
 import json
 import sys
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
-_project_root = Path(__file__).resolve().parents[3]
-_lib_dir = _project_root / ".claude" / "lib"
-_scripts_dir = _project_root / ".claude" / "skills" / "github" / "scripts"
-for _p in (str(_lib_dir), str(_scripts_dir / "actions")):
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
-
 from github_core.api import RepoInfo
 
 
@@ -87,7 +78,7 @@ def _exec(mod, argv, **kwargs):
     with (
         patch.object(mod, "assert_gh_authenticated"),
         patch.object(mod, "resolve_repo_params", return_value=_mock_repo()),
-        patch.object(mod.subprocess, "run", side_effect=_fake_run(**kwargs)),
+        patch("subprocess.run", side_effect=_fake_run(**kwargs)),
     ):
         return mod.main(argv)
 

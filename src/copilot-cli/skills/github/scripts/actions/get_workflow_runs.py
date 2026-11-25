@@ -6,10 +6,10 @@ request (main-branch CI, workflow_dispatch, schedule), approval-waiting runs,
 and failure archaeology. ``get_pr_checks.py`` answers PR-scoped questions;
 this script answers run-scoped ones. Read-only.
 
-Exit codes follow ADR-035:
-    0 - Success
-    2 - Usage or configuration error
-    3 - External service or API error
+Exit codes follow ADR-035. Reads only, so exit 1 cannot occur:
+    0 - Runs listed; an empty list is a success, not an error
+    2 - --status is not a known value, or --limit is not positive
+    3 - The API read failed
     4 - Auth error
 """
 

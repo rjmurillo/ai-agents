@@ -14,19 +14,17 @@ cannot answer:
 Read-only. Approving a deployment stays a human action in the GitHub UI; this
 script only makes the wait visible.
 
-Exit codes follow ADR-035:
-    0 - Success
-    2 - Usage, configuration, or not-found error
-    3 - External service or API error
+Exit codes follow ADR-035. The script never mutates, so exit 1 cannot occur:
+    0 - The run was read; inspect Data.jobs and Data.pending_deployments
+    2 - No run with this id exists in the repository
+    3 - The API read failed
     4 - Auth error
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import os
-import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -34,8 +32,10 @@ from skill_bootstrap import ensure_plugin_paths
 
 ensure_plugin_paths(__file__, (".claude", "lib"))
 
+from get_workflow_runs import normalize_run
 from github_core.api import (
     assert_gh_authenticated,
+    gh_api_get,
     resolve_repo_params,
 )
 from github_core.output import (
@@ -46,28 +46,6 @@ from github_core.output import (
 )
 
 _SCRIPT_NAME = "get_workflow_run.py"
-
-
-def _gh_api(endpoint: str) -> tuple[dict | list | None, str]:
-    result = subprocess.run(
-        ["gh", "api", endpoint],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=30,
-        check=False,
-    )
-    if result.returncode != 0:
-        detail = (
-            result.stderr.strip()
-            or result.stdout.strip()
-            or f"gh api {endpoint} failed with no stderr or stdout output"
-        )
-        return None, detail
-    try:
-        return json.loads(result.stdout), ""
-    except json.JSONDecodeError as exc:
-        return None, f"Failed to decode response for {endpoint}: {exc}"
 
 
 def normalize_job(job: dict) -> dict:
@@ -134,7 +112,7 @@ def main(argv: list[str] | None = None) -> int:
     owner, repo = resolved.owner, resolved.repo
     run_id = args.run_id
 
-    run, run_error = _gh_api(f"repos/{owner}/{repo}/actions/runs/{run_id}")
+    run, run_error = gh_api_get(f"repos/{owner}/{repo}/actions/runs/{run_id}")
     if run is None:
         not_found = "404" in run_error or "Not Found" in run_error
         write_skill_error(
@@ -146,7 +124,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2 if not_found else 3
 
-    jobs_payload, jobs_error = _gh_api(
+    jobs_payload, jobs_error = gh_api_get(
         f"repos/{owner}/{repo}/actions/runs/{run_id}/jobs?per_page=100"
     )
     jobs: list[dict] = []
@@ -159,7 +137,7 @@ def main(argv: list[str] | None = None) -> int:
             # A busy workflow can paginate; say so rather than truncate silently.
             jobs_read = "capped"
 
-    pending, pending_error = _gh_api(
+    pending, pending_error = gh_api_get(
         f"repos/{owner}/{repo}/actions/runs/{run_id}/pending_deployments"
     )
     pending_deployments: list[dict] = []
@@ -175,23 +153,8 @@ def main(argv: list[str] | None = None) -> int:
         pending_deployments = [normalize_pending_deployment(dep) for dep in pending]
 
     data = {
+        **normalize_run(run),
         "run_id": run_id,
-        "name": run.get("name"),
-        "workflow_path": run.get("path"),
-        "status": run.get("status"),
-        "conclusion": run.get("conclusion"),
-        "event": run.get("event"),
-        "branch": run.get("head_branch"),
-        "head_sha": run.get("head_sha"),
-        "run_number": run.get("run_number"),
-        "run_attempt": run.get("run_attempt"),
-        "created_at": run.get("created_at"),
-        "updated_at": run.get("updated_at"),
-        "url": run.get("html_url"),
-        "pull_requests": [
-            {"number": pr.get("number"), "head_branch": (pr.get("head") or {}).get("ref")}
-            for pr in run.get("pull_requests") or []
-        ],
         "jobs": [normalize_job(job) for job in jobs],
         "jobs_read": jobs_read,
         "pending_deployments": pending_deployments,

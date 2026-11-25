@@ -22,19 +22,17 @@ dismissed on push, code-owner review requirement, signature requirement,
 admin enforcement, force-push and deletion permission, plus the raw rule
 type list so an unrecognized rule is still visible.
 
-Exit codes follow ADR-035:
-    0 - Success
-    2 - Usage or configuration error
-    3 - External service or API error
+Exit codes follow ADR-035. Reads only, so exit 1 cannot occur:
+    0 - Protection state reported; an unprotected branch is a success answer
+    2 - --branch is blank
+    3 - The API read failed in a way that makes the verdict unknown
     4 - Auth error
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import os
-import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -44,6 +42,7 @@ ensure_plugin_paths(__file__, (".claude", "lib"))
 
 from github_core.api import (
     assert_gh_authenticated,
+    gh_api_get,
     resolve_repo_params,
 )
 from github_core.output import (
@@ -54,29 +53,6 @@ from github_core.output import (
 )
 
 _SCRIPT_NAME = "get_branch_protection.py"
-
-
-def _gh_api(endpoint: str) -> tuple[dict | list | None, str]:
-    """GET an endpoint. Return (payload, error); payload None on error."""
-    result = subprocess.run(
-        ["gh", "api", endpoint],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=30,
-        check=False,
-    )
-    if result.returncode != 0:
-        detail = (
-            result.stderr.strip()
-            or result.stdout.strip()
-            or f"gh api {endpoint} failed with no stderr or stdout output"
-        )
-        return None, detail
-    try:
-        return json.loads(result.stdout), ""
-    except json.JSONDecodeError as exc:
-        return None, f"Failed to decode response for {endpoint}: {exc}"
 
 
 def _classic_required_contexts(protection: dict) -> list[str]:
@@ -207,7 +183,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
-    protection, protection_error = _gh_api(
+    protection, protection_error = gh_api_get(
         f"repos/{owner}/{repo}/branches/{args.branch}/protection"
     )
     protection_missing = False
@@ -227,7 +203,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 3
 
-    rules, rules_error = _gh_api(f"repos/{owner}/{repo}/rules/branches/{args.branch}")
+    rules, rules_error = gh_api_get(f"repos/{owner}/{repo}/rules/branches/{args.branch}")
     ruleset_read = True
     if rules is None:
         if "404" in rules_error or "Not Found" in rules_error:
