@@ -59,10 +59,6 @@ SCRATCH_REL = Path(".project-toolkit") / "scratch"
 VERSION = "1.0.0"
 
 _CONTROL_RE = re.compile("[\x00-\x1f\x7f\x85  ]")
-# Bounded and anchored so a long value cannot make the scan quadratic: a
-# scheme starts after a non-scheme character and is at most 32 characters,
-# and userinfo is at most 256.
-_USERINFO_RE = re.compile(r"(?<![A-Za-z0-9+.-])([A-Za-z][A-Za-z0-9+.-]{0,31}://)[^/@\s]{0,256}@")
 _REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$")
 # ADR-127 decision 3 item 4: a remote URL must match an allowed scheme list.
 # git also accepts transports such as ext::, file://, and git://; none of
@@ -77,9 +73,34 @@ _PLAIN_HOST_RE = re.compile(rf"^(?=.{{2,253}}$){_LABEL}(?:\.{_LABEL})*$")
 _ADO_HOSTS = frozenset({"dev.azure.com", "ssh.dev.azure.com"})
 
 
+def _strip_userinfo(text: str) -> str:
+    """Drop everything between ``://`` and the last ``@`` of the same token.
+
+    A token is the run of non-space characters after ``://``. Cutting to the
+    last ``@`` removes a password that itself holds ``@`` or ``/``, at any
+    length. A path segment holding ``@`` is over-redacted; that is the safe
+    side. One pass over the text, so a long value stays linear.
+    """
+    out: list[str] = []
+    start = 0
+    while True:
+        marker = text.find("://", start)
+        if marker < 0:
+            out.append(text[start:])
+            return "".join(out)
+        token_start = marker + 3
+        token_end = token_start
+        while token_end < len(text) and not text[token_end].isspace():
+            token_end += 1
+        token = text[token_start:token_end]
+        out.append(text[start:token_start])
+        out.append(token[token.rfind("@") + 1 :])
+        start = token_end
+
+
 def clean(value: object) -> str:
     """Return ``value`` as one safe line: no userinfo, no control characters."""
-    text = _USERINFO_RE.sub(r"\1", str(value))
+    text = _strip_userinfo(str(value))
     text = _CONTROL_RE.sub(" ", text)
     return " ".join(text.split())
 
@@ -342,6 +363,17 @@ class Completed:
     stderr: str
 
 
+# gh reads GH_REPO to pick its target repository, which would let the
+# environment point a query at a repository other than origin (ADR-127
+# decision 3 item 6). GH_HOST stays: GitHub Enterprise needs it to authenticate.
+CHILD_ENV_DROP = frozenset({"GH_REPO"})
+
+
+def child_env() -> dict[str, str]:
+    """The environment for child processes, without target-changing variables."""
+    return {key: value for key, value in os.environ.items() if key not in CHILD_ENV_DROP}
+
+
 def run(
     argv: list[str],
     cwd: Path | None = None,
@@ -361,6 +393,7 @@ def run(
             timeout=timeout,
             check=False,
             shell=False,
+            env=child_env(),
         )
     except FileNotFoundError:
         return Completed(127, "", f"{argv[0]}: not found")

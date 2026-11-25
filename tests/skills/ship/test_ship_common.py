@@ -36,6 +36,20 @@ class TestClean:
     def test_userinfo_after_a_word_boundary_is_still_stripped(self):
         assert common.clean("see https://u:p@host/x now") == "see https://host/x now"
 
+    @pytest.mark.parametrize(
+        ("raw", "secret"),
+        [
+            ("https://user:p@ss@github.com/o/r.git", "p@ss"),
+            ("https://user:pa/ss@github.com/o/r", "pa/ss"),
+            ("https://u:" + "s" * 300 + "@github.com/o/r", "s" * 300),
+            ("fatal: unable to access 'https://bob:t0k3n@github.com/o/r.git/': 403", "t0k3n"),
+        ],
+    )
+    def test_userinfo_never_survives(self, raw, secret):
+        cleaned = common.clean(raw)
+        assert secret not in cleaned
+        assert "github.com/o/r" in cleaned
+
     def test_plain_value_unchanged(self):
         assert common.clean("PR 12 ok") == "PR 12 ok"
 
@@ -345,3 +359,17 @@ class TestHelpers:
         path = common.skill_script("github", "pr", "new_pr.py")
         assert path.is_file()
         assert path.parents[3].name == "skills"
+
+
+class TestChildEnv:
+    def test_gh_repo_never_reaches_a_child(self, monkeypatch):
+        monkeypatch.setenv("GH_REPO", "attacker/other")
+        monkeypatch.setenv("GH_HOST", "github.example.com")
+        done = common.run(
+            [
+                os.sys.executable,
+                "-c",
+                "import os; print(os.environ.get('GH_REPO'), os.environ.get('GH_HOST'))",
+            ]
+        )
+        assert done.stdout.split() == ["None", "github.example.com"]
