@@ -141,7 +141,7 @@ This ADR records the decision and the contract. It ships no code. The canonical 
   behavior is host-owned and version-sensitive. Raising a timeout alone is
   equally insufficient here because it does not bound the agent's analysis
   depth.
-- **What constraints drove the design?** 100% test coverage for security-critical implementation (`AGENTS.md`); fail-closed on incomplete diffs (`security.shared.md` line 129); no lowering of severity thresholds without a governance ADR (`.claude/rules/security.md` MUST-NOT-1).
+- **What constraints drove the design?** 100% test coverage for security-critical implementation (`AGENTS.md`); fail-closed on incomplete diffs (`security.shared.md` line 129); no lowering of severity thresholds without a governance ADR (MUST-NOT-1 of the former `security` rule, now at `.claude/skills/security-review/references/rule-security.md`).
 
 ### Why Change Now
 
@@ -235,7 +235,7 @@ Each phase carries pos/neg/edge tests per `.agents/governance/TESTING-RIGOR.md`.
   4: no in-process watchdog; host owns dispatcher timeout.
 - `.agents/governance/SECURITY-REVIEW-PROTOCOL.md`: review workflow.
 - `.agents/governance/SECURITY-SEVERITY-CRITERIA.md`: severity thresholds (unchanged by this ADR).
-- `.claude/rules/security.md`: security-agent review requirement and severity-threshold MUST-NOTs.
+- The former `security` rule (now at `.claude/skills/security-review/references/rule-security.md`): security-agent review requirement and severity-threshold MUST-NOTs.
 - `.claude/rules/canonical-source-mirror.md`: canonical-to-projection re-sync contract.
 - `.project-toolkit/critique/ADR-074-debate-log.md`: 2026-07-19 six-agent review that
   closes the historical missing-review trail without asserting an earlier

@@ -18,7 +18,7 @@ Proposed. The owner has not accepted the class, and `FAILURE-MODES.md` is unchan
 
 ## Context
 
-`.claude/rules/retros.md` MUST 2 says each retrospective classifies its failure against `.agents/governance/FAILURE-MODES.md`. If no class matches, the retro "MUST propose a new class in a linked ADR".
+MUST 2 of the former `retros` rule (now at `.claude/skills/retrospective/references/rule-retros.md`) says each retrospective classifies its failure against `.agents/governance/FAILURE-MODES.md`. If no class matches, the retro "MUST propose a new class in a linked ADR".
 
 Two retrospectives describe the same shape and fit no class:
 
@@ -98,7 +98,7 @@ MUST 2 offers one path for a class that does not fit: a linked ADR. Writing that
 | Component | Change |
 |-----------|--------|
 | `.agents/governance/FAILURE-MODES.md` | None until acceptance. Then one entry and one index row. |
-| `.claude/rules/retros.md` | None. |
+| The former `retros` rule (now at `.claude/skills/retrospective/references/rule-retros.md`) | None. |
 | The two retrospectives | Each gains an appended dated correction that links this ADR. Landed retros are not edited in place (`retros.md` MUST NOT 1). |
 
 ## Reversibility Assessment
@@ -114,7 +114,7 @@ Fully reversible. A `proposed` record can move to `rejected` by a frontmatter ed
 
 - Issue #5307, finding 5.
 - Issue #5300, the request this ADR answers.
-- `.claude/rules/retros.md`, MUST 2 and MUST NOT 1.
+- The former `retros` rule (now at `.claude/skills/retrospective/references/rule-retros.md`), MUST 2 and MUST NOT 1.
 - `.agents/governance/FAILURE-MODES.md`, FM #1, #3, #4, #6, #9, #12.
 - Issue #5288, the closed owner of the pre-stage dash check.
 - PR #6398, which closed #5288 and disposed of the dash half.

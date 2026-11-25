@@ -13,6 +13,8 @@ A rule is cut only when its skill route scores close to the loaded rule.
 - The routed arm used `--distractors 8`. The router saw the 8 skills whose descriptions overlap the target most.
 - Routing at K above 0 has two steps. Step one picks a skill from the catalog alone.
 - Only a pick of the target skill opens its router to choose a reference.
+- Both steps run under the description-arm system prompt. It lists the catalog descriptions, never a router body.
+- So step two differs from K=0 only in that the system prompt also lists the distractors.
 - Scenarios were split before any trigger text was written.
 - Each rule's positive scenarios alternated into a tuning half and a held-out half.
 - Every negative scenario went to the held-out half.

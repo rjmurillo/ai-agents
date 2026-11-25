@@ -31,6 +31,20 @@ Thank you for your interest in contributing to this project. This guide explains
 
 - **Python 3.14.x** (primary scripting language per ADR-042)
 - **UV** (Python package manager, see [installation](https://docs.astral.sh/uv/getting-started/installation/))
+- **PowerShell 7.5+** (`pwsh`, used by some pytest tests)
+
+If `pwsh` is a .NET global tool (`~/.dotnet/tools/pwsh`), export `DOTNET_ROOT`
+where non-interactive shells read it. Hooks and agent shells are not interactive,
+so `~/.zshrc` and `~/.bashrc` miss them. For zsh, add this line to `~/.zshenv`:
+
+```bash
+export DOTNET_ROOT="$HOME/.dotnet"
+```
+
+Check it with `env -u DOTNET_ROOT zsh -c 'pwsh -NoProfile -c 1'; echo $?`, which must
+print `0`. The `env -u` matters: a plain `zsh -c` from a terminal inherits the value.
+Without it the pwsh tests fail with `You must install or update .NET`. See
+[the hook failure runbook](docs/runbooks/local-hook-failure.md) for measured cases.
 
 ### Setup Steps
 

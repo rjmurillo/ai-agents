@@ -140,17 +140,64 @@ PATH="/snap/bin:$PATH" git push
 ```
 
 The lasting fix is a machine change, and the machine owner picks it. Only the
-two `pytest` prefixes above were measured on 2026-11-24. None of these profile
-or install changes was tested:
+two `pytest` prefixes above and the `~/.zshenv` fix below were measured. The
+other profile or install changes were not tested:
 
 - Put `/snap/bin` before `~/.dotnet/tools` on `PATH` in the shell profile.
 - Remove the shim with `dotnet tool uninstall -g PowerShell`. Other tools that
   call `~/.dotnet/tools/pwsh` by full path would then break.
 - Add `export DOTNET_ROOT="$HOME/.dotnet"` to the shell profile, so the shim
   finds the runtimes it already has. The `export` matters: without it, child
-  processes such as the shim do not see the value.
+  processes such as the shim do not see the value. Pick the file by shell
+  mode, as the next section shows.
 - Install the .NET 10 runtime where the shim looks (`/usr/share/dotnet`), for
   example from the system package manager.
+
+**Set `DOTNET_ROOT` where non-interactive shells read it.** Agent shells and
+hook subprocesses are not interactive. Zsh reads `~/.zshrc` only for
+interactive shells. Bash reads `~/.bashrc` only for interactive shells too.
+A `DOTNET_ROOT` export in either file can miss these shells.
+
+On 2026-11-25 a Linux workstation with login shell zsh showed this case:
+
+- `~/.zshrc` and `~/.bashrc` both exported `DOTNET_ROOT`.
+- `zsh -i -c` printed `$HOME/.dotnet` for `DOTNET_ROOT`.
+- `zsh -c` printed an empty value, so the shim exited 150.
+- A bulk `pytest -n 32` run with `DOTNET_ROOT` unset had 86 failed, 77665
+  passed, and 154 skipped (commit 792f6febd3, 2026-11-25). 85 failures were
+  the five files above. The 86th was a path artifact, not .NET: a
+  `codeql-scan` test checked for `pwsh` in text holding the checkout path.
+  The branch name held `pwsh`. That test now masks the paths first.
+
+The fix that worked was one line appended to `~/.zshenv`. Zsh reads that file
+for every shell, interactive or not:
+
+```bash
+export DOTNET_ROOT="$HOME/.dotnet"
+```
+
+After that change on 2026-11-25, every measure below passed:
+
+- `zsh -c` printed `$HOME/.dotnet`, and the shim printed 7.6.10.
+- The 85 failed test IDs passed when rerun under `zsh -c`.
+- The bulk run had 77775 passed, 129 skipped, and only the path artifact
+  failed (commit 792f6febd3, 2026-11-25).
+
+**Bash still has a gap.** Bash started from a zsh parent inherits the export
+and works. Bash started without it does not. `bash -c` reads no startup file
+unless `BASH_ENV` names one, and `BASH_ENV` was empty here. The 2026-11-25
+measures were:
+
+| Launch | `DOTNET_ROOT` | Shim exit |
+|---|---|---|
+| `env -u DOTNET_ROOT zsh -c 'bash -c ...'` | `$HOME/.dotnet` | 0 |
+| `env -u DOTNET_ROOT bash -c ...` | empty | 150 |
+| `env -u DOTNET_ROOT bash -i -c ...` | `$HOME/.dotnet` | not run |
+
+So a process that starts `bash -c` directly can still fail the shim, with no
+zsh in its parent chain. Cron, systemd units, and some IDE or agent hosts work
+this way. For those, set `DOTNET_ROOT` in the launcher's own environment. Or
+point `BASH_ENV` at a file that exports it. Neither bash fix was tested.
 
 The test helper `tests/pwsh_launcher_probe.py` skips PowerShell tests when
 `pwsh` cannot start (issue #7215). Its fault list does not include the .NET
