@@ -136,8 +136,13 @@ ROUTING_FILES = (
     REPO_ROOT / "templates" / "AGENTS.md",
 )
 
-GENERATED_INSTRUCTION_MIRRORS = (
-    REPO_ROOT / ".github" / "instructions" / "generated-artifacts.instructions.md",
+FOLDED_GENERATED_ARTIFACTS_RULE = (
+    REPO_ROOT
+    / ".claude"
+    / "skills"
+    / "ai-agents-generation-and-release"
+    / "references"
+    / "rule-generated-artifacts.md"
 )
 
 RUNTIME_ROUTING_FILES = (
@@ -444,7 +449,7 @@ def test_stop_hook_is_registered_only_as_the_local_reflect_nudge() -> None:
 
 def test_reference_preserves_single_structured_output_boundary() -> None:
     sidecar = _normalized_text(OFFICIAL_SOURCES)
-    rule = (REPO_ROOT / ".claude" / "rules" / "generated-artifacts.md").read_text(encoding="utf-8")
+    rule = FOLDED_GENERATED_ARTIFACTS_RULE.read_text(encoding="utf-8")
 
     assert "performs one `JSON.parse`" in sidecar
     assert "Two final JSON objects concatenate into invalid JSON and are ignored." in sidecar
@@ -479,9 +484,10 @@ def test_authoring_surfaces_route_to_settled_contract() -> None:
         assert "agent-harness-reference" in text, path
         assert "ai-agents-portability-campaign" in text, path
 
-    rule = (REPO_ROOT / ".claude" / "rules" / "generated-artifacts.md").read_text(encoding="utf-8")
+    rule = FOLDED_GENERATED_ARTIFACTS_RULE.read_text(encoding="utf-8")
     assert "references/official-hook-contracts.md" in rule
     assert "Do not infer one harness from another." in rule
+    assert "ai-agents-portability-campaign" in rule
 
 
 def test_runtime_routes_load_hook_contract_before_hook_work() -> None:
@@ -501,14 +507,6 @@ def test_generated_copilot_skill_mirrors_settled_contract() -> None:
     assert "| PreCompact | None | Supported observe/discard policy" in reference
     assert "| Stop | None | Direct entries if added" in reference
     assert "A translated `ask` emits nothing" in _normalized_text(COPILOT_REFERENCE)
-
-
-def test_generated_instruction_mirrors_route_to_contract() -> None:
-    for path in GENERATED_INSTRUCTION_MIRRORS:
-        text = path.read_text(encoding="utf-8")
-        assert "agent-harness-reference" in text, path
-        assert "references/official-hook-contracts.md" in text, path
-        assert "ai-agents-portability-campaign" in text, path
 
 
 def test_requirement_and_historical_audit_do_not_reassert_old_contract() -> None:

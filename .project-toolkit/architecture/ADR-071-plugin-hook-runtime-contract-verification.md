@@ -673,7 +673,7 @@ This is the runtime contract for one advisory `Stop` group, the fresh contract t
    depend on its runtime interpretation.
 
 2. **Customer-facing generated artifacts MUST be runtime-verified before
-   release.** Codified as `.claude/rules/generated-artifacts.md`: verify the
+   release.** Codified as the former `generated-artifacts` rule (now at `.claude/skills/ai-agents-generation-and-release/references/rule-generated-artifacts.md`): verify the
    runtime contract by running the target tool (not docs or analogy); ship a
    runtime-contract test that executes the artifact under the real cwd and
    environment, with a negative control; gate the committed artifact; smoke-test
@@ -810,7 +810,7 @@ item 5.)
 ## References
 
 - `.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md`. The incident.
-- `.claude/rules/generated-artifacts.md`. The binding rule.
+- The former `generated-artifacts` rule (now at `.claude/skills/ai-agents-generation-and-release/references/rule-generated-artifacts.md`). The binding rule.
 - `.claude/rules/canonical-source-mirror.md`. Self-referential test anti-pattern.
 - `.agents/governance/FAILURE-MODES.md`. FM #11.
 - `scripts/validation/validate_hook_anchoring.py`. The committed-artifact gate.

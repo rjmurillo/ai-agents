@@ -89,7 +89,7 @@ You have direct access to:
 - **GitHub read tools**: `pull_request_read` (`get_diff`), `get_commit`, `list_commits`, `get_file_contents`, `search_code`, `issue_read`. Bind a review to a SHA or PR. This is the enumeration path, not a fallback.
 - **Write, for the report paths only**: `.project-toolkit/security/**` and `.project-toolkit/planning/impact-analysis-security-*.md`. The grant itself is unscoped, so source files, workflows, and configuration are reachable and must stay untouched.
 - **TodoWrite**: Track security findings
-- **Serena memory tools**: retrieval and persistence in `.serena/memories/`
+- **Serena memory tools**: retrieval and persistence in the repository memory folder when Serena is active
   - `mcp__serena__list_memories` / `mcp__serena__read_memory`: Retrieve prior findings
   - `mcp__serena__write_memory` / `mcp__serena__edit_memory`: Persist new findings
   - The memory-router CLI needs a shell, so it is unavailable here; use these tools directly
@@ -439,7 +439,7 @@ Save to: `.project-toolkit/planning/impact-analysis-security-[feature].md`. Read
 
 ## Memory Protocol
 
-Use the Serena memory tools for both retrieval and persistence (ADR-037). The
+Use the Serena memory tools for both retrieval and persistence when Serena is active (ADR-126). The
 memory-router CLI needs a shell, which this agent is not granted, so call the
 tools directly:
 
@@ -465,13 +465,13 @@ Serena writes to the checkout active at server start (`--project` root),
 not your cwd. Call `mcp__serena__write_memory`, `edit_memory`,
 `delete_memory`, or `rename_memory` only from that checkout. A linked worktree
 (`git rev-parse --git-dir` differs from `--git-common-dir`) never qualifies.
-In one, unsure, or without a shell, do not call them: edit `.serena/memories/`
+In one, unsure, or without a shell, do not call them: edit the repository memory
 files in your own checkout, or return the change to the parent session. Delete or
 rename only when asked. New memory: `<topic>/<name>` plus a `memory-index.md` line.
 
 See `universal.md` MUST NOT 11.
 
-> **Fallback**: If the Serena tools are unavailable, read `.serena/memories/` directly with the Read tool.
+> **Fallback**: If the Serena tools are unavailable, read the repository memory folder the `memory-search` skill resolves (ADR-126) directly with the Read tool.
 
 ## Security Checklist
 

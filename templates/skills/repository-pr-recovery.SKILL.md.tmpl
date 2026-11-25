@@ -124,7 +124,7 @@ For missing checks, inspect workflow triggers and current job names before rerun
 For a check rename, require evidence that both old and new names are emitted.
 Route policy edits to the authorized owner after the new check actually runs.
 Retain the old name until its requirement is removed through approved change control.
-See [the overlap rule](../../../templates/rules/ci-scripts.md), MUST 22.
+See the overlap rule, MUST 22, in the repo-local `ai-agents-validation-and-qa` skill's `references/rule-ci-scripts.md`.
 For review findings, invoke [reviewer-findings](../../../.claude/skills/reviewer-findings/SKILL.md)
 before [pr-comment-responder](../../../.claude/skills/pr-comment-responder/SKILL.md).
 Verify the reported defect before changing code or resolving a thread.

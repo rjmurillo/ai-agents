@@ -125,10 +125,14 @@ def _load_search_memory():
 
 def test_repo_root_prefers_project_dir_with_memory_store(tmp_path, monkeypatch):
     """An installed plugin searches the consumer checkout, not the plugin dir."""
-    (tmp_path / ".serena" / "memories").mkdir(parents=True)
-    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+    project = tmp_path / "project"
+    (project / ".serena" / "memories").mkdir(parents=True)
+    elsewhere = tmp_path / "elsewhere"
+    (elsewhere / ".project-toolkit" / "memory").mkdir(parents=True)
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(project))
+    monkeypatch.chdir(elsewhere)
     module = _load_search_memory()
-    assert module.resolve_repo_root(Path("/plugin/skills/memory/scripts")) == tmp_path.resolve()
+    assert module.resolve_stores().root == project.resolve()
 
 
 def test_repo_root_uses_cwd_when_env_unset(tmp_path, monkeypatch):
@@ -136,12 +140,14 @@ def test_repo_root_uses_cwd_when_env_unset(tmp_path, monkeypatch):
     monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
     monkeypatch.chdir(tmp_path)
     module = _load_search_memory()
-    assert module.resolve_repo_root(Path("/plugin/skills/memory/scripts")) == tmp_path.resolve()
+    assert module.resolve_stores().root == tmp_path.resolve()
 
 
-def test_repo_root_falls_back_to_script_relative(tmp_path, monkeypatch):
+def test_repo_root_falls_back_to_cwd_not_the_plugin_tree(tmp_path, monkeypatch):
+    """With no checkout found, the report names the user's directory (ADR-126)."""
     monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
     monkeypatch.chdir(tmp_path)
     module = _load_search_memory()
-    script_dir = Path("/repo/.claude/skills/memory/scripts")
-    assert module.resolve_repo_root(script_dir) == Path("/repo")
+    root = module.resolve_stores().root
+    assert root == tmp_path.resolve()
+    assert not root.is_relative_to(REPO_ROOT)

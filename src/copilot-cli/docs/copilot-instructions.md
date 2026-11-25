@@ -35,7 +35,8 @@ When handing off between agents:
 
 ### Best Practices
 
-1. Memory first: retrieve context before multi-step reasoning
+1. Use `memory-search` for prior context and `memory-gate` before changes.
+   Use `memory` to retain verified project findings.
 2. Clear handoffs: announce next agent and purpose
 3. Follow plans: the plan document is authoritative
 4. Commit atomically: small, conventional commits

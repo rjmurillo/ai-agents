@@ -248,15 +248,16 @@ PR #5498 reduced `voice`.
 Issue #5404 added completion guidance to `builder-ethos` and `voice`.
 Epic #5456 M4 moved model patches and search guidance into skills.
 It also moved much of `voice` into skills with narrower activation.
-Issue #5256 added `lossless-queue-reads`: a repo-specific completeness rule
+Issue #5256 added `lossless-queue-reads` (since folded into the `pr-comment-responder` skill): a repo-specific completeness rule
 that no skill description would surface at the moment of a `head` or a limit.
 
 The generated instruction trees preserve the difference between always-on and
 path-scoped rules. Use the generated mirrors to answer membership questions.
 Use the source rules to answer content questions.
 
-No book rule loads on every file now. `code-quality.md` loads on code files.
-`unified-software-engineering.md` also loads on source files, trimmed to a
+No book rule loads on every file now. `code-quality.md` was folded into the
+`build` skill (`references/rule-code-quality.md`).
+`unified-software-engineering.md` still loads on source files, trimmed to a
 tiebreaker (issue #5951 moved its forbidden-patterns blocklist and the whole
 of `pragmatic-programmer.md` into the `software-engineering-library` skill as
 on-demand references). Their scenario files do not prove scored results.
@@ -268,7 +269,7 @@ Always-on status uses the supported scope form in this tree:
 |---|---|
 | `applyTo: '**'` | none today |
 | `alwaysApply: true` | none today |
-| `paths: ["**"]` | `builder-ethos`, `lossless-queue-reads`, `universal`, `voice` |
+| `paths: ["**"]` | `builder-ethos`, `universal`, `voice` |
 
 Legacy scope forms caused the earlier drift. Claude Code honors `paths:` and
 ignores `applyTo:`, `globs:`, and `alwaysApply:`. The generator remaps,

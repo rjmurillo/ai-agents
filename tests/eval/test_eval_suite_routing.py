@@ -102,7 +102,7 @@ ROUTING_CASES = [
     ("src/copilot-cli/lib/github_core/CLAUDE.md", "entrypoints"),
     # Prompts and scenarios, unchanged by this fix.
     (".github/prompts/default-ai-review.md", "prompts"),
-    ("tests/evals/rule-scenarios/code-quality.json", "scenarios"),
+    ("tests/evals/rule-scenarios/universal.json", "scenarios"),
     # Genuinely unclassified.
     ("src/copilot-cli/docs/copilot-instructions.md", "other"),
     ("scripts/eval/eval-suite.py", "other"),
@@ -484,9 +484,9 @@ def test_empty_prefix_row_matches_at_any_depth() -> None:
 @pytest.mark.parametrize(
     "path,expected",
     [
-        (".claude/rules/code-quality.md", "code-quality"),
-        (".github/instructions/code-quality.instructions.md", "code-quality"),
-        ("src/copilot-cli/instructions/code-quality.instructions.md", "code-quality"),
+        (".claude/rules/universal.md", "universal"),
+        (".github/instructions/universal.instructions.md", "universal"),
+        ("src/copilot-cli/instructions/universal.instructions.md", "universal"),
         (".claude/agents/implementer.md", None),
         ("scripts/eval/eval-suite.py", None),
     ],
@@ -521,7 +521,7 @@ def test_find_rule_scenarios_reads_rule_path_not_the_filename() -> None:
 
 def test_known_rule_scenario_is_discovered() -> None:
     scenarios = suite.find_rule_scenarios()
-    assert scenarios.get("code-quality") == "tests/evals/rule-scenarios/code-quality.json"
+    assert scenarios.get("universal") == "tests/evals/rule-scenarios/universal.json"
 
 
 # ---------------------------------------------------------------------------
@@ -555,7 +555,7 @@ def scenarioless_rule(monkeypatch: pytest.MonkeyPatch) -> str:
 
 
 def test_plan_marks_a_scenario_backed_rule_as_scenario_defined() -> None:
-    entries = _plan_for([".claude/rules/code-quality.md"])
+    entries = _plan_for([".claude/rules/universal.md"])
     assert len(entries) == 1
     assert entries[0]["evidence"] == suite.EVIDENCE_SCENARIO
     assert entries[0]["runner"] == "eval-rule-activation.py"
@@ -572,12 +572,12 @@ def test_plan_marks_a_scenarioless_rule_as_not_evaluated(scenarioless_rule: str)
 def test_plan_splits_scenario_backed_and_scenarioless_rules(scenarioless_rule: str) -> None:
     entries = _plan_for(
         [
-            ".claude/rules/code-quality.md",
+            ".claude/rules/universal.md",
             scenarioless_rule,
         ]
     )
     by_evidence = {e["evidence"]: e["files"] for e in entries}
-    assert by_evidence[suite.EVIDENCE_SCENARIO] == [".claude/rules/code-quality.md"]
+    assert by_evidence[suite.EVIDENCE_SCENARIO] == [".claude/rules/universal.md"]
     assert by_evidence[suite.EVIDENCE_NONE] == [scenarioless_rule]
 
 
@@ -784,12 +784,12 @@ def test_print_routing_plan_reports_nothing_to_route(
 def test_print_routing_plan_names_category_runner_evidence_and_files(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    suite._print_routing_plan(_plan_for([".claude/rules/code-quality.md"]))
+    suite._print_routing_plan(_plan_for([".claude/rules/universal.md"]))
     err = capsys.readouterr().err
     assert "rules" in err
     assert "eval-rule-activation.py" in err
     assert suite.EVIDENCE_SCENARIO in err
-    assert ".claude/rules/code-quality.md" in err
+    assert ".claude/rules/universal.md" in err
 
 
 def test_print_routing_plan_shows_none_for_unrouted_categories(
@@ -817,8 +817,8 @@ class _FakeCompleted:
 # The real child prints a human table to stdout. Any mock that returns JSON on
 # stdout encodes the imagined contract that shipped the first version of this
 # runner; keep the stub faithful to
-# `scripts/eval/eval-rule-activation.py:2456-2458`.
-_CHILD_STDOUT = "code-quality  activation 4.2  citation 3.9\n\nWrote results: /tmp/x.json\n"
+# `scripts/eval/eval-rule-activation.py:2657-2659`.
+_CHILD_STDOUT = "universal  activation 4.2  citation 3.9\n\nWrote results: /tmp/x.json\n"
 
 
 def _output_path_from(cmd: list[str]) -> Path | None:
@@ -840,7 +840,7 @@ _SCORED_PAYLOAD = json.dumps(
     {
         "schema_version": 1,
         "model_id": "test-model",
-        "rules": {"code-quality": {"summary": {"verdict": "PASS"}}},
+        "rules": {"universal": {"summary": {"verdict": "PASS"}}},
     }
 )
 
@@ -873,16 +873,16 @@ def test_run_rule_activation_scores_a_scenario_backed_rule(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls = _stub_child(monkeypatch)
-    result = suite.run_rule_activation([".claude/rules/code-quality.md"], "test-model")
+    result = suite.run_rule_activation([".claude/rules/universal.md"], "test-model")
 
     assert result["passed"] is True
-    entry = result["rules"]["code-quality"]
+    entry = result["rules"]["universal"]
     assert entry["evidence"] == suite.EVIDENCE_SCORED
     assert entry["exit_code"] == 0
     assert len(calls) == 1
     assert "eval-rule-activation.py" in calls[0][1]
     assert "--scenarios" in calls[0]
-    assert "tests/evals/rule-scenarios/code-quality.json" in calls[0]
+    assert "tests/evals/rule-scenarios/universal.json" in calls[0]
     # The results contract: JSON comes from --output, never stdout.
     assert "--output" in calls[0]
     assert "--dry-run" not in calls[0]
@@ -897,9 +897,9 @@ def test_run_rule_activation_reads_results_from_the_output_file_not_stdout(
     A runner that parsed stdout would fail on every real run.
     """
     _stub_child(monkeypatch)
-    result = suite.run_rule_activation([".claude/rules/code-quality.md"], "test-model")
-    entry = result["rules"]["code-quality"]
-    assert entry["results"]["rules"]["code-quality"]["summary"]["verdict"] == "PASS"
+    result = suite.run_rule_activation([".claude/rules/universal.md"], "test-model")
+    entry = result["rules"]["universal"]
+    assert entry["results"]["rules"]["universal"]["summary"]["verdict"] == "PASS"
     assert entry["passed"] is True
 
 
@@ -915,11 +915,11 @@ def test_run_rule_activation_reads_results_from_the_output_file_not_stdout(
         ('{"schema_version": 1}', "no_rules_key"),
         ('{"rules": []}', "rules_not_a_map"),
         ('{"rules": {"other-rule": {"summary": {"verdict": "PASS"}}}}', "wrong_rule_id"),
-        ('{"rules": {"code-quality": "not an object"}}', "entry_not_object"),
-        ('{"rules": {"code-quality": {}}}', "no_summary"),
-        ('{"rules": {"code-quality": {"summary": {}}}}', "no_verdict"),
-        ('{"rules": {"code-quality": {"summary": {"verdict": ""}}}}', "blank_verdict"),
-        ('{"rules": {"code-quality": {"summary": {"verdict": 5}}}}', "verdict_not_string"),
+        ('{"rules": {"universal": "not an object"}}', "entry_not_object"),
+        ('{"rules": {"universal": {}}}', "no_summary"),
+        ('{"rules": {"universal": {"summary": {}}}}', "no_verdict"),
+        ('{"rules": {"universal": {"summary": {"verdict": ""}}}}', "blank_verdict"),
+        ('{"rules": {"universal": {"summary": {"verdict": 5}}}}', "verdict_not_string"),
     ],
     ids=lambda v: v if isinstance(v, str) and " " not in v and "{" not in v else "",
 )
@@ -928,8 +928,8 @@ def test_a_parseable_payload_without_a_verdict_is_not_scored(
 ) -> None:
     """Valid JSON naming no verdict must not read as scored efficacy evidence."""
     _stub_child(monkeypatch, file_payload=payload, returncode=0)
-    entry = suite.run_rule_activation([".claude/rules/code-quality.md"], "test-model")["rules"][
-        "code-quality"
+    entry = suite.run_rule_activation([".claude/rules/universal.md"], "test-model")["rules"][
+        "universal"
     ]
     assert entry["passed"] is False, ids
     assert entry["evidence"] == suite.EVIDENCE_SCENARIO, ids
@@ -939,10 +939,10 @@ def test_a_parseable_payload_without_a_verdict_is_not_scored(
 def test_a_present_verdict_is_scored_even_when_it_is_a_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    payload = json.dumps({"rules": {"code-quality": {"summary": {"verdict": "FAIL"}}}})
+    payload = json.dumps({"rules": {"universal": {"summary": {"verdict": "FAIL"}}}})
     _stub_child(monkeypatch, file_payload=payload, returncode=1)
-    entry = suite.run_rule_activation([".claude/rules/code-quality.md"], "test-model")["rules"][
-        "code-quality"
+    entry = suite.run_rule_activation([".claude/rules/universal.md"], "test-model")["rules"][
+        "universal"
     ]
     assert entry["evidence"] == suite.EVIDENCE_SCORED
     assert entry["passed"] is False
@@ -973,8 +973,8 @@ def test_child_refusal_code_survives_a_missing_results_file(
     file in either case. Flattening those to 3 would report an API failure for
     a config or auth fault."""
     _stub_child(monkeypatch, file_payload=None, returncode=child_exit)
-    entry = suite.run_rule_activation([".claude/rules/code-quality.md"], "test-model")["rules"][
-        "code-quality"
+    entry = suite.run_rule_activation([".claude/rules/universal.md"], "test-model")["rules"][
+        "universal"
     ]
     assert entry["exit_code"] == expected
 
@@ -1013,12 +1013,12 @@ def test_worst_exit_code_ignores_non_integer_codes() -> None:
 
 
 def test_verdict_error_rejects_a_non_object_payload() -> None:
-    assert "not an object" in (suite._verdict_error(None, "code-quality") or "")
+    assert "not an object" in (suite._verdict_error(None, "universal") or "")
 
 
 def test_verdict_error_accepts_a_well_formed_payload() -> None:
-    payload = {"rules": {"code-quality": {"summary": {"verdict": "PASS"}}}}
-    assert suite._verdict_error(payload, "code-quality") is None
+    payload = {"rules": {"universal": {"summary": {"verdict": "PASS"}}}}
+    assert suite._verdict_error(payload, "universal") is None
 
 
 def test_run_rule_activation_fails_when_no_results_file_is_written(
@@ -1026,8 +1026,8 @@ def test_run_rule_activation_fails_when_no_results_file_is_written(
 ) -> None:
     """Exit 0 with no results file must not read as a pass."""
     _stub_child(monkeypatch, file_payload=None, returncode=0)
-    result = suite.run_rule_activation([".claude/rules/code-quality.md"], "test-model")
-    entry = result["rules"]["code-quality"]
+    result = suite.run_rule_activation([".claude/rules/universal.md"], "test-model")
+    entry = result["rules"]["universal"]
     assert entry["passed"] is False
     assert entry["exit_code"] == suite.EXIT_EXTERNAL
     assert entry["evidence"] == suite.EVIDENCE_SCENARIO
@@ -1039,8 +1039,8 @@ def test_run_rule_activation_marks_a_failing_run_as_scored(
 ) -> None:
     """A verdict that ran and failed is still scored evidence."""
     _stub_child(monkeypatch, returncode=1)
-    result = suite.run_rule_activation([".claude/rules/code-quality.md"], "test-model")
-    entry = result["rules"]["code-quality"]
+    result = suite.run_rule_activation([".claude/rules/universal.md"], "test-model")
+    entry = result["rules"]["universal"]
     assert entry["passed"] is False
     assert entry["evidence"] == suite.EVIDENCE_SCORED
 
@@ -1052,14 +1052,14 @@ def test_run_rule_activation_dedupes_a_rule_and_its_two_mirrors(
     calls = _stub_child(monkeypatch)
     result = suite.run_rule_activation(
         [
-            ".claude/rules/code-quality.md",
-            ".github/instructions/code-quality.instructions.md",
-            "src/copilot-cli/instructions/code-quality.instructions.md",
+            ".claude/rules/universal.md",
+            ".github/instructions/universal.instructions.md",
+            "src/copilot-cli/instructions/universal.instructions.md",
         ],
         "test-model",
     )
     assert len(calls) == 1
-    assert set(result["rules"]) == {"code-quality"}
+    assert set(result["rules"]) == {"universal"}
 
 
 def test_run_rule_activation_reports_a_scenarioless_rule_as_not_evaluated(
@@ -1091,17 +1091,17 @@ def test_run_rule_activation_fails_when_the_child_exits_nonzero(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _stub_child(monkeypatch, returncode=1)
-    result = suite.run_rule_activation([".claude/rules/code-quality.md"], "test-model")
+    result = suite.run_rule_activation([".claude/rules/universal.md"], "test-model")
     assert result["passed"] is False
-    assert result["rules"]["code-quality"]["exit_code"] == 1
+    assert result["rules"]["universal"]["exit_code"] == 1
 
 
 def test_run_rule_activation_maps_unparseable_results_to_external(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _stub_child(monkeypatch, file_payload="not json at all", returncode=0)
-    result = suite.run_rule_activation([".claude/rules/code-quality.md"], "test-model")
-    entry = result["rules"]["code-quality"]
+    result = suite.run_rule_activation([".claude/rules/universal.md"], "test-model")
+    entry = result["rules"]["universal"]
     assert entry["exit_code"] == suite.EXIT_EXTERNAL
     assert entry["evidence"] == suite.EVIDENCE_SCENARIO
     assert "error" in entry["results"]
@@ -1112,8 +1112,8 @@ def test_run_rule_activation_rejects_non_object_results(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _stub_child(monkeypatch, file_payload='["a", "list"]', returncode=0)
-    entry = suite.run_rule_activation([".claude/rules/code-quality.md"], "test-model")["rules"][
-        "code-quality"
+    entry = suite.run_rule_activation([".claude/rules/universal.md"], "test-model")["rules"][
+        "universal"
     ]
     assert entry["exit_code"] == suite.EXIT_EXTERNAL
 
@@ -1125,9 +1125,9 @@ def test_run_rule_activation_handles_a_child_timeout(
         raise suite.subprocess.TimeoutExpired(cmd, 600)
 
     monkeypatch.setattr(suite.subprocess, "run", fake_run)
-    result = suite.run_rule_activation([".claude/rules/code-quality.md"], "test-model")
+    result = suite.run_rule_activation([".claude/rules/universal.md"], "test-model")
     assert result["passed"] is False
-    entry = result["rules"]["code-quality"]
+    entry = result["rules"]["universal"]
     assert entry["reason"] == "timeout (600s)"
     # A timeout is an external failure: the evaluator never ran to completion,
     # so there is no logic verdict to report.
@@ -1148,7 +1148,7 @@ def test_a_timed_out_child_reduces_to_exit_external(
         raise suite.subprocess.TimeoutExpired(cmd, 600)
 
     monkeypatch.setattr(suite.subprocess, "run", fake_run)
-    results = {"rules": suite.run_rule_activation([".claude/rules/code-quality.md"], "test-model")}
+    results = {"rules": suite.run_rule_activation([".claude/rules/universal.md"], "test-model")}
     assert suite.worst_exit_code(results, any_failure=True) == suite.EXIT_EXTERNAL
 
 
@@ -1190,7 +1190,7 @@ def test_run_rule_activation_pins_utf8_decoding(
         return _FakeCompleted('{"ok": true}', 0)
 
     monkeypatch.setattr(suite.subprocess, "run", fake_run)
-    suite.run_rule_activation([".claude/rules/code-quality.md"], "test-model")
+    suite.run_rule_activation([".claude/rules/universal.md"], "test-model")
     assert seen["encoding"] == "utf-8"
     assert seen["errors"] == "replace"
     assert seen["capture_output"] is True
@@ -1227,7 +1227,7 @@ def test_child_cli_does_not_emit_json_on_stdout() -> None:
     import json as _json
 
     proc = _run_child(
-        ["--scenarios", "tests/evals/rule-scenarios/code-quality.json", "--dry-run"],
+        ["--scenarios", "tests/evals/rule-scenarios/universal.json", "--dry-run"],
         REPO_ROOT,
     )
     assert proc.returncode == 0, proc.stderr[-2000:]
@@ -1246,7 +1246,7 @@ def test_child_cli_writes_no_results_file_during_dry_run(tmp_path: Path) -> None
     proc = _run_child(
         [
             "--scenarios",
-            "tests/evals/rule-scenarios/code-quality.json",
+            "tests/evals/rule-scenarios/universal.json",
             "--dry-run",
             "--output",
             str(out),
@@ -1262,7 +1262,7 @@ def test_suite_invokes_the_child_with_output_and_without_dry_run(
 ) -> None:
     """Ties the runner's argv to the contract the two tests above measured."""
     calls = _stub_child(monkeypatch)
-    suite.run_rule_activation([".claude/rules/code-quality.md"], "test-model")
+    suite.run_rule_activation([".claude/rules/universal.md"], "test-model")
     argv = calls[0]
     assert "--output" in argv
     assert "--dry-run" not in argv
@@ -1327,14 +1327,14 @@ def test_run_evals_sends_rules_and_instructions_to_the_rule_evaluator(
     seen = _record_runners(monkeypatch)
     classified = suite.classify_changes(
         [
-            ".claude/rules/code-quality.md",
-            "src/copilot-cli/instructions/code-quality.instructions.md",
+            ".claude/rules/universal.md",
+            "src/copilot-cli/instructions/universal.instructions.md",
         ]
     )
     suite._run_evals(classified, _Args("all"))
     assert seen["rules"] == [
-        ".claude/rules/code-quality.md",
-        "src/copilot-cli/instructions/code-quality.instructions.md",
+        ".claude/rules/universal.md",
+        "src/copilot-cli/instructions/universal.instructions.md",
     ]
 
 
@@ -1342,7 +1342,7 @@ def test_rules_scope_runs_rules_only(monkeypatch: pytest.MonkeyPatch) -> None:
     seen = _record_runners(monkeypatch)
     classified = suite.classify_changes(
         [
-            ".claude/rules/code-quality.md",
+            ".claude/rules/universal.md",
             ".claude/agents/implementer.md",
         ]
     )
@@ -1355,7 +1355,7 @@ def test_agents_scope_does_not_run_rules(monkeypatch: pytest.MonkeyPatch) -> Non
     seen = _record_runners(monkeypatch)
     classified = suite.classify_changes(
         [
-            ".claude/rules/code-quality.md",
+            ".claude/rules/universal.md",
             ".claude/agents/implementer.md",
         ]
     )
@@ -1366,7 +1366,7 @@ def test_agents_scope_does_not_run_rules(monkeypatch: pytest.MonkeyPatch) -> Non
 
 def test_run_evals_propagates_a_rule_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(suite, "run_rule_activation", lambda *_: {"passed": False})
-    classified = suite.classify_changes([".claude/rules/code-quality.md"])
+    classified = suite.classify_changes([".claude/rules/universal.md"])
     _results, any_failure = suite._run_evals(classified, _Args("all"))
     assert any_failure is True
 
@@ -1384,7 +1384,7 @@ def test_run_evals_reports_no_failure_when_every_runner_passes(
     _record_runners(monkeypatch)
     classified = suite.classify_changes(
         [
-            ".claude/rules/code-quality.md",
+            ".claude/rules/universal.md",
             ".claude/skills/analyze/SKILL.md",
             ".claude/agents/implementer.md",
         ]
@@ -1406,7 +1406,7 @@ SCOPED_PATHS = [
     ".github/prompts/example.md",
     ".claude/agents/implementer.md",
     ".claude/skills/analyze/SKILL.md",
-    ".claude/rules/code-quality.md",
+    ".claude/rules/universal.md",
 ]
 
 
@@ -1480,15 +1480,13 @@ def test_category_in_scope_rejects_categories_with_no_runner() -> None:
 
 
 def test_reconcile_promotes_an_evaluated_rule_to_scored() -> None:
-    plan = suite.build_routing_plan(
-        suite.classify_changes([".claude/rules/code-quality.md"]), "all"
-    )
+    plan = suite.build_routing_plan(suite.classify_changes([".claude/rules/universal.md"]), "all")
     assert plan[0]["evidence"] == suite.EVIDENCE_SCENARIO
 
     results = {
         "rules": {
             "rules": {
-                "code-quality": {
+                "universal": {
                     "passed": True,
                     "exit_code": 0,
                     "evidence": suite.EVIDENCE_SCORED,
@@ -1502,13 +1500,11 @@ def test_reconcile_promotes_an_evaluated_rule_to_scored() -> None:
 
 def test_reconcile_counts_a_failing_run_as_scored() -> None:
     """Scored means a verdict exists, not that the verdict was positive."""
-    plan = suite.build_routing_plan(
-        suite.classify_changes([".claude/rules/code-quality.md"]), "all"
-    )
+    plan = suite.build_routing_plan(suite.classify_changes([".claude/rules/universal.md"]), "all")
     results = {
         "rules": {
             "rules": {
-                "code-quality": {
+                "universal": {
                     "passed": False,
                     "exit_code": 1,
                     "evidence": suite.EVIDENCE_SCORED,
@@ -1520,10 +1516,8 @@ def test_reconcile_counts_a_failing_run_as_scored() -> None:
 
 
 def test_reconcile_leaves_a_skipped_rule_unscored() -> None:
-    plan = suite.build_routing_plan(
-        suite.classify_changes([".claude/rules/code-quality.md"]), "all"
-    )
-    results = {"rules": {"rules": {"code-quality": {"skipped": True, "reason": "no scenario"}}}}
+    plan = suite.build_routing_plan(suite.classify_changes([".claude/rules/universal.md"]), "all")
+    results = {"rules": {"rules": {"universal": {"skipped": True, "reason": "no scenario"}}}}
     assert suite.reconcile_routing_plan(plan, results)[0]["evidence"] == (suite.EVIDENCE_SCENARIO)
 
 
@@ -1551,10 +1545,8 @@ def test_reconcile_never_promotes_a_run_that_produced_no_verdict(outcome: dict, 
     result alike, so inferring from it would publish scored efficacy evidence
     for runs that produced none.
     """
-    plan = suite.build_routing_plan(
-        suite.classify_changes([".claude/rules/code-quality.md"]), "all"
-    )
-    results = {"rules": {"rules": {"code-quality": outcome}}}
+    plan = suite.build_routing_plan(suite.classify_changes([".claude/rules/universal.md"]), "all")
+    results = {"rules": {"rules": {"universal": outcome}}}
     assert suite.reconcile_routing_plan(plan, results)[0]["evidence"] == (
         suite.EVIDENCE_SCENARIO
     ), label
@@ -1564,7 +1556,7 @@ def test_reconcile_leaves_a_scenarioless_rule_entry_untouched(scenarioless_rule:
     """A rules entry already at not_evaluated has nothing to promote."""
     plan = suite.build_routing_plan(suite.classify_changes([scenarioless_rule]), "all")
     assert plan[0]["evidence"] == suite.EVIDENCE_NONE
-    results = {"rules": {"rules": {"code-quality": {"passed": True}}}}
+    results = {"rules": {"rules": {"universal": {"passed": True}}}}
     assert suite.reconcile_routing_plan(plan, results) == plan
 
 
@@ -1573,7 +1565,7 @@ def test_reconcile_splits_a_mixed_entry_into_scored_and_unscored() -> None:
     plan = [
         {
             "category": "rules",
-            "files": [".claude/rules/code-quality.md", ".claude/rules/universal.md"],
+            "files": [".claude/rules/universal.md", ".claude/rules/voice.md"],
             "runner": "eval-rule-activation.py",
             "evidence": suite.EVIDENCE_SCENARIO,
             "reason": "activation scenario defined; run without --dry-run to score",
@@ -1582,7 +1574,7 @@ def test_reconcile_splits_a_mixed_entry_into_scored_and_unscored() -> None:
     results = {
         "rules": {
             "rules": {
-                "code-quality": {
+                "universal": {
                     "passed": True,
                     "exit_code": 0,
                     "evidence": suite.EVIDENCE_SCORED,
@@ -1592,8 +1584,8 @@ def test_reconcile_splits_a_mixed_entry_into_scored_and_unscored() -> None:
     }
     reconciled = suite.reconcile_routing_plan(plan, results)
     by_evidence = {e["evidence"]: e["files"] for e in reconciled}
-    assert by_evidence[suite.EVIDENCE_SCORED] == [".claude/rules/code-quality.md"]
-    assert by_evidence[suite.EVIDENCE_SCENARIO] == [".claude/rules/universal.md"]
+    assert by_evidence[suite.EVIDENCE_SCORED] == [".claude/rules/universal.md"]
+    assert by_evidence[suite.EVIDENCE_SCENARIO] == [".claude/rules/voice.md"]
 
 
 def test_reconcile_is_a_noop_without_rule_results() -> None:
@@ -1605,7 +1597,7 @@ def test_reconcile_leaves_non_rule_categories_alone() -> None:
     plan = suite.build_routing_plan(
         suite.classify_changes([".claude/agents/implementer.md"]), "all"
     )
-    results = {"rules": {"rules": {"code-quality": {"passed": True}}}}
+    results = {"rules": {"rules": {"universal": {"passed": True}}}}
     assert suite.reconcile_routing_plan(plan, results) == plan
 
 
@@ -1646,8 +1638,8 @@ def _build_fixture_repo(tmp_path: Path) -> Path:
         ".claude/agents/implementer.md": "base agent\n",
         ".claude/skills/analyze/SKILL.md": "base skill\n",
         "src/copilot-cli/skills/analyze/references/deep.md": "base reference\n",
-        "src/copilot-cli/instructions/code-quality.instructions.md": "base mirror\n",
-        ".claude/rules/code-quality.md": "base rule\n",
+        "src/copilot-cli/instructions/universal.instructions.md": "base mirror\n",
+        ".claude/rules/universal.md": "base rule\n",
         "AGENTS.md": "base entrypoint\n",
         "unrelated.txt": "base other\n",
     }

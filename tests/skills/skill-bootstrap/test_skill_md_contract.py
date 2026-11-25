@@ -134,6 +134,7 @@ def test_skill_md_documents_exit_codes_in_a_table_with_one_row_per_script() -> N
         "bootstrap_eval.py",
         "bootstrap_drift.py",
         "bootstrap_boundary.py",
+        "bootstrap_adr.py",
     }
 
 

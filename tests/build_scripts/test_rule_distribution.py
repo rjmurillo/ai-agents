@@ -29,18 +29,14 @@ _PINNED_REPO_ONLY = frozenset(
         "adr-records",
         "agent-skill-docs",
         "canonical-source-mirror",
-        "ci-scripts",
         "claude-agents",
-        "generated-artifacts",
         "governance",
         "knowledge-persistence",
         "plugin-self-containment",
         "plugin-version-bump",
-        "push-lock",
         "secret-redaction",
         "session-logs",
         "templates",
-        "tool-use-hook-bar",
     }
 )
 
@@ -115,7 +111,7 @@ def test_live_repo_only_set_matches_what_copilot_skips() -> None:
     assert templates - shipped == _PINNED_REPO_ONLY
 
 
-_ALWAYS_ON = frozenset({"builder-ethos", "lossless-queue-reads", "universal", "voice"})
+_ALWAYS_ON = frozenset({"builder-ethos", "universal", "voice"})
 
 
 def _template_names() -> set[str]:
@@ -166,9 +162,7 @@ def test_always_on_rules_are_unchanged_and_ship() -> None:
         assert _ALWAYS_ON <= _names_in(directory, suffix)
 
 
-@pytest.mark.parametrize(
-    "name", ["testing", "token-economy", "retros", "security", "python", "lsp-first"]
-)
+@pytest.mark.parametrize("name", ["unified-software-engineering"])
 def test_rules_with_a_consumer_shaped_glob_keep_shipping(name: str) -> None:
     """Generic ``tests/`` and ``scripts/`` globs never flip a rule by themselves."""
     assert name not in _PINNED_REPO_ONLY
@@ -256,3 +250,44 @@ def test_repo_only_rule_turning_shipped_moves_to_plugin_tree(tmp_path: Path) -> 
     assert rule_distribution.render_target(
         root, "flip", root / "templates" / "rules" / "flip.md"
     ) == (root / "src" / "claude" / "rules" / "flip.md")
+
+
+_FOLDED_RULES = {
+    "code-quality": "build",
+    "csharp": "build",
+    "efficiency": "programming-advisor",
+    "lossless-queue-reads": "pr-comment-responder",
+    "lsp-first": "using-serena-symbols",
+    "powershell": "build",
+    "push-lock": "push-pr",
+    "python": "build",
+    "retros": "retrospective",
+    "security": "security-review",
+    "testing": "test",
+    "tool-use-hook-bar": "skillforge",
+}
+
+
+_REPO_LOCAL_FOLDED_RULES = {
+    "ci-scripts": "ai-agents-validation-and-qa",
+    "generated-artifacts": "ai-agents-generation-and-release",
+}
+
+
+@pytest.mark.parametrize("name,skill", sorted((_FOLDED_RULES | _REPO_LOCAL_FOLDED_RULES).items()))
+def test_folded_rule_lives_in_a_skill_reference_not_templates_rules(name: str, skill: str) -> None:
+    """A folded rule has no template, and its skill reference keeps the former scope."""
+    assert name not in _template_names()
+    assert name not in _PINNED_REPO_ONLY
+    filename = f"rule-{name}.md"
+    if name in _REPO_LOCAL_FOLDED_RULES:
+        skills_root = _REPO_ROOT / ".claude" / "skills"
+        assert not any((_REPO_ROOT / "src").glob(f"**/skills/*/references/{filename}"))
+    else:
+        skills_root = _REPO_ROOT / "src" / "claude" / "skills"
+    ref = skills_root / skill / "references" / filename
+    assert ref.is_file(), ref
+    first = ref.read_text(encoding="utf-8").splitlines()[0]
+    assert first.startswith("<!--") and "paths" in first, first
+    tmpl = _REPO_ROOT / "templates" / "skills" / f"{skill}.SKILL.md.tmpl"
+    assert f"rule-{name}.md" in tmpl.read_text(encoding="utf-8")

@@ -64,7 +64,7 @@ uv run python .claude/skills/threat-modeling/scripts/validate_threat_model.py .p
 
 The validator checks that every component has at least one threat, every trust boundary is crossed by a data flow, all STRIDE categories were considered for applicable elements, Critical and High risks have planned mitigations, and no threat is orphaned.
 
-Update a threat model when features are added, the architecture changes, or an incident occurs. The source recommends a quarterly review. Search Serena memory for prior models before you start, and store a summary memory afterward. Write to Serena only from the checkout where the server started.
+Update a threat model when features are added, the architecture changes, or an incident occurs. The source recommends a quarterly review. Search the repository memory for prior models before you start, and store a summary memory afterward. Serena writes go only from the checkout where the server started.
 
 Deeper material is in [`advanced-analysis.md`](../../src/claude/skills/threat-modeling/references/advanced-analysis.md) (attack trees and kill chains), [`stride-methodology.md`](../../src/claude/skills/threat-modeling/references/stride-methodology.md), and [`risk-rating-guide.md`](../../src/claude/skills/threat-modeling/references/risk-rating-guide.md). The document template ships at [`templates/threat-model-template.md`](../../src/claude/skills/threat-modeling/templates/threat-model-template.md) in the skill.
 

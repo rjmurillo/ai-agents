@@ -13,7 +13,7 @@ implemented: true
 
 ## Status
 
-Accepted. Requested by issue #5164 (labels `enhancement`, `priority:P2`, `area-validation`; see the priority note at the end of this document). Round 1 of the standard 6-agent `adr-review` debate (architect, critic, independent-thinker, security, analyst, high-level-advisor) returned 6/6 ACCEPT-WITH-CHANGES; debate log at `.project-toolkit/critique/ADR-096-debate-log.md`. This text is the Phase 3 resolution incorporating the required changes, plus a Round 2 correction (see the debate log's Round 2 entry) fixing a Decision-section claim that contradicted this ADR's own correction note. Per `.claude/rules/ci-scripts.md` MUST-NOT-2 and the `adr-review-policy` lefthook hook, code was implemented only after this ADR's frontmatter `status` transitioned to `accepted` in the same change as this status update, per the `adr-review` skill's own acceptance-transition gate (debate-log evidence at `.project-toolkit/critique/ADR-096-debate-log.md`). The frontmatter `status` transition was found missing from this PR's first two heads by the AI Spec Validator workflow on PR #5167; corrected here rather than disputed, since the ADR's own text already asserted the gating rule it had failed to satisfy.
+Accepted. Requested by issue #5164 (labels `enhancement`, `priority:P2`, `area-validation`; see the priority note at the end of this document). Round 1 of the standard 6-agent `adr-review` debate (architect, critic, independent-thinker, security, analyst, high-level-advisor) returned 6/6 ACCEPT-WITH-CHANGES; debate log at `.project-toolkit/critique/ADR-096-debate-log.md`. This text is the Phase 3 resolution incorporating the required changes, plus a Round 2 correction (see the debate log's Round 2 entry) fixing a Decision-section claim that contradicted this ADR's own correction note. Per MUST-NOT-2 of the former `ci-scripts` rule (now at `.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`) and the `adr-review-policy` lefthook hook, code was implemented only after this ADR's frontmatter `status` transitioned to `accepted` in the same change as this status update, per the `adr-review` skill's own acceptance-transition gate (debate-log evidence at `.project-toolkit/critique/ADR-096-debate-log.md`). The frontmatter `status` transition was found missing from this PR's first two heads by the AI Spec Validator workflow on PR #5167; corrected here rather than disputed, since the ADR's own text already asserted the gating rule it had failed to satisfy.
 
 ## Date
 
@@ -90,7 +90,7 @@ def validate_qa_report(path: Path, expected: QaBinding, *, head: str, repo_root:
 - A test replaces (not merely supplements) `tests/test_validate_session_json.py::test_rejects_qa_report_for_stale_commit`, since that test currently pins the exact raise this ADR removes; the replacement asserts the new code-change-aware behavior for the same scenario.
 - The four existing tests in `.claude/skills/session-end/tests/test_complete_session_log.py` (lines ~255-325) that exercise `_qa_report_evidence` against a `tmp_path` that is not a git repository need a real git fixture or a mocked `subprocess.run`, since they will now reach `post_qa_code_changes`'s git subprocess calls, which fail outside a repository.
 - Mirror updated in `src/copilot-cli/` via the standard sync-then-build pipeline, and its own test mirrors updated identically.
-- Per `.claude/rules/ci-scripts.md` MUST-13, the PR introducing this changed gate at `complete_session_log.py` (a call site that had no staleness gate before) must run it against the full corpus of committed session logs and QA reports and quote the output in the PR description.
+- Per the former `ci-scripts` rule (now at `.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`) MUST-13, the PR introducing this changed gate at `complete_session_log.py` (a call site that had no staleness gate before) must run it against the full corpus of committed session logs and QA reports and quote the output in the PR description.
 
 ## Prior Art Investigation
 
@@ -169,7 +169,7 @@ The chosen design accepts a breaking signature change to `validate_qa_report()`,
 4. Tests per Acceptance Criteria above, including the replacement for the now-deleted equality-raise test and fixtures for the four `complete_session_log.py` tests that will newly reach a git subprocess.
 5. Mirror to `src/copilot-cli/` via the standard sync-then-build pipeline.
 6. Grep for any other caller of `validate_qa_report()` before merging; this ADR's review confirmed exactly two production callers plus their two mirror copies, but re-verify against the branch's actual diff at merge time.
-7. Run the modified gate against the full corpus of committed `.project-toolkit/sessions/*.json` and QA reports and quote the output in the PR, per `.claude/rules/ci-scripts.md` MUST-13, since `complete_session_log.py` gains a staleness gate it did not have before.
+7. Run the modified gate against the full corpus of committed `.project-toolkit/sessions/*.json` and QA reports and quote the output in the PR, per the former `ci-scripts` rule (now at `.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`) MUST-13, since `complete_session_log.py` gains a staleness gate it did not have before.
 
 ## Related Decisions
 
@@ -182,8 +182,8 @@ The chosen design accepts a breaking signature change to `validate_qa_report()`,
 
 - `.claude/lib/qa_report.py`. `validate_qa_report`, `session_qa_binding`, `post_qa_code_changes`, `QA_EVIDENCE_PREFIXES`.
 - `scripts/validate_session_json.py:930-992`. `validate_qa_report_evidence`, the first call site.
-- `.claude/skills/session-end/scripts/complete_session_log.py:526-547,884-901`. `_qa_report_evidence` and its caller, the second call site.
-- `.claude/rules/ci-scripts.md` MUST-NOT-2, MUST-13. Validator-behavior-change ADR requirement; corpus-demonstration requirement for a newly-introduced gate.
+- `.claude/skills/session-end/scripts/complete_session_log.py:526-547,884-901`. `_qa_report_evidence` and its caller, the second call site. <!-- citation-freshness: ignore -- historical citation: the file and lines as they stood when this ADR was written; the file is no longer tracked -->
+- The former `ci-scripts` rule (now at `.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`), MUST-NOT-2 and MUST-13. Validator-behavior-change ADR requirement; corpus-demonstration requirement for a newly-introduced gate.
 - `.project-toolkit/sessions/handoffs/2026-08-15-2840-handoff.md`. The 23-mention, 15-round rebind evidence, and the round-15 citation this ADR corrects.
 - `.project-toolkit/critique/ADR-096-debate-log.md`. Round 1 debate log.
 

@@ -1,9 +1,9 @@
 """``ruff format`` is this repository's enforced formatter (issue #5304).
 
-``.claude/rules/python.md`` tells every agent to run ``ruff format`` and to treat
-``ruff format --check`` as a blocking gate. That instruction is only honest
-while two facts hold: the gates invoke the formatter, and the tree conforms to
-it. Both are measurable, so this module pins them.
+The ``build`` skill's ``references/rule-python.md`` tells every agent to run
+``ruff format`` and to treat ``ruff format --check`` as a blocking gate. That
+instruction is only honest while two facts hold: the gates invoke the formatter,
+and the tree conforms to it. Both are measurable, so this module pins them.
 
 - pos: CI and the local hook scheduler both invoke ``ruff format``
 - neg: the scanner does flag a surface that invokes it, and does flag the
@@ -23,7 +23,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PYTHON_RULE = REPO_ROOT / ".claude" / "rules" / "python.md"
+PYTHON_RULE = REPO_ROOT / "src" / "claude" / "skills" / "build" / "references" / "rule-python.md"
 
 # Shell form (`ruff format`, including `uv run ... ruff format`) and the
 # subprocess list form (`["ruff", "format", ...]`) that a Python runner uses.
@@ -85,7 +85,7 @@ def test_required_enforcement_surface_invokes_ruff_format(surface: str) -> None:
 
     assert _invocations(text), (
         f"{surface} no longer invokes `ruff format`, so the Tooling section of "
-        ".claude/rules/python.md ('Run the locked `ruff format` command; "
+        "the build skill's rule-python.md ('Run the locked `ruff format` command; "
         "`ruff format --check` is a blocking gate.') is false. Restore the gate "
         "or rewrite that rule."
     )
@@ -114,7 +114,7 @@ def test_force_exclude_is_scoped_to_the_format_hook_not_to_lint() -> None:
 
 def test_documented_format_command_forces_the_format_excludes() -> None:
     """Without a top-level force-exclude, a named excluded fixture gets rewritten."""
-    rule = (REPO_ROOT / "templates" / "rules" / "python.md").read_text(encoding="utf-8")
+    rule = PYTHON_RULE.read_text(encoding="utf-8")
 
     commands = re.findall(r"`(uv run [^`]*ruff format(?! --check)[^`]*)`", rule)
     assert commands
@@ -207,6 +207,6 @@ def test_python_rule_still_carries_the_instruction_this_module_backs() -> None:
     assert "`uv run --frozen --extra dev ruff format --force-exclude <files>`" in text
     assert "`ruff format --check` is a blocking gate" in text
     assert Path(__file__).name in text, (
-        "python.md should point at this module so a reader who changes the rule "
+        "rule-python.md should point at this module so a reader who changes the rule "
         "finds the guard that pins it"
     )

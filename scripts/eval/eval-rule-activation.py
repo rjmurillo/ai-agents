@@ -218,6 +218,109 @@ def _baseline_system_prompt(_rule: dict[str, str], _rule_id: str) -> str:
     return ""
 
 
+_WORD_RE = re.compile(r"[a-z0-9]+")
+
+
+def _description_tokens(text: str) -> frozenset[str]:
+    """Lowercased word tokens of three or more characters."""
+    return frozenset(t for t in _WORD_RE.findall(text.lower()) if len(t) >= 3)
+
+
+def _jaccard(a: frozenset[str], b: frozenset[str]) -> float:
+    union = a | b
+    return len(a & b) / len(union) if union else 0.0
+
+
+def select_distractors(
+    target_name: str, target_description: str, count: int, skills_dir: Path | None = None
+) -> list[tuple[str, str]]:
+    """Return the `count` skills whose descriptions are nearest the target's.
+
+    Similarity is Jaccard over description word tokens. Ties break by skill
+    name, so the pick is deterministic. The target is excluded by name.
+    """
+    root = SKILLS_DIR if skills_dir is None else skills_dir
+    target_tokens = _description_tokens(target_description)
+    target_key = target_name.strip().lower()
+    scored: list[tuple[float, str, str]] = []
+    for skill_md in sorted(root.glob("*/SKILL.md")):
+        parsed = _parse_markdown_artifact(skill_md)
+        name_match = re.search(r"^name:\s*(.+?)$", parsed["frontmatter"], re.MULTILINE)
+        name = name_match.group(1).strip() if name_match else skill_md.parent.name
+        if name.lower() == target_key:
+            continue
+        similarity = _jaccard(target_tokens, _description_tokens(parsed["description"]))
+        scored.append((similarity, name, parsed["description"]))
+    scored.sort(key=lambda row: (-row[0], row[1]))
+    return [(name, desc) for _sim, name, desc in scored[: max(count, 0)]]
+
+
+def _skill_catalog(rule: dict[str, Any]) -> list[tuple[str, str]]:
+    """Target plus distractors, sorted by name so the target is not always first."""
+    entries = [(rule["skill_name"], rule["description"]), *rule.get("distractors", [])]
+    return sorted(entries, key=lambda entry: (entry[0].lower(), entry[0]))
+
+
+def _normalize_skill_name(value: object) -> str:
+    """Case-fold a selected skill name and drop whitespace and a leading slash."""
+    if not isinstance(value, str):
+        return ""
+    return value.strip().lstrip("/").strip().lower()
+
+
+def _route_matched(
+    rule: dict[str, Any], selected_skill: object, selected_reference: str | None
+) -> bool:
+    """True when a route opened the target's reference.
+
+    With distractors the selected skill must also name the target.
+    """
+    if selected_reference is None:
+        return False
+    if not isinstance(selected_skill, str) or not selected_skill.strip():
+        return False
+    if rule.get("distractors") and _normalize_skill_name(selected_skill) != _normalize_skill_name(
+        rule["skill_name"]
+    ):
+        return False
+    return selected_reference == _normalize_selected_reference(rule.get("reference_path"))
+
+
+def _load_target(
+    primary_path: Path, reference_path: Path | None, args: argparse.Namespace
+) -> dict[str, Any]:
+    """Parse a rule or skill target and attach distractors when they apply.
+
+    A SKILL.md target with no reference_path has no route to score, so a
+    nonzero --distractors cannot apply. Say so on stderr instead of
+    recording a count the model never saw.
+    """
+    count = getattr(args, "distractors", 0)
+    if reference_path is None:
+        if count > 0 and primary_path.name == "SKILL.md":
+            print(
+                f"WARNING: --distractors {count} ignored for {primary_path}: "
+                "it needs a reference_path target",
+                file=sys.stderr,
+            )
+        return parse_rule(primary_path)
+    return _attach_distractors(
+        parse_skill_reference(primary_path, reference_path), count, reference_path
+    )
+
+
+def _attach_distractors(
+    rule: dict[str, Any], count: int, reference_path: Path | None
+) -> dict[str, Any]:
+    """Add nearest-description distractors to a skill target. Rule targets ignore them."""
+    if count <= 0 or reference_path is None or not rule.get("skill_name"):
+        return rule
+    return {
+        **rule,
+        "distractors": select_distractors(rule["skill_name"], rule["description"], count),
+    }
+
+
 def build_system_prompt(mechanism: str, rule: dict[str, str], rule_id: str) -> str:
     """Construct the system prompt for a given activation mechanism."""
     if mechanism == "baseline":
@@ -225,6 +328,15 @@ def build_system_prompt(mechanism: str, rule: dict[str, str], rule_id: str) -> s
     if mechanism == "description":
         if not rule["description"]:
             return ""
+        if rule.get("skill_name") and rule.get("distractors"):
+            catalog = "\n".join(f"  - {name}: {desc}" for name, desc in _skill_catalog(rule))
+            return (
+                "Project skills are available on demand. Available skills:\n\n"
+                f"{catalog}\n\n"
+                "Decide whether to select a skill based on the user's request. "
+                "If one is selected, open its router and then the smallest matching "
+                "reference before advising the user."
+            )
         if rule.get("skill_name"):
             return (
                 "Project skills are available on demand. Available skill:\n\n"
@@ -327,7 +439,7 @@ def _is_gate_near_miss(normalized: str) -> bool:
     return ratio >= _GATE_NEAR_MISS_RATIO
 
 
-def build_skill_route_prompt(rule: dict[str, str], scenario: dict[str, Any]) -> str:
+def build_skill_route_prompt(rule: dict[str, Any], scenario: dict[str, Any]) -> str:
     """Build the progressive-disclosure routing prompt for a skill reference."""
     return f"""Route the user request through the available skill catalog.
 
@@ -344,6 +456,22 @@ User request:
 Return JSON only with these fields:
 - selected_skill: skill name or null
 - selected_reference: reference path or null
+- reasoning: one sentence"""
+
+
+def build_skill_selection_prompt(rule: dict[str, Any], scenario: dict[str, Any]) -> str:
+    """Build step one of a distractor route: the catalog only, no router bodies."""
+    catalog = "\n".join(f"- {name}: {desc}" for name, desc in _skill_catalog(rule))
+    return f"""Pick the skill for the user request from the available skill catalog.
+
+Available skills:
+{catalog}
+
+User request:
+{scenario.get("input", "")}
+
+Return JSON only with these fields:
+- selected_skill: skill name or null
 - reasoning: one sentence"""
 
 
@@ -1330,6 +1458,76 @@ def _call_harness_arm(
     return reply.text, facts
 
 
+def _preview(text: str) -> str:
+    return text[:400] + ("..." if len(text) > 400 else "")
+
+
+def _route_with_distractors(
+    api_key: str,
+    rule: dict[str, Any],
+    scenario: dict[str, Any],
+    model: str,
+    system: str,
+    seed: int | None,
+    metadata: dict[str, object],
+) -> tuple[dict[str, Any] | None, str]:
+    """Two-step route over a catalog with distractors.
+
+    Step one sees the catalog only, so the target is not marked. Step two runs
+    the single-skill route call, and only when step one named the target.
+    Returns (routing, ""), or (None, preview) when a reply is not JSON.
+    """
+
+    def ask(prompt: str) -> str:
+        return str(
+            _call_api(
+                api_key,
+                [{"role": "user", "content": prompt}],
+                system=system,
+                model=model,
+                max_tokens=300,
+                seed=seed,
+                metadata=metadata,
+            )
+        )
+
+    selection_text = ask(build_skill_selection_prompt(rule, scenario))
+    selection = _parse_json_object(selection_text)
+    if selection is None:
+        return None, _preview(selection_text)
+    chosen = selection.get("selected_skill")
+    routing: dict[str, Any] = {
+        "selected_skill": chosen if isinstance(chosen, str) else None,
+        "selected_reference": None,
+        "route_failed": False,
+        "reference_matched": False,
+        "distractors": [name for name, _desc in rule["distractors"]],
+        "selection": {
+            "selected_skill": chosen if isinstance(chosen, str) else None,
+            "reasoning": str(selection.get("reasoning", ""))[:300],
+        },
+        "reasoning": str(selection.get("reasoning", ""))[:300],
+    }
+    if _normalize_skill_name(chosen) != _normalize_skill_name(rule["skill_name"]):
+        return routing, ""
+    route_text = ask(build_skill_route_prompt(rule, scenario))
+    route = _parse_json_object(route_text)
+    if route is None:
+        return None, _preview(route_text)
+    reference = _normalize_selected_reference(route.get("selected_reference"))
+    routed_skill = route.get("selected_skill")
+    routing["selected_reference"] = reference
+    routing["reference_route"] = {
+        "selected_skill": routed_skill if isinstance(routed_skill, str) else None,
+        "selected_reference": reference,
+        "reasoning": str(route.get("reasoning", ""))[:300],
+    }
+    # Step two must name the target too. A route that declines the skill but
+    # still names a reference is not a hit.
+    routing["reference_matched"] = _route_matched(rule, routed_skill, reference)
+    return routing, ""
+
+
 def eval_one_scenario(
     api_key: str,
     rule: dict[str, str],
@@ -1400,6 +1598,34 @@ def eval_one_scenario(
             metadata: dict[str, object] = {}
             if is_harness:
                 response, harness = _call_harness_arm(rule, scenario, model, mechanism, metadata)
+            elif mechanism == "description" and rule.get("skill_name") and rule.get("distractors"):
+                routing, failed_preview = _route_with_distractors(
+                    api_key, rule, scenario, model, system, seed, metadata
+                )
+                if routing is None:
+                    result["mechanisms"][mechanism] = {
+                        "error": "route parse failure",
+                        "response_preview": failed_preview,
+                        "scores": {"activation_score": 0, "citation_score": 0, "behavior_score": 0},
+                        "routing": {
+                            "selected_skill": None,
+                            "selected_reference": None,
+                            "route_failed": True,
+                            "reference_matched": False,
+                            "distractors": [
+                                name
+                                for name, _desc in cast(
+                                    "list[tuple[str, str]]", rule["distractors"]
+                                )
+                            ],
+                        },
+                    }
+                    continue
+                # `selected_reference` stays None unless step one named the target,
+                # so a distractor pick loads nothing. A wrong reference on the
+                # target loads that sibling, as it does at K=0.
+                system = _build_routed_reference_prompt(rule, routing["selected_reference"])
+                metadata = {}
             elif mechanism == "description" and rule.get("skill_name"):
                 route_response = _call_api(
                     api_key,
@@ -2563,6 +2789,19 @@ def _parse_args() -> argparse.Namespace:
             f"and {SKILL_ROUTED} needs a skill_path target."
         ),
     )
+    parser.add_argument(
+        "--distractors",
+        type=int,
+        default=0,
+        metavar="K",
+        help=(
+            "For a skill target with a reference_path, show the model the target plus "
+            "the K skills under "
+            ".claude/skills with the most similar descriptions, and count a route as "
+            "matched only when it selects the target. 0 (default) shows the target "
+            "alone. Rule targets (rule_path) ignore this flag."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -2966,10 +3205,7 @@ def _process_one_rule(
     primary_path, reference_path = target_paths
     default_id = primary_path.parent.name if primary_path.name == "SKILL.md" else primary_path.stem
     rule_id = scenarios_data.get("rule_id") or scenarios_data.get("skill_id") or default_id
-    if reference_path is None:
-        rule = parse_rule(primary_path)
-    else:
-        rule = parse_skill_reference(primary_path, reference_path)
+    rule = _load_target(primary_path, reference_path, args)
     scenarios = scenarios_data.get("scenarios", [])
     route_calls = len(scenarios) if reference_path is not None else 0
     load_bearing = scenarios_data.get("load_bearing")
@@ -3129,11 +3365,7 @@ def _process_selected_scenario(
     arms = tuple(args.arms) if args.arms else MECHANISMS
     default_id = primary_path.parent.name if primary_path.name == "SKILL.md" else primary_path.stem
     rule_id = scenarios_data.get("rule_id") or scenarios_data.get("skill_id") or default_id
-    rule = (
-        parse_rule(primary_path)
-        if reference_path is None
-        else parse_skill_reference(primary_path, reference_path)
-    )
+    rule = _load_target(primary_path, reference_path, args)
     if SKILL_ROUTED in arms:
         harness_fields = _harness_target(primary_path, rule, reference_path)
         if isinstance(harness_fields, int):
@@ -3252,6 +3484,7 @@ def _build_run_provenance(args: argparse.Namespace) -> dict[str, Any]:
     return {
         "provider": provider,
         "requested_model": args.model,
+        "distractors": getattr(args, "distractors", 0),
         "timestamp_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "git_commit": commit_sha,
         "scenario_hash": scenario_hash,
@@ -3262,6 +3495,9 @@ def main() -> int:
     args = _parse_args()
     if args.judge_repeats < 1:
         print("ERROR: --judge-repeats must be positive", file=sys.stderr)
+        return 2
+    if args.distractors < 0:
+        print("ERROR: --distractors must not be negative", file=sys.stderr)
         return 2
     selection_error = _selection_error(args)
     if selection_error is not None:

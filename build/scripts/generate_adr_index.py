@@ -802,7 +802,7 @@ def render_index(records: Sequence[AdrRecord]) -> str:
     parts = [_INTRO]
     for heading, blurb in _BLURBS:
         # An escape inside an f-string expression is 3.12+; the syntax floor is
-        # 3.10 (.claude/rules/python.md), so the fallback is bound out here.
+        # 3.10 (.claude/skills/build/references/rule-python.md), so the fallback is bound out here.
         table = tables[heading] or "None.\n"
         parts.append(f"## {heading}\n\n{blurb}\n\n{table}\n")
     return "".join(parts).rstrip("\n") + "\n"
@@ -1009,7 +1009,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         # script from a different worktree (or via a symlink into this one)
         # writes into _REPO_ROOT silently, with no signal that the write
         # landed outside the caller's own checkout. Mirrors
-        # scripts/generate_third_party_notices.py:499-505 verbatim:
+        # the project-root check in main() of scripts/generate_third_party_notices.py verbatim:
         #   project_root = PROJECT_ROOT
         #   if not Path.cwd().resolve().is_relative_to(project_root.resolve()):
         #       print(f"ERROR: current directory is outside project root: {Path.cwd()}", ...)

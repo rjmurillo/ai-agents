@@ -1,5 +1,6 @@
 {
-  "rule_path": ".claude/rules/python.md",
+  "skill_path": ".claude/skills/build/SKILL.md",
+  "reference_path": ".claude/skills/build/references/rule-python.md",
   "rule_id": "python",
   "scenarios": [
     {
@@ -81,6 +82,60 @@
       ],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "A Markdown prose edit matches none of the rule's paths globs, even though the topic is Python, so the Python rules are not active."
+    },
+    {
+      "id": "N1",
+      "desc": "Cleanup script swallows every exception",
+      "input": "My cleanup script calls git worktree remove and I wrapped it in try/except Exception: pass so a missing worktree does not crash the run. Is that fine? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "narrow",
+        "specific exception",
+        "log",
+        "KeyboardInterrupt",
+        "context"
+      ],
+      "expected_gate": "catch-the-narrowest-exception-and-log",
+      "rationale": "Anti-Patterns: `except Exception: pass` swallows real failures. Catch the specific type you can act on, and if you must continue, log with context."
+    },
+    {
+      "id": "N2",
+      "desc": "Collector function with a list default argument",
+      "input": "I am writing def collect_paths(root, seen=[]) in a skill script that recurses through directories and appends to seen so repeats are skipped across calls. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "mutable default",
+        "None",
+        "shared across calls",
+        "create inside",
+        "accumulates"
+      ],
+      "expected_gate": "no-mutable-default-arguments",
+      "rationale": "Anti-Patterns: a mutable default is shared across calls and accumulates state. Use None and build the list inside the function."
+    },
+    {
+      "id": "N3",
+      "desc": "Runtime check of a required token using assert",
+      "input": "In the PR helper script I will check that the GITHUB_TOKEN env var is set with assert token, 'token required', and exit with the assertion message otherwise. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "assert",
+        "python -O",
+        "raise",
+        "boundary",
+        "validate"
+      ],
+      "expected_gate": "raise-for-invalid-input-not-assert",
+      "rationale": "Anti-Patterns: assert is stripped under python -O. Use it for impossible invariants and raise for invalid input at the boundary, such as a missing env var."
+    },
+    {
+      "id": "N4",
+      "desc": "Optional type annotation in a TypeScript tool (negative)",
+      "input": "The Node helper in tools/ has a function that returns string | undefined. I want to tighten it so callers must handle the undefined case and add a unit test. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "TypeScript",
+        "undefined",
+        "test"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The task is TypeScript. Python typing, idioms and tooling guidance apply to Python and packaging files only."
     }
   ]
 }

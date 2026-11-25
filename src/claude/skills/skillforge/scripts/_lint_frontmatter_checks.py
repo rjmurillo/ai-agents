@@ -14,6 +14,7 @@ from pathlib import Path
 from types import ModuleType
 
 import _conformance_parse as subset
+from _packs import sibling_pack_roots
 
 # --- limits and grammars ------------------------------------------------------
 # These mirror the host repository's gates. In rjmurillo/ai-agents a test reads
@@ -227,21 +228,37 @@ def intents_role(doc: subset.SkillDoc) -> list[str]:
     ]
 
 
-_RESOLVER_PATH = Path(__file__).resolve().parents[2] / "autoplan" / "scripts" / "resolve_route.py"
+_RESOLVER_TAIL = ("autoplan", "scripts", "resolve_route.py")
+_RESOLVER_PATH = Path(__file__).resolve().parents[2].joinpath(*_RESOLVER_TAIL)
+_PLUGIN_ROOT = Path(__file__).resolve().parents[3]
 _resolver_cache: list[ModuleType] = []
 
 
+def _resolver_path() -> Path:
+    """autoplan's resolver beside skillforge, else the first one in a sibling Hermes pack."""
+    if _RESOLVER_PATH.is_file():
+        return _RESOLVER_PATH
+    for pack in sibling_pack_roots(_PLUGIN_ROOT):
+        candidate = (pack / "skills").joinpath(*_RESOLVER_TAIL)
+        if candidate.is_file():
+            return candidate
+    return _RESOLVER_PATH
+
+
 def _resolver() -> ModuleType:
-    """Load autoplan's resolver from this plugin once per module load.
+    """Load autoplan's resolver, from this plugin or a sibling pack, once per module load.
 
     Any failure to find or load it is NotEvaluatedError, never a crash: the
     linter and `skillopt apply` must report the rule as not evaluated.
     """
     if _resolver_cache:
         return _resolver_cache[0]
-    if not _RESOLVER_PATH.is_file():
-        raise NotEvaluatedError("autoplan's resolve_route.py is not installed beside skillforge")
-    spec = importlib.util.spec_from_file_location("_lint_resolve_route", _RESOLVER_PATH)
+    path = _resolver_path()
+    if not path.is_file():
+        raise NotEvaluatedError(
+            "autoplan's resolve_route.py is not installed beside skillforge or in a sibling pack"
+        )
+    spec = importlib.util.spec_from_file_location("_lint_resolve_route", path)
     if spec is None or spec.loader is None:
         raise NotEvaluatedError("cannot load resolve_route.py")
     module = importlib.util.module_from_spec(spec)

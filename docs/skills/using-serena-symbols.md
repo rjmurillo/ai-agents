@@ -57,7 +57,7 @@ Keep results small:
 4. Avoid depth above 1 on large modules.
 5. Record important architectural findings in Serena memory.
 
-Serena writes go to the checkout where the server started. Do not call its write tools from a linked worktree. Edit `.serena/memories/` in your own checkout, or hand the change to the parent session.
+Serena writes go to the checkout where the server started. Do not call its write tools from a linked worktree. Edit the repository memory files in your own checkout, or hand the change to the parent session.
 
 To explore an unfamiliar codebase, list the directory, get the overview of the entry file at depth 1, then trace key classes. To understand one class, find it with children, read the methods you need, then find who calls it. To trace dependencies, search for imports with a regex and follow references.
 

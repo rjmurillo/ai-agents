@@ -2,7 +2,7 @@
 
 Each folder below is a portable Agent Plugins v1 package for Hermes.
 A pack holds the skills listed under it and one copy of `lib/`.
-Skills in one pack never refer to skills in another pack.
+Skills in one pack never refer to skills in another pack by path.
 
 ## project-toolkit-delivery
 
@@ -73,7 +73,6 @@ Project Toolkit skills for memory, context, decisions, requirements, strategy, a
 - `codebase-documenter`
 - `context-gather`
 - `context-hub-setup`
-- `context-optimizer`
 - `curating-memories`
 - `cynefin-classifier`
 - `decision-critic`
@@ -89,19 +88,25 @@ Project Toolkit skills for memory, context, decisions, requirements, strategy, a
 - `pre-mortem`
 - `programming-advisor`
 - `prompt-engineer`
-- `prose-self-check`
 - `reflect`
 - `requirements-interview`
 - `retrospective`
-- `skill-bootstrap`
-- `skillforge`
-- `skillify`
-- `skillopt`
 - `software-engineering-library`
 - `spec`
 - `using-serena-symbols`
 - `work-operating-model`
 - `world-model-diagnostic`
+
+## project-toolkit-authoring
+
+Project Toolkit skills for writing, tuning, and bootstrapping skills, and for placing context.
+
+- `context-optimizer`
+- `prose-self-check`
+- `skill-bootstrap`
+- `skillforge`
+- `skillify`
+- `skillopt`
 
 ## Excluded skills
 
@@ -127,4 +132,10 @@ These skills ship in no pack.
 
 These files of a shipped skill ship in no pack.
 
+- `build/references/rule-code-quality.md`: Folded path rule; the delivery pack is at its 400-file cap.
+- `build/references/rule-csharp.md`: Folded path rule; the delivery pack is at its 400-file cap.
+- `build/references/rule-powershell.md`: Folded path rule; the delivery pack is at its 400-file cap.
+- `pr-comment-responder/references/rule-lossless-queue-reads.md`: Folded path rule; the delivery pack is at its 400-file cap.
+- `push-pr/references/rule-push-lock.md`: Folded path rule; the delivery pack is at its 400-file cap.
 - `retrospective/scripts/copilot_journal.py`: Needs the skill-doctor parser, which Hermes does not ship, so --journal always reports unavailable there.
+- `test/references/rule-testing.md`: Folded path rule; the delivery pack is at its 400-file cap.

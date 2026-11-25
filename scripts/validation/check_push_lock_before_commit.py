@@ -7,19 +7,19 @@ machine) can corrupt any test whose fixture reads live git state (see the
 root ``conftest.py`` ``_guard_real_repo_head`` fixture, issue #3109). The
 pre-push recipe already serializes concurrent pushes to one branch behind a
 per-branch ``flock``; this guard reuses that SAME lock file rather than
-inventing a second scheme, per ``.claude/rules/push-lock.md`` MUST NOT 2
+inventing a second scheme, per ``.claude/skills/push-pr/references/rule-push-lock.md`` MUST NOT 2
 ("MUST NOT introduce a second lock path 'just for this run'"). The lock is
 held for the whole ``git push`` invocation, which git runs the pre-push hook
 inside of, so the lock stays held for the full duration of the pre-push
 suite, not just the ref transfer.
 
 Scope: the canonical lock path (below) carries no worktree component by
-design (push-lock.md MUST 1), so this guard's protection is per branch name
+design (rule-push-lock.md MUST 1), so this guard's protection is per branch name
 per machine, not per worktree. Two worktrees checked out to the same branch
 name contend for the same lock; two worktrees on different branch names
 never do, whether or not they share a machine.
 
-The canonical lock path is fixed by ``.claude/rules/push-lock.md`` and
+The canonical lock path is fixed by ``.claude/skills/push-pr/references/rule-push-lock.md`` and
 ``check_push_lock_paths.py``:
 
     $HOME/src/scratch/locks/push-lock-<slug>.lock
@@ -74,13 +74,14 @@ BLOCK_MESSAGE = (
     "push-lock: #5123 a push for branch {branch!r} appears to be in flight "
     "on this machine ({lock_path}). Committing now can corrupt any test "
     "whose fixture reads live git state while that run is still reading it. "
-    "Wait for the push to finish, then commit. See .claude/rules/push-lock.md. "
+    "Wait for the push to finish, then commit. See "
+    ".claude/skills/push-pr/references/rule-push-lock.md. "
     f"To bypass (e.g. a stuck lock from a crashed holder), set {SKIP_ENV}=1."
 )
 
 
 def _lock_directory() -> Path:
-    """Return the canonical push-lock directory (push-lock.md).
+    """Return the canonical push-lock directory (rule-push-lock.md).
 
     A function, not a module constant, so a ``Path.home()`` failure (no
     resolvable home directory) surfaces through ``main``'s error handling
@@ -104,7 +105,7 @@ def _current_branch(repo_root: Path) -> str | None:
 
 
 def lock_path_for_branch(branch: str, lock_directory: Path | None = None) -> Path:
-    """Return the canonical push-lock path for ``branch`` (push-lock.md)."""
+    """Return the canonical push-lock path for ``branch`` (rule-push-lock.md)."""
     slug = branch.replace("/", "-")
     directory = lock_directory if lock_directory is not None else _lock_directory()
     return directory / f"push-lock-{slug}.lock"

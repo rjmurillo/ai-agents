@@ -6,8 +6,8 @@ package lives under ``scripts/`` in this repository and does not ship with
 the plugin, so a consumer install resolves nothing here and the hook
 becomes a silent no-op.
 
-Read-only by contract: the hook scores every memory and writes nothing under
-``.serena/memories``. A session that ends must not leave the working tree
+Read-only by contract: the hook scores every memory and writes nothing to the
+repository memory folder. A session that ends must not leave the working tree
 dirty, and the score is recomputed on every read anyway.
 
 Hook Type: SessionEnd (non-blocking, fail-open)

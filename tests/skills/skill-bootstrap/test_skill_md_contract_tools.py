@@ -44,6 +44,16 @@ def test_every_script_on_disk_is_bundled_and_documented() -> None:
     text = _skill_md()
 
     helpers = {
+        "scripts/adr_commits.py",
+        "scripts/adr_docs.py",
+        # Listed as a helper until the skill step documents its locator (issue #7499).
+        "scripts/bootstrap_adr.py",
+        "scripts/adr_scan.py",
+        "scripts/adr_locate.py",
+        "scripts/adr_log.py",
+        "scripts/adr_reason.py",
+        "scripts/adr_shape.py",
+        "scripts/adr_write.py",
         "scripts/bootstrap_friction.py",
         "scripts/bootstrap_sweep.py",
         "scripts/bootstrap_sweep_import.py",

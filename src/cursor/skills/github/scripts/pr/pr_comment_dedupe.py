@@ -10,7 +10,7 @@ skills": "Agents may retry commands").
 These helpers run no I/O. Each caller owns its ``gh api`` call and maps failures
 to its own envelope and exit code.
 
-Pagination contract (``.claude/rules/lossless-queue-reads.md``): the read must see
+Pagination contract (the ``pr-comment-responder`` skill's ``references/rule-lossless-queue-reads.md``): the read must see
 every comment before it decides "no duplicate". ``gh api --paginate --slurp``
 fails the whole call when any page fails, so a partial list never reaches
 :func:`flatten_pages`. :func:`flatten_pages` also rejects any shape that is not a

@@ -443,8 +443,8 @@ def test_adapter_is_false_on_every_non_ok_exit(tmp_path: Path) -> None:
 
 
 def test_the_shipped_baseline_matches_the_tracked_tree() -> None:
-    """ci-scripts.md MUST 13: the gate passes against the full corpus. Also pins
-    the issue's live CLAUDE.md instance so the baseline cannot silently drop it."""
+    """ci-scripts MUST 13: the gate passes against the full corpus, and the
+    baseline holds exactly the binding citations the tree produces."""
     repo_root = Path(__file__).resolve().parents[2]
     statuses = gate.adr_statuses(repo_root, repo_root / ".project-toolkit" / "architecture")
     result = gate.scan(repo_root, statuses)
@@ -453,7 +453,6 @@ def test_the_shipped_baseline_matches_the_tracked_tree() -> None:
     baseline = gate.read_baseline(gate._BASELINE_PATH)
     assert isinstance(baseline, set), baseline
     assert baseline == {c.key for c in result.binding}
-    assert "CLAUDE.md::ADR-078" in baseline
     assert main(["--repo-root", str(repo_root)]) == EXIT_OK
 
 

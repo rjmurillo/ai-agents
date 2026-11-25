@@ -55,7 +55,7 @@ pointing at the install dir, even though the public docs list none of them
 - `tests/build_scripts/test_generate_hooks_runtime_contract.py` runs the
   generated command under foreign cwd/env with a bare-path negative control.
 - `tests/e2e/test_cli_hook_e2e.py` (real-CLI smoke, gated by `RUN_CLI_E2E=1`).
-- `.claude/rules/generated-artifacts.md` (binding rule: customer-facing
+- The repo-local `ai-agents-generation-and-release` skill's `references/rule-generated-artifacts.md` (binding rule: customer-facing
   generated artifacts MUST be executed in their target runtime before release).
 - FM-11 added to `.agents/governance/FAILURE-MODES.md` (section `## 11.`).
 - `.project-toolkit/architecture/ADR-071-plugin-hook-runtime-contract-verification.md`.

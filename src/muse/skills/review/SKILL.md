@@ -84,6 +84,8 @@ The skill body MUST NOT hard-fail when the `.claude/` path is missing; it MUST a
 
 ## Process
 
+Use `memory-search` for unclear constraints; verify them against the spec.
+
 Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICAL_FAIL`, or `UNKNOWN`) plus structured findings (severity, category, location, recommendation). The final merged verdict comes from `merge_verdicts` (resolve via the "Path resolution" section above). On Codex, call `spawn_agent` with `fork_turns` set to `none` so a child inherits no authoring turns.
 
 1. Read the diff with three-dot range syntax (`git diff "origin/$BASE_BRANCH"...HEAD`, where `BASE_BRANCH` is the detected base branch and the remote-tracking ref is used because the local base branch may not exist in fresh clones) so every evaluation step uses the same change set as the diff-scoped gates in step 5.

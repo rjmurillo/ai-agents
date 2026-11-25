@@ -2,7 +2,7 @@
 
 Issue #5828: the check ran only at pre-commit, so every route that skips local
 hooks reached main unchecked. These tests parse the YAML (never substring-match
-the file, per .claude/rules/testing.md MUST 9) and fail when the step is
+the file, per rule-testing.md MUST 9) and fail when the step is
 removed, renamed, moved out of ``validate-pr``, gated behind a condition, loses
 its base-ref fetch, or stops passing ``--changed-since`` and ``--ci``.
 """

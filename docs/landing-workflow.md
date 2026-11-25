@@ -29,7 +29,8 @@ PRs and 818 runs were cancelled. The protocol now updates only the front PR.
 ```text
 1. Select the front PR (highest priority or oldest green).
 2. Merge origin/main into the PR branch (or rebase).
-3. Wait for all 16 required status checks to pass.
+3. Wait for the required status checks to pass (`get_pr_checks.py --required-only --wait`).
+   Optional checks never hold this step.
 4. Arm squash auto-merge (or merge manually).
 5. After merge, verify main push workflows are green.
 6. Advance to the next PR. Repeat from step 2.

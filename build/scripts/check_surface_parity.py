@@ -42,6 +42,7 @@ Findings
 ``STALE``         a hand-maintained copy differs from its authority.
 ``EXTRA``         a copy has no authority file and the surface forbids extras.
 ``EXCLUSION-VIOLATED``  an ``authority_exclude`` name exists in the copy.
+``INCLUDE-UNKNOWN``     an ``include`` glob matches no file in the surface.
 ``DIVERGENT-INVALID``   a ``divergent`` entry is identical or has no authority.
 ``STALE-<relation>``    ``build_all.py --check`` left this path changed.
 ``WROTE-INDEPENDENT``   a generator changed an independent surface.
@@ -63,9 +64,9 @@ CLI::
     uv run python build/scripts/check_surface_parity.py
     uv run python build/scripts/check_surface_parity.py --format json
 
-The standalone CLI checks declarations, inventory, classification, and
-hand-maintained bytes only. It never runs a generator, so generated-output
-drift is caught by ``build_all.py --check`` and
+The standalone CLI checks declarations, inventory, classification, include
+globs, and hand-maintained bytes only. It never runs a generator, so
+generated-output drift is caught by ``build_all.py --check`` and
 ``agent-drift-detection.yml``, not here.
 
 ``build_all.py --check`` runs the same checks and also labels its stale-path
@@ -139,6 +140,25 @@ def _exclusion_findings(repo_root: Path, s: Surface) -> list[Finding]:
             findings.append(
                 Finding("EXCLUSION-VIOLATED", s.id, f"{s.path}/{name}", "must not ship here")
             )
+    return findings
+
+
+def check_includes(manifest: Manifest, files: Sequence[str]) -> list[Finding]:
+    """Every ``include`` glob must match at least one file under its surface.
+
+    ``matches`` treats ``include`` as a filter, so a glob naming a deleted file
+    never fails classification. This check reports it instead.
+    """
+    findings: list[Finding] = []
+    for s in manifest.surfaces:
+        if not s.include:
+            continue
+        rels = [PurePosixPath(r) for f in files if (r := rel_to(f, s.path))]
+        for glob in s.include:
+            if not any(r.full_match(glob) for r in rels):
+                findings.append(
+                    Finding("INCLUDE-UNKNOWN", s.id, join(s.path, glob), "include matches no file")
+                )
     return findings
 
 
@@ -394,6 +414,7 @@ def run_checks(
         *check_declarations(repo_root, manifest),
         *check_inventory(repo_root, manifest, owned_prefixes),
         *check_classification(manifest, files),
+        *check_includes(manifest, files),
         *check_hand_maintained(repo_root, manifest, files),
         *import_closure.check_import_closure(repo_root),
     ]

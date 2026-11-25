@@ -356,3 +356,4 @@ Read a reference only when its condition holds.
 - Add response templates in `references/templates.md`
 
 <!-- vendor-portability: declared. This skill cites a retrospective under .project-toolkit/retrospective/ and writes a comment map under .project-toolkit/pr-comments/PR-[N]/. The retrospective is a documentation citation; the pr-comments path is a write target created on demand for the consumer's review run. -->
+

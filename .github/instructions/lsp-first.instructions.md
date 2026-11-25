@@ -1,1 +1,0 @@
-../../src/copilot-cli/instructions/lsp-first.instructions.md

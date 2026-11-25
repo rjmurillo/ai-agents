@@ -33,11 +33,11 @@ workflow. Every GitHub branch now checks CI through `get_pr_checks.py`, and
 `TestGithubNeverRoutesToAdoValidator` pins that, with its own pre-fix control.
 
 Assertions parse the document into sections and bullets rather than substring-matching the
-whole file (`.claude/rules/testing.md` MUST 9): a bare `"pipeline-validator" in text` holds
+whole file (`rule-testing.md` MUST 9): a bare `"pipeline-validator" in text` holds
 when the name survives only in a prose reference and proves nothing about which branch
 invokes it. `TestPreFixControl` feeds the pre-fix ordering back through the same helpers, so
 every check here is shown to fail on the shape it was written against
-(`.claude/rules/testing.md` SHOULD 10).
+(`rule-testing.md` SHOULD 10).
 
 `templates/skills/ship.SKILL.md.tmpl` is the source; `src/copilot-cli/skills/ship/SKILL.md` is
 rendered from it by `build/scripts/build_all.py`, as is `.claude/skills/ship/SKILL.md`.
@@ -302,6 +302,67 @@ class TestCheckStatusWaitTimeout:
         validator = discharge.find("pipeline-validator")
         assert command != -1 and validator != -1
         assert command < validator
+
+
+def commands_waiting_on_all_checks(text: str) -> list[str]:
+    """Return each `get_pr_checks.py --wait` command that lacks `--required-only`.
+
+    Without `--required-only`, `--wait` polls every check, and an optional job
+    waiting on an environment approval never settles, so ship stalls. Reads
+    inline code spans (odd segments between backticks) and fenced-code lines.
+    """
+    spans = text.split("`")[1::2]
+    candidates = spans + text.splitlines()
+    return [
+        c
+        for c in candidates
+        if "get_pr_checks.py" in c and "--wait" in c and "--required-only" not in c
+    ]
+
+
+class TestWaitsOnRequiredChecksOnly:
+    """Ship waits on ruleset-required checks only; optional checks never hold it."""
+
+    def test_open_pr_bullet_waits_on_required_only(self, pipeline_item: str) -> None:
+        with_pr = [b for b in github_bullets(pipeline_item) if "`pr=#<number>`" in b]
+        assert len(with_pr) == 1
+        assert "get_pr_checks.py" in with_pr[0]
+        assert commands_waiting_on_all_checks(with_pr[0]) == []
+        assert 'RequiredState == "SUCCESS"' in with_pr[0]
+        assert "AllPassing" in with_pr[0]
+
+    def test_discharge_waits_on_required_only(self, ship_text: str) -> None:
+        discharge = numbered_item(section(ship_text, "Process"), "Discharge a deferred")
+        assert "get_pr_checks.py" in discharge
+        assert commands_waiting_on_all_checks(discharge) == []
+        assert 'RequiredState == "SUCCESS"' in discharge
+
+    def test_detector_flags_a_wait_on_every_check(self) -> None:
+        """Negative control: the plain --wait form that stalled must be caught."""
+        stalled = '`python3 "$S/pr/get_pr_checks.py" --pull-request 1 --wait --timeout-seconds 300`'
+        assert commands_waiting_on_all_checks(stalled) != []
+
+    def test_detector_ignores_a_read_without_wait(self) -> None:
+        assert commands_waiting_on_all_checks("`get_pr_checks.py --pull-request 1`") == []
+
+    def test_detector_reads_a_span_after_unquoted_prose(self) -> None:
+        """A bare mention before the span must not hide the real command."""
+        text = "Run get_pr_checks.py first. Then `get_pr_checks.py --pull-request 1 --wait`."
+        assert commands_waiting_on_all_checks(text) != []
+
+    @pytest.mark.parametrize(
+        "relative",
+        [
+            "src/claude/skills/github/references/patterns.md",
+            "src/claude/skills/github/references/examples.md",
+            "src/claude/skills/github/fix-ci.md",
+            "src/claude/skills/github/references/gate-script-usage.md",
+        ],
+    )
+    def test_github_examples_wait_on_required_only(self, relative: str) -> None:
+        text = (REPO_ROOT / relative).read_text(encoding="utf-8")
+        assert "get_pr_checks.py" in text
+        assert commands_waiting_on_all_checks(text) == []
 
 
 class TestProcessDischargesTheDeferral:

@@ -159,7 +159,8 @@ evidence (failing tests, widening diff), not on speculation.
 | Respond to PR review threads | Skill: pr-comment-responder |
 | Merge conflicts | Agent: merge-resolver |
 | Push, ship, "open a PR" | /ship (or /push-pr for push-only) |
-| "what do we know about X" | Skill: memory-search |
+| "what do we know about X", "recall prior context" | Skill: memory-search when installed, otherwise the `memory` skill's recall procedure |
+| "remember this", "retain a decision" | Skill: memory |
 | Research an unfamiliar topic | Skill: context-gather, then Skill: research (its claim gate composes ai-agents-external-claims before any durable write) |
 | Ask about Claude Code or Copilot CLI hook contracts | Skill: agent-harness-reference |
 | Port, implement, or change cross-harness hooks | Skill: agent-harness-reference, then /build (in the ai-agents repository: ai-agents-portability-campaign) |
@@ -318,8 +319,8 @@ A routed run is complete when every box checks:
 ## Extension Points
 
 - **New routing row.** When a new skill lands and requests start missing the
-  table, add one row (intent, route) here and mirror the change in the
-  CLAUDE.md Skill routing section until that section delegates here.
+  table, add one row (intent, route) here. The AGENTS.md `Routing` line
+  sends unnamed requests here and needs no mirror.
 - **Tier signals.** Size-tier signals may grow project-specific entries (for
   example, a change that touches the shared agent templates implies Standard or
   above because of mirror obligations).

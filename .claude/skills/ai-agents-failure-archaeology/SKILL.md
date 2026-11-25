@@ -125,7 +125,7 @@ When the tables above do not answer the question:
    Stop-hook skeletons; a later hand-written incident retro may supersede them
    (the customer-wedge retro explicitly supersedes three of them, `:452-458`).
 6. **Write what you find.** If you settle a new question, record it: a retro
-   per `.claude/rules/retros.md` (classify against FAILURE-MODES.md, evidence
+   per the `retrospective` skill's `references/rule-retros.md` (classify against FAILURE-MODES.md, evidence
    links mandatory), a decision memory for contracts, or both. Use the
    `retrospective` skill for the structured workflow and `chestertons-fence`
    when the question is "why does this existing thing exist".
@@ -200,6 +200,6 @@ Primary sources: the eight retros named in Phase 1;
 `copilot-hooks-observations.md`, `root-cause-governance-enforcement.md`,
 `root-cause-late-feedback.md`, `root-cause-scope-creep-tools.md`,
 `ci-infrastructure-observations.md` (reproduce-on-main rule);
-`.claude/rules/generated-artifacts.md`, `canonical-source-mirror.md`,
-`retros.md`. Update this skill when FAILURE-MODES.md gains a pattern or a new
+the repo-local `ai-agents-generation-and-release` skill's `references/rule-generated-artifacts.md`, `canonical-source-mirror.md`,
+the `retrospective` skill's `references/rule-retros.md`. Update this skill when FAILURE-MODES.md gains a pattern or a new
 incident retro of customer-wedge-class severity lands.

@@ -128,7 +128,7 @@
   },
   {
    "kind": "contains",
-   "path": "src/claude/rules/testing.md",
+   "path": "src/claude/skills/test/references/rule-testing.md",
    "text": "Pester version",
    "id": "R22"
   },

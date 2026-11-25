@@ -13,7 +13,7 @@ Before searching, re-read the topic and answer:
 3. **Scope Boundaries**: What is explicitly IN scope? What is OUT of scope?
 4. **Success Criteria**: What would make this analysis valuable?
 
-**Confidence Note**: Assume all 3 MCP servers are available (Claude-Mem, Serena, DeepWiki). Tool errors are rare and system will notify if unavailable.
+Record which sources are available and scoped to the project.
 
 ---
 
@@ -21,32 +21,12 @@ Before searching, re-read the topic and answer:
 
 Create an explicit search plan BEFORE executing queries:
 
-### Memory Systems Queries
+### Memory and Sources
 
-**Claude-Mem MCP** (timeline-based):
-
-```text
-# Step 1: Search for index
-mcp__plugin_claude-mem_mcp-search__search(query="[topic]")
-
-# Step 2: Get context around results
-mcp__plugin_claude-mem_mcp-search__timeline(anchor=[observation_id], depth_before=3, depth_after=3)
-
-# Step 3: Fetch full details
-mcp__plugin_claude-mem_mcp-search__get_observations(ids=[filtered_ids])
-```
-
-**Serena MCP** (project-specific):
-
-```python
-mcp__serena__list_memories()
-# Read any memories with names containing topic-related keywords
-mcp__serena__read_memory(memory_file_name="[relevant-name]")
-```
-
-**DeepWiki MCP** (documentation):
-
-- Query for framework or concept documentation relevant to topic
+Use `memory-search` or the `memory` skill's recall procedure for project
+records. Use an available timeline capability when sequence matters.
+Look up documentation when it helps verify a claim.
+Capture the record ID or path, date, and relevant excerpt.
 
 ### Project Artifacts
 
@@ -85,9 +65,9 @@ evidence than an absent one.
 |-------|----------|
 | Source system | Yes |
 | Direct quote | Yes |
-| Observation ID | Claude-Mem only. Serena memories are files and have no id. |
-| Memory file name | Serena only. It is the retrieval key, so it plays the id's role. |
-| Timestamp | Claude-Mem supplies it directly. For a Serena file, read the last commit date from git rather than guessing. |
+| Observation ID | Claude-Mem only. Repository memories are files and have no id. |
+| Memory file name | Repository memory files only. It is the retrieval key, so it plays the id's role. |
+| Timestamp | Claude-Mem supplies it directly. For a repository memory file, read the last commit date from git rather than guessing. |
 
 ### Thread 2: Project Artifacts
 
@@ -232,26 +212,12 @@ Analyze across categories with boundaries:
 
 ## Phase 5: Memory Updates
 
-After report completion, update systems:
-
-### Serena Update
-
-> Serena writes to the checkout active at server start, not your current
-> directory. In a linked git worktree, or when you cannot tell, do not call
-> Serena memory mutation tools. Make the same change to this checkout's
-> `.serena/memories/` files, or return it to the parent session
-> (`universal.md` MUST NOT 11, issue #5061).
-
-```text
-mcp__serena__write_memory(
-    memory_file_name="documentary-[topic]-[date]",
-    content="[Key findings summary]"
-)
-```
+Use the `memory` write procedure to retain a verified pattern that will help
+future work. Cite the report and the evidence behind the finding.
 
 ### Output File
 
-Save complete report to: `/home/richard/sessions/[topic]-documentary-[date].md`
+Save complete report to: `.project-toolkit/analysis/[topic]-documentary-[date].md`
 
 ---
 
@@ -270,4 +236,4 @@ Save complete report to: `/home/richard/sessions/[topic]-documentary-[date].md`
 - Timeline showing evolution over weeks/months
 - Specific recommendations with evidence backing
 
-<!-- vendor-portability: declared. This protocol greps .agents/ artifact dirs (retrospective, sessions, analysis, architecture) as documentary sources. In a vendored install without those dirs each grep returns empty for that source row; no step hard-fails on a missing dir. Issue #2050. -->
+<!-- vendor-portability: .project-toolkit/retrospective, .project-toolkit/sessions, .project-toolkit/analysis, and .project-toolkit/architecture are optional sources inside the consumer repository. The report goes in its analysis directory. -->

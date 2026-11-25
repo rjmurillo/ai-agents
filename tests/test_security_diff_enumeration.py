@@ -23,7 +23,7 @@ broken grant and would have blocked the correct fix.
 What replaces it: bare names, which are unscoped, with the read-only-git and
 report-path limits stated as prompt obligations on every surface. The documented
 enforcement mechanism is a subagent-scoped ``PreToolUse`` hook, which ADR-097
-and ``.claude/rules/tool-use-hook-bar.md`` gate behind an ADR review. Until that
+and ``rule-tool-use-hook-bar.md`` gate behind an ADR review. Until that
 review lands, no surface may present the limits as a toolset property.
 
 Each production assertion runs through a helper the negative-control classes

@@ -118,3 +118,35 @@ new reference path so they do not dangle.
 All three roles accept or disagree-and-commit after the fixes above. No P0 or
 P1 blockers remain. ADR-088 stays proposed, and ADR-061 needs only the citation
 repoint.
+
+## Round 4 Amendment Review (2026-11-24, context-diet staging)
+
+### Scope
+
+ADR-088 gains an `## Amendment 2026-11-24 (context-diet staging)` section on
+branch `feat/context-diet-staging` (PR #7541). `templates/rules/code-quality.md`
+moves into `build/references/rule-code-quality.md`, `unified-software-engineering.md`
+remains the always-on code-files baseline, and
+`scripts/validation/instruction_budget_constants.py` lowers `.py` (86,000 to
+66,000 B), `.cs` and `.ps1` (86,000 to 60,000 B), `F1` (276,000 to 235,000 B),
+and `F2` (220,000 to 210,000 B). Reduced panel (`architect`, `critic`) per
+`adr-review` protocol: the amendment updates progressive-disclosure placement
+and ratchets existing byte ceilings downward without changing enforcement hooks.
+
+### Agent Positions
+
+| Agent | Position | Notes |
+|---|---|---|
+| architect | Accept | Verified all byte measurements (`instruction_budget.py`, `instruction_bytes.py`), ratchet tests (47 pass), rule deletion and 5 harness copies of `build/references/rule-code-quality.md`, `src/claude/skills/build/SKILL.md` pointer, Hermes exclusion, and all 8 scenario paths. P1: state eval limits (one repeat, one judge, target-only routing) and source of scores. P2: clarify 0.6 floor vs `MIN_ACTIVATION_SCORE = 3.5`, name the eight references inline, note tight `.py` headroom. |
+| critic | Disagree-and-Commit | Verified all byte measurements, 91 budget/ratchet/floor tests, rule move, Hermes 397/400 pack count, and 8 scenarios. Zero P0 blockers. P1: state `n=4` and that raw eval JSON is not committed; explicitly answer ADR-088's always-on criterion for `code-quality`. P2: note tight headroom as a known ratchet cost. |
+
+### Key Issues Addressed
+
+- Architect & Critic P1 (eval provenance and limits): amendment now explicitly cites the PR #7541 2026-11-24 eval table (noting raw run JSON is not committed), `n=4` scenarios in `code-quality.json`, one repeat, one judge per call, target-only routing, and `MIN_ACTIVATION_SCORE = 3.5` alongside PR #7541's 0.6 keep floor.
+- Critic P1 (always-on criterion): amendment now explains directly why `code-quality` no longer needs always-on loading (4.44 base matches 4.44 full, so losing passive load carries no measured baseline regression).
+- Architect & Critic P2: named all eight context-diet references inline (`ci-scripts`, `code-quality`, `csharp`, `efficiency`, `generated-artifacts`, `lossless-queue-reads`, `lsp-first`, `powershell`) and recorded the tight ratchet headroom (`.py` 3,745 B, `.cs`/`.ps1` 4,144 B) as an intentional cost.
+- Post-review alignment (`/review` Round 3): restored frontmatter `date` and `README.md` row to the original decision date `2026-07-27` (matching `## Date` and ADR-062), and updated the Hermes delivery pack count from 397 to 398 of 400 files as of 2026-11-24 after merging `origin/main` (`#7540`).
+
+### Convergence
+
+Both roles accept or disagree-and-commit (2/2, reduced panel). Zero P0 blockers remain. ADR-088 stays `proposed`.

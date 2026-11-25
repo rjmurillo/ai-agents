@@ -1,7 +1,7 @@
 ---
 name: retrospective
 version: 0.1.0
-description: Extract learnings from a session or task through structured retrospective frameworks. Gathers evidence, runs Five Whys and fishbone diagnosis, scores atomicity, and writes a canonical retrospective artifact. Use to turn execution experience into institutional knowledge. Use when you say "run a retrospective", "retro fill", "list pending retros", or "extract learnings from this session". Do NOT use for in-conversation correction capture (use the reflect skill).
+description: Extract learnings from a session or task through structured retrospective frameworks. Gathers evidence, runs Five Whys and fishbone diagnosis, scores atomicity, and writes a canonical retrospective artifact. Use to turn execution experience into institutional knowledge. Use when you say "run a retrospective", "retro fill", "list pending retros", or "extract learnings from this session". Also use when creating or editing a retrospective or docs/retros file (filename, failure-mode class, evidence, remediation), or deciding whether a retro is owed after a red main, revert, or user correction. Do NOT use for in-conversation correction capture (use the reflect skill).
 license: Apache-2.0
 argument-hint: "[fill <YYYY-MM-DD> | list | <scope>]"
 user-invocable: true
@@ -84,6 +84,8 @@ raw source for that detail and read the matching lines with their context.
 
 ---
 
+Folded rule: before you create or edit a retrospective file, or decide whether a retro is owed, read [retros](references/rule-retros.md).
+
 ## Process
 
 The workflow is six sequential phases. Phase 0 gathers facts. Phases 1 and 2 interpret them.
@@ -164,7 +166,7 @@ banner.
 
 Persist learnings to memory and evaluate the retrospective itself.
 
-- Persist learnings with atomicity at or above 70 percent to Serena memory (ADR-037). Search
+- Persist learnings with atomicity at or above 70 percent to repository memory with the `memory` skill (ADR-126). Search
   for existing patterns before creating new entries to avoid duplicates: see
   [diagnosis-and-actions.md, Memory Protocol](references/diagnosis-and-actions.md#memory-protocol).
 - Close with **+/Delta**, **ROTI**, and **Helped, Hindered, Hypothesis**: see

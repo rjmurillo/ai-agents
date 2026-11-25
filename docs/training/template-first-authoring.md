@@ -36,7 +36,7 @@ You work on a throwaway branch and delete it at the end. Nothing here ships.
 3. See what a hand edit does. Edit a rendered rule, then check.
 
    ```bash
-   echo "- hand edit" >> src/claude/rules/lossless-queue-reads.md
+   echo "- hand edit" >> src/claude/rules/universal.md
    uv run python build/scripts/build_all.py --check
    echo "exit=$?"
    ```
@@ -44,17 +44,17 @@ You work on a throwaway branch and delete it at the end. Nothing here ships.
    You should see `exit=2` and these lines (trimmed; the real output repeats the first line):
 
    ```text
-   DRIFT: src/claude/rules/lossless-queue-reads.md differs from its template (templates/rules/lossless-queue-reads.md)
+   DRIFT: src/claude/rules/universal.md differs from its template (templates/rules/universal.md)
    STALENESS DETECTED: uncommitted regen drift:
-     src/claude/rules/lossless-queue-reads.md
+     src/claude/rules/universal.md
    SURFACE PARITY VIOLATION:
-     STALE-generated: [rules-claude-plugin] src/claude/rules/lossless-queue-reads.md (authority templates/rules; regenerate via build/scripts/rule_templates.py; gate build_all.py --check)
+     STALE-generated: [rules-claude-plugin] src/claude/rules/universal.md (authority templates/rules; regenerate via build/scripts/rule_templates.py; gate build_all.py --check)
    ```
 
    The output names the template that owns the file. Undo your edit.
 
    ```bash
-   git checkout -- src/claude/rules/lossless-queue-reads.md
+   git checkout -- src/claude/rules/universal.md
    ```
 
 4. Add a rule. A rule lives in `templates/rules/<name>.md`. Its front matter holds a `paths:` list of globs, and the rule loads only when you work on a matching file.

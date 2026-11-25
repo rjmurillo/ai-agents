@@ -669,7 +669,7 @@ the 7 to 15 minute pre-push hook. Five concurrent pushes to five distinct
 branches costs 5 x 15 = 75 minutes instead of 15.
 
 Use the canonical per-branch lock, keyed on the exact branch name. The path is
-fixed by `.claude/rules/push-lock.md` and `scripts/validation/check_push_lock_paths.py`
+fixed by `.claude/skills/push-pr/references/rule-push-lock.md` and `scripts/validation/check_push_lock_paths.py`
 blocks any other spelling:
 
 ```bash

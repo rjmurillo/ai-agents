@@ -335,3 +335,6 @@ attention, not your compliance.
   reading the same wrong assumption produce two findings, not two proofs.
 - **Resolving a thread with prose.** A verdict without a command, a file and
   line, or a measurement is an opinion. Close the thread with the evidence.
+
+
+Never treat a partial page of review threads, comments, or notifications as the full set.

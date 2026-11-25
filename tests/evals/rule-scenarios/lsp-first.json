@@ -1,5 +1,6 @@
 {
-  "rule_path": ".claude/rules/lsp-first.md",
+  "skill_path": ".claude/skills/using-serena-symbols/SKILL.md",
+  "reference_path": ".claude/skills/using-serena-symbols/references/rule-lsp-first.md",
   "rule_id": "lsp-first",
   "scenarios": [
     {

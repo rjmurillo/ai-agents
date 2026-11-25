@@ -508,7 +508,7 @@ Six classes. Five name a gate that exists. One is open work.
 | C3 invariant preservation | Asserts invariants 6 and 8 survive the transform | **Missing.** M2 |
 | C4 generated drift | `build/scripts/validate_install_parity.py`, `build/scripts/check_agent_content_parity.py`, `build/scripts/detect_agent_drift.py` | Exists; the third is advisory |
 | C5 capability-profile provenance | `scripts/eval/_harness_capability.py` fail-closed contract, plus the refresh rules in `.claude/skills/agent-harness-reference/SKILL.md` | Exists |
-| C6 negative controls | `.claude/rules/generated-artifacts.md` MUST 2, requiring a runtime-contract test with a negative control and a gate over the committed artifact | Exists as policy; per-class fixtures are M2 |
+| C6 negative controls | The former `generated-artifacts` rule (now at `.claude/skills/ai-agents-generation-and-release/references/rule-generated-artifacts.md`) MUST 2, requiring a runtime-contract test with a negative control and a gate over the committed artifact | Exists as policy; per-class fixtures are M2 |
 
 This record ships one artifact: `tests/validation/test_adr107_conformance_gates.py`. It parses the
 table above, asserts the class-id set is exactly C1 through C6, and asserts every row either cites
@@ -749,6 +749,6 @@ Issue states below were read with `gh issue view` on 2026-09-09 (`repo-observed`
 - Issue #3465 (closed, completed, 2026-07-28), markdown portability ratchet coverage. Cited here
   only to correct the first revision, which treated it as open.
 - `.agents/governance/GENERATOR-FILES.md`, the generator register.
-- `.claude/rules/generated-artifacts.md`, `.claude/rules/canonical-source-mirror.md`,
+- The former `generated-artifacts` rule (now at `.claude/skills/ai-agents-generation-and-release/references/rule-generated-artifacts.md`), `.claude/rules/canonical-source-mirror.md`,
   `.claude/rules/templates.md`, `.claude/rules/claude-agents.md`,
   `.claude/rules/plugin-self-containment.md`.
