@@ -1,5 +1,7 @@
 # Coupling Types and Intentional Coupling
 
+<!-- doc-accuracy: external-sdk dotnet -- C# examples use the .NET base class library, not this repository -->
+
 ## Four Types of Coupling
 
 ### Identity Coupling
@@ -7,9 +9,14 @@ One type coupled to the fact another exists.
 
 **Example**: Class A references Class B by name.
 ```csharp
+using System;
+
+public sealed record Order(string Id);
+
 public class OrderProcessor
 {
-    public void Process(Order order) { ... }  // Coupled to Order's existence
+    // This service forwards the order without reading its fields.
+    public void Process(Order order, Action<Order> submit) => submit(order);
 }
 ```
 
@@ -20,12 +27,25 @@ One type coupled to the interface of another.
 
 **Example**: Class A depends on Class B's public methods/properties.
 ```csharp
+using System;
+
+public sealed record Order(decimal UnitPrice, int Quantity)
+{
+    public void Validate()
+    {
+        if (UnitPrice < 0m || Quantity <= 0)
+            throw new ArgumentException("An order needs a positive quantity and a nonnegative price.");
+    }
+
+    public decimal CalculateTotal() => UnitPrice * Quantity;
+}
+
 public class OrderProcessor
 {
-    public void Process(Order order)
+    public decimal Process(Order order)
     {
         order.Validate();      // Coupled to Validate() method
-        order.CalculateTotal(); // Coupled to CalculateTotal() method
+        return order.CalculateTotal(); // Coupled to CalculateTotal() method
     }
 }
 ```
@@ -37,10 +57,18 @@ Subtypes coupled to superclass changes.
 
 **Example**: Derived class breaks when base class changes.
 ```csharp
-public class DiscountedOrder : Order
+public class Order(decimal unitPrice, int quantity)
 {
-    // Coupled to Order's protected/public members
-    // Changes to Order's internals affect DiscountedOrder
+    protected decimal UnitPrice { get; } = unitPrice;
+    protected int Quantity { get; } = quantity;
+
+    public virtual decimal CalculateTotal() => UnitPrice * Quantity;
+}
+
+public sealed class DiscountedOrder(decimal unitPrice, int quantity) : Order(unitPrice, quantity)
+{
+    // Depends on the inherited pricing fields and their units.
+    public override decimal CalculateTotal() => UnitPrice * Quantity * 0.9m;
 }
 ```
 
@@ -51,21 +79,34 @@ Coupling to a specific subclass rather than abstraction.
 
 **Example**: Code depends on concrete implementation.
 ```csharp
-public class ShoppingCart
+using System;
+
+public interface IPayment
 {
-    public void Checkout(CreditCardPayment payment)  // Bad: coupled to subclass
+    string Process(decimal amount);
+}
+
+public sealed class CreditCardPayment(string cardToken, Func<string, decimal, string> chargeCard) : IPayment
+{
+    public string ProcessCreditCard(decimal amount)
     {
-        payment.ProcessCreditCard();
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(amount);
+        return chargeCard(cardToken, amount);
     }
+
+    public string Process(decimal amount) => ProcessCreditCard(amount);
+}
+
+public class CardOnlyShoppingCart
+{
+    // Coupled to a concrete card processor.
+    public string Checkout(CreditCardPayment payment, decimal total) => payment.ProcessCreditCard(total);
 }
 
 // Better:
 public class ShoppingCart
 {
-    public void Checkout(IPayment payment)  // Good: coupled to abstraction
-    {
-        payment.Process();
-    }
+    public string Checkout(IPayment payment, decimal total) => payment.Process(total);
 }
 ```
 

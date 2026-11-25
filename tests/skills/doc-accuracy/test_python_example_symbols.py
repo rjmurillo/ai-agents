@@ -65,6 +65,11 @@ def _flagged(code: str, lang: str = "python") -> set[str]:
         "from datetime import UTC as Utc\nx = Utc\n",
         "from datetime import (UTC as Utc,\n    datetime as DT)\nx = DT\n",
         'x = "Prose Widget\ny = 1\n',
+        "class EmailValidator:\n    pass\nEmailValidator()",
+        "    class EmailValidator:\n        pass\n    EmailValidator()",
+        'class EmailValidator:\n    """Example-local type."""\n',
+        "def LocalFactory():\n    return 1\nLocalFactory()",
+        "async def LocalFactory():\n    return 1\n",
     ],
 )
 def test_python_prose_builtins_and_stdlib_imports_not_flagged(code: str) -> None:
@@ -79,6 +84,15 @@ def test_python_prose_builtins_and_stdlib_imports_not_flagged(code: str) -> None
         ("from mypkg.core import FooBarService\n", "python", {"FooBarService"}),
         ("var s = new MissingThing();", "csharp", {"MissingThing"}),
         ("throw new ImportError();", "csharp", {"ImportError"}),
+        ("class EmailValidator(MissingBase):\n    pass", "python", {"MissingBase"}),
+        ("class Outer:\n    class Inner:\n        pass\nInner()", "python", {"Inner"}),
+        (
+            "from missing_package import EmailValidator\nclass EmailValidator:\n    pass",
+            "python",
+            {"EmailValidator"},
+        ),
+        ("class EmailValidator:\n    pass\nMissingWidget()", "python", {"MissingWidget"}),
+        ("class EmailValidator:\n", "python", {"EmailValidator"}),
     ],
 )
 def test_real_undefined_symbols_still_flagged(code: str, lang: str, expected: set[str]) -> None:
@@ -126,12 +140,12 @@ def test_fallback_blanks_single_line_strings_and_comments() -> None:
 
 
 def test_other_languages_keep_agnostic_extraction() -> None:
-    ids = mod._extract_identifiers('let s = "Hook ADR"; // UTC', "typescript")
+    ids = mod._extract_identifiers('s := "Hook ADR" // UTC', "go")
     assert {"Hook", "ADR", "UTC"} <= set(ids)
     assert mod._extract_identifiers('"""Hook"""') == ["Hook"]
 
 
-def test_csharp_blanks_strings_but_keeps_comments() -> None:
-    ids = set(mod._extract_identifiers('var s = "Hook ADR"; // UTC', "csharp"))
-    assert not {"Hook", "ADR"} & ids
-    assert "UTC" in ids
+def test_csharp_blanks_strings_and_comments() -> None:
+    ids = set(mod._extract_identifiers('var s = "Hook ADR"; // UTC\nClock.Now();', "csharp"))
+    assert not {"Hook", "ADR", "UTC"} & ids
+    assert "Clock" in ids

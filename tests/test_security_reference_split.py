@@ -19,7 +19,12 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+from tests.agent_reference_helpers import (
+    REPO_ROOT,
+    read_reference_text,
+    reference_loading_section,
+)
+
 REFERENCE_DIR = REPO_ROOT / "src" / "claude" / "skills" / "security-scan" / "references"
 LOADING_HEADING = "## Reference Loading"
 SHARED_PATH_FORM = (
@@ -30,20 +35,21 @@ COPILOT_PATH_FORM = "${COPILOT_PLUGIN_ROOT}/skills/security-scan/references/"
 UNRESOLVED_RULE = "apply the rules in this file and state that the reference was unavailable"
 
 SECURITY_PATHS = (
-    Path("templates/agents/security.shared.md"),
-    Path("src/claude/agents/security.md"),
-    Path(".claude/agents/security.md"),
-    Path(".github/agents/security.agent.md"),
-    Path("src/copilot-cli/agents/security.agent.md"),
-    Path("src/vs-code-agents/security.agent.md"),
+    "templates/agents/security.shared.md",
+    "src/claude/agents/security.md",
+    ".claude/agents/security.md",
+    ".github/agents/security.agent.md",
+    "src/copilot-cli/agents/security.agent.md",
+    "src/vs-code-agents/security.agent.md",
 )
 
 
-def _expected_path_form(path: Path) -> str:
+def _expected_path_form(path: str) -> str:
     """Claude Code and Cursor get the bare Claude root, Copilot CLI its own, the rest both."""
-    if path.parts[:2] in {(".claude", "agents"), ("src", "claude"), ("src", "cursor")}:
+    parts = Path(path).parts
+    if parts[:2] in {(".claude", "agents"), ("src", "claude"), ("src", "cursor")}:
         return CLAUDE_PATH_FORM
-    if ".github" in path.parts or "copilot-cli" in path.parts:
+    if ".github" in parts or "copilot-cli" in parts:
         return COPILOT_PATH_FORM
     return SHARED_PATH_FORM
 
@@ -67,20 +73,12 @@ RETIRED_COPIES = (
 )
 
 
-def _text(path: Path) -> str:
-    return " ".join((REPO_ROOT / path).read_text(encoding="utf-8").split())
-
-
-def _loading_section(path: Path) -> str:
-    text = _text(path)
-    assert text.count(LOADING_HEADING) == 1, f"{path} must carry {LOADING_HEADING!r} once"
-    rest = text[text.index(LOADING_HEADING) + len(LOADING_HEADING) :]
-    boundary = rest.find(" ## ")
-    return rest if boundary == -1 else rest[:boundary]
+def _loading_section(path: str) -> str:
+    return reference_loading_section(read_reference_text(path), path, LOADING_HEADING)
 
 
 @pytest.mark.parametrize("path", SECURITY_PATHS, ids=str)
-def test_reference_loading_names_every_reference_with_a_condition(path: Path) -> None:
+def test_reference_loading_names_every_reference_with_a_condition(path: str) -> None:
     section = _loading_section(path)
     expected_form = _expected_path_form(path)
 
@@ -91,7 +89,7 @@ def test_reference_loading_names_every_reference_with_a_condition(path: Path) ->
 
 
 @pytest.mark.parametrize("path", SECURITY_PATHS, ids=str)
-def test_harness_without_a_skill_tree_has_a_fallback_rule(path: Path) -> None:
+def test_harness_without_a_skill_tree_has_a_fallback_rule(path: str) -> None:
     assert UNRESOLVED_RULE in _loading_section(path), f"{path} has no unresolved-path rule"
 
 
@@ -104,8 +102,8 @@ def test_reference_exists_in_the_security_scan_skill(name: str) -> None:
 
 
 @pytest.mark.parametrize("path", SECURITY_PATHS, ids=str)
-def test_moved_blocks_keep_a_stub_that_names_the_reference(path: Path) -> None:
-    text = _text(path)
+def test_moved_blocks_keep_a_stub_that_names_the_reference(path: str) -> None:
+    text = read_reference_text(path)
 
     for name in (
         "security-cwe-catalog.md",
@@ -125,9 +123,9 @@ def _stub_after(text: str, heading: str) -> str:
 
 
 @pytest.mark.parametrize("path", SECURITY_PATHS, ids=str)
-def test_cwe_stub_keeps_the_high_priority_cwe_numbers(path: Path) -> None:
+def test_cwe_stub_keeps_the_high_priority_cwe_numbers(path: str) -> None:
     """The stub works alone on a harness with no skill tree."""
-    stub = _stub_after(_text(path), "#### CWE-699 Categories and High-Priority CWEs")
+    stub = _stub_after(read_reference_text(path), "#### CWE-699 Categories and High-Priority CWEs")
 
     for token in (
         "(CWE-22, 23, 36, 73, 77, 78, 89, 91, 94, 95, 99)",
@@ -139,9 +137,9 @@ def test_cwe_stub_keeps_the_high_priority_cwe_numbers(path: Path) -> None:
 
 
 @pytest.mark.parametrize("path", SECURITY_PATHS, ids=str)
-def test_cwe_stub_keeps_every_agentic_id_with_its_cwe(path: Path) -> None:
+def test_cwe_stub_keeps_every_agentic_id_with_its_cwe(path: str) -> None:
     """The BLOCKED trigger names ASI boundary violations, so the ids need definitions inline."""
-    stub = _stub_after(_text(path), "#### CWE-699 Categories and High-Priority CWEs")
+    stub = _stub_after(read_reference_text(path), "#### CWE-699 Categories and High-Priority CWEs")
 
     for token in (
         "ASI01 Agent Goal Hijack (CWE-94)",
@@ -159,8 +157,8 @@ def test_cwe_stub_keeps_every_agentic_id_with_its_cwe(path: Path) -> None:
 
 
 @pytest.mark.parametrize("path", SECURITY_PATHS, ids=str)
-def test_impact_analysis_stub_names_every_section_without_the_reference(path: Path) -> None:
-    stub = _stub_after(_text(path), "#### Impact Analysis Deliverable")
+def test_impact_analysis_stub_names_every_section_without_the_reference(path: str) -> None:
+    stub = _stub_after(read_reference_text(path), "#### Impact Analysis Deliverable")
 
     assert "If it is unavailable, write a document titled" in stub, path
     for section in (
@@ -175,9 +173,9 @@ def test_impact_analysis_stub_names_every_section_without_the_reference(path: Pa
 
 
 @pytest.mark.parametrize("path", SECURITY_PATHS, ids=str)
-def test_piv_fallback_names_the_three_checks_and_the_ci_environment(path: Path) -> None:
+def test_piv_fallback_names_the_three_checks_and_the_ci_environment(path: str) -> None:
     """With no reference loaded the request still names exact checks, not "the block"."""
-    text = _text(path)
+    text = read_reference_text(path)
     start = text.index("CI Environment Security Testing (request, do not run)")
     section = text[start : text.index("4. **PIV Report Template**", start)]
 

@@ -2,21 +2,29 @@
 
 Each repository has one memory store: `.serena/memories` when that folder
 exists, else `.project-toolkit/memory/notes`. This module sits beside
-search_memory.py because a shipped script may import only the standard library,
-a declared dependency, its tree's lib/, or a module beside it (import-closure
-gate, issue #7221), and `memory_core` is none of those. The router keeps its
-own copy in `memory_core/memory_store.py` and the `memory_enhancement` package
-keeps a third; the test_memory_root_parity tests hold all three together.
+search_memory.py and imports the shared store rule from
+`memory_core.memory_store` via the skill-root `sys.path` bootstrap accepted
+by the import-closure gate (issue #7221). The `memory_enhancement` package
+keeps its own copy for repo hooks; the test_memory_root_parity tests hold both
+together.
 """
 
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 from typing import NamedTuple
 
-STORE_DIRS = (Path(".serena", "memories"), Path(".project-toolkit", "memory", "notes"))
-_ROOT_MARKER_DIRS = (Path(".serena", "memories"), Path(".project-toolkit", "memory"))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from memory_core.memory_store import (
+    STORE_DIRS,
+    contained_stores,
+    find_memory_root,
+    project_start,
+)
+
 EPISODES_REL = Path(".project-toolkit", "memory", "episodes")
 
 
@@ -28,35 +36,6 @@ class Stores(NamedTuple):
     episodes: Path | None
     notes: Path | None
     shadowed_notes: Path | None
-
-
-def find_memory_root(start: Path) -> Path | None:
-    """Return the nearest ancestor holding `.git` or a memory folder."""
-    for parent in (start, *start.parents):
-        if (parent / ".git").exists() or any((parent / m).is_dir() for m in _ROOT_MARKER_DIRS):
-            return parent
-    return None
-
-
-def contained_stores(root: Path) -> dict[Path, Path]:
-    """Map each store folder that exists inside `root` to its resolved path.
-
-    A folder that resolves outside `root`, or to `root` itself, is dropped.
-    """
-    stores: dict[Path, Path] = {}
-    for relative in STORE_DIRS:
-        candidate = root / relative
-        if candidate.is_dir():
-            resolved = candidate.resolve()
-            if resolved != root and resolved.is_relative_to(root):
-                stores[relative] = resolved
-    return stores
-
-
-def project_start() -> Path:
-    """Start from the host's project directory, else the current directory."""
-    project_dir = os.environ.get("CLAUDE_PROJECT_DIR")
-    return Path(project_dir) if project_dir else Path.cwd()
 
 
 def _project_root() -> Path:

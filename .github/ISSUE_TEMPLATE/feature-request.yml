@@ -1,0 +1,53 @@
+name: Feature request
+description: Propose an improvement with a concrete use case and acceptance criteria.
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search existing issues before proposing a feature.
+        Describe the problem before choosing an implementation.
+        Do not include secrets, personal data, or private prompts.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and affected users
+      description: Explain the task users cannot complete and the current workaround.
+    validations:
+      required: true
+  - type: input
+    id: component
+    attributes:
+      label: Affected component
+      description: Name the relevant agent, skill, hook, tool, or host.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the desired experience with a concrete example.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Explain existing options and why they do not meet the need.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List observable outcomes that would prove the feature works.
+      placeholder: |
+        - Given..., when..., then...
+        - Existing behavior remains...
+    validations:
+      required: true
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility and rollout
+      description: Note affected hosts, breaking changes, privacy concerns, or rollout needs.

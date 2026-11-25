@@ -2675,6 +2675,22 @@ def test_commit_message_policy_handles_clean_dirty_and_missing(tmp_path: Path) -
     assert policy.check_commit_message(tmp_path / "missing") == 0
 
 
+@pytest.mark.parametrize(
+    ("filename", "expected"),
+    [(".jscpd.json", 0), (".jscpd-baseline.json", 0), (".jscpd-report.json", 1)],
+)
+def test_root_hygiene_cli_accepts_only_permanent_duplication_files(
+    tmp_path: Path, filename: str, expected: int
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "README.md", "tracked\n")
+    _write_lf(repo / filename, "{}\n")
+    _git(repo, "add", filename)
+
+    assert policy.main(["--repo-root", str(repo), "root-hygiene", filename]) == expected
+
+
 def test_root_hygiene_allowlist_matches_current_tracked_root(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

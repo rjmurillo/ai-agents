@@ -1,11 +1,12 @@
-"""Bootstrap helper for Claude Code hook scripts.
+"""Bootstrap helpers for plugin hooks and skill scripts.
 
 This module provides setup_hook_lib_path() which locates the plugin's lib
 directory and adds it to sys.path. Designed to be called with __file__ to
 bootstrap hook imports.
 
-DO NOT use this helper to replace the inline bootstrap in `.claude/hooks/`
-hooks or in skill scripts governed by ADR-047. Those files MUST keep the
+DO NOT use setup_hook_lib_path() to replace the ADR-047 inline bootstrap.
+Only `council.py` and `sol_loop.py` may replace it with load_skill_paths().
+Other hooks and skill scripts keep the
 inline `os.environ.get("CLAUDE_PLUGIN_ROOT")` + `os.path.isdir(_lib_dir)`
 literals (this module also reads `COPILOT_PLUGIN_ROOT`, which the Copilot CLI
 exports): `tests/test_plugin_path_resolution.py` grep-asserts them, and the
@@ -27,10 +28,36 @@ need the lib path without auto-setup.
 
 from __future__ import annotations
 
+import importlib.util
 import inspect
 import os
 import sys
 from pathlib import Path
+from types import ModuleType
+
+
+def load_skill_paths(own_lib: Path, script: str) -> ModuleType:
+    """Load paths.py from the first harness root or own lib that has it.
+
+    Then put the script's own directory first on sys.path for sibling imports.
+    """
+    roots = (os.environ.get("COPILOT_PLUGIN_ROOT"), os.environ.get("CLAUDE_PLUGIN_ROOT"))
+    candidates = [Path(root) / "lib" for root in roots if root]
+    candidates.append(own_lib)
+    found = [lib / "paths.py" for lib in candidates if (lib / "paths.py").is_file()]
+    if not found:
+        raise RuntimeError(f"paths.py not found in any of: {', '.join(map(str, candidates))}")
+    paths_file = found[0].resolve()
+    spec = importlib.util.spec_from_file_location("_skill_paths", paths_file)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load skill paths from {paths_file}")
+    paths = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(paths)
+    script_dir = str(Path(script).resolve().parent)
+    if script_dir in sys.path:
+        sys.path.remove(script_dir)
+    sys.path.insert(0, script_dir)
+    return paths
 
 
 def _plugin_root_from_env() -> str | None:
