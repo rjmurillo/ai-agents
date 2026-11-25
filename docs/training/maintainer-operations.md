@@ -56,10 +56,8 @@ The plugin CLI smoke used to be the one exception. The owner made it advisory on
 
    ```text
      - path: ".github/workflows/ai-spec-validation.yml"
-     - path: ".github/workflows/ai-spec-review.yml"
      - path: ".github/workflows/slash-command-quality.yml"
      - path: ".github/workflows/post-pr-retrospective.yml"
-     - path: ".github/workflows/software-engineering-library-activation.yml"
      - path: ".github/workflows/claude.yml"
      - path: ".github/workflows/plugin-cli-smoke.yml"
    ```
