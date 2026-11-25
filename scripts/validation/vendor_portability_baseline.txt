@@ -76,7 +76,7 @@ src/claude/skills/taste-lints/scripts/taste_lints.py
 # allocates and checks. ADR-127 decision 3 item 6 bars reading an environment
 # variable that changes a target, so the AI_AGENTS_ARTIFACT_ROOT override in
 # paths.py does not apply. Added for issue #7583 on 2026-11-25.
-src/claude/skills/ship/scripts/_ship_common.py
+src/claude/skills/ship/scripts/_ship_paths.py
 
 # ship_pr_checks.py names the consumer repository's scripts/validation/pr_description.py
 # as a blob on its base branch. It reads the blob with git show origin/<base>:<path>

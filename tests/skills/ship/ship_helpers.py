@@ -69,6 +69,33 @@ def run_pr(scripts, capsys, *argv):
     return invoke(scripts[3], list(argv), capsys)
 
 
+def publish(scripts, capsys, body: Path, *extra: str):
+    """Run ``ship_pr.py publish`` with the hand-checked paths flag and the test title."""
+    return run_pr(
+        scripts,
+        capsys,
+        "publish",
+        "--paths-checked-by-hand",
+        "--title",
+        TITLE,
+        "--body-file",
+        str(body),
+        *extra,
+    )
+
+
+def fail_push(monkeypatch, common, stderr: str) -> None:
+    """Make every ``git push`` fail with ``stderr``; other git calls run for real."""
+    real_git = common.git
+
+    def failing(args, cwd=None, timeout=60):
+        if args[:1] == ["push"]:
+            return common.Completed(128, "", stderr)
+        return real_git(args, cwd=cwd, timeout=timeout)
+
+    monkeypatch.setattr(common, "git", failing)
+
+
 def ado_created(description: str = "## Summary") -> dict:
     return {
         "stdout": json.dumps(

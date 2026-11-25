@@ -20,13 +20,13 @@ loads this file by absolute path, leaving ``sys.path`` alone.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import re
 import subprocess
 import sys
-import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, NoReturn
@@ -55,22 +55,10 @@ _ERROR_TYPES = {
 }
 
 OUTPUT_FORMATS = ("json", "human", "auto")
-SCRATCH_REL = Path(".project-toolkit") / "scratch"
 VERSION = "1.0.0"
 
 _CONTROL_RE = re.compile("[\x00-\x1f\x7f\x85  ]")
 _REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$")
-# ADR-127 decision 3 item 4: a remote URL must match an allowed scheme list.
-# git also accepts transports such as ext::, file://, and git://; none of
-# them is a GitHub or Azure DevOps remote, so they are refused.
-ALLOWED_URL_SCHEMES = frozenset({"https", "ssh"})
-_URL_HOST_RE = re.compile(r"^([A-Za-z][A-Za-z0-9+.-]*)://(?:[^/@]*@)?([^/:\s]+)")
-_SCP_HOST_RE = re.compile(r"^(?:[^@/:\s]+@)?([^/:\s]+):(?![/:])\S")
-# One or more DNS labels: letters, digits, inner dashes. No empty label,
-# no trailing dot, no bracket literal, at least two characters in all.
-_LABEL = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
-_PLAIN_HOST_RE = re.compile(rf"^(?=.{{2,253}}$){_LABEL}(?:\.{_LABEL})*$")
-_ADO_HOSTS = frozenset({"dev.azure.com", "ssh.dev.azure.com"})
 
 
 # A token ends only at ASCII whitespace. Unicode spaces and control
@@ -101,6 +89,32 @@ def _strip_userinfo(text: str) -> str:
         out.append(text[start:token_start])
         out.append(token[token.rfind("@") + 1 :])
         start = token_end
+
+
+def _load_sibling(
+    name: str,
+):  # pragma: no cover - runs only in a fresh interpreter; see test_ship_edges.py::test_script_runs_under_isolated_mode
+    if name in sys.modules:
+        return sys.modules[name]
+    path = Path(__file__).resolve().with_name(f"{name}.py")
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+_remote = _load_sibling("_ship_remote")
+_paths = _load_sibling("_ship_paths")
+SCRATCH_REL = _paths.SCRATCH_REL
+scratch_dir = _paths.scratch_dir
+write_private = _paths.write_private
+confine_body_file = _paths.confine_body_file
+ALLOWED_URL_SCHEMES = _remote.ALLOWED_URL_SCHEMES
+remote_host = _remote.remote_host
+classify_host = _remote.classify_host
 
 
 def clean(value: object) -> str:
@@ -157,20 +171,47 @@ def peek_format(argv: list[str]) -> str:
     return resolve_format("auto")
 
 
-@dataclass
 class Result:
-    """The ordered result lines and one terminal line of a script run."""
+    """The ordered result lines and one terminal line of a script run.
 
-    script: str
-    reasons: frozenset[str]
-    lines: list[tuple[str, str]] = field(default_factory=list)
-    terminal: tuple[str, str] | None = None
-    exit_code: int = EXIT_OK
+    State changes only through ``add``, ``next``, and ``stop``; the
+    properties are read-only, so no caller can forge a terminal line or
+    rewrite a recorded value.
+    """
+
+    __slots__ = ("_script", "_reasons", "_lines", "_terminal", "_exit_code")
+
+    def __init__(self, script: str, reasons: frozenset[str]) -> None:
+        self._script = script
+        self._reasons = frozenset(reasons)
+        self._lines: list[tuple[str, str]] = []
+        self._terminal: tuple[str, str] | None = None
+        self._exit_code = EXIT_OK
+
+    @property
+    def script(self) -> str:
+        return self._script
+
+    @property
+    def reasons(self) -> frozenset[str]:
+        return self._reasons
+
+    @property
+    def lines(self) -> tuple[tuple[str, str], ...]:
+        return tuple(self._lines)
+
+    @property
+    def terminal(self) -> tuple[str, str] | None:
+        return self._terminal
+
+    @property
+    def exit_code(self) -> int:
+        return self._exit_code
 
     def add(self, key: str, value: object) -> Result:
         if not KEY_RE.match(key) or key in ("NEXT", "STOP"):
             raise ValueError(f"invalid result key: {key!r}")
-        self.lines.append((key, clean(value)))
+        self._lines.append((key, clean(value)))
         return self
 
     def next(self, act: str) -> Result:
@@ -180,7 +221,7 @@ class Result:
         return self
 
     def stop(self, reason: str, code: int, detail: object = "") -> Result:
-        if reason not in self.reasons or not TOKEN_RE.match(reason):
+        if reason not in self._reasons or not TOKEN_RE.match(reason):
             raise ValueError(f"undeclared STOP reason: {reason!r}")
         if code not in _STOP_CODES:
             raise ValueError(f"STOP needs an exit code 1 to 4, got {code}")
@@ -195,10 +236,10 @@ class Result:
         return self.terminal is not None and self.terminal[0] == "STOP"
 
     def _set_terminal(self, terminal: tuple[str, str], code: int) -> None:
-        if self.terminal is not None:
+        if self._terminal is not None:
             raise ValueError("terminal line already set")
-        self.terminal = terminal
-        self.exit_code = code
+        self._terminal = terminal
+        self._exit_code = code
 
 
 def _line_size(line: str) -> int:
@@ -241,57 +282,6 @@ def write_detail_file(body: list[str], repo_root: Path | None) -> str:
     if path is None:
         return "unavailable"
     return path.relative_to(repo_root.resolve()).as_posix()
-
-
-def scratch_dir(root: Path, create: bool = False) -> Path | None:
-    """Return the real scratch directory under ``root``, or None when it is unsafe.
-
-    Each component (``.project-toolkit`` and ``scratch``) must be a real
-    directory, not a symlink, and the result must resolve under the real
-    repository root. A symlinked component could point the confinement anchor
-    anywhere on disk, so it is refused rather than followed.
-    """
-    try:
-        real_root = root.resolve(strict=True)
-    except (OSError, RuntimeError):
-        return None
-    current = real_root
-    for part in SCRATCH_REL.parts:
-        current = current / part
-        if current.is_symlink():
-            return None
-        if not current.exists():
-            if not create:
-                return None
-            try:
-                current.mkdir(mode=0o700)
-            except OSError:
-                return None
-        if not current.is_dir():
-            return None
-    try:
-        resolved = current.resolve(strict=True)
-    except (OSError, RuntimeError):
-        return None
-    if resolved != real_root / SCRATCH_REL:
-        return None
-    return resolved
-
-
-def write_private(root: Path, prefix: str, suffix: str, text: str) -> Path | None:
-    """Write ``text`` to a new owner-only file in the scratch directory."""
-    directory = scratch_dir(root, create=True)
-    if directory is None:
-        return None
-    path = directory / f"{prefix}-{uuid.uuid4().hex}{suffix}"
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
-    try:
-        descriptor = os.open(path, flags, 0o600)
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            handle.write(text)
-    except OSError:
-        return None
-    return path
 
 
 def _format(result: Result, lines: list[tuple[str, str]], output_format: str) -> str:
@@ -439,65 +429,6 @@ def safe_ref(value: str) -> bool:
     if ".." in value or "//" in value or value.endswith(("/", ".lock", ".")):
         return False
     return "@{" not in value
-
-
-def remote_host(url: str) -> str | None:
-    """Return the lowercase host of a git remote URL, or None when it is not allowed.
-
-    Allowed forms: ``https://`` and ``ssh://`` URLs, and the scp-like
-    ``[user@]host:path`` form. A local path, another scheme, and a transport
-    such as ``ext::`` all return None.
-    """
-    url = url.strip()
-    if "://" in url:
-        match = _URL_HOST_RE.match(url)
-        if match is None or match.group(1).lower() not in ALLOWED_URL_SCHEMES:
-            return None
-        return _plain_host(match.group(2).lower())
-    if url.startswith(("/", ".", "~")):
-        return None
-    match = _SCP_HOST_RE.match(url)
-    if match is None:
-        return None
-    return _plain_host(match.group(1).lower())
-
-
-def _plain_host(host: str) -> str | None:
-    """Return ``host`` when it is a plain DNS-style name, else None.
-
-    A host is at least two characters, starts with a letter or digit, and
-    holds only letters, digits, dots, and dashes. That refuses a Windows
-    drive path (C:\\repo), an ssh option (-oX=y:z), and a bracket literal.
-    """
-    if _PLAIN_HOST_RE.match(host) is None:
-        return None
-    return host
-
-
-def classify_host(host: str) -> str:
-    """Map a parsed host to ``ado`` or ``github``. Matches the host, not a substring."""
-    if host in _ADO_HOSTS or host.endswith(".visualstudio.com"):
-        return "ado"
-    return "github"
-
-
-def confine_body_file(raw: str, root: Path) -> Path | None:
-    """Return the resolved body file when it is a regular file in the scratch dir."""
-    if not raw or raw.startswith("-") or raw.startswith("@"):
-        return None
-    candidate = Path(raw)
-    if not candidate.is_absolute():
-        candidate = root / candidate
-    scratch = scratch_dir(root)
-    if scratch is None:
-        return None
-    try:
-        resolved = candidate.resolve(strict=True)
-    except (OSError, RuntimeError):
-        return None
-    if scratch not in resolved.parents or not resolved.is_file():
-        return None
-    return resolved
 
 
 def skill_script(skill: str, *parts: str) -> Path:
