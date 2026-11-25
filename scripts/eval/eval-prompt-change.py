@@ -68,7 +68,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, NamedTuple
 
 from _anthropic_api import (
     DEFAULT_MODEL,
@@ -118,16 +118,33 @@ OPTIONAL_SCENARIO_FIELDS = {"expected_reason_contains", "rationale", "verdict_op
 DEFAULT_FALLBACK_VERDICT = "OTHER"
 
 
+def read_scenarios_file(path: str) -> bytes:
+    """The raw bytes of the scenario file, read once.
+
+    Raises RuntimeError when the file is missing.
+    """
+    try:
+        return Path(path).read_bytes()
+    except FileNotFoundError as exc:
+        raise RuntimeError(f"Scenario file not found: {path}") from exc
+
+
 def load_scenarios(path: str) -> list[dict[str, Any]]:
     """Load and validate scenario file.
 
     Raises RuntimeError with actionable message on invalid input.
     """
+    return parse_scenarios(read_scenarios_file(path), path)
+
+
+def parse_scenarios(raw: bytes, path: str) -> list[dict[str, Any]]:
+    """Validate scenario file bytes already read from *path*.
+
+    Decodes as strict UTF-8, as `open(path, encoding="utf-8")` did. The caller
+    hashes the same bytes, so the identity names the file this run judged.
+    """
     try:
-        with open(path, encoding="utf-8") as f:
-            data = json.load(f)
-    except FileNotFoundError as exc:
-        raise RuntimeError(f"Scenario file not found: {path}") from exc
+        data = json.loads(raw.decode("utf-8"))
     except json.JSONDecodeError as exc:
         raise RuntimeError(
             f"Invalid JSON in scenario file {path}: {exc.msg} at line {exc.lineno}. "
@@ -1019,22 +1036,30 @@ def _parse_args() -> argparse.Namespace:
     return args
 
 
-def _load_prompts(args: argparse.Namespace) -> tuple[str, str, str]:
-    """Load before/after prompt text and return (before_text, after_text, source)."""
+def _load_prompts(args: argparse.Namespace, base_commit: str | None = None) -> tuple[str, str, str]:
+    """Load before/after prompt text and return (before_text, after_text, source).
+
+    The before side reads from *base_commit* when given, so it is the commit
+    the identity records. Without one it reads `--base-ref` by name.
+    """
     has_explicit = args.before and args.after
     if has_explicit:
         before_text = load_prompt_from_file(args.before)
         after_text = load_prompt_from_file(args.after)
         source = f"explicit: {args.before} -> {args.after}"
     else:
-        before_path, before_text = _load_before_across_rename(args)
+        before_path, before_text = _load_before_across_rename(args, base_commit)
         after_text = load_prompt_surface_from_file(args.prompt)
         source = f"git: {args.base_ref}:{before_path} -> working copy"
     return before_text, after_text, source
 
 
-def _load_before_across_rename(args: argparse.Namespace) -> tuple[str, str]:
+def _load_before_across_rename(
+    args: argparse.Namespace, base_commit: str | None = None
+) -> tuple[str, str]:
     """Return (path_used, text) for the 'before' side, following a rename.
+
+    Reads at *base_commit* when given, else at `--base-ref`.
 
     A prompt that moved in the change under test does not exist at the base ref
     under its new path, and `git show <ref>:<new>` fails rather than returning
@@ -1049,8 +1074,9 @@ def _load_before_across_rename(args: argparse.Namespace) -> tuple[str, str]:
 
     Refs ADR-064 (issue #5632), which renames every lifecycle prompt.
     """
+    ref = base_commit or args.base_ref
     try:
-        return args.prompt, load_prompt_surface_from_ref(args.prompt, args.base_ref)
+        return args.prompt, load_prompt_surface_from_ref(args.prompt, ref)
     except RuntimeError:
         if not getattr(args, "renamed_from", None):
             raise
@@ -1059,7 +1085,7 @@ def _load_before_across_rename(args: argparse.Namespace) -> tuple[str, str]:
             f"reading the 'before' side from {args.renamed_from}",
             file=sys.stderr,
         )
-        return args.renamed_from, load_prompt_surface_from_ref(args.renamed_from, args.base_ref)
+        return args.renamed_from, load_prompt_surface_from_ref(args.renamed_from, ref)
 
 
 def _sha256_hex(data: bytes) -> str:
@@ -1084,32 +1110,54 @@ def resolve_base_commit(ref: str) -> str | None:
     return sha if result.returncode == 0 and re.fullmatch(r"[0-9a-f]{40}", sha) else None
 
 
-def run_identity(args: argparse.Namespace, after_text: str) -> dict[str, Any]:
+class PinnedInputs(NamedTuple):
+    """Inputs the run read once, before the model preflight.
+
+    `base_commit` is the commit `--base-ref` named when the before text was
+    read. `scenarios_sha256` hashes the scenario bytes the run loaded. A later
+    fetch or edit cannot change either, so the identity names what was judged.
+    None means no such input: never guessed, so the evidence check fails closed.
+    """
+
+    scenarios_sha256: str | None = None
+    base_commit: str | None = None
+
+
+def pin_inputs(args: argparse.Namespace, scenarios_data: bytes | None) -> PinnedInputs:
+    """Resolve `--base-ref` once and hash the scenario bytes already read.
+
+    `base_commit` is None in `--before/--after` mode, where no base commit
+    exists, and when git cannot resolve the ref.
+    """
+    prompt = getattr(args, "prompt", None)
+    base_ref = getattr(args, "base_ref", None)
+    return PinnedInputs(
+        scenarios_sha256=None if scenarios_data is None else _sha256_hex(scenarios_data),
+        base_commit=resolve_base_commit(base_ref) if prompt and base_ref else None,
+    )
+
+
+def run_identity(
+    args: argparse.Namespace, after_text: str, pinned: PinnedInputs | None = None
+) -> dict[str, Any]:
     """Identities ADR-127 decision 9 requires in every `--output` file.
 
     `prompt_surface_sha256` hashes the exact after-side text the model read:
     the rendered prompt plus every `references/*.md` beside it, joined as
-    `load_prompt_surface_from_file` joins them. `base_commit` is the commit
-    `--base-ref` named at the run, or None in `--before/--after` mode, where
-    no base commit exists. A missing value is recorded as None, never guessed,
-    so the evidence check can fail closed on it.
+    `load_prompt_surface_from_file` joins them. `base_commit` and
+    `scenarios_sha256` come from *pinned* and are never re-read here. Without
+    *pinned* both are None, so the evidence check can fail closed on them.
     """
     prompt = getattr(args, "prompt", None)
-    scenarios = getattr(args, "scenarios", None)
-    scenarios_sha = None
-    if scenarios:
-        try:
-            scenarios_sha = _sha256_hex(Path(scenarios).read_bytes())
-        except OSError:
-            scenarios_sha = None
     base_ref = getattr(args, "base_ref", None)
+    pinned = pinned or PinnedInputs()
     return {
         "prompt_path": prompt,
         "prompt_surface_sha256": _sha256_hex(after_text.encode("utf-8")),
-        "scenarios_path": scenarios,
-        "scenarios_sha256": scenarios_sha,
+        "scenarios_path": getattr(args, "scenarios", None),
+        "scenarios_sha256": pinned.scenarios_sha256,
         "base_ref": base_ref if prompt else None,
-        "base_commit": resolve_base_commit(base_ref) if prompt and base_ref else None,
+        "base_commit": pinned.base_commit,
         "model": args.model,
     }
 
@@ -1121,6 +1169,7 @@ def _run_and_report(
     scenarios: list[dict[str, Any]],
     args: argparse.Namespace,
     source: str,
+    pinned: PinnedInputs | None = None,
 ) -> None:
     """Run comparison, apply gate, and output results."""
     print(f"\n{'=' * 60}", file=sys.stderr)
@@ -1128,10 +1177,9 @@ def _run_and_report(
     print(msg, file=sys.stderr)
     print(f"{'=' * 60}", file=sys.stderr)
 
-    # Resolved before the model calls start, so a fetch during a long run
-    # cannot move the recorded base. The before side was read from the same
-    # ref moments earlier, in `_load_prompts`.
-    identity = run_identity(args, after_text)
+    # `pinned` was resolved in `main` before the before side was read, so a
+    # fetch during the preflight or the run cannot move the recorded base.
+    identity = run_identity(args, after_text, pinned)
     comparison = run_comparison(
         api_key,
         before_text,
@@ -1292,9 +1340,10 @@ def _run_or_exit(
     scenarios: list[dict[str, Any]],
     args: argparse.Namespace,
     source: str,
+    pinned: PinnedInputs | None = None,
 ) -> None:
     try:
-        _run_and_report(api_key, before_text, after_text, scenarios, args, source)
+        _run_and_report(api_key, before_text, after_text, scenarios, args, source, pinned)
     except MalformedProviderMetadataError:
         raise
     except RuntimeError as error:
@@ -1328,10 +1377,15 @@ def main() -> None:
         sys.exit(2)
 
     try:
-        scenarios = load_scenarios(args.scenarios)
+        scenarios_data = read_scenarios_file(args.scenarios)
+        scenarios = parse_scenarios(scenarios_data, args.scenarios)
     except RuntimeError as e:
         print(f"ERROR: {e}", file=sys.stderr)
         sys.exit(2)
+
+    # Before any base blob is read: the identity records this commit, and the
+    # before text is read from it, not from a ref name that can move.
+    pinned = pin_inputs(args, scenarios_data)
 
     print(f"  Scenarios: {len(scenarios)} loaded from {args.scenarios}", file=sys.stderr)
     print(f"  Runs per scenario: {args.runs}", file=sys.stderr)
@@ -1339,7 +1393,7 @@ def main() -> None:
     print(f"  Model: {args.model}", file=sys.stderr)
 
     try:
-        before_text, after_text, source = _load_prompts(args)
+        before_text, after_text, source = _load_prompts(args, pinned.base_commit)
     except RuntimeError as e:
         print(f"ERROR: {e}", file=sys.stderr)
         sys.exit(2)
@@ -1385,7 +1439,7 @@ def main() -> None:
         print(f"ERROR: {e}", file=sys.stderr)
         sys.exit(2)
 
-    _run_or_exit(api_key, before_text, after_text, scenarios, args, source)
+    _run_or_exit(api_key, before_text, after_text, scenarios, args, source, pinned)
 
 
 if __name__ == "__main__":  # pragma: no cover
