@@ -27,7 +27,9 @@ def _bootstrap_name_pattern() -> re.Pattern[str]:
             assert isinstance(call, ast.Call) and isinstance(call.args[0], ast.Constant)
             flags = ast.unparse(call.args[1])
             assert flags == "re.IGNORECASE | re.ASCII", flags
-            return re.compile(call.args[0].value, re.IGNORECASE | re.ASCII)
+            pattern = call.args[0].value
+            assert isinstance(pattern, str)
+            return re.compile(pattern, re.IGNORECASE | re.ASCII)
     raise AssertionError("skill-bootstrap adr_locate.py has no _ADR_NAME")
 
 

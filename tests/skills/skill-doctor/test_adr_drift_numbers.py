@@ -117,7 +117,7 @@ def test_a_name_too_long_for_the_os_is_read_as_missing(tmp_path, capsys, monkeyp
     def exists(self: Path, **kwargs: object) -> bool:
         if long in str(self):
             raise OSError(errno.ENAMETOOLONG, "File name too long")
-        return real(self)
+        return bool(real(self))
 
     monkeypatch.setattr(Path, "exists", exists)
 
