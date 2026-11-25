@@ -193,10 +193,6 @@ class Result:
         return self._script
 
     @property
-    def reasons(self) -> frozenset[str]:
-        return self._reasons
-
-    @property
     def lines(self) -> tuple[tuple[str, str], ...]:
         return tuple(self._lines)
 
