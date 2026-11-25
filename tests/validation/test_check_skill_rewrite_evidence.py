@@ -20,6 +20,7 @@ from tests.validation.skill_rewrite_helpers import (
     commit,
     driver_change,
     git,
+    on_main,
     repo,
     results,
     run,
@@ -30,6 +31,19 @@ from tests.validation.skill_rewrite_helpers import (
 __all__ = ["repo"]
 
 import skill_rewrite_skills as skills
+
+
+def _base_results(
+    repo: Path,
+    name: str,
+    table: dict[str, tuple[str, str]] | None = None,
+    **over: Any,
+) -> None:
+    """Commit a results file for the head surface on main, then rebuild feature."""
+    write(repo, SKILL, skill_md("driver", body="\n".join(MOVED)))
+    text = results(repo, table, **over)
+    git(repo, "checkout", "--", SKILL)
+    on_main(repo, {f"{EVID}/{name}": text}, "base evidence")
 
 
 class TestNotGated:
@@ -242,6 +256,39 @@ class TestEvidence:
         assert code == 1
         assert "run-1.json: recomputed gate is FAIL" in out
         assert "run-2.json" not in out
+
+    def test_base_run_from_an_earlier_suite_is_not_the_first_run(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A base file for the same prompt but another scenario file must not decide."""
+        _base_results(repo, "run-0.json", scenarios_sha256="1" * 64)
+        driver_change(repo)
+        write(repo, f"{EVID}/run-1.json", results(repo))
+        commit(repo, "run for the new suite")
+        code, out = run(repo, capsys)
+        assert code == 0, out
+
+    def test_failed_base_run_for_this_suite_still_sets_the_verdict(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        _base_results(repo, "run-0.json", verdict="FAIL", table={"S1": ("PPP", "FFF")})
+        driver_change(repo)
+        write(repo, f"{EVID}/run-1.json", results(repo))
+        commit(repo, "later pass")
+        code, out = run(repo, capsys)
+        assert code == 1
+        assert "run-0.json: recomputed gate is FAIL" in out
+        assert "run-1.json" not in out
+
+    def test_prompt_match_without_a_suite_match_reports_the_mismatch(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        driver_change(repo)
+        write(repo, f"{EVID}/run-1.json", results(repo, scenarios_sha256="2" * 64))
+        commit(repo, "run for another suite")
+        code, out = run(repo, capsys)
+        assert code == 1
+        assert f"run-1.json: identity.scenarios_sha256 is '{'2' * 64}'" in out
 
     def test_retired_file_is_not_a_results_file(
         self, repo: Path, capsys: pytest.CaptureFixture[str]

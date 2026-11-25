@@ -40,9 +40,13 @@ For a gated skill the check requires, and fails closed without:
 - results files that are append-only on the branch: an edit or delete of
   one fails (item 9);
 - a results file recording the head prompt-surface sha256. The first one
-  committed sets the verdict (one already on the base ref counts as first)
-  and must match the other identities: prompt path, scenario path and
-  sha256, a base commit that is an ancestor of the base ref, and a model;
+  committed among those that also record the head scenario-file sha256 sets
+  the verdict (one already on the base ref counts as first), so a base file
+  for an earlier suite of the same prompt cannot decide it. When none record
+  the head scenario sha256, the first for the prompt surface decides and fails
+  on that identity. The deciding file must match the other identities: prompt
+  path, scenario path and sha256, a base commit that is an ancestor of the
+  base ref, and a model;
 - a merge-base scenario file that parses, when one exists;
 - the verdict recomputed from the per-run labels, plus the decision 7
   floors (``skill_rewrite_evidence.verify_results``);
@@ -190,9 +194,9 @@ def _load_results(ctx: Context, results_dir: str) -> tuple[dict[str, Any], list[
     return parsed, problems
 
 
-def _surface_sha(result: object) -> object:
+def _identity_value(result: object, key: str) -> object:
     identity = result.get("identity") if isinstance(result, dict) else None
-    return identity.get("prompt_surface_sha256") if isinstance(identity, dict) else None
+    return identity.get(key) if isinstance(identity, dict) else None
 
 
 def verify_skill(ctx: Context, name: str, head: SkillSide) -> list[str]:
@@ -207,7 +211,10 @@ def verify_skill(ctx: Context, name: str, head: SkillSide) -> list[str]:
     if problems:
         return problems
     head_sha = hashlib.sha256(head.surface.encode("utf-8")).hexdigest()
-    matching = [p for p, r in parsed.items() if _surface_sha(r) == head_sha]
+    scenarios_sha = hashlib.sha256(scen.data).hexdigest()
+    matching = [
+        p for p, r in parsed.items() if _identity_value(r, "prompt_surface_sha256") == head_sha
+    ]
     if not matching:
         return [
             f"no results file under {results_dir} records the HEAD prompt surface sha256 {head_sha}"
@@ -215,13 +222,18 @@ def verify_skill(ctx: Context, name: str, head: SkillSide) -> list[str]:
     added, history = _results_history(ctx, results_dir)
     if history:
         return history
-    order = {p: added.get(p, -1) for p in matching}
+    # A file for an earlier suite of the same prompt must not decide the first run.
+    # With no file for this suite, fall back so verify_results names the mismatch.
+    this_suite = [
+        p for p in matching if _identity_value(parsed[p], "scenarios_sha256") == scenarios_sha
+    ]
+    order = {p: added.get(p, -1) for p in this_suite or matching}
     first = min(order.values())
     expected = Expected(
         prompt_path=str(head.skill_md_path),
         prompt_surface_sha256=head_sha,
         scenarios_path=scen.path,
-        scenarios_sha256=hashlib.sha256(scen.data).hexdigest(),
+        scenarios_sha256=scenarios_sha,
         scenarios=tuple(scen.rows),
     )
     for path in sorted(p for p, i in order.items() if i == first):
