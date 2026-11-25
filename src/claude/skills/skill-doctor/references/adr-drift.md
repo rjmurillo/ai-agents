@@ -62,8 +62,9 @@ the ADR files in the working tree. It uses no network: git runs with
 `GIT_NO_LAZY_FETCH=1`, and a partial clone on a git older than 2.45.1 (or its
 May 2024 backports) exits 2, since that git could fetch. History runs without
 rename detection, so git never reads a blob and a blobless clone scans like a
-full one; a rename reads as a delete plus an add. A treeless clone
-(`--filter=tree:0`) exits 2, since history needs its trees. `--out` must be outside
+full one; a rename reads as a delete plus an add. A clone whose filter can
+drop trees (`tree:`, `object:type=`, or a `combine:` filter with either) exits 2,
+since history needs its trees. `--out` must be outside
 the repository, and the file is written whole or not at all. It needs git 2.31
 or later, for `git log --diff-merges=first-parent`. Older git fails with exit 3.
 A result larger than 5,000,000 bytes exits 2 and writes nothing, because the

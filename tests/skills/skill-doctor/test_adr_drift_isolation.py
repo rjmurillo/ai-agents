@@ -102,13 +102,14 @@ def test_a_partial_clone_fetches_nothing(tmp_path, capsys):
     assert json.loads(out.read_text(encoding="utf-8"))["examined"] == 2
 
 
-def test_a_treeless_clone_exits_2_with_its_reason(tmp_path, capsys):
+@pytest.mark.parametrize("spec", ["tree:0", "combine:blob:none+tree:0"])
+def test_a_treeless_clone_exits_2_with_its_reason(tmp_path, capsys, spec):
     source = seeded_repo(tmp_path / "source", {adr_path(1): adr_body(1)})
     commit(source, {"x.txt": "1"}, "chore: second")
     git(source, "config", "uploadpack.allowFilter", "true")
     clone = tmp_path / "clone"
     subprocess.run(
-        ["git", "clone", "-q", "--no-checkout", "--filter=tree:0", source.as_uri(), str(clone)],
+        ["git", "clone", "-q", "--no-checkout", f"--filter={spec}", source.as_uri(), str(clone)],
         check=True,
         env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
     )
@@ -119,7 +120,7 @@ def test_a_treeless_clone_exits_2_with_its_reason(tmp_path, capsys):
 
     code, _, err = run_cli(capsys, "scan", "--repo", str(clone), "--out", str(out))
 
-    assert code == 2 and "treeless" in err and not out.exists()
+    assert code == 2 and "can omit the trees" in err and not out.exists()
     assert _missing_objects(clone) == before
 
 
@@ -200,10 +201,30 @@ def test_the_cited_path_fix_leads_with_the_current_path(tmp_path, capsys):
     ],
     ids=["blobless", "treeless"],
 )
-def test_only_a_treeless_filter_is_refused_on_a_new_git(monkeypatch, tmp_path, config, refused):
+def test_only_a_tree_dropping_filter_is_refused_on_a_new_git(
+    monkeypatch, tmp_path, config, refused
+):
     replies = {"config": config, "version": "git version 2.55.0\n"}
     monkeypatch.setattr(adr_git, "run_git", lambda repo, args: replies[args[0]])
 
     refusal = adr_git.partial_clone_refusal(tmp_path)
 
-    assert (refusal is not None and "treeless" in refusal) is refused
+    assert (refusal is not None and "can omit the trees" in refusal) is refused
+
+
+@pytest.mark.parametrize(
+    ("spec", "keeps"),
+    [
+        ("blob:none", True),
+        ("blob:limit=1k", True),
+        ("sparse:oid=abc123", True),
+        ("combine:blob:none+blob:limit=1", True),
+        ("tree:0", False),
+        ("tree:1", False),
+        ("object:type=commit", False),
+        ("combine:blob:none+tree:0", False),
+        ("combine:blob:none+tree%3A0", False),
+    ],
+)
+def test_keeps_trees_reads_every_part_of_a_filter(spec, keeps):
+    assert adr_git.keeps_trees(spec) is keeps

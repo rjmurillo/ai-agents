@@ -10,6 +10,7 @@ import re
 import subprocess
 from collections.abc import Sequence
 from pathlib import Path
+from urllib.parse import unquote
 
 GIT_TIMEOUT_SECONDS = 120
 # The variables `git rev-parse --local-env-vars` lists, plus the namespace and discovery
@@ -79,7 +80,8 @@ def _git_env() -> dict[str, str]:
     """No repository redirection, no prompt, no lock writes, and no replacement objects."""
     env = {key: value for key, value in os.environ.items() if key not in LOCAL_GIT_ENV}
     env.update(GIT_OPTIONAL_LOCKS="0", GIT_TERMINAL_PROMPT="0", GIT_NO_REPLACE_OBJECTS="1")
-    # A partial clone would fetch a missing blob for `git log -M`; this stops it.
+    # Defense in depth: history reads no blob today, and this stops any lazy fetch of a
+    # missing object from a promisor remote if a later command would need one.
     env["GIT_NO_LAZY_FETCH"] = "1"
     return env
 
@@ -127,15 +129,24 @@ def old_git_refusal(repo: Path) -> str | None:
     )
 
 
+def keeps_trees(spec: str) -> bool:
+    """True when a filter spec omits only blobs: `blob:` and `sparse:` parts, also inside a
+    `combine:` spec. Any other part (`tree:`, `object:type=`) can drop trees."""
+    parts = spec.removeprefix("combine:").split("+") if spec.startswith("combine:") else [spec]
+    return all(unquote(part).startswith(("blob:", "sparse:")) for part in parts)
+
+
 def partial_clone_refusal(repo: Path) -> str | None:
-    """Why a scan must not run here, or None. A blobless clone scans: history reads only
-    trees. A treeless clone lacks those trees, and an old git might fetch them."""
+    """Why a scan must not run here, or None. A clone that omits only blobs scans: history
+    reads only trees. A filter that can drop trees is refused, and so is any partial clone
+    on an old git, which might fetch."""
     filters = partial_filters(repo)
     if filters is None:
         return None
-    if any(f.startswith("tree:") for f in filters):
+    dropping = [spec for spec in filters if not keeps_trees(spec)]
+    if dropping:
         return (
-            "this is a treeless partial clone, and the history read needs the trees it lacks;"
-            " scan a full or blobless clone"
+            f"this partial clone's filter ({dropping[0]}) can omit the trees the history read"
+            " needs; scan a full or blobless clone"
         )
     return old_git_refusal(repo)
