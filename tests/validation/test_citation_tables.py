@@ -118,6 +118,16 @@ def _rows(text: str) -> list[bool]:
             id="deeper-quote-line-in-quoted-fence",
         ),
         pytest.param(
+            "- item\n\n  ```\n  code\n> | a |\n> |---|\n> | x |",
+            [False] * 4 + [True] * 3,
+            id="dedent-closes-list-fence-into-quoted-table",
+        ),
+        pytest.param(
+            "- item\n\n  <!--\n  note\n> | a |\n> |---|\n> | x |",
+            [False] * 4 + [True] * 3,
+            id="dedent-closes-list-comment-into-quoted-table",
+        ),
+        pytest.param(
             "<!--\nx\n--!>\nA | B\n--- | ---\nx | y",
             [False] * 6,
             id="bang-close-does-not-end-a-comment",

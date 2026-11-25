@@ -10,6 +10,13 @@ Known limits: a list item nests at most `_MAX_MARKERS` markers on one line, and
 a blockquote inside a list item (or the reverse) ends the inner container at
 the quote-depth change. A table indented four or more columns past its
 container reads as an indented code block, so it is not detected.
+
+GFM reads a lazy continuation line (an unindented line that continues a list
+or quote paragraph) as part of that paragraph. This module reads it as a new
+line outside the container. A header that follows other paragraph lines, and a
+body row indented four or more columns, can also differ from cmark-gfm. Over
+all tracked Markdown files the table counts agree with cmark-gfm. Over
+synthetic documents of up to five block-start lines they do not always agree.
 """
 
 from __future__ import annotations
@@ -137,6 +144,12 @@ def _expand_leading_tabs(body: str) -> str:
     return prefix.expandtabs(4) + body[len(prefix) :] if "\t" in prefix else body
 
 
+def _split_line(line: str, limit: int | None = None) -> tuple[int, str]:
+    """Return a line's quote depth and its content with leading tabs expanded."""
+    depth, body = _quote_split(line, limit)
+    return depth, _expand_leading_tabs(body)
+
+
 def _table_cells(body: str) -> list[str] | None:
     """Split a table-shaped body into cells, or return None without a pipe."""
     text = body.strip()
@@ -215,13 +228,18 @@ class _Scanner:
 
     def unit(self, line: str) -> _Unit | None:
         """Return a line as a table candidate, or None when it ends any table."""
-        depth, body = _quote_split(line, self._raw.depth if self._raw else None)
-        body = _expand_leading_tabs(body)
+        raw = self._raw
+        depth, body = _split_line(line, raw.depth if raw else None)
         blank = not body.strip()
         self._leave_items(depth, body, blank)
-        if self._raw and self._in_raw(depth, body, blank):
+        if raw and self._in_raw(depth, body, blank):
             self._prev_key = None
             return None
+        if raw:
+            # The raw block ended on this line, so its quote cap no longer applies.
+            depth, body = _split_line(line)
+            blank = not body.strip()
+            self._leave_items(depth, body, blank)
         inner = body if blank else self._enter_items(body, depth)
         key = (depth, self._owner())
         if not inner.strip() or self._starts_block(inner, depth, key):
