@@ -39,7 +39,7 @@ script for the ledger (DESIGN-021's deliberate choice).
       #5420/#5421, #5436, #5241, and redundant hooks/review-axes/
       validators/workflows/mirrors the baseline surfaces.
 - [ ] TASK-029-AC2: The duplicate-gate row is present, classified `KEEP`.
-      Citations: `pre_pr_sequence.py:858-869`, `lefthook.yml:714`, and
+      Citations: `pre_pr_sequence.py:858-869`, `lefthook.yml:728`, and
       `test_pre_pr_sequence_registry.py:192-319`.
 - [ ] TASK-029-AC3: Every `KEEP` row's five required fields are non-empty
       (spot-checked at PR review, per DESIGN-021).

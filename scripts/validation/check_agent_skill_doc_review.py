@@ -14,16 +14,21 @@ skill or agent whose page already exists counts as changed too. Sources:
 - ``src/claude/skills/<name>/SKILL.md`` or ``.claude/skills/<name>/SKILL.md``
 - ``templates/skills/<name>.SKILL.md.tmpl``
 - ``templates/agents/<name>.shared.md`` and its host templates
-- ``src/claude/agents/<name>.md``, the rendered agent, so an edit to a shared
-  agent partial counts for every agent it renders into
+- ``src/claude/agents/<name>.md`` and ``src/copilot-cli/agents/<name>.agent.md``,
+  the rendered agents, so an edit to a shared or host-only agent partial
+  counts for every agent it renders into
 
-A changed source passes when either holds:
+A changed source passes when either holds, and the review is not older than
+the source's latest change:
 
 - its page (``docs/skills/<name>.md`` or ``docs/agents/<name>.md``) changed
-  since the fork point beyond whitespace, or
-- a commit in ``<base-ref>..HEAD`` carries a ``Docs-Reviewed:`` trailer that
-  names it. Names are separated by commas or spaces. Use ``skills/<name>``
-  or ``agents/<name>`` when a skill and an agent share the name.
+  since the fork point beyond whitespace, in the same or a later commit than
+  the source's latest change, or in the working tree, or
+- a commit in ``<base-ref>..HEAD`` at or after the source's latest change
+  carries a ``Docs-Reviewed:`` trailer that names it. Names are separated by
+  commas or spaces. Use ``skills/<name>`` or ``agents/<name>`` when a skill
+  and an agent share the name. A source with uncommitted changes needs a
+  page edit or a trailer on a later commit.
 
 A whole skill or agent that is new or removed since the fork point is
 skipped: the blocking page check in ``check_agent_skill_docs.py`` owns new
@@ -36,8 +41,8 @@ CLI::
 Exit codes (ADR-035):
     0 - Success (every changed source is reviewed)
     1 - Logic error (a changed source has no page edit and no trailer)
-    2 - Config error (invalid root, bad base ref value, or no base ref resolved)
-    3 - External error (git failed, timed out, or is missing)
+    2 - Config error (invalid root, option-shaped base ref, no base ref, or no git)
+    3 - External error (git failed, including an unknown base ref, or timed out)
 """
 
 from __future__ import annotations
@@ -73,7 +78,8 @@ _SOURCE = re.compile(
     r"^(?:(?:src/claude|\.claude)/skills/(?P<skill>[^/]+)/SKILL\.md"
     r"|templates/skills/(?P<template>[^/]+)\.SKILL\.md\.tmpl"
     r"|templates/agents/(?P<agent>[^/]+)\.(?:shared\.md|(?:claude|copilot)\.md\.tmpl)"
-    r"|src/claude/agents/(?P<rendered>[^/]+)\.md)$"
+    r"|src/claude/agents/(?P<rendered>[^/]+)\.md"
+    r"|src/copilot-cli/agents/(?P<copilot>[^/]+)\.agent\.md)$"
 )
 _NAME_SPLIT = re.compile(r"[,\s]+")
 
@@ -99,7 +105,8 @@ def changed_sources(changed: set[str]) -> dict[str, tuple[str, str]]:
         if skill:
             sources[path] = ("skills", skill)
         else:
-            sources[path] = ("agents", match.group("agent") or match.group("rendered"))
+            agent = match.group("agent") or match.group("rendered") or match.group("copilot")
+            sources[path] = ("agents", agent)
     return sources
 
 
@@ -128,18 +135,54 @@ def _substantive(repo_root: Path, fork: str, path: str) -> bool:
     return result.returncode == 1
 
 
-def reviewed_names(repo_root: Path, base_ref: str) -> set[str]:
-    """Return every name a ``Docs-Reviewed:`` trailer in ``base_ref..HEAD`` lists."""
+def reviews(repo_root: Path, base_ref: str) -> list[tuple[str, set[str]]]:
+    """Return (commit, names) for each commit in ``base_ref..HEAD`` with a trailer."""
     log = _git(
         repo_root,
         "log",
-        f"--format=%(trailers:key={TRAILER},valueonly)",
+        f"--format=%H%x00%(trailers:key={TRAILER},valueonly)%x01",
         "--end-of-options",
         f"{base_ref}..HEAD",
     )
     if log.returncode != 0:
         raise _failed(log, f"git log failed for {base_ref}..HEAD")
-    return {name for name in _NAME_SPLIT.split(log.stdout) if name}
+    found = []
+    for record in log.stdout.split("\x01"):
+        sha, _, value = record.strip().partition("\x00")
+        names = {name for name in _NAME_SPLIT.split(value) if name}
+        if sha and names:
+            found.append((sha, names))
+    return found
+
+
+_WORKTREE = "working tree"
+
+
+def _last_change(repo_root: Path, base_ref: str, path: str) -> str | None:
+    """Return the newest branch commit touching ``path``, or ``_WORKTREE`` if it is dirty."""
+    dirty = _git(repo_root, "status", "--porcelain", "--", path)
+    if dirty.returncode != 0:
+        raise _failed(dirty, f"git status failed for {path}")
+    if dirty.stdout.strip():
+        return _WORKTREE
+    log = _git(
+        repo_root, "log", "-1", "--format=%H", "--end-of-options", f"{base_ref}..HEAD", "--", path
+    )
+    if log.returncode != 0:
+        raise _failed(log, f"git log failed for {path}")
+    return log.stdout.strip() or None
+
+
+def _not_older(repo_root: Path, change: str | None, review: str | None) -> bool:
+    """Return True when ``review`` is at or after ``change`` in history."""
+    if review == _WORKTREE or change is None:
+        return review is not None
+    if review is None or change == _WORKTREE:
+        return False
+    result = _git(repo_root, "merge-base", "--is-ancestor", change, review)
+    if result.returncode not in (0, 1):
+        raise _failed(result, f"git merge-base --is-ancestor {change} {review} failed")
+    return result.returncode == 0
 
 
 def _source_exists(repo_root: Path, kind: str, name: str) -> bool:
@@ -175,15 +218,22 @@ def find_unreviewed(repo_root: Path, base_ref: str) -> Review:
             and _substantive(repo_root, base, path)
         ):
             candidates.setdefault((kind, name), []).append(path)
-    reviewed = reviewed_names(repo_root, base_ref) if candidates else set()
+    trailers = reviews(repo_root, base_ref) if candidates else []
     findings: list[Finding] = []
     tokens: list[str] = []
     for (kind, name), paths in sorted(candidates.items()):
         page = f"{DOCS[kind]}/{name}.md"
         token = _review_token(repo_root, kind, name)
-        if token in reviewed or f"{kind}/{name}" in reviewed:
-            continue
+        changes = [_last_change(repo_root, base_ref, path) for path in paths]
+        named = [sha for sha, names in trailers if token in names or f"{kind}/{name}" in names]
+        page_review = None
         if page in changed and _substantive(repo_root, base, page):
+            page_review = _last_change(repo_root, base_ref, page)
+        if all(
+            _not_older(repo_root, change, page_review)
+            or any(_not_older(repo_root, change, sha) for sha in named)
+            for change in changes
+        ):
             continue
         findings.append(
             Finding(page, f"{', '.join(paths)} changed; edit this page or name '{token}'")
@@ -206,7 +256,7 @@ def print_report(review: Review, base_ref: str) -> None:
         "\nRead each page below. If a fact on it changed (what it does, triggers,"
         "\narguments, scripts, exit codes, outputs, when to use it), edit the page."
         "\nOnly if every page is still true, put this line in the final trailer block"
-        "\nof a commit message on this branch, beside Co-Authored-By:"
+        "\nof a commit made after your last change to the source, beside Co-Authored-By:"
         f"\n\n  {TRAILER}: {', '.join(review.tokens)}"
         "\n\nAmend the last commit if it is unpushed; otherwise add a new commit"
         " (git commit --allow-empty). Never force-push a shared branch."
@@ -230,6 +280,9 @@ def run(repo_root: Path, base_ref: str | None) -> int:
         return 2
     try:
         review = find_unreviewed(repo_root, ref)
+    except FileNotFoundError as exc:
+        print(f"[FAIL] agent-skill-doc-review: git not found: {exc}", file=sys.stderr)
+        return 2
     except (GitReadError, subprocess.SubprocessError, OSError) as exc:
         print(f"[FAIL] agent-skill-doc-review: {exc}", file=sys.stderr)
         return 3

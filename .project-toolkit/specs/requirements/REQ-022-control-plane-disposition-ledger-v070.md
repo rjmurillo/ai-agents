@@ -244,7 +244,7 @@ not a running system.
 - [ ] REQ-022-AC3: WHEN the row for the pre-push duplicate-gate finding is
       recorded, THE SYSTEM SHALL classify it `KEEP`.
       Evidence citations: `scripts/validation/pre_pr_sequence.py:858-869`,
-      `lefthook.yml:714`, and
+      `lefthook.yml:728`, and
       `tests/validation/test_pre_pr_sequence_registry.py:192-319`.
       THE SYSTEM SHALL NOT propose a deletion PR for this mechanism SO
       THAT the already-fixed finding is recorded rather than re-solved

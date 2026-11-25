@@ -367,3 +367,59 @@ def test_option_shaped_base_ref_is_config_error(tmp_path):
     repo, _, _ = _with_agent(tmp_path)
 
     assert review.main([str(repo), "--base-ref=--output=/tmp/x"]) == 2
+
+
+# PR #7627 review fixes: a review must not predate the source's last change
+
+
+def test_trailer_before_a_later_source_change_does_not_clear(tmp_path):
+    repo, skill, _ = _with_agent(tmp_path)
+    _edit(skill / "SKILL.md", _BODY_OLD, _BODY_NEW)
+    _commit(repo, "change alpha\n\nDocs-Reviewed: alpha")
+    _edit(skill / "SKILL.md", _BODY_NEW, "A second, unreviewed change.")
+    _commit(repo, "change alpha again")
+
+    assert _paths(review.find_unreviewed(repo, "base")) == ["docs/skills/alpha.md"]
+
+
+def test_page_edit_before_a_later_source_change_does_not_clear(tmp_path):
+    repo, skill, _ = _with_agent(tmp_path)
+    _edit(repo / "docs" / "skills" / "alpha.md", "## Related\n\nText.", "## Related\n\nEarly.")
+    _commit(repo, "edit page first")
+    _edit(skill / "SKILL.md", _BODY_OLD, _BODY_NEW)
+    _commit(repo, "change alpha later")
+
+    assert _paths(review.find_unreviewed(repo, "base")) == ["docs/skills/alpha.md"]
+
+
+def test_committed_trailer_does_not_cover_an_uncommitted_change(tmp_path):
+    repo, skill, _ = _with_agent(tmp_path)
+    _edit(skill / "SKILL.md", _BODY_OLD, _BODY_NEW)
+    _commit(repo, "change alpha\n\nDocs-Reviewed: alpha")
+    _edit(skill / "SKILL.md", _BODY_NEW, "Still being edited.")
+
+    assert _paths(review.find_unreviewed(repo, "base")) == ["docs/skills/alpha.md"]
+
+
+def test_rendered_copilot_agent_change_counts(tmp_path):
+    repo, _, _ = _with_agent(tmp_path)
+    rendered = repo / "src" / "copilot-cli" / "agents" / "critic.agent.md"
+    rendered.parent.mkdir(parents=True)
+    rendered.write_text("Old Copilot body.\n", encoding="utf-8")
+    _commit(repo, "render critic for Copilot")
+    _git(repo, "branch", "-f", "base", "HEAD")
+    rendered.write_text("Body from a changed Copilot-only partial.\n", encoding="utf-8")
+    _commit(repo, "copilot partial edit")
+
+    assert _paths(review.find_unreviewed(repo, "base")) == ["docs/agents/critic.md"]
+
+
+def test_missing_git_is_config_error(tmp_path, monkeypatch):
+    repo, _, _ = _with_agent(tmp_path)
+
+    def absent(_root, *_args):
+        raise FileNotFoundError("git")
+
+    monkeypatch.setattr(review, "_git", absent)
+
+    assert review.main([str(repo), "--base-ref", "base"]) == 2

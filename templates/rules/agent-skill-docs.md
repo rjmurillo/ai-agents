@@ -4,6 +4,8 @@ paths:
   - "templates/skills/**"
   - "src/claude/skills/**"
   - ".claude/skills/**"
+  - "src/claude/agents/**"
+  - "src/copilot-cli/agents/**"
 priority: high
 ---
 
@@ -33,7 +35,8 @@ or a recorded review.
    to its row in `docs/agents/README.md` or `docs/skills/README.md`.
 2. **Review the page whenever the source changes.** A change to a skill's
    `SKILL.md`, its template, an agent template, or a rendered agent under
-   `src/claude/agents/` needs a same-branch review. An edit to a shared
+   `src/claude/agents/` or `src/copilot-cli/agents/` needs a same-branch
+   review, made at or after the source's latest change. An edit to a shared
    partial counts through each file it renders into. Whitespace-only edits
    count on neither side. Edit the page or add a
    `Docs-Reviewed: <name>[, <name>...]` trailer to a commit. For a name shared
@@ -77,10 +80,12 @@ It diffs the working tree with the fork point and reads `Docs-Reviewed:`
 trailers from the commits in `<base-ref>..HEAD`. It fails for each changed
 source whose page did not change and whose name no trailer lists. Its output
 prints the trailer line to use after reading. Put it in the final trailer
-block of the message, beside `Co-Authored-By:`; git reads no trailer from an
+block of a commit made after your last source change, beside
+`Co-Authored-By:`; git reads no trailer from an
 earlier paragraph. Amend an unpushed commit, or add a new commit with
 `git commit --allow-empty`; never force-push a shared branch. A trailer on a
-commit outside the branch does not count. A whole skill or agent that is new
+commit outside the branch does not count, and neither does a trailer or page
+edit older than the source's latest change. A whole skill or agent that is new
 or removed is left to the page check above. One source file added or removed
 for an existing skill or agent counts as a change.
 
