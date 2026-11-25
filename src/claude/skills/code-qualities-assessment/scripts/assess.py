@@ -1222,6 +1222,15 @@ _FIRST_PARTY_COUPLING_KEY = "firstPartyCouplingAdmission"
 _COUPLING_RULE = "no_new_third_party_import"
 _NON_REDUNDANCY_RULE = "no_new_duplicate_lines"
 _GIT_LS_TREE_TIMEOUT_SECONDS = 60
+# The test runner is not a dependency of the code under test: a test module
+# that gains ``import pytest`` for ``mark.parametrize`` couples nothing new.
+_TEST_RUNNER_ROOTS = frozenset({"pytest"})
+
+
+def _is_test_module(path: Path) -> bool:
+    """Return True for a ``test_*.py`` or ``conftest.py`` under a ``tests`` folder."""
+    name = path.name
+    return "tests" in path.parts[:-1] and (name.startswith("test_") or name == "conftest.py")
 
 
 def _first_party_import_roots(config: dict[str, Any]) -> list[Path] | None:
@@ -1357,6 +1366,8 @@ def _coupling_admission(
     if base is None or head is None:
         print(f"NOT ADMITTED: {head_path}: coupling: source does not parse", file=sys.stderr)
         return None
+    if _is_test_module(head_path):
+        base, head = base - _TEST_RUNNER_ROOTS, head - _TEST_RUNNER_ROOTS
     if not head <= base:
         added = ", ".join(sorted(head - base))
         print(f"NOT ADMITTED: {head_path}: coupling: new third-party {added}", file=sys.stderr)
