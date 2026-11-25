@@ -160,6 +160,20 @@ def test_superseded_by_names_the_successor_not_a_candidate():
 @pytest.mark.parametrize(
     "text",
     [
+        "ADR-40 superseded ADR-12",
+        "ADR-40 replaced ADR-12",
+        "ADR-40 replacing ADR-12",
+        "ADR-40 and ADR-41 supersede ADR-12",
+        "ADR-40: supersede ADR-12",
+    ],
+)
+def test_any_active_form_names_the_successor_first(text):
+    assert adr_history.superseded_numbers(text) == {12}
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
         "ADR-12 is superseded by ADR-40",
         "ADR-12 was replaced by ADR-40",
         "ADR-12 is deprecated in favor of ADR-40",

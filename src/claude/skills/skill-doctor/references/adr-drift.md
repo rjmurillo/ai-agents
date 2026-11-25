@@ -166,7 +166,8 @@ Details that decide what fires:
   supersede, replace, revert, deprecate, or drop, where ADR-N is still accepted
   and the commit did not touch it. "Superseded by ADR-M" and "deprecated in
   favor of ADR-M" name the successor, so ADR-M does not count. Neither does
-  ADR-M in the active "ADR-M supersedes ADR-N". The passive "ADR-N is
+  ADR-M when another ADR follows the verb with no "by" between, as in "ADR-M
+  supersedes ADR-N" or "ADR-M replaced ADR-N". The passive "ADR-N is
   superseded by ADR-M" still counts ADR-N. Every folder that holds ADR-N gets
   its own candidate.
 - `adr-contradiction-candidate`: a commit that deleted or renamed a file an
