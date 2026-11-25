@@ -259,8 +259,8 @@ Branch `fix/agent-readiness-signals` commit `3ed94c402` (2026-11-24) changed
 `store_resolution.py`. It now imports the store rule from
 `memory_core.memory_store` instead of keeping a third copy. It reaches
 `memory_core` through a skill-root `sys.path` insert. The import-closure gate
-(`build/scripts/import_closure.py:25-31`, enforced by `_sys_path_inserts` at
-`build/scripts/import_closure.py:245`) accepts that idiom. Forces, Decision
+(`build/scripts/import_closure.py:25-31`, enforced by `sys_path_inserts` at
+`build/scripts/import_closure_paths.py:59`) accepts that idiom. Forces, Decision
 4, Consequences, Security, and Confirmation now say two copies. No decision
 changed. The lib bootstrap is still avoided for the reason Decision 4 gives.
 

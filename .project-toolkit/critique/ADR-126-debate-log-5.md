@@ -51,3 +51,9 @@ left the episode check unplaced. Both are fixed above.
   memory_store.find_memory_root`) would lock the "holds no copy" claim. Critic
   marked it optional. It is not added here.
 - `ADR-126-debate-log-2.md` still says three copies. It is a historical record.
+
+## Citation repair (2026-11-25)
+
+Commit `fbb7ac83d` moved `_sys_path_inserts` out of `import_closure.py`.
+It is now `sys_path_inserts` in `build/scripts/import_closure_paths.py:59`.
+The ADR citation follows the code. No decision text changed.
