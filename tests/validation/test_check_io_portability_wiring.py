@@ -1,6 +1,6 @@
 """Pre-PR wiring for the io-portability gate.
 
-``.claude/rules/testing.md`` SHOULD 6: prove the consumer is wired, not only
+``rule-testing.md`` SHOULD 6: prove the consumer is wired, not only
 the guard. Mirrors ``test_check_measurement_anchoring_wiring.py``.
 """
 

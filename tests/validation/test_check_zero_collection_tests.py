@@ -6,7 +6,7 @@ counted in no failure, so it reads as a passing suite forever.
 
 Every case builds a miniature repository under ``tmp_path`` and drives
 ``main(argv)`` so the assertion lands on the process exit code, not on a
-helper's return value (`.claude/rules/testing.md` MUST 8).
+helper's return value (`rule-testing.md` MUST 8).
 
 - pos: a file with a real test -> exit 0
 - neg/negative-control: adding a zero-collecting file flips the same repo from

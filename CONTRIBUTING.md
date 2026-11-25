@@ -336,7 +336,7 @@ The shipped pattern:
 4. **Canonical implementation examples.** Pick a sibling at the same blocking/non-blocking tier:
    - Blocking (exit 2): none. ADR-097 retired every tool-call hook, so no
      blocking example ships. A new one must clear
-     `.claude/rules/tool-use-hook-bar.md` before it is written, not after.
+     `.claude/skills/skillforge/references/rule-tool-use-hook-bar.md` before it is written, not after.
    - Non-blocking (exit 0): `.claude/hooks/SessionStart/invoke_context_loader.py`,
      `.claude/hooks/SessionEnd/invoke_memory_reflection.py`
 

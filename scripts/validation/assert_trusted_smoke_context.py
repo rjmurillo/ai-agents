@@ -3,7 +3,8 @@
 
 The CLI smoke installs the real Copilot/Claude CLIs and runs a hook end to end.
 That needs auth secrets, so the run MUST NOT execute attacker-controlled code
-with those secrets in scope. Per ``.claude/rules/security.md`` and the issue-3
+with those secrets in scope. Per
+``.claude/skills/security-review/references/rule-security.md`` and the issue-3
 requirement, this script is the trusted-context gate. Per ADR-006 the decision
 lives here, not in workflow YAML.
 

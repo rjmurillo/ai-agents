@@ -92,7 +92,7 @@ _PYTEST_TEMP_PARAMS = frozenset({"tmp_path", "tmp_path_factory", "tmpdir", "tmpd
 # `tempfile.TemporaryDirectory()` and an imported `TemporaryDirectory()` count.
 _TEMPFILE_FACTORIES = frozenset({"TemporaryDirectory", "mkdtemp", "mkstemp", "NamedTemporaryFile"})
 
-# This repository's durable fixture root, required by `.claude/rules/testing.md`
+# This repository's durable fixture root, required by `rule-testing.md`
 # MUST NOT 4 for fixtures that must outlive one test. `.gitignore` covers it and
 # `validate_plugin_manifests.py` prunes it, so it is a temporary path in the
 # sense the acceptance criterion means even though it sits inside the checkout.

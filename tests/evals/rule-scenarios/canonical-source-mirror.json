@@ -35,7 +35,7 @@
     {
       "id": "S3",
       "desc": "Rule text asserts what another validator skips, based on function names",
-      "input": "I am writing a paragraph in .claude/rules/testing.md that says .pytest_tmp is the only directory name both validate_plugin_manifests.py and check_placeholder_identity.py skip. I have only seen the function names, such as _is_pytest_tmp, not the bodies. Plan in 5 short bullets. Do not modify any files.",
+      "input": "I am writing a paragraph in .claude/skills/test/references/rule-testing.md that says .pytest_tmp is the only directory name both validate_plugin_manifests.py and check_placeholder_identity.py skip. I have only seen the function names, such as _is_pytest_tmp, not the bodies. Plan in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "read the body",
         "line number",

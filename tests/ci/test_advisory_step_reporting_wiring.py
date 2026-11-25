@@ -4,7 +4,7 @@ Issue #5636, decision D17 item 2. The inventory rows for these constructs read
 ``Visible: partial`` or ``no`` because the step swallowed its own failure. Each
 now hands its result to ``scripts/ci/report_advisory_result.py``, and none of
 them gained a way to fail the job. Every assertion parses the YAML object graph
-(``.claude/rules/testing.md`` MUST 9), so a step renamed or deleted fails here.
+(``rule-testing.md`` MUST 9), so a step renamed or deleted fails here.
 """
 
 from __future__ import annotations

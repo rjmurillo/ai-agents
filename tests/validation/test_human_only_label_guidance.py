@@ -117,7 +117,7 @@ def test_contributing_never_instructs_without_naming_the_authority() -> None:
     CONTRIBUTING.md read before this change ("apply the
     `description-validation-bypass` label").
 
-    Scope is reported with the finding count per `.claude/rules/testing.md`
+    Scope is reported with the finding count per `rule-testing.md`
     MUST 10: every line of the file is examined, not a subset.
     """
     lines = CONTRIBUTING.read_text(encoding="utf-8").splitlines()

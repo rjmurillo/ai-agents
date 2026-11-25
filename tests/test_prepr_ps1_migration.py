@@ -91,7 +91,7 @@ def _session_git_fake(head: str) -> Any:
     empty stdout. Since issue #5646 item 2 that is UNKNOWN rather than a PASS
     naming the ``INVALID_HEAD`` placeholder, so the revision has to be supplied
     for a no-changed-logs run to reach PASS. Dispatching on ``argv`` rather than
-    on call order per ``.claude/rules/testing.md`` SHOULD 11: the diff and the
+    on call order per ``rule-testing.md`` SHOULD 11: the diff and the
     rev-parse are issued from two different branches.
     """
 
@@ -438,7 +438,7 @@ class TestDiffFailureReachesTheGateAsUnknown:
     """The UNKNOWN branch of both migrated validators, driven end to end.
 
     classify_subprocess_failure has its own unit tests, but a correct helper
-    nobody calls delivers nothing (`.claude/rules/testing.md` SHOULD 6). These
+    nobody calls delivers nothing (`rule-testing.md` SHOULD 6). These
     drive each validator with a real _run_subprocess return value and assert on
     the reason code that reaches the caller, so a validator that stops calling
     the classifier, or passes the wrong default, fails here.

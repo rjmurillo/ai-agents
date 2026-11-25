@@ -7,7 +7,7 @@ rather than deleted. What the guard asserts now is AGREEMENT between what the
 manifest registers and what the tree ships.
 
 These tests drive `main(argv)` and assert on the integer it returns, not on a
-helper's return value, per `.claude/rules/testing.md` MUST 8. The empty-passes
+helper's return value, per `rule-testing.md` MUST 8. The empty-passes
 case is paired with two controls, because a gate that cannot fail is not a gate:
 an orphaned dispatcher and an unreadable manifest must both still exit nonzero.
 """
@@ -155,7 +155,7 @@ def test_a_registered_event_with_no_dispatcher_still_fails(tmp_path: Path) -> No
 
     Driven as a real subprocess rather than through `main()` in-process, so the
     assertion is on the process exit status a CI step actually reads
-    (`.claude/rules/testing.md` MUST 8, `.claude/rules/ci-scripts.md` MUST 23).
+    (`rule-testing.md` MUST 8, `.claude/rules/ci-scripts.md` MUST 23).
     """
     source = _registering_source(tmp_path)
     assert not (source / "hooks" / "PreToolUse" / "_dispatch.py").exists()

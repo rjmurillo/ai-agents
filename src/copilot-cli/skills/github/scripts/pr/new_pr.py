@@ -96,8 +96,9 @@ _CONVENTIONAL_COMMIT_PATTERN = _validate_desc._CONVENTIONAL_COMMIT_PATTERN
 #
 # Measured on CPython 3.10.20 against this file at commit 5cd72a7dad. This
 # script runs on the HOST's ambient interpreter, not the repository's 3.14
-# development interpreter, and `.claude/rules/python.md` puts the
-# hook-portability floor at 3.10. `timezone.utc` is the same object and exists
+# development interpreter, and the `build` skill's
+# `references/rule-python.md` puts the hook-portability floor at 3.10.
+# `timezone.utc` is the same object and exists
 # at every version this repository targets, so it is the portable spelling
 # rather than a compatibility shim.
 #

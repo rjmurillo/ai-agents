@@ -130,7 +130,7 @@ def test_missing_partial_exits_2(tmp_path: Path, capsys: pytest.CaptureFixture[s
 def test_forbidden_tag_exits_2(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """Forbidden tag: template uses disallowed {{name}}, exit 2.
 
-    Regression guard for the exact shape .claude/rules/testing.md hit: a
+    Regression guard for the exact shape rule-testing.md hit: a
     literal `${{ a && b }}` (or any bare `{{name}}`) is a disallowed tag
     under the ADR-108 grammar, not a partial reference or a comment.
     """

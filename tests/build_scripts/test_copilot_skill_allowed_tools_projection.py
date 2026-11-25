@@ -10,7 +10,7 @@ probe ran noninteractively (`-p --no-ask-user`), so it recorded denial, not a
 prompt. Interactive behavior is unverified. The mirror is not wider than the
 source in the probed mode. A future Copilot release could start reading the
 tool name and dropping the argument, which is the widening
-`tool-use-hook-bar.md` records for matchers. This predicate keeps the
+`rule-tool-use-hook-bar.md` records for matchers. This predicate keeps the
 repository side of that boundary shut: the generator may respell an MCP tool
 name and nothing else, so a scoped entry such as `Bash(git push:*)` is never
 degraded to bare `Bash` in the mirror. It compares source and mirror text

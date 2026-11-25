@@ -193,7 +193,7 @@
   },
   {
    "kind": "path_exists",
-   "path": ".claude/rules/retros.md",
+   "path": ".claude/skills/retrospective/references/rule-retros.md",
    "id": "R36"
   },
   {
