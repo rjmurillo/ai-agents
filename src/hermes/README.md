@@ -33,7 +33,6 @@ Project Toolkit skills for GitHub pull request work, build, test, and quality ga
 - `modernize`
 - `observability`
 - `orphan-ref-validator`
-- `pipeline-validator`
 - `plan`
 - `pr-autofix`
 - `pr-babysit`
@@ -56,7 +55,6 @@ Project Toolkit skills for GitHub pull request work, build, test, and quality ga
 - `threat-modeling`
 - `validate-pr-description`
 - `validation-authority`
-- `windows-image-updater`
 
 ## project-toolkit-knowledge
 
@@ -107,6 +105,13 @@ Project Toolkit skills for writing, tuning, and bootstrapping skills, and for pl
 - `skillforge`
 - `skillify`
 - `skillopt`
+
+## project-toolkit-azure-devops
+
+Project Toolkit skills for Azure DevOps pipeline validation and OneBranch pipeline image updates.
+
+- `pipeline-validator`
+- `windows-image-updater`
 
 ## Excluded skills
 

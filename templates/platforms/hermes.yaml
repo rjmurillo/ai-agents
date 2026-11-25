@@ -38,7 +38,8 @@ artifacts:
     # one. An old skill changes packs only by owner decision, recorded in ADR-115
     # Decision 6, and takes every skill its path references connect. On
     # 2026-11-24 six skills moved from knowledge, which sat at the 400-file cap,
-    # to authoring.
+    # to authoring. On 2026-11-25 pipeline-validator and windows-image-updater
+    # moved from delivery, which sat at the cap, to azure-devops.
     packs:
       delivery:
         description: "Project Toolkit skills for GitHub pull request work, build, test, and quality gates, security review, and operations."
@@ -48,12 +49,12 @@ artifacts:
            chaos-experiment, code-qualities-assessment, codeql-scan, destructive-change-safety,
            doc-accuracy, dx-review, execution-plans, fix-markdown-fences, git-advanced-workflows,
            github, github-url-intercept, golden-principles, llm-council, maintainer-review, merge-resolver,
-           metrics, modernize, observability, orphan-ref-validator, pipeline-validator, plan,
+           metrics, modernize, observability, orphan-ref-validator, plan,
            pr-autofix, pr-babysit, pr-comment-responder, pr-review,
            push-pr, quality-grades, research, reviewer-findings, security-review, slo-designer, sol-loop,
            steering-matcher, style-enforcement, sync, takeover, taste-lints,
            technical-writing, test, threat-modeling,
-           validate-pr-description, validation-authority, windows-image-updater]
+           validate-pr-description, validation-authority]
       knowledge:
         description: "Project Toolkit skills for memory, context, decisions, requirements, strategy, and documentation."
         skills:
@@ -69,6 +70,9 @@ artifacts:
       authoring:
         description: "Project Toolkit skills for writing, tuning, and bootstrapping skills, and for placing context."
         skills: [context-optimizer, prose-self-check, skill-bootstrap, skillforge, skillify, skillopt]
+      azure-devops:
+        description: "Project Toolkit skills for Azure DevOps pipeline validation and OneBranch pipeline image updates."
+        skills: [pipeline-validator, windows-image-updater]
     # Hermes runs plugin_guard on every install and blocks a dangerous verdict.
     # Exclusion is transitive: a skill that refers to an excluded skill is
     # excluded too, because its reference would point at nothing.
