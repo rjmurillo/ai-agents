@@ -49,8 +49,8 @@ For a gated skill the check requires, and fails closed without:
 - no change in the same branch to the runner or to this check.
 
 ``retired.json`` is ``{"retired": [{"scenario": "<id>", "test":
-"<path>::<name>"}]}``. ``prompt_path`` must be the repository-relative path
-of the rendered file, as ``--prompt`` takes it.
+"<path>::[<Class>::]<name>"}]}``; each named class and function must exist.
+``prompt_path`` is the repository-relative rendered file ``--prompt`` takes.
 
 A skill tagged ``reference`` that the branch touches also fails when its
 ``allowed-tools`` holds a grant outside a read-only allowlist. Bash is
@@ -59,16 +59,12 @@ allowed only for a read-only command or a script under the skill's own
 would dodge trigger 2. This rule goes past decision 9; the ADR-127 security
 seat asked for it.
 
-Limits, which stay with the reviewer:
-
-- This check cannot prove a model ran. A hand-built results file with
-  matching hashes passes.
-- The branch history is the author's. A rebase can drop a failed run or
-  move the scenario commit before this check reads the branch.
-- A PR that edits this check or the runner changes what this check does.
-  The same-branch rule above stops honest drift only.
-- ``security_critical`` is read from the results file. Nothing records which
-  skills are security-critical.
+Limits, which stay with the reviewer: this check cannot prove a model ran
+(a hand-built results file with matching hashes passes); a rebase can drop
+a failed run or move the scenario commit; a PR that edits this check or the
+runner changes what it does (the same-branch rule stops honest drift only);
+and ``security_critical`` comes from the results file, since nothing
+records which skills are security-critical.
 
 EXIT CODES (ADR-035): 0 = no findings (prints examined counts); 1 =
 findings; 2 = git or config error, including no base ref resolved.
@@ -226,11 +222,11 @@ def _retired_findings(ctx: Context, name: str, dropped: list[str]) -> list[str]:
         if not isinstance(test, str) or "::" not in test:
             problems.append(f"dropped scenario {sid} has no replacing test in {path}")
             continue
-        test_path, func = test.split("::", 1)[0], test.rsplit("::", 1)[-1]
+        test_path, *classes, func = test.split("::")
         found = test_path in ctx.git.files(ctx.head, test_path)
-        if not found or f"def {func}(" not in ctx.git.blob(ctx.head, test_path).decode(
-            "utf-8", "replace"
-        ):
+        text = ctx.git.blob(ctx.head, test_path).decode("utf-8", "replace") if found else ""
+        named = all(re.search(rf"^\s*class {re.escape(c)}\b", text, re.M) for c in classes)
+        if not (found and named and f"def {func}(" in text):
             problems.append(f"dropped scenario {sid}: test {test} does not exist at HEAD")
     return problems
 
@@ -249,9 +245,11 @@ def _results_history(ctx: Context, results_dir: str) -> tuple[dict[str, int], li
                 continue
             if path.endswith(f"/{RETIRED_FILE}"):
                 continue
-            if status == "A" and path not in added:
+            # ``--cc`` prints one letter per parent for a merge: ``AA`` is an add.
+            is_add = set(status) == {"A"}
+            if is_add and path not in added:
                 added[path] = index
-            elif status == "A":
+            elif is_add:
                 problems.append(
                     f"{path} is added again in {commit[:10]}; results files are append-only"
                 )
@@ -264,12 +262,13 @@ def _results_history(ctx: Context, results_dir: str) -> tuple[dict[str, int], li
 
 def _label_findings(base: list[dict[str, Any]], head: list[dict[str, Any]]) -> list[str]:
     """A kept scenario may not change its label (ADR-127 decision 7 item 10)."""
-    before = {str(r["id"]): r.get("expected_verdict") for r in base}
+    before = {str(r["id"]): str(r.get("expected_verdict")).strip().upper() for r in base}
     return [
         f"scenario {s['id']} changes expected_verdict from {before[str(s['id'])]!r} "
-        f"to {s['expected_verdict']!r}; a label never changes to pass"
+        f"to {s['expected_verdict']!r}; a kept scenario's label may not change"
         for s in head
-        if str(s["id"]) in before and before[str(s["id"])] != s["expected_verdict"]
+        if str(s["id"]) in before
+        and before[str(s["id"])] != str(s["expected_verdict"]).strip().upper()
     ]
 
 

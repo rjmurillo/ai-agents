@@ -104,7 +104,8 @@ def repo(tmp_path: Path) -> Path:
     write(root, SKILL, skill_md(body="\n".join(MOVED)))
     write(root, REF, "Reference.\n")
     write(root, SCEN, scenario_doc())
-    write(root, "tests/skills/demo/test_demo.py", "def test_replaces():\n    pass\n")
+    demo = "class TestX:\n    def test_replaces(self):\n        pass\n"
+    write(root, "tests/skills/demo/test_demo.py", demo)
     commit(root, "base")
     git(root, "checkout", "-q", "-b", "feature")
     return root

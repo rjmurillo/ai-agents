@@ -87,6 +87,22 @@ class TestAppendOnly:
         assert code == 1
         assert "run-1.json is added again in" in out
 
+    def test_results_added_by_a_merge_commit_counts_as_added(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        driver_change(repo)
+        git(repo, "checkout", "-q", "-b", "side")
+        write(repo, "side.txt", "side\n")
+        commit(repo, "side")
+        git(repo, "checkout", "-q", "feature")
+        write(repo, "feature.txt", "feature\n")
+        commit(repo, "feature")
+        git(repo, "-c", "commit.gpgsign=false", "merge", "-q", "--no-commit", "side")
+        write(repo, f"{EVID}/run-1.json", results(repo))
+        commit(repo, "merge side with evidence")
+        code, out = run(repo, capsys)
+        assert code == 0, out
+
     def test_runner_edit_in_a_gated_branch_blocks(
         self, repo: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -113,6 +129,16 @@ class TestAppendOnly:
         code, out = run_gated(repo, capsys)
         assert code == 1
         assert "scenario S1 changes expected_verdict from 'GO' to 'STOP'" in out
+
+    def test_label_case_only_edit_is_not_a_flip(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        doc = json.loads(scenario_doc())
+        doc["scenarios"][0]["expected_verdict"] = "go "
+        write(repo, SCEN, json.dumps(doc))
+        commit(repo, "scenario commit")
+        code, out = run_gated(repo, capsys)
+        assert "changes expected_verdict" not in out
 
     def test_head_ref_reads_the_named_commit(
         self, repo: Path, capsys: pytest.CaptureFixture[str]
@@ -202,6 +228,19 @@ class TestScenarioFile:
             (
                 json.dumps(
                     {"retired": [{"scenario": "S9", "test": "tests/skills/demo/test_demo.py::t"}]}
+                ),
+                "does not exist at HEAD",
+            ),
+            (
+                json.dumps(
+                    {
+                        "retired": [
+                            {
+                                "scenario": "S9",
+                                "test": "tests/skills/demo/test_demo.py::TestNope::test_replaces",
+                            }
+                        ]
+                    }
                 ),
                 "does not exist at HEAD",
             ),
