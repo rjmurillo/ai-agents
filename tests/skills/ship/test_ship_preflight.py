@@ -228,7 +228,7 @@ def test_github_failed_checks_are_named(github_pr, fakes, scripts, capsys):
     fakes.rule("get_pr_checks", [], _checks(data, rc=1))
     code, lines = _preflight(scripts, capsys, "--check", "pipeline")
     assert code == 1
-    assert values(lines, "CHECK")[0].endswith("failing=pytest,lint")
+    assert values(lines, "CHECK")[0].endswith("failed=pytest,lint")
 
 
 def test_github_pending_asks_for_a_rerun_with_a_deadline(github_pr, fakes, scripts, capsys):

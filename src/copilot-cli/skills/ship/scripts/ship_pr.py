@@ -327,8 +327,8 @@ def cmd_publish(args: argparse.Namespace, result: common.Result, _root: Path) ->
         return result.stop(
             "contributor-mode", common.EXIT_LOGIC, "the open PR belongs to another author"
         )
-    protected = detect_mod.PROTECTED_BRANCHES | {ctx.base, detect_mod.default_branch(ctx.root)}
-    if ctx.branch in protected:
+    origin_default = detect_mod.default_branch(ctx.root)
+    if ctx.branch in detect_mod.protected_branches(ctx.base, origin_default):
         return result.stop(
             "on-base-branch",
             common.EXIT_LOGIC,

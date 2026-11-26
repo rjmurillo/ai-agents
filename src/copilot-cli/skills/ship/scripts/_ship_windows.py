@@ -6,9 +6,10 @@ current directory, so a checked-in ``az.cmd`` cannot stand in for the CLI.
 
 A ``.cmd`` or ``.bat`` target runs through cmd.exe, which re-parses the
 command line. Every argument is then double-quoted, which keeps ``&``, ``|``,
-``<``, ``>``, and ``^`` literal. cmd.exe still expands ``%`` and ``!`` inside
-quotes, so an argument holding one of those, a quote, a line break, or a
-trailing backslash is refused rather than rewritten.
+``<``, ``>``, and ``^`` literal. cmd.exe still expands ``%`` inside quotes,
+and ``!`` when delayed expansion is on, so an argument holding one of those,
+a quote, a line break, or a trailing backslash is refused rather than
+rewritten. ``cmd_rewrites`` lets a caller refuse it before any push.
 """
 
 from __future__ import annotations
@@ -19,6 +20,16 @@ import re
 BATCH_SUFFIXES = (".cmd", ".bat")
 _DEFAULT_PATHEXT = ".COM;.EXE;.BAT;.CMD"
 _BATCH_UNSAFE = re.compile(r'[%!"\r\n]|\\\Z')
+
+
+def on_windows() -> bool:
+    """Return whether this host is Windows; one seam for the callers and tests."""
+    return os.name == "nt"
+
+
+def cmd_rewrites(arg: str) -> bool:
+    """Return whether cmd.exe could rewrite ``arg`` inside double quotes."""
+    return _BATCH_UNSAFE.search(arg) is not None
 
 
 def find_program(name: str) -> str | None:
@@ -40,13 +51,13 @@ def command(argv: list[str]) -> list[str] | str | None:
     Off Windows, and for a name with a directory part, ``argv`` is unchanged.
     An unfound name is also unchanged, so the call reads as not found (127).
     """
-    if os.name != "nt" or os.path.dirname(argv[0]):
+    if not on_windows() or os.path.dirname(argv[0]):
         return argv
     found = find_program(argv[0])
     if found is None:
         return argv
     if not found.lower().endswith(BATCH_SUFFIXES):
         return [found, *argv[1:]]
-    if any(_BATCH_UNSAFE.search(arg) for arg in argv[1:]):
+    if any(cmd_rewrites(arg) for arg in argv[1:]):
         return None
     return " ".join(f'"{part}"' for part in [found, *argv[1:]])

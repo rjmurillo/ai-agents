@@ -280,3 +280,89 @@ class TestPrivateDirectoryFailure:
             "paths=NOT-RUN could not create a private directory (Permission denied)"
         )
         assert lines[-1] == "NEXT: compare-paths-by-hand"
+
+
+class TestWindowsAdoTitleFailsBeforeThePush:
+    ADO = "https://dev.azure.com/contoso/p/_git/r"
+
+    @pytest.mark.parametrize(
+        "title", ["feat(ship)!: drop the old flag", "perf: cut 50% latency", "fix: path C:\\x\\"]
+    )
+    def test_publish_stops_on_the_title_and_never_pushes(
+        self, make_repo, fakes, scripts, capsys, body_file, tmp_path, monkeypatch, title
+    ):
+        repo = make_repo(self.ADO)
+        fakes.no_pr_ado()
+        fakes.marker(0)
+        body = body_file(repo)
+        monkeypatch.setattr(scripts[0], "on_windows", lambda: True)
+        code, lines = run_pr(
+            scripts,
+            capsys,
+            "publish",
+            "--paths-checked-by-hand",
+            "--title",
+            title,
+            "--body-file",
+            str(body),
+        )
+        assert code == 1
+        assert (
+            "CHECK: title=FAIL title has %, !, a quote, or a trailing backslash, "
+            "which cmd.exe rewrites for az" in lines
+        )
+        assert lines[-1].startswith("STOP: check-failed title")
+        assert "PUSH: pushed" not in lines
+        assert not fakes.calls("validate_pr_description")
+        assert not [c for c in fakes.calls("az") if c[1:4] == ["repos", "pr", "create"]]
+
+    def test_a_body_path_cmd_would_rewrite_fails_the_body_check(
+        self, make_repo, fakes, scripts, capsys, monkeypatch
+    ):
+        repo = make_repo(self.ADO)
+        fakes.no_pr_ado()
+        scratch = repo / ".project-toolkit" / "scratch"
+        scratch.mkdir(parents=True)
+        body = scratch / "pr-body-50%.md"
+        body.write_text("## Summary\n\nChanges the ship skill.\n", encoding="utf-8")
+        monkeypatch.setattr(scripts[0], "on_windows", lambda: True)
+        _code, lines = run_pr(
+            scripts, capsys, "check", "--title", "feat(ship): x", "--body-file", str(body)
+        )
+        assert (
+            "CHECK: body=FAIL body file path has %, !, or a quote, which cmd.exe rewrites for az"
+            in lines
+        )
+
+    def test_github_and_posix_titles_are_not_restricted(self, scripts, monkeypatch):
+        checks = scripts[3].checks_mod
+        assert checks.title_problem("perf: cut 50% latency") is None
+        assert scripts[0].cmd_rewrites("perf: cut 50% latency") is True
+        assert scripts[0].cmd_rewrites("feat: a & b | c") is False
+
+
+class TestLabelledFailGroups:
+    def test_failed_missing_and_pending_are_named_apart(self, scripts):
+        data = {
+            "RequiredState": "FAILURE",
+            "FailedRequiredChecks": ["build"],
+            "MissingRequiredChecks": ["docs"],
+            "PendingRequiredChecks": [{"Name": "lint"}],
+        }
+        ctx = type("Ctx", (), {"head": "a" * 40})()
+        check = sys.modules["_ship_pipeline"]._github_verdict(ctx, 3, 1, data)
+        assert check.state == "FAIL"
+        assert check.detail.endswith("failed=build missing=docs pending=lint")
+
+
+class TestMissingBaseRef:
+    def test_a_base_ref_that_was_never_fetched_says_so(self, owner, scripts, capsys):
+        repo, body = owner
+        git(repo, "update-ref", "-d", "refs/remotes/origin/main")
+        _code, lines = run_pr(
+            scripts, capsys, "check", "--title", "feat(ship): x", "--body-file", str(body)
+        )
+        assert any(
+            v.startswith("paths=NOT-RUN origin/main not found; fetch it")
+            for v in values(lines, "CHECK")
+        )

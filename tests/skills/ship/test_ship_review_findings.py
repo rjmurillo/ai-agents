@@ -360,7 +360,7 @@ class TestFreshRoundFiveFindings:
         assert code == 1
         check = values(lines, "CHECK")[-1]
         assert check.startswith("pipeline=FAIL pr=41")
-        assert "failing=lint,tests" in check
+        assert check.endswith("failed=lint pending=tests")
 
     def test_exit_7_still_running_names_the_pr_and_checks(self, make_repo, fakes, scripts, capsys):
         self._github_pr(make_repo, fakes)

@@ -114,9 +114,14 @@ def _github_verdict(ctx: Context, pr: int, code: int, data: dict[str, Any]) -> C
         # Read without waiting, or the wait ended early: still running, not failed.
         pending = _names(data, "pending", ("PendingRequiredChecks",))
         return Check("pipeline", "PENDING", f"pr={pr} required checks still running{pending}")
-    keys = ("FailedRequiredChecks", "MissingRequiredChecks", "PendingRequiredChecks")
     detail = f"pr={pr} required={data.get('RequiredState')} all_passing={data.get('AllPassing')}"
-    return Check("pipeline", "FAIL", detail + _names(data, "failing", keys))
+    for label, key in (
+        ("failed", "FailedRequiredChecks"),
+        ("missing", "MissingRequiredChecks"),
+        ("pending", "PendingRequiredChecks"),
+    ):
+        detail += _names(data, label, (key,))
+    return Check("pipeline", "FAIL", detail)
 
 
 def _names(data: dict[str, Any], label: str, keys: tuple[str, ...]) -> str:

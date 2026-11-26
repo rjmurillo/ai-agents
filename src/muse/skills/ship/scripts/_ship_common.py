@@ -123,6 +123,8 @@ confine_body_file = _paths.confine_body_file
 stored_int = _paths.stored_int
 remote_host = _remote.remote_host
 classify_host = _remote.classify_host
+cmd_rewrites = _windows.cmd_rewrites
+on_windows = _windows.on_windows
 
 
 def clean(value: object) -> str:

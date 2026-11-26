@@ -147,6 +147,9 @@ def _check_paths(ctx: Context, body_file: Path, base: str, result: common.Result
     # The full remote-tracking name: a tag named origin/<base> cannot shadow it.
     ref = f"refs/remotes/origin/{base}"
     shown = f"origin/{base}"
+    if common.git(["rev-parse", "--verify", "--quiet", ref], cwd=ctx.root).returncode != 0:
+        _not_run(result, f"{shown} not found; fetch it")
+        return None
     files = _base_files(ctx, ref)
     if files is None:
         _not_run(result, f"{shown} has no path validator")
@@ -248,6 +251,10 @@ def description_problem(returncode: int, stdout: str, stderr: str = "") -> str |
     return f"errors={report['ErrorCount']}"
 
 
+_CMD_TITLE = "title has %, !, a quote, or a trailing backslash, which cmd.exe rewrites for az"
+_CMD_PATH = "body file path has %, !, or a quote, which cmd.exe rewrites for az"
+
+
 def _report(result: common.Result, name: str, problem: str | None) -> bool:
     result.add("CHECK", f"{name}={'FAIL ' + problem if problem else 'PASS'}")
     return problem is None
@@ -261,9 +268,17 @@ def run_checks(
     A check that could not run is reported as ``<name>:not-run``.
     """
     text = body_file.read_text(encoding="utf-8", errors="replace")
+    # az is az.cmd on Windows: refuse what cmd.exe would rewrite before any push.
+    via_cmd = ctx.host == "ado" and common.on_windows()
+    title_issue = title_problem(title)
+    if title_issue is None and via_cmd and common.cmd_rewrites(title):
+        title_issue = _CMD_TITLE
+    body_issue = body_problem(text)
+    if body_issue is None and via_cmd and common.cmd_rewrites(f"@{body_file}"):
+        body_issue = _CMD_PATH
     outcomes: list[tuple[str, bool | None]] = [
-        ("title", _report(result, "title", title_problem(title))),
-        ("body", _report(result, "body", body_problem(text))),
+        ("title", _report(result, "title", title_issue)),
+        ("body", _report(result, "body", body_issue)),
         ("paths", _check_paths(ctx, body_file, base, result)),
     ]
     # A title or body that failed its own check never reaches a helper's argv.

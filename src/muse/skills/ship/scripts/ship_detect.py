@@ -120,6 +120,11 @@ def default_branch(root: Path) -> str:
 PROTECTED_BRANCHES = frozenset({"main", "master"})
 
 
+def protected_branches(base: str, origin_default: str) -> frozenset[str]:
+    """The branches no owner run may ship from: main, master, the base, the origin default."""
+    return PROTECTED_BRANCHES | {base, origin_default}
+
+
 def _github_pr(root: Path) -> tuple[int | None, str, str, bool | None] | Halt:
     done = common.run(["gh", "pr", "view", "--json", "number,author,state,url,isDraft"], cwd=root)
     if done.returncode != 0:
@@ -249,9 +254,8 @@ def detect(cwd: Path | None = None, base: str | None = None) -> Context | Halt:
     mode = _mode(root, host, pr, author, host_name)
     if isinstance(mode, Halt):
         return mode
-    # The same protected set publish refuses, so the refusal comes in phase 1.
-    protected = PROTECTED_BRANCHES | {target, origin_default}
-    if mode == "owner" and pr is None and branch in protected:
+    # The same set publish refuses, so the refusal comes in phase 1.
+    if mode == "owner" and pr is None and branch in protected_branches(target, origin_default):
         return Halt("on-base-branch", common.EXIT_LOGIC, f"on {branch}; create a feature branch")
     return Context(root, host, host_name, branch, target, head, pr, pr_url, author, mode, pr_draft)
 
