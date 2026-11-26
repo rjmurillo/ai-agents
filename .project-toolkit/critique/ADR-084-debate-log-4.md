@@ -2,13 +2,13 @@
 
 ## Summary
 
-- **Rounds**: 1 of 10
+- **Rounds**: 2 of 10
 - **Prior debate log**: `.project-toolkit/critique/ADR-084-debate-log-3.md` (closed, rule 2b)
-- **Outcome**: Consensus (round 1: architect Accept, critic Disagree-and-Commit). Under ADR-101 the panel counts as one vote.
+- **Outcome**: Consensus (rounds 1 and 2: architect Accept, critic Disagree-and-Commit). Under ADR-101 the panel counts as one vote.
 - **Final Status**: no status change. ADR-084 frontmatter stays `status: accepted`. Rule 2b stays proposed and not yet binding.
 - **Subject**: two older Amendment Record entries moved out of ADR-084 on 2026-11-25. They now sit in `.project-toolkit/critique/ADR-084-amendment-record-archive.md`.
 - **Trigger**: the `size-cap` check in `scripts/validation/check_adr_lifecycle.py`. Rule 2b grew ADR-084 from 498 lines on `origin/main` (`9df30da9d0`, 2026-11-25) to 609 lines, past the 500-line cap.
-- **Panel**: reduced (architect, critic), per AGENTS.md. The change moves prose only. It edits no rule text, no executable enforcement, and no text a gate reads.
+- **Panel**: reduced (architect, critic), per AGENTS.md. The change moves amendment history only. It edits no rule text and no executable enforcement. One test does scan the moved text; round 2 covers it and both seats kept the reduced panel.
 - **Decided without the owner**: the author chose the relocation during an unattended run. The owner did not pick it. The alternatives are listed below.
 
 ## What changed
@@ -57,7 +57,7 @@ Two citation repairs ride along, because rule 2b shifted line numbers:
 |----|----------|--------|------------|
 | R-1 | P1 | architect, critic | The archive header cited a debate log that did not exist. This log now exists. |
 | R-2 | P1 | critic | The stub and the archive header said 2026-11-26. Both now say 2026-11-25, the local date of the move. |
-| R-3 | P2 | critic | REQ-048 line 471 still cited ADR-084 line 203. It now cites line 263. |
+| R-3 | P2 | critic | A second REQ-048 citation still pointed at ADR-084 line 203. It now cites line 263, from REQ-048 line 473. |
 | R-4 | P2 | architect, critic | ADR-084 lines 170 and 289 say "the Amendment Record" and need one extra hop. Documented. The stub names both moved entries. |
 | R-5 | P2 | architect | A critique file is a weak home for accepted history. Documented. The gate message names critique and analysis files as the place for moved detail. |
 
@@ -70,6 +70,33 @@ Two citation repairs ride along, because rule 2b shifted line numbers:
 | Core vs Context | N/A. No capability changes. |
 | Second-System Effect | N/A. No scope is added. |
 
+## Round 2 Summary
+
+Round 2 corrected a false claim in the round 1 record. Round 1 said the move touched no text a gate reads.
+
+`tests/hooks/test_adr_hook_claims.py` scans every `ADR-*.md` under `.project-toolkit/architecture/` for hook file names. The moved text names one hook, `invoke_auto_retrospective.py`, and calls it since-deleted. The test accepted that mention as retired. The archive sits under `.project-toolkit/critique/`, which the test does not scan.
+
+### Agent Positions
+
+| Agent | Position | Head finding |
+|-------|----------|--------------|
+| architect | Accept | No check changes today. The panel rationale in this log was wrong. |
+| critic | Disagree-and-Commit | Same finding. Nothing now checks that the archived mention stays marked retired. |
+
+### Key Issues Addressed
+
+| ID | Priority | Source | Resolution |
+|----|----------|--------|------------|
+| R-6 | P1 | architect, critic | The Panel line claimed no gate reads the moved text. Corrected above. |
+| R-7 | P2 | architect, critic | Row R-3 named REQ-048 line 471. The citation sits at line 473. Corrected. |
+| R-8 | P2 | critic | The hook-claims test no longer scans the one archived hook mention. Documented. The archive is a frozen record and names no live hook. |
+| R-9 | P2 | architect | ADR-084 line 289 says the Amendment Record names two restored tests. Lines 273 to 275 name them. This predates the move. Documented, not changed. |
+| R-10 | P2 | architect | The commit message of `c4cdd484b5` (2026-11-25) says REQ-048 line 471. A later commit moved the citation to line 473. The message stays as written. |
+
+### Panel size
+
+Both seats judged the reduced panel adequate. AGENTS.md asks for the full panel when a change touches executable enforcement or a rule other gates read. The test reads amendment history here, not rule text, and it passes either way.
+
 ## Dissent
 
 - critic: do not commit until R-1 and R-2 are fixed. Both are fixed in this change.
@@ -77,7 +104,8 @@ Two citation repairs ride along, because rule 2b shifted line numbers:
 
 ## Not verified by the panel
 
-- Neither seat ran `pre_pr.py`. The author ran it before and after the commit.
+- Neither seat ran `pre_pr.py` or `pytest`. The author ran both on the committed tree.
+- The round 2 seats read the hook-claims test. They did not run it.
 - The architect did not resolve each relative path inside the moved text. The text is unchanged from `origin/main`.
 
 ## Next Steps
