@@ -18,7 +18,8 @@ The repo verified each reason against the code on 2026-11-26.
    A real defect in the generator is still in scope.
 3. **Python style that ruff does not raise under the repo config.**
    Ruff with `[tool.ruff]` in `pyproject.toml` decides Python style.
-   Its target is `py310`, so do not suggest syntax newer than that.
+   Its `target-version` is `py310`, a syntax floor that `pyproject.toml` explains, not the 3.14 runtime.
+   Do not suggest syntax newer than `py310`.
    Raise style only when ruff raises it.
 4. **Lint or format problems in the security benchmark corpus.**
    `.project-toolkit/security/benchmarks/vulnerable_samples/` holds deliberately vulnerable code.

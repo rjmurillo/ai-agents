@@ -263,73 +263,73 @@
    "kind": "contains",
    "path": "src/claude/skills/github/scripts/issue/get_issue_comments.py",
    "text": "isinstance(user, dict)",
-   "id": "R48"
+   "id": "R47"
   },
   {
    "kind": "contains",
    "path": "scripts/github_core/not_found.py",
    "text": "def is_pr_not_found(text: str | None) -> bool:",
-   "id": "R49"
+   "id": "R48"
   },
   {
    "kind": "contains",
    "path": "tests/eval/conftest.py",
    "text": "monkeypatch.syspath_prepend",
-   "id": "R50"
+   "id": "R49"
   },
   {
    "kind": "contains",
    "path": "tests/codex/conftest.py",
    "text": "monkeypatch.setenv(\"USERPROFILE\"",
-   "id": "R51"
+   "id": "R50"
   },
   {
    "kind": "contains",
    "path": "scripts/ci/adr101_publisher_execute.py",
    "text": "def _child_env(environ",
-   "id": "R52"
+   "id": "R51"
   },
   {
    "kind": "contains",
    "path": "scripts/ci/diff_line_scope.py",
    "text": "Deletion-only hunks (``+N,0``) touch no post-image line",
-   "id": "R53"
+   "id": "R52"
   },
   {
    "kind": "contains",
    "path": "lefthook.yml",
    "text": "name: extract-session-episodes",
-   "id": "R54"
+   "id": "R53"
   },
   {
    "kind": "contains",
    "path": "pyproject.toml",
    "text": "target-version = \"py310\"",
-   "id": "R55"
+   "id": "R54"
   },
   {
    "kind": "contains",
    "path": "pyproject.toml",
    "text": "\".project-toolkit/security/benchmarks/vulnerable_samples/**/*.py\" = [\"RUF100\", \"I001\", \"E501\"]",
-   "id": "R56"
+   "id": "R55"
   },
   {
    "kind": "contains",
    "path": ".github/scripts/run_with_retry.py",
    "text": "if code == _EXIT_TRANSIENT:",
-   "id": "R57"
+   "id": "R56"
   },
   {
    "kind": "contains",
    "path": ".github/workflows/pr-validation.yml",
    "text": "--marker \"PR-VALIDATION\"",
-   "id": "R58"
+   "id": "R57"
   },
   {
    "kind": "contains",
    "path": ".github/workflows/pytest.yml",
    "text": "# No CVEs are ignored.",
-   "id": "R59"
+   "id": "R58"
   }
  ]
 }
