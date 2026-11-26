@@ -60,9 +60,8 @@ Only exit `0` clears.
 
 ### Phase 1: Assess complexity
 
-Delegate to the `analyst` agent: Read the engineering complexity tiers reference
-in the `analyze` skill, resolved through
-`${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/analyze/references/engineering-complexity-tiers.md`,
+Delegate to the `analyst` agent: Read the `analyze` skill's
+`references/engineering-complexity-tiers.md`
 and the task description. Classify as Tier 1-5. Return tier, rationale, and
 recommended oversight level. Calibrate the implementation approach:
 

@@ -98,6 +98,7 @@ These bind today.
 | [ADR-018](ADR-018-cache-invalidation-strategy.md) | Cache Invalidation Strategy for GitHub Data | 2025-12-23 | Primary: Option 2 (Session-Local Cache) for simplicity Secondary: Option 3 (cloudmcp) when cross-session benefit is critical |
 | [ADR-019](ADR-019-script-organization.md) | Script Organization and Usage Patterns | 2025-12-23 | Establish a hierarchical script organization based on intended audience and execution context: |
 | [ADR-021](ADR-021-model-routing-strategy.md) | AI Review Model Routing Strategy | 2025-12-23 | Adopt an evidence-aware, tiered model routing strategy that routes AI review requests to specialized models based on: |
+| [ADR-022](ADR-022-architecture-governance-split-criteria.md) | Architecture vs Governance Decision Split Criteria | 2026-11-26 | Adopt a hybrid approach with explicit split criteria: |
 | [ADR-023](ADR-023-quality-gate-prompt-testing.md) | Quality Gate Prompt Structural Validation | 2025-12-26 | Chosen option: "Pester Structural Tests", because it provides immediate, repeatable validation of prompt structure with minimal infrastructure overhead, while acknowledging that runtime behavioral... |
 | [ADR-026](ADR-026-pr-automation-concurrency-and-safety.md) | PR Automation Concurrency and Safety Controls | 2026-07-27 | Decision: Use GitHub Actions `concurrency` group instead of file-based locking. |
 | [ADR-029](ADR-029-skill-file-line-ending-normalization.md) | Skill File Line Ending Normalization | 2025-12-27 | Force LF line endings for all `*.skill` files using git attributes: |
@@ -150,6 +151,7 @@ These bind today.
 | [ADR-106](ADR-106-serena-only-memory-architecture.md) | Serena-Only Memory Architecture | 2026-09-08 | The memory-first principle survives unchanged. |
 | [ADR-108](ADR-108-template-owned-skill-files.md) | Template-Owned Skill Files Under `.claude/skills/` | 2026-09-11 | Adopt one new artifact class and amend the three texts that forbid it: REQ-003-010, REQ-003 decision D4, and ADR-107 property 1. |
 | [ADR-109](ADR-109-template-first-plugin-distribution.md) | Template-First Plugin Distribution | 2026-11-22 | Adopt template-first distribution for every artifact class the plugins ship, with one stated exception for imported Python library code, and supersede ADR-052 with an inverted direction. |
+| [ADR-110](ADR-110-capability-ownership-dag.md) | Capability Ownership and the Artifact Dependency DAG | 2026-11-25 | Behavior-driving artifacts compose a capability DAG, and each capability has one canonical owner that declares itself in its own frontmatter. |
 | [ADR-111](ADR-111-skill-model-pins-project-per-harness.md) | Skill Model Pins Project Per Harness | 2026-10-29 | Default every skill, agent, and command to the harness-inherited model. |
 | [ADR-113](ADR-113-promotion-gate-evidence-and-exceptions.md) | Promotion Gate Evidence, Artifact Binding, and Governed Exceptions | 2026-09-30 | One aggregator, one manifest. |
 | [ADR-116](ADR-116-unchecked-in-context-rule-violation-failure-mode.md) | Propose a Failure Mode for Unchecked In-Context Rule Violations | 2026-11-25 | Propose a class named Unchecked In-Context Rule Violation, numbered with the next free FM number at acceptance (FM #14 on 2026-10-13, because ADR-117 took FM #13), for... |
@@ -167,14 +169,7 @@ Recorded, not yet binding. The last column is what each record says is holding i
 
 | ADR | Title | Date | Decision | Blocking acceptance |
 | --- | --- | --- | --- | --- |
-| [ADR-011](ADR-011-session-state-mcp.md) | Session State MCP | 2025-12-21 | Create a Session State MCP that: | - |
-| [ADR-012](ADR-012-skill-catalog-mcp.md) | Skill Catalog MCP | 2025-12-21 | Create a Skill Catalog MCP that: | - |
-| [ADR-013](ADR-013-agent-orchestration-mcp.md) | Agent Orchestration MCP | 2025-12-21 | Create an Agent Orchestration MCP that: | - |
-| [ADR-020](ADR-020-feature-request-review-step.md) | Feature Request Review Step in Issue Triage Workflow | 2025-12-19 | Chosen option: Option 1 - New Conditional Step with Analyst Agent | - |
-| [ADR-022](ADR-022-architecture-governance-split-criteria.md) | Architecture vs Governance Decision Split Criteria | 2025-12-23 | Adopt a hybrid approach with explicit split criteria: | - |
-| [ADR-027](ADR-027-github-mcp-agent-isolation.md) | GitHub MCP Server with Agent Isolation Pattern | 2025-12-23 | Chosen option: Phased Hybrid Approach with GitHub MCP as Target Architecture | - |
 | [ADR-038](ADR-038-reflexion-memory-schema.md) | Reflexion Memory Schema | 2026-01-01 | Implement a Four-Tier Reflexion Memory Schema with episodic replay and causal graph capabilities. | - |
-| [ADR-048](ADR-048-mcp-tool-ecosystem-expansion.md) | MCP Tool Ecosystem Expansion | 2026-02-23 | Expand the MCP tool ecosystem in four phases, building on existing ADRs: | - |
 | [ADR-049](ADR-049-pre-pr-validation-gates.md) | Pre-PR Validation Gates | 2026-02-24 | All PRs MUST pass a local validation gate before creation. | - |
 | [ADR-065](ADR-065-orchestrator-as-router.md) | Orchestrator Is a Deterministic Router and Retry Policy, Not a Supervisor | 2026-05-29 | The orchestrator is a deterministic router with a retry policy. | - |
 | [ADR-067](ADR-067-validate-pr-change-claim-context.md) | validate-pr Check 1 default-flip - change-claim context required | 2026-06-02 | Adopt Option (c) Hybrid: keep patterns 1 (bold `path.ext`) and 2 (bullet-list `^[-*+] path.ext`) firing in any context. | - |
@@ -188,7 +183,6 @@ Recorded, not yet binding. The last column is what each record says is holding i
 | [ADR-098](ADR-098-agent-role-metadata-replaces-tier-hierarchy.md) | Agent Role Metadata Replaces the Tier Hierarchy | 2026-08-20 | Retire the four-tier agent hierarchy. | - |
 | [ADR-104](ADR-104-gate-tier-placement-and-budgets.md) | Gate Tier Placement | 2026-08-25 | Three tiers, each with a stated job. | Six-seat adr-review debate held 2026-08-25; log at `.project-toolkit/critique/ADR-104-debate-log.md`. The first revision was blocked by two seats and this record is the rewrite. `implemented` stays... |
 | [ADR-107](ADR-107-canonical-skill-contracts-and-harness-projections.md) | Canonical Skill Contracts and Generated Harness Projections | 2026-09-09 | Issue #5603 requires this record to distinguish semantic contract, harness projection, capability profile, advisory model tactic, host authorization, and generated or vendor output. | review by 2027-03-09; Critical and load-bearing, as issue #5603 requires this record to state. Scope that claim precisely, because two review seats read the bold label against the next sentence and... |
-| [ADR-110](ADR-110-capability-ownership-dag.md) | Capability Ownership and the Artifact Dependency DAG | 2026-09-22 | Behavior-driving artifacts compose a capability DAG, and each capability has one canonical owner that declares itself in its own frontmatter. | review by 2027-03-22; The record defines where capability ownership is declared and what a gate may refuse. The gate ships with it and finds nothing yet, because no artifact declares a capability... |
 | [ADR-112](ADR-112-risk-tiered-action-boundaries.md) | Risk-Tiered Action Boundaries for Agent Tools | 2026-09-28 | Sort every agent action into four tiers, deny the highest tier at the Claude harness, check shared-repository mutations inside the script that performs them, and record every gap this leaves open. | review by 2027-03-28; The record was filed on 2026-09-28 for issue #5767, a child of epic #5456. It is implemented in the same change. Requirement: REQ-043. Tasks: TASK-052. |
 | [ADR-114](ADR-114-agent-workflows-approval-and-non-blocking.md) | Agent Workflows Run Only After Approval and Never Block Merges (Except the Plugin CLI Smoke) | 2026-11-07 | Approval before running, one environment per provider. | review by 2027-04-03 |
 | [ADR-115](ADR-115-native-plugin-support-per-host.md) | Native Plugin Support for Cursor, Codex, Grok Build, Hermes, Devin, Pi, and Muse | 2026-11-24 | A generated plugin tree for each host whose native format differs. | review by 2027-04-12; ADR-115 refines ADR-072 Decision 2 and Decision 5 for seven more hosts. A reduced `adr-review` panel (architect and critic) reached consensus in round 3 on the first four hosts.... |
@@ -209,6 +203,7 @@ Superseded or deprecated. Do not cite these. The last column is where the decisi
 | [ADR-005](ADR-005-powershell-only-scripting.md) | PowerShell-Only Scripting Standard | superseded | [ADR-042](ADR-042-python-migration-strategy.md) |
 | [ADR-007](ADR-007-memory-first-architecture.md) | Memory-First Architecture | superseded | [ADR-106](ADR-106-serena-only-memory-architecture.md) |
 | [ADR-010](ADR-010-quality-gates-evaluator-optimizer.md) | Quality Gates with Evaluator-Optimizer Pattern | deprecated | not recorded |
+| [ADR-020](ADR-020-feature-request-review-step.md) | Feature Request Review Step in Issue Triage Workflow | deprecated | not recorded |
 | [ADR-024](ADR-024-github-actions-runner-selection.md) | GitHub Actions Runner Selection | superseded | [ADR-055](ADR-055-github-actions-runner-selection.md) |
 | [ADR-025](ADR-025-github-actions-arm-runners.md) | GitHub Actions ARM Runner Migration | superseded | [ADR-055](ADR-055-github-actions-runner-selection.md) |
 | [ADR-028](ADR-028-powershell-output-schema-consistency.md) | PowerShell Output Schema Consistency | superseded | [ADR-103](ADR-103-skill-output-python-contract-correction.md) (via ADR-056) |
@@ -230,8 +225,13 @@ Considered and declined. Kept visible so the proposal is findable and does not r
 
 | ADR | Title | Date | Decision |
 | --- | --- | --- | --- |
+| [ADR-011](ADR-011-session-state-mcp.md) | Session State MCP | 2026-11-26 | Create a Session State MCP that: |
+| [ADR-012](ADR-012-skill-catalog-mcp.md) | Skill Catalog MCP | 2026-11-26 | Create a Skill Catalog MCP that: |
+| [ADR-013](ADR-013-agent-orchestration-mcp.md) | Agent Orchestration MCP | 2026-11-26 | Create an Agent Orchestration MCP that: |
+| [ADR-027](ADR-027-github-mcp-agent-isolation.md) | GitHub MCP Server with Agent Isolation Pattern | 2026-11-26 | Chosen option: Phased Hybrid Approach with GitHub MCP as Target Architecture |
 | [ADR-030](ADR-030-skills-pattern-superiority.md) | Skills Pattern Superiority | 2026-08-25 | - |
 | [ADR-031](ADR-031-hybrid-powershell-architecture.md) | Hybrid PowerShell Architecture for Claude Code Performance | 2026-08-25 | Implement a hybrid architecture for PowerShell skill execution: |
+| [ADR-048](ADR-048-mcp-tool-ecosystem-expansion.md) | MCP Tool Ecosystem Expansion | 2026-11-26 | Expand the MCP tool ecosystem in four phases, building on existing ADRs: |
 | [ADR-061](ADR-061-hook-matcher-shims-delegate-pattern.md) | Hook Matcher Shims Delegate to Canonical Body | 2026-08-25 | Amend REQ-003-007 step 5 so the generator emits delegate shims, not inline-body shims. |
 | [ADR-090](ADR-090-pr-branch-holder-lease.md) | PR Branch Holder Lease | 2026-10-13 | Adopt a fail-closed, PR-comment-backed holder lease for PR branch mutation. |
 | [ADR-095](ADR-095-scoped-re-review-axes.md) | Scoped re-review runs only the axes that flagged (rejected) | 2026-08-15 | - |
