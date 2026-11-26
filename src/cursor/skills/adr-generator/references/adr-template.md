@@ -177,7 +177,8 @@ run. Holding the review alone does not clear it, and `accepted` is still
 checked. It stops failing on any of these edits: a `review-by` of today or later
 that the prose also states; `accepted` with `review-by: null`; or a move to
 `rejected`, `deprecated`, or `superseded`. A `proposed` record set to `null`
-fails `proposed-needs-review-by` instead. Record the review outcome in the prose. A
+fails `proposed-needs-review-by` instead. Record the review outcome in the prose.
+Each of these edits changes the prose, so it also needs a debate log entry. A
 `superseded`, `deprecated`, or `rejected` record is history, and only the format
 check reads it.
 
