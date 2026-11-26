@@ -35,7 +35,7 @@ failure pattern maps to one component, so the edit stays targeted.
 | Component | Surface in Claude Code and Copilot CLI |
 |---|---|
 | System prompt | `CLAUDE.md`, `AGENTS.md`, always-on rules |
-| Tool description | MCP tool descriptions, skill `description` frontmatter |
+| Tool description | MCP tool descriptions, the `description` field in each SKILL.md frontmatter |
 | Tool implementation | MCP servers, bundled scripts |
 | Middleware | hooks (see this skill's hook contracts) |
 | Skill | `SKILL.md` and its `references/` |
