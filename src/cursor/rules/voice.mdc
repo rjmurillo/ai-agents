@@ -1,5 +1,6 @@
 ---
-alwaysApply: true
+globs: "**/SKILL.md, **/*.mustache, **/*.SKILL.md.tmpl"
+alwaysApply: false
 ---
 
 # Voice

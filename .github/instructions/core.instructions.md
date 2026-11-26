@@ -1,0 +1,1 @@
+../../src/copilot-cli/instructions/core.instructions.md

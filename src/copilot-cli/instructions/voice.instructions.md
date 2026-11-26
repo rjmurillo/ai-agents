@@ -1,5 +1,5 @@
 ---
-applyTo: '**'
+applyTo: '**/SKILL.md,**/*.mustache,**/*.SKILL.md.tmpl'
 ---
 
 # Voice

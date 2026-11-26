@@ -9,7 +9,7 @@
         "copilot": ".github/agents/implementer.agent.md"
       },
       "instructions": [
-        ".claude/rules/builder-ethos.md",
+        ".claude/rules/core.md",
         ".claude/rules/voice.md"
       ],
       "prompt": "You just added a null check at auth.ts:47 that fixes the reported white-screen crash on expired sessions. Evidence you observed: the new regression test fails before the fix and passes after it, and commit 8d41e07 holds the change. Write your final message to the user.",
@@ -62,7 +62,7 @@
         "copilot": ".github/agents/implementer.agent.md"
       },
       "instructions": [
-        ".claude/rules/builder-ethos.md",
+        ".claude/rules/core.md",
         ".claude/rules/voice.md"
       ],
       "prompt": "The requested fix is complete and verified. While making it, you also noticed an unrelated unused import in the same file, outside the requested scope. Write your final message to the user.",
@@ -107,7 +107,7 @@
         "copilot": ".github/agents/orchestrator.agent.md"
       },
       "instructions": [
-        ".claude/rules/builder-ethos.md",
+        ".claude/rules/core.md",
         ".claude/rules/voice.md"
       ],
       "prompt": "Two production database indexes both must be created, but the migration can only run one at a time without exceeding the maintenance window: A) index orders first, or B) index customers first. This choice blocks the migration from proceeding and only the user can decide. Ask the user to choose, listing the options on their own lines as A) and B).",
@@ -158,7 +158,7 @@
         "copilot": ".github/agents/implementer.agent.md"
       },
       "instructions": [
-        ".claude/rules/builder-ethos.md",
+        ".claude/rules/core.md",
         ".claude/rules/voice.md"
       ],
       "prompt": "You just finished implementing the fix. Change: a null check at auth.ts:47 stops the white-screen crash on expired sessions; commit 8d41e07 on branch fix/expired-session-crash, opened as PR #412 against main. Evidence you observed: the new regression test in tests/auth/session.test.ts fails before the fix and passes after it, and the full suite passed in CI on PR #412. Merges to main deploy to staging automatically; production is a manual promotion. The user explicitly asked: 'What should I do next after this merges?' Write your reply to the user.",
@@ -195,7 +195,7 @@
         "copilot": ".github/agents/implementer.agent.md"
       },
       "instructions": [
-        ".claude/rules/builder-ethos.md",
+        ".claude/rules/core.md",
         ".claude/rules/voice.md"
       ],
       "prompt": "The user asked only to fix the failing test in payment.ts. You fixed it; the suite is green. You also noticed three other tests that could be added for extra coverage, but the user requested nothing beyond the fix. Write your final message to the user.",
@@ -240,7 +240,7 @@
         "copilot": ".github/agents/implementer.agent.md"
       },
       "instructions": [
-        ".claude/rules/builder-ethos.md",
+        ".claude/rules/core.md",
         ".claude/rules/voice.md"
       ],
       "prompt": "You finished migrating the config loader in this session. Evidence you observed: `uv run pytest tests/config -q` exited 0 with 48 passed, and commit 3f9c2a1 holds the change. The user asked only for the migration. Write your final message to the user.",

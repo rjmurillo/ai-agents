@@ -142,8 +142,8 @@ skills with narrower activation. Issue #5256 added `lossless-queue-reads`, since
 
 | Tree | Consumer | Always-on membership |
 |---|---|---|
-| `.github/instructions` | Copilot working in this repository | `builder-ethos`, `universal`, `voice` |
-| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | `builder-ethos`, `universal`, `voice` |
+| `.github/instructions` | Copilot working in this repository | `core`, `universal` |
+| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | `core`, `universal` |
 
 The Claude side answers the same question from the source, and it reads `paths:` alone. It ignores `applyTo:`, `globs:`, and `alwaysApply:`, all three of which `generate_rules.py` accepts, and each fails differently. `applyTo:` is remapped, so the mirror is scoped and only the Claude source leaks (the former `pragmatic-programmer` rule, before issue #5951 moved it into the `software-engineering-library` skill). `globs:` is preserved verbatim and never becomes `applyTo:`, so neither tree is scoped. `alwaysApply:` is dropped before the generator synthesizes `applyTo: '**'`, so both trees load universally and a code-only rule cannot state its scope (`code-quality`). `scripts/validation/check_rule_scope_keys.py` now fails the build on any scope key but `paths:`, which keeps the source-side and mirror-side answers aligned.
 

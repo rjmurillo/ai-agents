@@ -1,5 +1,6 @@
 ---
-alwaysApply: true
+globs: "**/SKILL.md, **/*.mustache, **/*.SKILL.md.tmpl"
+alwaysApply: false
 ---
 
 # Builder Ethos
@@ -81,42 +82,7 @@ Two AI models agreeing on a change is a strong signal. It is not a mandate. The 
 
 ## 4. Task Completion Contract
 
-Execution can satisfy the request and keep going: a later optional refinement gets silently promoted into active work. This section makes verified completion terminal. `voice.md` owns the response-side rule, the completion-tail audit, stopping an unsolicited continuation prompt.
-
-### Forming the contract
-
-How to derive and record the smallest task contract lives in the `avoiding-manufactured-work` skill (Forming The Contract), beside its disposition procedure.
-
-### Precedence
-
-`system/host requirements > mandatory safety/repository policy > current user request > frozen task contract > optional improvements`.
-
-Mandatory policy: the MUST and MUST NOT items in `universal.md` and `security.md`, and the `AGENTS.md` Never list. No request lowers them.
-
-### Finding disposition
-
-Every post-satisfaction finding is one of four classes; classify it with the `avoiding-manufactured-work` skill's disposition procedure, not a second doctrine.
-
-An agent may boil any lake the user named. A lake the agent found gets flagged in the PR body, per-issue handoff, or retro file; an agent may only flag, never file, an issue for it unless the user explicitly authorizes that item or a documented, bounded standing authorization covers it. Filing is the user's decision under User Sovereignty in section 3. This does not change the four-class table (Blocker, Requested improvement, Optional enhancement, Side quest); it only says where the flag for an agent-found item lands.
-
-| Class | Meaning | Keeps the task active? |
-|---|---|---|
-| Blocker | Evidence falsifies a frozen criterion or policy | Yes, exact scope |
-| Requested improvement | Explicit part of the contract | Yes |
-| Optional enhancement | Useful, but no criterion or consumer requires it | No |
-| Side quest | Outside the requested objective | No |
-
-### Terminal predicate
-
-> When every requested deliverable satisfies the frozen task contract and no blocker remains, the current task is terminal. Stop autonomous work.
-
-Retry limits, review rounds, TODO exhaustion, delegation budgets, and circuit breakers remain backstops, not proof of completion; none can keep a verified-terminal task active merely because budget remains.
-
-### Reactivation
-
-The events that reopen a terminal task, and the ones that cannot, are enumerated in the `avoiding-manufactured-work` skill (Reactivation); nothing else reopens it.
-
----
+`core.md` owns the Task Completion Contract: forming the contract, precedence, finding disposition, the terminal predicate, and reactivation. It loads on every request.
 
 ## 5. Thinking and Execution Discipline
 
@@ -139,13 +105,7 @@ The events that reopen a terminal task, and the ones that cannot, are enumerated
 
 ## 6. Task Intent
 
-Sections 3 and 4 own sovereignty and completion.
-
-- **A question or problem report authorizes no change.** Assess (why, is this wrong, evaluate, review) and diagnose (reproduce, find the cause) leave state alone: report the cause and the proposed change, then stop. An obvious defect, a small fix, or an available tool grants none.
-- **Authority has four sources:** a direct imperative (fix, update, create, send, merge); an invoked workflow whose contract includes the mutation; an earlier instruction that named the scope and is still active; a repository policy that mandates the action.
-- **Authorized with enough information: act.** Do not ask again; missing information means diagnose, not re-ask. "Investigate and fix if confirmed" lets the diagnosis gate the fix: a confirmed cause is fixed with no second permission round.
-- **Authority is bounded by the request.** "Fix the failing test" means the smallest change that makes it pass for the intended behavior, not cleanup, refactors, or upgrades. Subagents and handoffs inherit that bound, never a wider one.
-- **A materially different action is a new decision.** If the only remedy is broader, destructive, or in state the user did not name, surface it before acting, unless an active workflow covers it.
+`core.md` owns Task Intent. It loads on every request.
 
 ---
 

@@ -1,4 +1,4 @@
-"""Task Intent contract tests for builder-ethos.md section 6 (issue #5407).
+"""Task Intent contract tests for core.md Task Intent (issue #5407).
 
 The section separates understanding a problem from authority to change
 state. These tests prove four things offline:
@@ -10,7 +10,7 @@ state. These tests prove four things offline:
    notices, so the clauses are not decoration.
 3. The runtime fixture corpus covers every required scenario, and the two
    ablation controls fail for the documented reason.
-4. The policy has one owner: builder-ethos declares the capability and the
+4. The policy has one owner: core declares the capability and the
    ADR-110 capability graph gate accepts the graph.
 """
 
@@ -30,20 +30,20 @@ from tests.eval._runtime_parity_test_support import runtime_parity
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-CANONICAL = Path("templates/rules/builder-ethos.md")
+CANONICAL = Path("templates/rules/core.md")
 
 RULE_SURFACES = (
     CANONICAL,
-    Path(".claude/rules/builder-ethos.md"),
-    Path("src/claude/rules/builder-ethos.md"),
-    Path(".github/instructions/builder-ethos.instructions.md"),
-    Path("src/copilot-cli/instructions/builder-ethos.instructions.md"),
-    Path("tests/build_scripts/fixtures/rule_templates_b2/expected/builder-ethos.md"),
+    Path(".claude/rules/core.md"),
+    Path("src/claude/rules/core.md"),
+    Path(".github/instructions/core.instructions.md"),
+    Path("src/copilot-cli/instructions/core.instructions.md"),
+    Path("tests/build_scripts/fixtures/rule_templates_b2/expected/core.md"),
 )
 
 FIXTURES_PATH = REPO_ROOT / "tests" / "evals" / "task-intent-runtime-fixtures.json"
 
-SECTION_HEADING = "## 6. Task Intent"
+SECTION_HEADING = "## Task Intent"
 
 # Each clause is one load-bearing claim of the invariant. Removing any one
 # must make `missing_clauses` report it.
@@ -121,12 +121,12 @@ def test_removing_the_whole_section_is_detected() -> None:
 
 def test_section_leaves_terminal_state_to_section_four() -> None:
     body = section_six(_text(CANONICAL))
-    assert "Sections 3 and 4 own sovereignty and completion." in body
+    assert "Clause 5 and Task Completion Contract own sovereignty and completion." in body
     assert "Terminal predicate" not in body
     assert "Reactivation" not in body
 
 
-def test_builder_ethos_declares_the_task_intent_capability() -> None:
+def test_core_declares_the_task_intent_capability() -> None:
     """The DAG mechanism (ADR-110, issue #5396) names the single owner."""
     frontmatter = yaml.safe_load(_text(CANONICAL).split("---\n")[1])
     capability = frontmatter["metadata"]["capability"]
@@ -135,7 +135,7 @@ def test_builder_ethos_declares_the_task_intent_capability() -> None:
 
 
 def test_capability_graph_gate_accepts_the_single_owner() -> None:
-    """The ADR-110 gate passes with builder-ethos as the owner."""
+    """The ADR-110 gate passes with core as the owner."""
     result = subprocess.run(
         [
             sys.executable,
@@ -172,7 +172,7 @@ def test_fixture_corpus_loads_with_the_required_scenarios() -> None:
 
 def test_every_fixture_installs_the_rule_and_carries_a_semantic_assertion() -> None:
     for fixture in _fixtures().values():
-        assert ".claude/rules/builder-ethos.md" in fixture.instructions
+        assert ".claude/rules/core.md" in fixture.instructions
         assert "semantic" in {spec.kind for spec in fixture.assertions}
 
 
