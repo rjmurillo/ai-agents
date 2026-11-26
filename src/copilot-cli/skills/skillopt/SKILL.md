@@ -77,7 +77,7 @@ reproduce its reported gains.
    exposed.
 5. **Right container.** For a skill, run `context-optimizer`
    placement analysis on SKILL.md before any rollout. On Passive
-   Context and no script or reference actions, stop and report. Never in
+   Context and no script actions, stop and report. Never in
    loop or gates.
 
 Freeze the `train` and `sel` task lists before authoring any candidate. Keep

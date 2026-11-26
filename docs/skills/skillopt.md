@@ -24,7 +24,7 @@ In Claude Code, after a plugin install, run:
 
 In a Claude Code session inside a checkout of this repository, drop the prefix: `/skillopt`. In GitHub Copilot CLI, name the skill with a slash in your prompt, such as `Use the /skillopt skill to ...`.
 
-The skill checks five preconditions: a target file, a scored eval set with a held-out `sel` split, a named canonical owner, two isolated runners, and, for a skill target, a [`context-optimizer`](context-optimizer.md) placement check. The analyzer reads `SKILL.md` only. If it returns Passive Context and neither `scripts/` nor `references/` holds actions, the skill stops and reports it before any rollout. The author of the candidate must not see the `sel` tasks, verifiers, or results. If your harness cannot give you two isolated runners, do not run this skill.
+The skill checks five preconditions: a target file, a scored eval set with a held-out `sel` split, a named canonical owner, two isolated runners, and, for a skill target, a [`context-optimizer`](context-optimizer.md) placement check. The analyzer reads `SKILL.md` only. If it returns Passive Context and `scripts/` holds no actions, the skill stops and reports it before any rollout. The author of the candidate must not see the `sel` tasks, verifiers, or results. If your harness cannot give you two isolated runners, do not run this skill.
 
 ## What you get
 
