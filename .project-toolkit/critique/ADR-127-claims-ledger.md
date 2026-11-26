@@ -58,10 +58,16 @@ gstack rows were read from a clone of `github.com/garrytan/gstack` at `ec5d7e6fb
 | 49 | ADR-112 puts force push and hook bypass in the consequential tier, enforced by `permissions.deny` | quote | `sed -n 85,104p` on ADR-112 | VERIFIED |
 | 50 | The gstack files read give no call count from after the phase change | absence | read `lib/ship-phase.ts`, `lib/ship-clock.ts`, `ship/DRIVER.md`; a panel seat also searched `CHANGELOG.md` and one eval preregistration file | VERIFIED for those files only. Not a whole-repository search |
 | 51 | ADR-103 is accepted and requires `--output-format` with `json`, `human`, `auto`; `auto` resolves to `json` when stdout is redirected | quote | `sed -n 3p`; `sed -n 92,100p` on ADR-103 | VERIFIED: decision items 2, 3, and 4 |
-| 52 | The runner records the base as a ref name, not a commit | path | `sed -n 1031p scripts/eval/eval-prompt-change.py` | VERIFIED: `source = f"git: {args.base_ref}:{before_path} -> working copy"` |
+| 52 | The runner records the base as a ref name, not a commit | path | `sed -n 1031p scripts/eval/eval-prompt-change.py` | SUPERSEDED by row 58 at `26cb7876e8` (2026-11-25): the runner now also records `base_commit` |
 | 53 | The runner excludes a scenario with an unstable base from regressions | path | `sed -n 769,772p scripts/eval/eval-prompt-change.py` | VERIFIED: `if is_base_unstable(...)` appends to `base_unstable_scenarios` and skips the regression branch |
 | 54 | ADR-103 gives the envelope `Success`, `Data`, `Error`, and `Metadata`, and makes `Error.Code` the ADR-035 exit code | quote | `sed -n 92,93p`; `sed -n 103,104p` on ADR-103 | VERIFIED: decision items 1 and 6 |
 | 55 | The runner treats three base shapes as unstable: a pass that is flaky, fewer than the required scored runs, and a resample that contradicts a clean first pass. ADR-127 decision 7 item 7 names the first two and points to the runner's list for the rest | behavior | read `is_base_unstable`, `scripts/eval/eval-prompt-change.py:518-540` | VERIFIED: three return paths |
+| 56 | The decision 9 check is `scripts/validation/check_skill_rewrite_evidence.py` and runs in `pre_pr.py` | path | `grep -n check_skill_rewrite_evidence scripts/validation/checks_ci_parity.py` at `26cb7876e8` (2026-11-25) | VERIFIED: line 315 names the script; `pre_pr_sequence.py` registers the gate |
+| 57 | The check runs in the `Validate PR` CI job | path | `grep -n "name: Validate PR\|check_skill_rewrite_evidence" .github/workflows/pr-validation.yml` | VERIFIED: job name at line 43, step at line 328, command at line 336 |
+| 58 | The runner records all four identities in an `identity` block built by `run_identity` | behavior | read `scripts/eval/eval-prompt-change.py:1180-1206`, the call at line 1225, and the output key at line 1244 | VERIFIED: `prompt_surface_sha256`, `scenarios_sha256`, `base_commit`, `model` |
+| 59 | The check recomputes the item 7 floor from the after results | behavior | read `_floor_findings`, `scripts/validation/skill_rewrite_evidence.py:229` | VERIFIED: `TestFloors` at `tests/validation/test_skill_rewrite_evidence.py:278` covers it |
+| 60 | A brand-new skill is not gated; a new skill beside a deleted one is gated | behavior | read `_gate_or_skip` in `check_skill_rewrite_evidence.py`; `uv run pytest tests/validation -k skill_rewrite` | VERIFIED: 187 passed at `ddf10d447a` (2026-11-25) |
+| 61 | The owner confirmed the new-skill reading on 2026-11-25 | quote | owner answer to decision brief D1 in the #7589 session, option "Amend ADR-127 here" | VERIFIED |
 
 ## Gate results
 

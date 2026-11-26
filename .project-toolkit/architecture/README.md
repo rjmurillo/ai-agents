@@ -119,7 +119,7 @@ These bind today.
 | [ADR-053](ADR-053-adr-exception-criteria.md) | ADR Exception Criteria (Chesterton's Fence) | 2026-03-07 | ADR exceptions MUST include a Chesterton's Fence analysis before approval. |
 | [ADR-054](ADR-054-local-security-scanning.md) | Local Security Scanning | 2026-07-20 | Add a Lefthook pre-push job that scans changed code files. |
 | [ADR-055](ADR-055-github-actions-runner-selection.md) | GitHub Actions Runner Selection | 2026-08-25 | Default to ARM64 runners for all Linux workflows unless documented architectural constraints exist. |
-| [ADR-057](ADR-057-prompt-behavioral-evaluation.md) | Prompt Behavioral Evaluation Methodology | 2026-10-02 | Adopt scenario-based LLM evaluation as the standard method for validating behavioral correctness of prompt changes. |
+| [ADR-057](ADR-057-prompt-behavioral-evaluation.md) | Prompt Behavioral Evaluation Methodology | 2026-11-25 | Adopt scenario-based LLM evaluation as the standard method for validating behavioral correctness of prompt changes. |
 | [ADR-058](ADR-058-agent-eval-discipline.md) | Agent Eval Discipline (Agent-vs-Baseline Efficacy) | 2026-05-03 | Adopt the agent-vs-baseline efficacy methodology defined below as the standard for empirical validation of agent specialization. |
 | [ADR-059](ADR-059-pr-review-completion-gate-dispatcher.md) | /pr-review Completion Gate Dispatcher and pass_when DSL | 2026-11-01 | Replace the narrative completion gate with a dispatcher. |
 | [ADR-060](ADR-060-rework-warning-session-log-persistence.md) | Rework Warning Evidence Persistence in Session Log JSON | 2026-07-27 | Add an optional `reworkWarning` object under `protocolCompliance.sessionEnd` in the session log JSON. |
