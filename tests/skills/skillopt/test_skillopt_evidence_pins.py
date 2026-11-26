@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -122,6 +123,7 @@ class TestPins:
         assert "hard link" in capsys.readouterr().err
         assert eval_path.read_bytes() == before
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
     def test_retargeted_symlink_is_a_mismatch(self, tmp_path: Path, capsys: Capture) -> None:
         eval_path, _ = self.setup_files(tmp_path)
         v1, v2 = tmp_path / "check-v1.py", tmp_path / "check-v2.py"
@@ -146,6 +148,7 @@ class TestPins:
         assert skillopt.main(["pin-check", "--pins", str(pins)]) == 0
         assert json.loads(capsys.readouterr().out)["verdict"] == "MATCH"
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX mode bits only")
     def test_pins_file_follows_umask(self, tmp_path: Path) -> None:
         pins = self.pin(tmp_path)
         probe = tmp_path / "probe"
