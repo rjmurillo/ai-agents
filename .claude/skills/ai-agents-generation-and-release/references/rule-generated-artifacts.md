@@ -206,7 +206,8 @@ have no `scripts/` source.
 
 Fix the source, run `build_all.py`, and commit every regenerated tree
 together. Do not patch a rendered copy by hand. Do inspect the rendered
-copies after you regenerate, as `.claude/rules/templates.md` SHOULD 2 asks.
+copies after you regenerate. For agents, `.claude/rules/templates.md`
+SHOULD 2 names the two outputs to read.
 
 ## Quick Self-Review
 
