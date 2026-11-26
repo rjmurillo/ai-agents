@@ -165,10 +165,14 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
-def _branch_missing(owner: str, repo: str, branch: str) -> bool:
-    """True when the branch itself does not exist, so a protection 404 means something."""
+def _branch_reject_reason(owner: str, repo: str, branch: str) -> str:
+    """Return the exit-2 reason for an unusable branch argument, or empty."""
+    if not branch.strip():
+        return "--branch must not be blank"
     branch_obj, branch_error = gh_api_get(f"repos/{owner}/{repo}/branches/{branch}")
-    return branch_obj is None and ("404" in branch_error or "Not Found" in branch_error)
+    if branch_obj is None and ("404" in branch_error or "Not Found" in branch_error):
+        return f"Branch '{branch}' not found in {owner}/{repo}; a mistyped branch is not an unprotected one"
+    return ""
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -179,22 +183,11 @@ def main(argv: list[str] | None = None) -> int:
     resolved = resolve_repo_params(args.owner, args.repo)
     owner, repo = resolved.owner, resolved.repo
 
-    if not args.branch.strip():
+    if branch_error := _branch_reject_reason(owner, repo, args.branch):
         write_skill_error(
-            "--branch must not be blank",
+            branch_error,
             2,
-            error_type="InvalidParams",
-            output_format=fmt,
-            script_name=_SCRIPT_NAME,
-        )
-        return 2
-
-    missing = _branch_missing(owner, repo, args.branch)
-    if missing:
-        write_skill_error(
-            f"Branch '{args.branch}' not found in {owner}/{repo}; a mistyped branch is not an unprotected one",
-            2,
-            error_type="NotFound",
+            error_type="InvalidParams" if not args.branch.strip() else "NotFound",
             output_format=fmt,
             script_name=_SCRIPT_NAME,
         )
