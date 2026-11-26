@@ -968,24 +968,24 @@ in the analysis file linked below.
 ### Open Requirement 1: the controller
 
 `scripts/eval/eval_controller.py` inverts the loop. The launcher runs the
-controller, and the controller runs the scorer, `extract`, `split`, and `gate`.
-The optimizing agent runs as a child proposer. Each step it sees only the
-optimize-group results of the incumbent, optional optimize-group task files,
-and the last decision. A gated candidate teaches it one bit. Results, the
-split, the ledger, and gate payloads stay in a controller state directory.
-The cap and the ledger root come from launcher config. The owner chose this
-boundary over a separate OS user and a protected CI job (#7642, decision D2).
+controller, which runs the scorer, `extract`, `split`, and `gate`. The agent
+runs as a child proposer. Each step it gets optimize-group results, step and
+budget counts, optional optimize-group task files, and the last decision, so a
+gated candidate teaches it one bit. Everything else stays in a controller state
+directory. The cap and ledger root come from launcher config. The owner chose
+this over a separate OS user or a protected CI job (#7642, decision D2).
 
 **The boundary is conditional.** Python cannot stop a same-user process from
-reading a file. The held-out group is withheld only when the launcher applies
-the rule `eval_controller.py policy` prints. That rule denies the proposer read
-and write on the state directory, the config, and the task and report paths.
-It also denies write on the gate's and controller's code. Under that rule the
-three surfaces this requirement names are closed. The controller cannot check
-that the launcher applied it. For the `hook` kind, the scorer runs candidate
-code, which can forge its own results. The stronger Decision form holds only
-for a controller-run loop under the rule. A direct `optimize-artifact.py` loop
-remains supported and keeps the weaker bound.
+reading a file. The held-out group is withheld only under the rule
+`eval_controller.py policy` prints: no proposer read or write on the state
+directory, the config, or `deny_paths`, and no write on the eval code. And
+`deny_paths` must cover the whole task directory and earlier report
+directories, or the held-out group is the complement of the optimize ids.
+Under that rule the three surfaces this requirement names are closed. The
+controller cannot check the rule. For `hook`, candidate code runs in the scorer
+and can forge its own results. The stronger Decision form holds only for a
+controller-run loop under the rule; a direct `optimize-artifact.py` loop keeps
+the weaker bound.
 
 The noise threat stays open (`max_p` is optional; Open Requirement 6 covers
 rules only). Detail: `.project-toolkit/analysis/7678-adr-087-trusted-controller-and-null-control.md`.

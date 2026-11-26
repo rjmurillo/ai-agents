@@ -73,9 +73,11 @@ stops early.
 - The config must name the task-definition paths (`deny_paths`). A deny path
   may not overlap the state directory, the config, the workspace, or the
   artifact.
-- The controller digests `deny_paths`, its own code and the gate's (every
-  `scripts/eval/*.py`), and any `trusted_paths` the config names, such as the
-  scorer's own files. It checks them before each scoring run and after each
+- The controller digests `deny_paths`, every entry under `scripts/eval/`
+  (its own code and the gate's, directories included, so a planted package is
+  caught), and any `trusted_paths` the config names, such as the scorer's own
+  files. The optimizer runs with `PYTHONPYCACHEPREFIX` under the state
+  directory, so a planted cache in `scripts/eval/__pycache__` is never read. It checks them before each scoring run and after each
   step, and stops on any change.
 - Around each scoring run, it digests the whole state directory except the new
   run's output directory, and stops if anything else changed.
@@ -102,8 +104,9 @@ The post-score byte check and the integrity checks are what remain then.
 
 - `deny_read_write`: the state directory, the config file, and every
   `deny_paths` entry;
-- `deny_write`: every `scripts/eval/*.py` file and every `trusted_paths` entry;
-- `proposer_may_write`: the artifact, plus the workspace.
+- `deny_write`: the `scripts/eval/` directory and every `trusted_paths` entry;
+- `proposer_may_write`: the artifact. `proposer_workspace` names the workspace,
+  which must be absent or empty at start and must not contain the artifact.
 
 The config is on the read list because it names the seed and the task
 inventory. `deny_paths` must cover the whole task directory: if the proposer

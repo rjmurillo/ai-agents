@@ -2276,7 +2276,8 @@ Four further refusals close holes that open once a loop runs many steps:
   the budget bounds is how many times an edit may be compared against the
   held-out group through the gate, which is the loop's own **gate comparisons**
   against that group. It is not a bound on total selection pressure. Closing
-  that needs the trusted controller in ADR-087 Open Requirement 1.
+  that needs the trusted controller in ADR-087 Open Requirement 1; see
+  "Running the loop under the trusted controller" below.
 
   Three things this does not cover, stated rather than implied. The cap is
   whatever positive integer the first call names, so the budget is only as tight
@@ -2320,8 +2321,8 @@ The config is launcher-owned JSON:
 | --- | --- |
 | `kind` | `agent`, `rule`, or `hook`, passed to `extract --kind`. |
 | `artifact` | The file the proposer edits. |
-| `state_dir` | Controller-only. Holds scorer output, results, split, ledger, and log. Must be fresh. |
-| `workspace_dir` | The proposer's only input. Emptied each step, then given `feedback.json` and optional `tasks/`. |
+| `state_dir` | Controller-only. Holds scorer output, results, split, ledger, log, and bytecode caches. Must not hold an earlier session (`split.json`). |
+| `workspace_dir` | The proposer's only input. Must be absent or empty at start, and must not contain the artifact. Emptied each step, then given `feedback.json` and optional `tasks/`. |
 | `scorer` | argv. `{run_id}`, `{run_dir}`, and `{artifact}` are filled in. |
 | `collect` | Paths the scorer writes outside `{run_dir}`. Each is moved to `{run_dir}/<index>`. |
 | `inputs` | `extract --input` paths, usually under `{run_dir}`. |
@@ -2351,8 +2352,10 @@ ACCEPT writes the candidate back.
 The controller refuses to gate when the artifact changed while it was scored.
 It refuses an artifact replaced by a symlink, a hard link, or a directory.
 Restores keep the artifact's mode and never follow a link. It digests
-`deny_paths`, `trusted_paths`, and `scripts/eval/*.py` before the loop and
-again around every scoring run and step. It also checks that scoring changed
+`deny_paths`, `trusted_paths`, and every entry under `scripts/eval/` before the
+loop and again around every scoring run and step. The optimizer runs with
+`PYTHONPYCACHEPREFIX` under `state_dir`, so a planted bytecode cache in
+`scripts/eval/__pycache__` is never read. It also checks that scoring changed
 nothing in `state_dir` outside the new run's directory.
 
 **The boundary is conditional.** Python cannot stop a same-user process from

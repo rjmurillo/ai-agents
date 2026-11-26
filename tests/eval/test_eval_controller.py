@@ -1,3 +1,7 @@
+# taste-lint: ignore file-size
+# One contract, one shared fake scorer and proposer. Splitting the file would
+# scatter the setup every test reads; the sibling optimize-artifact suite does
+# the same.
 """Tests for scripts/eval/eval_controller.py (ADR-087 Open Requirement 1, #7678).
 
 The controller runs the optimizing agent as a child proposer. The properties
@@ -247,8 +251,8 @@ def test_policy_lists_state_and_task_paths(
         str(config.resolve()),
         str(tmp_path / "fixtures"),
     ]
-    assert any(path.endswith("optimize-artifact.py") for path in policy["deny_write"])
-    assert any(path.endswith("eval_controller.py") for path in policy["deny_write"])
+    # The whole eval directory, so a planted sibling module is covered too.
+    assert policy["deny_write"] == [str(_SCRIPT.parent)]
 
 
 def test_scorer_failure_is_external(tmp_path: Path) -> None:
@@ -405,7 +409,7 @@ def test_config_inside_workspace_is_refused(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     moved = workspace / "config.json"
-    moved.write_text(config.read_text(encoding="utf-8"))
+    moved.write_text(config.read_text(encoding="utf-8"), encoding="utf-8")
     assert ec.main(["run", "--config", str(moved)]) == ec.EXIT_CONFIG
 
 
@@ -615,3 +619,52 @@ def test_failure_detail_goes_to_the_log_not_stderr(
     assert ec.main(["run", "--config", str(config)]) == ec.EXIT_EXTERNAL
     assert "PRIVATE-DETAIL" not in capsys.readouterr().err
     assert "PRIVATE-DETAIL" in _events(tmp_path)[-1]["detail"]
+
+
+def test_artifact_inside_the_workspace_is_refused(tmp_path: Path) -> None:
+    config, artifact = _setup(tmp_path, {}, steps=1)
+    inside = tmp_path / "workspace" / "artifact.json"
+    inside.parent.mkdir()
+    inside.write_text(artifact.read_text(encoding="utf-8"), encoding="utf-8")
+    _edit_config(config, artifact=str(inside))
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+    assert inside.is_file()
+
+
+def test_non_empty_workspace_is_refused_and_left_alone(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    keep = tmp_path / "workspace" / "keep.txt"
+    keep.parent.mkdir()
+    keep.write_text("mine", encoding="utf-8")
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+    assert keep.read_text(encoding="utf-8") == "mine"
+    assert not (tmp_path / "state" / "log.jsonl").exists()
+
+
+def test_new_file_in_a_trusted_directory_stops_the_loop(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {}, steps=2)
+    trusted = tmp_path / "trusted"
+    trusted.mkdir()
+    (trusted / "mod.py").write_text("x = 1\n", encoding="utf-8")
+    plant = "import os, sys; os.mkdir(os.path.join(sys.argv[1], 'json'))"
+    _edit_config(
+        config, trusted_paths=[str(trusted)], proposer=[sys.executable, "-c", plant, str(trusted)]
+    )
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+
+
+def test_gate_runs_with_bytecode_cache_under_state(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, _ = _setup(tmp_path, {"1": _all_true()}, steps=1)
+    envs: list[Any] = []
+    real = ec.optimizer
+
+    def fake(args: list[str], timeout: int, env: Any = None) -> tuple[int, dict[str, Any]]:
+        envs.append(env)
+        return real(args, timeout, env)
+
+    monkeypatch.setattr(ec, "optimizer", fake)
+    assert ec.main(["run", "--config", str(config)]) == 0
+    prefix = str(tmp_path / "state" / "pycache")
+    assert envs and all(env["PYTHONPYCACHEPREFIX"] == prefix for env in envs)

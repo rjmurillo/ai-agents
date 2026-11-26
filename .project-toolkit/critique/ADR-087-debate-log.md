@@ -113,8 +113,9 @@ The `/review` skill ran on commit `bfe33e69b` after round 4: spec-compliance, a
 correctness pass, and the 11 canonical axes in four batched seats. Spec-compliance
 and roadmap returned PASS; the rest returned WARN. `pre_pr.py` failed on the
 file-size, naming, and complexity taste ratchet, the ADR size cap, and test file
-encodings. The fixes below changed code and condensed ADR text, so the panel's
-round 4 vote covers the decision, and a follow-up review pass covers the code.
+encodings. The fixes below changed code and condensed ADR text. The round 4
+votes covered the text as it stood then; a round 5 critic pass and a round 2
+code review covered the condensed text and the restructured code.
 
 | Source | Finding | Disposition |
 | --- | --- | --- |
@@ -131,6 +132,35 @@ round 4 vote covers the decision, and a follow-up review pass covers the code.
 | decision-rigor | "Did not produce a false accept" overstated a pair with little power. | Fixed. The ADR now says three all-failing tasks tie almost by construction. |
 | analyst | The ledger root is `state_dir/ledger`, not the state directory. | Fixed in the analysis file. |
 | pre-PR | Taste ratchet (+3), ADR size cap, test encodings. | Fixed. The controller is split into `eval_controller.py` (snake_case) and `_controller_io.py`. The ADR is back to 1000 lines, with detail moved to `.project-toolkit/analysis/7678-adr-087-trusted-controller-and-null-control.md`. |
+
+## Round 5 and code review round 2
+
+### Critic (ADR condensation)
+
+Vote: Disagree-and-Commit.
+
+| Id | Finding | Disposition |
+| --- | --- | --- |
+| R5-1 | The condensed ADR dropped the condition that `deny_paths` must cover the whole task directory and earlier report directories; "the three surfaces are closed" overclaimed without it. | Fixed. The sentence is restored in the ADR. |
+| R5-2 | "Sees only" omitted the step, artifact path, score, and budget fields. | Fixed. |
+| R5-3 | The analysis file said `proposer_may_write` includes the workspace; the code prints it separately. | Fixed. |
+| R5-4 | README said `state_dir` "Must be fresh"; the code refuses only an earlier `split.json`. | Fixed. |
+| R5-5 | README still said closing selection pressure "needs the trusted controller" with no pointer. | Fixed. Pointer added. |
+| R5-6 | This log claimed the round 4 vote covered the condensed text. | Fixed. Reworded above. |
+
+Dissent recorded: the per-requirement state table and the POSIX `setsid` limit now live in the analysis file, not the ADR.
+
+### Code review round 2 (frozen)
+
+Verdict: WARN. Eleven of twelve round 1 items verified fixed. The proposer allowlist is opt-in, so the default still passes the environment minus `EVAL_LEDGER_DIR`; kept as documented.
+
+| Id | Finding | Disposition |
+| --- | --- | --- |
+| D1 | A workspace containing the artifact would delete it each step, and an unrelated directory named as the workspace would be wiped. | Fixed. Both refused at start; tests `test_artifact_inside_the_workspace_is_refused` and `test_non_empty_workspace_is_refused_and_left_alone`. |
+| D2 | A refused existing `state_dir` got an `abort` line appended. | Fixed. Abort is logged only after the session starts. |
+| Note 1 | The docstring claimed the state directory is digested at all times. | Fixed. It now names the scoring window. |
+| Note 5 | `TypeError` and `AttributeError` escaped as exit 1. | Fixed. Mapped to exit 3. |
+| Plugin review | Only top-level `.py` files were digested, so a planted package or bytecode cache could shadow a module. | Fixed. Every entry under `scripts/eval/` is digested, `deny_write` names the directory, and the optimizer runs with `PYTHONPYCACHEPREFIX` under state. |
 
 ## Dissent and residual risk
 

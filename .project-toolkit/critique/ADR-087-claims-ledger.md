@@ -11,7 +11,7 @@ Verified 2026-11-25 for issue #7642, covering the "Amendment 2026-11-25" text an
 | #3436 is closed. | Behavior | `gh issue view 3436 --json state` | `CLOSED`. VERIFIED |
 | `optimize-artifact.py report` exists and reads the test group. | Path | `optimize-artifact.py` lines 3252-3269 | `sub.add_parser("report", help="read the test group once, at the end")`. VERIFIED |
 | The controller runs scorer, `extract`, `split`, and `gate` itself. | Behavior | `scripts/eval/eval_controller.py`, `Controller.score` and `Controller.run` | Each is a subprocess the controller starts. VERIFIED |
-| The proposer workspace holds `feedback.json` (step, artifact path, opt results, opt score, consultations left, last decision) and opt task files. | Behavior | `test_proposer_never_sees_a_held_out_id`, `test_accept_keeps_the_candidate_and_reports_one_bit`, `test_opt_task_files_are_copied_and_nothing_else` | 50 of 50 tests pass after the /review fixes. VERIFIED |
+| The proposer workspace holds `feedback.json` (step, artifact path, opt results, opt score, consultations left, last decision) and opt task files. | Behavior | `test_proposer_never_sees_a_held_out_id`, `test_accept_keeps_the_candidate_and_reports_one_bit`, `test_opt_task_files_are_copied_and_nothing_else` | 54 of 54 tests pass after review round 2 fixes. VERIFIED |
 | Every step exit restores the incumbent before the gate. | Behavior | `test_reject_restores_the_incumbent`, `test_proposer_that_edits_then_fails_leaves_the_incumbent`, `test_artifact_changed_during_scoring_is_refused` | Pass. VERIFIED |
 | A planted workspace symlink does not redirect a controller write. | Behavior | `test_planted_feedback_symlink_is_not_followed` | Pass. VERIFIED |
 | `deny_paths` is required, and `policy` lists state, config, and `deny_paths`. | Behavior | `test_bad_config_is_refused[deny_paths-value9]`, `test_policy_lists_state_and_task_paths` | Pass. VERIFIED |
@@ -46,3 +46,6 @@ Verified 2026-11-25 for issue #7642, covering the "Amendment 2026-11-25" text an
 | Child stderr goes to the log, not the launcher's stderr. | Behavior | `test_failure_detail_goes_to_the_log_not_stderr` | Pass. VERIFIED |
 | SIGTERM raises so the restore runs. | Behavior | `test_sigterm_handler_raises_a_controller_error` (handler only; no signal delivered) | Pass. VERIFIED (handler), NOT RUN (live signal) |
 | Held-out tasks in the null control were A004, A006, A008. | Count | `split.json` `sel` from `split --seed 7642` | VERIFIED |
+| An artifact inside the workspace, or a non-empty workspace, is refused at start. | Behavior | `test_artifact_inside_the_workspace_is_refused`, `test_non_empty_workspace_is_refused_and_left_alone` | Exit 2, files untouched. VERIFIED |
+| A new directory in a trusted path stops the loop. | Behavior | `test_new_file_in_a_trusted_directory_stops_the_loop` | Exit 2. VERIFIED |
+| Optimizer calls carry `PYTHONPYCACHEPREFIX` under state. | Behavior | `test_gate_runs_with_bytecode_cache_under_state` | Every call. VERIFIED |

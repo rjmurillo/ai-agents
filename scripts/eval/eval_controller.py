@@ -20,8 +20,10 @@ consultation ledger, the full gate payloads, and child output.
 The boundary is real only when the launcher applies the rule `policy` prints:
 deny the proposer read and write on `deny_read_write`, and deny it write on
 `deny_write`. Python cannot stop a same-user process from opening a file. The
-controller digests both sets and the state directory, and stops on any change
-it did not make, so a write that slips past the sandbox is caught, not scored.
+controller digests the denied and trusted paths before each scoring run and
+after each step, and digests the state directory around each scoring run. It
+stops on a change it did not make, so a write that slips past the sandbox in
+those windows is caught, not scored.
 
 When the scorer executes the artifact (the `hook` kind), the candidate's code
 runs inside the scorer with the scorer's access. The controller detects it
@@ -103,12 +105,22 @@ class Controller:
         self.spent = 0
         self.accepts = 0
         self.last: str | None = None
+        self.started = False
 
     def _record(self, event: Mapping[str, Any]) -> None:
         stamp = dt.datetime.now(dt.UTC).isoformat(timespec="milliseconds")
         line = {"ts": stamp, "session": self.session, **event}
         with self.log.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(line, sort_keys=True) + "\n")
+
+    def _optimizer(
+        self, args: list[str], extra: Mapping[str, str] | None = None
+    ) -> tuple[int, dict[str, Any]]:
+        # Bytecode caches live under state, so a cache planted in
+        # `scripts/eval/__pycache__` is never read by the gate.
+        env = {**os.environ, "PYTHONPYCACHEPREFIX": str(self.state / "pycache"), **(extra or {})}
+        result: tuple[int, dict[str, Any]] = optimizer(args, self.config.timeout_seconds, env)
+        return result
 
     def _protected(self) -> list[Path]:
         return [*self.config.deny_paths, *trusted_code(self.config)]
@@ -152,9 +164,8 @@ class Controller:
                 raise ControllerError(f"scorer output {source} was not produced", EXIT_EXTERNAL)
             shutil.move(str(source), str(run_dir / str(index)))
         inputs = [fill(item, values) for item in self.config.inputs]
-        code, payload = optimizer(
-            ["extract", "--kind", self.config.kind, "--input", *inputs, *self.config.extract_args],
-            self.config.timeout_seconds,
+        code, payload = self._optimizer(
+            ["extract", "--kind", self.config.kind, "--input", *inputs, *self.config.extract_args]
         )
         if code != 0:
             raise ControllerError(f"extract refused the {label} scorer output", EXIT_EXTERNAL)
@@ -203,6 +214,12 @@ class Controller:
         config = self.config
         if (self.state / "split.json").exists():
             raise ControllerError("state_dir already holds a session; use a fresh state_dir")
+        workspace = config.workspace_dir
+        if workspace.exists() and (workspace.is_symlink() or any(workspace.iterdir())):
+            raise ControllerError(
+                "workspace_dir must be absent or empty; the controller empties it every step"
+            )
+        self.started = True
         self.state.mkdir(parents=True, exist_ok=True)
         os.chmod(self.state, 0o700)
         self.incumbent_bytes = read_artifact(config.artifact)
@@ -216,7 +233,7 @@ class Controller:
         args += ["--sel-ratio", config.sel_ratio, "--out", str(self.state / "split.json")]
         if document.get("corpus"):
             args += ["--corpus", document["corpus"]]
-        code, split_doc = optimizer(args, config.timeout_seconds)
+        code, split_doc = self._optimizer(args)
         if code != 0:
             raise ControllerError("split refused the incumbent's task inventory", EXIT_EXTERNAL)
         self.fingerprint = split_doc["fingerprint"]
@@ -229,8 +246,7 @@ class Controller:
         args += ["--incumbent-fingerprint", self.fingerprint]
         if self.config.max_p is not None:
             args += ["--max-p", str(self.config.max_p)]
-        env = {**os.environ, "EVAL_LEDGER_DIR": str(self.state / "ledger")}
-        code, verdict = optimizer(args, self.config.timeout_seconds, env)
+        code, verdict = self._optimizer(args, {"EVAL_LEDGER_DIR": str(self.state / "ledger")})
         self._record({"event": "gate", "step": step, "exit": code, "verdict": verdict})
         # Exit 1 is also how the gate refuses without comparing (split drift,
         # corpus mismatch, guard). Only a comparison is a decision; a refusal
@@ -284,7 +300,7 @@ class Controller:
         try:
             return self._run()
         except ControllerError as exc:
-            if self.log.parent.is_dir():
+            if self.started and self.log.parent.is_dir():
                 self._record(
                     {"event": "abort", "code": exc.code, "error": str(exc), "detail": exc.detail}
                 )
@@ -322,7 +338,7 @@ class Controller:
         return summary
 
 
-def _terminated(signum: int, frame: FrameType | None) -> None:
+def _terminated(_signum: int, _frame: FrameType | None) -> None:
     # Raised, so the step's `finally` restores the incumbent and kills the
     # child's group before the process exits.
     raise ControllerError("controller received SIGTERM", EXIT_EXTERNAL)
@@ -359,7 +375,7 @@ def main(argv: list[str] | None = None) -> int:
     except ControllerError as exc:
         print(json.dumps({"error": str(exc)}), file=sys.stderr)
         return int(exc.code)
-    except (OSError, KeyError, ValueError) as exc:
+    except (OSError, KeyError, ValueError, TypeError, AttributeError) as exc:
         print(json.dumps({"error": f"{type(exc).__name__}: {exc}"}), file=sys.stderr)
         return int(EXIT_EXTERNAL)
     return code

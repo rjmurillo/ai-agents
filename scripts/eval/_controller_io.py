@@ -156,11 +156,14 @@ def load_config(path: Path) -> Config:
 def trusted_code(config: Config) -> list[Path]:
     """Code the controller runs with its own authority: the gate and the scorer.
 
-    The eval directory's Python files cover `optimize-artifact.py`, its
-    modules, and this controller. A planted sibling module changes the digest
-    too, because the listing is part of it.
+    The whole eval directory, not only its `.py` files: a planted package
+    directory or data file beside `optimize-artifact.py` could shadow a module
+    it imports. `tree_digest` records every entry, directories included.
+    Bytecode caches are excluded because the controller runs the optimizer
+    with `PYTHONPYCACHEPREFIX` under its state directory, so a cache under
+    `scripts/eval/__pycache__` is never read.
     """
-    return [*sorted(EVAL_DIR.glob("*.py")), *config.trusted_paths]
+    return [EVAL_DIR, *config.trusted_paths]
 
 
 def check_layout(config: Config) -> None:
@@ -169,6 +172,10 @@ def check_layout(config: Config) -> None:
         raise ControllerError("`workspace_dir` and `state_dir` must not contain each other")
     if overlaps(config.config_path, config.workspace_dir):
         raise ControllerError("the config must not sit inside the proposer workspace")
+    if overlaps(config.artifact, config.workspace_dir):
+        raise ControllerError(
+            "the artifact must not sit inside the proposer workspace, which is emptied each step"
+        )
     for path in [*config.deny_paths, *config.trusted_paths]:
         if overlaps(path, config.workspace_dir) or overlaps(path, config.artifact):
             raise ControllerError(
@@ -187,19 +194,21 @@ def tree_digest(paths: Sequence[Path], exclude: Path | None = None) -> str:
     """One digest over the names and bytes of every file under `paths`."""
     sha = hashlib.sha256()
     for root in paths:
-        if root.is_dir():
-            files = sorted(
-                p for p in root.rglob("*") if p.is_file() and "__pycache__" not in p.parts
-            )
+        if root.is_dir() and not root.is_symlink():
+            entries = sorted(p for p in root.rglob("*") if "__pycache__" not in p.parts)
         else:
-            files = [root]
-        for file in files:
-            if exclude is not None and exclude in file.parents:
+            entries = [root]
+        for entry in entries:
+            if exclude is not None and (entry == exclude or exclude in entry.parents):
                 continue
-            if not file.is_file():
-                sha.update(f"missing:{file}\n".encode())
-                continue
-            sha.update(f"{file}:{hashlib.sha256(file.read_bytes()).hexdigest()}\n".encode())
+            if entry.is_symlink():
+                sha.update(f"link:{entry}:{os.readlink(entry)}\n".encode())
+            elif entry.is_dir():
+                sha.update(f"dir:{entry}\n".encode())
+            elif entry.is_file():
+                sha.update(f"{entry}:{hashlib.sha256(entry.read_bytes()).hexdigest()}\n".encode())
+            else:
+                sha.update(f"missing:{entry}\n".encode())
     return sha.hexdigest()
 
 
