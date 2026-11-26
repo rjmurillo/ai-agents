@@ -1,0 +1,26 @@
+{
+  "author_family": "openai",
+  "branch": "t3/7608cb77",
+  "counts": {
+    "dropped": 0,
+    "kept": 0,
+    "overlap": 0,
+    "raw": 0,
+    "sol_only": 0
+  },
+  "critic_sha256": "",
+  "dropped": [],
+  "failure_class": "",
+  "findings": [],
+  "head_sha": "e3e159d1d942be7ccf9e43453f54875fa8b0f04b",
+  "key": "t3/7608cb77",
+  "model": "gpt-6.2-sol",
+  "overlap_rule": "same file and line within 3 of a critic path:line or range",
+  "pr": "",
+  "round": 1,
+  "schema_version": 2,
+  "skip_reason": "same-family: a GPT model wrote this change, so Sol would not be a second family",
+  "status": "skipped",
+  "timestamp": "2026-11-26T03:13:21Z",
+  "verdict": ""
+}
