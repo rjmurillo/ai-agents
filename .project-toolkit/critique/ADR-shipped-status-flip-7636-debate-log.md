@@ -84,4 +84,8 @@ one line. That shifted text six other files cite by line number. The bullet is
 rewrapped to its original line count. A stale `cli-smoke.yml` citation next to
 the edit now points at the current lines 167 and 190.
 
+Merging `origin/main` brought in PR #7634, which added a partial
+`skillforge/scripts/_packs.py` path to ADR-115 Decision 6. Acceptance makes
+`cited-paths-exist` read it, so it now names the full tracked path.
+
 **Verdict**: Consensus to accept, with no BLOCK.
