@@ -249,6 +249,15 @@ CodeRabbit pass on `71555828f` (12 threads):
 | The split comes from baseline results, not a launcher inventory. | Deferred to Open Requirement 12, #7689, as before. |
 | Two runs on one artifact can restore over each other. | Not fixed. Documented: one controller per artifact; a cross-process lock is new scope. |
 
+CodeRabbit follow-ups on resolved threads, after the round cap: twelve asks for deeper hardening of fixes already landed. Each got a `[WONTFIX]` reply with its reason, and none started a new round. Recorded here as residual risk:
+
+- A failed report move on the scorer-failure path is reported only through the scorer error.
+- Child output files are not capped while the child runs; readback is.
+- A signal in the one instruction before `restoring = True` can still skip a restore.
+- An unreadable directory inside the scorer's own run directory stops the digest (fails closed).
+- A `trusted_paths` entry containing `scripts/eval/` digests its caches (fails closed).
+- Baseline coverage against a launcher-owned inventory: noted on #7689.
+
 ## Dissent and residual risk
 
 - The boundary holds only under a launcher deny rule the controller cannot verify. The owner chose this in decision D2 over an OS user or a CI job.
