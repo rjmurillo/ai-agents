@@ -76,7 +76,7 @@ def defines_test(source: str, classes: list[str], func: str) -> bool:
         return False
     if not _declares_utf8(source) or _module_hooks(tree) or _may_stop_at_import(tree):
         return False
-    if _rebound_elsewhere(tree, {*classes, func}):
+    if _rebound_elsewhere(tree, {*classes, func}) or _odd_pytestmark(tree):
         return False
     body = tree.body
     top = _final_binding(body, classes[0] if classes else func)
@@ -172,6 +172,11 @@ def _marks_only(decorators: list[ast.expr], roots: set[str]) -> bool:
         if call and len(call.args) == 1 and not call.keywords:
             if isinstance(call.args[0], callables):
                 return False
+        # A starred or double-starred argument may expand to that one callable.
+        if call and any(isinstance(a, ast.Starred) for a in call.args):
+            return False
+        if call and any(k.arg is None for k in call.keywords):
+            return False
         node = call.func if call else decorator
         parts: list[str] = []
         while isinstance(node, ast.Attribute):
@@ -183,6 +188,36 @@ def _marks_only(decorators: list[ast.expr], roots: set[str]) -> bool:
         if root is None or len(full) != 3 or full[1] != "mark":
             return False
     return True
+
+
+def _odd_pytestmark(tree: ast.Module) -> bool:
+    """True when a ``pytestmark`` binding may not be a mark list pytest can read.
+
+    pytest raises at collection on a ``pytestmark`` that holds anything but
+    marks. Only ``pytestmark = <marks>`` directly in the module body, or in a
+    class body there, counts as safe; the marks must use an import above it.
+    """
+    safe: set[int] = set()
+    roots: set[str] = set()
+    for node in tree.body:
+        nested = node.body if isinstance(node, ast.ClassDef) else []
+        safe |= {id(n) for n in [node, *nested] if _marks_assign(n, roots)}
+        roots |= _pytest_roots(node)
+    return any(
+        isinstance(n, ast.stmt) and id(n) not in safe and "pytestmark" in _bound_names(n)
+        for n in ast.walk(tree)
+    )
+
+
+def _marks_assign(node: ast.stmt, roots: set[str]) -> bool:
+    """True for ``pytestmark = <mark>`` or a list of marks; pytest rejects a tuple."""
+    if not (isinstance(node, ast.Assign) and len(node.targets) == 1):
+        return False
+    target, value = node.targets[0], node.value
+    if not (isinstance(target, ast.Name) and target.id == "pytestmark"):
+        return False
+    marks = value.elts if isinstance(value, ast.List) else [value]
+    return _marks_only(marks, roots)
 
 
 def _rebound_elsewhere(tree: ast.Module, names: set[str]) -> bool:
@@ -200,7 +235,8 @@ def _rebound_elsewhere(tree: ast.Module, names: set[str]) -> bool:
     for node in ast.walk(tree):
         if isinstance(node, (ast.Global, ast.Nonlocal)) and names & set(node.names):
             return True
-        if id(node) in safe:
+        marks = isinstance(node, ast.Attribute) and node.attr == "pytestmark"
+        if id(node) in safe and not marks:
             continue
         if isinstance(node, ast.stmt) and "__test__" in _bound_names(node):
             return True
@@ -209,15 +245,18 @@ def _rebound_elsewhere(tree: ast.Module, names: set[str]) -> bool:
     return False
 
 
+_SWITCHES = frozenset({"__test__", "pytestmark"})
+
+
 def _stores_over(node: ast.Attribute | ast.Subscript, names: set[str]) -> bool:
-    """True when *node* stores to an id name, any ``__test__`` key, or anything under ``pytest``."""
+    """True when *node* stores to an id name, a switch key, or anything under ``pytest``."""
     if not isinstance(node.ctx, (ast.Store, ast.Del)):
         return False
     if isinstance(node, ast.Subscript):
         key = node.slice
-        return isinstance(key, ast.Constant) and key.value in {"__test__", *names}
+        return isinstance(key, ast.Constant) and key.value in {*_SWITCHES, *names}
     root = _root_name(node)
-    switch = node.attr == "__test__" and root in names
+    switch = node.attr in _SWITCHES and root in names
     return node.attr in names or switch or root in {"pytest", "mark"}
 
 

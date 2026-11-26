@@ -455,6 +455,39 @@ HIDDEN = [
     ("pytest_plugins = ['test_x']\ndef test_t():\n    pass\n", [], "test_t"),
     ("def test_t():\n    yield\n", [], "test_t"),
     ("def test_t():\n    pass\ntest_t.__dict__['__test__'] = False\n", [], "test_t"),
+    (
+        "import pytest\ndef k(f):\n    return None\nA = [k]\n"
+        "@pytest.mark.foo(*A)\ndef test_t():\n    pass\n",
+        [],
+        "test_t",
+    ),
+    (
+        "import pytest\ndef k(f):\n    return None\n"
+        "@pytest.mark.foo(k, **{})\ndef test_t():\n    pass\n",
+        [],
+        "test_t",
+    ),
+    ("import pytest\npytestmark = 1\ndef test_t():\n    pass\n", [], "test_t"),
+    ("pytestmark = 'x'\ndef test_t():\n    pass\n", [], "test_t"),
+    ("pytestmark = [1]\ndef test_t():\n    pass\n", [], "test_t"),
+    (
+        "import pytest\ndef k(f):\n    return None\npytestmark = pytest.mark.foo(k)\n"
+        "def test_t():\n    pass\n",
+        [],
+        "test_t",
+    ),
+    (
+        "class TestR:\n    pytestmark = 1\n    def test_r(self):\n        pass\n",
+        ["TestR"],
+        "test_r",
+    ),
+    ("def test_t():\n    pass\ntest_t.pytestmark = 1\n", [], "test_t"),
+    (
+        "import pytest\nif True:\n    pytestmark = 1\ndef test_t():\n    pass\n",
+        [],
+        "test_t",
+    ),
+    ("pytestmark = pytest.mark.slow\nimport pytest\ndef test_t():\n    pass\n", [], "test_t"),
 ]
 # Full sources pytest collects, with decorators and switches the checker allows.
 COLLECTED = [
@@ -490,6 +523,13 @@ COLLECTED = [
     ),
     (
         "class TestR:\n    __test__ = True\n    def test_r(self):\n        pass\n",
+        ["TestR"],
+        "test_r",
+    ),
+    ("import pytest\npytestmark = pytest.mark.slow\ndef test_t():\n    pass\n", [], "test_t"),
+    (
+        "import pytest\npytestmark = [pytest.mark.a, pytest.mark.b]\n"
+        "class TestR:\n    pytestmark = [pytest.mark.c]\n    def test_r(self):\n        pass\n",
         ["TestR"],
         "test_r",
     ),
