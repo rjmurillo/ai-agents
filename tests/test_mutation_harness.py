@@ -73,6 +73,9 @@ def _prime_cache(module_path: Path) -> float:
     )
     env = os.environ.copy()
     env.pop("PYTHONDONTWRITEBYTECODE", None)
+    # CI sets PYTHONPYCACHEPREFIX on the pytest step. With it set, CPython writes
+    # the pyc under the prefix, so the sibling __pycache__ asserted below never exists.
+    env.pop("PYTHONPYCACHEPREFIX", None)
     subprocess.run(
         [sys.executable, "-c", probe],
         capture_output=True,
@@ -82,6 +85,50 @@ def _prime_cache(module_path: Path) -> float:
     )
     assert (module_path.parent / "__pycache__").exists()
     return original_mtime
+
+
+def _prime_prefixed_cache(module_path: Path, prefix: Path) -> float:
+    """Import the module in a child that writes its pyc under ``prefix``."""
+    original_mtime = os.stat(module_path).st_mtime
+    probe = (
+        "import importlib.util; "
+        f"spec = importlib.util.spec_from_file_location('subject', {str(module_path)!r}); "
+        "module = importlib.util.module_from_spec(spec); "
+        "spec.loader.exec_module(module)"
+    )
+    env = os.environ.copy()
+    env.pop("PYTHONDONTWRITEBYTECODE", None)
+    env["PYTHONPYCACHEPREFIX"] = str(prefix)
+    subprocess.run(
+        [sys.executable, "-c", probe],
+        capture_output=True,
+        env=env,
+        check=True,
+        timeout=30,
+    )
+    assert any(prefix.rglob("*.pyc"))
+    assert not (module_path.parent / "__pycache__").exists()
+    return original_mtime
+
+
+def _stale_aware_command(module: Path, original_mtime: float, expected: str) -> tuple[str, ...]:
+    """Child command that pins the source mtime, imports it, and checks identity().
+
+    Pinning the mtime inside the child makes a stale pyc match on mtime and size
+    without relying on the write landing in the same wall-clock second as the prime.
+    """
+    return (
+        sys.executable,
+        "-c",
+        (
+            "import importlib.util, os; "
+            f"os.utime({str(module)!r}, ({original_mtime!r}, {original_mtime!r})); "
+            f"spec = importlib.util.spec_from_file_location('subject', {str(module)!r}); "
+            "module = importlib.util.module_from_spec(spec); "
+            "spec.loader.exec_module(module); "
+            f"raise SystemExit(0 if module.identity() == {expected!r} else 1)"
+        ),
+    )
 
 
 def _run_cli(battery: Path) -> subprocess.CompletedProcess[str]:
@@ -384,6 +431,78 @@ class TestBytecodeIsolation:
             "-c",
             "import os; "
             "raise SystemExit(0 if os.environ.get('PYTHONDONTWRITEBYTECODE') == '1' else 1)",
+        )
+        runner = MutationRunner(cwd=workspace)
+
+        result = runner.run_all([_entry(source, command=command)])[0]
+
+        assert result.caught is False
+        assert "MISSED case returncode=0" in capsys.readouterr().out
+
+    def test_prefixed_bytecode_control_is_fooled_by_a_plain_child(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Control: the scenario below is a real stale-pyc case, so that test can fail."""
+        workspace = _case_dir("prefixed_control")
+        module = (workspace / "subject.py").resolve()
+        prefix = (workspace / "pyc-prefix").resolve()
+        _write_module(module, "a")
+        original_mtime = _prime_prefixed_cache(module, prefix)
+        _write_module(module, "b")
+        monkeypatch.setenv("PYTHONPYCACHEPREFIX", str(prefix))
+
+        completed = subprocess.run(
+            _stale_aware_command(module, original_mtime, "a"),
+            check=False,
+            timeout=30,
+        )
+
+        assert completed.returncode == 0
+
+    def test_same_length_mutation_does_not_reuse_prefixed_bytecode(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        workspace = _case_dir("prefixed_bytecode")
+        module = (workspace / "subject.py").resolve()
+        prefix = (workspace / "pyc-prefix").resolve()
+        _write_module(module, "a")
+        original_mtime = _prime_prefixed_cache(module, prefix)
+        monkeypatch.setenv("PYTHONPYCACHEPREFIX", str(prefix))
+        command = _stale_aware_command(module, original_mtime, "b")
+        runner = MutationRunner(cwd=workspace)
+
+        result = runner.run_all([_entry(module, old='"a"', new='"b"', command=command)])[0]
+
+        assert result.caught is False
+
+    @pytest.mark.parametrize("prefix_kind", ["unset", "existing_dir", "empty", "missing_dir"])
+    def test_child_process_never_receives_the_pycache_prefix(
+        self,
+        prefix_kind: str,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        workspace = _case_dir(f"prefix_env_{prefix_kind}")
+        source = workspace / "subject.py"
+        source.write_text("def guard() -> bool:\n    return True\n", encoding="utf-8")
+        monkeypatch.delenv("PYTHONPYCACHEPREFIX", raising=False)
+        if prefix_kind == "existing_dir":
+            existing = workspace / "pyc-prefix"
+            existing.mkdir()
+            monkeypatch.setenv("PYTHONPYCACHEPREFIX", str(existing))
+        elif prefix_kind == "empty":
+            monkeypatch.setenv("PYTHONPYCACHEPREFIX", "")
+        elif prefix_kind == "missing_dir":
+            monkeypatch.setenv("PYTHONPYCACHEPREFIX", str(workspace / "does-not-exist"))
+        monkeypatch.setenv("HARNESS_ENV_MARKER", "kept")
+        command = (
+            sys.executable,
+            "-c",
+            "import os; "
+            "ok = ('PYTHONPYCACHEPREFIX' not in os.environ "
+            "and os.environ.get('PYTHONDONTWRITEBYTECODE') == '1' "
+            "and os.environ.get('HARNESS_ENV_MARKER') == 'kept'); "
+            "raise SystemExit(0 if ok else 1)",
         )
         runner = MutationRunner(cwd=workspace)
 

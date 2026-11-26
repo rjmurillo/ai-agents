@@ -8,6 +8,10 @@ from __future__ import annotations
 from scripts.ci import run_pytest_partition as runner
 from tests.ci.pytest_split_workflow_helpers import KEY_PREFIX, steps_using, workflow_jobs
 
+# The one cache save the test job may hold. tests/ci/test_pytest_bytecode_cache_wiring.py
+# pins its exact shape.
+BYTECODE_KEY_PREFIX = "pytest-bytecode-"
+
 
 def _restore() -> dict:
     (step,) = [
@@ -36,10 +40,11 @@ class TestRestoreOnEverySplitLeg:
         names = [s.get("name") for s in workflow_jobs()["test"]["steps"]]
         assert names.index("Restore pytest-split durations") < names.index("Run pytest")
 
-    def test_no_split_leg_job_saves_the_durations_cache(self) -> None:
-        saves = [
-            step
+    def test_no_split_leg_job_saves_any_cache_but_the_bytecode_cache(self) -> None:
+        """The bytecode save is the one save this job may hold; any other key fails."""
+        other_saves = [
+            step["with"]["key"]
             for step in steps_using("test", "actions/cache/save")
-            if step["with"]["key"].startswith(KEY_PREFIX)
+            if not step["with"]["key"].startswith(BYTECODE_KEY_PREFIX)
         ]
-        assert saves == []
+        assert other_saves == [], f"unexpected cache saves in the test job: {other_saves}"

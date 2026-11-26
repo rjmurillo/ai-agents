@@ -580,7 +580,9 @@ jobs:
       # same logical cache. Pull requests never save, so a fork cannot seed bytecode
       # that later runs restore. The unique run key lets the restore prefix select
       # the newest main save. The step sits below the flaky-rerun steps because the
-      # rerun must follow Run pytest directly.
+      # rerun must follow Run pytest directly. This is the only step that writes
+      # this key. Its if: allows a write only from the primary leg of a push to
+      # refs/heads/main after Run pytest succeeds. Later legs run what it saved.
       - name: Save pytest bytecode cache
         if: >-
           matrix.primary
