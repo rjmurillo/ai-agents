@@ -1,0 +1,26 @@
+{
+  "author_family": "openai",
+  "branch": "t3/ws4b-adr-debate-evidence-extraction",
+  "counts": {
+    "dropped": 0,
+    "kept": 0,
+    "overlap": 0,
+    "raw": 0,
+    "sol_only": 0
+  },
+  "critic_sha256": "",
+  "dropped": [],
+  "failure_class": "",
+  "findings": [],
+  "head_sha": "d1e6f8df5be771c66f62435565a727bd0c59665a",
+  "key": "t3/ws4b-adr-debate-evidence-extraction",
+  "model": "gpt-6.2-sol",
+  "overlap_rule": "same file and line within 3 of a critic path:line or range",
+  "pr": "",
+  "round": 1,
+  "schema_version": 2,
+  "skip_reason": "same-family: a GPT model wrote this change, so Sol would not be a second family",
+  "status": "skipped",
+  "timestamp": "2026-11-26T04:31:50Z",
+  "verdict": ""
+}
