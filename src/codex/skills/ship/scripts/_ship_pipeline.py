@@ -14,16 +14,13 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import _ship_common as common
+    import _ship_repo as repo_mod
     import ship_detect as detect_mod
-    from _ship_remote import RepoRef as PrRepo
-    from _ship_remote import pr_repo as _pr_repo
     from ship_detect import Context, Halt
 else:
     common = sys.modules["_ship_common"]
     detect_mod = common.load_sibling("ship_detect")
-    _remote = common.load_sibling("_ship_remote")
-    PrRepo = _remote.RepoRef
-    _pr_repo = _remote.pr_repo
+    repo_mod = common.load_sibling("_ship_repo")
     # One Halt type across the ship scripts, so a detect-side halt reads as a halt here.
     Halt = detect_mod.Halt
 
@@ -45,7 +42,9 @@ class Check:
         return self.state in ("FAIL", "dirty")
 
 
-def _github_head(ctx: Context, pr: int, owner: PrRepo | None) -> tuple[str, str, PrRepo] | Halt:
+def _github_head(
+    ctx: Context, pr: int, owner: repo_mod.RepoRef | None
+) -> tuple[str, str, repo_mod.RepoRef] | Halt:
     """Return the head branch, head SHA, and owning repository of PR ``pr``.
 
     The first read finds the PR as ``gh`` resolves the number. A later read
@@ -62,7 +61,7 @@ def _github_head(ctx: Context, pr: int, owner: PrRepo | None) -> tuple[str, str,
     if not isinstance(data, dict) or not data.get("headRefName") or not data.get("headRefOid"):
         return Halt("checks-query-failed", common.EXIT_EXTERNAL, f"PR {pr} head did not parse")
     url = str(data.get("url") or "")
-    owner = _pr_repo(url, pr)
+    owner = repo_mod.pr_repo(url, pr)
     if owner is None:
         return Halt(
             "checks-query-failed", common.EXIT_EXTERNAL, f"PR {pr} URL did not parse: {url}"
@@ -83,7 +82,7 @@ def _binding(ctx: Context, pr: int, branch: str, sha: str, after_publish: bool) 
 
 
 def _read_github_checks(
-    ctx: Context, pr: int, owner: PrRepo, wait_seconds: int
+    ctx: Context, pr: int, owner: repo_mod.RepoRef, wait_seconds: int
 ) -> tuple[int, dict[str, Any]] | Check | Halt:
     """Run get_pr_checks.py once; return (exit code, Data), a PENDING check, or a Halt.
 

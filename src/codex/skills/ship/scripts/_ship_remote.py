@@ -2,13 +2,11 @@
 
 Stdlib only, Python 3.10 floor. ``_ship_common`` loads this file by path and
 re-exports ``remote_host`` and ``classify_host``; ``clean`` calls ``strip_userinfo``.
-It also names the repository a remote URL or a PR URL points at (``RepoRef``).
 """
 
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
 
 # ADR-127 decision 3 item 4: a remote URL must match an allowed scheme list.
 # git also accepts transports such as ext::, file://, and git://; none of
@@ -93,52 +91,3 @@ def strip_userinfo(text: str) -> str:
         out.append(text[start:token_start])
         out.append(token[token.rfind("@") + 1 :])
         start = token_end
-
-
-# A GitHub PR URL: https://<host>/<owner>/<repo>/pull/<number>, as gh prints it.
-_PR_URL_RE = re.compile(
-    r"^https://(?P<host>[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?)"
-    r"/(?P<owner>[A-Za-z0-9_.-]+)/(?P<repo>[A-Za-z0-9_.-]+)/pull/(?P<number>[0-9]+)/?$"
-)
-_URL_PATH_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*://[^/?#]*/([^?#\s]*)")
-_SCP_PATH_RE = re.compile(r"^(?:[^@/:\s]+@)?[^/:\s]+:([^/\s]\S*)$")
-_NAME_RE = re.compile(r"[A-Za-z0-9_.-]+")
-
-
-@dataclass(frozen=True)
-class RepoRef:
-    """A repository on a host: from a PR URL, or from a git remote URL."""
-
-    host: str
-    owner: str
-    repo: str
-
-    @property
-    def key(self) -> tuple[str, str, str]:
-        """The identity to compare: host, owner, and repository names are case-insensitive."""
-        return (self.host.lower(), self.owner.lower(), self.repo.lower())
-
-
-def pr_repo(url: str, pr: int) -> RepoRef | None:
-    """The repository that owns PR ``pr``, read from its URL; None when the URL is not that PR's."""
-    match = _PR_URL_RE.match(url)
-    if match is None or int(match["number"]) != pr:
-        return None
-    return RepoRef(match["host"].lower(), match["owner"], match["repo"])
-
-
-def repo_ref(url: str) -> RepoRef | None:
-    """The repository a remote URL names, or None when it is not an allowed ``owner/repo`` form.
-
-    Reads ``https://``, ``ssh://``, and scp-like URLs, with or without ``.git``, a trailing
-    slash, userinfo, or a port. The last two path parts are the owner and repository.
-    """
-    url = url.strip()
-    host = remote_host(url)
-    match = (_URL_PATH_RE if "://" in url else _SCP_PATH_RE).match(url)
-    if host is None or match is None:
-        return None
-    parts = match.group(1).strip("/").removesuffix(".git").split("/")
-    if len(parts) < 2 or not all(_NAME_RE.fullmatch(part) for part in parts[-2:]):
-        return None
-    return RepoRef(host, parts[-2], parts[-1])
