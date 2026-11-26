@@ -297,6 +297,74 @@ SECURITY_SUPPRESSION_RE = re.compile(
     r")",
     re.IGNORECASE,
 )
+
+
+class AllowedSemgrepSuppression(NamedTuple):
+    """One exact exemption: a repository path, a Semgrep rule id, and why."""
+
+    path: str
+    rule_id: str
+    reason: str
+
+
+_PTK_RUN_EXEC_RULE = (
+    "python.lang.security.audit.dangerous-os-exec-tainted-env-args."
+    "dangerous-os-exec-tainted-env-args"
+)
+_PTK_RUN_SUBPROCESS_RULE = (
+    "python.lang.security.audit.dangerous-subprocess-use-tainted-env-args."
+    "dangerous-subprocess-use-tainted-env-args"
+)
+_PTK_RUN_REASON = (
+    "_launch passes an argv list with no shell, and resolve_target confines the "
+    "path to the plugin root first. Owner ruling: issue #7591 comment 7175038778."
+)
+# The source and every generated or hand-pinned copy, one exact path each.
+# A new copy fails closed until it is listed here.
+_PTK_RUN_COPIES = (
+    "src/claude/lib/ptk_run.py",
+    "src/codex/lib/ptk_run.py",
+    "src/copilot-cli/lib/ptk_run.py",
+    "src/cursor/lib/ptk_run.py",
+    "src/hermes/project-toolkit-authoring/lib/ptk_run.py",
+    "src/hermes/project-toolkit-azure-devops/lib/ptk_run.py",
+    "src/hermes/project-toolkit-delivery/lib/ptk_run.py",
+    "src/hermes/project-toolkit-knowledge/lib/ptk_run.py",
+    "src/hermes/project-toolkit-quality/lib/ptk_run.py",
+    "src/muse/lib/ptk_run.py",
+)
+ALLOWED_SEMGREP_SUPPRESSIONS: tuple[AllowedSemgrepSuppression, ...] = tuple(
+    AllowedSemgrepSuppression(path, rule_id, _PTK_RUN_REASON)
+    for path in _PTK_RUN_COPIES
+    for rule_id in (_PTK_RUN_EXEC_RULE, _PTK_RUN_SUBPROCESS_RULE)
+)
+# The only allowed form: a whole-line Python comment that names one rule id,
+# with an optional trailing comment. Case, spacing, and the hash marker are
+# exact, so a bare directive, the short form, a rule list, or a `//` marker
+# never matches. The pattern is split so this file does not trip its own gate.
+_ALLOWED_SEMGREP_LINE_RE = re.compile(
+    r"[ \t]*#" + r" nosem" + r"grep: (?P<rule_id>[A-Za-z0-9_.\-]+)(?P<rest>(?:[ \t]+#.*)?)"
+)
+
+
+def is_blocked_suppression_line(path: str, line: str) -> bool:
+    """Return True when ``line`` carries a security suppression the gate blocks.
+
+    A line passes only when it is a whole-line Semgrep directive that names one
+    rule id listed against this exact path. Any other suppression on the same
+    line, including in a trailing comment, still blocks.
+    """
+    if SECURITY_SUPPRESSION_RE.search(line) is None:
+        return False
+    match = _ALLOWED_SEMGREP_LINE_RE.fullmatch(line)
+    if match is None:
+        return True
+    key = (PurePosixPath(path).as_posix(), match["rule_id"])
+    if not any((entry.path, entry.rule_id) == key for entry in ALLOWED_SEMGREP_SUPPRESSIONS):
+        return True
+    return SECURITY_SUPPRESSION_RE.search(match["rest"]) is not None
+
+
 SEMGREP_SUFFIXES = frozenset({".js", ".ps1", ".psm1", ".py", ".ts", ".yaml", ".yml"})
 RUFF_COUNT_RATCHET = REPO_ROOT / "scripts" / "ci" / "ruff_count_ratchet.py"
 BANDIT_SUFFIXES = frozenset({".py", ".pyw"})
@@ -3201,7 +3269,7 @@ def _security_suppression_violations(path: str, full_path: Path) -> list[str]:
         full_path.read_text(encoding="utf-8", errors="replace").splitlines(),
         start=1,
     ):
-        if SECURITY_SUPPRESSION_RE.search(line):
+        if is_blocked_suppression_line(path, line):
             violations.append(f"{path}:{line_number}")
     return violations
 
@@ -4160,7 +4228,7 @@ def _suppression_violations_in_diff(
         if operation != "+":
             continue
         match = SECURITY_SUPPRESSION_RE.search(text)
-        if match is None:
+        if match is None or not is_blocked_suppression_line(path, text):
             continue
         identity = suppression_identity(text, match)
         file_removed = removed.get(path)
@@ -4640,7 +4708,7 @@ def _full_content_suppression_violations(
     return [
         f"{head_label}:{path}:{line_number}"
         for line_number, line in enumerate(lines, start=1)
-        if SECURITY_SUPPRESSION_RE.search(line)
+        if is_blocked_suppression_line(path, line)
     ]
 
 
@@ -4655,7 +4723,7 @@ def _notebook_suppression_violations_for_text(
     return [
         f"{head_label}:{path}:{line_number}"
         for line_number in _added_line_numbers(base_lines, head_lines)
-        if SECURITY_SUPPRESSION_RE.search(head_lines[line_number - 1])
+        if is_blocked_suppression_line(path, head_lines[line_number - 1])
     ]
 
 

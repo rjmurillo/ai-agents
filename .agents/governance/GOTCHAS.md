@@ -233,6 +233,23 @@ destination file, because the suppression becomes active at that boundary.
 
 Existing suppressions on `main` remain grandfathered unless the change makes
 them newly active. Refs #3940, #4049, #4051, and #4052.
+
+One exact allow path exists, and only for Semgrep. `ALLOWED_SEMGREP_SUPPRESSIONS`
+in `git_hook_policy.py` lists each entry as one repository path, one full rule
+id, and a written reason. It has no wildcard, directory, or any-rule entry.
+
+A line passes only when the whole line is a `nosemgrep: <rule id>` comment. The
+rule id must be listed for that exact path. An optional trailing comment may
+follow, such as `noqa: E501` for line length. A bare directive, a rule list, a
+short id, or any other suppression on that line still blocks.
+
+Today the list covers the `_launch` calls in `ptk_run.py`, per the owner ruling
+on #7591. Each of the ten tracked copies is its own entry. A new copy fails
+closed until someone lists it. The staged, push, and CI diff checks all use
+`is_blocked_suppression_line`, so they give the same verdict.
+
+Adding an entry loosens a security gate. Get an owner ruling first, and cite it
+in the reason.
 ## A large branch has no commit-count gate at all (ADR-099, ADR-100)
 
 The pre-push `push-ref-policy` hook and `pr-validation.yml` used to hard-fail a
