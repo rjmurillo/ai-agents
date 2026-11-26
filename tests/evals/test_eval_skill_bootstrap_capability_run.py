@@ -226,6 +226,12 @@ def test_checkout_without_the_named_skill_exits_2(tmp_path, checkout, monkeypatc
         {"allowed_tools": [""]},
         {"allowed_tools": ["Write"]},
         {"allowed_tools": ["Edit(src/**)"]},
+        {"allowed_tools": ["MultiEdit"]},
+        {"allowed_tools": [" Write"]},
+        {"allowed_tools": ["Bash"]},
+        {"allowed_tools": ["Bash(*)"]},
+        {"allowed_tools": ["Bash(sh:*)"]},
+        {"allowed_tools": ["Bash(bash -c:*)"]},
     ],
 )
 def test_bad_skill_or_tool_grant_exits_2_before_any_run(tmp_path, checkout, monkeypatch, extra):
@@ -730,3 +736,61 @@ def test_extract_answer_skips_a_deeply_nested_block_instead_of_crashing():
     text = '```json\n{"top": ["a"]}\n```\n```json\n' + "[" * 200_000 + "\n```"
 
     assert cap.extract_answer(text) == {"top": ["a"]}
+
+
+def _git(cwd: Path, *args: str) -> None:
+    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True)
+
+
+def _gold_layout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path]:
+    repo = tmp_path / "repo"
+    tasks = repo / "evals" / "x" / "tasks.json"
+    tasks.parent.mkdir(parents=True)
+    tasks.write_text(json.dumps(TASKS), encoding="utf-8")
+    monkeypatch.setattr(cap, "_REPO_ROOT", repo)
+    return tasks, _make_checkout(tmp_path, "gold-co")
+
+
+def test_checkout_holding_the_tasks_file_exits_2(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(cap.shutil, "which", lambda name: "/bin/claude")
+    monkeypatch.setattr(cap, "run_one", lambda *a: pytest.fail("run_one must not be called"))
+    tasks, co = _gold_layout(tmp_path, monkeypatch)
+    (co / "evals" / "x").mkdir(parents=True)
+    (co / "evals" / "x" / "tasks.json").write_text("{}", encoding="utf-8")
+    out = tmp_path / "o.jsonl"
+
+    code = _run([], tasks, co, out, "before")
+
+    assert code == 2
+    assert "can read the gold" in capsys.readouterr().err
+    assert not out.exists()
+
+
+def test_checkout_whose_history_added_the_tasks_file_exits_2(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(cap.shutil, "which", lambda name: "/bin/claude")
+    monkeypatch.setattr(cap, "run_one", lambda *a: pytest.fail("run_one must not be called"))
+    tasks, co = _gold_layout(tmp_path, monkeypatch)
+    _git(co, "init", "-q")
+    (co / "evals" / "x").mkdir(parents=True)
+    (co / "evals" / "x" / "tasks.json").write_text("{}", encoding="utf-8")
+    _git(co, "add", "-A")
+    _git(co, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "add gold")
+    _git(co, "rm", "-q", "evals/x/tasks.json")
+    _git(co, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "drop gold")
+    out = tmp_path / "o.jsonl"
+
+    code = _run([], tasks, co, out, "before")
+
+    assert code == 2
+    assert "git show can reveal the gold" in capsys.readouterr().err
+    assert not out.exists()
+
+
+def test_clean_checkout_and_outside_tasks_file_pass_the_gold_check(tmp_path, monkeypatch):
+    tasks, co = _gold_layout(tmp_path, monkeypatch)
+    _git(co, "init", "-q")
+    _git(co, "add", "-A")
+    _git(co, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "skill only")
+
+    assert cap._gold_exposure(co, tasks) is None
+    assert cap._gold_exposure(co, _write_tasks(tmp_path, TASKS)) is None
