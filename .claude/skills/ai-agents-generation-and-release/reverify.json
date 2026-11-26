@@ -296,6 +296,18 @@
    "kind": "path_exists",
    "path": ".claude/lib/claude_hook_dispatch.py",
    "id": "R55"
+  },
+  {
+   "kind": "contains",
+   "path": "templates/platforms/binplace.yaml",
+   "text": "source: scripts/hook_utilities/bootstrap.py",
+   "id": "R56"
+  },
+  {
+   "kind": "contains",
+   "path": ".claude/rules/templates.md",
+   "text": "**Preview per platform**. SHOULD inspect the generated output",
+   "id": "R57"
   }
  ]
 }

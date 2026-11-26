@@ -59,8 +59,9 @@ The repo verified each reason against the code on 2026-11-26.
     An agent degrades when that server is not configured.
 12. **Skill frontmatter or sections the contract does not require.**
     `.claude/rules/claude-agents.md` MUST 2 requires `name`, `version`, and `description`.
-    `docs/SKILL-AUTHORING.md` lists `version` as optional, so the two sources disagree on it.
-    Do not flag a present or missing `version` until they agree.
+    A missing `version` is a valid finding under that rule.
+    `docs/SKILL-AUTHORING.md` lists `version` as optional, but the MUST rule wins.
+    Do not flag a present `version`.
     `scripts/validation/skill_frontmatter.py` checks `allowed-tools` only when it is present.
     It caps `description` at 1024 characters, so a long router description is allowed.
     No rule requires a `surface` field or a `Decision Tree` or `Resources` section.

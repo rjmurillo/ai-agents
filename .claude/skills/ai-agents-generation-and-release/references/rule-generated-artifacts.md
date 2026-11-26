@@ -4,7 +4,7 @@
 # Customer-Facing Generated Artifacts
 
 <!-- vendor-portability: upstream build scope glob and lib trees (issue #5298). Paths:
-     build/scripts, .claude/lib Folded-rule paths: build/scripts/build_all.py, build/scripts/lib_mirror.py, build/scripts/plugin_run_launcher.py, build/scripts/hermes_packs.py, templates/platforms/hermes.yaml, scripts/<pkg>. -->
+     build/scripts, .claude/lib Folded-rule paths: build/scripts/build_all.py, build/scripts/lib_mirror.py, build/scripts/plugin_run_launcher.py, build/scripts/hermes_packs.py, templates/platforms/hermes.yaml, templates/platforms/binplace.yaml, scripts/hook_utilities/bootstrap.py, scripts/<pkg>. -->
 
 This rule exists because of a P0 incident. A generator produced the Copilot CLI
 plugin's `hooks.json` with a bare `./hooks/...` command path and explicit
@@ -198,12 +198,15 @@ Each lib package named in `PACKAGES` in `build/scripts/lib_mirror.py` has
 its source in `scripts/<pkg>/`, not in `src/claude/lib/`. `lib_mirror.py`
 renders the packages into the `lib/` trees under `src/` (claude,
 copilot-cli, codex, cursor, and muse), and each Hermes pack carries its own
-`lib/` copy. Not every package lands in every tree. The top-level modules beside them
-in `.claude/lib/`, such as `claude_hook_dispatch.py`, are hand-maintained
-and have no `scripts/` source.
+`lib/` copy. Not every package lands in every tree. `bootstrap.py` is
+generated too: `templates/platforms/binplace.yaml` names its source as
+`scripts/hook_utilities/bootstrap.py`. Other top-level modules in
+`.claude/lib/`, such as `claude_hook_dispatch.py`, are hand-maintained and
+have no `scripts/` source.
 
 Fix the source, run `build_all.py`, and commit every regenerated tree
-together. Do not review or patch a rendered copy by hand.
+together. Do not patch a rendered copy by hand. Do inspect the rendered
+copies after you regenerate, as `.claude/rules/templates.md` SHOULD 2 asks.
 
 ## Quick Self-Review
 
