@@ -175,6 +175,24 @@ sys.path.insert(0, os.path.dirname(sys.argv[0]))
 runpy.run_path(sys.argv[0], run_name="__main__")
 """
 
+SIGCHLD_REAPING_LAUNCHER = """
+import os, runpy, signal, sys, time
+signal.signal(signal.SIGCHLD, signal.SIG_IGN)
+signal.signal(signal.SIGINT, signal.default_int_handler)
+real_getpgid = os.getpgid
+paused = False
+def slow_getpgid(pid):
+    global paused
+    if not paused:
+        paused = True
+        time.sleep(0.3)
+    return real_getpgid(pid)
+os.getpgid = slow_getpgid
+sys.argv = sys.argv[1:]
+sys.path.insert(0, os.path.dirname(sys.argv[0]))
+runpy.run_path(sys.argv[0], run_name="__main__")
+"""
+
 # A leader that exits by itself while its grandchild keeps running.
 #   argv: ROOT MODE LEADER_EXIT_CODE   (the grandchild gets "grand" instead of the code)
 #   MODE "plain"  the grandchild keeps the default SIGTERM action and the output pipes
@@ -209,11 +227,15 @@ sys.exit(int(sys.argv[3]))
 
 
 def start_wrapper(
-    tmp_path: Path, script: str, *args: str, timeout: str | None = "30"
+    tmp_path: Path,
+    script: str,
+    *args: str,
+    timeout: str | None = "30",
+    launcher: str = WRAPPER_LAUNCHER,
 ) -> subprocess.Popen[bytes]:
     """Start the wrapper on `script ROOT ARGS...`, with a deadline unless `timeout` is None."""
     (tmp_path / "script.py").write_text(script, encoding="utf-8")
-    command = [sys.executable, "-c", WRAPPER_LAUNCHER, receipt_module.__file__, "run"]
+    command = [sys.executable, "-c", launcher, receipt_module.__file__, "run"]
     if timeout is not None:
         command += ["--timeout-seconds", timeout]
     command += [
@@ -624,11 +646,49 @@ class TestTimeoutDeadline:
         ]
         assert main(argv) == EXIT_USAGE
 
+    def test_rejects_too_large_timeout_before_launch(self, monkeypatch, tmp_path, capsys):
+        def forbidden_run_command(*args, **kwargs):
+            raise AssertionError("the command was launched")
+
+        monkeypatch.setattr(receipt_module, "run_command", forbidden_run_command)
+        argv = [
+            "run",
+            "--timeout-seconds",
+            "1" + "0" * 309,
+            "--out-dir",
+            str(tmp_path),
+            "--",
+            "true",
+        ]
+        assert main(argv) == EXIT_USAGE
+        assert "too large" in capsys.readouterr().err
+
     def test_timeout_allows_fast_child_and_preserves_result(self, tmp_path, capfd):
         code = run(py("print('fast')"), tmp_path, timeout=5)
         assert code == 0
         assert capfd.readouterr().out == "fast\n"
         assert artifacts(tmp_path) == []
+
+    def test_timeout_clock_includes_output_thread_startup(self, monkeypatch, tmp_path):
+        proc = _FakePopen(waits=[subprocess.TimeoutExpired(["fake"], 2), -9])
+        install_fake_popen(monkeypatch, proc)
+        monkeypatch.setattr(receipt_module, "_SUPPORTS_PGROUP", False, raising=False)
+        clock = {"now": 100.0}
+        monkeypatch.setattr(receipt_module.time, "monotonic", lambda: clock["now"])
+        real_thread = receipt_module.threading.Thread
+        delayed = {"done": False}
+
+        class SlowFirstStart(real_thread):
+            def start(self):
+                if not delayed["done"]:
+                    delayed["done"] = True
+                    clock["now"] += 1.4
+                super().start()
+
+        monkeypatch.setattr(receipt_module.threading, "Thread", SlowFirstStart)
+
+        assert receipt_module.run_command(["fake"], 16384, tmp_path, timeout_seconds=2) == 124
+        assert proc.wait_timeouts[0] == pytest.approx(0.6)
 
     def test_absent_timeout_leaves_process_group_setup_unchanged(self, monkeypatch, tmp_path):
         monkeypatch.setattr(receipt_module, "_SUPPORTS_PGROUP", True, raising=False)
@@ -668,22 +728,19 @@ class TestTimeoutDeadline:
         assert proc.kill_calls == 1
 
     @POSIX_ONLY
-    def test_timeout_falls_back_to_child_kill_when_group_is_gone(self, monkeypatch, tmp_path):
+    def test_timeout_group_stop_does_not_depend_on_leader_group_lookup(self, monkeypatch, tmp_path):
         proc = _FakePopen(waits=[subprocess.TimeoutExpired(["fake"], 2), -9])
         install_fake_popen(monkeypatch, proc)
-        monkeypatch.setattr(receipt_module, "_SUPPORTS_PGROUP", True, raising=False)
+        signals = install_stubborn_group(monkeypatch, proc)
 
         def missing_group(_pid):
             raise OSError("gone")
 
-        def forbidden_killpg(_pgid, _sig):
-            raise AssertionError("killpg must not run when no group is available")
-
         monkeypatch.setattr(receipt_module.os, "getpgid", missing_group, raising=False)
-        monkeypatch.setattr(receipt_module.os, "killpg", forbidden_killpg, raising=False)
         code = receipt_module.run_command(["fake"], 16384, tmp_path, timeout_seconds=2)
         assert code == 124
-        assert proc.kill_calls == 1
+        assert signals == [(proc.pid, signal.SIGTERM), (proc.pid, signal.SIGKILL)]
+        assert proc.kill_calls == 0
 
     @POSIX_ONLY
     def test_group_signal_ignores_a_group_that_is_already_gone(self, monkeypatch):
@@ -743,6 +800,19 @@ class TestTimeoutDeadline:
         saved = artifact_from(out).read_text(encoding="utf-8")
         assert GITHUB_TOKEN not in saved
         assert "x" * 100 in saved
+
+    @POSIX_ONLY
+    def test_natural_exit_124_receipt_omits_timeout_marker(self, monkeypatch, tmp_path, capfd):
+        proc = _FakePopen(stdout=b"x" * 100, waits=[124])
+        install_fake_popen(monkeypatch, proc)
+        install_group_fakes(monkeypatch, proc)
+
+        code = receipt_module.run_command(["fake"], 1, tmp_path, timeout_seconds=2)
+
+        out = capfd.readouterr().out
+        assert code == 124
+        assert "exit_code: 124" in out
+        assert "timeout: true" not in out
 
 
 @pytest.fixture
@@ -1088,6 +1158,28 @@ class TestTimedGroupStopOnEveryExit:
             kill_tree(tmp_path)
 
     @POSIX_ONLY
+    def test_sigchld_auto_reap_does_not_hide_a_live_group(self, tmp_path):
+        wrapper = start_wrapper(
+            tmp_path,
+            EARLY_EXIT_SCRIPT,
+            "quiet",
+            "0",
+            launcher=SIGCHLD_REAPING_LAUNCHER,
+        )
+        try:
+            assert wrapper.wait(timeout=20) == 0
+            _, grand = tree_pids(tmp_path)
+            assert grand is not None
+            assert wait_until(lambda: not pid_alive(grand), timeout=5), (
+                "auto-reaping the leader hid its live process group"
+            )
+        finally:
+            if wrapper.poll() is None:
+                wrapper.kill()
+                wrapper.wait()
+            kill_tree(tmp_path)
+
+    @POSIX_ONLY
     def test_grandchild_that_ignores_sigterm_is_killed_after_an_early_leader_exit(self, tmp_path):
         started = time.monotonic()
         wrapper = start_wrapper(tmp_path, EARLY_EXIT_SCRIPT, "ignore", "0")
@@ -1192,28 +1284,19 @@ class TestTimedGroupStopOnEveryExit:
         assert elapsed < 20
 
     @POSIX_ONLY
-    def test_group_stop_after_the_leader_exits_uses_the_group_captured_at_spawn(
-        self, monkeypatch, tmp_path
-    ):
+    def test_group_stop_after_the_leader_exits_uses_the_spawn_group_id(self, monkeypatch, tmp_path):
         proc = _FakePopen(waits=[0])
         signals = install_stubborn_group(monkeypatch, proc)
         install_fake_popen(monkeypatch, proc)
-        lookups: list[int] = []
 
-        def getpgid(pid: int) -> int:
-            if pid != proc.pid:
-                return proc.pid + 1
-            lookups.append(pid)
-            if len(lookups) > 1:
-                raise ProcessLookupError(pid)
-            return proc.pid
+        def forbidden_getpgid(_pid: int) -> int:
+            raise AssertionError("the spawn group id already equals the leader pid")
 
-        monkeypatch.setattr(receipt_module.os, "getpgid", getpgid, raising=False)
+        monkeypatch.setattr(receipt_module.os, "getpgid", forbidden_getpgid, raising=False)
 
         assert receipt_module.run_command(["fake"], 16384, tmp_path, timeout_seconds=30) == 0
 
         assert signals == [(proc.pid, signal.SIGTERM), (proc.pid, signal.SIGKILL)]
-        assert lookups == [proc.pid]
 
     @POSIX_ONLY
     def test_timed_run_turns_sighup_into_system_exit_then_restores_default(
@@ -1294,14 +1377,13 @@ class TestPostSpawnWindowAndStoppedGroup:
     """Round 3 findings: no unguarded window after spawn, no signal to a stopped group."""
 
     @POSIX_ONLY
-    @pytest.mark.parametrize("window", ["Capture", "_own_group"])
     def test_cancel_between_spawn_and_the_guard_still_stops_the_child(
-        self, monkeypatch, tmp_path, default_sigterm, window
+        self, monkeypatch, tmp_path, default_sigterm
     ):
         spawned: list[subprocess.Popen[bytes]] = []
         real_popen = subprocess.Popen
         fired: list[bool] = []
-        real_target = getattr(receipt_module, window)
+        real_target = receipt_module.Capture
 
         def popen(*args, **kwargs):
             proc = real_popen(*args, **kwargs)
@@ -1316,7 +1398,7 @@ class TestPostSpawnWindowAndStoppedGroup:
             return real_target(*args, **kwargs)
 
         monkeypatch.setattr(receipt_module.subprocess, "Popen", popen)
-        monkeypatch.setattr(receipt_module, window, cancel_once)
+        monkeypatch.setattr(receipt_module, "Capture", cancel_once)
         try:
             with pytest.raises(SystemExit) as info:
                 receipt_module.run_command(

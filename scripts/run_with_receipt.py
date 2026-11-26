@@ -21,8 +21,9 @@ and stderr in arrival order, and redacts secrets in memory with
   receipt is printed: command, exit code, duration, total bytes, exposed bytes,
   truncated flag, artifact path, and, on nonzero exit, a stderr tail.
 
-``--timeout-seconds`` accepts a positive integer. When it is present the child
-command gets at most that many seconds after launch. A wrapper-enforced timeout
+``--timeout-seconds`` accepts a positive integer within the platform clock's
+representable range. When it is present the child command gets at most that many
+seconds after launch. A wrapper-enforced timeout
 returns 124, and a large-output receipt for one adds ``timeout: true``. A child
 that exits 124 on its own is indistinguishable without that receipt line. Where
 the platform has POSIX process groups, a timed child starts in a new session and
@@ -460,9 +461,11 @@ def _spawn_and_collect(
                 window.raise_pending()
             raise
     # The guard opens right after Popen returns: a cancel that lands later in this
-    # function must still stop a timed child that lives in its own session. Until
-    # the group is captured, the unwind path looks the group up from the leader.
-    pgid: int | None = None
+    # function must still stop a timed child that lives in its own session. A new
+    # session makes the leader's pid its group id, so no lookup can lose it to
+    # auto-reaping.
+    wait_deadline = None if timeout_seconds is None else time.monotonic() + timeout_seconds
+    pgid = proc.pid if timeout_seconds is not None and _SUPPORTS_PGROUP else None
     group_stopped = False
     timed_out = False
     try:
@@ -472,10 +475,6 @@ def _spawn_and_collect(
             window.close()
             window.raise_pending()
         try:
-            # Capture the group once. After the leader is reaped its pid no longer
-            # finds the group, so every later group stop uses this id.
-            if timeout_seconds is not None and _SUPPORTS_PGROUP:
-                pgid = _own_group(proc.pid)
             capture = Capture()
             threads = [
                 threading.Thread(target=_pump, args=(proc.stdout, "out", capture), daemon=True),
@@ -483,7 +482,10 @@ def _spawn_and_collect(
             ]
             for thread in threads:
                 thread.start()
-            code = proc.wait(timeout=timeout_seconds)
+            wait_timeout = None
+            if wait_deadline is not None:
+                wait_timeout = max(0.0, wait_deadline - time.monotonic())
+            code = proc.wait(timeout=wait_timeout)
         except subprocess.TimeoutExpired:
             timed_out = True
             _terminate_child(proc, pgid)
@@ -716,9 +718,15 @@ def main(argv: list[str] | None = None) -> int:
     out_dir = resolve_out_dir(args.out_dir)
     if args.mode == "read":
         return read_artifact(args.artifact, args.offset, args.length, out_dir)
-    if args.timeout_seconds is not None and args.timeout_seconds < 1:
-        print("run_with_receipt: --timeout-seconds must be a positive integer", file=sys.stderr)
-        return EXIT_USAGE
+    if args.timeout_seconds is not None:
+        if args.timeout_seconds < 1:
+            print("run_with_receipt: --timeout-seconds must be a positive integer", file=sys.stderr)
+            return EXIT_USAGE
+        try:
+            float(args.timeout_seconds)
+        except OverflowError:
+            print("run_with_receipt: --timeout-seconds is too large", file=sys.stderr)
+            return EXIT_USAGE
     if not command or args.max_inline_bytes < 0:
         print("usage: run_with_receipt.py run [options] -- CMD [ARG...]", file=sys.stderr)
         return EXIT_USAGE
