@@ -20,6 +20,7 @@ import json
 import os
 import subprocess
 import sys
+import urllib.parse
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from skill_bootstrap import ensure_plugin_paths
@@ -96,11 +97,11 @@ def list_runs(
 ) -> list[dict]:
     query = [f"per_page={min(limit, _MAX_LIMIT)}"]
     if branch:
-        query.append(f"branch={branch}")
+        query.append(f"branch={urllib.parse.quote(branch, safe='')}")
     if event:
-        query.append(f"event={event}")
+        query.append(f"event={urllib.parse.quote(event, safe='')}")
     if status:
-        query.append(f"status={status}")
+        query.append(f"status={urllib.parse.quote(status, safe='')}")
     if workflow:
         endpoint = f"repos/{owner}/{repo}/actions/workflows/{workflow}/runs"
     else:
@@ -175,7 +176,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     fmt = get_output_format(args.output_format)
 
-    assert_gh_authenticated()
+    assert_gh_authenticated(rest_only=True)
     resolved = resolve_repo_params(args.owner, args.repo)
     owner, repo = resolved.owner, resolved.repo
 
@@ -198,6 +199,11 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
+    # A client-side PR filter must scan before the limit cut: an older matching
+    # run never enters a page already truncated to --limit. Fetch the full page
+    # (one page only; deeper pagination is documented in the output), filter,
+    # then truncate.
+    fetch_limit = _MAX_LIMIT if args.pull_request else args.limit
     try:
         runs = list_runs(
             owner,
@@ -206,7 +212,7 @@ def main(argv: list[str] | None = None) -> int:
             branch=args.branch,
             event=args.event,
             status=args.status,
-            limit=args.limit,
+            limit=fetch_limit,
         )
     except (RuntimeError, subprocess.SubprocessError, OSError) as exc:
         write_skill_error(
@@ -214,18 +220,20 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 3
 
-    normalized = [normalize_run(run) for run in runs[: args.limit]]
+    scan_capped = len(runs) >= min(fetch_limit, _MAX_LIMIT)
     if args.pull_request:
-        normalized = [
+        runs = [
             run
-            for run in normalized
-            if any(pr.get("number") == args.pull_request for pr in run["pull_requests"])
+            for run in runs
+            if any(pr.get("number") == args.pull_request for pr in run.get("pull_requests") or [])
         ]
+    normalized = [normalize_run(run) for run in runs[: args.limit]]
 
     write_skill_output(
         {
             "runs": normalized,
             "count": len(normalized),
+            "scan_capped": scan_capped,
             "filters": {
                 "workflow": args.workflow or None,
                 "branch": args.branch or None,
@@ -235,7 +243,10 @@ def main(argv: list[str] | None = None) -> int:
             },
         },
         output_format=fmt,
-        human_summary=f"{len(normalized)} workflow run(s)",
+        human_summary=(
+            f"{len(normalized)} workflow run(s)"
+            + (" (scan capped at first page; older runs not scanned)" if scan_capped else "")
+        ),
         status="PASS",
         script_name=_SCRIPT_NAME,
     )

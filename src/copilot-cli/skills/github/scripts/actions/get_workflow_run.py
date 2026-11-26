@@ -107,7 +107,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     fmt = get_output_format(args.output_format)
 
-    assert_gh_authenticated()
+    assert_gh_authenticated(rest_only=True)
     resolved = resolve_repo_params(args.owner, args.repo)
     owner, repo = resolved.owner, resolved.repo
     run_id = args.run_id
@@ -129,13 +129,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     jobs: list[dict] = []
     jobs_read = True
+    jobs_capped = False
     if jobs_payload is None:
         jobs_read = False
     else:
         jobs = jobs_payload.get("jobs") or []
         if len(jobs) >= 100:
             # A busy workflow can paginate; say so rather than truncate silently.
-            jobs_read = "capped"
+            jobs_capped = True
 
     pending, pending_error = gh_api_get(
         f"repos/{owner}/{repo}/actions/runs/{run_id}/pending_deployments"
@@ -157,6 +158,8 @@ def main(argv: list[str] | None = None) -> int:
         "run_id": run_id,
         "jobs": [normalize_job(job) for job in jobs],
         "jobs_read": jobs_read,
+        "jobs_capped": jobs_capped,
+        "jobs_error": None if jobs_read else jobs_error,
         "pending_deployments": pending_deployments,
         "pending_deployments_read": pending_read,
         "waiting_on_environment_approval": bool(pending_deployments),
@@ -164,7 +167,9 @@ def main(argv: list[str] | None = None) -> int:
 
     failed_jobs = [job["name"] for job in data["jobs"] if job["conclusion"] == "failure"]
     summary_bits = [f"run {run_id}: {run.get('status')}/{run.get('conclusion') or 'pending'}"]
-    if failed_jobs:
+    if not jobs_read:
+        summary_bits.append("jobs unread; empty jobs list is not evidence of a green run")
+    elif failed_jobs:
         summary_bits.append(f"failed jobs: {', '.join(failed_jobs[:5])}")
     if pending_deployments:
         envs = ", ".join(str(dep["environment"]) for dep in pending_deployments)
@@ -174,7 +179,7 @@ def main(argv: list[str] | None = None) -> int:
         data,
         output_format=fmt,
         human_summary="; ".join(summary_bits),
-        status="PASS",
+        status="WARNING" if not jobs_read else "PASS",
         script_name=_SCRIPT_NAME,
     )
     return 0

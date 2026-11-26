@@ -34,6 +34,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import urllib.parse
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from skill_bootstrap import ensure_plugin_paths
@@ -165,11 +166,21 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
+def quote_branch(branch: str) -> str:
+    """Encode a branch name for use in a REST path segment.
+
+    Slashed names (feature/foo) are legal git branches but a raw slash splits
+    the path and the read hits the wrong resource or 404s, which this script
+    would report as absent protection.
+    """
+    return urllib.parse.quote(branch, safe="")
+
+
 def _branch_reject_reason(owner: str, repo: str, branch: str) -> str:
     """Return the exit-2 reason for an unusable branch argument, or empty."""
     if not branch.strip():
         return "--branch must not be blank"
-    branch_obj, branch_error = gh_api_get(f"repos/{owner}/{repo}/branches/{branch}")
+    branch_obj, branch_error = gh_api_get(f"repos/{owner}/{repo}/branches/{quote_branch(branch)}")
     if branch_obj is None and ("404" in branch_error or "Not Found" in branch_error):
         return f"Branch '{branch}' not found in {owner}/{repo}; a mistyped branch is not an unprotected one"
     return ""
@@ -179,7 +190,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     fmt = get_output_format(args.output_format)
 
-    assert_gh_authenticated()
+    assert_gh_authenticated(rest_only=True)
     resolved = resolve_repo_params(args.owner, args.repo)
     owner, repo = resolved.owner, resolved.repo
 
@@ -194,7 +205,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     protection, protection_error = gh_api_get(
-        f"repos/{owner}/{repo}/branches/{args.branch}/protection"
+        f"repos/{owner}/{repo}/branches/{quote_branch(args.branch)}/protection"
     )
     protection_missing = False
     if protection is None:
@@ -213,7 +224,9 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 3
 
-    rules, rules_error = gh_api_get(f"repos/{owner}/{repo}/rules/branches/{args.branch}")
+    rules, rules_error = gh_api_get(
+        f"repos/{owner}/{repo}/rules/branches/{quote_branch(args.branch)}"
+    )
     ruleset_read = True
     if rules is None:
         if "404" in rules_error or "Not Found" in rules_error:

@@ -157,7 +157,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     fmt = get_output_format(args.output_format)
 
-    assert_gh_authenticated()
+    assert_gh_authenticated(rest_only=True)
     resolved = resolve_repo_params(args.owner, args.repo)
     owner, repo = resolved.owner, resolved.repo
     pr = args.pull_request

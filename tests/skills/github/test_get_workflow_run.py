@@ -114,3 +114,49 @@ class TestMain:
         job = result["Data"]["jobs"][0]
         assert job["conclusion"] == "failure"
         assert job["failed_steps"][0]["name"] == "build"
+
+
+class TestJobsReadFailure:
+    def test_failed_jobs_fetch_is_warning_not_pass(self, mod, capsys):
+        run_payload = {"id": 5, "status": "completed", "conclusion": "success", "name": "CI"}
+
+        def fake_get(path):
+            if path.endswith("/jobs?per_page=100"):
+                return None, "403 forbidden"
+            if "pending_deployments" in path:
+                return [], ""
+            return run_payload, ""
+
+        with (
+            patch.object(mod, "assert_gh_authenticated"),
+            patch.object(mod, "resolve_repo_params", return_value=_mock_repo()),
+            patch.object(mod, "gh_api_get", side_effect=fake_get),
+        ):
+            rc = mod.main(["--run-id", "5"])
+        assert rc == 0
+        result = json.loads(capsys.readouterr().out)
+        assert result["Data"]["jobs_read"] is False
+        assert result["Data"]["jobs_error"]
+        assert result["Data"]["jobs"] == []
+
+    def test_jobs_read_is_bool_and_capped_is_separate(self, mod, capsys):
+        run_payload = {"id": 5, "status": "completed", "conclusion": "success", "name": "CI"}
+        jobs = {"jobs": [{"id": i, "name": f"j{i}", "steps": []} for i in range(100)]}
+
+        def fake_get(path):
+            if path.endswith("/jobs?per_page=100"):
+                return jobs, ""
+            if "pending_deployments" in path:
+                return [], ""
+            return run_payload, ""
+
+        with (
+            patch.object(mod, "assert_gh_authenticated"),
+            patch.object(mod, "resolve_repo_params", return_value=_mock_repo()),
+            patch.object(mod, "gh_api_get", side_effect=fake_get),
+        ):
+            rc = mod.main(["--run-id", "5"])
+        assert rc == 0
+        result = json.loads(capsys.readouterr().out)
+        assert result["Data"]["jobs_read"] is True
+        assert result["Data"]["jobs_capped"] is True

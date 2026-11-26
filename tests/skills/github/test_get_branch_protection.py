@@ -124,3 +124,28 @@ class TestMain:
     def test_blank_branch_exit_2(self, mod):
         rc = _run(mod, ["--branch", "  "], {}, [])
         assert rc == 2
+
+
+class TestBranchEncoding:
+    def test_slashed_branch_is_encoded_in_path_segments(self, mod):
+        seen = []
+
+        def fake_get(path):
+            seen.append(path)
+            if path.endswith("/protection"):
+                return None, "404 Not Found"
+            if "/rules/branches/" in path:
+                return [], ""
+            return {"name": "feature/x"}, ""
+
+        with (
+            patch.object(mod, "assert_gh_authenticated"),
+            patch.object(mod, "resolve_repo_params", return_value=_mock_repo()),
+            patch.object(mod, "gh_api_get", side_effect=fake_get),
+        ):
+            rc = mod.main(["--branch", "feature/x"])
+        assert rc == 0
+        assert "repos/o/r/branches/feature%2Fx" in seen[0]
+        assert any("branches/feature%2Fx/protection" in p for p in seen)
+        assert any("rules/branches/feature%2Fx" in p for p in seen)
+        assert not any("branches/feature/x" in p for p in seen)

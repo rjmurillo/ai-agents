@@ -145,3 +145,36 @@ class TestDismissPrReview:
         ):
             rc = mod.main(_ARGV)
         assert rc == 2
+
+
+class TestNullPullRequest:
+    def test_null_pull_request_reports_not_found_not_decode_failure(self, mod, capsys):
+        gql = {"data": {"repository": {"pullRequest": None}}}
+        rc = _run(mod, _ARGV, gql=gql)
+        assert rc == 3
+        err = capsys.readouterr().out
+        assert "not found" in err
+        assert "decode" not in err.lower()
+
+    def test_timeout_in_thread_gate_is_exit_3_not_crash(self, mod, capsys):
+        import subprocess as sp
+
+        review = _review()
+
+        def fake_run(cmd, **kwargs):
+            joined = " ".join(cmd)
+            if "reviews/100" in joined:
+                out = {"returncode": 0, "stdout": json.dumps(review), "stderr": ""}
+                return type("R", (), out)()
+            if "graphql" in joined:
+                raise sp.TimeoutExpired(cmd=["gh"], timeout=60)
+            return type("R", (), {"returncode": 0, "stdout": "newsha\n", "stderr": ""})()
+
+        with (
+            patch.object(mod, "assert_gh_authenticated"),
+            patch.object(mod, "resolve_repo_params", return_value=_mock_repo()),
+            patch.object(mod.subprocess, "run", side_effect=fake_run),
+        ):
+            rc = mod.main(_ARGV)
+        assert rc == 3
+        assert "timed out" in capsys.readouterr().out

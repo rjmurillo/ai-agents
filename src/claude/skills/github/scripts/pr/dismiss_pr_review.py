@@ -118,31 +118,36 @@ def count_unresolved_threads(owner: str, repo: str, pr: int) -> tuple[int | None
     Count is None when the query could not run or the thread list paginates
     past the first page, because a capped scan is not evidence.
     """
-    result = _run_gh(
-        [
-            "api",
-            "graphql",
-            "-F",
-            "query=@-",
-            "-f",
-            f"owner={owner}",
-            "-f",
-            f"repo={repo}",
-            "-F",
-            f"pr={pr}",
-        ],
-        input_text=_THREADS_QUERY,
-    )
+    try:
+        result = _run_gh(
+            [
+                "api",
+                "graphql",
+                "-F",
+                "query=@-",
+                "-f",
+                f"owner={owner}",
+                "-f",
+                f"repo={repo}",
+                "-F",
+                f"pr={pr}",
+            ],
+            input_text=_THREADS_QUERY,
+        )
+    except subprocess.TimeoutExpired:
+        return None, "gh api graphql reviewThreads timed out"
     if result.returncode != 0:
         return None, _fail_message(result, "gh api graphql reviewThreads")
     try:
         payload = json.loads(result.stdout)
         pull = payload["data"]["repository"]["pullRequest"]
-        threads = pull["reviewThreads"]
     except (json.JSONDecodeError, KeyError, TypeError) as exc:
         return None, f"Failed to decode reviewThreads response: {exc}"
     if pull is None:
         return None, f"PR #{pr} not found in GraphQL response"
+    threads = pull.get("reviewThreads")
+    if not isinstance(threads, dict):
+        return None, "reviewThreads missing in GraphQL response"
     if threads.get("pageInfo", {}).get("hasNextPage"):
         return None, "review threads paginate past 100; refusing to count from a partial scan"
     unresolved = sum(1 for node in threads.get("nodes", []) if not node.get("isResolved"))

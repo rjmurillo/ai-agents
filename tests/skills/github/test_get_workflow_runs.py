@@ -96,3 +96,54 @@ class TestMain:
     def test_api_error_exit_3(self, mod):
         rc = _run(mod, [], err="connection reset")
         assert rc == 3
+
+
+class TestEncodingAndPrFilter:
+    def test_branch_filter_is_url_encoded(self, mod):
+        captured = []
+
+        def fake_run(cmd, **kwargs):
+            captured.append(" ".join(cmd))
+            payload = {"total_count": 0, "workflow_runs": []}
+            return type("R", (), {"returncode": 0, "stdout": json.dumps(payload), "stderr": ""})()
+
+        with (
+            patch.object(mod, "assert_gh_authenticated"),
+            patch.object(mod, "resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", side_effect=fake_run),
+        ):
+            mod.main(["--branch", "feature/x&y"])
+        assert "branch=feature%2Fx%26y" in captured[0]
+
+    def test_pr_filter_scans_beyond_limit(self, mod, capsys):
+        # 20 non-matching runs fill the default page; the matching run is 21st.
+        runs = [
+            {
+                "id": i,
+                "name": "CI",
+                "status": "completed",
+                "conclusion": "success",
+                "head_branch": "main",
+                "head_sha": "abc",
+                "event": "push",
+                "created_at": "2026-01-01T00:00:00Z",
+                "html_url": "https://example.com",
+                "pull_requests": [],
+            }
+            for i in range(20)
+        ]
+        match = dict(runs[0])
+        match["id"] = 9999
+        match["pull_requests"] = [{"number": 7, "head": {"ref": "b"}}]
+        payload = {"total_count": 21, "workflow_runs": runs + [match]}
+
+        with (
+            patch.object(mod, "assert_gh_authenticated"),
+            patch.object(mod, "resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", side_effect=_fake_run(payload)),
+        ):
+            rc = mod.main(["--pull-request", "7"])
+        assert rc == 0
+        result = json.loads(capsys.readouterr().out)
+        ids = [r["id"] for r in result["Data"]["runs"]]
+        assert ids == [9999]
