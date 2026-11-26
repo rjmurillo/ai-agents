@@ -23,7 +23,7 @@ Across 8 identical runs the full body beat baseline 7 times, and the description
 - E060 (2026-07-30): Opus cells had 1 of 3 judge samples. Failed samples were 6, 8, 4, 6 against the reported 4, 6, 3, 4.
 - E060: full minus description deltas were 0.44, 0.89, 1.22, 1.22, -0.22, 0.89, 0.78, 1.22. Only 3 of 8 exceed the document's own noise floor of about 1.0. The sign count p = 0.0703 was chosen after seeing data.
 - Limits: One rule file, one fixture, two models, LLM judge scoring through copilot-cli. Run spread exceeds the noise floor, and the sign test treats the 8 runs as independent. The priming path was tested, not the production loading path. The doc and its false claims are already corrected on main.
-- State on main at 1be533c496 (2026-11-26): fixed. `src/claude/skills/context-optimizer/references/model-context-doctrine.md:101` says the available evidence does not support cutting the body. `rule-audit-procedure.md:172` checks judge failures and the noise floor.
+- State on main at 1be533c496 (2026-11-26): fixed. `src/claude/skills/context-optimizer/references/model-context-doctrine.md:112` says the available evidence does not support cutting the body. `rule-audit-procedure.md:172` checks judge failures and the noise floor.
 
 ## Decision
 
