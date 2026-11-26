@@ -392,8 +392,10 @@ def _cancel_signals_raise() -> Iterator[_SpawnWindow | None]:
 
     window = _SpawnWindow()
 
+    restoring = False
+
     def _stop(signum: int, _frame: object) -> None:
-        if window.is_open:
+        if window.is_open or restoring:
             window.record(signum)
             return
         raise SystemExit(128 + signum)
@@ -402,13 +404,18 @@ def _cancel_signals_raise() -> Iterator[_SpawnWindow | None]:
     try:
         for sig in _cancel_signals():
             if signal.getsignal(sig) is signal.SIG_DFL:
-                signal.signal(sig, _stop)
                 installed.append(sig)
+                signal.signal(sig, _stop)
         yield window
     finally:
-        window.close()
-        for sig in installed:
-            signal.signal(sig, signal.SIG_DFL)
+        restoring = True
+        try:
+            window.close()
+            for sig in installed:
+                signal.signal(sig, signal.SIG_DFL)
+        finally:
+            restoring = False
+        window.raise_pending()
 
 
 def _run_child(argv: list[str], timeout_seconds: int | None = None) -> tuple[int, Capture, bool]:

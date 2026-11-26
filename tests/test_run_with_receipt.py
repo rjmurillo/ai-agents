@@ -1432,6 +1432,75 @@ class TestPostSpawnWindowAndStoppedGroup:
             kill_tree(tmp_path)
 
 
+def test_cancel_signal_parametrization_collects_without_sighup(tmp_path):
+    """Collection on a platform without SIGHUP still sees the untimed tests."""
+    plugin = tmp_path / "no_sighup_plugin.py"
+    marker = tmp_path / "sighup-deleted"
+    plugin.write_text(
+        '''"""Hide SIGHUP while pytest collects tests."""
+import os
+import signal
+from pathlib import Path
+
+_saved = None
+
+
+def pytest_collection():
+    global _saved
+    if hasattr(signal, "SIGHUP"):
+        _saved = signal.SIGHUP
+        delattr(signal, "SIGHUP")
+    Path(os.environ["NO_SIGHUP_MARKER"]).write_text("collection ran", encoding="utf-8")
+
+
+def pytest_collection_finish():
+    global _saved
+    if _saved is not None:
+        signal.SIGHUP = _saved
+        _saved = None
+''',
+        encoding="utf-8",
+    )
+    env = os.environ.copy()
+    env["NO_SIGHUP_MARKER"] = str(marker)
+    pythonpath = [str(tmp_path)]
+    if env.get("PYTHONPATH"):
+        pythonpath.append(env["PYTHONPATH"])
+    env["PYTHONPATH"] = os.pathsep.join(pythonpath)
+    child_temp = tmp_path / "child-pytest"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+            "--collect-only",
+            "-p",
+            "no_sighup_plugin",
+            "-p",
+            "no:testmon",
+            "--basetemp",
+            str(child_temp / "tmp"),
+            "-o",
+            f"cache_dir={child_temp / 'cache'}",
+            str(Path(__file__).resolve()),
+        ],
+        cwd=Path(__file__).resolve().parents[1],
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30,
+        check=False,
+    )
+
+    assert marker.exists()
+    assert result.returncode == 0, result.stdout[-4000:]
+    assert " collected in " in result.stdout
+
+
 @pytest.fixture
 def default_cancel_signals():
     """Run with the default SIGTERM, SIGHUP, and Ctrl-C actions, then put back what was there."""
@@ -1450,11 +1519,14 @@ def default_cancel_signals():
 
 # What a cancel looks like to the caller of `run_command`, per signal. Ctrl-C raises
 # KeyboardInterrupt, which ends a real wrapper by SIGINT (returncode -2).
-CANCEL_SIGNALS = [signal.SIGTERM, signal.SIGHUP, signal.SIGINT]
+CANCEL_SIGNAL_NAMES = tuple(
+    name for name in ("SIGTERM", "SIGHUP", "SIGINT") if hasattr(signal, name)
+)
+CANCEL_SIGNALS = [getattr(signal, name) for name in CANCEL_SIGNAL_NAMES]
+CANCEL_SIGNAL_IDS = [name.lower() for name in CANCEL_SIGNAL_NAMES]
 CANCEL_RESULT = {
-    signal.SIGTERM: f"exit {128 + signal.SIGTERM}",
-    signal.SIGHUP: f"exit {128 + signal.SIGHUP}",
-    signal.SIGINT: "interrupt",
+    sig: "interrupt" if name == "SIGINT" else f"exit {128 + sig}"
+    for name, sig in zip(CANCEL_SIGNAL_NAMES, CANCEL_SIGNALS, strict=True)
 }
 
 
@@ -1479,9 +1551,8 @@ def install_cancelling_popen(
     init-return  after the whole of Popen ran, just before it returns
     Every spawned pid is appended to `spawned`.
     """
-    real_popen = subprocess.Popen
 
-    class CancellingPopen(real_popen):  # type: ignore[type-arg, misc]
+    class CancellingPopen(subprocess.Popen):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
             if point == "init-return":
@@ -1519,8 +1590,54 @@ def assert_cancel_handlers_restored() -> None:
 class TestCancelDuringSpawn:
     """Round 4 finding: a cancel inside Popen, after the fork, must still stop the child."""
 
+    def test_cancel_during_handler_installation_leaves_no_handler_installed(self, monkeypatch):
+        real_signal = signal.signal
+        fired = False
+
+        def install_then_cancel(sig, handler):
+            nonlocal fired
+            previous = real_signal(sig, handler)
+            if sig == signal.SIGHUP and not fired:
+                fired = True
+                signal.raise_signal(signal.SIGTERM)
+            return previous
+
+        monkeypatch.setattr(receipt_module.signal, "signal", install_then_cancel)
+
+        with pytest.raises(SystemExit) as caught:
+            with receipt_module._cancel_signals_raise():
+                pass
+
+        assert fired
+        assert caught.value.code == 128 + signal.SIGTERM
+        assert_cancel_handlers_restored()
+
+    def test_cancel_during_handler_restoration_is_delivered_after_handlers_are_restored(
+        self, monkeypatch
+    ):
+        real_signal = signal.signal
+        fired = False
+
+        def restore_then_cancel(sig, handler):
+            nonlocal fired
+            previous = real_signal(sig, handler)
+            if sig == signal.SIGTERM and handler is signal.SIG_DFL and not fired:
+                fired = True
+                signal.raise_signal(signal.SIGHUP)
+            return previous
+
+        monkeypatch.setattr(receipt_module.signal, "signal", restore_then_cancel)
+
+        with pytest.raises(SystemExit) as caught:
+            with receipt_module._cancel_signals_raise():
+                pass
+
+        assert fired
+        assert caught.value.code == 128 + signal.SIGHUP
+        assert_cancel_handlers_restored()
+
     @pytest.mark.parametrize("point", ["before-exec", "after-fork", "init-return"])
-    @pytest.mark.parametrize("sig", CANCEL_SIGNALS, ids=["sigterm", "sighup", "sigint"])
+    @pytest.mark.parametrize("sig", CANCEL_SIGNALS, ids=CANCEL_SIGNAL_IDS)
     def test_cancel_inside_popen_stops_the_child_group(self, monkeypatch, tmp_path, sig, point):
         spawned: list[int] = []
         install_cancelling_popen(monkeypatch, sig, point, spawned)
@@ -1536,7 +1653,7 @@ class TestCancelDuringSpawn:
         finally:
             stop_spawned(spawned)
 
-    @pytest.mark.parametrize("sig", CANCEL_SIGNALS, ids=["sigterm", "sighup", "sigint"])
+    @pytest.mark.parametrize("sig", CANCEL_SIGNALS, ids=CANCEL_SIGNAL_IDS)
     def test_launch_failure_with_a_held_cancel_delivers_the_cancel(
         self, monkeypatch, tmp_path, sig
     ):
@@ -1558,7 +1675,7 @@ class TestCancelDuringSpawn:
         assert "cannot launch" in capsys.readouterr().err
         assert_cancel_handlers_restored()
 
-    @pytest.mark.parametrize("sig", CANCEL_SIGNALS, ids=["sigterm", "sighup", "sigint"])
+    @pytest.mark.parametrize("sig", CANCEL_SIGNALS, ids=CANCEL_SIGNAL_IDS)
     def test_cancel_after_the_spawn_behaves_as_before(self, monkeypatch, tmp_path, sig):
         # Control: a cancel outside the spawn window is not held. Its handler is
         # the plain one, and it stops the child through the guard as it always did.
@@ -1597,9 +1714,8 @@ class TestCancelDuringSpawn:
     def test_ctrl_c_is_held_only_while_the_child_is_spawned(self, monkeypatch, tmp_path):
         inside: list[object] = []
         outside: list[object] = []
-        real_popen = subprocess.Popen
 
-        class ProbePopen(real_popen):  # type: ignore[type-arg, misc]
+        class ProbePopen(subprocess.Popen):
             def _execute_child(self, *args, **kwargs):
                 inside.append(signal.getsignal(signal.SIGINT))
                 super()._execute_child(*args, **kwargs)
@@ -1628,9 +1744,8 @@ class TestCancelDuringSpawn:
         for sig in CANCEL_SIGNALS:
             signal.signal(sig, caller_handler)
         spawned: list[int] = []
-        real_popen = subprocess.Popen
 
-        class NoisyPopen(real_popen):  # type: ignore[type-arg, misc]
+        class NoisyPopen(subprocess.Popen):
             def _execute_child(self, *args, **kwargs):
                 super()._execute_child(*args, **kwargs)
                 spawned.append(self.pid)
