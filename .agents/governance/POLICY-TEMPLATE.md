@@ -18,6 +18,11 @@ directory the link starts with `../../.project-toolkit/architecture/`.]
 
 [MUST, SHALL, and SHOULD statements using RFC 2119 keywords.]
 
+[Give each normative line an evidence anchor in the same section: a
+`Source:` line, an issue or PR, an ADR link, a retrospective link, or a
+`Why:` paragraph. The rule is MUST 4 in
+[governance.md](../../.claude/rules/governance.md).]
+
 ## Compliance Requirements
 
 [How to adhere to the policy.]

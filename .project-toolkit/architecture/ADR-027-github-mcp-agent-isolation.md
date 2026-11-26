@@ -19,7 +19,7 @@ Rejected (2026-11-26). Retired by issue #7637.
 
 This record never left proposed. Its premise was process-spawn latency in PowerShell wrapper scripts under `.claude/skills/github/scripts/`. ADR-042 later migrated those scripts to Python. At ffc759356, 2026-11-26, that directory holds 92 Python files and no PowerShell files, and `.mcp.json` lists no GitHub MCP server.
 
-Its Phase 1 plan also swapped skills for raw `gh` calls, which the repository's `AGENTS.md` Never list now forbids. Debate log: `.project-toolkit/critique/ADR-011-012-013-020-022-027-048-status-debate-log.md`.
+Its Phase 1 plan also swapped skills for raw `gh` calls, which the repository's `AGENTS.md` Never list now forbids. Debate log: [ADR-011-012-013-020-022-027-048-status-debate-log.md](../critique/ADR-011-012-013-020-022-027-048-status-debate-log.md).
 
 The record is kept so the proposal stays findable.
 

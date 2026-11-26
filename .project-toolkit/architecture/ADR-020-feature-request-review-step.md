@@ -25,7 +25,7 @@ Deprecated (2026-11-26). Retired by issue #7637.
 
 The feature review step shipped in PR #1316 (57b36c1e9, 2026-02-24) as a step in `ai-issue-triage.yml`. PR #5134 (a390f4d97, 2026-08-16) deleted that workflow when automatic issue triage was retired. No successor decision exists, so `superseded-by` stays null.
 
-The `issue-feature-review` agent remains for manual use. Debate log: `.project-toolkit/critique/ADR-011-012-013-020-022-027-048-status-debate-log.md`.
+The `issue-feature-review` agent remains for manual use. Debate log: [ADR-011-012-013-020-022-027-048-status-debate-log.md](../critique/ADR-011-012-013-020-022-027-048-status-debate-log.md).
 
 The record is kept as history of the retired workflow step.
 

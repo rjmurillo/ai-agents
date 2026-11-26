@@ -15,11 +15,13 @@ implemented: true
 
 Accepted (2026-11-26). Finished by issue #7637 at the owner's direction (rjmurillo).
 
-The record stayed proposed for eleven months because its governance template was never created. This change creates `.agents/governance/POLICY-TEMPLATE.md` from Appendix C. Two live records already rely on these criteria: ADR-087 cites them as the reason it is an ADR, and `AI-REVIEW-MODEL-POLICY.md` cites them as the source of its split.
+The record stayed proposed for eleven months because its governance template was never created. This change creates [POLICY-TEMPLATE.md](../../.agents/governance/POLICY-TEMPLATE.md) from Appendix C. Two live records already rely on these criteria: ADR-087 cites them as the reason it is an ADR, and [AI-REVIEW-MODEL-POLICY.md](../../.agents/governance/AI-REVIEW-MODEL-POLICY.md) cites them as the source of its split.
 
-Acceptance binds the classification matrix, the placement rules, and the governance template. The binding ADR template is `.project-toolkit/architecture/ADR-TEMPLATE.md` (ADR-073 frontmatter), not the older ADR sample in Appendix C. Acceptance does not adopt the pre-commit hook, review checklist, or quarterly audit in Implementation Guidance, and it does not bind the Success Metrics targets. None of those was built.
+Acceptance binds the classification matrix, the placement rules, and the governance template. The binding ADR template is [ADR-TEMPLATE.md](ADR-TEMPLATE.md) (ADR-073 frontmatter), not the older ADR sample in Appendix C. Acceptance does not adopt the pre-commit hook, review checklist, or quarterly audit in Implementation Guidance, and it does not bind the Success Metrics targets. None of those was built.
 
-Debate log: `.project-toolkit/critique/ADR-011-012-013-020-022-027-048-status-debate-log.md`.
+Open question for the owner: the matrix in Section 1 and the workflow in Section 3 disagree on one case. For an architectural decision that needs enforcement, the matrix says split. The workflow says split only when the decision and its policy are tightly coupled, and ADR-only otherwise. This acceptance does not settle that case.
+
+Debate log: [ADR-011-012-013-020-022-027-048-status-debate-log.md](../critique/ADR-011-012-013-020-022-027-048-status-debate-log.md).
 
 ## Date
 
@@ -395,8 +397,8 @@ Trigger a split when:
 
 ### Template Locations
 
-- **ADR template**: `.project-toolkit/architecture/ADR-TEMPLATE.md`
-- **Governance template**: `.agents/governance/POLICY-TEMPLATE.md`, created for issue #7637 from Appendix C
+- **ADR template**: [ADR-TEMPLATE.md](ADR-TEMPLATE.md)
+- **Governance template**: [POLICY-TEMPLATE.md](../../.agents/governance/POLICY-TEMPLATE.md), created for issue #7637 from Appendix C
 
 ### Enforcement
 
@@ -536,7 +538,7 @@ Adopting any of them needs its own decision. The Success Metrics below are aspir
 
 ### ADR Template
 
-This sample predates ADR-073. Use `.project-toolkit/architecture/ADR-TEMPLATE.md` instead.
+This sample predates ADR-073. Use [ADR-TEMPLATE.md](ADR-TEMPLATE.md) instead.
 
 ```markdown
 # ADR-NNN: [Title]
