@@ -270,7 +270,7 @@ reads these fields:
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/search_memory.py --help; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
 
-To list the available skill scripts, list the `.py` files under `skills/` in the plugin root the locator chose: the first of `${CLAUDE_PLUGIN_ROOT}`, `${COPILOT_PLUGIN_ROOT}`, and `.claude` that holds `lib/ptk_run.py`.
+To list the available skill scripts, list the `.py` files under `skills/` in the plugin root that ran the command. That root is the first of `${CLAUDE_PLUGIN_ROOT}`, `${COPILOT_PLUGIN_ROOT}`, and `.claude` that holds `lib/ptk_run.py`. When that root lacks the script, the resolver runs it from a later root and names that root in a `ptk_run: note:` line on stderr.
 
 **Solutions**:
 
@@ -289,7 +289,7 @@ To list the available skill scripts, list the `.py` files under `skills/` in the
 
 **Diagnosis**:
 
-Check that `skills/memory/memory_core/memory_router.py` exists under that same plugin root, then:
+Check that `skills/memory/memory_core/memory_router.py` exists under the root that ran the command above, then:
 
 ```bash
 # Test the import the same way the tests do

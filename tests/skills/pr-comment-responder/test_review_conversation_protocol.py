@@ -14,10 +14,9 @@ _PROTOCOL = (
 )
 _OWNER = ".claude/skills/pr-comment-responder/SKILL.md"
 _OWNER_LINK = "(references/review-conversation.md)"
-_ANCHORED = (
-    "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
-    "/skills/pr-comment-responder/references/review-conversation.md"
-)
+# ADR-121 retired the nested plugin-root form in prose. A consumer names the
+# owning skill and its file, which the harness resolves under the installed root.
+_ANCHORED = "the `pr-comment-responder` skill's `references/review-conversation.md`"
 _CONSUMERS = [
     ".claude/skills/pr-review/SKILL.md",
     ".claude/skills/review/resources/technical-review.md",

@@ -34,8 +34,41 @@ An earlier dated record covers Codex 0.169.0:
 agent body left literal, and no plugin-root variable in the skill's shell. It
 did not measure a `references/` file, a locator run, or an installed plugin.
 
-Resume: restore Copilot quota and log Codex in, then rerun both commands
-against the fixture.
+Resume: restore Copilot quota and log Codex in, then rebuild the fixture
+below and rerun both commands.
+
+### Probe fixture
+
+Copilot reads the fixture as a plugin directory. Codex reads it as a workspace
+skill under `.agents/skills/rootprobe/`.
+
+| File | Content |
+|---|---|
+| `.claude-plugin/plugin.json` (Copilot) | `{"name":"rootprobe","description":"ADR-121 probe plugin","version":"0.0.1"}` |
+| `skills/rootprobe/SKILL.md` | Frontmatter `name: rootprobe`. Body holds LINE-A to LINE-E, a fence, and a locator (below). |
+| `skills/rootprobe/references/probe.md` | `REF-B: ${CLAUDE_PLUGIN_ROOT}/skills/x/` and `REF-C: ${COPILOT_PLUGIN_ROOT}/skills/x/` |
+| `skills/rootprobe/scripts/hello.py` | Prints `HELLO-TARGET ran from` and its own absolute path. |
+| `lib/ptk_run.py` | A copy of `src/claude/lib/ptk_run.py`. |
+| `agents/rootprobe.agent.md` (Copilot) | LINE-A, LINE-B, and LINE-C, with an instruction to quote them. |
+
+The SKILL.md marker lines:
+
+- LINE-A: `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/x/`
+- LINE-B: `${CLAUDE_PLUGIN_ROOT}/skills/x/`
+- LINE-C: `${COPILOT_PLUGIN_ROOT}/skills/x/`
+- LINE-D: `${CLAUDE_SKILL_DIR}/x`
+- LINE-E: `${PLUGIN_ROOT}/x`
+- A plain fence holds `FENCE-B` and `FENCE-C` with the LINE-B and LINE-C values.
+- A `bash` fence holds the locator from `plugin_run_launcher.render_locator("skills/rootprobe/scripts/hello.py")`.
+
+The prompt, sent verbatim with `-p` (Copilot) or as the `codex exec` argument:
+
+```text
+ADR-121 probe. Step 1: use the skill named rootprobe (open its SKILL.md). Step 2: WITHOUT running any tool for this step, quote verbatim, character for character, from the SKILL.md text as you received it: LINE-A, LINE-B, LINE-C, LINE-D, LINE-E, FENCE-B, FENCE-C. Step 3: read references/probe.md in the skill directory with a file tool and quote REF-B and REF-C verbatim. Step 4: run in your shell exactly: env | grep -i PLUGIN || echo NONE   and paste the raw output. Step 5: from the workspace root, run the bash locator block from the skill exactly as written and paste stdout, stderr and exit code. Output: one line per item, label then verbatim text in backticks. Do not paraphrase.
+```
+
+Run each host with `env -u CLAUDE_PLUGIN_ROOT -u COPILOT_PLUGIN_ROOT` from a
+directory outside the fixture.
 
 ## Remaining nested-form sites
 
