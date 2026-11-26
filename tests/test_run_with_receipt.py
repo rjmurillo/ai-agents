@@ -818,6 +818,7 @@ class TestTimedChildLifetime:
             leader.kill()
             leader.wait()
 
+    @POSIX_ONLY
     def test_grace_window_is_spent_while_group_members_remain(self, monkeypatch):
         proc = _FakePopen(waits=[-15])
         signals = install_group_fakes(monkeypatch, proc, group_alive_probes=3)
@@ -831,6 +832,7 @@ class TestTimedChildLifetime:
         assert len(sleeps) == 3
         assert all(0 < step <= receipt_module._TERM_GRACE_S for step in sleeps)
 
+    @POSIX_ONLY
     def test_grace_window_ends_at_its_deadline_even_if_members_remain(self, monkeypatch):
         proc = _FakePopen(waits=[-15])
         signals = install_group_fakes(monkeypatch, proc, group_alive_probes=10_000)
@@ -847,6 +849,7 @@ class TestTimedChildLifetime:
         assert clock["now"] - 100.0 == pytest.approx(receipt_module._TERM_GRACE_S)
         assert signals == [(proc.pid, signal.SIGTERM), (proc.pid, signal.SIGKILL)]
 
+    @POSIX_ONLY
     def test_interrupt_while_waiting_stops_a_timed_group(self, monkeypatch, tmp_path):
         proc = _FakePopen(waits=[KeyboardInterrupt(), -15])
         signals = install_group_fakes(monkeypatch, proc)
@@ -880,6 +883,7 @@ class TestTimedChildLifetime:
         assert signals == []
         assert proc.kill_calls == 0
 
+    @POSIX_ONLY
     def test_timed_run_turns_sigterm_into_system_exit_then_restores_default(
         self, monkeypatch, tmp_path, default_sigterm
     ):
