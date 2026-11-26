@@ -333,8 +333,9 @@ def defines_test(source: str, classes: list[str], func: str) -> bool:
     does not parse, is False. So is a test that ``__test__ = False`` turns
     off in its module or class chain, which pytest skips. So is a class in
     the chain that defines ``__init__`` or ``__new__``: pytest 9 skips it
-    with a warning (``_pytest/python.py``). Whether the file
-    itself is collected is ``is_collected_file``'s question, not this one's.
+    with a warning (``_pytest/python.py``). So is a name a later statement
+    rebinds, such as ``test_x = None``: pytest reads the final binding. Whether
+    the file itself is collected is ``is_collected_file``'s question, not this one's.
     """
     named_like_tests = func.startswith(PYTEST_FUNC_PREFIX) and "[" not in func
     if not named_like_tests or not all(c.startswith(PYTEST_CLASS_PREFIX) for c in classes):
@@ -346,14 +347,49 @@ def defines_test(source: str, classes: list[str], func: str) -> bool:
     if _turns_off_collection(body, {classes[0] if classes else func}):
         return False
     for name in classes:
-        found = [n for n in body if isinstance(n, ast.ClassDef) and n.name == name]
-        if not found or _turns_off_collection(found[0].body, {func}):
+        found = _final_binding(body, name)
+        if not isinstance(found, ast.ClassDef) or _turns_off_collection(found.body, {func}):
             return False
-        if _defines_constructor(found[0].body):
+        if _defines_constructor(found.body):
             return False
-        body = found[0].body
-    funcs = (ast.FunctionDef, ast.AsyncFunctionDef)
-    return any(isinstance(n, funcs) and n.name == func for n in body)
+        body = found.body
+    return isinstance(_final_binding(body, func), (ast.FunctionDef, ast.AsyncFunctionDef))
+
+
+def _final_binding(body: list[ast.stmt], name: str) -> ast.stmt | None:
+    """The last statement directly in *body* that binds *name*, or None.
+
+    A def, a class, an import, ``del``, or an assignment with a value binds.
+    A binding nested in ``if`` or ``try`` is not read: no static read knows
+    which branch runs.
+    """
+    found = None
+    for node in body:
+        if name in _bound_names(node):
+            found = node
+    return found
+
+
+def _bound_names(node: ast.stmt) -> set[str]:
+    """Names *node* binds or deletes at its own level."""
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        return {node.name}
+    if isinstance(node, (ast.Import, ast.ImportFrom)):
+        return {(a.asname or a.name).split(".")[0] for a in node.names}
+    targets: list[ast.expr] = []
+    if isinstance(node, (ast.Assign, ast.Delete)):
+        targets = node.targets
+    elif isinstance(node, ast.AugAssign) or (
+        isinstance(node, ast.AnnAssign) and node.value is not None
+    ):
+        targets = [node.target]
+    stores = (ast.Store, ast.Del)
+    return {
+        n.id
+        for t in targets
+        for n in ast.walk(t)
+        if isinstance(n, ast.Name) and isinstance(n.ctx, stores)
+    }
 
 
 def _defines_constructor(body: list[ast.stmt]) -> bool:

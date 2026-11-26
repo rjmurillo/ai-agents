@@ -387,6 +387,38 @@ class TestDefinesTest:
         )
         assert not skills.defines_test(source, ["TestOuter", "TestInner"], "test_i")
 
+    @pytest.mark.parametrize(
+        ("rebind", "classes", "func"),
+        [
+            ("test_t = None", [], "test_t"),
+            ("del test_t", [], "test_t"),
+            ("from os import path as test_t", [], "test_t"),
+            ("test_t: object = None", [], "test_t"),
+            ("TestR = None", ["TestR"], "test_r"),
+        ],
+    )
+    def test_a_rebound_name_is_not_collected(
+        self, rebind: str, classes: list[str], func: str
+    ) -> None:
+        source = (
+            "def test_t():\n    pass\n\n"
+            "class TestR:\n    def test_r(self):\n        pass\n\n"
+            f"{rebind}\n"
+        )
+        assert not skills.defines_test(source, classes, func)
+
+    def test_a_method_rebound_in_its_class_is_not_collected(self) -> None:
+        source = "class TestR:\n    def test_r(self):\n        pass\n    test_r = None\n"
+        assert not skills.defines_test(source, ["TestR"], "test_r")
+
+    @pytest.mark.parametrize(
+        "other",
+        ["test_t = None\n\ndef test_t():\n    pass\n", "d = {}\nd[test_t] = 1\n", "x: test_t\n"],
+    )
+    def test_a_def_that_stays_the_final_binding_is_collected(self, other: str) -> None:
+        source = f"def test_t():\n    pass\n\n{other}"
+        assert skills.defines_test(source, [], "test_t")
+
     def test_constructor_in_a_sibling_class_does_not_block(self) -> None:
         source = (
             "class TestA:\n    def test_a(self):\n        pass\n\n"
