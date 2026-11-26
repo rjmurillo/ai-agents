@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # taste-lint: ignore file-size, scan, fence check, and fault report share one ratchet entry point.
-"""Flag a rule file that cites a non-accepted ADR as binding (issue #5200).
+"""Flag an instruction file that cites a missing or non-accepted ADR (issue #5200).
 
 A rule, `AGENTS.md`, or `CLAUDE.md` says "per ADR-078" or "MUST comply with
 ADR-080". Nothing checked the cited record's own status. `ADR-078` is
@@ -16,21 +16,37 @@ Git-tracked files only, read from disk, per
 canonical sources and every shipped mirror of them, because a check that passes the source
 while a stale mirror ships the violation to plugin consumers has not protected the consumer:
 
-- `AGENTS.md` and `CLAUDE.md` at the repository root
+- every tracked `AGENTS.md` and `CLAUDE.md`, at the root and nested
 - `templates/rules/*.md` (the source, per ADR-109)
 - `.claude/rules/*.md`, `src/claude/rules/*.md`
 - `.github/instructions/*.instructions.md`, `src/copilot-cli/instructions/*.md`
+- `templates/agents/**`: the agent templates and their `.mustache` and `.tmpl`
+  sources
+- the rendered Markdown agent trees: `src/claude/agents`,
+  `src/copilot-cli/agents`, `src/vs-code-agents`, `src/cursor/agents`,
+  `src/muse/agents`, `.github/agents`. `src/codex/agents` is TOML and is not
+  read; it renders from the same templates.
+
+A `.mustache` or `.tmpl` file is a fragment: its fences open in one file and
+close in another. An unclosed fence there is counted and not failed. Masking in
+a fragment can be wrong after that fence, so the rendered trees, which are whole
+documents, are the complete read of the same prose.
 
 ## Status resolution
 
 Reuses :func:`check_skill_adr_bindings.adr_statuses`, which reads the
 frontmatter `status:` through `check_adr_lifecycle.collect_records`, so ADR
 parsing keeps one owner. Every `ADR-NNN-*.md` record carries a frontmatter
-status since ADR-073 landed, so no prose fallback is needed. A cited number with
-no record is the link gate's finding (`check_adr_links.py`) and is counted here,
-not failed. A record whose status is empty (missing, unparseable, or non-scalar)
-is counted the same way: it is not `accepted`, so its citations are not
-skipped as if it were (issue #6506).
+status since ADR-073 landed, so no prose fallback is needed. A record whose
+status is empty (missing, unparseable, or non-scalar) is counted, not failed: it
+is not `accepted`, so its citations are not skipped as if it were (issue #6506).
+
+## Existence
+
+A cited number with no tracked `ADR-NNN-*.md` record is MISSING and fails,
+whatever the sentence says. The link gate (`check_adr_links.py`) resolves
+Markdown link targets only, so a bare `ADR-999` in prose reached no gate. An
+example number that names no record belongs in a code span, which is masked.
 
 `proposed`, `rejected`, `deprecated` and `superseded` are non-accepted. The
 issue names the first, second and fourth; `deprecated` is in ADR-073's enum and
@@ -39,9 +55,9 @@ a rule cannot cite a deprecated record as live any more than a superseded one.
 ## Citation classes
 
 Each mention of a non-accepted ADR is placed in exactly one class. Only BINDING
-fails the gate. A check that guesses on ambiguous prose trains people to add
-ignore comments, so a mention the classifier cannot place is UNCLASSIFIED and is
-reported, never failed.
+fails the gate (MISSING, above, is decided before classification). A check that
+guesses on ambiguous prose trains people to add ignore comments, so a mention
+the classifier cannot place is UNCLASSIFIED and is reported, never failed.
 
 - NOT A CITATION, never seen: inside an inline code span, a fenced block, an
   HTML comment or YAML frontmatter, or part of a file name or path such as
@@ -54,9 +70,13 @@ reported, never failed.
 - BINDING: the sentence carries MUST, SHALL, REQUIRED, "binding", "governs" or
   "requires", or the mention directly follows "per", "under", "comply with",
   "conform to", "governed by", "required by", "mandated by", "defined by" or
-  "according to".
-- UNCLASSIFIED: everything else, such as the terse `pins: ADR-080` in
-  `AGENTS.md`.
+  "according to", or a compliance verb: "pass", "satisfy", "meet", "need",
+  "follow" or "obey", as in "Pin changes pass ADR-080". A sentence or pipe cell
+  that is only a label and ADR numbers, such as the terse `pins: ADR-080` that
+  sat in `AGENTS.md`, is a pointer to the owning record and is BINDING too,
+  unless the label is a history or reference word ("Refs:", "Replaces:").
+- UNCLASSIFIED: everything else, such as "(ADR-065)" after a claim, or an
+  example like "architecture violates ADR-007". Recall is partial by design.
 
 ## Not covered
 
@@ -80,7 +100,7 @@ A scan that cannot see every tracked file does not pass. A tracked file that is
 not a regular file, or resolves outside the repository (including a symlink that
 leaves it), is listed on stderr and fails the run with exit 2. A fenced block with
 no closing fence masks every later line of its file, so it is listed and fails the
-run with exit 1 (issue #6506).
+run with exit 1 (issue #6506), except in a fragment (see What is scanned).
 
 Exit codes follow ADR-035: 0 ok, 1 new or stale violation or an unterminated
 fence, 2 configuration fault or a tracked file the scan skipped, 3 git could not
@@ -116,6 +136,7 @@ EXIT_CONFIG = 2
 EXIT_EXTERNAL = 3
 
 CHECK = "rule-adr-citation"
+ADR_DIR = ".project-toolkit/architecture"
 
 #: ADR-073 status enum minus `accepted`. See the module docstring.
 NON_ACCEPTED = frozenset({"proposed", "rejected", "deprecated", "superseded"})
@@ -123,15 +144,31 @@ NON_ACCEPTED = frozenset({"proposed", "rejected", "deprecated", "superseded"})
 SCAN_GLOBS = (
     "AGENTS.md",
     "CLAUDE.md",
+    "**/AGENTS.md",
+    "**/CLAUDE.md",
     "templates/rules/*.md",
     ".claude/rules/*.md",
     "src/claude/rules/*.md",
     ".github/instructions/*.instructions.md",
     "src/copilot-cli/instructions/*.md",
+    "templates/agents/**",
+    "src/claude/agents/*.md",
+    "src/copilot-cli/agents/*.md",
+    "src/vs-code-agents/*.md",
+    "src/cursor/agents/*.md",
+    "src/muse/agents/*.md",
+    ".github/agents/*.md",
 )
+
+#: Template sources that render into a whole document only when combined.
+FRAGMENT_SUFFIXES = (".mustache", ".tmpl")
+
+ADR_RECORD_GLOB = ".project-toolkit/architecture/ADR-*.md"
+_RECORD_NAME_RE = re.compile(r"(?:^|/)ADR-(\d{1,4})(?:-[^/]*)?\.md$")
 
 BINDING = "binding"
 META = "meta"
+MISSING = "missing"
 UNCLASSIFIED = "unclassified"
 
 _BASELINE_PATH = Path(__file__).with_name("rule_adr_citations_baseline.json")
@@ -175,11 +212,27 @@ _BINDING_BEFORE_RE = re.compile(
     r"mandated by|defined by|according to)\s+(?:the\s+)?(?:ADR-\d+(?:,|\s+and|\s*/)\s*)*$",
     re.IGNORECASE,
 )
+# A compliance verb directly before the mention: "Pin changes pass ADR-080",
+# "needs an ADR-080 sidecar entry". Kept apart from `_BINDING_BEFORE_RE`, which
+# check_adr_supersession_citations.py imports for ADR bodies.
+_COMPLY_BEFORE_RE = re.compile(
+    r"\b(?:pass(?:es)?|satisf(?:y|ies)|meets?|needs?|follows?|obeys?)\s+(?:an?\s+|the\s+)?$",
+    re.IGNORECASE,
+)
+# A sentence or pipe cell that is only `label: ADR-NNN[, ADR-MMM]`.
+_POINTER_RE = re.compile(
+    r"^\s*(?:[-*+>]\s+|\d+[.)]\s+)?(?P<label>[A-Za-z*_][\w */+-]{0,40}?)[*_]*:[*_]*\s*"
+    r"(?:ADR-\d+\s*(?:,|and\b|/|\+)?\s*)+\.?\s*$"
+)
+_POINTER_HISTORY_RE = re.compile(
+    rf"{_LINEAGE_WORD}|\b(?:refs?|references?|related|see|history|historical|was|cf|examples?)\b",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True, slots=True)
 class Citation:
-    """One mention of a non-accepted ADR, placed in a class."""
+    """One mention of a missing or non-accepted ADR, placed in a class."""
 
     path: str
     line: int
@@ -193,6 +246,11 @@ class Citation:
         return f"{self.path}::ADR-{self.adr:03d}"
 
     def render(self) -> str:
+        if self.kind == MISSING:
+            return (
+                f"{self.path}:{self.line}: [{CHECK}] ADR-{self.adr:03d} has no tracked "
+                f"record under {ADR_DIR}: ...{self.sentence}..."
+            )
         return (
             f"{self.path}:{self.line}: [{CHECK}] ADR-{self.adr:03d} is "
             f"{self.status} but is cited as binding: ...{self.sentence}..."
@@ -312,6 +370,11 @@ def classify(sentence: str, match: re.Match[str], tail_end: int, in_bibliography
         return META
     if _BINDING_SENTENCE_RE.search(sentence) or _BINDING_BEFORE_RE.search(before):
         return BINDING
+    if _COMPLY_BEFORE_RE.search(before):
+        return BINDING
+    pointer = _POINTER_RE.match(sentence)
+    if pointer and not _POINTER_HISTORY_RE.search(pointer.group("label")):
+        return BINDING
     return UNCLASSIFIED
 
 
@@ -321,6 +384,7 @@ def _mentions_in_block(
     in_bibliography: bool,
     statuses: dict[int, str],
     unknown: set[int],
+    records: frozenset[int] | None = None,
 ) -> list[Citation]:
     text = " ".join(line for _, line in block)
     starts: list[tuple[int, int]] = []
@@ -335,6 +399,11 @@ def _mentions_in_block(
         for index, match in enumerate(matches):
             adr = int(match.group(1))
             status = statuses.get(adr)
+            absolute = start + match.start()
+            lineno = max(n for o, n in starts if o <= absolute)
+            if records is not None and adr not in records:
+                found.append(Citation(path, lineno, adr, MISSING, MISSING, sentence))
+                continue
             if not status:
                 unknown.add(adr)
                 continue
@@ -342,8 +411,6 @@ def _mentions_in_block(
                 continue
             tail_end = matches[index + 1].start() if index + 1 < len(matches) else len(sentence)
             kind = classify(sentence, match, tail_end, in_bibliography)
-            absolute = start + match.start()
-            lineno = max(n for o, n in starts if o <= absolute)
             found.append(Citation(path, lineno, adr, status, kind, sentence))
     return found
 
@@ -356,12 +423,21 @@ def _excerpt(line: str, adr: int, width: int = 60) -> str:
 
 
 def citations_in(
-    path: str, text: str, statuses: dict[int, str], unknown: set[int]
+    path: str,
+    text: str,
+    statuses: dict[int, str],
+    unknown: set[int],
+    records: frozenset[int] | None = None,
 ) -> list[Citation]:
-    """Every mention of a non-accepted ADR in ``text``, classified."""
+    """Every mention of a missing or non-accepted ADR in ``text``, classified.
+
+    ``records`` is the set of ADR numbers that have a tracked record. A mention
+    outside it is MISSING. ``None`` skips the existence check, for a caller that
+    holds statuses only.
+    """
     found: list[Citation] = []
     for in_bibliography, block in _blocks(mask_noise(text)):
-        found.extend(_mentions_in_block(path, block, in_bibliography, statuses, unknown))
+        found.extend(_mentions_in_block(path, block, in_bibliography, statuses, unknown, records))
     # The masked sentence is blanked where code spans were, which reads badly in
     # a report. Show the author's own line instead.
     lines = text.split("\n")
@@ -376,10 +452,20 @@ class ScanResult:
     absent: list[str]
     unknown: set[int]
     unterminated: list[str] = field(default_factory=list)
+    fragments: list[str] = field(default_factory=list)
 
     @property
     def binding(self) -> list[Citation]:
         return [c for c in self.citations if c.kind == BINDING]
+
+    @property
+    def missing(self) -> list[Citation]:
+        return [c for c in self.citations if c.kind == MISSING]
+
+    @property
+    def failing(self) -> list[Citation]:
+        """Citations the ratchet holds: BINDING and MISSING."""
+        return [c for c in self.citations if c.kind in (BINDING, MISSING)]
 
     @property
     def unclassified(self) -> list[Citation]:
@@ -396,23 +482,39 @@ def _readable(repo_root: Path, rel: str) -> Path | None:
     return path if inside and path.is_file() else None
 
 
+def adr_record_numbers(repo_root: Path) -> frozenset[int] | None:
+    """ADR numbers that have a tracked record, or ``None`` when git cannot list them.
+
+    Read from the index, not from parsed statuses: a record whose frontmatter did
+    not parse is absent from ``adr_statuses`` and still exists.
+    """
+    relatives = tracked_files(repo_root, (ADR_RECORD_GLOB,))
+    if relatives is None:
+        return None
+    numbers = (_RECORD_NAME_RE.search(rel) for rel in relatives)
+    return frozenset(int(match.group(1)) for match in numbers if match)
+
+
 def scan(repo_root: Path, statuses: dict[int, str]) -> ScanResult | str:
-    """Classify every non-accepted citation in the tracked scan set.
+    """Classify every missing or non-accepted citation in the tracked scan set.
 
     Returns the fault reason when git could not list the files, so a gate that
     enumerated nothing never reports an empty findings list as a clean tree.
     """
-    relatives = tracked_files(repo_root, SCAN_GLOBS)
-    if relatives is None:
+    listed = tracked_files(repo_root, SCAN_GLOBS)
+    records = adr_record_numbers(repo_root)
+    if listed is None or records is None:
         return (
             f"git could not list tracked rule files under {repo_root}, so nothing "
             "was examined and the gate did not run"
         )
+    relatives = sorted(set(listed))
     citations: list[Citation] = []
     absent: list[str] = []
     unterminated: list[str] = []
+    fragments: list[str] = []
     unknown: set[int] = set()
-    for rel in sorted(relatives):
+    for rel in relatives:
         path = _readable(repo_root, rel)
         if path is None:
             absent.append(rel)
@@ -420,10 +522,17 @@ def scan(repo_root: Path, statuses: dict[int, str]) -> ScanResult | str:
         text = path.read_text(encoding="utf-8", errors="replace")
         fence_line = unterminated_fence_line(text)
         if fence_line is not None:
-            unterminated.append(f"{rel}:{fence_line}")
-        citations.extend(citations_in(rel, text, statuses, unknown))
+            holder = fragments if rel.endswith(FRAGMENT_SUFFIXES) else unterminated
+            holder.append(f"{rel}:{fence_line}")
+        citations.extend(citations_in(rel, text, statuses, unknown, records))
     return ScanResult(
-        citations, len(relatives), len(relatives) - len(absent), absent, unknown, unterminated
+        citations,
+        len(relatives),
+        len(relatives) - len(absent),
+        absent,
+        unknown,
+        unterminated,
+        fragments,
     )
 
 
@@ -450,7 +559,7 @@ def _config_fault(adr_dir: Path, statuses: dict[int, str]) -> str | None:
 
 
 def _report(result: ScanResult, new: list[str], stale: list[str], verbose: bool) -> None:
-    for citation in result.binding:
+    for citation in result.failing:
         if citation.key in new:
             print(citation.render())
     for key in stale:
@@ -465,7 +574,7 @@ def _report(result: ScanResult, new: list[str], stale: list[str], verbose: bool)
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Flag a rule file citing a non-accepted ADR as binding (issue #5200)."
+        description="Flag an instruction file citing a missing or non-accepted ADR (issue #5200)."
     )
     parser.add_argument("--repo-root", default=".", help="Repository root to scan.")
     parser.add_argument("--baseline", default=str(_BASELINE_PATH), help="Known-violation list.")
@@ -507,7 +616,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return EXIT_CONFIG
 
-    current = {c.key for c in result.binding}
+    current = {c.key for c in result.failing}
     new = sorted(current - baseline)
     stale = sorted(baseline - current)
     _report(result, new, stale, args.verbose)
@@ -518,10 +627,12 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
     scope = (
-        f"{len(current)} binding violation(s) ({len(baseline)} known), "
+        f"{len({c.key for c in result.binding})} binding violation(s) ({len(baseline)} known), "
+        f"{len({c.key for c in result.missing})} missing record(s), "
         f"{len(result.unclassified)} unclassified, across "
         f"{result.examined} of {result.candidates} tracked rule file(s), "
-        f"{len(result.unknown)} ADR number(s) with no usable status"
+        f"{len(result.unknown)} ADR number(s) with no usable status, "
+        f"{len(result.fragments)} fragment fence(s) not failed"
     )
     if new or stale or result.unterminated:
         print(

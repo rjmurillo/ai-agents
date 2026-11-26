@@ -1,8 +1,10 @@
 """Tests for scripts/validation/check_rule_adr_citations.py (issue #5200).
 
 pos: each non-accepted status cited with a binding signal is flagged, including
-the shapes of the issue's two live instances. neg: accepted ADRs, code spans,
-fences, comments, frontmatter, paths, bibliography and lineage clauses are not.
+the shapes of the issue's two live instances, a compliance verb, and a terse
+`label: ADR-NNN` pointer; a number with no tracked record is flagged. neg:
+accepted ADRs, code spans, fences, comments, frontmatter, paths, bibliography
+and lineage clauses are not.
 edge: mixed binding and historical citations, heading scope, wrapped sentences,
 unknown numbers, and unclassified mentions (reported, never failed). Ratchet and
 CLI: known passes, new fails, stale fails, unusable scope exits 2 or 3.
@@ -31,6 +33,7 @@ from check_rule_adr_citations import (
     EXIT_OK,
     EXIT_REGRESSION,
     META,
+    MISSING,
     UNCLASSIFIED,
     citations_in,
     main,
@@ -190,13 +193,138 @@ def test_inline_references_label_is_bibliography() -> None:
 
 
 # --------------------------------------------------------------------------
+# Terse pointers and compliance verbs (the ADR-080 citations ADR-111 retired)
+# --------------------------------------------------------------------------
+
+AGENTS_PINS_LINE = (
+    "Effort|by task shape+verifier, never vendor default|bounded: lowest|"
+    "specified: low/medium|judgment: medium, high when ambiguity/repair/"
+    "architecture/acceptance dominate|more != better, validate per task+harness|"
+    "pins: ADR-080\n"
+)
+ORCHESTRATOR_PIN_LINE = "Pin changes pass ADR-080; this policy never justifies a pin.\n"
+PLUGIN_GUIDE_PIN_LINE = (
+    "- `model:` needs an ADR-080 `KEEP_PIN` sidecar entry, or a bare alias "
+    "(`sonnet`, `opus`, `haiku`) plus `model-rationale:`.\n"
+)
+
+
+@pytest.mark.parametrize("line", [AGENTS_PINS_LINE, ORCHESTRATOR_PIN_LINE, PLUGIN_GUIDE_PIN_LINE])
+def test_live_citations_of_superseded_adr_080_are_binding(line: str) -> None:
+    """Regression: the exact lines that named superseded ADR-080 as the pin owner
+    in `AGENTS.md`, the orchestrator partial, and the plugin guide."""
+    assert _kinds(line) == [(80, BINDING, 1)]
+
+
+@pytest.mark.parametrize("line", [AGENTS_PINS_LINE, ORCHESTRATOR_PIN_LINE, PLUGIN_GUIDE_PIN_LINE])
+def test_the_same_lines_repointed_to_an_accepted_adr_are_clean(line: str) -> None:
+    assert _kinds(line.replace("ADR-080", "ADR-106")) == []
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "pins: ADR-080\n",
+        "- Pins: ADR-080.\n",
+        "**Pins**: ADR-080\n",
+        "a|pins: ADR-080, ADR-079|b\n",
+        "Owner: ADR-002\n",
+        "Policy: ADR-095\n",
+    ],
+)
+def test_a_label_and_number_pointer_is_binding(text: str) -> None:
+    assert all(kind == BINDING for _, kind, _ in _kinds(text))
+    assert _kinds(text)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Refs: ADR-080\n",
+        "Replaces: ADR-080\n",
+        "Formerly: ADR-080\n",
+        "See also: ADR-080\n",
+        "History: ADR-080\n",
+        "Example: ADR-080\n",
+    ],
+)
+def test_a_history_or_reference_label_is_not_a_pointer(text: str) -> None:
+    assert BINDING not in [kind for _, kind, _ in _kinds(text)]
+
+
+def test_a_pointer_with_trailing_prose_is_not_a_pointer() -> None:
+    """Only a cell that is nothing but the label and the numbers is a pointer."""
+    assert _kinds("pins: ADR-080 was the first attempt\n") == [(80, UNCLASSIFIED, 1)]
+
+
+@pytest.mark.parametrize("verb", ["pass", "passes", "satisfy", "satisfies", "meet", "follows"])
+def test_a_compliance_verb_before_the_mention_is_binding(verb: str) -> None:
+    assert _kinds(f"Pin changes {verb} ADR-080 first.\n") == [(80, BINDING, 1)]
+    assert _kinds(f"Pin changes {verb} the ADR-080 bar.\n") == [(80, BINDING, 1)]
+
+
+def test_a_compliance_verb_does_not_outrank_lineage() -> None:
+    """META wins: the mention is history even after a compliance verb."""
+    assert _kinds("Pins pass ADR-080, superseded by ADR-106.\n") == [(80, META, 1)]
+
+
+def test_a_compliance_verb_elsewhere_in_the_sentence_is_not_a_signal() -> None:
+    assert _kinds("Changes pass review, as ADR-080 once described.\n") == [(80, UNCLASSIFIED, 1)]
+
+
+# --------------------------------------------------------------------------
+# Existence: a cited number needs a tracked record
+# --------------------------------------------------------------------------
+
+RECORDS = frozenset(STATUSES)
+
+
+def _found(text: str, records: frozenset[int] | None = RECORDS) -> list[tuple[int, str, int]]:
+    found = citations_in("f.md", text, STATUSES, set(), records)
+    return [(c.adr, c.kind, c.line) for c in found]
+
+
+def test_a_number_with_no_record_is_missing_whatever_the_sentence_says() -> None:
+    assert _found("Authors MUST comply with ADR-999.\n") == [(999, MISSING, 1)]
+    assert _found("Background reading: see ADR-999 and ADR-042.\n") == [(999, MISSING, 1)]
+    assert _found("## References\n\n- ADR-999\n") == [(999, MISSING, 3)]
+
+
+def test_a_missing_number_in_code_or_a_file_name_is_not_a_citation() -> None:
+    assert _found("Name the file `ADR-999-slug.md`, as in `ADR-999`.\n") == []
+    assert _found("```text\nADR-999\n```\n") == []
+    assert _found("See docs/ADR-999-slug.md for the shape.\n") == []
+
+
+def test_a_record_with_an_unusable_status_exists_and_is_only_counted() -> None:
+    unknown: set[int] = set()
+    found = citations_in("f.md", "Per ADR-55.\n", {55: ""}, unknown, frozenset({55}))
+    assert found == []
+    assert unknown == {55}
+
+
+def test_existence_is_skipped_when_no_record_set_is_given() -> None:
+    assert _found("Authors MUST comply with ADR-999.\n", None) == []
+
+
+def test_missing_render_names_the_record_directory() -> None:
+    (citation,) = citations_in("f.md", "See ADR-999.\n", STATUSES, set(), RECORDS)
+    assert "ADR-999 has no tracked record" in citation.render()
+    assert citation.key == "f.md::ADR-999"
+
+
+# --------------------------------------------------------------------------
 # Edge: reported, never failed
 # --------------------------------------------------------------------------
 
 
-def test_terse_agents_md_pointer_is_unclassified() -> None:
-    """AGENTS.md:16 `pins: ADR-080` carries no signal either way."""
-    assert _kinds("Effort|by task shape|pins: ADR-080\n") == [(80, UNCLASSIFIED, 1)]
+def test_parenthetical_and_example_mentions_are_unclassified() -> None:
+    """A trailing "(ADR-NNN)" and an example sentence carry no authority signal."""
+    assert _kinds("A router retries on a signal it can read (ADR-078).\n") == [
+        (78, UNCLASSIFIED, 1)
+    ]
+    text = '- **What**: The specific conflict (e.g., "architecture violates ADR-007")\n'
+    assert _kinds(text) == [(7, UNCLASSIFIED, 1)]
 
 
 def test_unknown_adr_number_is_counted_not_flagged() -> None:
@@ -253,6 +381,7 @@ def _make_repo(tmp_path: Path, files: dict[str, str]) -> Path:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
         _git(tmp_path, "add", "--force", "--", rel)
+    _git(tmp_path, "add", "--force", "--", ".project-toolkit/architecture")
     return tmp_path
 
 
@@ -321,12 +450,96 @@ def test_clean_tree_with_empty_baseline_passes(tmp_path: Path) -> None:
 def test_unclassified_does_not_fail_and_verbose_lists_it(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    repo = _make_repo(tmp_path, {"AGENTS.md": "Effort|pins: ADR-078\n"})
+    repo = _make_repo(tmp_path, {"AGENTS.md": "Effort|see the debate (ADR-078)\n"})
     code = _run(repo, _baseline(tmp_path, []), "--verbose")
     out = capsys.readouterr().out
     assert code == EXIT_OK
     assert re.search(r"^AGENTS\.md:1: .*unclassified ADR-078", out, re.MULTILINE)
     assert "1 unclassified" in out
+
+
+def test_missing_record_fails_and_names_the_line(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = _make_repo(tmp_path, {"AGENTS.md": "Background: ADR-999 came first.\n"})
+    code = _run(repo, _baseline(tmp_path, []))
+    captured = capsys.readouterr()
+    assert code == EXIT_REGRESSION
+    assert re.search(r"^AGENTS\.md:1: .*ADR-999 has no tracked record", captured.out, re.M)
+    assert "1 missing record(s)" in captured.err
+    assert _run(repo, _baseline(tmp_path, ["AGENTS.md::ADR-999"])) == EXIT_OK
+
+
+def test_an_untracked_record_does_not_satisfy_existence(tmp_path: Path) -> None:
+    """Control: the same record staged turns the run green."""
+    repo = _make_repo(tmp_path, {"AGENTS.md": "Background: ADR-150 came first.\n"})
+    _adr(repo / ".project-toolkit" / "architecture", 150, "accepted")
+    assert _run(repo, _baseline(tmp_path, [])) == EXIT_REGRESSION
+    _git(repo, "add", "--force", "--", ".project-toolkit/architecture")
+    assert _run(repo, _baseline(tmp_path, [])) == EXIT_OK
+
+
+def test_the_agents_md_pins_line_fails_before_the_fix_and_passes_after(tmp_path: Path) -> None:
+    """The gap this closes: `pins: ADR-080` read as UNCLASSIFIED and shipped."""
+    repo = _make_repo(tmp_path, {"AGENTS.md": AGENTS_PINS_LINE})
+    adr_dir = repo / ".project-toolkit" / "architecture"
+    _adr(adr_dir, 80, "superseded")
+    _adr(adr_dir, 111, "accepted")
+    _git(repo, "add", "--force", "--", ".project-toolkit/architecture")
+    assert _run(repo, _baseline(tmp_path, [])) == EXIT_REGRESSION
+    (repo / "AGENTS.md").write_text(AGENTS_PINS_LINE.replace("ADR-080", "ADR-111"), "utf-8")
+    assert _run(repo, _baseline(tmp_path, [])) == EXIT_OK
+
+
+@pytest.mark.parametrize("status", ["superseded", "deprecated", "rejected", "proposed"])
+def test_every_non_accepted_status_fails_a_pointer(tmp_path: Path, status: str) -> None:
+    repo = _make_repo(tmp_path, {"AGENTS.md": "pins: ADR-090\n"})
+    _adr(repo / ".project-toolkit" / "architecture", 90, status)
+    _git(repo, "add", "--force", "--", ".project-toolkit/architecture")
+    assert _run(repo, _baseline(tmp_path, [])) == EXIT_REGRESSION
+
+
+def test_an_unclosed_fence_in_a_fragment_is_counted_not_failed(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A partial opens a fence another file closes. A whole document still fails."""
+    body = GOOD + "```text\nopen\n"
+    repo = _make_repo(
+        tmp_path,
+        {"templates/agents/partials/a.mustache": body, "templates/agents/a.claude.md.tmpl": body},
+    )
+    assert _run(repo, _baseline(tmp_path, [])) == EXIT_OK
+    assert "2 fragment fence(s) not failed" in capsys.readouterr().out
+    whole = repo / "templates" / "agents" / "a.shared.md"
+    whole.write_text(body, encoding="utf-8")
+    _git(repo, "add", "--force", "--", "templates/agents/a.shared.md")
+    assert _run(repo, _baseline(tmp_path, [])) == EXIT_REGRESSION
+
+
+def test_a_violation_before_a_fragment_fence_is_still_read(tmp_path: Path) -> None:
+    repo = _make_repo(tmp_path, {"templates/agents/partials/a.mustache": BAD + "```text\nx\n"})
+    assert _run(repo, _baseline(tmp_path, [])) == EXIT_REGRESSION
+
+
+def test_a_file_matched_by_two_globs_is_examined_once(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = _make_repo(tmp_path, {"AGENTS.md": GOOD, "templates/agents/AGENTS.md": GOOD})
+    assert _run(repo, _baseline(tmp_path, [])) == EXIT_OK
+    assert "2 of 2 tracked rule file(s)" in capsys.readouterr().out
+
+
+def test_git_failing_to_list_records_is_an_external_fault(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = _make_repo(tmp_path, {"CLAUDE.md": GOOD})
+    real = gate.tracked_files
+
+    def _records_fail(root: Path, globs: tuple[str, ...]) -> list[str] | None:
+        return None if globs == (gate.ADR_RECORD_GLOB,) else real(root, globs)
+
+    monkeypatch.setattr(gate, "tracked_files", _records_fail)
+    assert _run(repo, _baseline(tmp_path, [])) == EXIT_EXTERNAL
 
 
 # --------------------------------------------------------------------------
@@ -344,6 +557,18 @@ def test_unclassified_does_not_fail_and_verbose_lists_it(
         "src/claude/rules/a.md",
         ".github/instructions/a.instructions.md",
         "src/copilot-cli/instructions/a.instructions.md",
+        ".claude/CLAUDE.md",
+        ".claude/AGENTS.md",
+        "src/claude/AGENTS.md",
+        "templates/agents/a.shared.md",
+        "templates/agents/a.claude.md.tmpl",
+        "templates/agents/partials/a.mustache",
+        "src/claude/agents/a.md",
+        "src/copilot-cli/agents/a.agent.md",
+        "src/vs-code-agents/a.agent.md",
+        "src/cursor/agents/a.md",
+        "src/muse/agents/a.md",
+        ".github/agents/a.agent.md",
     ],
 )
 def test_every_scanned_tree_is_checked(tmp_path: Path, rel: str) -> None:
@@ -444,7 +669,7 @@ def test_adapter_is_false_on_every_non_ok_exit(tmp_path: Path) -> None:
 
 def test_the_shipped_baseline_matches_the_tracked_tree() -> None:
     """ci-scripts MUST 13: the gate passes against the full corpus, and the
-    baseline holds exactly the binding citations the tree produces."""
+    baseline holds exactly the binding and missing citations the tree produces."""
     repo_root = Path(__file__).resolve().parents[2]
     statuses = gate.adr_statuses(repo_root, repo_root / ".project-toolkit" / "architecture")
     result = gate.scan(repo_root, statuses)
@@ -452,7 +677,8 @@ def test_the_shipped_baseline_matches_the_tracked_tree() -> None:
     assert result.examined == result.candidates > 0, result.absent
     baseline = gate.read_baseline(gate._BASELINE_PATH)
     assert isinstance(baseline, set), baseline
-    assert baseline == {c.key for c in result.binding}
+    assert baseline == {c.key for c in result.failing}
+    assert result.missing == []
     assert main(["--repo-root", str(repo_root)]) == EXIT_OK
 
 
