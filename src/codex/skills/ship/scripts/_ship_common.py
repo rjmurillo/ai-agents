@@ -433,10 +433,10 @@ def run(
     The timeout never exceeds the time left in the run's shared budget.
     """
     timeout = min(timeout, remaining_seconds())
-    command = _windows.command(argv)
-    if command is None:
-        return Completed(126, "", f"{argv[0]}: refused an argument cmd.exe would rewrite")
     try:
+        command = _windows.command(argv)
+        if command is None:
+            return Completed(126, "", f"{argv[0]}: refused an argument cmd.exe would rewrite")
         done = subprocess.run(
             command,
             cwd=str(cwd) if cwd is not None else None,

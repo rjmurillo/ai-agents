@@ -157,21 +157,39 @@ class TestWindowsPrepare:
         helper.write_text("def broken(:\n", encoding="utf-8")
         code, lines = run_pr(scripts, capsys, "prepare")
         assert code == 2
-        assert lines[-1].startswith("STOP: prepare-failed cannot load prepare_pr_body.py")
+        assert lines[-1].startswith("STOP: prepare-failed")
+        assert "SyntaxError" in lines[-1]
 
-    def test_helper_without_a_loader_is_prepare_failed(
-        self, make_repo, fakes, scripts, capsys, windows, monkeypatch
-    ):
+    def test_a_git_that_cannot_run_is_external(self, make_repo, fakes, scripts, capsys, windows):
         make_repo(GITHUB)
-        monkeypatch.setattr(
-            scripts[3].importlib.util, "spec_from_file_location", lambda *a, **k: None
+        helper = fakes.skills / "github" / "scripts" / "pr" / "prepare_pr_body.py"
+        helper.write_text(
+            "class PreparePrBodyError(RuntimeError):\n    pass\n"
+            "def _seed_content(root, base_ref=None):\n"
+            "    raise PreparePrBodyError('cannot run git to read the PR template: gone')\n",
+            encoding="utf-8",
         )
         code, lines = run_pr(scripts, capsys, "prepare")
-        assert code == 2
-        assert (
-            lines[-1]
-            == "STOP: prepare-failed cannot load prepare_pr_body.py: cannot load prepare_pr_body.py"
-        )
+        assert code == 3
+        assert lines[-1] == "STOP: prepare-failed cannot run git to read the PR template: gone"
+
+    def test_the_seed_child_does_not_see_a_target_changing_git_variable(
+        self, make_repo, fakes, scripts, capsys, windows, monkeypatch, tmp_path
+    ):
+        repo = make_repo(GITHUB)
+        _commit_template(repo, "## Summary\n", to="main")
+        monkeypatch.setenv("GIT_DIR", str(tmp_path / "elsewhere.git"))
+        code, lines = run_pr(scripts, capsys, "prepare")
+        assert code == 0, lines
+        body = (repo / values(lines, "BODY_FILE")[0]).read_text(encoding="utf-8")
+        assert body == PLACEHOLDER + "\n## Summary\n"
+
+    @pytest.mark.parametrize(
+        ("base", "ref"),
+        [(None, ""), ("", ""), ("release", "origin/release"), ("origin/release", "origin/release")],
+    )
+    def test_base_ref_prefixes_origin_once(self, scripts, base, ref):
+        assert scripts[3]._base_ref(base) == ref
 
     def test_a_planted_git_exe_stops_before_the_seed_runs_git(
         self, make_repo, fakes, scripts, capsys, windows, monkeypatch

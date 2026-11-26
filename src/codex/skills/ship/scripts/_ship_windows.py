@@ -75,13 +75,14 @@ def command(argv: list[str]) -> list[str] | str | None:
     """Return what to pass to ``subprocess.run``, or None when cmd.exe would rewrite it.
 
     Off Windows, and for a name with a directory part, ``argv`` is unchanged.
-    An unfound name is also unchanged, so the call reads as not found (127).
+    An unfound name raises FileNotFoundError, which ``run`` reports as 127: a
+    bare name left to CreateProcess would search the current directory first.
     """
     if not on_windows() or os.path.dirname(argv[0]):
         return argv
     found = find_program(argv[0])
     if found is None:
-        return argv
+        raise FileNotFoundError(argv[0])
     if not found.lower().endswith(BATCH_SUFFIXES):
         return [found, *argv[1:]]
     if any(cmd_rewrites(arg) for arg in argv[1:]):

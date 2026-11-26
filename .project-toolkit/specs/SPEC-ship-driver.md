@@ -18,6 +18,7 @@ Also decided:
 2. **Branch.** Option A: build on a fresh branch from `origin/main` and drop the old branch.
    The four commits on `refactor/ship-push-pr-pr-creation` moved creation into `/push-pr`, and this spec reverses that.
    The work is on `feat/ship-driver-scripts`, a fresh branch.
+   No owner ruled on this. The choice was made in practice on 2026-11-25, when this branch was cut.
 
 ## Problem
 
@@ -71,7 +72,7 @@ Replaces both host-detection blocks and the PR ownership prose.
 - An open PR with no author in the host reply: `STOP: pr-author-unknown`, exit 3.
   It never prints `PR: none` after a failed query.
 - In owner mode with no open PR, a base branch (`main`, `master`, the origin default, or `--base`) is `STOP: on-base-branch`, exit 1.
-- On Windows, a checkout root that holds a file named `git`, `gh`, or `az` with a `PATHEXT` suffix, such as `git.exe`, is `STOP: unsafe-checkout`, exit 2.
+- On Windows, a checkout root or current directory that holds a file named `git`, `gh`, or `az` with a `PATHEXT` suffix, such as `git.exe`, is `STOP: unsafe-checkout`, exit 2.
   CreateProcess searches the current directory before `PATH`, so that file would run in place of the installed program (CWE-427).
 - Host rule: match the parsed URL host, not a substring.
   This fixes finding LOW-1 from the 2026-11-25 security review.
@@ -164,9 +165,11 @@ A STOP detail is at most 500 characters.
 | `ship_preflight.py` | the detect keys, `CHECK`, `PIPELINE_DEADLINE` | `write-body`, `report`, `publish-then-discharge`, `rerun-pipeline` | `--check` (repeatable), `--base`, `--pr`, `--draft`, `--require-axis`, `--deadline`, `--wait-seconds` (0 to 540) |
 | `ship_pr.py` | `BRANCH`, `BODY_FILE`, `CHECK`, `FINDING`, `PUSH`, `PR`, and the detect keys with `PR_AT_PREFLIGHT` in place of `PR` | `commit-then-review`, `write-body`, `compare-paths-by-hand`, `publish`, `discharge` | per subcommand, in the table above |
 
-`--wait-seconds` defaults to 480 and takes at most 540.
-The host kills a tool call at 600 seconds (see `RUN_BUDGET_SECONDS` in `_ship_common.py`), so 540 keeps a margin and 480 leaves time for the other calls.
-A call never waits past the run budget less a 120-second reserve for the calls after the wait.
+`--wait-seconds` defaults to 480 and takes at most 540. These are upper bounds, not the wait you get.
+Each wait is clamped to the run budget (540 seconds, `RUN_BUDGET_SECONDS` in `_ship_common.py`) less a 120-second reserve for the calls after it.
+So one run waits about 420 seconds at most, and less when earlier calls used time.
+On GitHub each wait is also capped at 300 seconds.
+The host kills a tool call at 600 seconds, so the caller sets its tool timeout near 600, not the default 120.
 `--deadline` can only shorten the stored 30-minute window. A value past 30 minutes from the call is refused, and an omitted value reuses the stored deadline.
 The base branch defaults to `origin/HEAD`, else `origin/main` or `origin/master`, else `main`.
 A failed paths check prints one `FINDING: <issue>: <file>` line per critical finding, at most 10. The Azure DevOps description check reads the helper's JSON `ErrorCount`.

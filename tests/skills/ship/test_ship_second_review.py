@@ -250,10 +250,17 @@ class TestWindowsProgramResolution:
             "az: refused an argument cmd.exe would rewrite",
         )
 
-    def test_an_unfound_name_or_a_path_is_unchanged(self, windows):
+    def test_a_path_is_unchanged(self, windows):
         module, _bin = windows
-        assert module.command(["gh", "x"]) == ["gh", "x"]
         assert module.command([sys.executable, "-I"]) == [sys.executable, "-I"]
+
+    def test_an_unfound_name_is_refused_not_left_to_a_cwd_search(self, scripts, windows, tmp_path):
+        module, _bin = windows
+        with pytest.raises(FileNotFoundError):
+            module.command(["gh", "x"])
+        (tmp_path / "gh.exe").write_text("planted\n", encoding="utf-8")
+        done = scripts[0].run(["gh", "x"], cwd=tmp_path)
+        assert (done.returncode, done.stderr) == (127, "gh: not found")
 
     def test_posix_hosts_are_unchanged(self, scripts, monkeypatch):
         monkeypatch.setattr(scripts[0].os, "name", "posix")

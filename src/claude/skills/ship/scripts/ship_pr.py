@@ -28,7 +28,6 @@ import importlib.util
 import re
 import sys
 from pathlib import Path
-from types import ModuleType
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -106,14 +105,27 @@ def cmd_branch(args: argparse.Namespace, result: common.Result, root: Path) -> c
     return result.next("commit-then-review")
 
 
-def _load_module(path: Path) -> ModuleType:
-    """Load one stdlib-only helper script by path, without putting it on ``sys.path``."""
-    spec = importlib.util.spec_from_file_location(path.stem, path)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"cannot load {path.name}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+# Prints the base-ref seed from prepare_pr_body (argv: helper, root, base ref or "").
+# It runs as a child through common.run, so child_env, the run budget, and the
+# exit-code mapping apply, as they do to new_pr.py on other hosts.
+_SEED_CHILD = (
+    "import importlib.util as u, pathlib, sys\n"
+    "sys.stdout.reconfigure(encoding='utf-8')\n"
+    "s = u.spec_from_file_location('prepare_pr_body', sys.argv[1])\n"
+    "m = u.module_from_spec(s)\n"
+    "s.loader.exec_module(m)\n"
+    "try:\n"
+    "    sys.stdout.write(m._seed_content(pathlib.Path(sys.argv[2]), sys.argv[3] or None))\n"
+    "except m.PreparePrBodyError as exc:\n"
+    "    sys.exit(str(exc))\n"
+)
+
+
+def _base_ref(base: str | None) -> str:
+    """``origin/<base>`` as new_pr.py builds it, or "" for the default base ref."""
+    if not base:
+        return ""
+    return base if base.startswith("origin/") else f"origin/{base}"
 
 
 def _windows_body_file(args: argparse.Namespace, result: common.Result, root: Path) -> Path | None:
@@ -122,17 +134,14 @@ def _windows_body_file(args: argparse.Namespace, result: common.Result, root: Pa
     if not helper.is_file():
         result.stop("prepare-failed", common.EXIT_CONFIG, "prepare_pr_body.py not found")
         return None
-    try:
-        module = _load_module(helper)
-    except (ImportError, SyntaxError, OSError) as exc:
-        result.stop("prepare-failed", common.EXIT_CONFIG, f"cannot load prepare_pr_body.py: {exc}")
+    argv = [sys.executable, "-I", "-c", _SEED_CHILD, str(helper), str(root), _base_ref(args.base)]
+    done = common.run(argv, cwd=root)
+    if done.returncode != 0:
+        external = done.returncode in _EXTERNAL_RETURN_CODES or "cannot run git" in done.stderr
+        code = common.EXIT_EXTERNAL if external else common.EXIT_CONFIG
+        result.stop("prepare-failed", code, common.cause_line(done.stderr, "seed failed"))
         return None
-    try:
-        seed = module._seed_content(root, f"origin/{args.base}" if args.base else None)
-    except module.PreparePrBodyError as exc:
-        result.stop("prepare-failed", common.EXIT_CONFIG, str(exc))
-        return None
-    path = common.write_private(root, "pr-body", ".md", seed)
+    path = common.write_private(root, "pr-body", ".md", done.stdout)
     if path is None:
         result.stop("prepare-failed", common.EXIT_CONFIG, "scratch directory is unsafe")
     return path
@@ -140,7 +149,7 @@ def _windows_body_file(args: argparse.Namespace, result: common.Result, root: Pa
 
 def cmd_prepare(args: argparse.Namespace, result: common.Result, root: Path) -> common.Result:
     if common.on_windows():
-        # _seed_content runs a bare git, which CreateProcess may find in the checkout first.
+        # The seed child runs git, which CreateProcess may find in the checkout first.
         unsafe = detect_mod.unsafe_checkout(root)
         if unsafe is not None:
             return result.stop(unsafe.reason, unsafe.code, unsafe.detail)

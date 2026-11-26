@@ -57,8 +57,9 @@ def test_an_argument_with_a_percent_sign_is_refused(windows_module, fake_az):
     assert windows_module.command(["az", "50%"]) is None
 
 
-def test_an_unfound_program_is_left_for_the_caller(windows_module, fake_az):
-    assert windows_module.command(["no-such-ship-program", "x"]) == ["no-such-ship-program", "x"]
+def test_an_unfound_program_is_refused(windows_module, fake_az):
+    with pytest.raises(FileNotFoundError):
+        windows_module.command(["no-such-ship-program", "x"])
 
 
 def test_planted_programs_sees_a_file_that_createprocess_would_run(
