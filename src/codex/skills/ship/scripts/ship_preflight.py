@@ -342,6 +342,9 @@ def _ado_pipeline(ctx, pr: int, wait_seconds: int, after_publish: bool) -> Check
                 return again
             if again.get("head") != state.get("head"):
                 return Check("pipeline", "PENDING", f"pr={pr} head moved during the check")
+            if again.get("merge") != state.get("merge"):
+                # The builds ran against a newer merge commit: check them again.
+                return Check("pipeline", "PENDING", f"pr={pr} merge commit moved during the check")
             return verdict
         if not rows and not after_publish:
             return Check("pipeline", "FAIL", f"pr={pr} has no blocking build policy evaluation")

@@ -130,6 +130,10 @@ def fakes(tmp_path, monkeypatch, scripts) -> Fakes:
     monkeypatch.setenv("SHIP_FAKE_SPEC", str(spec))
     monkeypatch.setenv("SHIP_FAKE_LOG", str(log))
     monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}")
+    # Each test gets a full run budget, as each real script run does.
+    monkeypatch.setattr(
+        common, "_RUN_DEADLINE", common.time.monotonic() + common.RUN_BUDGET_SECONDS
+    )
     monkeypatch.setattr(
         common, "skill_script", lambda skill, *parts: skills.joinpath(skill, "scripts", *parts)
     )

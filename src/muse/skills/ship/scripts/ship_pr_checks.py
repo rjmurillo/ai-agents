@@ -49,7 +49,7 @@ BASE_CLOSURE_FILES = ("scripts/__init__.py",)
 BASE_CLOSURE_DIRS = ("scripts/github_core",)
 VALIDATOR_TIMEOUT_SECONDS = 300
 # The same rule as validate_pr_description.py's _CONVENTIONAL_COMMIT_PATTERN;
-# test_ship_stage2_findings.py fails if the two drift apart.
+# test_ship_review_findings.py fails if the two drift apart.
 _CONVENTIONAL_RE = re.compile(
     r"^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)"
     r"(\(.+\))?!?: .+"

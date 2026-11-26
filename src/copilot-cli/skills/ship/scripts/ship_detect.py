@@ -132,8 +132,10 @@ def _github_pr(root: Path) -> tuple[int | None, str, str, bool | None] | Halt:
     return (data["number"], str(data.get("url", "")), str(author.get("login") or ""), draft)
 
 
-def _github_user(root: Path) -> str | Halt:
-    done = common.run(["gh", "api", "user", "--jq", ".login"], cwd=root)
+def _github_user(root: Path, host_name: str) -> str | Halt:
+    # gh api ignores the origin remote, so name the host: on GitHub Enterprise
+    # the login must come from the same host as the PR author.
+    done = common.run(["gh", "api", "user", "--jq", ".login", "--hostname", host_name], cwd=root)
     login = done.stdout.strip()
     if done.returncode != 0 or not login:
         return query_halt("user-query-failed", done)
@@ -210,7 +212,7 @@ def _checkout(cwd: Path | None) -> tuple[Path, str, str, str, str] | Halt:
     return root, common.classify_host(host_name), host_name, branch, head
 
 
-def _mode(root: Path, host: str, pr: int | None, author: str) -> str | Halt:
+def _mode(root: Path, host: str, pr: int | None, author: str, host_name: str) -> str | Halt:
     """Return owner or contributor. An open PR needs a positive identity match."""
     if pr is None:
         return "owner"
@@ -219,7 +221,7 @@ def _mode(root: Path, host: str, pr: int | None, author: str) -> str | Halt:
         return Halt(
             "pr-author-unknown", common.EXIT_EXTERNAL, f"PR {pr} has no author in the host reply"
         )
-    me = _github_user(root) if host == "github" else _ado_user(root)
+    me = _github_user(root, host_name) if host == "github" else _ado_user(root)
     if isinstance(me, Halt):
         return me
     return "owner" if author.strip().lower() == me.strip().lower() else "contributor"
@@ -236,7 +238,7 @@ def detect(cwd: Path | None = None, base: str | None = None) -> Context | Halt:
     if isinstance(pr_query, Halt):
         return pr_query
     pr, pr_url, author, pr_draft = pr_query
-    mode = _mode(root, host, pr, author)
+    mode = _mode(root, host, pr, author, host_name)
     if isinstance(mode, Halt):
         return mode
     if mode == "owner" and pr is None and branch == target:

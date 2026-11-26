@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Create the feature branch, prepare and check the PR body, push, and open the PR.
 
-Phases 3 and 4 of the ship driver (ADR-127). Owns every step the retired
-``push-pr`` skill held after the model writes the body. Subcommands:
+Phases 3 and 4 of the ship driver (ADR-127). Owns every step the ``push-pr``
+skill holds after the model writes the body; #7587 retires that skill. Subcommands:
 
   branch  --name <type>/<slug>       create and switch to a feature branch
   prepare [--base B]                 allocate the scratch body file

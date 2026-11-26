@@ -17,6 +17,7 @@ from tests.skills.ship.conftest import git
 from tests.skills.ship.ship_helpers import (
     GITHUB,
     SCRIPTS,
+    approved_ado_build,
     invoke,
     publish,
     run_pr,
@@ -256,3 +257,49 @@ class TestFreshRoundThreeFindings:
             scripts[0].cause_line("PR creation failed (exit code: 1)\n", "x")
             == "PR creation failed (exit code: 1)"
         )
+
+
+class TestFreshRoundFourFindings:
+    def test_user_query_names_the_enterprise_host(self, make_repo, fakes, scripts, capsys):
+        make_repo("https://ghe.example.com/o/r.git")
+        fakes.rule(
+            "gh",
+            ["pr", "view"],
+            {
+                "stdout": json.dumps(
+                    {"number": 3, "state": "OPEN", "author": {"login": "me"}, "url": "u"}
+                )
+            },
+        )
+        fakes.rule("gh", ["api", "user"], {"stdout": "me\n"})
+        code, lines = invoke(scripts[1], [], capsys)
+        assert code == 0
+        assert values(lines, "MODE") == ["owner"]
+        user_call = [call for call in fakes.calls("gh") if call[1:3] == ["api", "user"]][0]
+        assert user_call[-2:] == ["--hostname", "ghe.example.com"]
+
+    def test_a_merge_commit_that_moves_during_the_wait_is_pending(
+        self, make_repo, fakes, scripts, capsys
+    ):
+        repo = make_repo("https://dev.azure.com/contoso/p/_git/r")
+        fakes.rule(
+            "az",
+            ["repos", "pr", "list"],
+            {"stdout": json.dumps([{"pullRequestId": 77, "createdBy": {"uniqueName": "me"}}])},
+        )
+        fakes.rule("az", ["account", "show"], {"stdout": "me\n"})
+        head = git(repo, "rev-parse", "HEAD")
+        first = {"source": "refs/heads/feat/ship-change", "head": head, "merge": "m1" * 20}
+        moved = dict(first, merge="m2" * 20)
+        fakes.rule(
+            "az",
+            ["repos", "pr", "show"],
+            {"stdout": json.dumps(first)},
+            {"stdout": json.dumps(moved)},
+        )
+        approved_ado_build(fakes, "m2" * 20)
+        code, lines = invoke(scripts[2], ["--check", "pipeline", "--wait-seconds", "0"], capsys)
+        assert code == 0
+        assert values(lines, "CHECK") == [
+            "pipeline=PENDING pr=77 merge commit moved during the check"
+        ]
