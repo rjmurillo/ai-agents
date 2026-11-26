@@ -376,3 +376,65 @@ class TestFreshRoundFindings:
         exit_code, lines = publish(scripts, capsys, body)
         assert exit_code == code
         assert lines[-1].startswith(f"STOP: {reason}")
+
+
+class TestFreshRoundTwoFindings:
+    def _open_pr(self, make_repo, fakes, *, author="me", head=None):
+        repo = make_repo(GITHUB)
+        fakes.rule(
+            "gh",
+            ["pr", "view"],
+            {
+                "stdout": json.dumps(
+                    {"number": 7, "state": "OPEN", "author": {"login": author}, "url": "u"}
+                )
+            },
+        )
+        fakes.rule("gh", ["api", "user"], {"stdout": "me\n"})
+        fakes.rule(
+            "gh",
+            ["pr", "view", "7"],
+            {
+                "stdout": json.dumps(
+                    {
+                        "headRefName": "feat/ship-change",
+                        "headRefOid": head or git(repo, "rev-parse", "HEAD"),
+                    }
+                )
+            },
+        )
+        return repo
+
+    def test_a_call_without_a_pipeline_wait_never_starts_the_window(
+        self, make_repo, fakes, scripts, capsys
+    ):
+        repo = self._open_pr(make_repo, fakes)
+        fakes.marker(0)
+        code, _lines = invoke(scripts[2], ["--check", "tree", "--check", "reviewed"], capsys)
+        assert code == 0
+        scratch = repo / ".project-toolkit" / "scratch"
+        assert not list(scratch.glob("ship-deadline-*")) if scratch.exists() else True
+
+    def test_a_late_first_pending_gets_the_full_window(self, make_repo, fakes, scripts, capsys):
+        self._open_pr(make_repo, fakes)
+        fakes.marker(0)
+        invoke(scripts[2], ["--check", "tree"], capsys)
+        fakes.rule("get_pr_checks", [], {"rc": 7, "stdout": "{}\n"})
+        code, lines = invoke(scripts[2], ["--check", "pipeline"], capsys)
+        assert code == 0
+        assert int(values(lines, "PIPELINE_DEADLINE")[0]) > time.time() + 1700
+
+    def test_contributor_deferred_pipeline_reports_instead_of_publishing(
+        self, make_repo, fakes, scripts, capsys
+    ):
+        self._open_pr(make_repo, fakes, author="alice", head="0" * 40)
+        code, lines = invoke(scripts[2], ["--check", "pipeline"], capsys)
+        assert code == 0
+        assert values(lines, "MODE") == ["contributor"]
+        assert values(lines, "CHECK")[0].startswith("pipeline=DEFERRED")
+        assert lines[-1] == "NEXT: report"
+
+    def test_stored_int_read_only_never_creates_state(self, scripts, tmp_path):
+        common = scripts[0]
+        assert common.stored_int(tmp_path, "s.txt", 5, store=False) == 5
+        assert not (tmp_path / common.SCRATCH_REL).exists()

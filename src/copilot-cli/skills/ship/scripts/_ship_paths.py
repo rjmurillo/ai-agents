@@ -62,14 +62,14 @@ def write_private(root: Path, prefix: str, suffix: str, text: str) -> Path | Non
     return path if _create_private(path, text) else None
 
 
-def stored_int(root: Path, name: str, initial: int) -> int:
-    """Return the integer stored in scratch file ``name``, storing ``initial`` first.
+def stored_int(root: Path, name: str, initial: int, *, store: bool = True) -> int:
+    """Return the integer stored in scratch file ``name``, else ``initial``.
 
-    The first call creates the file; later calls read it, so the value
-    survives reruns. A symlinked, unreadable, or corrupt file is not trusted:
-    the call returns ``initial`` without overwriting it.
+    With ``store`` true, a missing file is created holding ``initial``, so
+    later calls read the same value. A symlinked, unreadable, or corrupt file
+    is not trusted: the call returns ``initial`` without overwriting it.
     """
-    directory = scratch_dir(root, create=True)
+    directory = scratch_dir(root, create=store)
     if directory is None:
         return initial
     path = directory / name
@@ -78,7 +78,7 @@ def stored_int(root: Path, name: str, initial: int) -> int:
             return int(path.read_text(encoding="utf-8").strip())
         except (OSError, ValueError):
             return initial
-    if not path.exists() and not path.is_symlink():
+    if store and not path.exists() and not path.is_symlink():
         _create_private(path, str(initial))
     return initial
 

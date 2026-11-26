@@ -399,18 +399,20 @@ def _validate(args) -> str | None:
     return None
 
 
-def bound_deadline(ctx, pr: int | None, requested: int | None) -> int:
+def bound_deadline(ctx, pr: int | None, requested: int | None, *, store: bool = False) -> int:
     """The 30-minute pipeline deadline for this PR and HEAD.
 
-    The first call stores it in a scratch state file keyed by host, PR, and
-    HEAD; later calls read it, so a rerun or an omitted --deadline cannot
-    extend the window. A --deadline can only shorten it.
+    The window starts when a pipeline check first returns PENDING, which
+    stores it in a scratch state file keyed by host, PR, and HEAD. Later calls
+    read that file, so a rerun or an omitted --deadline cannot extend it. A
+    call that only reads (``store`` false) never starts the window. A
+    --deadline can only shorten it.
     """
     window = int(time.time()) + TOTAL_WAIT_SECONDS
     stored = window
     if pr is not None:
         name = f"ship-deadline-{ctx.host}-{pr}-{ctx.head[:12]}.txt"
-        stored = common.stored_int(ctx.root, name, window)
+        stored = common.stored_int(ctx.root, name, window, store=store)
     return min(stored, requested) if requested is not None else stored
 
 
@@ -426,7 +428,7 @@ def _run_check(name, ctx, args, pr, wait_seconds, after_publish, deadline) -> Ch
     return outcome
 
 
-def _terminal(result, checks: list[Check], deadline: int, ends_on_report: bool):
+def _terminal(result, checks: list[Check], deadline: int, ends_on_report: bool, contributor: bool):
     """Set the terminal line from the check states."""
     failed = [check.name for check in checks if check.failed]
     states = {check.name: check.state for check in checks}
@@ -436,7 +438,8 @@ def _terminal(result, checks: list[Check], deadline: int, ends_on_report: bool):
         result.add("PIPELINE_DEADLINE", deadline)
         return result.next("rerun-pipeline")
     if states.get("pipeline") == "DEFERRED":
-        return result.next("publish-then-discharge")
+        # A contributor never publishes, so a deferred pipeline only reports.
+        return result.next("report" if contributor else "publish-then-discharge")
     return result.next("report" if ends_on_report else "write-body")
 
 
@@ -466,8 +469,11 @@ def run(argv: list[str]):
             return result.stop(outcome.reason, outcome.code, outcome.detail), fmt, ctx.root
         checks.append(outcome)
         result.add("CHECK", f"{outcome.name}={outcome.state} {outcome.detail}".rstrip())
+    if any(check.name == "pipeline" and check.state == "PENDING" for check in checks):
+        deadline = bound_deadline(ctx, pr, args.deadline, store=True)
+    contributor = ctx.mode == "contributor"
     return (
-        _terminal(result, checks, deadline, after_publish or ctx.mode == "contributor"),
+        _terminal(result, checks, deadline, after_publish or contributor, contributor),
         fmt,
         ctx.root,
     )
