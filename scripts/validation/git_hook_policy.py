@@ -121,6 +121,7 @@ ALLOWED_REPO_ROOT_ENTRIES = frozenset(
         ".claude-plugin",
         ".claude",
         ".codeql",
+        ".coderabbit.config.ts",
         ".coderabbit.yaml",
         ".config",
         ".cursor-plugin",

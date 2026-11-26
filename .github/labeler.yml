@@ -36,6 +36,7 @@ area-infrastructure:
           - ".github/labeler.yml"
           - ".github/FUNDING.yml"
           - ".markdownlint-cli2.yaml"
+          - ".coderabbit.config.ts"
           - ".coderabbit.yaml"
           - ".gitignore"
 
