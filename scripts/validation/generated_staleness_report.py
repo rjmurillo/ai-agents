@@ -17,8 +17,10 @@ from dataclasses import dataclass
 MAX_STALE_PATHS_SHOWN = 10
 
 # Output contract of the child, ``build/scripts/build_all.py`` ``--check``. The
-# header opens a block of two-space-indented paths; the other two kinds are one
-# path per line; the marker line is the commit-or-regenerate remedy. The marker
+# header opens a block of two-space-indented paths; every other
+# ``STALENESS DETECTED: <kind>: <path>`` line (install tree, lib mirror, agent
+# copy, Hermes pack) is one path; the kind holds no colon. The marker line is
+# the commit-or-regenerate remedy. The marker
 # must match ``build_all.UNCOMMITTED_UNCHANGED_PREFIX``;
 # ``tests/validation/test_check_generated_staleness_evidence.py`` fails when the two
 # spellings differ.
@@ -76,8 +78,13 @@ def parse_stale_report(output: str) -> StaleReport:
             paths.append(item.group("item").strip())
         else:
             other.append(line)
+    # Two producers can name one file: a Hermes stale line and the git-diff
+    # block both list an untracked file (issue #7659). Count it once.
     return StaleReport(
-        tuple(paths), hint, counts_all_unchanged and not compare_flagged, tuple(other)
+        tuple(dict.fromkeys(paths)),
+        hint,
+        counts_all_unchanged and not compare_flagged,
+        tuple(other),
     )
 
 
