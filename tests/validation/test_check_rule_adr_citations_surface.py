@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import re
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -102,6 +103,15 @@ def test_a_label_and_number_pointer_is_binding(text: str) -> None:
 )
 def test_a_history_or_reference_label_is_not_a_pointer(text: str) -> None:
     assert BINDING not in [kind for _, kind, _ in _kinds(text)]
+
+
+def test_a_long_run_of_numbers_that_is_not_a_pointer_classifies_in_linear_time() -> None:
+    """Blanked code spans leave long space runs; a failed match must not backtrack."""
+    text = "pins: " + ", ".join("ADR-080" + " " * 40 for _ in range(60)) + " and more prose\n"
+    started = time.perf_counter()
+    kinds = {kind for _, kind, _ in _kinds(text)}
+    assert kinds == {UNCLASSIFIED}
+    assert time.perf_counter() - started < 2.0
 
 
 def test_a_pointer_with_trailing_prose_is_not_a_pointer() -> None:

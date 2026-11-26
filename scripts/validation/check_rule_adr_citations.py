@@ -222,7 +222,7 @@ _COMPLY_BEFORE_RE = re.compile(
 # A sentence or pipe cell that is only `label: ADR-NNN[, ADR-MMM]`.
 _POINTER_RE = re.compile(
     r"^\s*(?:[-*+>]\s+|\d+[.)]\s+)?(?P<label>[A-Za-z*_][\w */+-]{0,40}?)[*_]*:[*_]*\s*"
-    r"(?:ADR-\d+\s*(?:,|and\b|/|\+)?\s*)+\.?\s*$"
+    r"ADR-\d+(?:\s*(?:,|and\b|/|\+)\s*ADR-\d+)*\s*\.?\s*$"
 )
 _POINTER_HISTORY_RE = re.compile(
     rf"{_LINEAGE_WORD}|\b(?:refs?|references?|related|see|history|historical|was|cf|examples?)\b",
