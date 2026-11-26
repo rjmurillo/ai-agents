@@ -160,6 +160,8 @@ EXPECTED_ORDER: tuple[str, ...] = (
     "Equivalence Predicates",
     "Agent Tree Frontmatter (.claude/agents)",
     "Agent Delegation (src/claude/agents)",
+    "Agent Success Criterion (src/claude/agents)",
+    "Router Vocabulary (orchestrator)",
     "Skill Tree Layout (.claude/skills)",
     "Template Repo References (templates/skills, templates/agents)",
     "Skill Shell Placeholders (.claude/skills)",
