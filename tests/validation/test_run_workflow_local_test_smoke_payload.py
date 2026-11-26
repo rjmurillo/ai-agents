@@ -37,9 +37,20 @@ _CHECKOUT_BY_JOB = {
 }
 
 
-def _checkout_failure(job: str, step: str) -> str:
-    """Lines copied from a real pre-push act log, parameterized."""
+_SHA = "07136aad753f7ec340165b7c212d353fd65dd42f"
+_UNKNOWN_SHA_FATAL = f"fatal: remote error: upload-pack: not our ref {_SHA}"
+_MISSING_REF_FATAL = "fatal: couldn't find remote ref refs/heads/no-such-branch"
+
+
+def _checkout_failure(job: str, step: str, fatal: str | None = _UNKNOWN_SHA_FATAL) -> str:
+    """Lines copied from a real pre-push act log, parameterized.
+
+    The fatal line is what git prints for the unpushed ``github.sha`` the
+    checkout falls back to. ``fatal=None`` leaves it out.
+    """
+    fatal_line = f"      {job}   | {fatal}\n" if fatal is not None else ""
     return (
+        f"{fatal_line}"
         f"      {job}   ❗  ::error::The process '/usr/bin/git' failed with exit code 128\n"
         f"      {job}   ❌  Failure - Main {step} [28.261404279s]\n"
         f"      {job} exitcode '1': failure\n"
@@ -103,8 +114,8 @@ def test_hint_applies_to_pull_request_runs_only() -> None:
     ids=["checkout", "decide"],
 )
 def test_hint_requires_the_two_lines_to_be_adjacent(text: str) -> None:
-    first, second, third = text.splitlines(keepends=True)
-    interleaved = f"{first}      {_FILTER_JOB}   | other output\n{second}{third}"
+    *head, first, second, third = text.splitlines(keepends=True)
+    interleaved = f"{''.join(head)}{first}      {_FILTER_JOB}   | other output\n{second}{third}"
 
     assert w._act_limitation_hint(interleaved, _EVENT) is None
 
@@ -192,3 +203,114 @@ def test_the_annotation_excuse_needs_the_smoke_rule_not_any_rule() -> None:
 
     assert w._act_limitation_hint(duplicate, _EVENT) is not None
     assert w._act_limitation_hint(duplicate + stray, _EVENT) is None
+
+
+_FILTER_CHECKOUT = _CHECKOUT_BY_JOB[_FILTER_JOB]
+_GATE_JOB = "[Plugin CLI Smoke/Trusted-context gate]"
+
+
+def test_a_nonexistent_explicit_ref_still_blocks() -> None:
+    """Only git's unknown-SHA fatal vouches for the fallback; a missing ref is a defect."""
+    text = _checkout_failure(_FILTER_JOB, _FILTER_CHECKOUT, fatal=_MISSING_REF_FATAL)
+
+    assert w._act_limitation_hint(text, _EVENT) is None
+
+
+def test_a_checkout_failure_without_a_fatal_line_still_blocks() -> None:
+    text = _checkout_failure(_FILTER_JOB, _FILTER_CHECKOUT, fatal=None)
+
+    assert w._act_limitation_hint(text, _EVENT) is None
+
+
+def test_one_nonexistent_ref_blocks_beside_missing_sha_failures() -> None:
+    explained = _checkout_failure(_GATE_JOB, _SCRIPTS_STEP)
+    broken = _checkout_failure(_FILTER_JOB, _FILTER_CHECKOUT, fatal=_MISSING_REF_FATAL)
+
+    assert w._act_limitation_hint(explained, _EVENT) is not None
+    assert w._act_limitation_hint(explained + broken, _EVENT) is None
+
+
+def test_the_unknown_sha_fatal_must_come_from_the_failing_job() -> None:
+    """Another job's fatal line cannot vouch for this job's checkout failure."""
+    other_job_fatal = _checkout_failure(_GATE_JOB, _SCRIPTS_STEP)
+    unexplained = _checkout_failure(_FILTER_JOB, _FILTER_CHECKOUT, fatal=None)
+
+    assert w._act_limitation_hint(other_job_fatal + unexplained, _EVENT) is None
+
+
+def test_an_unknown_sha_fatal_from_another_workflow_does_not_vouch() -> None:
+    foreign = f"      {_OTHER_WORKFLOW_JOB}   | {_UNKNOWN_SHA_FATAL}\n"
+    unexplained = _checkout_failure(_FILTER_JOB, _FILTER_CHECKOUT, fatal=None)
+
+    assert w._act_limitation_hint(foreign + unexplained, _EVENT) is None
+
+
+@pytest.mark.parametrize(
+    "fatal",
+    [
+        "fatal: remote error: upload-pack: not our ref 07136aa",
+        "fatal: remote error: upload-pack: not our ref refs/heads/no-such-branch",
+        f"fatal: remote error: upload-pack: not our ref {_SHA.upper()}",
+        f"fatal: remote error: upload-pack: not our ref {_SHA} extra",
+        "fatal: could not read Username for 'https://github.com': terminal prompts disabled",
+    ],
+    ids=["short-sha", "branch-name", "uppercase", "trailing-text", "auth"],
+)
+def test_only_a_full_sha_unknown_ref_fatal_vouches(fatal: str) -> None:
+    text = _checkout_failure(_FILTER_JOB, _FILTER_CHECKOUT, fatal=fatal)
+
+    assert w._act_limitation_hint(text, _EVENT) is None
+
+
+def test_any_other_fatal_line_from_the_workflow_blocks() -> None:
+    """A checkout that also died on a different fatal cannot ride on the fallback."""
+    extra = f"      {_GATE_JOB}   | {_MISSING_REF_FATAL}\n"
+    text = _checkout_failure(_FILTER_JOB, _FILTER_CHECKOUT) + extra
+
+    assert w._act_limitation_hint(text, _EVENT) is None
+
+
+def test_hint_accepts_the_width_padding_act_adds_to_job_labels() -> None:
+    """act pads every label to the widest job in the run, inside the brackets."""
+    padded_filter = "[Plugin CLI Smoke/Smoke path filter ]"
+    padded_gate = "[Plugin CLI Smoke/Trusted-context gate   ]"
+
+    assert w._act_limitation_hint(_decide_failure(job=padded_filter), _EVENT) is not None
+    checkout = _checkout_failure(padded_filter, _FILTER_CHECKOUT) + _checkout_failure(
+        padded_gate, _SCRIPTS_STEP
+    )
+    assert w._act_limitation_hint(checkout, _EVENT) is not None
+
+
+def test_the_reporter_job_is_skipped_by_the_full_act_stage_only() -> None:
+    """smoke-result reports the path filter's failure, so it can only fail under act."""
+    wf = ".github/workflows/plugin-cli-smoke.yml"
+    full: list[str] = []
+    dry: list[str] = []
+
+    full_jobs = w._act_job_filters(REPO_ROOT, wf, full, full_stage=True)
+    dry_jobs = w._act_job_filters(REPO_ROOT, wf, dry)
+
+    assert ["-j", "smoke-result"] not in full_jobs
+    assert ["-j", "changes"] in full_jobs
+    assert any("smoke-result" in warning and "skipped" in warning for warning in full)
+    assert ["-j", "smoke-result"] in dry_jobs
+    assert not any("smoke-result" in warning for warning in dry)
+
+
+def test_other_workflows_keep_every_job_in_the_full_act_stage() -> None:
+    warnings: list[str] = []
+
+    jobs = w._act_job_filters(
+        REPO_ROOT, ".github/workflows/pr-maintenance.yml", warnings, full_stage=True
+    )
+
+    assert jobs == [["-j", "discover-prs"], ["-j", "summarize"]]
+    assert not any("reporter" in warning or "synthetic" in warning for warning in warnings)
+
+
+def test_the_reporter_table_names_jobs_that_exist() -> None:
+    """A rename in the workflow must fail here, not silently re-enable the job."""
+    for wf, reporters in w._ACT_REPORTER_JOBS.items():
+        jobs = yaml.safe_load((REPO_ROOT / wf).read_text(encoding="utf-8"))["jobs"]
+        assert set(reporters) <= set(jobs), wf

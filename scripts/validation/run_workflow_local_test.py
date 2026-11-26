@@ -1168,8 +1168,22 @@ def _skipped_dependents(bodies: dict[str, object], skipped: Iterable[str]) -> di
     return {name: found[name] for name in bodies if name in found}
 
 
+# Jobs that only report the result of other jobs, from inputs act's synthetic
+# payload cannot produce. plugin-cli-smoke.yml's smoke-result job runs on every
+# outcome, so under act it reports the path filter's missing-SHA failure as its
+# own failure. Its script is unit tested, and the dry run still checks its wiring.
+_ACT_REPORTER_JOBS: dict[str, dict[str, str]] = {
+    ".github/workflows/plugin-cli-smoke.yml": {
+        "smoke-result": (
+            "it reports the results of jobs that act's synthetic pull_request "
+            "payload fails (no base or head SHA), so it can only fail locally."
+        ),
+    },
+}
+
+
 def _act_job_filters(
-    repo_root: Path, wf: str, warnings: list[str], *, skip_full_suite: bool = False
+    repo_root: Path, wf: str, warnings: list[str], *, full_stage: bool = False
 ) -> list[list[str]]:
     """Plan the ``-j`` filters for one workflow, skipping Windows jobs.
 
@@ -1181,11 +1195,12 @@ def _act_job_filters(
     but once any job is skipped the rest must carry ``-j`` or act would run the
     skipped job again.
 
-    ``skip_full_suite`` also skips a job that runs a partition of the whole test
+    ``full_stage`` also skips a job that runs a partition of the whole test
     suite (#6794). The full ``pytest.yml`` ``test`` job runs every partition at
     once and measured 9m30s per leg on an idle machine, past the stage budget.
-    Only the full act stage sets it: the dry run starts no container, so it
-    still checks the job's wiring.
+    It also skips a reporter job whose inputs act's synthetic payload cannot
+    produce (``_ACT_REPORTER_JOBS``). Only the full act stage sets it: the dry
+    run starts no container, so it still checks the job's wiring.
     """
     wf_path = repo_root / wf
     bodies = _workflow_job_bodies(wf_path)
@@ -1195,7 +1210,11 @@ def _act_job_filters(
             f"[WARN] {wf} job {job}: skipped, runs-on {label}. act maps Windows "
             "runners to a Linux container, so the job cannot run locally. CI runs it."
         )
-    if skip_full_suite:
+    if full_stage:
+        for job, reason in _ACT_REPORTER_JOBS.get(wf, {}).items():
+            if job in bodies and job not in skipped:
+                skipped[job] = "reporter"
+                warnings.append(f"[WARN] {wf} job {job}: skipped, {reason} CI runs it.")
         for job in _full_suite_jobs(wf_path):
             if job in skipped:
                 continue
@@ -1454,7 +1473,11 @@ def _is_act_duplicate_base_limitation(text: str) -> bool:
 # cli_smoke_paths.py. act's synthetic pull_request payload carries neither SHA.
 # Two failures follow, and only one shows per job:
 #   1. The checkout falls back to github.sha. A commit that is not on the
-#      remote yet (every pre-push run) cannot be fetched, and git exits 128.
+#      remote yet (every pre-push run) cannot be fetched, and git exits 128
+#      after ``fatal: remote error: upload-pack: not our ref <40 hex>``. That
+#      fatal line is the evidence: a nonexistent explicit ref fails with
+#      ``couldn't find remote ref`` instead, and keeps blocking. The workflow
+#      pins no explicit ref (a test reads every checkout's ``ref:``).
 #   2. With a pushed commit the checkout works, and cli_smoke_paths.py exits 2
 #      with "--base and --head are required for pull_request".
 # GitHub populates both SHAs, so CI never hits either. The hook skipped this
@@ -1464,7 +1487,10 @@ def _is_act_duplicate_base_limitation(text: str) -> bool:
 # Pinned like the rules above: a job of this workflow, the two act lines
 # adjacent and carrying the same label, and every ``Failure - Main`` line in the
 # log naming one of the four steps, so another failing step or job keeps
-# blocking. The matrix legs put the OS in the job label, hence the bracket class.
+# blocking. A checkout failure also needs its own job's ``not our ref`` fatal
+# line, and any other ``fatal:`` line from this workflow blocks. The matrix legs
+# put the OS in the job label, and act pads every label to the widest job in the
+# run, hence the bracket class and the optional padding before ``]``.
 # Residual gap, as for every rule here: a step that exits nonzero without a
 # ``Failure - Main`` line or an ``::error::`` annotation is invisible to the check.
 _ACT_SMOKE_WORKFLOW_LABEL = r"\[Plugin CLI Smoke/[^\]]+\]"
@@ -1481,30 +1507,65 @@ _ACT_SMOKE_GIT_ANNOTATION_LINE = re.compile(
     re.MULTILINE,
 )
 _ACT_SMOKE_LABEL_PREFIX = re.compile(rf"^[ \t]*{_ACT_SMOKE_WORKFLOW_LABEL}")
+_ACT_SMOKE_FATAL_LINE = re.compile(
+    rf"^[ \t]*(?P<label>{_ACT_SMOKE_WORKFLOW_LABEL})[ \t]+\| fatal: "
+)
+_ACT_SMOKE_UNKNOWN_SHA_LINE = re.compile(
+    rf"^[ \t]*(?P<label>{_ACT_SMOKE_WORKFLOW_LABEL})[ \t]+\| fatal: remote error: "
+    r"upload-pack: not our ref [0-9a-f]{40}[ \t]*$"
+)
 _ACT_SMOKE_PAYLOAD_PATTERN = re.compile(
     rf"^[ \t]*(?P<job>{_ACT_SMOKE_WORKFLOW_LABEL})[ \t]+\S+[ \t]+{_ACT_SMOKE_GIT_ANNOTATION}\n"
     rf"[ \t]*(?P=job)[ \t]+\S+[ \t]+Failure - Main (?:{_ACT_SMOKE_CHECKOUT_ALTERNATION})\b"
     r"|"
-    r"^[ \t]*(?P<filter>\[Plugin CLI Smoke/Smoke path filter\])[ \t]+\| "
+    r"^[ \t]*(?P<filter>\[Plugin CLI Smoke/Smoke path filter[ \t]*\])[ \t]+\| "
     r"cli_smoke_paths\.py: error: --base and --head are required for pull_request[ \t]*\n"
     rf"[ \t]*(?P=filter)[ \t]+\S+[ \t]+Failure - Main {_ACT_SMOKE_DECIDE_STEP}\b",
     re.MULTILINE,
 )
 
 
+def _smoke_job_name(label: str) -> str:
+    """Job name inside ``[Plugin CLI Smoke/<job>]``, without act's width padding."""
+    return label.strip("[]").split("/", 1)[1].strip()
+
+
 def _is_act_smoke_payload_limitation(text: str) -> bool:
-    """True when the smoke workflow's act-payload failures are the only failures."""
+    """True when the smoke workflow's act-payload failures are the only failures.
+
+    A checkout failure counts only with the unknown-SHA fatal line of its own
+    job, so a checkout that failed for another reason (a nonexistent explicit
+    ref, an auth error) keeps blocking.
+    """
     if not _ACT_SMOKE_PAYLOAD_PATTERN.search(text):
         return False
     allowed = tuple(
         f"{_ACT_MAIN_FAILURE_MARKER}{step}"
         for step in (*_ACT_SMOKE_CHECKOUT_STEPS, _ACT_SMOKE_DECIDE_STEP)
     )
-    failures = [line for line in text.splitlines() if _ACT_MAIN_FAILURE_MARKER in line]
-    return all(
-        _ACT_SMOKE_LABEL_PREFIX.match(line) is not None and any(name in line for name in allowed)
-        for line in failures
+    lines = text.splitlines()
+    unknown_sha_jobs: set[str] = set()
+    for line in lines:
+        if _ACT_SMOKE_FATAL_LINE.match(line) is None:
+            continue
+        unknown_sha = _ACT_SMOKE_UNKNOWN_SHA_LINE.match(line.rstrip())
+        if unknown_sha is None:
+            return False
+        unknown_sha_jobs.add(_smoke_job_name(unknown_sha.group("label")))
+    checkout_failures = tuple(
+        f"{_ACT_MAIN_FAILURE_MARKER}{step}" for step in _ACT_SMOKE_CHECKOUT_STEPS
     )
+    for line in lines:
+        if _ACT_MAIN_FAILURE_MARKER not in line:
+            continue
+        prefix = _ACT_SMOKE_LABEL_PREFIX.match(line)
+        if prefix is None or not any(name in line for name in allowed):
+            return False
+        if any(name in line for name in checkout_failures) and (
+            _smoke_job_name(prefix.group(0)) not in unknown_sha_jobs
+        ):
+            return False
+    return True
 
 
 # act stages a cached action into the container at /var/run/act/actions/<ref>/
@@ -2143,7 +2204,7 @@ def _run_act_stage(
     repo_root: Path,
     *,
     linked_git: bool = False,
-    skip_full_suite: bool = False,
+    full_stage: bool = False,
 ) -> StageResult:
     """Run an ``act`` invocation per workflow file, with act-limitation downgrade.
 
@@ -2160,11 +2221,12 @@ def _run_act_stage(
 
     ``linked_git`` mounts a writable copy of a linked worktree's git dir into
     the job containers (#6070). It is off for the dry run, which starts none.
-    ``skip_full_suite`` skips jobs that run the whole test suite (#6794).
+    ``full_stage`` skips jobs act cannot judge: whole-suite runs (#6794) and
+    reporters fed by a payload act cannot build.
     """
     if not linked_git:
         return _run_act_workflows(
-            stage, base_cmd, timeout, files, repo_root, [], skip_full_suite=skip_full_suite
+            stage, base_cmd, timeout, files, repo_root, [], full_stage=full_stage
         )
     result = StageResult(stage, False, "")
     try:
@@ -2176,7 +2238,7 @@ def _run_act_stage(
                 files,
                 repo_root,
                 mount_args,
-                skip_full_suite=skip_full_suite,
+                full_stage=full_stage,
             )
     except GitCopyCleanupError as exc:
         detail = f"{result.detail}\n{exc}" if result.detail else str(exc)
@@ -2194,14 +2256,14 @@ def _run_act_workflows(
     repo_root: Path,
     mount_args: Sequence[str],
     *,
-    skip_full_suite: bool = False,
+    full_stage: bool = False,
 ) -> StageResult:
     """Run ``base_cmd`` once per workflow file (and job), downgrading act limitations."""
     env = _act_env(repo_root)
     warnings: list[str] = []
     for wf in files:
         event = _select_act_event(repo_root / wf)
-        for job_arg in _act_job_filters(repo_root, wf, warnings, skip_full_suite=skip_full_suite):
+        for job_arg in _act_job_filters(repo_root, wf, warnings, full_stage=full_stage):
             cmd = [*base_cmd]
             if event is not None:
                 cmd.append(event)
@@ -2258,7 +2320,7 @@ def _act_full_stage(files: Sequence[str], repo_root: Path) -> StageResult:
         files,
         repo_root,
         linked_git=True,
-        skip_full_suite=True,
+        full_stage=True,
     )
 
 
