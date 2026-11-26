@@ -19,14 +19,12 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-# Absolute loading works under -I without adding a directory to sys.path.
-if "_ship_common" not in sys.modules:  # pragma: no cover - exercised by the isolated CLI tests
-    spec = importlib.util.spec_from_file_location(
-        "_ship_common", Path(__file__).resolve(strict=True).with_name("_ship_common.py")
+_HERE = Path(__file__).resolve(strict=True).parent  # the real entry, never a symlink's dir
+if "_ship_common" not in sys.modules:  # pragma: no cover - fresh interpreter only
+    _s = importlib.util.spec_from_file_location("_ship_common", _HERE / "_ship_common.py")
+    _s.loader.exec_module(
+        sys.modules.setdefault("_ship_common", importlib.util.module_from_spec(_s))
     )
-    assert spec is not None and spec.loader is not None
-    sys.modules[spec.name] = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(sys.modules[spec.name])
 common = sys.modules["_ship_common"]
 
 SCRIPT = "ship_detect.py"
