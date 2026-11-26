@@ -43,6 +43,7 @@ import _code_review_catch_rate_core as core
 import _code_review_catch_rate_report as report
 import _code_review_catch_rate_score as score
 from _anthropic_api import DEFAULT_MODEL, call_api, load_api_key_for_selected_provider
+from _transport_record import transport_record
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CORPUS = "evals/code-review-catch-rate/corpus.json"
@@ -292,7 +293,17 @@ SUBSCRIPTION_PROVIDERS = ("claude-cli", "codex-cli", "copilot-cli")
 
 
 def _cost_note(provider: str) -> str:
-    """Subscription CLIs report no dollar cost; the metered API path is not priced here."""
+    """Subscription CLIs report no dollar cost; the metered API path is not priced here.
+
+    A `claude-cli` run through a gateway is not a seat run: the host at
+    `ANTHROPIC_BASE_URL` decides who pays, so the note names that host.
+    """
+    transport = transport_record()
+    if transport["payer"] == "gateway":
+        return (
+            f"{transport['payer']} at {transport['endpoint_host']} decides the bill; "
+            "dollars not reported"
+        )
     if provider in SUBSCRIPTION_PROVIDERS:
         return "subscription CLI, no metered spend; dollars not reported"
     return "metered API; dollars not computed by this harness, see output_tokens"

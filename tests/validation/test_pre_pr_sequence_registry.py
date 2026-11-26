@@ -87,6 +87,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     "Stale Script References",
     "Agent and Skill Reference Pages (docs/skills, docs/agents)",
     "Skill Page Freshness (advisory)",
+    "Agent and Skill Doc Review",
     "Citation Freshness (added lines)",
     "Citation Freshness (reverse pass)",
     "Measurement Anchoring (added lines)",

@@ -239,6 +239,10 @@ def _drive_merge_failure(merge, capsys) -> tuple[int, dict]:
             return _OK
         if argv[:3] == ["gh", "pr", "view"] and "mergeCommit" in " ".join(argv):
             return _failed(stderr="readback unavailable")
+        if argv[:2] == ["gh", "api"]:
+            # The GraphQL readback failure above routes verification through the
+            # REST fallback; keep it unavailable so the original failure path stands.
+            return _failed(stderr="rest readback unavailable")
         if argv[:3] == ["gh", "pr", "view"]:
             return subprocess.CompletedProcess(argv, 0, _PR_STATE, "")
         if argv[:3] == ["gh", "pr", "merge"]:

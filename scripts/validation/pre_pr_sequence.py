@@ -89,6 +89,7 @@ from checks_ci_parity import (
     validate_adr_uniqueness,
     validate_agent_registry,
     validate_agent_skill_discriminator,
+    validate_agent_skill_doc_review,
     validate_closure_manifest,
     validate_dependency_drift,
     validate_duplicate_code,
@@ -457,6 +458,10 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # Advisory: a skill's facts changed since the base ref and its page did not
     # (rule agent-skill-docs MUST 2). pre_pr_policy licenses the FAIL.
     _Gate("Skill Page Freshness (advisory)", _root_only(validate_skill_page_freshness)),
+    # A changed SKILL.md or agent template needs its page edited or named in a
+    # Docs-Reviewed: trailer (rule agent-skill-docs MUST 2). PR #7572 left
+    # docs/skills/ship.md stale, and the fact check above did not flag it.
+    _Gate("Agent and Skill Doc Review", _root_only(validate_agent_skill_doc_review)),
     # Fails when a line ADDED since the base ref cites a path-and-line
     # location that HEAD contradicts: file untracked, line out of range, or
     # the named anchor content living elsewhere. Automates the manual
