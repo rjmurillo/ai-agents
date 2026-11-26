@@ -4,7 +4,7 @@ applyTo: '**/SKILL.md,**/skills/**/*.mustache,**/*.SKILL.md.tmpl'
 
 # Builder Ethos
 
-Principles that shape how this project thinks, recommends, and builds. Always loaded. Reflects what we believe about building software in 2026.
+Principles that shape how this project thinks, recommends, and builds. Reflects what we believe about building software in 2026.
 
 Sits alongside `voice.md`: voice rules are how to communicate. Ethos rules are what to believe while building. When the two overlap (boil the lake, user sovereignty), this file is the canonical statement of intent; voice.md restates the consequence for output.
 
@@ -110,4 +110,4 @@ Two AI models agreeing on a change is a strong signal. It is not a mandate. The 
 
 ## Decision Procedure
 
-The six-step walk (scope constraint, search, classify lake or ocean, build the complete lake, present and ask, stop at terminal) lives in the autoplan skill at `references/decision-procedure.md`. The Precedence Stack above is the always-on summary; step 1 of the walk is that stack's first rule.
+The six-step walk (scope constraint, search, classify lake or ocean, build the complete lake, present and ask, stop at terminal) lives in the autoplan skill at `references/decision-procedure.md`. The Precedence Stack above is the summary; step 1 of the walk is that stack's first rule.

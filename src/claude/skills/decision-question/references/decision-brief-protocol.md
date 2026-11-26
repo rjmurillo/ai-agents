@@ -1,7 +1,7 @@
 # Decision Brief Protocol
 
 Detail for the `decision-question` skill. Load it only when the routing gate in
-`SKILL.md` says ask. The always-on rule `voice.md` points here and does not
+`SKILL.md` says ask. The rule `voice.md` points here and does not
 carry this content.
 
 ## The eight fields

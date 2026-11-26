@@ -158,7 +158,7 @@ These bind today.
 | [ADR-102](ADR-102-session-qa-binding-field-precedence.md) | Replace session_qa_binding()'s Field-Equality Raise with Documented Precedence and a Diagnostic | 2026-08-21 | Delete the equality raise. |
 | [ADR-103](ADR-103-skill-output-python-contract-correction.md) | Skill Output Format Standardization, Python Contract Correction | 2026-08-25 | Supersede ADR-056 items 2 and 6, and its enforcement scope, as follows. |
 | [ADR-104](ADR-104-gate-tier-placement-and-budgets.md) | Gate Tier Placement | 2026-08-25 | Three tiers, each with a stated job. |
-| [ADR-105](ADR-105-terminal-state-completion-contract.md) | Terminal-State Completion Contract | 2026-09-03 | Put the whole completion contract on the always-on rule path, and keep exactly one operational procedure delegated to the skill that already owned it. |
+| [ADR-105](ADR-105-terminal-state-completion-contract.md) | Terminal-State Completion Contract | 2026-11-26 | Put the whole completion contract on the always-on rule path, and keep exactly one operational procedure delegated to the skill that already owned it. |
 | [ADR-106](ADR-106-serena-only-memory-architecture.md) | Serena-Only Memory Architecture | 2026-09-08 | The memory-first principle survives unchanged. |
 | [ADR-107](ADR-107-canonical-skill-contracts-and-harness-projections.md) | Canonical Skill Contracts and Generated Harness Projections | 2026-09-09 | Issue #5603 requires this record to distinguish semantic contract, harness projection, capability profile, advisory model tactic, host authorization, and generated or vendor output. |
 | [ADR-108](ADR-108-template-owned-skill-files.md) | Template-Owned Skill Files Under `.claude/skills/` | 2026-09-11 | Adopt one new artifact class and amend the three texts that forbid it: REQ-003-010, REQ-003 decision D4, and ADR-107 property 1. |
@@ -179,6 +179,7 @@ These bind today.
 | [ADR-125](ADR-125-exact-code-quality-review-approvals.md) | Require Exact Approval of Code-Quality Review Findings | 2026-11-24 | Keep the assessor's scores, output, configuration, and exit behavior. |
 | [ADR-126](ADR-126-repository-resolved-memory-store.md) | Repository-Resolved Memory Store | 2026-11-25 | Each repository has exactly one memory store, resolved by folder. |
 | [ADR-127](ADR-127-workflow-skills-are-script-drivers.md) | Workflow Skills Are Script Drivers, and Evals Gate Skill Rewrites | 2026-11-25 | A skill declares `metadata.shape` as `driver` or `reference`. |
+| [ADR-129](ADR-129-always-on-core-rule-admitted-by-eval.md) | An Always-On Core Rule, Admitted by Eval | 2026-11-26 | `core` is a new rule that loads on every path, with `priority: critical`. |
 
 ## Proposed
 
