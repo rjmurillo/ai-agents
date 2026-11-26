@@ -20,6 +20,12 @@ base version until it merges.
 When the base has no validator, or the base copy cannot run (exit 2 or a
 crash), the check reports ``paths=NOT-RUN``. That is never a pass.
 
+``origin`` is the base's remote unless the open PR belongs to another
+repository, as when origin is a fork. Then the remote that names the PR's
+repository supplies ``<remote>/<base>``, for the validator and the diff; with no
+such remote, or no such ref in it, the check is ``NOT-RUN`` and names
+``<owner>/<repo>:<base>``.
+
 vendor-portability: declared. The validator path names the consumer
 repository's own ``scripts/validation/pr_description.py`` on its base branch.
 """
@@ -36,6 +42,8 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import _ship_common as common
+    import _ship_remote as remote_mod
+    from _ship_remote import RepoRef
     from ship_detect import Context
 else:
     _HERE = Path(__file__).resolve(strict=True).parent  # the real entry, never a symlink's dir
@@ -45,6 +53,7 @@ else:
             sys.modules.setdefault("_ship_common", importlib.util.module_from_spec(_s))
         )
     common = sys.modules["_ship_common"]
+    remote_mod = common.load_sibling("_ship_remote")
 
 BODY_MARKER = "<!-- replace with PR body -->"
 BASE_VALIDATOR = "scripts/validation/pr_description.py"
@@ -62,6 +71,7 @@ _CONVENTIONAL_RE = re.compile(
 # Built with chr() so a formatter cannot turn escapes into the banned bytes.
 _DASHES = (chr(0x2013), chr(0x2014))
 _TITLE_FORBIDDEN = ('"', "$", "`")
+_REMOTE_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 
 
 def _validate_description() -> Path:
@@ -138,18 +148,61 @@ def _write_private_tree(ctx: Context, ref: str, files: list[str], tree: Path) ->
     return None
 
 
+def _remote_repo(ctx: Context, name: str) -> RepoRef | None:
+    done = common.git(["remote", "get-url", name], cwd=ctx.root)
+    return remote_mod.repo_ref(done.stdout) if done.returncode == 0 else None
+
+
+def _upstream_repo(ctx: Context) -> RepoRef | None:
+    """The repository that owns the open PR when origin is another one, else None.
+
+    None also covers a PR URL that does not parse (Azure DevOps) and an origin
+    URL that does not name an owner and repository: both keep ``origin``.
+    """
+    owner = None if ctx.pr is None else remote_mod.pr_repo(ctx.pr_url, ctx.pr)
+    origin = _remote_repo(ctx, "origin") if owner is not None else None
+    if owner is None or origin is None or owner.key == origin.key:
+        return None
+    return owner
+
+
+def _remote_named_for(ctx: Context, repo: RepoRef) -> str | None:
+    """A git remote whose URL names ``repo``, or None."""
+    names = common.git(["remote"], cwd=ctx.root).stdout.split()
+    for name in names:
+        found = _remote_repo(ctx, name) if _REMOTE_NAME_RE.fullmatch(name) else None
+        if found is not None and found.key == repo.key:
+            return name
+    return None
+
+
+def _locate_base(ctx: Context, base: str, result: common.Result) -> tuple[str, str] | None:
+    """The remote-tracking ref and display name of the PR's target, or None after a NOT-RUN line."""
+    upstream = _upstream_repo(ctx)
+    remote = "origin" if upstream is None else _remote_named_for(ctx, upstream)
+    target = "" if upstream is None else f"{upstream.owner}/{upstream.repo}:{base}"
+    if remote is None:
+        _not_run(result, f"{target} has no matching git remote; add one and fetch it")
+        return None
+    # The full remote-tracking name: a tag named <remote>/<base> cannot shadow it.
+    ref = f"refs/remotes/{remote}/{base}"
+    if common.git(["rev-parse", "--verify", "--quiet", ref], cwd=ctx.root).returncode != 0:
+        missing = f"origin/{base}" if upstream is None else f"{target} (as {remote}/{base})"
+        _not_run(result, f"{missing} not found; fetch it")
+        return None
+    return ref, f"{remote}/{base}"
+
+
 def _check_paths(ctx: Context, body_file: Path, base: str, result: common.Result) -> bool | None:
     """Run the base branch's paths-in-diff validator from a private copy.
 
     Returns True on a pass, False on a failure, and None when it could not run.
     A None is not a pass: the model must compare the paths by hand.
     """
-    # The full remote-tracking name: a tag named origin/<base> cannot shadow it.
-    ref = f"refs/remotes/origin/{base}"
-    shown = f"origin/{base}"
-    if common.git(["rev-parse", "--verify", "--quiet", ref], cwd=ctx.root).returncode != 0:
-        _not_run(result, f"{shown} not found; fetch it")
+    located = _locate_base(ctx, base, result)
+    if located is None:
         return None
+    ref, shown = located
     files = _base_files(ctx, ref)
     if files is None:
         _not_run(result, f"{shown} has no path validator")

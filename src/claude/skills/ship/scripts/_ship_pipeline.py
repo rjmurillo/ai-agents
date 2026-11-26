@@ -7,7 +7,6 @@ changes the PR. ``ship_preflight.py`` owns the deadline and the terminal line.
 
 from __future__ import annotations
 
-import re
 import sys
 import time
 from dataclasses import dataclass
@@ -16,10 +15,15 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     import _ship_common as common
     import ship_detect as detect_mod
+    from _ship_remote import RepoRef as PrRepo
+    from _ship_remote import pr_repo as _pr_repo
     from ship_detect import Context, Halt
 else:
     common = sys.modules["_ship_common"]
     detect_mod = common.load_sibling("ship_detect")
+    _remote = common.load_sibling("_ship_remote")
+    PrRepo = _remote.RepoRef
+    _pr_repo = _remote.pr_repo
     # One Halt type across the ship scripts, so a detect-side halt reads as a halt here.
     Halt = detect_mod.Halt
 
@@ -28,11 +32,6 @@ CHECKS_TIMEOUT_SECONDS = 300
 # Seconds of the shared run budget kept for the calls after a wait.
 RESERVE_SECONDS = 120
 MAX_LISTED = 10
-# A GitHub PR URL: https://<host>/<owner>/<repo>/pull/<number>, as gh prints it.
-_PR_URL_RE = re.compile(
-    r"^https://(?P<host>[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?)"
-    r"/(?P<owner>[A-Za-z0-9_.-]+)/(?P<repo>[A-Za-z0-9_.-]+)/pull/(?P<number>[0-9]+)/?$"
-)
 
 
 @dataclass(frozen=True)
@@ -44,22 +43,6 @@ class Check:
     @property
     def failed(self) -> bool:
         return self.state in ("FAIL", "dirty")
-
-
-@dataclass(frozen=True)
-class PrRepo:
-    """The repository that owns a PR, read from the PR URL the host returned."""
-
-    host: str
-    owner: str
-    repo: str
-
-
-def _pr_repo(url: str, pr: int) -> PrRepo | None:
-    match = _PR_URL_RE.match(url)
-    if match is None or int(match["number"]) != pr:
-        return None
-    return PrRepo(match["host"].lower(), match["owner"], match["repo"])
 
 
 def _github_head(ctx: Context, pr: int, owner: PrRepo | None) -> tuple[str, str, PrRepo] | Halt:
