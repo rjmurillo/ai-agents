@@ -253,8 +253,8 @@ and [references/script-patterns-catalog.md](references/script-patterns-catalog.m
 ### Placement Check
 
 Before a new skill lands or an edit adds or moves standing knowledge,
-run `context-optimizer` placement analysis on the full SKILL.md draft
-for its knowledge (facts, rules, reference material). Weigh script
+run `context-optimizer` placement analysis on the draft SKILL.md to
+place its knowledge (facts, rules, reference material). Weigh script
 actions, then follow a Passive Context or Hybrid result.
 Mechanics-only edits (scripts, tests, wording) skip it.
 
