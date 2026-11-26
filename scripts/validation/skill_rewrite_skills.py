@@ -333,7 +333,7 @@ def defines_test(source: str, classes: list[str], func: str) -> bool:
 
 
 def _defines_constructor(body: list[ast.stmt]) -> bool:
-    """True when a class *body* defines ``__init__`` or ``__new__``, which pytest 9 will not collect."""
+    """True when a class *body* defines ``__init__`` or ``__new__``; pytest 9 skips that class."""
     funcs = (ast.FunctionDef, ast.AsyncFunctionDef)
     return any(isinstance(n, funcs) and n.name in _CONSTRUCTORS for n in body)
 
