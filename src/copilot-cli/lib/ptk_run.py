@@ -135,8 +135,12 @@ def _launch(path: str, args: list[str]) -> int:
     if not sys.executable:
         raise ResolverError("sys.executable is empty, so the interpreter cannot be reused")
     command = [sys.executable, *interpreter_flags(), path, *args]
+    # Both calls take an argv list with no shell, and resolve_target confines
+    # path to the plugin root first. Owner ruling: issue #7591.
     if IS_POSIX:
+        # nosemgrep: python.lang.security.audit.dangerous-os-exec-tainted-env-args.dangerous-os-exec-tainted-env-args  # noqa: E501
         os.execv(sys.executable, command)
+    # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args.dangerous-subprocess-use-tainted-env-args  # noqa: E501
     return subprocess.run(command, check=False).returncode
 
 
