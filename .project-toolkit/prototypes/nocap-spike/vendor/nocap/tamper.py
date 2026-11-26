@@ -158,3 +158,4 @@ def apply(r: Dict[str, Any], c: Dict[str, Any], evs: List[Dict[str, Any]], histo
     if got:
         return dict(r, verdict=NO_RECEIPT, why=RUNNER + got, loud=True)
     return r
+# mypy: ignore-errors

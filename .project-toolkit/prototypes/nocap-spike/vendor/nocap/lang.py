@@ -215,3 +215,4 @@ def foreign_claims(clause: str) -> List[Dict[str, Any]]:
         elif found is None and "other" in langs and OTHER_DONE.search(piece) and not OTHER_NEAR.search(piece):
             out.append({"kind": "unchecked", "lang": "other", "frag": piece[:200]})
     return out
+# mypy: ignore-errors

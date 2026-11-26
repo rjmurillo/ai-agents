@@ -892,3 +892,4 @@ def _pr_session(c, evs, history, turn) -> Optional[Dict[str, Any]]:
     if pr in nums(last, "pr_missing") and not other_tool:
         return _relabel(_r(c, CAP, last, why=f"no pull request #{pr}", quote=f"no pull request #{pr} found"), last, turn)
     return _relabel(_r(c, NO_RECEIPT, last, why=f"gh shows #{pr}, but not that it was opened here"), last, turn)
+# mypy: ignore-errors

@@ -420,12 +420,6 @@ module = [
 disallow_any_generics = false
 
 [[tool.mypy.overrides]]
-# Vendored upstream code for a spike. It is untyped upstream, and annotating it
-# would diverge from upstream. See .project-toolkit/prototypes/nocap-spike/VENDORED.md.
-module = ["nocap", "nocap.*"]
-ignore_errors = true
-
-[[tool.mypy.overrides]]
 module = "semantic_hooks.*"
 disallow_any_generics = false
 

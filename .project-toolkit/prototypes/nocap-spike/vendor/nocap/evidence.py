@@ -1501,3 +1501,4 @@ def ledger_fact(ev: Dict[str, Any]) -> Dict[str, Any]:
     for k, n in _FACT_LISTS.items():
         keep[k] = [str(x)[:200] for x in (ev.get(k) or [])][:n]
     return keep
+# mypy: ignore-errors

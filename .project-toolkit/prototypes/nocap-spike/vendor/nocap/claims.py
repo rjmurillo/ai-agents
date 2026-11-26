@@ -824,3 +824,4 @@ def extract_claims(text: str) -> List[Dict[str, Any]]:
             if len(found) >= MAX_CLAIMS:
                 return found
     return found
+# mypy: ignore-errors
