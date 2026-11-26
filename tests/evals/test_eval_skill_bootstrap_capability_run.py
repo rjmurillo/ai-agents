@@ -238,6 +238,10 @@ def test_checkout_without_the_named_skill_exits_2(tmp_path, checkout, monkeypatc
         {"allowed_tools": ["Bash(python3:*)"]},
         {"allowed_tools": ["Bash(find:*)"]},
         {"allowed_tools": ["Write (x)"]},
+        {"allowed_tools": ["Bash(git:*)"]},
+        {"allowed_tools": ["Bash(git reset:*)"]},
+        {"allowed_tools": ["Bash(git checkout:*)"]},
+        {"allowed_tools": ["Bash(git -C . reset:*)"]},
     ],
 )
 def test_bad_skill_or_tool_grant_exits_2_before_any_run(tmp_path, checkout, monkeypatch, extra):
@@ -246,6 +250,14 @@ def test_bad_skill_or_tool_grant_exits_2_before_any_run(tmp_path, checkout, monk
     code = _run([], _write_tasks(tmp_path, {**TASKS, **extra}), checkout, tmp_path / "o", "before")
 
     assert code == 2
+
+
+def test_read_only_git_and_script_grants_load(tmp_path):
+    tools = ["Bash(git blame:*)", "Bash(python3 scripts/x.py:*)"]
+
+    data = cap.load_tasks(_write_tasks(tmp_path, {**TASKS, "allowed_tools": tools}))
+
+    assert data["allowed_tools"] == tools
 
 
 def test_run_one_grants_extra_tools_and_still_denies_writes(monkeypatch, tmp_path):
@@ -819,3 +831,12 @@ def test_clean_checkout_and_outside_tasks_file_pass_the_gold_check(tmp_path, mon
 
     assert cap._gold_exposure(co, tasks) is None
     assert cap._gold_exposure(co, _write_tasks(tmp_path, TASKS)) is None
+
+
+def test_failed_history_check_blocks_the_run(tmp_path, monkeypatch):
+    tasks, co = _gold_layout(tmp_path, monkeypatch)
+
+    reason = cap._gold_exposure(co, tasks)
+
+    assert reason is not None
+    assert reason.startswith(f"could not check {co} history for evals/x/tasks.json")

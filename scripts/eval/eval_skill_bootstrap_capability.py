@@ -124,12 +124,16 @@ SHELLS = frozenset(
     | {"find", "sudo", "nice", "time"}
 )
 INTERPRETERS = frozenset({"python", "python3", "node", "perl", "ruby"})
+# A git grant must name one of these subcommands; reset, checkout, clean, and the
+# rest could move HEAD or change the tree that later repetitions share.
+GIT_READ_ONLY = frozenset({"log", "show", "ls-tree", "rev-parse", "rev-list", "diff-tree", "blame"})
 
 
 def _loose_bash_grant(tool: str) -> bool:
     """True for a Bash grant that is bare, wildcard-led, or can run arbitrary code.
 
-    An interpreter passes only with a script path as its first argument.
+    An interpreter passes only with a script path as its first argument. A git
+    grant passes only with a subcommand from GIT_READ_ONLY.
     """
     if tool == "Bash":
         return True
@@ -141,6 +145,8 @@ def _loose_bash_grant(tool: str) -> bool:
     head = words[0].rsplit("/", 1)[-1]
     if head in SHELLS:
         return True
+    if head == "git":
+        return len(words) < 2 or words[1] not in GIT_READ_ONLY
     return head in INTERPRETERS and (len(words) < 2 or words[1].startswith(("-", "*")))
 
 
@@ -378,8 +384,8 @@ def _gold_exposure(checkout: Path, tasks_path: Path) -> str | None:
     whose refs ever touched it, lets the agent read or `git show` the answer key. A
     linked worktree shares every ref of its main repository, so use a standalone
     clone. A tasks file inside the checkout always fails. A tasks file outside both
-    the checkout and this repository has no history check. A git failure here
-    passes; `_checkout_head` then fails the run on a broken repository.
+    the checkout and this repository has no history check. A failed history check
+    fails, because `--all` reads refs that `_checkout_head` never reads.
     """
     resolved = tasks_path.resolve()
     if resolved.is_relative_to(checkout.resolve()):
@@ -394,8 +400,10 @@ def _gold_exposure(checkout: Path, tasks_path: Path) -> str | None:
         proc = _git_in(checkout, "log", "--all", "--full-history", "-1", "--format=%h", "--", rel)
     except (OSError, subprocess.TimeoutExpired) as exc:
         return f"could not check {checkout} history for {rel}: {exc}"
-    if proc.returncode == 0 and proc.stdout.strip():
-        sha = proc.stdout.strip()
+    if proc.returncode != 0:
+        detail = proc.stderr.strip() or f"exit {proc.returncode}"
+        return f"could not check {checkout} history for {rel}: {detail}"
+    if sha := proc.stdout.strip():
         return f"{checkout} refs reach {rel} at {sha}, so git show can reveal the gold"
     return None
 
