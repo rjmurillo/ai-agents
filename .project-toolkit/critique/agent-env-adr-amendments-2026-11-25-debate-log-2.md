@@ -121,3 +121,4 @@ Both seats read the wording diff. Architect vote: Accept. Critic vote: Accept. N
 
 - The critic judged the first gate finding a false positive. The sentence cites `tests/e2e/test_cli_hook_e2e.py` as the test target, not as a list of the globs. The reword stays, because the gate has no way to suppress one finding.
 - The critic noted that the ADR no longer gives a direct search hit for the constant name. The ADR-071 ledger keeps that anchor.
+- The critic noted that this section did not record a clean re-run. The gate ran again on 2026-11-26 with both edits committed. It returned PASS with no same-PR finding.
