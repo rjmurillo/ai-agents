@@ -1,8 +1,9 @@
 """Tests for the Devin review threads on PR #7737.
 
 Each class names its thread: the checks helper on GitHub Enterprise, a CI
-verdict bound to the PR's own repository, the base of an open PR, the shared
-push lock (now in test_ship_push_lock.py), and the Windows guard when PATHEXT omits ``.EXE``.
+verdict bound to the PR's own repository, the base of an open PR, and the
+Windows guard when PATHEXT omits ``.EXE``. The shared push lock thread is
+tested in test_ship_push_lock.py.
 """
 
 from __future__ import annotations
@@ -14,9 +15,6 @@ import pytest
 
 from tests.skills.ship.conftest import git
 from tests.skills.ship.ship_helpers import GITHUB, invoke, publish, remote_has_branch, values
-
-# The push lock is flock, which Windows does not have.
-fcntl = pytest.importorskip("fcntl")
 
 ADO = "https://dev.azure.com/contoso/p/_git/r"
 GREEN = {"stdout": json.dumps({"Data": {"RequiredState": "SUCCESS", "AllPassing": True}}) + "\n"}
