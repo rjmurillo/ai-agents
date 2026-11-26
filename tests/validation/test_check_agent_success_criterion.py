@@ -211,6 +211,16 @@ class TestTree:
         ((name, finding),) = gate.find_criterion_findings(root)
         assert name == "one" and detail in finding
 
+    def test_repeated_key_inside_criterion_fails(self, tmp_path: Path) -> None:
+        text = (
+            "---\nname: one\ndescription: d\nsuccess_criterion:\n  kind: regex\n"
+            "  value: '('\n  value: '^PASS$'\n"
+            f"  rationale: {_RATIONALE}\n---\n"
+        )
+        root = _tree(tmp_path, {"one": text})
+        ((name, finding),) = gate.find_criterion_findings(root)
+        assert name == "one" and "duplicate key 'value'" in finding
+
     def test_missing_tree_raises(self, tmp_path: Path) -> None:
         with pytest.raises(FileNotFoundError):
             gate.find_criterion_findings(tmp_path)

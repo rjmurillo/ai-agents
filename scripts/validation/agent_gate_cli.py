@@ -37,15 +37,18 @@ class AgentText:
     body_line_offset: int
 
 
-def read_agent_text(text: str) -> AgentText:
+def read_agent_text(text: str, *, allow_duplicate_keys: bool = True) -> AgentText:
     """Split agent text into frontmatter and body.
 
     Raises ``ValueError`` with a reason when the text has no frontmatter block,
-    the block is not valid YAML, or it is not a mapping.
+    the block is not valid YAML, or it is not a mapping. With
+    ``allow_duplicate_keys=False`` a repeated key at any depth is invalid YAML,
+    so a second ``value:`` cannot hide the first. The delegation and
+    vocabulary gates keep the permissive default they had before this module.
     ``body_line_offset`` is the number of lines before the body, so body line
     ``n`` is file line ``n + body_line_offset``.
     """
-    result = parse_frontmatter(text, yaml, allow_duplicate_keys=True)
+    result = parse_frontmatter(text, yaml, allow_duplicate_keys=allow_duplicate_keys)
     if not result.present or result.status is FrontmatterStatus.UNTERMINATED:
         raise ValueError("no YAML frontmatter block")
     if result.status is FrontmatterStatus.MALFORMED:
@@ -64,16 +67,25 @@ def prose_lines(body: str) -> tuple[list[tuple[int, str]], bool]:
     """Return ``(line_number, text)`` for body lines outside fenced code blocks.
 
     A fence closes on a marker of the same character that is at least as long
-    as the opener. The second value is True when a fence is still open at the
-    end of the body: every line after the opener was dropped, so a caller that
-    treats the drop as "no prose" would pass content it never read.
+    as the opener, with nothing after it on the line. The second value is True
+    when a fence is still open at the end of the body: every line after the
+    opener was dropped, so a caller that treats the drop as "no prose" would
+    pass content it never read.
     """
     kept: list[tuple[int, str]] = []
     opener = ""
     for number, line in enumerate(body.splitlines(), start=1):
         match = _FENCE.match(line)
         if opener:
-            if match and match.group(1)[0] == opener[0] and len(match.group(1)) >= len(opener):
+            # A closing fence carries no info string (CommonMark 4.5), so an
+            # inner ```python line inside an open fence is content, not a close.
+            closes = (
+                match
+                and match.group(1)[0] == opener[0]
+                and len(match.group(1)) >= len(opener)
+                and not line[match.end() :].strip()
+            )
+            if closes:
                 opener = ""
             continue
         if match:

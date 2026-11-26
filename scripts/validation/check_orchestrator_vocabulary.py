@@ -81,7 +81,37 @@ BANNED = re.compile(
     re.IGNORECASE,
 )
 
-_INLINE_CODE = re.compile(r"`[^`\n]*`")
+# A code span may wrap onto the next line inside one paragraph (CommonMark 6.1),
+# so the span pattern crosses single newlines. Paragraphs are scanned whole,
+# which keeps a span from crossing a blank line.
+_INLINE_CODE = re.compile(r"`[^`]*`")
+
+
+def _mask_code(text: str) -> str:
+    """Blank out inline code spans, keeping newlines so offsets map to lines."""
+    return _INLINE_CODE.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), text)
+
+
+def _paragraphs(lines: list[tuple[int, str]]) -> list[tuple[int, str]]:
+    """Join consecutive non-blank prose lines into ``(first_line, text)`` paragraphs.
+
+    Markdown treats a soft line break inside a paragraph as whitespace, so a
+    banned phrase such as ``notice when`` may wrap across two lines.
+    """
+    paragraphs: list[tuple[int, str]] = []
+    start, chunk, previous = 0, [], -1
+    for number, line in lines:
+        contiguous = chunk and number == previous + 1 and line.strip()
+        if not contiguous:
+            if chunk:
+                paragraphs.append((start, "\n".join(chunk)))
+            start, chunk = number, []
+        if line.strip():
+            chunk.append(line)
+        previous = number
+    if chunk:
+        paragraphs.append((start, "\n".join(chunk)))
+    return paragraphs
 
 
 def scan_text(text: str) -> list[str]:
@@ -93,14 +123,15 @@ def scan_text(text: str) -> list[str]:
     findings: list[str] = []
     description = agent.frontmatter.get("description")
     if isinstance(description, str):
-        for match in BANNED.finditer(_INLINE_CODE.sub("", description)):
+        for match in BANNED.finditer(_mask_code(description)):
             findings.append(f"description: '{match.group(0)}'")
     elif description is not None:
         findings.append(f"description is not a string ({type(description).__name__})")
     lines, unclosed = agent_gate_cli.prose_lines(agent.body)
-    for number, line in lines:
-        for match in BANNED.finditer(_INLINE_CODE.sub("", line)):
-            findings.append(f"line {number + agent.body_line_offset}: '{match.group(0)}'")
+    for first, paragraph in _paragraphs(lines):
+        for match in BANNED.finditer(_mask_code(paragraph)):
+            number = first + paragraph.count("\n", 0, match.start()) + agent.body_line_offset
+            findings.append(f"line {number}: '{' '.join(match.group(0).split())}'")
     if unclosed:
         findings.append("a fenced code block never closes, so the rest of the body went unscanned")
     return findings

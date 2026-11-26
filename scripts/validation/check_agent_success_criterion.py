@@ -54,7 +54,10 @@ def read_frontmatter(path: Path) -> dict[str, object]:
 
     Raises ``ValueError`` when the file cannot be read as an agent.
     """
-    return agent_gate_cli.read_agent_text(path.read_text(encoding="utf-8")).frontmatter
+    text = path.read_text(encoding="utf-8")
+    # Strict: a repeated key inside success_criterion would let a valid second
+    # value hide an invalid first one.
+    return agent_gate_cli.read_agent_text(text, allow_duplicate_keys=False).frontmatter
 
 
 def read_criterion(path: Path) -> object:

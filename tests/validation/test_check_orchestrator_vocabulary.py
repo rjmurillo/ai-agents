@@ -92,7 +92,8 @@ class TestScanFails:
     )
     def test_body_token(self, word: str) -> None:
         text = _text(f"Intro.\n\nYou {word} the specialists.")
-        assert gate.scan_text(text) == [f"line {_line_of(text, word)}: '{word}'"]
+        token = " ".join(word.split())
+        assert gate.scan_text(text) == [f"line {_line_of(text, word)}: '{token}'"]
 
     def test_description_token(self) -> None:
         findings = gate.scan_text(_text("Route it.", description="Routes work, managing handoffs."))
@@ -104,6 +105,20 @@ class TestScanFails:
 
     def test_long_fence_is_not_closed_by_a_short_one(self) -> None:
         body = "````\n```\nsupervise\n````\nRoute it."
+        assert gate.scan_text(_text(body)) == []
+
+    def test_phrase_wrapped_across_lines_is_caught(self) -> None:
+        text = _text("If you notice\nwhen a worker is stuck, interrupt it.")
+        assert gate.scan_text(text) == [f"line {_line_of(text, 'If you notice')}: 'notice when'"]
+
+    def test_code_span_wrapped_across_lines_is_not_prose(self) -> None:
+        assert gate.scan_text(_text("Call `cloudmcp-\nmanager/search` for memory.")) == []
+
+    def test_blank_line_ends_a_paragraph(self) -> None:
+        assert gate.scan_text(_text("If you notice\n\nwhen a worker is stuck, route.")) == []
+
+    def test_fence_with_inner_info_string_stays_open(self) -> None:
+        body = "```markdown\n```python\nsupervise\n```\nRoute it."
         assert gate.scan_text(_text(body)) == []
 
     def test_unclosed_fence_is_a_finding(self) -> None:
