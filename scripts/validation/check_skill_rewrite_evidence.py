@@ -300,15 +300,16 @@ def verify_skill(ctx: Context, name: str, head: SkillSide) -> list[str]:
 
 
 def _adding_commit(ctx: Context, path: str, added: dict[str, int]) -> str | None:
-    """The commit that added *path*: the branch scan first, else the log for a base file.
+    """The commit that added *path*: the base ref's log for a base file, else the branch scan.
 
-    The branch scan sees a merge's own add, which the log does not. It also
-    keeps a branch file on its branch commit when an older base commit once
-    added and deleted the same path.
+    A file at the base ref keeps the base add, so a byte-identical branch copy
+    cannot move an older failed run behind a later passing one. The branch
+    scan sees a merge's own add, which the log does not.
     """
-    if path in added:
+    at_base = bool(ctx.git.tree_blobs(ctx.base_ref, path))
+    if not at_base and path in added:
         return ctx.commits[added[path]]
-    found: str | None = ctx.git.adding_commit(ctx.head, path)
+    found: str | None = ctx.git.adding_commit(ctx.base_ref if at_base else ctx.head, path)
     return found
 
 

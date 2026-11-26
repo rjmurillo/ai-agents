@@ -92,6 +92,30 @@ class TestInheritedRuns:
         assert code == 1
         assert "run-2.json: recomputed gate is FAIL" in out
 
+    @pytest.mark.parametrize("main_first", [False, True])
+    def test_a_branch_copy_of_a_base_run_keeps_the_base_add(
+        self, repo: Path, capsys: pytest.CaptureFixture[str], main_first: bool
+    ) -> None:
+        driver_change(repo)
+        write(repo, f"{EVID}/run-2.json", results(repo))
+        commit(repo, "a passing run")
+        failed = _run_text(repo, failed=True)
+        git(repo, "checkout", "-q", "main")
+        write(repo, f"{EVID}/run-1.json", failed)
+        commit(repo, "a failed run on main")
+        git(repo, "checkout", "-q", "feature")
+        write(repo, f"{EVID}/run-1.json", failed)
+        commit(repo, "a byte-identical copy of the base run")
+        if main_first:
+            git(repo, "checkout", "-q", "-b", "joined", "main")
+            git(repo, "merge", "-q", "--no-ff", "-m", "merge feature", "feature")
+            git(repo, "checkout", "-q", "-B", "feature", "joined")
+        else:
+            git(repo, "merge", "-q", "--no-ff", "-m", "merge main", "main")
+        code, out = run(repo, capsys)
+        assert code == 1, out
+        assert "run-1.json" in out
+
 
 class TestAddingCommit:
     @pytest.mark.skipif(os.name == "nt", reason="NTFS rejects * in a file name")
@@ -171,13 +195,16 @@ class _FakeGit:
     def adding_commit(self, ref: str, path: str) -> str | None:
         return self.adds[path]
 
+    def tree_blobs(self, ref: str, prefix: str) -> dict[str, str]:
+        return {}
+
     def is_ancestor(self, ancestor: str, descendant: str) -> bool | None:
         return self.ancestors.get((ancestor, descendant), False)
 
 
 class TestDecidingRunUnit:
     def _ctx(self, git_stub: _FakeGit) -> SimpleNamespace:
-        return SimpleNamespace(head="HEAD", commits=["c0"], git=git_stub)
+        return SimpleNamespace(head="HEAD", base_ref="main", commits=["c0"], git=git_stub)
 
     def test_a_file_with_no_adding_commit_fails_closed(self) -> None:
         ctx = self._ctx(_FakeGit({"a": "c1", "b": None}, {}))
