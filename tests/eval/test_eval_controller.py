@@ -24,8 +24,10 @@ import importlib.util
 import json
 import os
 import signal
+import subprocess
 import sys
 import textwrap
+import time
 from pathlib import Path
 from typing import Any
 
@@ -1082,3 +1084,290 @@ def test_input_that_escapes_the_run_directory_is_refused(tmp_path: Path, templat
     config, _ = _setup(tmp_path, {}, steps=1)
     _edit_config(config, inputs=[template])
     assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+
+
+# Claim from an imported review learning: `_collect` follows a planted symlink
+# and reads or copies bytes from outside the results tree. These pin the
+# observed behavior: the link itself moves, its target is never read, and
+# extract refuses an input that resolves outside the run directory.
+_PLANT_LEAF = textwrap.dedent(
+    """
+    import os, sys
+    os.symlink(sys.argv[2], sys.argv[1])
+    """
+)
+
+_PLANT_NESTED = textwrap.dedent(
+    """
+    import os, sys
+    os.makedirs(sys.argv[1])
+    os.symlink(sys.argv[2], os.path.join(sys.argv[1], "junit.xml"))
+    """
+)
+
+
+def _outside_report(tmp_path: Path) -> Path:
+    outside = tmp_path / "outside" / "secret.xml"
+    outside.parent.mkdir()
+    outside.write_text(
+        "<testsuites><testsuite><testcase classname='suite' name='T01'/></testsuite></testsuites>",
+        encoding="utf-8",
+    )
+    return outside
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
+def test_collected_leaf_symlink_moves_the_link_and_is_not_read(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    outside = _outside_report(tmp_path)
+    before = outside.read_bytes()
+    loose = tmp_path / "loose"
+    loose.mkdir()
+    target = str(loose / "{run_id}.xml")
+    _edit_config(
+        config,
+        scorer=[sys.executable, "-c", _PLANT_LEAF, target, str(outside)],
+        collect=[target],
+        inputs=["{run_dir}/0"],
+    )
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+    (moved,) = (tmp_path / "state" / "runs").glob("incumbent-0-*/0")
+    assert moved.is_symlink()
+    assert outside.read_bytes() == before
+    assert not (tmp_path / "state" / "split.json").exists()
+    assert "outside the run directory" in _events(tmp_path)[-1]["error"]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
+def test_collected_tree_with_a_nested_symlink_is_not_read(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    outside = _outside_report(tmp_path)
+    before = outside.read_bytes()
+    loose = tmp_path / "loose"
+    loose.mkdir()
+    target = str(loose / "{run_id}")
+    _edit_config(
+        config,
+        scorer=[sys.executable, "-c", _PLANT_NESTED, target, str(outside)],
+        collect=[target],
+        inputs=["{run_dir}/0/junit.xml"],
+    )
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+    (moved,) = (tmp_path / "state" / "runs").glob("incumbent-0-*/0")
+    assert moved.is_dir() and not moved.is_symlink()
+    assert (moved / "junit.xml").is_symlink()
+    assert outside.read_bytes() == before
+    assert not (tmp_path / "state" / "split.json").exists()
+    assert "outside the run directory" in _events(tmp_path)[-1]["error"]
+
+
+# The scorer is told `{run_dir}`, so it can plant the collect destination
+# itself before writing its report. `link` points `{run_dir}/0` at a directory
+# outside state; `dir` makes it a real directory. A nonzero `exit` makes the
+# scorer fail after planting, which takes the collect-on-failure path.
+_PLANT_DESTINATION = textwrap.dedent(
+    """
+    import os, runpy, sys
+    mode, run_dir, outside, exit_code = sys.argv[1:5]
+    destination = os.path.join(run_dir, "0")
+    if mode == "link":
+        os.symlink(outside, destination)
+    else:
+        os.mkdir(destination)
+    sys.argv = sys.argv[5:]
+    runpy.run_path(sys.argv[0], run_name="__main__")
+    sys.exit(int(exit_code))
+    """
+)
+
+
+def _plant_destination(tmp_path: Path, mode: str, exit_code: int = 0) -> tuple[Path, Path, Path]:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    loose = tmp_path / "loose"
+    loose.mkdir()
+    report = str(loose / "{run_id}.xml")
+    scorer = tmp_path / "scripts" / "scorer.py"
+    plant = [sys.executable, "-c", _PLANT_DESTINATION, mode, "{run_dir}", str(outside)]
+    _edit_config(
+        config,
+        scorer=[*plant, str(exit_code), str(scorer), "{artifact}", report],
+        collect=[report],
+        inputs=["{run_dir}/0"],
+    )
+    return config, outside, loose
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
+def test_collect_does_not_move_a_report_through_a_planted_destination_link(
+    tmp_path: Path,
+) -> None:
+    config, outside, loose = _plant_destination(tmp_path, "link")
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_EXTERNAL
+    assert list(outside.iterdir()) == []
+    # The report still leaves the checkout: it lands inside state.
+    assert list(loose.iterdir()) == []
+    (moved,) = (tmp_path / "state" / "runs").glob("incumbent-0-*/0")
+    assert moved.is_file() and not moved.is_symlink()
+    assert "existed before collection" in _events(tmp_path)[-1]["error"]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
+def test_failed_scorer_cannot_move_its_report_through_a_destination_link(
+    tmp_path: Path,
+) -> None:
+    config, outside, loose = _plant_destination(tmp_path, "link", exit_code=5)
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_EXTERNAL
+    assert list(outside.iterdir()) == []
+    assert list(loose.iterdir()) == []
+
+
+def test_real_directory_at_the_collect_destination_fails_the_run(tmp_path: Path) -> None:
+    config, outside, _ = _plant_destination(tmp_path, "dir")
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_EXTERNAL
+    assert list(outside.iterdir()) == []
+    (planted,) = (tmp_path / "state" / "runs").glob("incumbent-0-*/0")
+    assert planted.is_dir() and list(planted.iterdir()) == []
+    assert "existed before collection" in _events(tmp_path)[-1]["error"]
+
+
+# The first scorer to start claims `held` and waits for `release`; any later
+# scorer runs straight through. That parks one controller mid-baseline, after
+# its `split.json` check and before it writes the split.
+_HOLD_FIRST = textwrap.dedent(
+    """
+    import os, sys, time
+    held, release = sys.argv[1], sys.argv[2]
+    try:
+        os.close(os.open(held, os.O_CREAT | os.O_EXCL | os.O_WRONLY))
+    except FileExistsError:
+        pass
+    else:
+        deadline = time.monotonic() + 60
+        while not os.path.exists(release) and time.monotonic() < deadline:
+            time.sleep(0.05)
+    os.execv(sys.executable, [sys.executable, *sys.argv[3:]])
+    """
+)
+
+
+def _wait_for(path: Path, seconds: float = 30.0) -> None:
+    deadline = time.monotonic() + seconds
+    while not path.exists():
+        assert time.monotonic() < deadline, f"{path} never appeared"
+        time.sleep(0.05)
+
+
+def _hold_first_scorer(tmp_path: Path, config: Path) -> tuple[Path, Path]:
+    held, release = tmp_path / "held", tmp_path / "release"
+    scorer = tmp_path / "scripts" / "scorer.py"
+    _edit_config(
+        config,
+        scorer=[
+            sys.executable,
+            "-c",
+            _HOLD_FIRST,
+            str(held),
+            str(release),
+            str(scorer),
+            "{artifact}",
+            "{run_dir}/junit.xml",
+        ],
+        timeout_seconds=120,
+    )
+    return held, release
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="fcntl lock is POSIX only")
+def test_second_controller_on_the_same_state_dir_is_refused(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    held, release = _hold_first_scorer(tmp_path, config)
+    first = subprocess.Popen(
+        [sys.executable, str(_SCRIPT), "run", "--config", str(config)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    try:
+        _wait_for(held)
+        second = ec.main(["run", "--config", str(config)])
+    finally:
+        release.touch()
+        first.wait(timeout=120)
+    assert second == ec.EXIT_CONFIG
+    assert "another controller" in capsys.readouterr().err
+    assert first.returncode == ec.EXIT_OK
+
+
+def test_finished_run_releases_the_state_lock(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    assert ec.main(["run", "--config", str(config)]) == 0
+    io = sys.modules["_controller_io"]
+    # The lock is free: taking it again succeeds.
+    io.unlock_state(tmp_path / "state", io.lock_state(tmp_path / "state"))
+
+
+def test_failed_run_releases_the_state_lock(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    _edit_config(config, collect=[str(tmp_path / "never-written.xml")])
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_EXTERNAL
+    io = sys.modules["_controller_io"]
+    io.unlock_state(tmp_path / "state", io.lock_state(tmp_path / "state"))
+
+
+def test_reused_state_dir_still_names_the_old_session_not_the_lock(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    assert ec.main(["run", "--config", str(config)]) == 0
+    capsys.readouterr()
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+    err = capsys.readouterr().err
+    assert "already holds a session" in err
+    assert "another controller" not in err
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="fcntl lock is POSIX only")
+def test_held_flock_refuses_without_writing_to_state(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    state = tmp_path / "state"
+    state.mkdir()
+    io = sys.modules["_controller_io"]
+    handle = io.lock_state(state)
+    try:
+        assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+    finally:
+        io.unlock_state(state, handle)
+    assert "another controller is running" in capsys.readouterr().err
+    assert sorted(p.name for p in state.iterdir()) == [io.STATE_LOCK]
+
+
+def test_without_fcntl_an_existing_lock_file_refuses_and_is_kept(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    io = sys.modules["_controller_io"]
+    monkeypatch.setattr(io, "_FCNTL", None)
+    config, _ = _setup(tmp_path, {}, steps=1)
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / io.STATE_LOCK).touch()
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+    err = capsys.readouterr().err
+    assert "another controller is running" in err
+    assert io.STATE_LOCK in err
+    # The refused run must not break a lock it does not hold.
+    assert (state / io.STATE_LOCK).exists()
+
+
+def test_without_fcntl_a_finished_run_removes_its_lock_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    io = sys.modules["_controller_io"]
+    monkeypatch.setattr(io, "_FCNTL", None)
+    config, _ = _setup(tmp_path, {}, steps=1)
+    assert ec.main(["run", "--config", str(config)]) == 0
+    assert not (tmp_path / "state" / io.STATE_LOCK).exists()

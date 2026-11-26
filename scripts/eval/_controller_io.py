@@ -8,6 +8,7 @@ reads and writes the artifact without following planted links.
 from __future__ import annotations
 
 import hashlib
+import importlib
 import json
 import os
 import shutil
@@ -19,6 +20,7 @@ import tempfile
 import time
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from types import ModuleType
 from typing import IO, Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -38,6 +40,14 @@ _TAIL = 400
 _MAX_JSON_BYTES = 16 * 1024 * 1024
 # Variables a Windows child needs to start at all; kept whatever the allowlist.
 _WINDOWS_BASE_ENV = ("SYSTEMROOT", "COMSPEC", "PATHEXT", "TEMP", "TMP", "WINDIR")
+# The state lock file. It holds no data; only who has it locked matters.
+STATE_LOCK = "controller.lock"
+
+_FCNTL: ModuleType | None
+try:
+    _FCNTL = importlib.import_module("fcntl")
+except ImportError:  # Windows has no fcntl
+    _FCNTL = None
 
 
 def _walk(root: Path) -> list[Path]:
@@ -87,6 +97,40 @@ def tree_digest(paths: Sequence[Path], exclude: Path | None = None) -> str:
             else:
                 sha.update(f"missing:{entry}\n".encode())
     return sha.hexdigest()
+
+
+def lock_state(state: Path) -> int:
+    """Take the one-controller lock on `state`; return the fd that holds it.
+
+    Two controllers on one `state_dir` each see the other's writes as
+    tampering, and both can pass the fresh-session check before either
+    writes `split.json`. With `fcntl` the lock is `flock` on a file in state:
+    the kernel drops it when the holder dies, so a crash leaves nothing to
+    clear. Without `fcntl` an exclusive create is the lock, and a file left
+    by a killed run is reported rather than broken.
+    """
+    lock = state / STATE_LOCK
+    busy = f"another controller is running against {state}; wait for it or use a fresh state_dir"
+    flags = os.O_CREAT | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0)
+    if _FCNTL is None:
+        try:
+            return os.open(lock, flags | os.O_EXCL)
+        except FileExistsError:
+            raise ControllerError(f"{busy}; if none is, remove {lock}") from None
+    handle = os.open(lock, flags)
+    try:
+        _FCNTL.flock(handle, _FCNTL.LOCK_EX | _FCNTL.LOCK_NB)
+    except BlockingIOError:
+        os.close(handle)
+        raise ControllerError(busy) from None
+    return handle
+
+
+def unlock_state(state: Path, handle: int) -> None:
+    """Release `lock_state`. The exclusive-create lock is the file itself."""
+    os.close(handle)
+    if _FCNTL is None:
+        (state / STATE_LOCK).unlink(missing_ok=True)
 
 
 def fill(template: str, values: Mapping[str, str]) -> str:

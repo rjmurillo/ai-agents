@@ -2360,9 +2360,16 @@ loop and again around every scoring run and step. The optimizer runs with
 `scripts/eval/__pycache__` is never read. It also checks that scoring changed
 nothing in `state_dir` outside the new run's directory.
 
-Run one controller per artifact at a time. Two runs with different
-`state_dir`s on the same artifact can restore over each other's accepted bytes;
-the controller does not lock the artifact across processes.
+One controller runs per `state_dir`. The run locks `state_dir/controller.lock`
+before its fresh-session check, and a second run on the same `state_dir` exits
+2 with "another controller is running". On POSIX the lock is `fcntl.flock`,
+which the kernel drops when the holder dies. Without `fcntl` (Windows) the
+lock is an exclusive-create file, removed when the run ends. A killed run
+leaves it behind; the refusal names the file to remove.
+
+Run one controller per artifact at a time. The lock covers `state_dir`, not the
+artifact. Two runs with different `state_dir`s on the same artifact can restore
+over each other's accepted bytes.
 
 **The boundary is conditional.** Python cannot stop a same-user process from
 reading a file. The held-out group is withheld only when the launcher applies
