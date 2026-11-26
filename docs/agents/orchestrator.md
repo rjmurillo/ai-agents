@@ -1,6 +1,6 @@
 # orchestrator agent
 
-The `orchestrator` agent coordinates specialist agents end to end. It classifies a task, routes it to the right agents, manages handoffs, and hands back one synthesized result. It does not implement, design, or review.
+The `orchestrator` agent coordinates specialist agents end to end. It classifies a task, routes it to the right agents, sequences handoffs, and hands back one synthesized result. It does not implement, design, or review.
 
 ## When to use it
 
@@ -89,7 +89,7 @@ Cost and effort routing follows task shape and verifier strength, not a vendor d
 
 Budget limits: at most 15 delegations per task (a warning at 10) and at most 4 concurrent delegations per wave. A wave must not contain a repository-wide git operation or two agents writing the same file.
 
-The agent verifies artifacts, not reports. A "done" with no matching diff or file counts as unverified. It stops after acceptance. It checks session state before it acts after a handoff, compaction, or interruption, and holds when the live repository disagrees with the record. A hook denial is policy feedback, not consent.
+The agent verifies artifacts, not reports. When a worker declares a success criterion (ADR-065), it checks the return against it, and still verifies the artifacts. A "done" with no matching diff or file counts as unverified. It stops after acceptance. It checks session state before it acts after a handoff, compaction, or interruption, and holds when the live repository disagrees with the record. A hook denial is policy feedback, not consent.
 
 In Claude Code, the agent sets no `tools` list, so it inherits every tool the session has. For the full routing algorithm, see [Orchestrator routing algorithm](../orchestrator-routing-algorithm.md).
 

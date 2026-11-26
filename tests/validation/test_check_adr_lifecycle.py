@@ -30,7 +30,7 @@ Pins the ratcheted ADR lifecycle gate. Coverage per check name:
 - implemented-implies-decided: pos (`proposed` with `implemented: false`, and every
   other status with `implemented: true`, pass), neg (`proposed` with `implemented: true`),
   edge (mixed-case `Proposed` is still proposed; a quoted "true" or an absent field is
-  not a boolean true; a hit is a (check, path) identity the baseline can hold). The check
+  not a boolean true; the check is zero-tolerance, so no baseline can hold a hit). The check
   was removed after Copilot review on PR #5209 and restored by the repository owner on
   2026-11-01.
 
@@ -98,6 +98,8 @@ from check_adr_lifecycle import (
     SECTION_EQUIVALENTS,
     SIZE_CAP_LINES,
     SIZE_STEP_LINES,
+    ZERO_TOLERANCE_CHECKS,
+    _excess,
     _find_cycles,
     identities,
     main,
@@ -942,13 +944,34 @@ def test_a_new_proposed_implemented_record_fails_the_gate(tmp_path):
     assert "implemented-implies-decided" in result.stdout
 
 
-def test_a_grandfathered_proposed_implemented_record_passes_the_gate(tmp_path):
+def test_implemented_implies_decided_is_zero_tolerance():
+    assert "implemented-implies-decided" in ZERO_TOLERANCE_CHECKS
+
+
+def test_a_baseline_cannot_grandfather_a_proposed_implemented_record(tmp_path):
     _write_implemented(tmp_path, "proposed", "true")
-    baseline = _baseline(tmp_path, **{"implemented-implies-decided": {_rel(1): 1}})
+    held = _baseline(
+        tmp_path,
+        **{
+            "implemented-implies-decided": {_rel(1): 1},
+            "proposed-needs-review-by": {_rel(1): 1},
+        },
+    )
+
+    result = _run(tmp_path, "--baseline", str(held))
+
+    assert result.returncode == EXIT_CONFIG, result.stdout + result.stderr
+    assert "implemented-implies-decided" in result.stdout + result.stderr
+
+
+def test_a_proposed_implemented_record_fails_even_when_only_its_other_debt_is_held(tmp_path):
+    _write_implemented(tmp_path, "proposed", "true")
+    baseline = _baseline(tmp_path, **{"proposed-needs-review-by": {_rel(1): 1}})
 
     result = _run(tmp_path, "--baseline", str(baseline))
 
-    assert result.returncode == EXIT_OK, result.stdout + result.stderr
+    assert result.returncode == EXIT_REGRESSION, result.stdout + result.stderr
+    assert "implemented-implies-decided" in result.stdout
 
 
 # --- size-cap ----------------------------------------------------------------
@@ -1475,7 +1498,7 @@ def test_write_baseline_round_trips_and_then_passes(tmp_path):
     _write(
         adr_dir,
         2,
-        _valid(2, status="proposed", supersedes="[ADR-001]"),
+        _valid(2, status="proposed", supersedes="[ADR-001]", implemented="false"),
         "\n## Status\n\nProposed\n",
     )
     baseline = tmp_path / "baseline.json"
@@ -1489,6 +1512,22 @@ def test_write_baseline_round_trips_and_then_passes(tmp_path):
     assert payload["violations"]["proposed-cannot-supersede"] == {_rel(2): 1}
     assert list(payload["violations"]) == list(CHECKS)
     assert _run(tmp_path, "--baseline", str(baseline)).returncode == EXIT_OK
+
+
+def test_write_baseline_names_a_live_zero_tolerance_violation(tmp_path):
+    _write_implemented(tmp_path, "proposed", "true")
+    baseline = tmp_path / "baseline.json"
+
+    written = _run(tmp_path, "--baseline", str(baseline), "--write-baseline")
+
+    assert written.returncode == EXIT_REGRESSION, written.stdout + written.stderr
+    assert (
+        "implemented-implies-decided: 0 (zero-tolerance, never recorded, 1 live and FAILING)"
+        in written.stdout
+    )
+    assert "zero-tolerance violation(s) the baseline cannot hold" in written.stderr
+    assert baseline.exists()
+    assert _run(tmp_path, "--baseline", str(baseline)).returncode == EXIT_REGRESSION
 
 
 def test_write_baseline_leaves_no_temp_file_behind(tmp_path):
@@ -2012,7 +2051,8 @@ def test_main_reports_config_error_for_a_missing_directory_in_process(tmp_path):
 def test_main_reports_no_check_ready_when_every_check_has_debt(tmp_path, capsys):
     adr_dir = _adr_dir(tmp_path)
     _write(adr_dir, 1, None)
-    baseline = _baseline(tmp_path, **{name: {_rel(1): 1} for name in CHECKS})
+    held = {name: {_rel(1): 1} for name in CHECKS if name not in ZERO_TOLERANCE_CHECKS}
+    baseline = _baseline(tmp_path, **held)
 
     assert main(["--repo-root", str(tmp_path), "--baseline", str(baseline)]) == EXIT_OK
     assert "No check is at zero yet" in capsys.readouterr().out
@@ -2691,7 +2731,8 @@ def test_scan_without_a_clock_argument_reads_the_current_date(tmp_path):
     assert late == [_rel(1)]
 
 
-def test_a_past_due_record_fails_the_ratchet_until_it_is_baselined(tmp_path):
+def test_a_past_due_record_fails_the_gate_and_the_baseline_cannot_hold_it(tmp_path):
+    """Issue #7638: `review-by-past-due` is zero-tolerance, not ratcheted."""
     adr_dir = _adr_dir(tmp_path)
     _write(adr_dir, 1, _valid(1, **{"review-by": "2000-01-01"}), "\nBy 2000-01-01.\n")
 
@@ -2702,8 +2743,178 @@ def test_a_past_due_record_fails_the_ratchet_until_it_is_baselined(tmp_path):
 
     assert bare.returncode == EXIT_REGRESSION
     assert "review-by-past-due" in bare.stdout
-    assert held.returncode == EXIT_OK
+    assert "zero-tolerance, FAILING" in bare.stdout
+    assert held.returncode == EXIT_CONFIG
+    assert "zero-tolerance" in held.stderr
+
+
+@pytest.mark.parametrize("check", sorted(ZERO_TOLERANCE_CHECKS))
+def test_a_live_baseline_listing_any_zero_tolerance_check_is_a_config_error(tmp_path, check):
+    _write(_adr_dir(tmp_path), 1, _valid(1), _STATUS_SECTION)
+
+    result = _run(tmp_path, "--baseline", str(_baseline(tmp_path, **{check: {_rel(1): 1}})))
+
+    assert result.returncode == EXIT_CONFIG, result.stdout + result.stderr
+    assert check in result.stderr
+
+
+def test_review_by_past_due_is_zero_tolerance():
+    assert "review-by-past-due" in ZERO_TOLERANCE_CHECKS
+    assert ZERO_TOLERANCE_CHECKS <= set(CHECKS)
+
+
+def test_a_zero_tolerance_check_is_excess_even_when_the_allowance_covers_it():
+    """The base-ref baseline may still hold an entry; it grants nothing."""
+    path = _rel(1)
+    current = {name: {} for name in CHECKS} | {"review-by-past-due": {path: 1}}
+    allowed = {name: {} for name in CHECKS} | {"review-by-past-due": {path: 1}}
+
+    assert _excess(current, allowed)["review-by-past-due"] == {path: 1}
+
+
+def test_a_zero_tolerance_check_is_excess_when_the_base_ref_lacks_it():
+    path = _rel(1)
+    current = {name: {} for name in CHECKS} | {"review-by-past-due": {path: 1}}
+    allowed = {name: {} for name in CHECKS if name != "review-by-past-due"}
+
+    assert _excess(current, allowed)["review-by-past-due"] == {path: 1}
+
+
+def test_write_baseline_records_a_zero_tolerance_check_empty(tmp_path):
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1, **{"review-by": "2000-01-01"}), "\nBy 2000-01-01.\n")
+    baseline = tmp_path / "baseline.json"
+
+    written = _run(tmp_path, "--baseline", str(baseline), "--write-baseline")
+
+    assert written.returncode == EXIT_REGRESSION, written.stdout + written.stderr
+    assert "review-by-past-due: 0" in written.stdout
+    payload = json.loads(baseline.read_text(encoding="utf-8"))
+    assert payload["violations"]["review-by-past-due"] == {}
+
+
+def test_a_zero_tolerance_check_is_never_reported_flippable(tmp_path):
+    _write(_adr_dir(tmp_path), 1, _valid(1), _STATUS_SECTION)
+
+    result = _run(tmp_path, "--baseline", str(_baseline(tmp_path)))
+
+    assert result.returncode == EXIT_OK, result.stdout + result.stderr
+    flippable = next(
+        line for line in result.stdout.splitlines() if line.startswith("Checks at zero")
+    )
+    assert "review-by-past-due" not in flippable
 
 
 def test_the_review_by_checks_are_registered_in_check_order():
-    assert CHECKS[-3:] == _REVIEW_BY_CHECKS
+    start = CHECKS.index(_REVIEW_BY_CHECKS[0])
+    assert CHECKS[start : start + 3] == _REVIEW_BY_CHECKS
+
+
+# --- proposed-needs-review-by (issue #7638) ---------------------------------
+
+
+def _proposed(tmp_path: Path, review_by: str | None, prose: str = "") -> None:
+    fields: dict[str, object] = {"status": "proposed", "implemented": "false"}
+    if review_by is not None:
+        fields["review-by"] = review_by
+    body = f"\n## Status\n\nProposed. Awaiting review.\n\n{prose}\n"
+    _write(_adr_dir(tmp_path), 1, _valid(1, **fields), body)
+
+
+def _needs_review_by(tmp_path: Path, today: date = _TODAY) -> list[str]:
+    adr_dir = tmp_path / ".project-toolkit" / "architecture"
+    return [v.path for v in scan(adr_dir, tmp_path, today) if v.check == "proposed-needs-review-by"]
+
+
+def test_a_proposed_record_due_today_is_neither_missing_nor_past_due(tmp_path):
+    _proposed(tmp_path, _TODAY.isoformat(), prose=f"Decide by {_TODAY.isoformat()}.")
+
+    assert _needs_review_by(tmp_path) == []
+    assert _review_counts(tmp_path)["review-by-past-due"] == 0
+
+
+def test_a_proposed_record_with_no_review_by_is_flagged(tmp_path):
+    _proposed(tmp_path, None)
+
+    assert _needs_review_by(tmp_path) == [_rel(1)]
+    assert "never comes due" in _hits(tmp_path, "proposed-needs-review-by")[0]
+
+
+def test_a_proposed_record_with_a_null_review_by_is_flagged(tmp_path):
+    _proposed(tmp_path, "null")
+
+    assert _needs_review_by(tmp_path) == [_rel(1)]
+
+
+def test_a_proposed_record_with_a_future_date_passes_every_review_by_check(tmp_path):
+    _proposed(tmp_path, "2026-12-01", prose="Decide by 2026-12-01.")
+
+    assert _needs_review_by(tmp_path) == []
+    assert _review_counts(tmp_path) == dict.fromkeys(_REVIEW_BY_CHECKS, 0)
+
+
+def test_a_proposed_record_with_a_past_date_is_past_due_not_missing(tmp_path):
+    _proposed(tmp_path, "2026-09-27", prose="Decide by 2026-09-27.")
+
+    assert _needs_review_by(tmp_path) == []
+    assert _review_counts(tmp_path)["review-by-past-due"] == 1
+
+
+def test_a_proposed_record_with_a_malformed_date_is_only_a_format_finding(tmp_path):
+    _proposed(tmp_path, "'next quarter'")
+
+    assert _needs_review_by(tmp_path) == []
+    assert _review_counts(tmp_path)["review-by-format"] == 1
+
+
+def test_a_proposed_record_with_a_quoted_future_date_passes(tmp_path):
+    _proposed(tmp_path, '"2026-12-01"', prose="Decide by 2026-12-01.")
+
+    assert _needs_review_by(tmp_path) == []
+    assert _review_counts(tmp_path) == dict.fromkeys(_REVIEW_BY_CHECKS, 0)
+
+
+def test_a_mixed_case_proposed_status_still_needs_review_by(tmp_path):
+    body = "\n## Status\n\nProposed. Awaiting review.\n"
+    _write(_adr_dir(tmp_path), 1, _valid(1, status="Proposed", implemented="false"), body)
+
+    assert _needs_review_by(tmp_path) == [_rel(1)]
+
+
+@pytest.mark.parametrize("status", ["accepted", "rejected", "deprecated"])
+def test_a_non_proposed_record_needs_no_review_by(tmp_path, status):
+    _write(_adr_dir(tmp_path), 1, _valid(1, status=status))
+
+    assert _needs_review_by(tmp_path) == []
+
+
+def test_a_missing_review_by_on_a_new_proposed_record_fails_the_gate(tmp_path):
+    _proposed(tmp_path, None)
+
+    bare = _run(tmp_path, "--baseline", str(_baseline(tmp_path)))
+    held = _run(
+        tmp_path,
+        "--baseline",
+        str(_baseline(tmp_path, **{"proposed-needs-review-by": {_rel(1): 1}})),
+    )
+
+    assert bare.returncode == EXIT_REGRESSION
+    assert "proposed-needs-review-by" in bare.stdout
+    assert held.returncode == EXIT_OK, held.stdout + held.stderr
+
+
+def test_a_proposed_record_with_a_valid_future_date_passes_the_gate(tmp_path):
+    _proposed(tmp_path, "2999-01-01", prose="Decide by 2999-01-01.")
+
+    result = _run(tmp_path, "--baseline", str(_baseline(tmp_path)))
+
+    assert result.returncode == EXIT_OK, result.stdout + result.stderr
+
+
+def test_a_proposed_record_with_a_past_due_date_fails_the_gate(tmp_path):
+    _proposed(tmp_path, "2000-01-01", prose="Decide by 2000-01-01.")
+
+    result = _run(tmp_path, "--baseline", str(_baseline(tmp_path)))
+
+    assert result.returncode == EXIT_REGRESSION
+    assert "review-by-past-due" in result.stdout

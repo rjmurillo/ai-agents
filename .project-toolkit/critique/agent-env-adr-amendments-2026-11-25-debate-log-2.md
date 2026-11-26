@@ -122,3 +122,28 @@ Both seats read the wording diff. Architect vote: Accept. Critic vote: Accept. N
 - The critic judged the first gate finding a false positive. The sentence cites `tests/e2e/test_cli_hook_e2e.py` as the test target, not as a list of the globs. The reword stays, because the gate has no way to suppress one finding.
 - The critic noted that the ADR no longer gives a direct search hit for the constant name. The ADR-071 ledger keeps that anchor.
 - The critic noted that this section did not record a clean re-run. The gate ran again on 2026-11-26 with both edits committed. It returned PASS with no same-PR finding.
+
+## Merge resolution, 2026-11-26
+
+Pull request #7629 (`4d459a2206`, 2026-11-26) added a second ADR-057 amendment with the heading date 2026-11-25: "ADR-127 decision 9". Its debate log is `ADR-057-debate-log-2.md`. Pull request #7691 (`67899d52d4`, 2026-11-25) flipped ADR-088 to `implemented: true`. Both reached `main` before this branch did. Merging that content conflicted in ADR-057, ADR-088, and the ADR-057 claims ledger. The author resolved the conflicts by hand against `6c0a0fc5db` (2026-11-26). Squash commit `dff887317c` (2026-11-26) on `main` holds the same tree.
+
+- **ADR-088**: exact union. It keeps the frontmatter from `main` and this branch's amendment section. One pointer changed: line 270 now names "the `/spec` CI leg amendment" of ADR-057, because two ADR-057 amendments share that date. The file stays at 311 lines.
+- **ADR-057, order**: the ADR-127 amendment comes first, at lines 310 to 404. Lines 1 to 405 keep the numbering on `main`, so the line cites in that amendment's ledger still hold. This branch's amendment follows at lines 406 to 412.
+- **ADR-057, merged lines**: lines 92, 135, 137, 218, 239, 257, and 267 carry both sides' edits, merged word by word. Lines 269, 281, 282, 300, and 308 carry this branch's edits only.
+- **ADR-057 line 432**: the CI workflows row states both facts. The `/spec` leg ran until 2026-11-25 and no CI leg runs evals now. `Validate PR` runs the deterministic ADR-127 evidence check.
+- **ADR-057 lines 239 and 410, narrowed**: this branch said no CI job invokes the gates in `eval-prompt-change.py`. The ADR-127 amendment says its check calls the runner's `acceptance_gate` and calls no model. The two statements contradicted each other. Both lines now say that no CI job runs the eval, and that the evidence check calls `acceptance_gate` on committed results.
+- **Ledger**: the ledger from `main` comes first, byte for byte. This branch's ledger follows. Its H1 became the H2 "Amendment 2026-11-25: the /spec CI leg is deleted". A "Fourth pass" table holds the rows for the narrowed lines.
+- **Size**: ADR-057 is 448 lines. `check_adr_lifecycle.py` reports no violation outside the baseline. No baseline changed.
+
+Both seats read the staged resolution and both diffs. Architect vote: Accept. Critic vote: Block, then Disagree-and-Commit after one ledger fix. Neither seat raised a P0.
+
+### The Block
+
+The critic's P1: the Fourth pass intro said `main` (`dff887317c`) was merged, while the merge resolved against `6c0a0fc5db`. The intro now names `6c0a0fc5db` and states the tree identity. A new ledger row runs `git diff --quiet 6c0a0fc5db dff887317c`. The critic's dissent on the re-vote: a draft of that intro named the merge commit's second parent before the commit existed, and credited the ADR-127 amendment to pull request #7630. The intro now names #7629 and makes no claim about the parent.
+
+### Not changed
+
+- "Amendment 2026-11-25" now matches two headings in ADR-057. Both seats judged lines 89, 239, 257, 277, 418, and 440 clear. Lines 135, 137, 218, 267, 281, and 433 resolve by context only. Lines 1 to 405 stay as merged, so the line numbers that the other ledger cites do not move.
+- ADR-057:282 lists the `/spec` leg and contributors as users of the acceptance gate. The ADR-127 check also calls it. Lines 239 and 410 say so.
+- ADR-088:218 describes the weekly gate in the present tense. Both sides carried it. The amendment in the same record covers it.
+- Three line cites in the ledger from `main` are stale on `main` itself. They are outside this merge.

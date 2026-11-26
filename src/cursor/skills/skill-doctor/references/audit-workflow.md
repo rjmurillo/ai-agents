@@ -22,6 +22,24 @@ python3 "$SKILL_ROOT/scripts/audit_scores.py" "$REPORT_DIR/scores.json" --out "$
 It exits 1 and writes nothing when a label does not match its rubric value, a reason is missing, or a session id repeats. Fix the scores and rerun.
 When `terminated_by` is set, give every result an explicit `pre_cutoff`: `true` when the score rests on evidence from before the provider cutoff, `false` when it judges only the cut-off ending. A missing `pre_cutoff` on a terminated session counts as `false`, so that session leaves `failed_conversations`.
 
+## Aggregate formulas
+
+Step 3 of `SKILL.md` runs `audit_scores.py`. These formulas define what it computes:
+
+- `raw_efficiency` = mean of efficiency scores, excluding `insufficient_evidence` (0.5 if none, noted in findings).
+- `raw_code_quality` = mean of code-quality scores, excluding `insufficient_evidence`. If no session had enough evidence, set it to 0.5 and say so in the findings.
+- `raw_procedure_compliance` = mean of procedure-compliance scores, excluding `insufficient_evidence` (0.5 if none, noted in findings).
+- `raw_verbosity` = mean of verbosity scores, excluding `insufficient_evidence` (0.5 if none, noted in findings).
+- Curve qualitative rubric means into letter-grade report scores with `curve(score) = 0.5 + 0.5 * score`.
+- `efficiency = curve(raw_efficiency)`.
+- `code_quality = curve(raw_code_quality)`.
+- `procedure_compliance = curve(raw_procedure_compliance)`.
+- `verbosity = curve(raw_verbosity)`.
+- `skill_coverage` = fraction of sampled sessions where at least one installed skill was detected. If `skills_found` is 0, coverage is 0.
+- `overall = 0.25 * efficiency + 0.25 * code_quality + 0.2 * procedure_compliance + 0.15 * verbosity + 0.15 * skill_coverage.`
+
+For each harness in `stats.per_harness` that has scored sessions, the script also computes that harness's `overall` by applying the formulas above to its sessions only. Report these next to the combined `overall`; they are never averaged back into it.
+
 ## Assemble report.json
 
 Write a draft `report.json` with everything except the numbers: `title`, `generated_at`, `harness`, `handle`, `stats`, `sampling`, `top_findings`, `suggestions`, and `evaluation`. Then let the script fill the numbers from the scored records:

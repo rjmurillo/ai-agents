@@ -144,10 +144,17 @@ This record calls a skill rewrite a **gated change**. It is any PR that does one
 - implements a row of the gap audit, for a skill of either shape;
 - moves steps of any skill into scripts, or moves its sections into `references/`.
 
-The four triggers cover every rewrite this program launches.
+The four triggers cover every rewrite this program launches, except a rename split across two PRs.
 One case stays outside: a prose-only edit to a `reference` skill that moves nothing and implements no audit row.
 That edit is an ordinary prompt change. ADR-057 already makes its eval a MUST for the author.
 A PR that adds `metadata.shape: reference` and changes nothing else in the skill is not a gated change.
+A brand-new skill is not a gated change, even when it declares `driver`. It has no base for the floors to hold against.
+A deleted skill is not gated either. It has nothing to run.
+A new skill that lands beside a deleted one may be a rename, so it is gated. Its eval uses the runner's `--renamed-from`.
+Any deletion in the PR gates every new skill in it, so an unrelated deletion belongs in a separate PR.
+The check does not verify the predecessor name. A reviewer reads it from the PR body.
+A rewrite split into a delete PR and a later add PR is not detected. A reviewer owns that case.
+A new driver still owes the decision 8 tests. The owner confirmed this reading of the first trigger on 2026-11-25.
 
 The prompt surface is the rendered `SKILL.md` plus every `references/*.md` beside it.
 
@@ -171,7 +178,7 @@ The prompt surface is the rendered `SKILL.md` plus every `references/*.md` besid
 4. **Scenario floor.** The scenario file holds at least 8 scenarios.
    At least 6 of them pass all three scored runs on `origin/main`. These are the carried scenarios.
    The base is the `origin/main` commit at the first run.
-   The runner records only the ref name until the decision 9 check lands, so the author puts that commit SHA in the PR body.
+   The runner records that commit as `identity.base_commit`, and the decision 9 check reads it there.
    A later `origin/main` does not change the carried set.
    Eight matches the fixture floor ADR-111 rule 2 sets for pins. That is an analogy, not a measurement.
    Both numbers are provisional until decision 12 reports.
@@ -186,7 +193,7 @@ The prompt surface is the rendered `SKILL.md` plus every `references/*.md` besid
    The runner excludes a scenario whose base is unstable and lists it in `base_unstable_scenarios`.
    A base is unstable when it passes some runs and fails others, or has fewer than three scored runs.
    Each scenario of either kind must pass every scored run on the after side. Otherwise the change does not merge.
-   The runner does not compute this floor. Until the decision 9 check lands, the reviewer reads it from the after results.
+   The runner does not compute this floor. The decision 9 check recomputes it from the after results.
 8. **Scenario commit.** Scenarios land in their own commit, before any template edit.
    The author runs the scenarios against `origin/main` first. A scenario with an unstable base is rewritten or removed before the freeze.
    That base run's output is committed with the scenario commit.
@@ -221,27 +228,27 @@ Each driver skill has these tests under `tests/skills/<name>/`:
 
 ### 9. Enforcement, stated honestly
 
-Nothing enforces decision 7 in code on the day this record merges.
-Until a check lands, a reviewer enforces it by reading the committed results file.
+Nothing enforced decision 7 in code on the day this record merged.
+Until the check landed, a reviewer enforced it by reading the committed results file.
 That is the enforcement ADR-057 already describes: a MUST for the author, read at PR review.
 ADR-057 records how weak that is: 108 commits touched eval-scoped prompts and 1 carried evidence.
 
-So the check lands early. The `ship` and `push-pr` pilot may merge on reviewer enforcement.
-No second gated change merges before the check does.
+So the check landed early, before the `ship` and `push-pr` pilot.
+The pilot is a gated change, so the check enforces it.
 
-The check is deterministic and calls no model.
-It runs in `scripts/validation/pre_pr.py` and in CI.
+The check is `scripts/validation/check_skill_rewrite_evidence.py`. It is deterministic and calls no model.
+It runs in `scripts/validation/pre_pr.py` and in the `Validate PR` CI job.
 For each gated change it requires a results file and recomputes the verdict from the per-scenario runs.
 It verifies four identities the runner must record: the prompt-surface sha256, the scenario-file sha256, the base commit, and the model.
-The runner records the model today and none of the other three. Adding them is part of the check's change.
+The runner records all four in its output's `identity` block, built by `run_identity`.
 It compares the scenario file to the scenario commit, so a dropped scenario fails.
 The check cannot prove a model ran. A hand-built results file with matching hashes would pass.
 That residual stays with the reviewer.
 
-The check's change also amends ADR-057 through `adr-review`.
+The check's change also amended ADR-057 through `adr-review` (ADR-057 Amendment 2026-11-25).
 ADR-057's 2026-07-22 amendment says "Do not add a new blocking gate" for prompt files.
 The same amendment names `pre_pr.py` plus a CI leg as the path for a later deterministic gate.
-The amendment will scope the blocking check to gated changes. Every other prompt file stays advisory.
+That amendment scopes the blocking check to gated changes. Every other prompt file stays advisory.
 ADR-114 decision 8 keeps an agent verdict advisory in CI. That does not change.
 
 ### 10. Templates and headers
@@ -282,6 +289,17 @@ One skill's rewrite reverts with one PR. The prose it replaced stays in git hist
 The protocol becomes costly to reverse once the decision 9 check and five drivers depend on it.
 Before that point, abandoning the shape costs the pilot's two skills.
 No decision here adds a vendor or a runtime dependency.
+
+## Amendment 2026-11-25
+
+The decision 9 check lands in the PR for issue #7589. Two changes follow.
+
+1. Decision 7 now says a brand-new skill is not a gated change. The owner confirmed this on 2026-11-25.
+   Read literally, the first trigger would block every new driver. The carried floor needs base runs that cannot exist.
+2. Lines that said "until the decision 9 check lands" now describe the landed check.
+   Decision 9 names the script and the CI job. The runner records all four identities.
+
+The debate is `.project-toolkit/critique/ADR-127-debate-log-5.md`.
 
 ## Prior Art Investigation
 
@@ -353,7 +371,8 @@ No decision here adds a vendor or a runtime dependency.
 - Each eval run spends provider credit. `--dry-run` reports 48 calls for the 8 `ship` scenarios at `792f6febd3` (2026-11-25), plus up to 24 resample calls.
 - All 8 `ship` scenarios at `792f6febd3` (2026-11-25) test host detection, mode detection, or the marker check.
   Those steps move into scripts, so the pilot must write new judgment scenarios first.
-- Until the decision 9 check lands, a reviewer is the only enforcement.
+- The decision 9 check cannot prove a model ran. Results provenance stays with the reviewer.
+- A brand-new driver ships with no eval floor. Only the decision 8 tests guard it.
 - ADR-121 records no probe result for Copilot CLI 1.0.109 or Codex 0.167.0.
   A script call is unproven on those two harnesses. The pilot must probe them or say NOT RUN.
 - ADR-110, ADR-112, ADR-114, and ADR-121 are `status: proposed`. This record leans on ADR-121's shipped resolver, not on its acceptance.
@@ -374,8 +393,8 @@ No decision here adds a vendor or a runtime dependency.
 | `tests/evals/<name>-scenarios.json` | One per gated skill, at least 8 scenarios. |
 | `evals/skill-rewrites/<name>/` | New directory. Holds committed run outputs and `retired.json`. |
 | `tests/AGENTS.md` | Its line assigning top-level `evals/` to ADR-058 gains this directory when the pilot lands. |
-| `scripts/eval/eval-prompt-change.py` | Records four identities in its output when the decision 9 check lands. |
-| `scripts/validation/pre_pr.py` | Gains the deterministic evidence check. |
+| `scripts/eval/eval-prompt-change.py` | Records four identities in its output's `identity` block for the decision 9 check. |
+| `scripts/validation/pre_pr.py` | Runs the deterministic evidence check, `check_skill_rewrite_evidence.py`. |
 | Frontmatter validators | Accept `metadata.shape` with two values when the pilot lands. |
 | Copilot CLI mirrors | Regenerated by `build_all.py`. Script calls use the ADR-121 locator. |
 
@@ -387,7 +406,7 @@ No decision here adds a vendor or a runtime dependency.
    Their design draft sits unmerged on branch `refactor/ship-push-pr-pr-creation` (2026-11-25).
    It carries three open owner decisions. This record does not decide them.
 3. Land the decision 9 check and the ADR-057 amendment. No second gated change merges first.
-   It is the first work item after the pilot.
+   The PR for issue #7589 lands both, before step 2's pilot merges.
 4. Each gated change lands through `ship` with its evidence in the PR body.
 
 ## Related Decisions
@@ -397,7 +416,7 @@ No decision here adds a vendor or a runtime dependency.
 | ADR-035 | Kept. Codes 1 to 4 carry the STOP cause. Scripts use no code above 4. |
 | ADR-042 | Kept. Scripts are Python. |
 | ADR-049 | Not superseded here. It names `push-pr`. The `push-pr` retirement PR amends it through `adr-review`. |
-| ADR-057 | Kept at merge: the eval is a MUST, read at review. Amended later by the decision 9 check's change. |
+| ADR-057 | Kept: the eval is a MUST for the author. Its Amendment 2026-11-25 scopes the decision 9 blocking check to gated changes. |
 | ADR-058 | Kept. It governs the agent-versus-baseline eval, which this record does not use. |
 | ADR-103 | Kept, except item 5's color for driver scripts. The result lines are a driver script's `human` format (decision 4 item 12). The pilot's change amends ADR-103 item 5 through `adr-review`. |
 | ADR-064 | Not superseded here. It lists `push-pr`. The retirement PR amends that list. |
@@ -417,6 +436,6 @@ Each named record still holds for a driver skill.
 
 - `.project-toolkit/specs/SPEC-skill-driver-shape.md`
 - `.project-toolkit/analysis/gstack-skill-shape-audit-2026-11-25.md`
-- `.project-toolkit/critique/ADR-127-debate-log.md`, `ADR-127-debate-log-2.md`, `ADR-127-debate-log-3.md`, and `ADR-127-debate-log-4.md` in the same directory
+- `.project-toolkit/critique/ADR-127-debate-log.md`, `ADR-127-debate-log-2.md`, `ADR-127-debate-log-3.md`, `ADR-127-debate-log-4.md`, and `ADR-127-debate-log-5.md` in the same directory
 - `scripts/eval/eval-prompt-change.py`
 - gstack, `github.com/garrytan/gstack` at `ec5d7e6fbd` (2026-11-25): `ship/DRIVER.md`, `lib/ship-phase.ts`, `test/ship-driver.test.ts`

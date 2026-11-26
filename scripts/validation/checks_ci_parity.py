@@ -340,6 +340,39 @@ def validate_memory_placement(repo_root: Path) -> bool:
     )
 
 
+def validate_skill_rewrite_evidence(repo_root: Path) -> bool:
+    """Fail when an ADR-127 gated skill change lacks valid eval evidence.
+
+    Runs the command the ``Check ADR-127 skill rewrite evidence`` step of
+    ``Validate PR`` runs, against the fetched base. It reads the committed
+    range only, as CI does. ADR-127 decision 9; ADR-057 Amendment 2026-11-25.
+    """
+    base_ref = _require_base_ref(repo_root, "skill rewrite evidence check")
+    return _run_workflow_validator(
+        repo_root,
+        "scripts/validation/check_skill_rewrite_evidence.py",
+        "--base-ref",
+        base_ref,
+    )
+
+
+def validate_agent_skill_doc_review(repo_root: Path) -> bool:
+    """Fail when a changed skill or agent has no page edit and no review trailer.
+
+    Runs the command the ``Check agent and skill doc review`` step runs, against
+    the same base. It diffs the working tree from the merge base and reads
+    ``Docs-Reviewed:`` trailers from the commits since the base. Rule
+    ``agent-skill-docs`` MUST 2.
+    """
+    base_ref = _require_base_ref(repo_root, "agent and skill doc review")
+    return _run_workflow_validator(
+        repo_root,
+        "scripts/validation/check_agent_skill_doc_review.py",
+        "--base-ref",
+        base_ref,
+    )
+
+
 def validate_route_scenario_coverage(repo_root: Path) -> bool:
     """Fail when a new or changed autoplan route has no edited scenario.
 

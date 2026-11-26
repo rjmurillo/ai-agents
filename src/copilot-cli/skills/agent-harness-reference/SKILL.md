@@ -33,6 +33,9 @@ the recorded contract is stale.
 4. If a refresh condition applies, update sources, probes, tests, mirrors, and
    memory in the same change.
 5. Mark an absent official answer `DOCS SILENT`. Do not infer it from Claude.
+6. Before a loop edits its own harness (prompts, hooks, skills, agent
+   files), read `references/harness-optimization.md`: the optimization ladder,
+   the seven editable components, and the read-only boundary.
 
 ## Authority Order
 

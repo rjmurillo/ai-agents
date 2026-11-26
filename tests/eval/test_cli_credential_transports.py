@@ -47,6 +47,10 @@ BILLING_ENV = {
     "COPILOT_PROVIDER_API_KEY": "byok-" + "P" * 10,
 }
 
+#: The names in `BILLING_ENV` that Claude Code itself reads. With no
+#: `ANTHROPIC_BASE_URL`, the auth token is a metered api.anthropic.com bearer.
+_CLAUDE_BILLING_ENV = {"ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"}
+
 
 @dataclass
 class Rig:
@@ -287,9 +291,14 @@ def test_billing_env_is_stripped_on_every_step(
 
     env = rig.run(monkeypatch)["env"]
 
+    # The Claude child inherits the parent environment, so only the metered
+    # names Claude Code reads are stripped there. Another vendor's key reaches
+    # it unread, by design (see `_claude_cli`). The other transports still
+    # strip the whole set.
+    stripped = _CLAUDE_BILLING_ENV if rig.name == "claude" else set(BILLING_ENV)
     assert creds.recorded_steps() == [rig.disk_step if step == creds.STEP_DISK else step]
-    assert not set(BILLING_ENV) & set(env)
-    assert not any(value in json.dumps(env) for value in BILLING_ENV.values())
+    assert not stripped & set(env)
+    assert not any(BILLING_ENV[name] in json.dumps(env) for name in stripped)
 
 
 @pytest.mark.parametrize("step", [creds.STEP_ENV, creds.STEP_DOTENV, creds.STEP_DISK])

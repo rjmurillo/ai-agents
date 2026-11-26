@@ -1,0 +1,935 @@
+{
+  "eval_type": "prompt-change",
+  "adr": "ADR-057",
+  "model": "claude-sonnet-5-5",
+  "identity": {
+    "prompt_path": "src/claude/skills/skill-doctor/SKILL.md",
+    "prompt_surface_sha256": "3c34c059fcc94821f1c45b8ba7f9fa5e3da141342abff56147610c0f743060c8",
+    "scenarios_path": "tests/evals/skill-doctor-scenarios.json",
+    "scenarios_sha256": "30b317b230bf46bc8316e7598e713b4eef3da8a63d3afcbe3f4a6c6b8de684be",
+    "base_ref": "origin/main",
+    "base_commit": "565119f4f1ccdf5006010d7798fcffd965dcd814",
+    "model": "claude-sonnet-5-5"
+  },
+  "source": "git: origin/main:src/claude/skills/skill-doctor/SKILL.md -> working copy",
+  "runs_per_scenario": 3,
+  "max_tokens": 1024,
+  "security_critical": false,
+  "transport": {
+    "provider": "claude-cli",
+    "harness": "claude",
+    "payer": "gateway",
+    "credential_steps": [
+      "gateway"
+    ],
+    "endpoint_host": "127.0.0.1:8319"
+  },
+  "comparison": {
+    "before_score": 1.0,
+    "after_score": 1.0,
+    "delta": 0.0,
+    "scenario_count": 10,
+    "scored_scenario_count": 10,
+    "api_calls": 60,
+    "est_tokens": 210000
+  },
+  "gate": {
+    "verdict": "PASS",
+    "passed": true,
+    "security_critical": false,
+    "criteria": {
+      "no_regression": true,
+      "has_improvement": true,
+      "no_unexplained_regressions": true,
+      "no_high_flakiness": true,
+      "no_insufficient_scored_runs": true,
+      "has_stable_baseline": true
+    },
+    "improvements": [],
+    "regressions": [],
+    "flaky_scenarios": [],
+    "base_unstable_scenarios": [],
+    "base_unstable_security_scenarios": [],
+    "excluded_count": 0,
+    "scored_scenario_count": 10,
+    "min_stable_scenarios": 5,
+    "inconclusive_reason": null,
+    "reason_mismatch_scenarios": [
+      "SD9-no-edit-to-installed-skills"
+    ],
+    "not_scored_scenarios": [],
+    "high_flakiness_scenarios": [],
+    "insufficient_scored_scenarios": [],
+    "insufficient_scored_before": [],
+    "required_scored_runs": 3,
+    "before_score": 1.0,
+    "after_score": 1.0,
+    "delta": 0.0
+  },
+  "detail": {
+    "before": [
+      {
+        "scenario_id": "SD1-coverage-when-no-skills-found",
+        "passes": 3,
+        "runs": 3,
+        "requested_runs": 3,
+        "not_scored_runs": 0,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "reason_mismatch_runs": 0,
+        "per_run": [
+          {
+            "verdict": "COVERAGE_ZERO",
+            "reason": "Per Step 3, if skills_found is 0, skill_coverage is 0, and Step 1 says to continue with skill_coverage set to 0. The run is not stopped, and no half value applies.",
+            "raw": "{\"verdict\": \"COVERAGE_ZERO\", \"reason\": \"Per Step 3, if skills_found is 0, skill_coverage is 0, and Step 1 says to continue with skill_coverage set to 0. The run is not stopped, and no half value applies.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "COVERAGE_ZERO",
+            "reason": "The instructions state that if skills_found is 0, the run continues with skill_coverage set to 0 (coverage is 0 when no skills are found). The run does not stop, and 0.5 is only a fallback for rubric means lacking evidence, not for skill_coverage.",
+            "raw": "{\"verdict\": \"COVERAGE_ZERO\", \"reason\": \"The instructions state that if skills_found is 0, the run continues with skill_coverage set to 0 (coverage is 0 when no skills are found). The run does not stop, and 0.5 is only a fallback for rubric means lacking evidence, not for skill_coverage.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "COVERAGE_ZERO",
+            "reason": "The instructions state that if skills_found is 0, the run continues with skill_coverage set to 0 (coverage is 0 when no skills are installed). Sessions are still scored and the run does not stop; only sessions_sampled of 0 would stop it.",
+            "raw": "{\"verdict\": \"COVERAGE_ZERO\", \"reason\": \"The instructions state that if skills_found is 0, the run continues with skill_coverage set to 0 (coverage is 0 when no skills are installed). Sessions are still scored and the run does not stop; only sessions_sampled of 0 would stop it.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          }
+        ]
+      },
+      {
+        "scenario_id": "SD2-no-code-quality-evidence",
+        "passes": 3,
+        "runs": 3,
+        "requested_runs": 3,
+        "not_scored_runs": 0,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "reason_mismatch_runs": 0,
+        "per_run": [
+          {
+            "verdict": "SET_HALF_AND_NOTE_IN_FINDINGS",
+            "reason": "Step 3 says that if no session had enough evidence for code quality, raw_code_quality is set to 0.5 and the findings must say so. Insufficient_evidence results are excluded from the mean, and the dimension is neither zeroed nor omitted.",
+            "raw": "{\"verdict\": \"SET_HALF_AND_NOTE_IN_FINDINGS\", \"reason\": \"Step 3 says that if no session had enough evidence for code quality, raw_code_quality is set to 0.5 and the findings must say so. Insufficient_evidence results are excluded from the mean, and the dimension is neither zeroed nor omitted.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "SET_HALF_AND_NOTE_IN_FINDINGS",
+            "reason": "Step 3 says that when no session had enough code-quality evidence, raw_code_quality is set to 0.5 and the findings must say so. Zero would penalize the grade without evidence, and omitting the dimension would break the overall formula.",
+            "raw": "{\"verdict\": \"SET_HALF_AND_NOTE_IN_FINDINGS\", \"reason\": \"Step 3 says that when no session had enough code-quality evidence, raw_code_quality is set to 0.5 and the findings must say so. Zero would penalize the grade without evidence, and omitting the dimension would break the overall formula.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "SET_HALF_AND_NOTE_IN_FINDINGS",
+            "reason": "Step 3 says that if no session had enough evidence for code quality, raw_code_quality is set to 0.5 and the findings must say so. The dimension is not set to zero or omitted, and insufficient_evidence results are excluded from the mean.",
+            "raw": "{\"verdict\": \"SET_HALF_AND_NOTE_IN_FINDINGS\", \"reason\": \"Step 3 says that if no session had enough evidence for code quality, raw_code_quality is set to 0.5 and the findings must say so. The dimension is not set to zero or omitted, and insufficient_evidence results are excluded from the mean.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          }
+        ]
+      },
+      {
+        "scenario_id": "SD3-curve-a-raw-mean",
+        "passes": 3,
+        "runs": 3,
+        "requested_runs": 3,
+        "not_scored_runs": 0,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "reason_mismatch_runs": 0,
+        "per_run": [
+          {
+            "verdict": "REPORT_0_80",
+            "reason": "The instructions define efficiency = curve(raw_efficiency) with curve(score) = 0.5 + 0.5 * score. With raw_efficiency 0.6, the report shows 0.5 + 0.5 * 0.6 = 0.8. The raw mean (0.6) never goes in the report scores.",
+            "raw": "{\"verdict\": \"REPORT_0_80\", \"reason\": \"The instructions define efficiency = curve(raw_efficiency) with curve(score) = 0.5 + 0.5 * score. With raw_efficiency 0.6, the report shows 0.5 + 0.5 * 0.6 = 0.8. The raw mean (0.6) never goes in the report scores.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "REPORT_0_80",
+            "reason": "The skill defines efficiency = curve(raw_efficiency) with curve(score) = 0.5 + 0.5 * score. For raw_efficiency 0.6 this gives 0.5 + 0.3 = 0.8. The report shows the curved value, never the raw mean.",
+            "raw": "{\"verdict\": \"REPORT_0_80\", \"reason\": \"The skill defines efficiency = curve(raw_efficiency) with curve(score) = 0.5 + 0.5 * score. For raw_efficiency 0.6 this gives 0.5 + 0.3 = 0.8. The report shows the curved value, never the raw mean.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "REPORT_0_80",
+            "reason": "The skill defines efficiency = curve(raw_efficiency) with curve(score) = 0.5 + 0.5 * score. For a raw mean of 0.6 this gives 0.5 + 0.3 = 0.8, so the report shows the curved value, not the raw mean.",
+            "raw": "{\"verdict\": \"REPORT_0_80\", \"reason\": \"The skill defines efficiency = curve(raw_efficiency) with curve(score) = 0.5 + 0.5 * score. For a raw mean of 0.6 this gives 0.5 + 0.3 = 0.8, so the report shows the curved value, not the raw mean.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          }
+        ]
+      },
+      {
+        "scenario_id": "SD4-weighted-overall",
+        "passes": 3,
+        "runs": 3,
+        "requested_runs": 3,
+        "not_scored_runs": 0,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "reason_mismatch_runs": 0,
+        "per_run": [
+          {
+            "verdict": "OVERALL_0_85",
+            "reason": "overall = 0.25*1.0 + 0.25*1.0 + 0.2*1.0 + 0.15*1.0 + 0.15*0 = 0.25 + 0.25 + 0.2 + 0.15 = 0.85.",
+            "raw": "{\"verdict\": \"OVERALL_0_85\", \"reason\": \"overall = 0.25*1.0 + 0.25*1.0 + 0.2*1.0 + 0.15*1.0 + 0.15*0 = 0.25 + 0.25 + 0.2 + 0.15 = 0.85.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "OVERALL_0_85",
+            "reason": "overall = 0.25*1.0 + 0.25*1.0 + 0.2*1.0 + 0.15*1.0 + 0.15*0 = 0.25 + 0.25 + 0.2 + 0.15 = 0.85.",
+            "raw": "{\"verdict\": \"OVERALL_0_85\", \"reason\": \"overall = 0.25*1.0 + 0.25*1.0 + 0.2*1.0 + 0.15*1.0 + 0.15*0 = 0.25 + 0.25 + 0.2 + 0.15 = 0.85.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "OVERALL_0_85",
+            "reason": "overall = 0.25*1.0 + 0.25*1.0 + 0.2*1.0 + 0.15*1.0 + 0.15*0 = 0.85. The four curved dimensions sum to weights 0.85 and skill_coverage contributes 0.",
+            "raw": "{\"verdict\": \"OVERALL_0_85\", \"reason\": \"overall = 0.25*1.0 + 0.25*1.0 + 0.2*1.0 + 0.15*1.0 + 0.15*0 = 0.85. The four curved dimensions sum to weights 0.85 and skill_coverage contributes 0.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          }
+        ]
+      },
+      {
+        "scenario_id": "SD5-per-harness-overall-stays-separate",
+        "passes": 3,
+        "runs": 3,
+        "requested_runs": 3,
+        "not_scored_runs": 0,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "reason_mismatch_runs": 0,
+        "per_run": [
+          {
+            "verdict": "REPORT_BESIDE_NOT_AVERAGED",
+            "reason": "Step 3 says to compute each harness's overall from its own sessions and report it next to the combined overall; these per-harness values are never averaged back into the combined overall.",
+            "raw": "{\"verdict\": \"REPORT_BESIDE_NOT_AVERAGED\", \"reason\": \"Step 3 says to compute each harness's overall from its own sessions and report it next to the combined overall; these per-harness values are never averaged back into the combined overall.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "REPORT_BESIDE_NOT_AVERAGED",
+            "reason": "Step 3 says to compute each harness's overall from its own sessions using the same formulas, report it next to the combined overall, and never average it back into the combined value.",
+            "raw": "{\"verdict\": \"REPORT_BESIDE_NOT_AVERAGED\", \"reason\": \"Step 3 says to compute each harness's overall from its own sessions using the same formulas, report it next to the combined overall, and never average it back into the combined value.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "REPORT_BESIDE_NOT_AVERAGED",
+            "reason": "Step 3 says to compute each harness's overall from its own sessions and report it next to the combined overall; the per-harness values are never averaged back into the combined overall and are not dropped.",
+            "raw": "{\"verdict\": \"REPORT_BESIDE_NOT_AVERAGED\", \"reason\": \"Step 3 says to compute each harness's overall from its own sessions and report it next to the combined overall; the per-harness values are never averaged back into the combined overall and are not dropped.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          }
+        ]
+      },
+      {
+        "scenario_id": "SD6-harness-without-scored-sessions",
+        "passes": 3,
+        "runs": 3,
+        "requested_runs": 3,
+        "not_scored_runs": 0,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "reason_mismatch_runs": 0,
+        "per_run": [
+          {
+            "verdict": "NO_OVERALL_FOR_THAT_HARNESS",
+            "reason": "The instructions state that a harness with no scored session gets no `overall`. Per-harness overall is computed only from that harness's scored sessions, and is never averaged or copied from the combined overall. Zero is not a valid substitute because it would imply a measured result that does not exist.",
+            "raw": "{\"verdict\": \"NO_OVERALL_FOR_THAT_HARNESS\", \"reason\": \"The instructions state that a harness with no scored session gets no `overall`. Per-harness overall is computed only from that harness's scored sessions, and is never averaged or copied from the combined overall. Zero is not a valid substitute because it would imply a measured result that does not exist.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "NO_OVERALL_FOR_THAT_HARNESS",
+            "reason": "The instructions state that a harness with no scored session gets no `overall`. Per-harness overalls are computed only from that harness's scored sessions and are never averaged into or copied from the combined overall, and a zero would falsely imply a measured score.",
+            "raw": "{\"verdict\": \"NO_OVERALL_FOR_THAT_HARNESS\", \"reason\": \"The instructions state that a harness with no scored session gets no `overall`. Per-harness overalls are computed only from that harness's scored sessions and are never averaged into or copied from the combined overall, and a zero would falsely imply a measured score.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "NO_OVERALL_FOR_THAT_HARNESS",
+            "reason": "The instructions state that a harness with no scored session gets no `overall`. Per-harness overall values are computed only from that harness's own scored sessions and are never copied from or averaged back into the combined overall. Setting it to zero would invent a score with no evidence.",
+            "raw": "{\"verdict\": \"NO_OVERALL_FOR_THAT_HARNESS\", \"reason\": \"The instructions state that a harness with no scored session gets no `overall`. Per-harness overall values are computed only from that harness's own scored sessions and are never copied from or averaged back into the combined overall. Setting it to zero would invent a score with no evidence.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          }
+        ]
+      },
+      {
+        "scenario_id": "SD7-aggregates-come-from-the-script",
+        "passes": 3,
+        "runs": 3,
+        "requested_runs": 3,
+        "not_scored_runs": 0,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "reason_mismatch_runs": 0,
+        "per_run": [
+          {
+            "verdict": "RUN_AUDIT_SCORES_SCRIPT",
+            "reason": "Step 3 says to compute the aggregates with audit_scores.py instead of by hand. It validates the rubric labels and scores and produces the means, curved scores, and weighted overall in score_artifact.json, which assemble_report.py and the renderer later check against the scorecard.",
+            "raw": "{\"verdict\": \"RUN_AUDIT_SCORES_SCRIPT\", \"reason\": \"Step 3 says to compute the aggregates with audit_scores.py instead of by hand. It validates the rubric labels and scores and produces the means, curved scores, and weighted overall in score_artifact.json, which assemble_report.py and the renderer later check against the scorecard.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "RUN_AUDIT_SCORES_SCRIPT",
+            "reason": "Step 3 says to compute the aggregates with audit_scores.py instead of by hand. The script validates labels against rubric values and computes the means, curved scores, overall, and failed_conversations consistently. Its score_artifact.json is also what assemble_report.py and the renderer check against, so hand-computed numbers would be rejected.",
+            "raw": "{\"verdict\": \"RUN_AUDIT_SCORES_SCRIPT\", \"reason\": \"Step 3 says to compute the aggregates with audit_scores.py instead of by hand. The script validates labels against rubric values and computes the means, curved scores, overall, and failed_conversations consistently. Its score_artifact.json is also what assemble_report.py and the renderer check against, so hand-computed numbers would be rejected.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "RUN_AUDIT_SCORES_SCRIPT",
+            "reason": "Step 3 says to compute the aggregates with audit_scores.py instead of by hand. The script validates labels, reasons, and session ids, and writes score_artifact.json, which assemble_report.py and the renderer later check against. Hand arithmetic would risk mismatches and failed validation.",
+            "raw": "{\"verdict\": \"RUN_AUDIT_SCORES_SCRIPT\", \"reason\": \"Step 3 says to compute the aggregates with audit_scores.py instead of by hand. The script validates labels, reasons, and session ids, and writes score_artifact.json, which assemble_report.py and the renderer later check against. Hand arithmetic would risk mismatches and failed validation.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          }
+        ]
+      },
+      {
+        "scenario_id": "SD8-failed-conversation-uses-raw-scores",
+        "passes": 3,
+        "runs": 3,
+        "requested_runs": 3,
+        "not_scored_runs": 0,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "reason_mismatch_runs": 0,
+        "per_run": [
+          {
+            "verdict": "FAILED_CONVERSATION",
+            "reason": "Failure is defined on raw, uncurved scorer results: a conversation fails when at least one applicable score is below 0.5. The raw code-quality score of 0.4 is below 0.5, so the conversation counts in failed_conversations. The curved value of 0.7 and the other raw scores of 0.9 do not change that, and no provider termination or insufficient_evidence exclusion applies.",
+            "raw": "{\"verdict\": \"FAILED_CONVERSATION\", \"reason\": \"Failure is defined on raw, uncurved scorer results: a conversation fails when at least one applicable score is below 0.5. The raw code-quality score of 0.4 is below 0.5, so the conversation counts in failed_conversations. The curved value of 0.7 and the other raw scores of 0.9 do not change that, and no provider termination or insufficient_evidence exclusion applies.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "FAILED_CONVERSATION",
+            "reason": "Failure is defined on raw, uncurved scorer results: a conversation fails when at least one applicable score is below 0.5. The raw code-quality score of 0.4 is below 0.5, so the conversation counts in failed_conversations. The curved value of 0.7 is irrelevant, and no provider termination or insufficient_evidence exemption applies.",
+            "raw": "{\"verdict\": \"FAILED_CONVERSATION\", \"reason\": \"Failure is defined on raw, uncurved scorer results: a conversation fails when at least one applicable score is below 0.5. The raw code-quality score of 0.4 is below 0.5, so the conversation counts in failed_conversations. The curved value of 0.7 is irrelevant, and no provider termination or insufficient_evidence exemption applies.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "FAILED_CONVERSATION",
+            "reason": "Failure is defined on raw, uncurved scorer results: a conversation fails when at least one applicable score is below 0.5. The raw code-quality score of 0.4 is below 0.5, so it fails regardless of its curved value of 0.7 or the other scores of 0.9. No insufficient_evidence or provider-termination exemption applies.",
+            "raw": "{\"verdict\": \"FAILED_CONVERSATION\", \"reason\": \"Failure is defined on raw, uncurved scorer results: a conversation fails when at least one applicable score is below 0.5. The raw code-quality score of 0.4 is below 0.5, so it fails regardless of its curved value of 0.7 or the other scores of 0.9. No insufficient_evidence or provider-termination exemption applies.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          }
+        ]
+      },
+      {
+        "scenario_id": "SD9-no-edit-to-installed-skills",
+        "passes": 3,
+        "runs": 3,
+        "requested_runs": 3,
+        "not_scored_runs": 0,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "reason_mismatch_runs": 1,
+        "per_run": [
+          {
+            "verdict": "DRAFT_IN_REPORT_ONLY",
+            "reason": "skill-doctor is diagnosis only. It writes drafts under $REPORT_DIR/proposed/ and a diff in the report, keeps every candidate 'unevaluated', and supplies handoff prompts. It never edits installed skill files or starts skillopt/skillforge, even if the file is writable and the user is absent. The user decides the next action.",
+            "raw": "{\"verdict\": \"DRAFT_IN_REPORT_ONLY\", \"reason\": \"skill-doctor is diagnosis only. It writes drafts under $REPORT_DIR/proposed/ and a diff in the report, keeps every candidate 'unevaluated', and supplies handoff prompts. It never edits installed skill files or starts skillopt/skillforge, even if the file is writable and the user is absent. The user decides the next action.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "DRAFT_IN_REPORT_ONLY",
+            "reason": "The skill diagnoses only. Proposed edits are written under $REPORT_DIR/proposed/ and shown in the report as unevaluated candidates with handoff prompts. It never edits installed skill files, even when they are writable, and never starts skillopt or skillforge. The user chooses the next action.",
+            "raw": "{\"verdict\": \"DRAFT_IN_REPORT_ONLY\", \"reason\": \"The skill diagnoses only. Proposed edits are written under $REPORT_DIR/proposed/ and shown in the report as unevaluated candidates with handoff prompts. It never edits installed skill files, even when they are writable, and never starts skillopt or skillforge. The user chooses the next action.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": false,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "DRAFT_IN_REPORT_ONLY",
+            "reason": "The skill-doctor instructions say it is diagnosis only. It writes drafts under $REPORT_DIR/proposed/ and a diff in the report, leaves every candidate as unevaluated, and never edits installed skill files or starts skillopt or skillforge. The user picks the next action, so a writable file and an absent user do not change that.",
+            "raw": "{\"verdict\": \"DRAFT_IN_REPORT_ONLY\", \"reason\": \"The skill-doctor instructions say it is diagnosis only. It writes drafts under $REPORT_DIR/proposed/ and a diff in the report, leaves every candidate as unevaluated, and never edits installed skill files or starts skillopt or skillforge. The user picks the next action, so a writable file and an absent user do not change that.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          }
+        ]
+      },
+      {
+        "scenario_id": "SD10-new-skill-candidate-routing",
+        "passes": 3,
+        "runs": 3,
+        "requested_runs": 3,
+        "not_scored_runs": 0,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "reason_mismatch_runs": 0,
+        "per_run": [
+          {
+            "verdict": "ROUTE_TO_SKILLFORGE_FIRST",
+            "reason": "A new-skill candidate has no existing skill file, and skillopt can only baseline and patch an existing skill. Per the skill-improvement guidelines, the renderer gives new-skill candidates a routing note that sends them through skillforge first. The candidate stays unevaluated and is not dropped.",
+            "raw": "{\"verdict\": \"ROUTE_TO_SKILLFORGE_FIRST\", \"reason\": \"A new-skill candidate has no existing skill file, and skillopt can only baseline and patch an existing skill. Per the skill-improvement guidelines, the renderer gives new-skill candidates a routing note that sends them through skillforge first. The candidate stays unevaluated and is not dropped.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "ROUTE_TO_SKILLFORGE_FIRST",
+            "reason": "Skillopt can only baseline and patch an existing skill. A new-skill candidate has no existing target file, so the renderer gives it a routing note that sends it through skillforge first. The candidate is kept as unevaluated, not dropped.",
+            "raw": "{\"verdict\": \"ROUTE_TO_SKILLFORGE_FIRST\", \"reason\": \"Skillopt can only baseline and patch an existing skill. A new-skill candidate has no existing target file, so the renderer gives it a routing note that sends it through skillforge first. The candidate is kept as unevaluated, not dropped.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "ROUTE_TO_SKILLFORGE_FIRST",
+            "reason": "A new-skill candidate has no existing target file, so skillopt (which can only baseline and patch an existing skill) cannot evaluate it. The skill-improvements guidelines say new-skill candidates route through skillforge first, and the renderer writes that routing note in place of a skillopt run. The candidate is not dropped: every supported finding stays visible with status unevaluated.",
+            "raw": "{\"verdict\": \"ROUTE_TO_SKILLFORGE_FIRST\", \"reason\": \"A new-skill candidate has no existing target file, so skillopt (which can only baseline and patch an existing skill) cannot evaluate it. The skill-improvements guidelines say new-skill candidates route through skillforge first, and the renderer writes that routing note in place of a skillopt run. The candidate is not dropped: every supported finding stays visible with status unevaluated.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          }
+        ]
+      }
+    ],
+    "after": [
+      {
+        "scenario_id": "SD1-coverage-when-no-skills-found",
+        "passes": 3,
+        "runs": 3,
+        "requested_runs": 3,
+        "not_scored_runs": 0,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "reason_mismatch_runs": 0,
+        "per_run": [
+          {
+            "verdict": "COVERAGE_ZERO",
+            "reason": "The instructions state that if skills_found is 0, the run continues with skill_coverage set to 0 (and the aggregate formulas say coverage is 0 in that case). Sessions were sampled, so there is no reason to stop.",
+            "raw": "{\"verdict\": \"COVERAGE_ZERO\", \"reason\": \"The instructions state that if skills_found is 0, the run continues with skill_coverage set to 0 (and the aggregate formulas say coverage is 0 in that case). Sessions were sampled, so there is no reason to stop.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "COVERAGE_ZERO",
+            "reason": "Per the aggregate formulas, if skills_found is 0, skill_coverage is 0. Step 1 says to continue with skill_coverage set to 0 rather than stop. The run only stops when sessions_sampled is 0, and 12 sessions were sampled here.",
+            "raw": "{\"verdict\": \"COVERAGE_ZERO\", \"reason\": \"Per the aggregate formulas, if skills_found is 0, skill_coverage is 0. Step 1 says to continue with skill_coverage set to 0 rather than stop. The run only stops when sessions_sampled is 0, and 12 sessions were sampled here.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "COVERAGE_ZERO",
+            "reason": "The instructions say that if skills_found is 0, the run continues with skill_coverage set to 0. The aggregate formulas repeat this: if skills_found is 0, coverage is 0. The run does not stop, and no fractional value applies.",
+            "raw": "{\"verdict\": \"COVERAGE_ZERO\", \"reason\": \"The instructions say that if skills_found is 0, the run continues with skill_coverage set to 0. The aggregate formulas repeat this: if skills_found is 0, coverage is 0. The run does not stop, and no fractional value applies.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          }
+        ]
+      },
+      {
+        "scenario_id": "SD2-no-code-quality-evidence",
+        "passes": 3,
+        "runs": 3,
+        "requested_runs": 3,
+        "not_scored_runs": 0,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "reason_mismatch_runs": 0,
+        "per_run": [
+          {
+            "verdict": "SET_HALF_AND_NOTE_IN_FINDINGS",
+            "reason": "The aggregate formulas state that raw_code_quality excludes insufficient_evidence results, and if no session had enough evidence it is set to 0.5 with that stated in the findings. The dimension is not set to zero or omitted, since the curve and weighted overall still need a value.",
+            "raw": "{\"verdict\": \"SET_HALF_AND_NOTE_IN_FINDINGS\", \"reason\": \"The aggregate formulas state that raw_code_quality excludes insufficient_evidence results, and if no session had enough evidence it is set to 0.5 with that stated in the findings. The dimension is not set to zero or omitted, since the curve and weighted overall still need a value.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "SET_HALF_AND_NOTE_IN_FINDINGS",
+            "reason": "The aggregate formulas say raw_code_quality excludes insufficient_evidence results, and if no session had enough evidence it is set to 0.5 and the findings must say so. It is neither zeroed nor omitted.",
+            "raw": "{\"verdict\": \"SET_HALF_AND_NOTE_IN_FINDINGS\", \"reason\": \"The aggregate formulas say raw_code_quality excludes insufficient_evidence results, and if no session had enough evidence it is set to 0.5 and the findings must say so. It is neither zeroed nor omitted.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "SET_HALF_AND_NOTE_IN_FINDINGS",
+            "reason": "The aggregate formulas state that raw_code_quality is the mean of code-quality scores excluding insufficient_evidence, and if no session had enough evidence it is set to 0.5 and the findings say so. It is neither zeroed nor omitted.",
+            "raw": "{\"verdict\": \"SET_HALF_AND_NOTE_IN_FINDINGS\", \"reason\": \"The aggregate formulas state that raw_code_quality is the mean of code-quality scores excluding insufficient_evidence, and if no session had enough evidence it is set to 0.5 and the findings say so. It is neither zeroed nor omitted.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          }
+        ]
+      },
+      {
+        "scenario_id": "SD3-curve-a-raw-mean",
+        "passes": 3,
+        "runs": 3,
+        "requested_runs": 3,
+        "not_scored_runs": 0,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "reason_mismatch_runs": 0,
+        "per_run": [
+          {
+            "verdict": "REPORT_0_80",
+            "reason": "The skill's aggregate formulas define efficiency = curve(raw_efficiency) with curve(score) = 0.5 + 0.5 * score, so a raw mean of 0.6 becomes 0.5 + 0.3 = 0.8. Raw rubric means never go in the report's scores.",
+            "raw": "{\"verdict\": \"REPORT_0_80\", \"reason\": \"The skill's aggregate formulas define efficiency = curve(raw_efficiency) with curve(score) = 0.5 + 0.5 * score, so a raw mean of 0.6 becomes 0.5 + 0.3 = 0.8. Raw rubric means never go in the report's scores.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "REPORT_0_80",
+            "reason": "The instructions define efficiency = curve(raw_efficiency) with curve(score) = 0.5 + 0.5 * score. For a raw mean of 0.6 this gives 0.5 + 0.3 = 0.8. The raw rubric mean (0.6) must never be placed in the report's scores.",
+            "raw": "{\"verdict\": \"REPORT_0_80\", \"reason\": \"The instructions define efficiency = curve(raw_efficiency) with curve(score) = 0.5 + 0.5 * score. For a raw mean of 0.6 this gives 0.5 + 0.3 = 0.8. The raw rubric mean (0.6) must never be placed in the report's scores.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "REPORT_0_80",
+            "reason": "The skill defines efficiency = curve(raw_efficiency) with curve(score) = 0.5 + 0.5 * score. For a raw mean of 0.6 this gives 0.5 + 0.3 = 0.8. The report shows the curved value, never the raw mean.",
+            "raw": "{\"verdict\": \"REPORT_0_80\", \"reason\": \"The skill defines efficiency = curve(raw_efficiency) with curve(score) = 0.5 + 0.5 * score. For a raw mean of 0.6 this gives 0.5 + 0.3 = 0.8. The report shows the curved value, never the raw mean.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          }
+        ]
+      },
+      {
+        "scenario_id": "SD4-weighted-overall",
+        "passes": 3,
+        "runs": 3,
+        "requested_runs": 3,
+        "not_scored_runs": 0,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "reason_mismatch_runs": 0,
+        "per_run": [
+          {
+            "verdict": "OVERALL_0_85",
+            "reason": "overall = 0.25*1.0 + 0.25*1.0 + 0.2*1.0 + 0.15*1.0 + 0.15*0 = 0.85. The four dimensions sum to 0.85 weight and skill_coverage contributes 0 at 0 coverage.",
+            "raw": "{\"verdict\": \"OVERALL_0_85\", \"reason\": \"overall = 0.25*1.0 + 0.25*1.0 + 0.2*1.0 + 0.15*1.0 + 0.15*0 = 0.85. The four dimensions sum to 0.85 weight and skill_coverage contributes 0 at 0 coverage.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "OVERALL_0_85",
+            "reason": "overall = 0.25*1.0 + 0.25*1.0 + 0.2*1.0 + 0.15*1.0 + 0.15*0 = 0.85. The four curved dimensions total weight 0.85, and skill_coverage of 0 contributes nothing.",
+            "raw": "{\"verdict\": \"OVERALL_0_85\", \"reason\": \"overall = 0.25*1.0 + 0.25*1.0 + 0.2*1.0 + 0.15*1.0 + 0.15*0 = 0.85. The four curved dimensions total weight 0.85, and skill_coverage of 0 contributes nothing.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "OVERALL_0_85",
+            "reason": "overall = 0.25*1.0 + 0.25*1.0 + 0.2*1.0 + 0.15*1.0 + 0.15*0 = 0.25 + 0.25 + 0.20 + 0.15 + 0 = 0.85.",
+            "raw": "{\"verdict\": \"OVERALL_0_85\", \"reason\": \"overall = 0.25*1.0 + 0.25*1.0 + 0.2*1.0 + 0.15*1.0 + 0.15*0 = 0.25 + 0.25 + 0.20 + 0.15 + 0 = 0.85.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          }
+        ]
+      },
+      {
+        "scenario_id": "SD5-per-harness-overall-stays-separate",
+        "passes": 3,
+        "runs": 3,
+        "requested_runs": 3,
+        "not_scored_runs": 0,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "reason_mismatch_runs": 0,
+        "per_run": [
+          {
+            "verdict": "REPORT_BESIDE_NOT_AVERAGED",
+            "reason": "The skill's aggregate formulas state that for each harness with scored sessions, audit_scores.py computes a per-harness overall from that harness's sessions only. These are reported next to the combined overall and are never averaged back into it.",
+            "raw": "{\"verdict\": \"REPORT_BESIDE_NOT_AVERAGED\", \"reason\": \"The skill's aggregate formulas state that for each harness with scored sessions, audit_scores.py computes a per-harness overall from that harness's sessions only. These are reported next to the combined overall and are never averaged back into it.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "REPORT_BESIDE_NOT_AVERAGED",
+            "reason": "The skill's aggregate formulas say that each harness with scored sessions gets its own overall, computed from that harness's sessions only. It is reported next to the combined overall and is never averaged back into it. The combined overall comes from the pooled curved dimension means and skill_coverage.",
+            "raw": "{\"verdict\": \"REPORT_BESIDE_NOT_AVERAGED\", \"reason\": \"The skill's aggregate formulas say that each harness with scored sessions gets its own overall, computed from that harness's sessions only. It is reported next to the combined overall and is never averaged back into it. The combined overall comes from the pooled curved dimension means and skill_coverage.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "REPORT_BESIDE_NOT_AVERAGED",
+            "reason": "The audit workflow states that for each harness with scored sessions, the script computes that harness's overall from its own sessions only, and that these are reported next to the combined overall but never averaged back into it.",
+            "raw": "{\"verdict\": \"REPORT_BESIDE_NOT_AVERAGED\", \"reason\": \"The audit workflow states that for each harness with scored sessions, the script computes that harness's overall from its own sessions only, and that these are reported next to the combined overall but never averaged back into it.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          }
+        ]
+      },
+      {
+        "scenario_id": "SD6-harness-without-scored-sessions",
+        "passes": 3,
+        "runs": 3,
+        "requested_runs": 3,
+        "not_scored_runs": 0,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "reason_mismatch_runs": 0,
+        "per_run": [
+          {
+            "verdict": "NO_OVERALL_FOR_THAT_HARNESS",
+            "reason": "The instructions state that a harness with no scored session gets no overall. Per-harness overall is computed only from that harness's scored sessions, and it is never filled with a zero or copied from the combined overall.",
+            "raw": "{\"verdict\": \"NO_OVERALL_FOR_THAT_HARNESS\", \"reason\": \"The instructions state that a harness with no scored session gets no overall. Per-harness overall is computed only from that harness's scored sessions, and it is never filled with a zero or copied from the combined overall.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "NO_OVERALL_FOR_THAT_HARNESS",
+            "reason": "The skill states that a harness with no scored session gets no `overall`. Per-harness overall is computed only from that harness's scored sessions, and it is never copied from or averaged back into the combined overall. Sampled sessions without scored results do not qualify, so the report omits the overall for that harness rather than showing zero or the combined value.",
+            "raw": "{\"verdict\": \"NO_OVERALL_FOR_THAT_HARNESS\", \"reason\": \"The skill states that a harness with no scored session gets no `overall`. Per-harness overall is computed only from that harness's scored sessions, and it is never copied from or averaged back into the combined overall. Sampled sessions without scored results do not qualify, so the report omits the overall for that harness rather than showing zero or the combined value.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "NO_OVERALL_FOR_THAT_HARNESS",
+            "reason": "The skill states that a harness with no scored session gets no overall. A per-harness overall is computed only from that harness's own scored sessions, and it is never copied from or averaged back into the combined overall, so the report omits it rather than showing zero or the combined value.",
+            "raw": "{\"verdict\": \"NO_OVERALL_FOR_THAT_HARNESS\", \"reason\": \"The skill states that a harness with no scored session gets no overall. A per-harness overall is computed only from that harness's own scored sessions, and it is never copied from or averaged back into the combined overall, so the report omits it rather than showing zero or the combined value.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          }
+        ]
+      },
+      {
+        "scenario_id": "SD7-aggregates-come-from-the-script",
+        "passes": 3,
+        "runs": 3,
+        "requested_runs": 3,
+        "not_scored_runs": 0,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "reason_mismatch_runs": 0,
+        "per_run": [
+          {
+            "verdict": "RUN_AUDIT_SCORES_SCRIPT",
+            "reason": "Step 3 says to compute the aggregates with audit_scores.py instead of by hand. The script validates scores.json, applies the curve, skill_coverage, and weighted overall formulas, and writes score_artifact.json, which assemble_report.py and render_report.py later check against the scorecard.",
+            "raw": "{\"verdict\": \"RUN_AUDIT_SCORES_SCRIPT\", \"reason\": \"Step 3 says to compute the aggregates with audit_scores.py instead of by hand. The script validates scores.json, applies the curve, skill_coverage, and weighted overall formulas, and writes score_artifact.json, which assemble_report.py and render_report.py later check against the scorecard.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "RUN_AUDIT_SCORES_SCRIPT",
+            "reason": "Step 3 says to compute the aggregates with audit_scores.py instead of by hand. The script validates the rubric results and computes the curved dimension means, skill_coverage, the weighted overall, and per-harness overalls, and assemble_report.py later checks the artifact against its own recomputation.",
+            "raw": "{\"verdict\": \"RUN_AUDIT_SCORES_SCRIPT\", \"reason\": \"Step 3 says to compute the aggregates with audit_scores.py instead of by hand. The script validates the rubric results and computes the curved dimension means, skill_coverage, the weighted overall, and per-harness overalls, and assemble_report.py later checks the artifact against its own recomputation.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "RUN_AUDIT_SCORES_SCRIPT",
+            "reason": "Step 3 says to compute the aggregates with audit_scores.py instead of by hand. The script validates scores.json and computes the curved dimension means, skill_coverage, the weighted overall, and per-harness overalls, writing score_artifact.json.",
+            "raw": "{\"verdict\": \"RUN_AUDIT_SCORES_SCRIPT\", \"reason\": \"Step 3 says to compute the aggregates with audit_scores.py instead of by hand. The script validates scores.json and computes the curved dimension means, skill_coverage, the weighted overall, and per-harness overalls, writing score_artifact.json.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          }
+        ]
+      },
+      {
+        "scenario_id": "SD8-failed-conversation-uses-raw-scores",
+        "passes": 3,
+        "runs": 3,
+        "requested_runs": 3,
+        "not_scored_runs": 0,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "reason_mismatch_runs": 0,
+        "per_run": [
+          {
+            "verdict": "FAILED_CONVERSATION",
+            "reason": "Step 3 defines failed_conversations from each conversation's raw, uncurved scorer results. A conversation fails when at least one applicable score is below 0.5. The raw code-quality score of 0.4 is below 0.5, so the conversation fails, even though the curved value of 0.7 is above 0.5. Nothing in the scenario says the session ended at a provider cutoff or that the score is insufficient_evidence, so neither exclusion applies.",
+            "raw": "{\"verdict\": \"FAILED_CONVERSATION\", \"reason\": \"Step 3 defines failed_conversations from each conversation's raw, uncurved scorer results. A conversation fails when at least one applicable score is below 0.5. The raw code-quality score of 0.4 is below 0.5, so the conversation fails, even though the curved value of 0.7 is above 0.5. Nothing in the scenario says the session ended at a provider cutoff or that the score is insufficient_evidence, so neither exclusion applies.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "FAILED_CONVERSATION",
+            "reason": "Step 3 defines failed_conversations from raw, uncurved scorer results: a conversation fails when at least one applicable score is below 0.5. The raw code-quality score of 0.4 is below 0.5, so the conversation fails regardless of its curved value of 0.7. The curve applies only to the report-level dimension means, not to the failure filter.",
+            "raw": "{\"verdict\": \"FAILED_CONVERSATION\", \"reason\": \"Step 3 defines failed_conversations from raw, uncurved scorer results: a conversation fails when at least one applicable score is below 0.5. The raw code-quality score of 0.4 is below 0.5, so the conversation fails regardless of its curved value of 0.7. The curve applies only to the report-level dimension means, not to the failure filter.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "FAILED_CONVERSATION",
+            "reason": "Step 3 defines failed_conversations from each conversation's raw, uncurved scorer results: a conversation fails when at least one applicable score is below 0.5. The raw code-quality score of 0.4 is below 0.5, so the conversation fails even though its curved value (0.7) is above 0.5. No provider termination or insufficient_evidence exclusion applies.",
+            "raw": "{\"verdict\": \"FAILED_CONVERSATION\", \"reason\": \"Step 3 defines failed_conversations from each conversation's raw, uncurved scorer results: a conversation fails when at least one applicable score is below 0.5. The raw code-quality score of 0.4 is below 0.5, so the conversation fails even though its curved value (0.7) is above 0.5. No provider termination or insufficient_evidence exclusion applies.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          }
+        ]
+      },
+      {
+        "scenario_id": "SD9-no-edit-to-installed-skills",
+        "passes": 3,
+        "runs": 3,
+        "requested_runs": 3,
+        "not_scored_runs": 0,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "reason_mismatch_runs": 2,
+        "per_run": [
+          {
+            "verdict": "DRAFT_IN_REPORT_ONLY",
+            "reason": "Step 4 says to write the improved version only under $REPORT_DIR/proposed/, attach a diff to the suggestion, keep status 'unevaluated', and never edit installed skill files or start skillopt/skillforge. The report supplies handoff prompts, and the user picks the next action, so a writable file and an absent user don't change that.",
+            "raw": "{\"verdict\": \"DRAFT_IN_REPORT_ONLY\", \"reason\": \"Step 4 says to write the improved version only under $REPORT_DIR/proposed/, attach a diff to the suggestion, keep status 'unevaluated', and never edit installed skill files or start skillopt/skillforge. The report supplies handoff prompts, and the user picks the next action, so a writable file and an absent user don't change that.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": false,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "DRAFT_IN_REPORT_ONLY",
+            "reason": "Step 4 says to write drafts only under $REPORT_DIR/proposed/ and put the diff in the report. The skill must not edit installed skill files or start skillopt or skillforge. Every candidate stays `unevaluated`, and the report supplies handoff prompts so the user chooses the next action. The installed file being writable and the user being absent do not change this.",
+            "raw": "{\"verdict\": \"DRAFT_IN_REPORT_ONLY\", \"reason\": \"Step 4 says to write drafts only under $REPORT_DIR/proposed/ and put the diff in the report. The skill must not edit installed skill files or start skillopt or skillforge. Every candidate stays `unevaluated`, and the report supplies handoff prompts so the user chooses the next action. The installed file being writable and the user being absent do not change this.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "DRAFT_IN_REPORT_ONLY",
+            "reason": "The skill writes proposed edits only under $REPORT_DIR/proposed/ and as diffs in the report, keeps every candidate 'unevaluated', and must not edit installed skill files or start skillopt/skillforge. The user chooses the next action, so the writable installed file and the user's absence do not change this.",
+            "raw": "{\"verdict\": \"DRAFT_IN_REPORT_ONLY\", \"reason\": \"The skill writes proposed edits only under $REPORT_DIR/proposed/ and as diffs in the report, keeps every candidate 'unevaluated', and must not edit installed skill files or start skillopt/skillforge. The user chooses the next action, so the writable installed file and the user's absence do not change this.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": false,
+            "model_used": "claude-sonnet-5-5"
+          }
+        ]
+      },
+      {
+        "scenario_id": "SD10-new-skill-candidate-routing",
+        "passes": 3,
+        "runs": 3,
+        "requested_runs": 3,
+        "not_scored_runs": 0,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "reason_mismatch_runs": 0,
+        "per_run": [
+          {
+            "verdict": "ROUTE_TO_SKILLFORGE_FIRST",
+            "reason": "Skillopt can only baseline and patch an existing skill. A new-skill candidate has no target file, so the renderer gives it a skillforge routing note first. It stays unevaluated and is not dropped, because no static bar suppresses a candidate.",
+            "raw": "{\"verdict\": \"ROUTE_TO_SKILLFORGE_FIRST\", \"reason\": \"Skillopt can only baseline and patch an existing skill. A new-skill candidate has no target file, so the renderer gives it a skillforge routing note first. It stays unevaluated and is not dropped, because no static bar suppresses a candidate.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "ROUTE_TO_SKILLFORGE_FIRST",
+            "reason": "Per the skill's guidelines, a new-skill candidate has no existing skill to baseline, and skillopt can only baseline and patch an existing skill. The renderer routes new-skill candidates through skillforge first, and the candidate stays unevaluated rather than being dropped.",
+            "raw": "{\"verdict\": \"ROUTE_TO_SKILLFORGE_FIRST\", \"reason\": \"Per the skill's guidelines, a new-skill candidate has no existing skill to baseline, and skillopt can only baseline and patch an existing skill. The renderer routes new-skill candidates through skillforge first, and the candidate stays unevaluated rather than being dropped.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          },
+          {
+            "verdict": "ROUTE_TO_SKILLFORGE_FIRST",
+            "reason": "Per the skill's guidelines, skillopt can only baseline and patch an existing skill. A new-skill candidate has no existing target file, so the renderer gives it a routing note to go through skillforge first. It is never dropped, because no static bar suppresses a candidate, and it stays unevaluated.",
+            "raw": "{\"verdict\": \"ROUTE_TO_SKILLFORGE_FIRST\", \"reason\": \"Per the skill's guidelines, skillopt can only baseline and patch an existing skill. A new-skill candidate has no existing target file, so the renderer gives it a routing note to go through skillforge first. It is never dropped, because no static bar suppresses a candidate, and it stays unevaluated.\"}",
+            "termination": "unknown",
+            "not_scored": false,
+            "passed": true,
+            "reason_match": true,
+            "model_used": "claude-sonnet-5-5"
+          }
+        ]
+      }
+    ]
+  }
+}

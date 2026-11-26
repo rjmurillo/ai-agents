@@ -123,8 +123,8 @@ executed request is flagged by `lint` and cannot be called verified.
 
 Documentation written here is documentation. The `test` skill's Gate 5 and the
 `review` skill's `doc-accuracy` axis (category `docs-and-instructions`) already
-compose `doc-accuracy` for it; follow
-`${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/test/references/doc-accuracy-gate.md`.
+compose `doc-accuracy` for it; follow the `test` skill's
+`references/doc-accuracy-gate.md`.
 Do not run a parallel
 accuracy gate.
 

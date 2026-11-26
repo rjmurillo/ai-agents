@@ -1,12 +1,12 @@
 ---
 id: ADR-088
-status: proposed
+status: accepted
 date: 2026-11-26
 decision-makers: []
 supersedes: []
 superseded-by: null
 explainer: null
-implemented: false
+implemented: true
 ---
 
 # ADR-088: Progressive Disclosure for Book-Derived Rules
@@ -267,10 +267,10 @@ Decision-maker: rjmurillo. Panel: reduced (architect, critic); see
 `.project-toolkit/critique/agent-env-adr-amendments-2026-11-25-debate-log-2.md`.
 
 The owner deleted `software-engineering-library-activation.yml` on 2026-11-25,
-with every other job gated by an `agent-*` environment (ADR-057, amendment of
-that date). That workflow ran the live activation eval on a weekly schedule,
-kept the rollback streak in the Actions cache, and opened or updated the
-rollback alert issue.
+with every other job gated by an `agent-*` environment (ADR-057, the `/spec` CI
+leg amendment of that date). That workflow ran the live activation eval on a
+weekly schedule, kept the rollback streak in the Actions cache, and opened or
+updated the rollback alert issue.
 
 The issue #5951 amendment says a reference that stops activating "raises the
 existing rollback alert". That sentence describes the state before 2026-11-25.

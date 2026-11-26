@@ -7,6 +7,7 @@ Gives you the recorded hook contract for Claude Code and GitHub Copilot CLI: eve
 - You are about to change a hook, dispatcher, generator, hook config, or runtime test.
 - You need to know what a hook payload or decision looks like on either host.
 - You hit a stale plugin root symptom, such as `Errno 2 _dispatch.py`.
+- A self-improvement loop is about to edit its own prompts, skills, hooks, or agent files, and you need the editable and read-only surfaces.
 - Trigger phrases: `harness contract`, `copilot cli hook behavior`, `hook payload format`, `cross-harness hook change`, `refresh hook evidence`, `stale plugin root`.
 
 ## When not to use it
@@ -74,4 +75,5 @@ The verification checklist before a cross-harness hook change includes: classify
 - Source: [`SKILL.md`](../../src/claude/skills/agent-harness-reference/SKILL.md)
 - Contract sidecar: [`official-hook-contracts.md`](../../src/claude/skills/agent-harness-reference/references/official-hook-contracts.md)
 - Probe evidence: [`probe-evidence.md`](../../src/claude/skills/agent-harness-reference/references/probe-evidence.md)
+- Harness optimization ladder, seven editable components, read-only boundary: [`harness-optimization.md`](../../src/claude/skills/agent-harness-reference/references/harness-optimization.md)
 - How to call skills on each host: [Call agents and skills](../call-agents-and-skills.md)

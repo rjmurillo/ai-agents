@@ -471,8 +471,8 @@ pre-commit:
 #   3. Fast stage, parallel half: policy gates that each finish
 #      in seconds (measured 0.1s-17s standalone on 2026-08-15).
 #   4. security-scan (semgrep): expensive stdin consumer. Kept serial as a
-#      top-level job because `.claude/rules/ci-scripts.md` MUST-21 forbids
-#      `use_stdin: true` inside a `parallel: true` group; the top level of a
+#      top-level job because the ai-agents-validation-and-qa skill's rule-ci-scripts.md
+#      MUST-21 forbids `use_stdin: true` inside a `parallel: true` group; the top level of a
 #      piped hook delivers the same serialized stdin a piped group does.
 #   5. Expensive stage: python-tests, mypy, workflow-local-run,
 #      build-all-check, the e2e smokes, pre-pr-validation, count-ratchets
@@ -826,9 +826,9 @@ pre-push:
                       # than the standalone number (ci-scripts.md MUST-16).
                       #
                       # Copilot review round 8 (PR #5344): no `glob` here on purpose. This
-                      # is a whole-tree check, not a diff-scoped one, and `.claude/rules/
-                      # ci-scripts.md`'s "Path filters gate the diff, never the tree"
-                      # section's "whole tree MUST run" rule applies to local pre-push the
+                      # is a whole-tree check, not a diff-scoped one. "Path filters gate the diff, never
+                      # the tree" in .claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md
+                      # has a "whole tree MUST run" rule. It applies to local pre-push the
                       # same way it applies to the CI job this mirrors
                       # (`zero-collection-guard` in `.github/workflows/pytest.yml`). A
                       # non-Python push (`uv.lock`, `.python-version`) changes the pytest
