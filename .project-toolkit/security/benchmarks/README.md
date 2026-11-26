@@ -92,11 +92,9 @@ uv run pytest .project-toolkit/security/benchmarks/ -v
 The security agent workflow now fetches CodeQL alerts before manual review:
 
 ```bash
-# Pre-commit security check with CodeQL integration
-python scripts/security/invoke_precommit_security.py
-
-# Skip CodeQL fetch (offline mode)
-python scripts/security/invoke_precommit_security.py --skip-codeql
+# Fetch open CodeQL alerts through the GitHub API
+gh api repos/{owner}/{repo}/code-scanning/alerts \
+  --jq '.[] | select(.state=="open")'
 ```
 
 This ensures the agent reviews all automated findings before producing its assessment.
@@ -139,7 +137,7 @@ vulnerable_code_here
 
 ## Verification Procedure
 
-1. Fetch CodeQL alerts via `invoke_precommit_security.py` (automated detection)
+1. Fetch CodeQL alerts through the GitHub API (automated detection)
 2. Run security agent on `vulnerable_samples/` directory (interpretation)
 3. Collect agent review in `.project-toolkit/security/SR-benchmark-*.md`
 4. Evaluate interpretation quality:

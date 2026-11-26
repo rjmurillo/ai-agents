@@ -327,7 +327,6 @@ max-complexity = 15
 "scripts/incoherence.py" = ["C901"]
 "scripts/maintenance/gc_worktrees.py" = ["C901"]
 "scripts/redact_secrets.py" = ["C901"]
-"scripts/security/invoke_precommit_security.py" = ["C901"]
 "scripts/traceability/show_traceability_graph.py" = ["C901"]
 "scripts/validate_pr_review_config.py" = ["C901"]
 "scripts/validation/check_skill_contract_tests.py" = ["C901"]

@@ -18,7 +18,6 @@ from unittest.mock import patch
 
 import pytest
 
-from scripts.security.invoke_precommit_security import PreCommitSecurityCheck
 from scripts.security.run_semgrep import SemgrepScanError, SemgrepScanner
 
 
@@ -38,14 +37,6 @@ def _stub_pinned_executable():
         return_value="/pinned/semgrep",
     ):
         yield
-
-
-def test_ensure_psscriptanalyzer_timeout_returns_false() -> None:
-    # Construct before patching so the ctor's git repo-root lookup is real.
-    check = PreCommitSecurityCheck(skip_codeql=True)
-    timeout = subprocess.TimeoutExpired(cmd="pwsh", timeout=120)
-    with patch("subprocess.run", side_effect=timeout):
-        assert check._ensure_psscriptanalyzer() is False
 
 
 def test_run_semgrep_timeout_fails_closed() -> None:

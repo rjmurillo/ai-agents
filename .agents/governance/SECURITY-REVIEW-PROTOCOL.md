@@ -30,10 +30,7 @@ When external reviewers (Gemini Code Assist, human reviewers) identify vulnerabi
 **BEFORE manual code review**, security agent MUST fetch CodeQL alerts:
 
 ```bash
-# Automated via pre-commit hook
-python scripts/security/invoke_precommit_security.py
-
-# Or via GitHub API directly
+# Fetch open alerts through the GitHub API
 gh api repos/{owner}/{repo}/code-scanning/alerts \
   --jq '.[] | select(.state=="open")'
 ```
