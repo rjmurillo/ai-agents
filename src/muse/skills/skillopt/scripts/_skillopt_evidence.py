@@ -464,7 +464,6 @@ def check_pins(pins: Any, model: str | None = None) -> dict[str, Any]:
         path = Path(entry["path"])
         retargeted = "target" in entry and str(path.resolve()) != entry["target"]
         rekinded = "kind" in entry and _kind(path) != entry["kind"]
-        # The stored digest is a hex string, so a failed recompute (None) never matches.
         if retargeted or rekinded or not _hashable(path) or _digest(path) != entry["sha256"]:
             changed.append(name)
     model_changed = model is not None and model.strip() != doc.get("model")
