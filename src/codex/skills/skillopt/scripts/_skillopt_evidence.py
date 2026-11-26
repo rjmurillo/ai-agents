@@ -85,12 +85,22 @@ def _require_schema(doc: Any, schema: str, label: str) -> dict[str, Any]:
     return doc
 
 
-def _text(entry: dict[str, Any], field: str, where: str, sel: set[str] | None = None) -> str:
+def _text(
+    entry: dict[str, Any],
+    field: str,
+    where: str,
+    sel: set[str] | None = None,
+    train: set[str] | None = None,
+) -> str:
     value = entry.get(field)
     if not isinstance(value, str) or not value.strip():
         raise SkillOptError(f"{where}: '{field}' must be a nonempty string")
+    # Blank out train ids first, so sel id s1 is not found inside train id s1-b.
+    scrubbed = value
+    for tid in sorted(train or (), key=len, reverse=True):
+        scrubbed = re.sub(rf"(?<![\w-]){re.escape(tid)}(?![\w-])", " ", scrubbed)
     for tid in sorted(sel or ()):
-        if re.search(rf"(?<!\w){re.escape(tid)}(?!\w)", value):
+        if re.search(rf"(?<!\w){re.escape(tid)}(?!\w)", scrubbed):
             raise SkillOptError(
                 f"{where}: '{field}' names sel task {tid!r}; "
                 "the candidate author must use train evidence only"
@@ -154,7 +164,7 @@ def check_weakness(
             raise SkillOptError(f"duplicate pattern id {pid!r}")
         seen_ids.add(pid)
         for field in PATTERN_TEXT_FIELDS:
-            _text(pattern, field, f"pattern {pid!r}", sel)
+            _text(pattern, field, f"pattern {pid!r}", sel, set(train))
         if not isinstance(pattern.get("addressable"), bool):
             raise SkillOptError(f"pattern {pid!r}: 'addressable' must be true or false")
         tasks = _train_ids(
@@ -252,7 +262,7 @@ def check_manifesto(
             raise SkillOptError(f"{where}: pattern {pid!r} is not addressable; do not patch it")
         targeted.append(pid)
         for field in ENTRY_TEXT_FIELDS:
-            _text(entry, field, where, sel)
+            _text(entry, field, where, sel, train_set)
         if entry.get("component") not in COMPONENTS:
             raise SkillOptError(f"{where}: 'component' must be one of {', '.join(COMPONENTS)}")
         evidence = _train_ids(

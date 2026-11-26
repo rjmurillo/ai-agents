@@ -78,6 +78,7 @@ class TestWeaknessCheck:
             ({"mechanism": ""}, "mechanism"),
             ({"mechanism": "same cause as s2"}, "names sel task"),
             ({"mechanism": "mirror the s1-style output"}, "names sel task"),
+            ({"mechanism": "see s1."}, "names sel task"),
             ({"addressable": "yes"}, "addressable"),
         ],
     )
@@ -90,6 +91,14 @@ class TestWeaknessCheck:
     def test_sel_id_inside_a_longer_token_is_not_a_leak(self, tmp_path: Path) -> None:
         doc = weakness(mechanism="rule s10 and step s1x are unrelated ids")
         assert run(tmp_path, self.ARGV, eval=EVAL, inc=INCUMBENT, w=doc) == 0
+
+    def test_sel_id_that_prefixes_a_train_id_is_not_a_leak(self, tmp_path: Path) -> None:
+        eval_set = {"splits": {"train": ["s1-b", "t2"], "sel": ["s1"]}}
+        inc = {"s1-b": False, "t2": True}
+        doc = weakness(tasks=["s1-b"], mechanism="s1-b and ts1 skip the write step")
+        assert run(tmp_path, self.ARGV, eval=eval_set, inc=inc, w=doc) == 0
+        leak = weakness(tasks=["s1-b"], mechanism="s1-b fails like s1 does")
+        assert run(tmp_path, self.ARGV, eval=eval_set, inc=inc, w=leak) == 2
 
     def test_malformed_sel_split_exits_2(self, tmp_path: Path, capsys: Capture) -> None:
         bad = {"splits": {"train": ["t1", "t2", "t3", "t4"], "sel": "s1"}}
