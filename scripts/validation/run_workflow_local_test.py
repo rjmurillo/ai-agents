@@ -1448,6 +1448,55 @@ def _is_act_duplicate_base_limitation(text: str) -> bool:
     return all(expected in line for line in failures)
 
 
+# plugin-cli-smoke.yml decides its scope in the "Smoke path filter" job from the
+# pull_request payload: it checks the filter script out of
+# github.event.pull_request.base.sha (falling back to github.sha) and passes the
+# payload's base and head SHAs to cli_smoke_paths.py. act's synthetic
+# pull_request payload carries neither SHA. Two failures follow, and only one
+# shows per run:
+#   1. The checkout falls back to github.sha. A commit that is not on the
+#      remote yet (every pre-push run) cannot be fetched, and git exits 128.
+#   2. With a pushed commit the checkout works, and cli_smoke_paths.py exits 2
+#      with "--base and --head are required for pull_request".
+# GitHub populates both SHAs, so CI never hits either. The hook skipped this
+# workflow while it referenced provider secrets; it runs under act since the
+# Claude and Copilot smoke legs were deleted (2026-11-25).
+#
+# Pinned like the rules above: this job's label on both act lines, the two
+# adjacent, and every ``Failure - Main`` line in the log naming one of the two
+# steps, so another failing step or job keeps blocking.
+_ACT_SMOKE_FILTER_JOB_LABEL = r"\[Plugin CLI Smoke/Smoke path filter\]"
+_ACT_SMOKE_FILTER_CHECKOUT_STEP = "Checkout the path filter from the base commit"
+_ACT_SMOKE_FILTER_DECIDE_STEP = "Decide whether the smoke must run"
+_ACT_SMOKE_FILTER_GIT_ANNOTATION = re.compile(
+    rf"^[ \t]*{_ACT_SMOKE_FILTER_JOB_LABEL}[ \t]+\S+[ \t]+"
+    r"::error::The process '(?:[^']*/)?git' failed with exit code 128[ \t]*$",
+    re.MULTILINE,
+)
+_ACT_SMOKE_FILTER_PATTERN = re.compile(
+    rf"^[ \t]*(?P<job>{_ACT_SMOKE_FILTER_JOB_LABEL})[ \t]+\S+[ \t]+"
+    r"::error::The process '(?:[^']*/)?git' failed with exit code 128[ \t]*\n"
+    rf"[ \t]*(?P=job)[ \t]+\S+[ \t]+Failure - Main {_ACT_SMOKE_FILTER_CHECKOUT_STEP}\b"
+    r"|"
+    rf"^[ \t]*(?P<job2>{_ACT_SMOKE_FILTER_JOB_LABEL})[ \t]+\| "
+    r"cli_smoke_paths\.py: error: --base and --head are required for pull_request[ \t]*\n"
+    rf"[ \t]*(?P=job2)[ \t]+\S+[ \t]+Failure - Main {_ACT_SMOKE_FILTER_DECIDE_STEP}\b",
+    re.MULTILINE,
+)
+
+
+def _is_act_smoke_filter_limitation(text: str) -> bool:
+    """True when the smoke path filter's act-payload failure is the only failure."""
+    if not _ACT_SMOKE_FILTER_PATTERN.search(text):
+        return False
+    failures = [line for line in text.splitlines() if _ACT_MAIN_FAILURE_MARKER in line]
+    allowed = (
+        f"{_ACT_MAIN_FAILURE_MARKER}{_ACT_SMOKE_FILTER_CHECKOUT_STEP}",
+        f"{_ACT_MAIN_FAILURE_MARKER}{_ACT_SMOKE_FILTER_DECIDE_STEP}",
+    )
+    return all(any(name in line for name in allowed) for line in failures)
+
+
 # act stages a cached action into the container at /var/run/act/actions/<ref>/
 # and copies it with `docker cp`. Recent dockerd rejects that destination with
 # "path escapes from parent" before the action's own code runs, so the step
@@ -1577,6 +1626,14 @@ _ACT_LIMITATION_RULES: tuple[tuple[str | None, Callable[[str], bool], str], ...]
         "act's synthetic event payload resolves the default branch to master, so "
         "the duplicate-code job cannot name a fork point with origin/master. "
         "GitHub populates the real default branch, so this fails only in local "
+        "act, not in CI.",
+    ),
+    (
+        "pull_request",
+        _is_act_smoke_filter_limitation,
+        "act's synthetic pull_request payload has no base or head SHA, so the "
+        "plugin-cli-smoke path filter cannot check out the base commit or run "
+        "cli_smoke_paths.py. GitHub populates both, so this fails only in local "
         "act, not in CI.",
     ),
     (
@@ -1795,6 +1852,8 @@ def _unexplained_error_annotations(
             (scope is None or scope == event) and matches(line)
             for scope, matches, _ in _ACT_LIMITATION_RULES
         ):
+            continue
+        if run_is_attributed and _ACT_SMOKE_FILTER_GIT_ANNOTATION.match(line.rstrip()):
             continue
         if run_is_attributed and _ACT_WRAPPER_ANNOTATION_PATTERN.search(line):
             continue
