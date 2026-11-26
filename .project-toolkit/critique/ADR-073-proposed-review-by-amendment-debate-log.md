@@ -116,4 +116,4 @@ Scope: one prose sentence on how an overdue `review-by` clears, after a CodeRabb
 | architect | Accept | Checked `_LIVE_STATUSES`, the `null` path, and the strict `due < today` test. |
 | critic | Accept | First voted Block. The sentence left out the prose date and the `proposed` plus `null` trap. Both are fixed. |
 
-The revised text names three exits. A date of today or later that the prose also states, `accepted` with `null`, or a closed status.
+The revised text names the exits. A date of today or later that the prose also states, `accepted` with `null`, or a closed status.
