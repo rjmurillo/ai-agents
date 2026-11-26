@@ -37,6 +37,7 @@ import hermes_packs  # noqa: E402
 from _hermes_pack_helpers import make_repo, make_stanza  # noqa: E402
 
 from scripts.validation.generated_staleness_report import (  # noqa: E402
+    UNCHANGED_PREFIX,
     failure_detail,
     parse_stale_report,
 )
@@ -139,11 +140,15 @@ def test_check_names_stale_and_drifted_paths_for_the_pre_pr_gate(
     capsys.readouterr()
 
     assert hermes_packs.generate_hermes_packs(stanza, repo, check=True) == 1
-    report = parse_stale_report(capsys.readouterr().err)
+    # An all-unchanged marker alone would set ``uncommitted_only``; a Hermes
+    # line in the same run must clear it, because the hand edit is not regen.
+    marker = f"{UNCHANGED_PREFIX} 2 of 2 drifted path(s) match the generators.\n"
+    report = parse_stale_report(marker + capsys.readouterr().err)
 
     stale = f"{_PACK}/skills/old/SKILL.md"
     drifted = f"{_PACK}/skills/beta/SKILL.md"
     assert sorted(report.paths) == sorted([stale, drifted])
+    assert report.hint.startswith(UNCHANGED_PREFIX)
     assert report.uncommitted_only is False
     detail = failure_detail(report)
     assert stale in detail
@@ -157,7 +162,7 @@ def test_a_file_both_lists_name_counts_once(
     repo, stanza = _rendered(tmp_path)
     _plant(repo, "skills/old/SKILL.md")
     capsys.readouterr()
-    hermes_packs.generate_hermes_packs(stanza, repo, check=True)
+    assert hermes_packs.generate_hermes_packs(stanza, repo, check=True) == 1
     build_all._print_stale_paths(repo, [f"{_PACK}/skills/old/SKILL.md"], None)
 
     report = parse_stale_report(capsys.readouterr().err)
@@ -166,15 +171,16 @@ def test_a_file_both_lists_name_counts_once(
     assert failure_detail(report).startswith("1 generated path(s) differ from HEAD:")
 
 
-def test_apply_tree_defaults_the_report_root_to_the_output_root(
+def test_apply_tree_prefixes_stale_lines_with_the_report_root(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     root = tmp_path / "out"
     root.mkdir()
     (root / "orphan.md").write_text("x", encoding="utf-8")
 
-    assert hermes_packs.apply_tree(root, {}, check=True, what_if=False) == (0, 1)
-    assert parse_stale_report(capsys.readouterr().err).paths == (f"{root.as_posix()}/orphan.md",)
+    counts = hermes_packs.apply_tree(root, {}, check=True, what_if=False, report_root="src/x")
+    assert counts == (0, 1)
+    assert parse_stale_report(capsys.readouterr().err).paths == ("src/x/orphan.md",)
 
 
 @pytest.mark.parametrize(("check", "what_if"), [(False, False), (False, True)])

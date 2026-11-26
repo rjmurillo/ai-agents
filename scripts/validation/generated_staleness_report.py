@@ -20,10 +20,10 @@ MAX_STALE_PATHS_SHOWN = 10
 # header opens a block of two-space-indented paths; every other
 # ``STALENESS DETECTED: <kind>: <path>`` line (install tree, lib mirror, agent
 # copy, Hermes pack) is one path; the kind holds no colon. The marker line is
-# the commit-or-regenerate remedy. The marker
-# must match ``build_all.UNCOMMITTED_UNCHANGED_PREFIX``;
-# ``tests/validation/test_check_generated_staleness_evidence.py`` fails when the two
-# spellings differ.
+# the commit-or-regenerate remedy. It must match
+# ``build_all.UNCOMMITTED_UNCHANGED_PREFIX``;
+# ``tests/validation/test_check_generated_staleness_evidence.py`` fails when the
+# two spellings differ.
 DRIFT_HEADER = "STALENESS DETECTED: uncommitted regen drift:"
 _STALE_ITEM = re.compile(r"^STALENESS DETECTED: [^:]+: (?P<item>\S.*)$")
 UNCHANGED_PREFIX = "UNCOMMITTED BUT UNCHANGED BY REGENERATION:"
@@ -39,9 +39,10 @@ class StaleReport:
     is the child's commit-or-regenerate line, empty when it printed none.
     ``uncommitted_only`` is true when the hint says every drifted path is
     uncommitted and unchanged by regeneration and no compare-only check (install
-    tree, lib mirror) flagged a path in the same run: such a path may be a hand
-    edit, which the marker counts cannot rule out. ``other`` is every line that is
-    neither, so the diagnosis of a non-staleness failure survives the filter.
+    tree, lib mirror, Hermes pack) flagged a path in the same run: such a path
+    may be a hand edit, which the marker counts cannot rule out. ``other`` is
+    every line that is neither, so the diagnosis of a non-staleness failure
+    survives the filter.
     """
 
     paths: tuple[str, ...] = ()
@@ -78,8 +79,8 @@ def parse_stale_report(output: str) -> StaleReport:
             paths.append(item.group("item").strip())
         else:
             other.append(line)
-    # Two producers can name one file: a Hermes stale line and the git-diff
-    # block both list an untracked file (issue #7659). Count it once.
+    # Any two producers can name one path, for example a Hermes stale line and
+    # the git-diff block for one untracked file (issue #7659). Count it once.
     return StaleReport(
         tuple(dict.fromkeys(paths)),
         hint,

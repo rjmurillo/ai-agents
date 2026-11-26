@@ -297,15 +297,16 @@ def apply_tree(
     *,
     check: bool,
     what_if: bool,
-    report_root: str | None = None,
+    report_root: str,
 ) -> tuple[int, int]:
     """Write ``tree`` under ``output_root``; return ``(written, removed)``.
 
     A file is written when its bytes or permission bits differ. A file under
-    ``output_root`` that ``tree`` does not name is removed. With ``check`` or
-    ``what_if`` nothing changes on disk and the counts say what would change.
-    ``report_root`` is the repo-relative ``outputDir`` that ``check`` prefixes
-    to each ``STALENESS DETECTED`` path; it defaults to ``output_root``.
+    ``output_root`` that ``tree`` does not name is removed, except bytecode,
+    which ``_existing_files`` leaves out, so it is neither reported nor removed.
+    With ``check`` or ``what_if`` nothing changes on disk and the counts say
+    what would change. ``report_root`` is the repo-relative ``outputDir`` that
+    ``check`` prefixes to each ``STALENESS DETECTED`` path.
     """
     changed = [
         rel for rel, packed in sorted(tree.items()) if not _matches(output_root / rel, packed)
@@ -317,8 +318,7 @@ def apply_tree(
     for rel in stale:
         print(f"  {'DRIFT' if check else 'Remove'} (stale): {output_root / rel}")
     if check:
-        root = report_root if report_root is not None else output_root.as_posix()
-        _report_staleness(root.rstrip("/"), changed, stale)
+        _report_staleness(report_root, changed, stale)
     if check or what_if:
         return len(changed), len(stale)
     for rel in changed:
