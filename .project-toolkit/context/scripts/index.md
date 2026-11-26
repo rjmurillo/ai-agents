@@ -11,7 +11,7 @@
 [Constraints]
 |Subprocess text capture MUST pass `encoding="utf-8", errors="replace"` (`chec... (see: .project-toolkit/context/scripts/details/constraints.md)
 [Dangerous assumptions]
-|`stale_script_refs.py` matches only `.ps1`/`.psm1` (none tracked, so it repor... (see: .project-toolkit/context/scripts/details/dangerous-assumptions.md)
+|`stale_script_refs.py` matches only `.ps1`/`.psm1` command references. Becaus... (see: .project-toolkit/context/scripts/details/dangerous-assumptions.md)
 [Dependencies]
 |Plugin lib source: `scripts/{github_core,hook_utilities,ai_review_common}`, `... (see: .project-toolkit/context/scripts/details/dependencies.md)
 [Architecture]

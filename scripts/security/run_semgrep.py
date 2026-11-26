@@ -16,10 +16,16 @@ The ``semgrep`` subcommand of that module still runs this script with
 ``--config auto --severity error``, but no lefthook job invokes it.
 
 Usage:
-    python3 scripts/security/run_semgrep.py
+    python3 scripts/security/run_semgrep.py  # Scan committed branch changes
     python3 scripts/security/run_semgrep.py --config auto  # Use semgrep registry rules
     python3 scripts/security/run_semgrep.py --severity error  # Only ERROR findings
     python3 scripts/security/run_semgrep.py --dry-run  # Show findings without blocking
+
+File selection:
+    The scan set is the committed branch diff from the merge base with
+    origin/main through HEAD. Uncommitted and untracked working-tree files are
+    outside that diff. Commit them before scanning; otherwise the scanner can
+    print PASS: No files to scan without scanning those edits.
 
 Exit Codes:
     0: Pass (no blocking findings)
