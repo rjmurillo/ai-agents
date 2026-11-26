@@ -969,6 +969,10 @@ jobs:
   # marker filter, 4 workers, and COVERAGE_CORE=ctrace (testmon on Python 3.14
   # otherwise records through sysmon and under-selects). The hook adds that
   # core itself. Seeding is switched off here so the build starts empty.
+  # The fixed cap of 4 equals the hook's `scaled` cap on this 4-vCPU runner.
+  # The hook's CPU reserve is left out on purpose: no sibling job shares this
+  # runner, and a reserve of 3 would leave one worker. A test in
+  # tests/workflows/test_testmon_seed_job_build.py pins both.
   #
   # Timing. Measured locally at 4 workers: 575 s cold. This runner is slower:
   # run 38015601869 on main spent 1390 s across its six 4-vCPU legs without

@@ -2,7 +2,7 @@
 # taste-lint: ignore file-size, ten numbered rules cited by number from the debate log and from tests; splitting renumbers them and the linter's suggested split into helpers, types, and constants has no meaning for a decision record.
 id: ADR-104
 status: accepted
-date: 2026-08-25
+date: 2026-11-26
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -78,6 +78,14 @@ whole suite and the hook does not start it. It collects the suite instead, which
 still blocks a broken import, prints how many tests it did not run, and says CI
 runs them. This reverses the 2026-10-09 acceptance of a local cold build. See
 "Bounding the pytest step" below.
+
+Amended 2026-11-26 (text accuracy, no decision change): the 180s gap list and
+the Implementation Notes still described the pre-push worker cap as a fixed 4,
+and the seed job paragraph said the seed used the hook's worker cap. Since
+PR #6364 and PR #6295 (both 2026-10-12), `lefthook.yml` sets
+`AI_AGENTS_PYTEST_WORKER_CAP=scaled` and `AI_AGENTS_PYTEST_CPU_RESERVE=3`, while
+the seed keeps a fixed cap of 4. Those passages now say so. Dated measurements
+stay as recorded.
 
 ## Date
 
@@ -595,9 +603,14 @@ fetched: the breach no longer stands, because the cold run is not started (see
 "Bounding the pytest step").
 
 A CI job seeds the database. The `testmon-seed` job in `pytest.yml` runs on
-`push` to `main` only, runs the hook's own command with the hook's partitions,
-markers, worker cap and `COVERAGE_CORE=ctrace`, and uploads `.testmondata` as
-`testmon-db-<key>` with 7 day retention. It has its own 3300 s run budget through
+`push` to `main` only, runs the hook's command with the hook's partitions,
+markers and `COVERAGE_CORE=ctrace`, and uploads `.testmondata` as
+`testmon-db-<key>` with 7 day retention. Its worker env is its own: a fixed cap
+of 4 and no CPU reserve. On the 4-vCPU `ubuntu-latest` runner of the 2026-10
+measurement (run 38015601869), 4 is what the hook's `scaled` cap gives. No
+sibling job shares that runner, and the hook's reserve of 3 would leave one
+worker. `tests/workflows/test_testmon_seed_job_build.py` pins both. It has its
+own 3300 s run budget through
 `AI_AGENTS_TESTMON_SEED_BUDGET_SECONDS`, read only when the seed marker is set,
 because the hook's 780 s suite budget would kill a 30 minute run. It uploads only
 when the hook exits 0, so a failed partition, a budget kill or a signal never
@@ -760,8 +773,10 @@ cited above:
   opt-in is the way through, at 780s outside a container and 150s inside one,
   where it cannot finish. Two of eight replayed main commits changed `uv.lock`,
   so this is not rare. No test of the lock-change cost exists.
-- 180s is sized on a 48-thread host. A 4 to 8 thread machine runs 4 workers and
-  may pass 180s on selections that took 50s here.
+- 180s is sized on a 48-thread host. A 4 to 8 thread machine runs 1 to 4
+  workers (the lesser of the scaled cap and the CPUs left after the 3-CPU
+  reserve: 1 at 4 threads, 4 at 7 or 8)
+  and may pass 180s on selections that took 50s here.
 - The "did not finish" line is local stdout, so the new re-evaluation trigger
   below has no collector, like the seed trigger beside it.
 
@@ -932,14 +947,19 @@ maintainer; mechanism: a comment on issue #5315.
 AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1 AI_AGENTS_PYTEST_WORKER_CAP=4 \
   uv run --frozen python scripts/validation/git_hook_policy.py pytest
 
-# What pre-push runs now for every push: the tests testmon selects (2026-10-09)
-AI_AGENTS_PYTEST_WORKER_CAP=4 \
+# What pre-push runs now for every push: the tests testmon selects (2026-10-09),
+# with the worker env lefthook sets (2026-10-12)
+AI_AGENTS_PYTEST_WORKER_CAP=scaled AI_AGENTS_PYTEST_CPU_RESERVE=3 \
   uv run --frozen python scripts/validation/git_hook_policy.py pytest
 ```
 
-On a 48-thread workstation the opt-in path also needs
-`AI_AGENTS_PYTEST_WORKERS=auto`, because `lefthook.yml` pins
-`AI_AGENTS_PYTEST_WORKER_CAP=4` for the container case and the cap wins.
+`lefthook.yml` sets `AI_AGENTS_PYTEST_WORKER_CAP=scaled` and
+`AI_AGENTS_PYTEST_CPU_RESERVE=3`. Workers are the lesser of the scaled cap and
+the visible CPUs minus the reserve, never fewer than one. The scaled cap is half
+the visible CPUs, at least 4 and at most 16, and never above the CPU count. That
+gives 1 on a
+4-CPU container, 16 on a 48-thread workstation. To use every CPU on the opt-in
+path, also set `AI_AGENTS_PYTEST_WORKERS=auto`, which wins over both.
 
 Every defect-class claim in rule 5 was probed against a throwaway tree, and the
 two that failed are recorded as failing rather than dropped quietly.
