@@ -165,7 +165,43 @@ FORKED/VENDORED COMPONENTS
    SOFTWARE.
    ------------------------------------------------------------
 
-6. ghcp-llm-council ((fork))
+6. claude-plugins-official code-modernization ((fork))
+
+   License: Apache-2.0
+   Author:  Anthropic
+   URL:     https://github.com/anthropics/claude-plugins-official
+
+   ------------------------------------------------------------
+   Apache License, Version 2.0
+
+   The upstream plugin is licensed under the Apache License, Version 2.0.
+   Its LICENSE file carries no copyright line. The full license text is in
+   the LICENSE file shipped with this product and at
+   https://www.apache.org/licenses/LICENSE-2.0
+
+   The shipped file is a reworded adaptation, not a copy. Its Source section
+   names the upstream files and the pinned upstream commit.
+   ------------------------------------------------------------
+
+7. claude-plugins-official skill-creator ((fork))
+
+   License: Apache-2.0
+   Author:  Anthropic
+   URL:     https://github.com/anthropics/claude-plugins-official
+
+   ------------------------------------------------------------
+   Apache License, Version 2.0
+
+   The upstream plugin is licensed under the Apache License, Version 2.0.
+   Its LICENSE file carries no copyright line. The full license text is in
+   the LICENSE file shipped with this product and at
+   https://www.apache.org/licenses/LICENSE-2.0
+
+   The shipped file is a reworded adaptation, not a copy. Its Source section
+   names the upstream files and the pinned upstream commit.
+   ------------------------------------------------------------
+
+8. ghcp-llm-council ((fork))
 
    License: MIT
    Author:  Vivekananda Gavini and ghcp-llm-council contributors
@@ -195,7 +231,7 @@ FORKED/VENDORED COMPONENTS
    SOFTWARE.
    ------------------------------------------------------------
 
-7. gstack ((fork))
+9. gstack ((fork))
 
    License: MIT
    Author:  Garry Tan
@@ -225,7 +261,7 @@ FORKED/VENDORED COMPONENTS
    SOFTWARE.
    ------------------------------------------------------------
 
-8. gstack modernize ((fork))
+10. gstack modernize ((fork))
 
    License: MIT
    Author:  Garry Tan
@@ -255,7 +291,7 @@ FORKED/VENDORED COMPONENTS
    SOFTWARE.
    ------------------------------------------------------------
 
-9. openai-agents-python maintainer-review ((fork))
+11. openai-agents-python maintainer-review ((fork))
 
    License: MIT
    Author:  OpenAI
@@ -285,7 +321,7 @@ FORKED/VENDORED COMPONENTS
    SOFTWARE.
    ------------------------------------------------------------
 
-10. tstack babysit-pr ((fork))
+12. tstack babysit-pr ((fork))
 
    License: MIT
    Author:  Theo Browne
@@ -315,7 +351,7 @@ FORKED/VENDORED COMPONENTS
    SOFTWARE.
    ------------------------------------------------------------
 
-11. tstack council ((fork))
+13. tstack council ((fork))
 
    License: MIT
    Author:  Theo Browne
@@ -345,7 +381,7 @@ FORKED/VENDORED COMPONENTS
    SOFTWARE.
    ------------------------------------------------------------
 
-12. tstack modernize ((fork))
+14. tstack modernize ((fork))
 
    License: MIT
    Author:  Theo Browne
@@ -375,7 +411,7 @@ FORKED/VENDORED COMPONENTS
    SOFTWARE.
    ------------------------------------------------------------
 
-13. tstack sol-loop ((fork))
+15. tstack sol-loop ((fork))
 
    License: MIT
    Author:  Theo Browne
@@ -405,7 +441,7 @@ FORKED/VENDORED COMPONENTS
    SOFTWARE.
    ------------------------------------------------------------
 
-14. tstack takeover ((fork))
+16. tstack takeover ((fork))
 
    License: MIT
    Author:  Theo Browne

@@ -60,6 +60,18 @@
       ],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "Anti-Patterns says CVA belongs to cva-analysis."
+    },
+    {
+      "id": "S6",
+      "desc": "Same-stack version uplift routes to version-uplift",
+      "input": "Move our order service from Java 8 to Java 21 and keep behavior identical. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "version-uplift",
+        "delta",
+        "baseline"
+      ],
+      "expected_gate": "engineering-reference-routing",
+      "rationale": "A same-stack runtime move with identical behavior is the version-uplift reference, not refactoring or legacy-code seams."
     }
   ]
 }
