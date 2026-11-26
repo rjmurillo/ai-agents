@@ -1520,11 +1520,13 @@ def test_write_baseline_names_a_live_zero_tolerance_violation(tmp_path):
 
     written = _run(tmp_path, "--baseline", str(baseline), "--write-baseline")
 
-    assert written.returncode == EXIT_OK, written.stdout + written.stderr
+    assert written.returncode == EXIT_REGRESSION, written.stdout + written.stderr
     assert (
         "implemented-implies-decided: 0 (zero-tolerance, never recorded, 1 live and FAILING)"
         in written.stdout
     )
+    assert "zero-tolerance violation(s) the baseline cannot hold" in written.stderr
+    assert baseline.exists()
     assert _run(tmp_path, "--baseline", str(baseline)).returncode == EXIT_REGRESSION
 
 
@@ -2785,7 +2787,7 @@ def test_write_baseline_records_a_zero_tolerance_check_empty(tmp_path):
 
     written = _run(tmp_path, "--baseline", str(baseline), "--write-baseline")
 
-    assert written.returncode == EXIT_OK, written.stdout + written.stderr
+    assert written.returncode == EXIT_REGRESSION, written.stdout + written.stderr
     assert "review-by-past-due: 0" in written.stdout
     payload = json.loads(baseline.read_text(encoding="utf-8"))
     assert payload["violations"]["review-by-past-due"] == {}

@@ -1774,14 +1774,25 @@ def run(
             f"[OK] Wrote {baseline_path} from {len(violations)} violation(s) "
             f"across {examined} ADR record(s):"
         )
+        failing = 0
         for name in CHECKS:
             if name in ZERO_TOLERANCE_CHECKS:
                 live = _total(found[name])
+                failing += live
                 state = f", {live} live and FAILING" if live else ""
                 note = f" (zero-tolerance, never recorded{state})"
             else:
                 note = ""
             print(f"  {name}: {_total(recorded[name])}{note}")
+        if failing:
+            # The file is written, but a zero-tolerance violation is still live, so
+            # the next plain run fails. Exit non-zero now so the caller sees it.
+            print(
+                f"[FAIL] {failing} zero-tolerance violation(s) the baseline cannot hold. "
+                "Fix those records; the next plain run fails until then.",
+                file=sys.stderr,
+            )
+            return EXIT_REGRESSION
         return EXIT_OK
 
     baseline = read_baseline(baseline_path)
@@ -1843,7 +1854,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--write-baseline",
         action="store_true",
-        help="Record the current violations, per check and record, as the new ceiling and exit 0.",
+        help=(
+            "Record the current violations, per check and record, as the new ceiling. "
+            "Exits 1 when a zero-tolerance violation is live, since none is recorded."
+        ),
     )
     parser.add_argument(
         "--show-all",
