@@ -388,17 +388,18 @@ def test_the_allowed_checkout_steps_are_actions_checkout_steps() -> None:
     workflow = yaml.safe_load(
         (REPO_ROOT / ".github" / "workflows" / "plugin-cli-smoke.yml").read_text(encoding="utf-8")
     )
-    steps = {
-        step["name"]: step
+    steps = [
+        step
         for job in workflow["jobs"].values()
         for step in job["steps"]
         if step.get("name") in w._ACT_SMOKE_CHECKOUT_STEPS
-    }
+    ]
 
-    assert set(steps) == set(w._ACT_SMOKE_CHECKOUT_STEPS)
-    for name, step in steps.items():
-        assert str(step.get("uses", "")).startswith("actions/checkout@"), name
-        assert "run" not in step, name
+    assert {step["name"] for step in steps} == set(w._ACT_SMOKE_CHECKOUT_STEPS)
+    assert len(steps) == 6  # four jobs share one step name; the filter and reporter have their own
+    for step in steps:
+        assert str(step.get("uses", "")).startswith("actions/checkout@"), step["name"]
+        assert "run" not in step, step["name"]
 
 
 def test_a_failure_line_carrying_extra_words_or_no_duration_blocks() -> None:
@@ -445,3 +446,24 @@ def test_the_full_act_stage_skips_reporters_and_the_dry_run_does_not(
 
     assert calls["gh act (full)"].get("full_stage") is True
     assert not calls["gh act -n"].get("full_stage")
+
+
+@pytest.mark.parametrize(
+    "duration", ["1ms", "37.28554875s", "144.507667ms", "1m5.5s", "2h3m4s", "12\u00b5s"]
+)
+def test_hint_accepts_every_go_duration_shape_act_prints(duration: str) -> None:
+    text = _decide_failure().replace("[130.202547ms]", f"[{duration}]")
+
+    assert w._act_limitation_hint(text, _EVENT) is not None
+
+
+def test_a_long_adversarial_failure_line_is_rejected_quickly() -> None:
+    """The failure-line regex must stay linear on a step that prints a huge line."""
+    import time
+
+    hostile = f"      {_FILTER_JOB}   \u274c  Failure - Main {_DECIDE}" + " [" * 100_000 + "\n"
+    start = time.perf_counter()
+    hint = w._act_limitation_hint(_decide_failure() + hostile, _EVENT)
+
+    assert hint is None
+    assert time.perf_counter() - start < 2.0

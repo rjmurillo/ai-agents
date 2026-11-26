@@ -1531,7 +1531,7 @@ _ACT_SMOKE_PAYLOAD_PATTERN = re.compile(
 
 _ACT_SMOKE_FAILURE_LINE = re.compile(
     rf"^[ \t]*(?P<label>{_ACT_SMOKE_WORKFLOW_LABEL})[ \t]+\S+[ \t]+"
-    r"Failure - Main (?P<step>.+?) \[[^\]]*\][ \t]*$"
+    r"Failure - Main (?P<step>.+?) \[(?:[0-9.]+(?:ns|us|\u00b5s|ms|s|m|h))+\][ \t]*$"
 )
 
 
