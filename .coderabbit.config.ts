@@ -191,6 +191,18 @@ Prefix all comments with: [P0], [P1], or [P2]
   },
 ];
 
+// Guideline files CodeRabbit reads as review context for every file. These
+// come from the organization dashboard; they are stated here so this file
+// shows the full effective config. The dashboard lists them in this order.
+const GUIDELINE_FILES: readonly string[] = [
+  ".agents/**",
+  "docs/**",
+  ".github/copilot-instructions.md",
+  ".github/instructions/*.md",
+  "CLAUDE.md",
+  "CONTRIBUTING.md",
+];
+
 export default defineConfig({
   // Merge organization defaults for any key this file leaves unset.
   inheritance: true,
@@ -252,9 +264,12 @@ export default defineConfig({
 
   knowledge_base: {
     code_guidelines: {
-      filePatterns: RULES.flatMap(({ path, files }) =>
-        files === undefined ? [] : [{ files, applyTo: path }],
-      ),
+      filePatterns: [
+        ...GUIDELINE_FILES,
+        ...RULES.flatMap(({ path, files }) =>
+          files === undefined ? [] : [{ files, applyTo: path }],
+        ),
+      ],
     },
   },
 });
