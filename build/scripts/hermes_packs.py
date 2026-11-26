@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import json
 import stat
+import subprocess
 import sys
 from collections.abc import Iterable
 from pathlib import Path
@@ -41,6 +42,7 @@ from atomic_write import (  # noqa: E402
     read_bytes_no_redirect,
     reject_symlinked_ancestors,
 )
+from binplace_manifest import is_bytecode_artifact  # noqa: E402
 from frontmatter_key_drop import (  # noqa: E402
     drop_keys_from_skill_md,
     split_fenced_frontmatter,
@@ -225,23 +227,39 @@ def _matches(dst: Path, packed: PackFile) -> bool:
     return bool(dst.read_bytes() == packed.data)
 
 
+def _tracked_files(root: Path) -> set[str]:
+    """Paths under ``root`` that git tracks, or an empty set outside a repository."""
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "-z", "--", "."],
+            capture_output=True,
+            check=True,
+            timeout=60,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        return set()
+    return {p for p in out.decode("utf-8", "replace").split("\0") if p}
+
+
 def _existing_files(root: Path) -> set[str]:
-    """Files under ``root``, minus the bytecode caches ``.gitignore`` drops.
+    """Files under ``root``, minus untracked bytecode caches.
 
     Running a shipped script writes ``__pycache__/*.pyc`` beside it; the
     pre-push tests run with ``python3 -I``, which ignores
     ``PYTHONDONTWRITEBYTECODE``. Counting those caches made every local
     ``build_all.py --check`` after a test run report them as stale output.
+    A tracked bytecode file is never planned output, so it still counts:
+    a force-added ``.pyc`` would run on import in a consumer's install.
     """
     if not root.is_dir():
         return set()
-    return {
+    files = {
         path.relative_to(root).as_posix()
         for path in root.rglob("*")
-        if (path.is_symlink() or path.is_file())
-        and "__pycache__" not in path.relative_to(root).parts
-        and path.suffix != ".pyc"
+        if path.is_symlink() or path.is_file()
     }
+    tracked = _tracked_files(root)
+    return {f for f in files if f in tracked or not is_bytecode_artifact(Path(f))}
 
 
 def _prune_empty_dirs(root: Path) -> None:
