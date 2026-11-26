@@ -1,7 +1,7 @@
 ---
 id: ADR-073
 status: accepted
-date: 2026-11-26
+date: 2026-06-19
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -208,7 +208,9 @@ Two rules change, both in `check_adr_lifecycle.py`:
 
 The clock, not a branch, creates a past-due violation. That is why it blocks every branch instead of only the one that caused it. The cost is that a missed date stops unrelated pull requests. The fix is one frontmatter and prose edit to the overdue record.
 
-`implemented-implies-decided` is zero-tolerance too. Issue #7636 moved the 11 shipped records out of `proposed` and emptied its baseline, so no record needs grandfathering. A shipped record that reads `proposed` fails every run.
+Alternative rejected: open a follow-up issue when a date passes, and keep the gate green. Issue #7638 allowed it. It was rejected because the issue asks that a missed review not sit at baseline, and an issue can sit unread the same way. Two panel seats preferred it; the debate log records their dissent. Reversal is one line: remove the name from `ZERO_TOLERANCE_CHECKS` and regenerate the baseline.
+
+`implemented-implies-decided` is zero-tolerance too. Issue #7636 (PR #7691) moved 17 shipped records out of `proposed`, including the 11 its baseline held, and emptied that baseline. No record needs grandfathering. A shipped record that reads `proposed` fails every run.
 
 Issues #7636 and #7637 decided or retired 18 of the 21 undated records. Three stay in the baseline (gate run at 8f4f1b981, 2026-11-26): ADR-065, ADR-087, and ADR-124.
 

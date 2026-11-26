@@ -83,7 +83,7 @@ After #7636 and #7637 merged, the branch was rebased. `implemented-implies-decid
 
 ### Dissent recorded
 
-- independent-thinker, high-level-advisor: a scheduled follow-up issue would cost unrelated authors less than a block. The owner's choice stands.
+- independent-thinker, high-level-advisor: a scheduled follow-up issue would cost unrelated authors less than a block. The author chose block; the owner has not ruled and can reverse it.
 - independent-thinker, high-level-advisor: no guard stops a date being moved without a review.
 - architect, critic: the ratchet does not drain the grandfathered records. Three remain: ADR-065, ADR-087, ADR-124.
 

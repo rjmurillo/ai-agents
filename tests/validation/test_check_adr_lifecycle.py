@@ -2746,6 +2746,16 @@ def test_a_past_due_record_fails_the_gate_and_the_baseline_cannot_hold_it(tmp_pa
     assert "zero-tolerance" in held.stderr
 
 
+@pytest.mark.parametrize("check", sorted(ZERO_TOLERANCE_CHECKS))
+def test_a_live_baseline_listing_any_zero_tolerance_check_is_a_config_error(tmp_path, check):
+    _write(_adr_dir(tmp_path), 1, _valid(1), _STATUS_SECTION)
+
+    result = _run(tmp_path, "--baseline", str(_baseline(tmp_path, **{check: {_rel(1): 1}})))
+
+    assert result.returncode == EXIT_CONFIG, result.stdout + result.stderr
+    assert check in result.stderr
+
+
 def test_review_by_past_due_is_zero_tolerance():
     assert "review-by-past-due" in ZERO_TOLERANCE_CHECKS
     assert ZERO_TOLERANCE_CHECKS <= set(CHECKS)
@@ -2812,6 +2822,13 @@ def _proposed(tmp_path: Path, review_by: str | None, prose: str = "") -> None:
 def _needs_review_by(tmp_path: Path, today: date = _TODAY) -> list[str]:
     adr_dir = tmp_path / ".project-toolkit" / "architecture"
     return [v.path for v in scan(adr_dir, tmp_path, today) if v.check == "proposed-needs-review-by"]
+
+
+def test_a_proposed_record_due_today_is_neither_missing_nor_past_due(tmp_path):
+    _proposed(tmp_path, _TODAY.isoformat(), prose=f"Decide by {_TODAY.isoformat()}.")
+
+    assert _needs_review_by(tmp_path) == []
+    assert _review_counts(tmp_path)["review-by-past-due"] == 0
 
 
 def test_a_proposed_record_with_no_review_by_is_flagged(tmp_path):
