@@ -191,6 +191,19 @@ class TestScenarioFile:
         assert code == 1
         assert f"{SCEN} repeats scenario ids ['S1']" in out
 
+    def test_expected_verdict_outside_verdict_options_blocks(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """The runner rejects this corpus, so the gate must not accept it either."""
+        doc = json.loads(scenario_doc())
+        doc["scenarios"][0]["verdict_options"] = ["STOP", "HOLD"]
+        write(repo, SCEN, json.dumps(doc))
+        commit(repo, "label outside its options")
+        code, out = run_gated(repo, capsys, evidence=False)
+        assert code == 1
+        assert "fails the eval runner's scenario checks" in out
+        assert "is not in verdict_options" in out
+
     def test_ids_that_differ_only_in_case_are_distinct(
         self, repo: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:

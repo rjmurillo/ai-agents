@@ -372,6 +372,8 @@ def _examine(
 
 def run_check(git: Git, base_ref: str, head: str = "HEAD") -> tuple[list[str], int, int]:
     """Return (findings, skills examined, gated skills)."""
+    # Pin a symbolic head once, so every later read sees the same commit.
+    head = git.text("rev-parse", "--verify", f"{head}^{{commit}}").strip()
     merge_base = git.text("merge-base", base_ref, head).strip()
     paths = changed_paths(git, merge_base, head)
     commits = git.text("rev-list", "--reverse", "--topo-order", f"{merge_base}..{head}").split()

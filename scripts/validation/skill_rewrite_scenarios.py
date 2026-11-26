@@ -141,6 +141,11 @@ def load_scenarios(ctx: Context, name: str) -> tuple[Scenarios | None, list[str]
         return None, [f"{path} repeats scenario ids {repeated}; each scenario needs a distinct id"]
     if not all("expected_verdict" in r for r in rows):
         return None, [f"{path} has a scenario with no expected_verdict"]
+    try:
+        # The runner's own checks, such as expected_verdict in verdict_options.
+        ctx.runner.parse_scenarios(data, path)
+    except RuntimeError as exc:
+        return None, [f"{path} fails the eval runner's scenario checks: {exc}"]
     problems = _freeze_findings(ctx, name, path)
     if path in ctx.git.files(ctx.merge_base, path):
         base = scenario_rows(ctx.git.blob(ctx.merge_base, path))

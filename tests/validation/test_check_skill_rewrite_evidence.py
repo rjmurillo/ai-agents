@@ -385,7 +385,16 @@ class TestEntryPoints:
     ) -> None:
         code, out = run(repo, capsys, base="no-such-ref")
         assert code == 2
-        assert "git merge-base no-such-ref HEAD exited" in out
+        assert "git merge-base no-such-ref" in out
+        assert "exited 128" in out
+
+    def test_bad_head_ref_is_a_config_error(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """The head is pinned to a commit first, so a bad head fails before any read."""
+        code = checker.main(["--repo-root", str(repo), "--base-ref", "main", "--head-ref", "nope"])
+        assert code == 2
+        assert "rev-parse --verify nope^{commit}" in capsys.readouterr().err
 
     def test_git_unavailable_is_a_config_error(
         self, repo: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch

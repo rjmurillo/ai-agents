@@ -304,8 +304,9 @@ def defines_test(source: str, classes: list[str], func: str) -> bool:
     Every class must start with ``Test`` and *func* with ``test_``. A
     ``[param]`` id is False: a parameter id exists only at run time, so no
     static read of *source* can confirm it. An empty segment, or a file that
-    does not parse, is False. Whether the file itself is collected is
-    ``is_collected_file``'s question, not this one's.
+    does not parse, is False. So is a test that ``__test__ = False`` turns
+    off in its module or class chain, which pytest skips. Whether the file
+    itself is collected is ``is_collected_file``'s question, not this one's.
     """
     named_like_tests = func.startswith(PYTEST_FUNC_PREFIX) and "[" not in func
     if not named_like_tests or not all(c.startswith(PYTEST_CLASS_PREFIX) for c in classes):
@@ -314,10 +315,36 @@ def defines_test(source: str, classes: list[str], func: str) -> bool:
         body = ast.parse(source).body
     except SyntaxError:
         return False
+    if _turns_off_collection(body, {classes[0] if classes else func}):
+        return False
     for name in classes:
         found = [n for n in body if isinstance(n, ast.ClassDef) and n.name == name]
-        if not found:
+        if not found or _turns_off_collection(found[0].body, {func}):
             return False
         body = found[0].body
     funcs = (ast.FunctionDef, ast.AsyncFunctionDef)
     return any(isinstance(n, funcs) and n.name == func for n in body)
+
+
+def _turns_off_collection(body: list[ast.stmt], names: set[str]) -> bool:
+    """True when *body* sets ``__test__ = False``, or ``<name>.__test__ = False`` for a name."""
+    for node in body:
+        if isinstance(node, ast.Assign):
+            targets, value = node.targets, node.value
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            targets, value = [node.target], node.value
+        else:
+            continue
+        if not (isinstance(value, ast.Constant) and value.value is False):
+            continue
+        for target in targets:
+            if isinstance(target, ast.Name) and target.id == "__test__":
+                return True
+            if (
+                isinstance(target, ast.Attribute)
+                and target.attr == "__test__"
+                and isinstance(target.value, ast.Name)
+                and target.value.id in names
+            ):
+                return True
+    return False

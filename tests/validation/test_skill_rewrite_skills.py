@@ -282,6 +282,45 @@ class TestB:
 """
 
 
+class TestCollectionSwitchedOff:
+    """``__test__ = False`` makes pytest skip a module, class, or function."""
+
+    @pytest.mark.parametrize(
+        ("source", "classes", "func"),
+        [
+            ("__test__ = False\ndef test_a():\n    pass\n", [], "test_a"),
+            ("def test_a():\n    pass\ntest_a.__test__ = False\n", [], "test_a"),
+            (
+                "class TestA:\n    __test__ = False\n    def test_a(self):\n        pass\n",
+                ["TestA"],
+                "test_a",
+            ),
+            (
+                "class TestA:\n    def test_a(self):\n        pass\nTestA.__test__ = False\n",
+                ["TestA"],
+                "test_a",
+            ),
+            (
+                "class TestA:\n    __test__: bool = False\n    def test_a(self):\n        pass\n",
+                ["TestA"],
+                "test_a",
+            ),
+        ],
+    )
+    def test_switched_off_tests_are_not_defined(
+        self, source: str, classes: list[str], func: str
+    ) -> None:
+        assert not skills.defines_test(source, classes, func)
+
+    def test_unrelated_false_assignments_keep_the_test(self) -> None:
+        source = (
+            "flag = False\n"
+            "other.__test__ = False\n"
+            "class TestA:\n    __test__ = True\n    def test_a(self):\n        pass\n"
+        )
+        assert skills.defines_test(source, ["TestA"], "test_a")
+
+
 class TestDefinesTest:
     @pytest.mark.parametrize(
         ("classes", "func"),
