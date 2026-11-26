@@ -1,5 +1,5 @@
 ---
-paths: ["**/SKILL.md", "**/*.mustache", "**/*.SKILL.md.tmpl"]
+paths: ["**/SKILL.md", "**/skills/**/*.mustache", "**/*.SKILL.md.tmpl"]
 priority: critical
 ---
 

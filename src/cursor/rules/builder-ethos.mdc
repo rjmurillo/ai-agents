@@ -1,5 +1,5 @@
 ---
-globs: "**/SKILL.md, **/*.mustache, **/*.SKILL.md.tmpl"
+globs: "**/SKILL.md, **/skills/**/*.mustache, **/*.SKILL.md.tmpl"
 alwaysApply: false
 ---
 

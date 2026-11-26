@@ -1,5 +1,5 @@
 ---
-applyTo: '**/SKILL.md,**/*.mustache,**/*.SKILL.md.tmpl'
+applyTo: '**/SKILL.md,**/skills/**/*.mustache,**/*.SKILL.md.tmpl'
 ---
 
 # Builder Ethos

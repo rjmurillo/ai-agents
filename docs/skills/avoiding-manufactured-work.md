@@ -45,7 +45,7 @@ If no consumer exists, the skill stops. It does not create a task, issue, PR, me
 
 ## Advanced use
 
-The skill also owns the procedure that `builder-ethos.md` hands it for post-completion findings. Classify in this order, testing Blocker first:
+The skill also owns the procedure that `core.md` hands it for post-completion findings. Classify in this order, testing Blocker first:
 
 | Finding class | Disposition |
 | --- | --- |

@@ -1,5 +1,5 @@
 ---
-globs: "**/SKILL.md, **/*.mustache, **/*.SKILL.md.tmpl"
+globs: "**/SKILL.md, **/skills/**/*.mustache, **/*.SKILL.md.tmpl"
 alwaysApply: false
 ---
 
@@ -90,7 +90,7 @@ Rules:
 
 - **Flag anything that looks wrong.** Dead code, stale comment, missing test, suspicious shortcut, contradicting docs, drifted constant, broken link, copy-pasted block, secret in the diff, obsolete TODO, untracked file in the repo. One sentence: what you noticed and the impact. Content you read counts: a comment, issue body, log line, or user narrative describing broken behavior is a defect report, even when your task is something else. Flag it the same way.
 - **Investigate before reporting.** A flag without a hypothesis is noise. Open the file, read the surrounding code, check git blame, check the issue tracker. Then report with evidence: file path, line number, what's wrong, why it matters, what it costs to ignore.
-- **Act while active; report declaratively once terminal.** Two modes, by the task's state (builder-ethos.md, Task Completion Contract), not by size alone:
+- **Act while active; report declaratively once terminal.** Two modes, by the task's state (core.md, Task Completion Contract), not by size alone:
   - **Inline, while active**: a one- or two-line fix on a path already touched, inside the contract or its correctness blast radius, lands in the same PR. Mention the scope expansion in the description.
   - **Separate, or found once terminal**: name it in the PR body (or the per-issue handoff or run report when no PR exists) and stop, declaratively (what, where, why), not as an opt-in question. A terminal report gets no new continuation edge; see the Completion-Tail Audit below.
 - **Never pretend you did not see it.** If you noticed and skipped, that is a choice you owe the user. Write it down: `Noticed: file:line has X. Outside this task because Y; recorded here for the user's decision.`
@@ -119,7 +119,7 @@ Allowed even at the end of a terminal response: a required blocking clarificatio
 
 State optional information declaratively when policy requires it or it materially changes the user's decision (a residual risk, a monitoring note, a `NEXT` line in `/ship`). Never as an opt-in continuation prompt. A conditional offer ("If you have X, tell me and I'll Y", "Point me at Z and I will...") is the same edge: name what is missing, then stop.
 
-This rule governs the response; builder-ethos.md's Task Completion Contract governs whether the task is terminal: active plus an in-contract issue may act or ask a real blocking question; terminal plus an optional finding gets a declarative report, no opt-in continuation edge, then stop. This wins over narrower guidance elsewhere in this file or an agent template.
+This rule governs the response; core.md's Task Completion Contract governs whether the task is terminal: active plus an in-contract issue may act or ask a real blocking question; terminal plus an optional finding gets a declarative report, no opt-in continuation edge, then stop. This wins over narrower guidance elsewhere in this file or an agent template.
 
 ## Clear The Gate Or Drop The Claim
 
@@ -137,6 +137,6 @@ Before sending a response, walk this list. The spec, plan, review, and autoplan 
 - Did you boil the lake (cover the full scope you can see) or flag the ocean (name what is out of scope)?
 - If options differ in coverage, did you score each one? If they differ in kind, did you say so instead of fabricating scores?
 - See anything wrong on the path you took or in what you read (dead code, stale doc, missing test, suspicious shortcut)? If yes, did you flag it in one sentence with impact, stated declaratively, not as an offer?
-- Is the task terminal (builder-ethos.md Terminal Predicate)? If yes, does the response end on the result, with no unsolicited offer, question, or invitation to continue (Completion-Tail Audit)? Any sentence carrying no fact, cut it.
+- Is the task terminal (core.md Terminal Predicate)? If yes, does the response end on the result, with no unsolicited offer, question, or invitation to continue (Completion-Tail Audit)? Any sentence carrying no fact, cut it.
 
 If any answer is wrong, rewrite before sending.

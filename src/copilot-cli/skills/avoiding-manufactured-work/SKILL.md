@@ -1,7 +1,7 @@
 ---
 name: avoiding-manufactured-work
 version: 1.1.0
-description: Detect and stop manufactured work after a deliverable appears done, and classify a post-completion finding into the four contract classes builder-ethos.md delegates here. Use when a worker has produced a plan, issue, PR, backlog item, research artifact, or follow-up task and you need to verify it was demanded by a real user, acceptance criterion, or blocked decision instead of reward-seeking activity.
+description: Detect and stop manufactured work after a deliverable appears done, and classify a post-completion finding into the four contract classes core.md delegates here. Use when a worker has produced a plan, issue, PR, backlog item, research artifact, or follow-up task and you need to verify it was demanded by a real user, acceptance criterion, or blocked decision instead of reward-seeking activity.
 license: Apache-2.0
 metadata:
   routing:
@@ -51,7 +51,7 @@ Next action: <smallest action, or none>
 
 ## Disposition Procedure for Post-Completion Findings
 
-The builder-ethos rule, section `## 4. Task Completion Contract`, owns the completion contract (directory prefix omitted on purpose: this skill ships in the plugin mirrors, where a `.claude/rules/` path dangles; look the rule up by name in whichever instruction tree you are reading, `builder-ethos.md` under `.claude/rules/` or `builder-ethos.instructions.md` under the instructions trees): precedence and the terminal predicate. Read that section for those two. Forming the contract and reactivation moved here; see `## Forming The Contract` and `## Reactivation` below. Its `### Finding disposition` subsection delegates exactly one step to this skill, verbatim:
+The core rule, section `## Task Completion Contract`, owns the completion contract (directory prefix omitted on purpose: this skill ships in the plugin mirrors, where a `.claude/rules/` path dangles; look the rule up by name in whichever instruction tree you are reading, `core.md` under `.claude/rules/` or `core.instructions.md` under the instructions trees): precedence and the terminal predicate. Read that section for those two. Forming the contract and reactivation moved here; see `## Forming The Contract` and `## Reactivation` below. Its `### Finding disposition` subsection delegates exactly one step to this skill, verbatim:
 
 > Every post-satisfaction finding is one of four classes; classify it with the `avoiding-manufactured-work` skill's disposition procedure, not a second doctrine.
 

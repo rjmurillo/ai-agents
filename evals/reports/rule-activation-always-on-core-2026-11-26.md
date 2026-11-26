@@ -342,6 +342,32 @@ The core keeps the Task Intent section because the HEAD rules carry it and nothi
 | C6 last-tail-mutation-detected | 4.56 | 4.56 | 5.00 |
 | N1 Pure algorithmic question with no repository cha (neg) | - | - | 5.00 |
 
+## Results: per-run sign counts
+
+`rule-audit-procedure.md` registers a sign rule for a cut to always-on content.
+Each run gives one sign, and magnitudes do not vote.
+A cut fails only when the pre-cut text wins the sign count at the two-tailed threshold.
+This table applies that rule to the runs above. No new run was made.
+A run is one repeat index on one model, scored as the pool mean over positive scenarios.
+Each pool has three runs on Sonnet 5.5 and three on Opus 5.5.
+
+| Pool | Core measured | Runs | Core wins | HEAD wins | Ties | Two-tailed p |
+|---|---|---|---|---|---|---|
+| `voice` | seven clauses | 6 | 5 | 1 | 0 | 0.219 |
+| `builder-ethos` | seven clauses | 6 | 4 | 2 | 0 | 0.688 |
+| `universal` | seven clauses | 6 | 0 | 6 | 0 | 0.031 |
+| Task intent | shipped core | 6 | 0 | 3 | 3 | 0.250 |
+| Completion tail | shipped core | 6 | 5 | 0 | 1 | 0.062 |
+
+HEAD wins the sign count only for `universal`, at 6 of 6. That cut fails, so `universal` stays whole.
+No other pool favors the pre-cut text at the threshold, so those cuts pass the sign rule.
+The sign rule and the mean margin gate reach the same verdict on all five pools.
+Task intent on Opus tied in all three runs.
+
+The registered design runs `claude-opus-5-5` and `gpt-5.6-sol`.
+These runs used Sonnet 5.5 and Opus 5.5, both Claude, so the cross-family half is not run.
+The `voice` and `builder-ethos` rows measure the seven clauses, not the shipped core.
+
 ## Findings
 
 1. About half the scenarios show no lift from the HEAD rules.
@@ -359,6 +385,7 @@ The core keeps the Task Intent section because the HEAD rules carry it and nothi
 - The scenarios do not exercise Ownership, Boil the Lake, Search Before Building, or Unattended Runs.
 - The task intent and completion-tail scenarios come from `eval_runtime_parity.py` fixtures. That runner cannot use a gateway.
 - The first three scenario files were not rerun on the core with three sections added. Their tables measure the seven-clause core.
+- The T2 and T7 rubrics were tightened after the third run. They no longer pass a claim that the action is already done.
 - One more cross-reference in Task Intent was reworded after the third run. The shipped core differs from the scored text by that sentence.
 - `voice` and `builder-ethos` now load only on skill authoring paths. Their other sections have no scenarios here.
 - An earlier HTTP run cut answers at 600 tokens and still graded them. Its scores are not in this report.
