@@ -175,6 +175,25 @@ class TestScenarioFile:
         assert "after a commit that touches the skill" in out
         assert "differs at" not in out
 
+    def test_scenario_edit_reverted_through_merges_blocks(self, repo: Path, capsys: Capsys) -> None:
+        driver_change(repo)
+        git(repo, "checkout", "-q", "-b", "edit", "main")
+        write(repo, SCEN, scenario_doc(9))
+        commit(repo, "scenario edit on a side branch")
+        git(repo, "checkout", "-q", "feature")
+        git(repo, "merge", "-q", "--no-ff", "-m", "merge the edit", "edit")
+        git(repo, "checkout", "-q", "-b", "keep", "main")
+        write(repo, "docs/keep.md", "keep\n")
+        commit(repo, "side work that keeps the corpus")
+        git(repo, "checkout", "-q", "feature")
+        git(repo, "merge", "-q", "--no-ff", "--no-commit", "keep")
+        git(repo, "checkout", "main", "--", SCEN)
+        commit(repo, "merge restores the base corpus")
+        commit_evidence(repo)
+        code, out = run(repo, capsys)
+        assert code == 1
+        assert "after a commit that touches the skill" in out
+
     @staticmethod
     def _merge_side_branch(repo: Path) -> None:
         """Merge a branch cut from the base into the current branch, leaving the merge open."""

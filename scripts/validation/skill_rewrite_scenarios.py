@@ -30,11 +30,11 @@ def _freeze_findings(ctx: Context, name: str, scenario_path: str) -> list[str]:
     Three invariants hold for every commit in ``merge_base..head``. No commit
     changes the scenario file and the skill surface together. Every commit
     that touches the surface holds the scenario blob that head holds, or
-    lacks the file exactly when head lacks it. No commit changes the scenario
-    file once a commit that touches the surface is among its ancestors. A
-    later edit fails the second; so does a merge that restores an older
-    corpus after the skill changed. An edit that a later commit reverts fails
-    the third.
+    lacks the file exactly when head lacks it. No commit that has a surface
+    commit among its ancestors changes the scenario file or holds a blob
+    other than head's. A later edit fails the second; so does a merge that
+    restores an older corpus after the skill changed. An edit that a later
+    commit or merge reverts fails the third.
     """
     head_blobs = ctx.git.tree_blobs(ctx.head, scenario_path)
     surface = [c for c in ctx.commits if _touches_surface(ctx.changes(c), name)]
@@ -42,8 +42,8 @@ def _freeze_findings(ctx: Context, name: str, scenario_path: str) -> list[str]:
     for commit in ctx.commits:
         files = ctx.changes(commit)
         if commit not in surface:
-            if scenario_path in files and any(
-                ctx.git.is_ancestor(s, commit) is True for s in surface
+            if any(ctx.git.is_ancestor(s, commit) is True for s in surface) and (
+                scenario_path in files or ctx.git.tree_blobs(commit, scenario_path) != head_blobs
             ):
                 problems.append(
                     f"{scenario_path} changes at {commit[:10]}, after a commit that touches "
