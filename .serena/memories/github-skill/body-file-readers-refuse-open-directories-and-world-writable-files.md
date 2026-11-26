@@ -28,6 +28,8 @@ Create one private directory per caller, `chmod 700`, and keep body files in it.
 - `scripts/github_core/body_file.py` lines 215 to 255 (mode checks and the private-directory walk), read 2026-11-11.
 - `edit_pr_body.py` module docstring, lines 10 to 20.
 - The four-row table above is a local run; the probe used a scratch directory and no network write.
+- Outside a temp root, 2026-11-26: a 664 file in a 775 directory under `.project-toolkit/scratch/` is refused with `body file is group-writable outside an owner-only directory`. The same file at mode 600 is accepted. See `body_file.py` lines 259 to 270.
+- PR #7691 hit this on 2026-11-26 with 5 reply bodies. The threads were resolved before the replies posted. See [pr-comment-responder-skills](../pr-review/pr-comment-responder-skills.md), learning for PR #7691.
 
 ## Relations
 
