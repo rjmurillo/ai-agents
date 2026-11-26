@@ -71,7 +71,8 @@ Folded rule: before you write, run, or quote a push lock or any command that ser
 Based on the above changes:
 
 `<target>` is the branch the PR merges into: the repository default branch
-unless the user names another. Steps 5 and 7 use it.
+unless the user names another. Steps 5 and 7 use it. Accept only a name made
+of letters, digits, `.`, `_`, `/`, and `-`; otherwise stop and ask the user.
 
 1. Create a new branch if on main.
    1. Determine the type of change that maps to a conventional commit type
@@ -271,6 +272,8 @@ stdin, never as a command-line argument to `gh`.
    ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 -I "$d/lib/ptk_run.py" skills/github/scripts/pr/new_pr.py --title "<conventional commit title>" --body '<body text>'; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
    ```
 
+   - `<target>` is not the default branch: add `--base "<target>"` before the
+     `; fi`, as in step 7.
    - Paste the file's final contents, unchanged, as the `--body` text. Step 5
      checked the file, so every edit made there must reach this command.
    - Quote the body so the shell passes it literally. In bash or Git Bash,

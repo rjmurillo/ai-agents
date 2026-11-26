@@ -16,10 +16,17 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[3]
 TEMPLATE = REPO_ROOT / "templates" / "skills" / "push-pr.SKILL.md.tmpl"
 RENDERED = [
-    REPO_ROOT / "src" / "claude" / "skills" / "push-pr" / "SKILL.md",
-    REPO_ROOT / "src" / "copilot-cli" / "skills" / "push-pr" / "SKILL.md",
-    REPO_ROOT / "src" / "codex" / "skills" / "push-pr" / "SKILL.md",
+    REPO_ROOT / "src" / tree / "skills" / "push-pr" / "SKILL.md"
+    for tree in (
+        "claude",
+        "copilot-cli",
+        "codex",
+        "cursor",
+        "muse",
+        "hermes/project-toolkit-delivery",
+    )
 ]
+COPIES = [TEMPLATE, *RENDERED]
 _SECTION_RE = r"^## {heading}\n(.*?)(?=^## |\Z)"
 _ITEM_RE = re.compile(r"^(\d+)\. ", re.M)
 
@@ -39,9 +46,14 @@ def _step(process: str, number: int) -> str:
     raise AssertionError(f"Process has no step {number}")
 
 
-@pytest.fixture(params=[TEMPLATE, *RENDERED], ids=lambda p: str(p.relative_to(REPO_ROOT)))
-def process(request: pytest.FixtureRequest) -> str:
-    return _section(Path(request.param).read_text(encoding="utf-8"), "Process")
+@pytest.fixture(params=COPIES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
+def skill_text(request: pytest.FixtureRequest) -> str:
+    return Path(request.param).read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def process(skill_text: str) -> str:
+    return _section(skill_text, "Process")
 
 
 def test_process_names_the_target_branch_before_step_1(process: str) -> None:
@@ -50,6 +62,7 @@ def test_process_names_the_target_branch_before_step_1(process: str) -> None:
     preamble = process[: first_step.start()]
     assert "`<target>`" in preamble
     assert "default branch" in preamble
+    assert "otherwise stop and ask the user" in " ".join(preamble.split())
 
 
 def test_no_github_step_hardcodes_origin_main(process: str) -> None:
@@ -63,8 +76,13 @@ def test_step_5_validates_against_the_target(process: str) -> None:
 
 
 def test_step_7_opens_the_pr_against_the_target(process: str) -> None:
-    after_step_7 = process[process.index(_step(process, 7)) :]
-    assert '`--base "<target>"`' in after_step_7
+    step = " ".join(_step(process, 7).split())
+    assert 'add `--base "<target>"` inside the command, before its `; fi`' in step
+
+
+def test_windows_fallback_step_7_opens_the_pr_against_the_target(skill_text: str) -> None:
+    fallback = " ".join(_section(skill_text, "Windows PR Body Fallback").split())
+    assert 'add `--base "<target>"` before the `; fi`, as in step 7' in fallback
 
 
 def test_ado_target_branch_rule_is_unchanged() -> None:
