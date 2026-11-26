@@ -270,6 +270,28 @@ class TestScenarioFile:
         assert code == 1
         assert "changes in or after the first commit that touches the skill" in out
 
+    def test_template_lookalike_path_is_not_the_skill_surface(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A `.notes` sibling of the template shares its prefix and is not the template."""
+        write(repo, SCEN, scenario_doc(9))
+        write(repo, "templates/skills/demo.SKILL.md.tmpl.notes", "notes\n")
+        commit(repo, "scenario edit beside a template lookalike")
+        commit_evidence(repo)
+        code, out = run(repo, capsys)
+        assert code == 0, out
+
+    def test_exact_template_path_is_the_skill_surface(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        write(repo, SCEN, scenario_doc(9))
+        write(repo, "templates/skills/demo.SKILL.md.tmpl", "template\n")
+        commit(repo, "scenario edit beside the template")
+        commit_evidence(repo)
+        code, out = run(repo, capsys)
+        assert code == 1
+        assert "changes in or after the first commit that touches the skill" in out
+
     def test_scenario_commit_before_surface_is_allowed(
         self, repo: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:

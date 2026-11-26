@@ -18,16 +18,14 @@ from skill_rewrite_skills import _SKILL_DIRS, PYTEST_FILE_GLOB, defines_test, is
 
 
 def _freeze_findings(ctx: Context, name: str, scenario_path: str) -> list[str]:
-    surface = (
-        f"templates/skills/{name}.SKILL.md.tmpl",
-        *(f"{d.format(n=name)}/" for d in _SKILL_DIRS),
-    )
+    template = f"templates/skills/{name}.SKILL.md.tmpl"
+    dirs = tuple(f"{d.format(n=name)}/" for d in _SKILL_DIRS)
     last_scenario = first_surface = None
     for index, commit in enumerate(ctx.commits):
         files = ctx.changes(commit)
         if scenario_path in files:
             last_scenario = index
-        if first_surface is None and any(f.startswith(surface) for f in files):
+        if first_surface is None and any(f == template or f.startswith(dirs) for f in files):
             first_surface = index
     if last_scenario is not None and first_surface is not None and last_scenario >= first_surface:
         return [
