@@ -14,7 +14,7 @@
 
 ## Phase 0 and seat limits
 
-- Phase 0 GitHub search: NOT RUN. No record shows a search of issues or pull requests by the author or by a seat.
+- Phase 0 GitHub search: the six round 1 seat reports record no search of issues or pull requests. The analyst reported its GitHub tools unavailable.
 - Draft PR #7631 holds the spike record. Issue #7633 tracks the work. Ledger row 37 records that `origin/main` held no ADR-128 on 2026-11-25.
 - The analyst seat had no GitHub or git tool. It searched repository files only. It listed the PR #2205 retro, PR #3372, two Serena memories, and the harness contract reference.
 - No seat could read the author's local Copilot logs. Ledger rows 5, 7, 8, and 9 are UNAVAILABLE to a reviewer.
@@ -68,7 +68,7 @@ Tally: 3 Block, 3 Disagree-and-Commit. No consensus.
 | R1-18 | P1 | critic | Stderr on an exit 0 hook may be invisible. The final reply may not be on disk at stop time. Not resolved. Deferred. |
 | R1-19 | P1 | critic | No decision kept the Claude shim out of the Copilot tree. Resolved. Decision 1 sets `copilotExclude: true`. |
 | R1-20 | P1 | independent-thinker | Alternative B was rejected on a guess. Resolved. Row B now says the docs are silent and nothing was tested. Context says no live probe ran. |
-| R1-21 | P1 | independent-thinker, analyst | Shadow mode and a `userPromptTransformed` notice are missing alternatives. Not adopted. The offline replay in Decision 7 counts would-block stamps with no hook registered. The notice option is deferred to the owner. |
+| R1-21 | P1 | independent-thinker; analyst named shadow mode in its options answer only | Shadow mode and a `userPromptTransformed` notice are missing alternatives. Not adopted. The offline replay in Decision 7 counts would-block stamps with no hook registered. The notice option is deferred to the owner. |
 | R1-22 | P1 | independent-thinker | The flag figure does not show that the same reply blocks again. Partly resolved. Context now calls the "next stop" pairing an inference. The log was not split by cause. |
 | R1-23 | P2 | security | The off switch should come from the process environment only. Documented. Decision 11 does not say so. |
 | R1-24 | P2 | security | The judging location was unstated. Documented. Implementation Notes keep judged sets outside the repository. |
@@ -171,7 +171,7 @@ No seat found a new factual error.
 
 ## Deferred P1 and P2 items
 
-Justification for every deferral: the Copilot hook stays unregistered until the gate passes and the owner accepts rule 2b. No block is live while these stay open. Several items would change owner decisions D9 or D11, so the panel cannot settle them.
+Justification for every deferral: the Copilot hook stays unregistered until the gate passes and the owner accepts rule 2b. No block is live while these stay open. Neither registration exists yet, and the Claude hook slice waits on owner acceptance of rule 2b. Several items would change owner decisions D9 or D11, so the panel cannot settle them.
 
 | Item | Source | Where it lands |
 |------|--------|----------------|
@@ -184,6 +184,7 @@ Justification for every deferral: the Copilot hook stays unregistered until the 
 | A separate sunset for each registration | architect | Owner decision. |
 | A generator test for the Claude tree and a pinned Copilot Stop set | architect | Build slice. |
 | Marker path, ownership and symlink checks, size cap value, layout, and pruning | security, critic | Build slice. |
+| A definition of normalized claim values, and a digest rule for kinds with no values such as `pushed` and `merged` (R1-2) | critic | REQ-050, before the build slice. |
 | A missing session id counts as an unwritable marker | security | Build slice. |
 | Strip control characters from the 80-character claim echo | security, critic | Build slice. |
 | Known-tool allowlist, keyed digest, and concurrent double-block handling | security | Build slice. |
