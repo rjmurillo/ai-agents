@@ -119,35 +119,37 @@ def _check_task(path: Path, task: object, seen: set[str]) -> None:
     seen.add(task["id"])
 
 
-SHELLS = frozenset(
-    {"sh", "bash", "zsh", "dash", "env", "eval", "exec", "xargs", "command", "nohup", "timeout"}
-    | {"find", "sudo", "nice", "time"}
-)
 INTERPRETERS = frozenset({"python", "python3", "node", "perl", "ruby"})
+SCRIPT_SUFFIXES = (".py", ".js", ".mjs", ".pl", ".rb")
 # A git grant must name one of these subcommands; reset, checkout, clean, and the
 # rest could move HEAD or change the tree that later repetitions share.
 GIT_READ_ONLY = frozenset({"log", "show", "ls-tree", "rev-parse", "rev-list", "diff-tree", "blame"})
 
 
-def _loose_bash_grant(tool: str) -> bool:
-    """True for a Bash grant that is bare, wildcard-led, or can run arbitrary code.
+def _is_script(word: str) -> bool:
+    return "*" not in word and word.endswith(SCRIPT_SUFFIXES)
 
-    An interpreter passes only with a script path as its first argument. A git
-    grant passes only with a subcommand from GIT_READ_ONLY.
+
+def _loose_bash_grant(tool: str) -> bool:
+    """True for a Bash grant outside the read-only allowlist.
+
+    A Bash grant passes only as a git subcommand from GIT_READ_ONLY, a script path,
+    or an interpreter whose first argument is a script path. Anything else, such as
+    `rm`, `find`, or a shell, could change the checkout that later runs share.
     """
     if tool == "Bash":
         return True
     if not (tool.startswith("Bash(") and tool.endswith(")")):
         return False
     words = tool[5:-1].removesuffix(":*").split()
-    if not words or words[0].startswith("*"):
+    if not words:
         return True
     head = words[0].rsplit("/", 1)[-1]
-    if head in SHELLS:
-        return True
     if head == "git":
         return len(words) < 2 or words[1] not in GIT_READ_ONLY
-    return head in INTERPRETERS and (len(words) < 2 or words[1].startswith(("-", "*")))
+    if head in INTERPRETERS:
+        return len(words) < 2 or not _is_script(words[1])
+    return not _is_script(words[0])
 
 
 def load_tasks(path: Path) -> dict[str, Any]:
@@ -171,7 +173,7 @@ def load_tasks(path: Path) -> dict[str, Any]:
         raise ValueError(f"{path}: 'allowed_tools' must not grant {', '.join(WRITE_TOOLS)}")
     if loose := [t for t in extra if _loose_bash_grant(t.strip())]:
         raise ValueError(
-            f"{path}: 'allowed_tools' Bash grants need a fixed command prefix: {loose}"
+            f"{path}: 'allowed_tools' Bash grants must be read-only git or a script: {loose}"
         )
     seen: set[str] = set()
     for task in data["tasks"]:
