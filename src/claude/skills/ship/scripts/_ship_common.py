@@ -20,12 +20,10 @@ loads this file by absolute path, leaving ``sys.path`` alone.
 from __future__ import annotations
 
 import argparse
-import contextlib
 import importlib.util
 import json
 import os
 import re
-import signal
 import subprocess
 import sys
 import time
@@ -83,10 +81,12 @@ def load_sibling(
 if TYPE_CHECKING:
     import _ship_paths as _paths
     import _ship_remote as _remote
+    import _ship_signals as _signals
     import _ship_windows as _windows
 else:
     _remote = load_sibling("_ship_remote")
     _paths = load_sibling("_ship_paths")
+    _signals = load_sibling("_ship_signals")
     _windows = load_sibling("_ship_windows")
 SCRATCH_REL = _paths.SCRATCH_REL
 scratch_dir = _paths.scratch_dir
@@ -401,12 +401,28 @@ def run(
     ``env`` adds variables on top of ``child_env()``. ``group`` (POSIX only) starts
     the child in a new session; a timeout, an interrupt, or a SIGTERM, SIGHUP, or
     SIGQUIT the caller does not ignore then kills its process group, hooks included,
-    before the call returns or the error propagates. On Windows, ``_ship_windows``
+    before the call returns or the error propagates (``_ship_signals`` defers one
+    that lands while the child is created). On Windows, ``_ship_windows``
     resolves a bare name and refuses (126) an argument cmd.exe would rewrite for a
     ``.cmd`` target. The timeout never exceeds the time left in the shared budget.
     """
     timeout = min(timeout, remaining_seconds())
-    saved = _trap_exit_signals() if group else {}
+    if not group:
+        return _spawn(argv, cwd, timeout, stdin_text, env, None)
+    with _signals.Cancellation() as cancel:
+        return _spawn(argv, cwd, timeout, stdin_text, env, cancel)
+
+
+def _spawn(
+    argv: list[str],
+    cwd: Path | None,
+    timeout: float,
+    stdin_text: str | None,
+    env: dict[str, str] | None,
+    cancel: _signals.Cancellation | None,
+) -> Completed:
+    """``run`` after the signals are set up; ``cancel`` is set exactly when the child is grouped."""
+    group = cancel is not None
     try:
         command = _windows.command(argv)
         if command is None:
@@ -425,43 +441,21 @@ def run(
             start_new_session=group,
         ) as child:
             try:
+                if cancel is not None:
+                    cancel.arm()
                 out, err = child.communicate(stdin_text, timeout=timeout)
             except subprocess.TimeoutExpired:
-                _kill(child, group)
+                _signals.kill_child(child, group)
                 return Completed(124, "", f"{argv[0]}: timed out after {timeout:g}s")
             except BaseException:  # KeyboardInterrupt or a trapped signal: never orphan it
-                _kill(child, group)
+                _signals.kill_child(child, group)
                 raise
     except FileNotFoundError:
         return Completed(127, "", f"{argv[0]}: not found")
     except OSError as exc:
         # A binary that cannot run is a failed call, never a crash: still STOP.
         return Completed(126, "", f"{argv[0]}: cannot run: {exc.strerror or exc}")
-    finally:
-        for signum, handler in saved.items():
-            signal.signal(signum, handler)
     return Completed(child.returncode, out or "", err or "")
-
-
-def _exit_on_signal(signum: int, _frame: object) -> None:
-    raise SystemExit(128 + signum)
-
-
-def _trap_exit_signals() -> dict[int, Any]:
-    """Make SIGTERM, SIGHUP, and SIGQUIT raise, unless ignored (``nohup``), for ``_kill``."""
-    exits = (signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT)
-    live = [sig for sig in exits if signal.getsignal(sig) is not signal.SIG_IGN]
-    return {sig: signal.signal(sig, _exit_on_signal) for sig in live}
-
-
-def _kill(child: subprocess.Popen[str], group: bool) -> None:
-    """Kill ``child``, and with ``group`` its whole process group."""
-    if group:
-        with contextlib.suppress(OSError):  # ESRCH: gone; EPERM: only zombies left
-            os.killpg(child.pid, signal.SIGKILL)
-    child.kill()
-    if on_windows():  # pragma: no cover - join the reader threads, as subprocess.run does
-        child.communicate()
 
 
 def git(
