@@ -1,6 +1,6 @@
 # Reviewer Guidance: What Not to Flag
 
-<!-- vendor-portability: contributor-facing reference for the rjmurillo/ai-agents repo itself. It names upstream-only paths under .project-toolkit, scripts, lefthook.yml, pyproject.toml, and .github because its audience is reviewers of this repo, not plugin consumers. Declared paths: .project-toolkit/memory/episodes, .project-toolkit/security/benchmarks/vulnerable_samples, scripts/ci/diff_line_scope.py -->
+<!-- vendor-portability: contributor-facing reference for the rjmurillo/ai-agents repo itself. It names upstream-only paths under .project-toolkit, scripts, templates, tests, src, lefthook.yml, pyproject.toml, .markdownlint-cli2.yaml, and .github because its audience is reviewers of this repo, not plugin consumers. Declared paths: .project-toolkit/memory/episodes, .project-toolkit/security/benchmarks/vulnerable_samples, scripts/ci/diff_line_scope.py, .markdownlint-cli2.yaml, templates/agents/qa.claude.md.tmpl, src/claude/skills/github/scripts/pr/get_pr_comments_by_reviewer.py, src/vs-code-agents, scripts/validation/skill_frontmatter.py, tests/validation/test_check_serena_memory_worktree_scope_failure_modes.py -->
 
 Read this before you review a pull request in this repo.
 Each item below is a finding that reviewers kept raising and maintainers kept dismissing.
@@ -34,3 +34,33 @@ The repo verified each reason against the code on 2026-11-26.
    A workflow pin such as `PyYAML==6.0.3` mirrors the same pin in `pyproject.toml`.
    Check the project pin first, and change both together or neither.
    `pip` itself has no project pin; its pin lives in `.github/workflows/pytest.yml` (see `rule-ci-scripts.md`).
+7. **Markdown style that markdownlint passes.**
+   `.markdownlint-cli2.yaml` decides Markdown style, and the pre-PR tooling check runs it.
+   Do not flag blank lines around fences or lists (MD031, MD032) by hand.
+   A fence nested in a fence needs a longer outer fence, such as four backticks around three.
+   `templates/agents/qa.claude.md.tmpl` uses that form on purpose.
+8. **`sys.exit(2)` for a config or environment error.**
+   ADR-035 defines exit 2 as a usage, config, or environment error.
+   Some older GitHub skill scripts still document 2 as "Not found" in their docstrings.
+   One is `src/claude/skills/github/scripts/pr/get_pr_comments_by_reviewer.py`.
+   Judge a new exit code against ADR-035, not against a stale docstring.
+9. **Negative directives in agent and prompt files.**
+   "Do not X" and "Never X" are normal prompt style here.
+   No rule or validator requires affirmative phrasing.
+   The prompt-engineer skill lists affirmative directives as one technique, not a rule.
+10. **Missing boilerplate sections in agent prompts.**
+    No rule requires a "Strategic Knowledge Available" section or a per-agent rollback section.
+    Most agents have neither; git history is the rollback path.
+    Do not ask to add them.
+11. **MCP tool namespaces in VS Code agent files.**
+    Files in `src/vs-code-agents/` list namespaces such as `context7/*` and `serena/*` on purpose.
+    An agent degrades when that server is not configured.
+12. **Skill frontmatter or sections the contract does not require.**
+    `.claude/rules/claude-agents.md` MUST 2 requires `name`, `version`, and `description`.
+    `scripts/validation/skill_frontmatter.py` checks `allowed-tools` only when it is present.
+    It caps `description` at 1024 characters, so a long router description is allowed.
+    No rule requires a `surface` field or a `Decision Tree` or `Resources` section.
+13. **CWE-78 on fixed-argument subprocess calls in tests.**
+    A list-form call with constant arguments on a `tmp_path` path takes no request input.
+    `_init_repo` in `tests/validation/test_check_serena_memory_worktree_scope_failure_modes.py` is one.
+    Before you cite a repo rule as authority, find it in a rule or config file.

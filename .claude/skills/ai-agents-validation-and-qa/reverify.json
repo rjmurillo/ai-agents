@@ -354,6 +354,59 @@
    "path": ".github/workflows/pytest.yml",
    "text": "- name: Run pip-audit",
    "id": "R62"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".markdownlint-cli2.yaml",
+   "id": "R63"
+  },
+  {
+   "kind": "contains",
+   "path": "templates/agents/qa.claude.md.tmpl",
+   "text": "````",
+   "id": "R64"
+  },
+  {
+   "kind": "contains",
+   "path": ".project-toolkit/architecture/ADR-035-exit-code-standardization.md",
+   "text": "| 2 | Config Error |",
+   "id": "R65"
+  },
+  {
+   "kind": "contains",
+   "path": "src/claude/skills/github/scripts/pr/get_pr_comments_by_reviewer.py",
+   "text": "2 - Not found",
+   "id": "R66"
+  },
+  {
+   "kind": "contains",
+   "path": "src/vs-code-agents/negotiation.agent.md",
+   "text": "serena/*",
+   "id": "R67"
+  },
+  {
+   "kind": "contains",
+   "path": ".claude/rules/claude-agents.md",
+   "text": "frontmatter fields `name`, `version`, `description`",
+   "id": "R68"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/validation/skill_frontmatter.py",
+   "text": "1024",
+   "id": "R69"
+  },
+  {
+   "kind": "contains",
+   "path": "tests/validation/test_check_serena_memory_worktree_scope_failure_modes.py",
+   "text": "def _init_repo",
+   "id": "R70"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/validation/check_tmp_worktrees.py",
+   "text": "def directory_state",
+   "id": "R71"
   }
  ]
 }

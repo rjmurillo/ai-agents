@@ -4,7 +4,7 @@
 # Customer-Facing Generated Artifacts
 
 <!-- vendor-portability: upstream build scope glob and lib trees (issue #5298). Paths:
-     build/scripts, .claude/lib Folded-rule paths: build/scripts/build_all.py, build/scripts/lib_mirror.py, build/scripts/plugin_run_launcher.py. -->
+     build/scripts, .claude/lib Folded-rule paths: build/scripts/build_all.py, build/scripts/lib_mirror.py, build/scripts/plugin_run_launcher.py, build/scripts/hermes_packs.py, templates/platforms/hermes.yaml, scripts/<pkg>. -->
 
 This rule exists because of a P0 incident. A generator produced the Copilot CLI
 plugin's `hooks.json` with a bare `./hooks/...` command path and explicit
@@ -187,6 +187,17 @@ exception to "edit the template": they are hand-maintained, never under
 so either path edits the same file. A repo-local skill keeps them in its
 real `.claude/skills/<name>/` directory. `build_all.py` mirrors shipped
 skills into `src/copilot-cli/skills/<name>/`; an edit there is overwritten.
+
+The same holds for every other vendor tree. `build_all.py` renders skill
+copies into `src/codex/skills/`, `src/cursor/skills/`, `src/muse/skills/`,
+and each Hermes pack under `src/hermes/<pack>/skills/`.
+`build/scripts/hermes_packs.py` picks the pack for each skill from
+`templates/platforms/hermes.yaml`, so a skill can move between packs.
+The lib source is `scripts/<pkg>/`, not `src/claude/lib/`.
+`build/scripts/lib_mirror.py` renders it into the `lib/` of the claude,
+copilot-cli, codex, cursor, and muse trees, and each Hermes pack carries
+its own `lib/` copy. Fix the source, run `build_all.py`, and commit every
+regenerated tree together. Do not review or patch a mirror by hand.
 
 ## Quick Self-Review
 

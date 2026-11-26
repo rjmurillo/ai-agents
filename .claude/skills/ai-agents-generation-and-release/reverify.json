@@ -250,6 +250,29 @@
    "path": ".claude/skills/ai-agents-generation-and-release/scripts/generator_inventory.py",
    "min": 100,
    "id": "R47"
+  },
+  {
+   "kind": "path_exists",
+   "path": "build/scripts/hermes_packs.py",
+   "id": "R48"
+  },
+  {
+   "kind": "contains",
+   "path": "templates/platforms/hermes.yaml",
+   "text": "carries its own copy of lib/",
+   "id": "R49"
+  },
+  {
+   "kind": "contains",
+   "path": "build/scripts/lib_mirror.py",
+   "text": "\"src/muse/lib\"",
+   "id": "R50"
+  },
+  {
+   "kind": "contains",
+   "path": "templates/platforms/cursor.yaml",
+   "text": "outputDir: \"src/cursor/skills\"",
+   "id": "R51"
   }
  ]
 }
