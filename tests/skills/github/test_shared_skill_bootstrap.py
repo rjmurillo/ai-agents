@@ -69,6 +69,7 @@ ENTRYPOINTS = [
     "pr/rerun_failed_jobs.py",
     "pr/resolve_pr_review_thread.py",
     "pr/set_pr_auto_merge.py",
+    "pr/set_pr_ready.py",
     "pr/test_pr_merge_ready.py",
     "pr/test_pr_merged.py",
     "pr/triage_red_check.py",
