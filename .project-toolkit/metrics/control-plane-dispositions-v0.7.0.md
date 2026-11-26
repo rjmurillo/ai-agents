@@ -112,8 +112,8 @@ merge after it.
   view 5404` state `OPEN` (the issue tracks the design, the contract it
   requested has already shipped). Live guard, not provenance alone:
   `tests/test_completion_terminal_contracts.py:140-142`, function
-  `test_builder_ethos_carries_the_terminal_contract`, asserts
-  `TERMINAL_CONTRACT_PHRASES` are present in every `builder-ethos.md`
+  `test_core_carries_the_terminal_contract`, asserts
+  `TERMINAL_CONTRACT_PHRASES` are present in every `core.md`
   path; `tests/evals/completion-terminal-runtime-fixtures.json` exists on
   this branch, its `_scope_note` field naming issue #5404 directly as a
   regression backstop for the completion-tail audit. Both files were
