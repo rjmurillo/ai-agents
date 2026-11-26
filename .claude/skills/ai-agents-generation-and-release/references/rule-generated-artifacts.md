@@ -194,11 +194,11 @@ and each Hermes pack under `src/hermes/<pack>/skills/`.
 `build/scripts/hermes_packs.py` picks the pack for each skill from
 `templates/platforms/hermes.yaml`, so a skill can move between packs.
 
-The lib packages (`hook_utilities`, `github_core`, `ai_review_common`,
-`failure_classifier`) have their source in `scripts/<pkg>/`, not in
-`src/claude/lib/`. `build/scripts/lib_mirror.py` renders them into the
-`lib/` of the claude, copilot-cli, codex, cursor, and muse trees, and each
-Hermes pack carries its own `lib/` copy. The top-level modules beside them
+Each lib package named in `PACKAGES` in `build/scripts/lib_mirror.py` has
+its source in `scripts/<pkg>/`, not in `src/claude/lib/`. `lib_mirror.py`
+renders the packages into the `lib/` trees under `src/` (claude,
+copilot-cli, codex, cursor, and muse), and each Hermes pack carries its own
+`lib/` copy. Not every package lands in every tree. The top-level modules beside them
 in `.claude/lib/`, such as `claude_hook_dispatch.py`, are hand-maintained
 and have no `scripts/` source.
 

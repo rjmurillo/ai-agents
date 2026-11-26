@@ -289,7 +289,7 @@
   {
    "kind": "contains",
    "path": "build/scripts/lib_mirror.py",
-   "text": "\"failure_classifier\",",
+   "text": "PACKAGES: tuple[str, ...] = (",
    "id": "R54"
   },
   {
