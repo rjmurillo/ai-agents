@@ -2,7 +2,7 @@
 # Agent Failure Modes
 
 > **Status**: Canonical Source of Truth
-> **Last Updated**: 2026-10-13
+> **Last Updated**: 2026-11-25
 > **RFC 2119**: This document uses RFC 2119 key words.
 > **Reference**: Issue #1690
 
@@ -29,6 +29,7 @@ Trust-based compliance fails at scale. Instructions asking agents to "remember",
 | 11 | Customer-facing artifact shipped without runtime verification | Critical | `2026-06-02-pr-2205-customer-wedge-incident.md`; ADR-071; ADR-118 |
 | 12 | Post-completion continuation | High | Issue #5404 |
 | 13 | State conflation in a boolean guard | Medium | Issues #1168, #5097, #5104; PR #5103 |
+| 14 | Unchecked in-context rule violation | Medium | `2026-08-21-pr-automerge-goal-session-2.md`; ADR-116 |
 
 ---
 
@@ -626,12 +627,58 @@ FM-10 describes suppression: the execution succeeds, the failure is invisible, a
 
 ---
 
+## 14. Unchecked In-Context Rule Violation
+
+### Description
+
+An agent writes output that breaks a rule already loaded in its context. It runs no check of that output against the rule before it stages or submits it. The cause is the missing check, not a missing read or a wrong model of the rule. The class covers only rules a deterministic tool can test.
+
+### Trigger
+
+- A rule that a deterministic tool can test is in context, and the agent writes or stages output without running that tool first.
+- Evidenced for one rule so far, the dash ban (`universal.md` MUST NOT 4). Other testable rules, such as a banned-word list or a filename pattern, are extrapolation until an instance shows up.
+- Out of class: a rejection the agent could not predict without running the tool, such as a formatter's output.
+
+### Evidence
+
+- **[`2026-08-21-pr-automerge-goal-session-2.md`](../../.project-toolkit/retrospective/2026-08-21-pr-automerge-goal-session-2.md), Finding 2**: a PR body held an em dash while `universal.md` was loaded all session. `pr_description.py:validate_no_dashes` failed the PR at its first validation run, a CI round. One body edit fixed it.
+- **[`2026-08-25-issue-5192-adr-052-036-reciprocity.md`](../../.project-toolkit/retrospective/2026-08-25-issue-5192-adr-052-036-reciprocity.md), Finding 1**: the same rule broke again in another session. The `staged-dash-policy` pre-commit job failed the first commit attempt and named three files. A sweep found six more edited files that were not yet staged. A mechanical substitution fixed all nine. This is a local catch, so it is weaker evidence than the CI instance.
+- ADR-116 Decision item 6: PR #6398 closed the dash half of issue #5288 as "already persisted", saying the `voice.md` Quick Self-Review asks about em and en dashes. The 08-25 session still broke the rule while `voice.md` and `universal.md` MUST NOT 4 were in context, so a prompt-level reminder did not prevent it. Whether the cause is the missing check or an un-persisted learning is inferred, not measured.
+
+### Detection
+
+| Mechanism | Where it runs | What it catches |
+|-----------|---------------|-----------------|
+| `git_hook_policy.py staged-dashes` (`staged-dash-policy` in `lefthook.yml`) | Pre-commit | Em and en dashes in staged files |
+| `pr_description.py:validate_no_dashes` | PR validation | Em and en dashes in a PR body |
+| ADR-116 Decision item 5: a pre-commit, pre-push, or PR-validation rejection on the first attempt, rule demonstrably in context, mechanical fix diff | Retrospective classification | Instances of this class |
+
+### Enforcement Pattern
+
+None new (ADR-116 Decision item 6). The class is detection-only: the gates above catch the violation one round late. A checker exists: the [`prose-self-check`](../../.claude/skills/prose-self-check/SKILL.md) skill runs `prose_lint.py`, which fails on any em or en dash, on a draft before it is submitted. Nothing runs it automatically before staging, so it helps only when the agent invokes it. The missing control is automatic pre-stage enforcement. ADR-116 recorded on 2026-10-13 that no pre-stage dash check exists. PR #6398 closed issue #5288, the check's former owner, without building one. The retrospectives propose a pre-stage check as a learning. No gate backs that proposal. An open-issue search on 2026-11-25 found no owner.
+
+### Why this is FM-14, not FM-1, FM-3, or FM-9
+
+- Against FM-1: the rule was read. The failure is a missing check on the output.
+- Against FM-3: the rule has one reading.
+- Against FM-9: FM-9 is triggered by a claim of parity with a source that is not quoted. This class is triggered by writing checkable output without running the checker. If an unquoted parity claim is present, classify the case under FM-9.
+- Against FM-4 and FM-6: those classes report a claim of verification that did not happen. Here the author made no claim and a gate caught the output.
+
+### References
+
+- [ADR-116](../../.project-toolkit/architecture/ADR-116-unchecked-in-context-rule-violation-failure-mode.md)
+- Issue #7643 (owner acceptance), issue #5300 (the request for the ADR), issue #5307 finding 5
+- Issue #5288 and PR #6398, the closed owner of the pre-stage dash check
+- [`.claude/rules/universal.md`](../../.claude/rules/universal.md) MUST NOT 4, [`.claude/rules/voice.md`](../../.claude/rules/voice.md) "No Em Dashes Or En Dashes"
+
+---
+
 ## Using This Document
 
 ### When to Read
 
 - Before authoring or editing a protocol requirement. Each pattern above is a failure mode the new requirement MUST avoid.
-- During retrospective analysis. Map the observed incident to one of the eight patterns before proposing remediation.
+- During retrospective analysis. Map the observed incident to one of the patterns above before proposing remediation.
 - During ADR review. A proposal that adds a trust-based requirement MUST explain why verification is not feasible.
 
 ### When to Update
