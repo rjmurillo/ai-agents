@@ -107,10 +107,11 @@ existing shape of the practice rather than as settled authority.
 ADR-022's split criteria are the reason this is filed as an ADR: it constrains
 what the evaluation machinery is structurally allowed to observe at decision
 time, and it changes the shape of every future evaluator, rather than adding a
-compliance step to an existing one. Two caveats a reader deserves. ADR-022 is
-also `proposed`. And its own matrix calls for an ADR *plus* a governance
-document when a decision carries an enforcement obligation, which this one
-does. The governance half is not written; that gap is named under Open
+compliance step to an existing one. Two caveats a reader deserves. ADR-022 was
+`proposed` when this was written; it was accepted on 2026-11-26. And its own
+matrix calls for an ADR *plus* a governance document when a decision carries
+an enforcement obligation, which this one does. The governance half is not
+written; that gap is named under Open
 Requirements below rather than papered over.
 
 ### Why this is not solved by discipline
@@ -932,8 +933,8 @@ on two, one of which was not measuring what it said.
 - ADR-058: Agent Eval Discipline. Between-subjects; complementary rather than
   overlapping. Status `proposed`, cited as existing practice not as authority.
 - ADR-022: Architecture vs Governance Decision Split Criteria. Basis for filing
-  this as an ADR. Status `proposed`, and its matrix also asks for a governance
-  document here; see Open Requirements.
+  this as an ADR. Status `accepted` (2026-11-26), and its matrix also asks
+  for a governance document here; see Open Requirements.
 - Dwork, Feldman, Hardt, Pitassi, Reingold, and Roth, "The reusable holdout:
   Preserving validity in adaptive data analysis," Science 348(6248):636-638,
   2015, and the technical companion "Generalization in Adaptive Data Analysis

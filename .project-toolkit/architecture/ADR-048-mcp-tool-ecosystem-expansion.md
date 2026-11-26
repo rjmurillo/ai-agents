@@ -1,7 +1,7 @@
 ---
 id: ADR-048
-status: proposed
-date: 2026-02-23
+status: rejected
+date: 2026-11-26
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -10,6 +10,16 @@ implemented: false
 ---
 
 # ADR-048: MCP Tool Ecosystem Expansion
+
+## Status
+
+Rejected (2026-11-26). Retired by issue #7637.
+
+This record never left proposed. It was the umbrella for ADR-011, ADR-012, and ADR-013, and all three are now rejected. Issue #179 closed as completed on 2026-02-23 when PR #1285 merged this record. No implementation followed.
+
+At ffc759356, 2026-11-26, `.mcp.json` lists only `serena` and `deepwiki`. No GitHub, performance, or neural MCP server exists, and no `mcp/` tree exists. Debate log: [ADR-011-012-013-020-022-027-048-status-debate-log.md](../critique/ADR-011-012-013-020-022-027-048-status-debate-log.md).
+
+The record is kept so the proposal stays findable.
 
 ## Date
 
