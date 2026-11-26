@@ -492,20 +492,9 @@ def _find_cycle(edges: dict[str, tuple[str, ...]]) -> list[str] | None:
     return None
 
 
-def _windows(text: str) -> set[tuple[str, ...]]:
-    """Return every contiguous MIN_COPIED_RUN-line window in the text.
-
-    Adjacency is the point. An earlier version collected the owner's lines into
-    a set, which discarded their order: a consumer whose lines A, B, C each
-    appeared somewhere in the owner matched even when the owner never held
-    A, B, C together. Windows keep both sides contiguous, so only a real copied
-    block matches.
-    """
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    return {
-        tuple(lines[index : index + MIN_COPIED_RUN])
-        for index in range(len(lines) - MIN_COPIED_RUN + 1)
-    }
+def _lines(text: str) -> list[str]:
+    """Return the text's non-blank lines, stripped, in order."""
+    return [line.strip() for line in text.splitlines() if line.strip()]
 
 
 def _canonical_texts(
@@ -529,7 +518,8 @@ def _canonical_texts(
         if not node.canonical:
             continue
         bodies.update(node.includes)
-        for name in node.depends_on:
+        # A name listed twice is still one dependent (PR #7694 review).
+        for name in dict.fromkeys(node.depends_on):
             if name not in owners or name in node.owns:
                 continue
             per_partial = counts.setdefault(name, {})
@@ -545,11 +535,29 @@ def _canonical_texts(
 
 
 def _shared_run(consumer: str, owner: str) -> bool:
-    """Return True when the two texts share one contiguous block of lines."""
-    owner_windows = _windows(owner)
-    for window in _windows(consumer):
-        if window in owner_windows and sum(len(line) for line in window) >= MIN_COPIED_CHARS:
-            return True
+    """Return True when the texts share a run of MIN_COPIED_RUN or more lines.
+
+    The run must be contiguous on both sides and total MIN_COPIED_CHARS or
+    more. Adjacency is the point: an earlier version collected the owner's
+    lines into a set, which matched a consumer whose lines merely appeared
+    somewhere in the owner. A later version compared fixed three-line windows,
+    which missed a longer copy of short lines whose every three-line window
+    fell under the character floor (PR #7694 review). Extending each matched
+    run line by line measures the whole copied block instead.
+    """
+    positions: dict[str, list[int]] = {}
+    for index, line in enumerate(_lines(owner)):
+        positions.setdefault(line, []).append(index)
+    previous: dict[int, tuple[int, int]] = {}
+    for line in _lines(consumer):
+        current: dict[int, tuple[int, int]] = {}
+        for index in positions.get(line, ()):
+            length, chars = previous.get(index - 1, (0, 0))
+            length, chars = length + 1, chars + len(line)
+            if length >= MIN_COPIED_RUN and chars >= MIN_COPIED_CHARS:
+                return True
+            current[index] = (length, chars)
+        previous = current
     return False
 
 

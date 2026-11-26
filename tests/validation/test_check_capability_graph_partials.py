@@ -238,3 +238,49 @@ def test_the_text_report_lists_each_compared_partial(tree: Path) -> None:
     report = gate.render(nodes, owners, "text")
 
     assert "compares policy: templates/skills/partials/policy-text.mustache" in report.splitlines()
+
+
+def test_a_long_copy_of_short_lines_fails_even_when_no_three_lines_reach_the_floor(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Four 31-character lines total 124 characters; every three-line window is 93."""
+    short = "\n".join(f"{letter * 30}." for letter in "abcd") + "\n"
+    rule = tree / "templates" / "rules" / "owner.md"
+    rule.write_text(
+        f"---\n{_block(kind='cross-cutting-rule', owns=['policy'])}\n---\n\n{short}",
+        encoding="utf-8",
+    )
+    consumer = _block(kind="reusable-primitive", owns=["pasted-cap"], depends_on=["policy"])
+    _skill(tree, "pasted", consumer, body=f"Steps.\n\n{short}")
+
+    assert gate.validate_capability_graph(tree) is False
+    assert "templates/skills/pasted.SKILL.md.tmpl" in capsys.readouterr().err
+
+
+def test_three_short_lines_under_the_floor_pass(tree: Path) -> None:
+    short = "\n".join(f"{letter * 30}." for letter in "abc") + "\n"
+    rule = tree / "templates" / "rules" / "owner.md"
+    rule.write_text(
+        f"---\n{_block(kind='cross-cutting-rule', owns=['policy'])}\n---\n\n{short}",
+        encoding="utf-8",
+    )
+    consumer = _block(kind="reusable-primitive", owns=["pasted-cap"], depends_on=["policy"])
+    _skill(tree, "pasted", consumer, body=f"Steps.\n\n{short}")
+
+    assert gate.validate_capability_graph(tree) is True
+
+
+def test_a_dependency_listed_twice_counts_as_one_dependent(tree: Path) -> None:
+    """One includer that repeats its `depends-on` entry must not reach the threshold."""
+    _policy_tree(tree, pasted_body=f"Steps.\n\n{_POLICY}")
+    (tree / "templates" / "skills" / "second.SKILL.md.tmpl").unlink()
+    included = tree / "templates" / "skills" / "included.SKILL.md.tmpl"
+    doubled = _block(
+        kind="reusable-primitive", owns=["included-cap"], depends_on=["policy", "policy"]
+    )
+    included.write_text(
+        f"---\nname: included\n{doubled}\n---\n\nSteps.\n\n{{{{> policy-text}}}}\n",
+        encoding="utf-8",
+    )
+
+    assert gate.validate_capability_graph(tree) is True
