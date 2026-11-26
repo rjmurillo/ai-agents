@@ -62,25 +62,32 @@ def write_private(root: Path, prefix: str, suffix: str, text: str) -> Path | Non
     return path if _create_private(path, text) else None
 
 
-def stored_int(root: Path, name: str, initial: int, *, store: bool = True) -> int:
+def stored_int(root: Path, name: str, initial: int, *, store: bool = True) -> int | None:
     """Return the integer stored in scratch file ``name``, else ``initial``.
 
-    With ``store`` true, a missing file is created holding ``initial``, so
-    later calls read the same value. A symlinked, unreadable, or corrupt file
-    is not trusted: the call returns ``initial`` without overwriting it.
+    A symlinked, unreadable, or corrupt file is not trusted. Read-only
+    (``store`` false), the call then returns ``initial`` and leaves the file.
+    With ``store`` true, it replaces that file, or creates a missing one,
+    holding ``initial``, so later calls read the same value. It returns None
+    when the value could not be stored, so a caller can fail closed.
     """
     directory = scratch_dir(root, create=store)
     if directory is None:
-        return initial
+        return None if store else initial
     path = directory / name
     if not path.is_symlink() and path.is_file():
         try:
             return int(path.read_text(encoding="utf-8").strip())
         except (OSError, ValueError):
-            return initial
-    if store and not path.exists() and not path.is_symlink():
-        _create_private(path, str(initial))
-    return initial
+            pass
+    if not store:
+        return initial
+    try:
+        if path.is_symlink() or path.is_file():
+            path.unlink()  # removes a link itself, never its target
+    except OSError:
+        return None
+    return initial if _create_private(path, str(initial)) else None
 
 
 def confine_body_file(raw: str, root: Path) -> Path | None:

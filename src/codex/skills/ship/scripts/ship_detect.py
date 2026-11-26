@@ -233,7 +233,8 @@ def detect(cwd: Path | None = None, base: str | None = None) -> Context | Halt:
     if isinstance(checkout, Halt):
         return checkout
     root, host, host_name, branch, head = checkout
-    target = base or default_branch(root)
+    origin_default = default_branch(root)
+    target = base or origin_default
     pr_query = _github_pr(root) if host == "github" else _ado_pr(root, branch)
     if isinstance(pr_query, Halt):
         return pr_query
@@ -241,8 +242,10 @@ def detect(cwd: Path | None = None, base: str | None = None) -> Context | Halt:
     mode = _mode(root, host, pr, author, host_name)
     if isinstance(mode, Halt):
         return mode
-    if mode == "owner" and pr is None and branch == target:
-        return Halt("on-base-branch", common.EXIT_LOGIC, f"on {target}; create a feature branch")
+    # The same protected set publish refuses, so the refusal comes in phase 1.
+    protected = PROTECTED_BRANCHES | {target, origin_default}
+    if mode == "owner" and pr is None and branch in protected:
+        return Halt("on-base-branch", common.EXIT_LOGIC, f"on {branch}; create a feature branch")
     return Context(root, host, host_name, branch, target, head, pr, pr_url, author, mode, pr_draft)
 
 

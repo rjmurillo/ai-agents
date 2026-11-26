@@ -163,7 +163,7 @@ def test_on_base_branch_stops(make_repo, fakes, scripts, capsys):
 
 
 def test_explicit_base_changes_the_target(make_repo, fakes, scripts, capsys):
-    make_repo(GITHUB, branch="main")
+    make_repo(GITHUB)
     fakes.no_pr_github()
     code, lines = _detect(scripts, capsys, "--base", "release")
     assert code == 0

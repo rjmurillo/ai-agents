@@ -408,10 +408,47 @@ class TestStoredInt:
         stored = tmp_path / common.SCRATCH_REL / "state.txt"
         assert oct(stored.stat().st_mode & 0o777) == "0o600"
 
-    def test_unsafe_scratch_returns_initial_and_writes_nothing(self, tmp_path):
+    def test_unsafe_scratch_cannot_store_and_writes_nothing(self, tmp_path):
         outside = tmp_path / "outside"
         outside.mkdir()
         (tmp_path / ".project-toolkit").mkdir()
         symlink_or_skip(tmp_path / ".project-toolkit" / "scratch", outside)
-        assert common.stored_int(tmp_path, "state.txt", 7) == 7
+        assert common.stored_int(tmp_path, "state.txt", 7) is None
+        assert common.stored_int(tmp_path, "state.txt", 7, store=False) == 7
         assert list(outside.iterdir()) == []
+
+    @pytest.mark.parametrize("content", ["not a number", ""])
+    def test_a_corrupt_file_is_replaced_and_then_read(self, tmp_path, content):
+        directory = tmp_path / common.SCRATCH_REL
+        directory.mkdir(parents=True)
+        (directory / "state.txt").write_text(content, encoding="utf-8")
+        assert common.stored_int(tmp_path, "state.txt", 5, store=False) == 5
+        assert (directory / "state.txt").read_text(encoding="utf-8") == content
+        assert common.stored_int(tmp_path, "state.txt", 100) == 100
+        assert common.stored_int(tmp_path, "state.txt", 999) == 100
+
+    def test_a_linked_file_is_replaced_and_its_target_kept(self, tmp_path):
+        directory = tmp_path / common.SCRATCH_REL
+        directory.mkdir(parents=True)
+        target = tmp_path / "target.txt"
+        target.write_text("1", encoding="utf-8")
+        symlink_or_skip(directory / "state.txt", target)
+        assert common.stored_int(tmp_path, "state.txt", 100) == 100
+        assert not (directory / "state.txt").is_symlink()
+        assert target.read_text(encoding="utf-8") == "1"
+        assert common.stored_int(tmp_path, "state.txt", 999) == 100
+
+    def test_a_failed_replace_cannot_store(self, tmp_path, monkeypatch):
+        directory = tmp_path / common.SCRATCH_REL
+        directory.mkdir(parents=True)
+        (directory / "state.txt").write_text("junk", encoding="utf-8")
+
+        def refuse(self, *args, **kwargs):
+            raise PermissionError("read-only")
+
+        monkeypatch.setattr(type(directory), "unlink", refuse)
+        assert common.stored_int(tmp_path, "state.txt", 100) is None
+
+    def test_a_failed_create_cannot_store(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(common._paths, "_create_private", lambda path, text: False)
+        assert common.stored_int(tmp_path, "state.txt", 100) is None

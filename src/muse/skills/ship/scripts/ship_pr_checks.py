@@ -113,24 +113,24 @@ def _base_files(ctx, ref: str) -> list[str] | None:
     return files
 
 
-def _write_private_tree(ctx, ref: str, files: list[str], tree: Path) -> bool:
-    """Copy each base file into ``tree`` with owner-only modes; False on any failure."""
+def _write_private_tree(ctx, ref: str, files: list[str], tree: Path) -> str | None:
+    """Copy each base file into ``tree`` with owner-only modes; the failure cause, or None."""
     for rel in files:
         parts = Path(rel).parts
         if not parts or parts[0] != "scripts" or ".." in parts or Path(rel).is_absolute():
-            return False
+            return f"{rel}: path outside scripts/"
         shown = common.git(["show", f"{ref}:{rel}"], cwd=ctx.root)
         if shown.returncode != 0:
-            return False
+            return f"{rel}: " + common.cause_line(shown.stderr, f"git show exit {shown.returncode}")
         target = tree.joinpath(*parts)
         try:
             target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
             flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
             with os.fdopen(os.open(target, flags, 0o600), "w", encoding="utf-8") as handle:
                 handle.write(shown.stdout)
-        except OSError:
-            return False
-    return True
+        except OSError as exc:
+            return f"{rel}: {exc.strerror or exc}"
+    return None
 
 
 def _check_paths(ctx, body_file: Path, base: str, result) -> bool | None:
@@ -148,8 +148,9 @@ def _check_paths(ctx, body_file: Path, base: str, result) -> bool | None:
         return None
     with tempfile.TemporaryDirectory(prefix="ship-validator-") as directory:
         tree = Path(directory)
-        if not _write_private_tree(ctx, ref, files, tree):
-            _not_run(result, f"could not copy the validator from {shown}")
+        failure = _write_private_tree(ctx, ref, files, tree)
+        if failure:
+            _not_run(result, f"could not copy the validator from {shown} ({failure})")
             return None
         done = common.run(
             [

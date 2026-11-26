@@ -60,6 +60,7 @@ Replaces both host-detection blocks and the PR ownership prose.
 - A failed `gh` or `az` query: `STOP: pr-query-failed`, exit 3, or `STOP: auth-failed`, exit 4.
 - An open PR with no author in the host reply: `STOP: pr-author-unknown`, exit 3.
   It never prints `PR: none` after a failed query.
+- In owner mode with no open PR, a base branch (`main`, `master`, the origin default, or `--base`) is `STOP: on-base-branch`, exit 1.
 - Host rule: match the parsed URL host, not a substring.
   This fixes finding LOW-1 from the 2026-11-25 security review.
 
@@ -69,7 +70,7 @@ Runs the checks that have one right answer.
 
 | Flag | Prints |
 |---|---|
-| `--check tree` | `CHECK: tree=clean` or `tree=dirty` |
+| `--check tree` | `CHECK: tree=clean` or `tree=dirty` (`.project-toolkit/scratch/` is not counted) |
 | `--check reviewed` | `CHECK: reviewed=PASS axes=<list>`, `FAIL`, `SKIPPED` (draft), or `ADVISORY` (contributor) |
 | `--check pipeline` | `CHECK: pipeline=PASS`, `FAIL`, `PENDING`, or `DEFERRED` |
 
@@ -83,6 +84,7 @@ Runs the checks that have one right answer.
   A contributor never publishes, so a contributor `DEFERRED` pipeline ends on `NEXT: report`.
 - `PENDING` ends on `NEXT: rerun-pipeline` with a `PIPELINE_DEADLINE:` line. Past the 30-minute deadline it is `FAIL`.
   The first `PENDING` result stores that deadline in a scratch state file keyed by host, PR, and HEAD, so a rerun cannot extend it.
+  A corrupt or linked state file is replaced. When the deadline cannot be stored, the run ends on `STOP: deadline-unstored`, exit 2.
 - On GitHub each call waits at most 300 seconds (`ship_preflight.py` clamps `--wait-seconds` to 300 seconds there).
   Required checks still running when the call returns are `PENDING`, unless a required check already failed.
   A failed required check is `FAIL` even while others still run, including on helper exit 7.
@@ -149,14 +151,14 @@ A STOP detail is at most 500 characters.
 
 `--deadline` can only shorten the stored 30-minute window. A value past 30 minutes from the call is refused, and an omitted value reuses the stored deadline.
 The base branch defaults to `origin/HEAD`, else `origin/main` or `origin/master`, else `main`.
-A failed paths check prints one `FINDING: <issue>: <file>` line per critical finding. The Azure DevOps description check reads the helper's JSON `ErrorCount`.
+A failed paths check prints one `FINDING: <issue>: <file>` line per critical finding, at most 10. The Azure DevOps description check reads the helper's JSON `ErrorCount`.
 
 STOP reasons, by the script that first declares them. A later script also uses the reasons of the scripts it builds on.
 
 | Script | STOP reasons |
 |---|---|
 | `ship_detect.py` | `bad-arguments`, `no-repo`, `no-origin`, `unsupported-remote`, `detached-head`, `on-base-branch`, `pr-query-failed`, `user-query-failed`, `auth-failed`, `pr-author-unknown` |
-| `ship_preflight.py` | `check-failed`, `validator-missing`, `validator-config`, `checks-query-failed`, `pipeline-query-failed` |
+| `ship_preflight.py` | `check-failed`, `validator-missing`, `validator-config`, `checks-query-failed`, `pipeline-query-failed`, `deadline-unstored` |
 | `ship_pr.py` | `bad-branch-name`, `branch-create-failed`, `prepare-failed`, `bad-body-file`, `contributor-mode`, `tree-dirty`, `head-not-reviewed`, `paths-not-checked`, `push-rejected`, `push-failed`, `pr-create-failed`, `description-upload-failed` |
 
 ## Permissions
