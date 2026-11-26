@@ -77,7 +77,7 @@ class TestPrepare:
         repo = make_repo(GITHUB)
         (repo / ".github").mkdir()
         (repo / ".github" / "PULL_REQUEST_TEMPLATE.md").write_text("## Summary\n", encoding="utf-8")
-        monkeypatch.setattr(scripts[3], "_IS_WINDOWS", True)
+        monkeypatch.setattr(scripts[0], "on_windows", lambda: True)
         code, lines = run_pr(scripts, capsys, "prepare")
         assert code == 0
         path = repo / values(lines, "BODY_FILE")[0]

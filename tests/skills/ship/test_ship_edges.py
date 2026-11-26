@@ -149,7 +149,7 @@ class TestPrEdges:
         self, make_repo, fakes, scripts, capsys, monkeypatch
     ):
         repo = make_repo(GITHUB)
-        monkeypatch.setattr(scripts[3], "_IS_WINDOWS", True)
+        monkeypatch.setattr(scripts[0], "on_windows", lambda: True)
         code, lines = invoke(scripts[3], ["prepare"], capsys)
         assert code == 0
         body = repo / values(lines, "BODY_FILE")[0]
@@ -159,7 +159,7 @@ class TestPrEdges:
         self, make_repo, fakes, scripts, capsys, monkeypatch
     ):
         make_repo(GITHUB)
-        monkeypatch.setattr(scripts[3], "_IS_WINDOWS", True)
+        monkeypatch.setattr(scripts[0], "on_windows", lambda: True)
         monkeypatch.setattr(scripts[0], "write_private", lambda *args, **kwargs: None)
         code, lines = invoke(scripts[3], ["prepare"], capsys)
         assert code == 2

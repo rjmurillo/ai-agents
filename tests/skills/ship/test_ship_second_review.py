@@ -366,3 +366,63 @@ class TestMissingBaseRef:
             v.startswith("paths=NOT-RUN origin/main not found; fetch it")
             for v in values(lines, "CHECK")
         )
+
+
+class TestRoundFiveFindings:
+    @pytest.mark.parametrize("output_format", ["human", "json"])
+    def test_a_narrow_code_page_still_prints_the_terminal_line(
+        self, scripts, monkeypatch, tmp_path, output_format
+    ):
+        import io
+
+        common = scripts[0]
+        raw = io.BytesIO()
+        stream = io.TextIOWrapper(raw, encoding="cp1252", errors="strict")
+        monkeypatch.setattr(common.sys, "stdout", stream)
+        result = common.Result("t.py", frozenset({"x-failed"}))
+        result.add("PR_AUTHOR", "\u5c71\u7530")
+        result.stop("x-failed", 3, "cause \u592a\u90ce")
+        assert common.emit(result, output_format, tmp_path) == 3
+        text = raw.getvalue().decode("cp1252")
+        assert "x-failed cause ??" in text
+        if output_format == "human":
+            assert text.splitlines()[-1] == "STOP: x-failed cause ??"
+
+    def test_a_stream_without_reconfigure_still_prints(self, scripts, monkeypatch, tmp_path):
+        import io
+
+        common = scripts[0]
+        stream = io.StringIO()
+        monkeypatch.setattr(common.sys, "stdout", stream)
+        result = common.Result("t.py", frozenset({"x-failed"}))
+        result.next("report")
+        assert common.emit(result, "human", tmp_path) == 0
+        assert stream.getvalue().splitlines()[-1] == "NEXT: report"
+
+    def test_a_conflicting_pr_names_the_merge_state(self, scripts):
+        data = {
+            "RequiredState": "UNKNOWN",
+            "AllPassing": False,
+            "MergeRefUsable": False,
+            "MergeState": "DIRTY",
+            "MergeStateWarning": "the merge ref cannot be built: conflicts",
+        }
+        ctx = type("Ctx", (), {"head": "a" * 40})()
+        check = sys.modules["_ship_pipeline"]._github_verdict(ctx, 12, 1, data)
+        assert check.state == "FAIL"
+        assert check.detail.endswith("merge_state=DIRTY (the merge ref cannot be built: conflicts)")
+
+    def test_a_usable_merge_ref_adds_no_merge_state(self, scripts):
+        data = {"RequiredState": "FAILURE", "MergeRefUsable": True, "MergeState": "CLEAN"}
+        ctx = type("Ctx", (), {"head": "a" * 40})()
+        check = sys.modules["_ship_pipeline"]._github_verdict(ctx, 12, 1, data)
+        assert "merge_state" not in check.detail
+
+    def test_a_merge_state_without_a_warning_still_names_the_state(self, scripts):
+        data = {"RequiredState": "UNKNOWN", "MergeRefUsable": False, "MergeState": "DIRTY"}
+        ctx = type("Ctx", (), {"head": "a" * 40})()
+        check = sys.modules["_ship_pipeline"]._github_verdict(ctx, 12, 1, data)
+        assert check.detail.endswith("merge_state=DIRTY")
+
+    def test_ship_pr_has_one_windows_seam(self, scripts):
+        assert not hasattr(scripts[3], "_IS_WINDOWS")

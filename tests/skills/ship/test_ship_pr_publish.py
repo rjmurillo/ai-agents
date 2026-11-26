@@ -291,7 +291,7 @@ class TestPublishGitHub:
 
     def test_windows_passes_the_body_text(self, owner, fakes, scripts, capsys, monkeypatch):
         _repo, body = owner
-        monkeypatch.setattr(scripts[3], "_IS_WINDOWS", True)
+        monkeypatch.setattr(scripts[0], "on_windows", lambda: True)
         code, _lines = publish(
             scripts,
             capsys,

@@ -105,7 +105,7 @@ def _read_github_checks(
 
 
 def _github_verdict(ctx: Context, pr: int, code: int, data: dict[str, Any]) -> Check:
-    """Turn one get_pr_checks.py result into PASS or FAIL. Exit 0 alone is not green."""
+    """Turn one get_pr_checks.py result into PASS, PENDING, or FAIL. Exit 0 alone is not green."""
     if code == 0 and data.get("RequiredState") == "SUCCESS" and data.get("AllPassing") is True:
         return Check("pipeline", "PASS", f"pr={pr} head={ctx.head[:12]}")
     if (code == 7 or data.get("RequiredState") == "PENDING") and not data.get(
@@ -121,6 +121,11 @@ def _github_verdict(ctx: Context, pr: int, code: int, data: dict[str, Any]) -> C
         ("pending", "PendingRequiredChecks"),
     ):
         detail += _names(data, label, (key,))
+    if data.get("MergeRefUsable") is False:
+        # A conflicting branch has no merge ref, so CI cannot run: name that cause.
+        detail += f" merge_state={data.get('MergeState')}"
+        if data.get("MergeStateWarning"):
+            detail += f" ({data.get('MergeStateWarning')})"
     return Check("pipeline", "FAIL", detail)
 
 

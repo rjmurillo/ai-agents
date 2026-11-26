@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
-import os
 import re
 import sys
 from pathlib import Path
@@ -55,7 +54,6 @@ else:
     split_not_run = checks_mod.split_not_run
 
 SCRIPT = "ship_pr.py"
-_IS_WINDOWS = os.name == "nt"
 REASONS = preflight_mod.REASONS | frozenset(
     {
         "bad-branch-name",
@@ -113,7 +111,7 @@ def _windows_body_file(root: Path) -> Path | None:
 
 
 def cmd_prepare(args: argparse.Namespace, result: common.Result, root: Path) -> common.Result:
-    if _IS_WINDOWS:
+    if common.on_windows():
         path = _windows_body_file(root)
         if path is None:
             return result.stop("prepare-failed", common.EXIT_CONFIG, "scratch directory is unsafe")
@@ -205,7 +203,7 @@ def _create_github(
     if not helper.is_file():
         return result.stop("pr-create-failed", common.EXIT_CONFIG, "new_pr.py not found")
     argv = [sys.executable, "-I", str(helper), "--title", args.title, "--base", ctx.base]
-    if _IS_WINDOWS:
+    if common.on_windows():
         argv.extend(["--body", body.read_text(encoding="utf-8", errors="replace")])
     else:
         argv.extend(["--body-file", str(body)])

@@ -349,7 +349,15 @@ def render(result: Result, output_format: str, repo_root: Path | None) -> str:
 
 
 def emit(result: Result, output_format: str, repo_root: Path | None) -> int:
-    """Print ``result`` and return its exit code."""
+    """Print ``result`` and return its exit code.
+
+    ``python3 -I`` ignores PYTHONIOENCODING, so a Windows pipe keeps its code
+    page. A character outside it is replaced, never raised, so the terminal
+    line always prints.
+    """
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
+    if reconfigure is not None:
+        reconfigure(errors="replace")
     sys.stdout.write(render(result, output_format, repo_root))
     sys.stdout.flush()
     return result.exit_code
