@@ -162,6 +162,7 @@ supersedes: []           # ADR ids this record supersedes, if any
 superseded-by: null
 explainer: null          # display-only link; NEVER auto-fetch (CWE-918 SSRF)
 implemented: false       # flips true at the first merged change
+review-by: YYYY-MM-DD    # required while proposed: the date the decision must be made
 ---
 ```
 
@@ -193,6 +194,7 @@ Write the file to the destination directory determined in Phase G2:
 | Lowercase kebab-case slug (3-5 words) | `database-selection`, `event-sourcing-pattern` |
 | Status always set to `Proposed` | Changed only after `adr-review` debate |
 | Frontmatter `status: proposed`, `implemented: false`, `explainer: null` | Phase 1 defaults (ADR-073); `explainer` never auto-fetched (CWE-918) |
+| Frontmatter `review-by: YYYY-MM-DD`, also stated in the prose | Required while `proposed` (ADR-073); the lifecycle gate fails a `proposed` record without it |
 
 ### Amend Mode
 

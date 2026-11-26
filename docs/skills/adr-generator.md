@@ -47,6 +47,7 @@ When the destination uses this repository's canonical template, the file starts 
 | `superseded-by` | `null` |
 | `explainer` | `null`. The skill records a supplied link as text and never fetches it. |
 | `implemented` | `false`. It flips to `true` at the first merged change. |
+| `review-by` | The date the decision is due, also written in the prose. Required while `status` is `proposed`; the lifecycle gate fails a proposed record without it. |
 
 ## Advanced use
 

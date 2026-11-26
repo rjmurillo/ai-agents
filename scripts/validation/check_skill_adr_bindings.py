@@ -52,7 +52,7 @@ enum verbatim::
 
     status: proposed | accepted | rejected | deprecated | superseded   # enum, no prose
 
-`scripts/validation/check_adr_lifecycle.py:152-155` carries the same list as the
+`scripts/validation/check_adr_lifecycle.py:161-164` carries the same list as the
 set it validates against, with the same attribution::
 
     # ADR-073 Decision section, verbatim: "status: proposed | accepted | rejected |

@@ -84,6 +84,13 @@ Checks, each named so the baseline tracks them separately:
     review-by-prose-date         a live record's `review-by` date is also stated in its prose,
                                   so the two places a deadline is written cannot drift apart
                                   (issue #5193)
+    proposed-needs-review-by     a `proposed` record carries a `review-by` date, so an
+                                  undecided record expires instead of staying open forever
+                                  (issue #7638)
+
+`review-by-past-due` is zero-tolerance (`ZERO_TOLERANCE_CHECKS`): the baseline cannot
+hold it, so an overdue review fails every run until the review is held, the date is
+moved, or the status changes (issue #7638). The other checks are ratcheted.
 
 `status-edge-consistency` closes a gap `supersession-reciprocal` leaves open
 (Copilot, PR #5209): reciprocity validates edges against each other, never
@@ -101,15 +108,17 @@ Only `accepted` records are read; `superseded`, `deprecated`, `rejected`, and
 `proposed` records are history or not yet binding, and a gate firing on them is
 the tripwire ADR-073 warns about.
 
-`review-by` is the optional ADR-073 field for a record whose prose commits to a
-calendar revisit date. It exists because ADR-002 and ADR-039 sat seven months past a
+`review-by` is the ADR-073 field for a record whose prose commits to a calendar
+revisit date. It exists because ADR-002 and ADR-039 sat seven months past a
 provisional window that only prose recorded (issue #5193). The two date checks read
 the wall clock, so `scan()` and `run()` take an injectable ``today``; the command line
 has no flag for it, because a flag would let a branch dodge the gate. A record whose
 status is `superseded`, `deprecated`, or `rejected` is history, so its date is moot
-and only the format check reads it. The checks cover calendar deadlines only. A
-condition-triggered revisit ("if the eval sets change") is not a date and carries no
-`review-by`; inventing one would make the gate fire on a deadline the prose never made.
+and only the format check reads it. For an `accepted` record the field stays optional:
+a condition-triggered revisit ("if the eval sets change") is not a date and carries no
+`review-by`. A `proposed` record must carry one (`proposed-needs-review-by`, ADR-073
+amendment 2026-11-26, issue #7638): an undecided record with no deadline never comes
+up for decision, so it can stay `proposed` forever.
 
 `implemented-implies-decided` (`implemented: true` with `status: proposed`) was
 removed in PR #5209 on the argument that ADR-073 defines `implemented` as flipping at
@@ -205,7 +214,15 @@ CHECKS: tuple[str, ...] = (
     "review-by-format",
     "review-by-past-due",
     "review-by-prose-date",
+    "proposed-needs-review-by",
 )
+
+# Checks the baseline may not grandfather (issue #7638). A violation of one of
+# these fails the run even when the baseline lists its record, and
+# `--write-baseline` records an empty mapping for it. `review-by-past-due` is
+# here because the clock, not a branch, creates its violations: a baseline entry
+# for it only lets a missed review stay missed forever, as ADR-077 did.
+ZERO_TOLERANCE_CHECKS: frozenset[str] = frozenset({"review-by-past-due"})
 
 # The ADR-073 status enum. `test_lifecycle_statuses_conform_to_adr_073` fails when
 # the ADR and this set disagree.
@@ -1032,6 +1049,28 @@ def _check_review_by(record: Record, today: date) -> list[Violation]:
     return found
 
 
+def _check_proposed_needs_review_by(record: Record) -> list[Violation]:
+    """`proposed-needs-review-by`: an undecided record must name its decision date.
+
+    A `proposed` record with an absent or null ``review-by`` never expires, so
+    `review-by-past-due` can never fire on it (issue #7638). A present but
+    malformed value is `review-by-format`'s finding, not this one, so one typo
+    yields one violation. Every other status passes: an
+    `accepted` record may still carry no date when its revisit is condition-
+    triggered, and closed records are history.
+    """
+    if _status_of(record) != "proposed":
+        return []
+    if _frontmatter_of(record).get("review-by") is not None:
+        return []
+    detail = (
+        "status is proposed but review-by is absent or null, so the record never "
+        "comes due. Set review-by to the YYYY-MM-DD date the decision must be made "
+        "and state the same date in the prose, or move the status out of proposed."
+    )
+    return [Violation("proposed-needs-review-by", record.path, detail)]
+
+
 def _edge_targets(
     record: Record, raw_entries: list[Any], field: str, known: set[int]
 ) -> tuple[list[int], list[Violation]]:
@@ -1226,6 +1265,7 @@ def scan(adr_dir: Path, repo_root: Path, today: date | None = None) -> list[Viol
         violations.extend(_check_implemented_implies_decided(record))
         violations.extend(_check_structure(record))
         violations.extend(_check_review_by(record, today))
+        violations.extend(_check_proposed_needs_review_by(record))
     by_number = {r.number: r for r in records if r.frontmatter is not None}
     graph = _build_graph(by_number, known)
     violations.extend(graph.findings)
@@ -1256,9 +1296,15 @@ def _excess(current: Baseline, allowed: Baseline) -> Baseline:
     excess: only the baseline read at the base ref lacks a check, because the
     branch under test is the one adding it (issue #5194), and a live baseline
     is validated to name every check before it reaches here.
+
+    A check in ``ZERO_TOLERANCE_CHECKS`` has an allowance of zero for every
+    path, whatever ``allowed`` holds and even when ``allowed`` omits it, so
+    every violation of it is excess (issue #7638).
     """
     return {
-        name: {
+        name: dict(current[name])
+        if name in ZERO_TOLERANCE_CHECKS
+        else {
             path: count
             for path, count in current[name].items()
             if count > allowed[name].get(path, 0)
@@ -1290,6 +1336,23 @@ def _paths_problem(name: str, paths: object, source: str) -> str | None:
         if not isinstance(count, int) or isinstance(count, bool) or count < 1:
             return f"baseline {source} entry {name} for {path} is {count!r}, not a count"
     return None
+
+
+def _zero_tolerance_problem(entries: dict[str, Any], source: str) -> str | None:
+    """A reason the live baseline lists a zero-tolerance check, or None.
+
+    Such an entry grants nothing (``_excess`` ignores it), so leaving it in place
+    would make the file claim a ceiling the gate does not apply. The base-ref
+    baseline is exempt: it may predate the check's move to zero-tolerance.
+    """
+    held = sorted(name for name in ZERO_TOLERANCE_CHECKS if entries.get(name))
+    if not held:
+        return None
+    return (
+        f"baseline {source} lists records under the zero-tolerance check(s) "
+        f"{', '.join(held)}, which the baseline cannot grandfather. Fix those "
+        "records, then regenerate it with --write-baseline."
+    )
 
 
 def _legacy_baseline(payload: dict[str, Any], source: str, zero_ok: bool) -> Baseline | str:
@@ -1344,6 +1407,8 @@ def _parse_baseline_payload(
     for name in CHECKS:
         if name in entries:
             problem = problem or _paths_problem(name, entries[name], source)
+    if not new_checks_ok:
+        problem = problem or _zero_tolerance_problem(entries, source)
     if problem:
         return problem
     return {name: dict(entries[name]) for name in CHECKS if name in entries}
@@ -1499,6 +1564,11 @@ def _baseline_at_ref(repo_root: Path, ref: str, baseline_path: Path) -> Baseline
     return parsed if isinstance(parsed, dict) else None
 
 
+def recordable(found: Baseline) -> Baseline:
+    """The part of ``found`` a baseline may hold: zero-tolerance checks empty."""
+    return {name: {} if name in ZERO_TOLERANCE_CHECKS else dict(found[name]) for name in CHECKS}
+
+
 def write_baseline(path: Path, found: Baseline) -> None:
     """Record ``found`` as the new ceiling. Fixed key order keeps diffs small.
 
@@ -1514,7 +1584,9 @@ def write_baseline(path: Path, found: Baseline) -> None:
     payload = {
         "schema_version": _BASELINE_SCHEMA_VERSION,
         "description": _BASELINE_DESCRIPTION,
-        "violations": {name: dict(sorted(found[name].items())) for name in CHECKS},
+        "violations": {
+            name: dict(sorted(entries.items())) for name, entries in recordable(found).items()
+        },
     }
     text = json.dumps(payload, indent=2) + "\n"
     directory = path.parent
@@ -1538,7 +1610,9 @@ def _print_violations(selected: list[Violation], limit: int) -> None:
         print(f"  ... and {len(selected) - limit} more")
 
 
-def _marker(current: int, allowed: int, gained: int) -> str:
+def _marker(current: int, allowed: int, gained: int, *, zero_tolerance: bool = False) -> str:
+    if zero_tolerance:
+        return "zero-tolerance, FAILING" if current else "zero-tolerance"
     if current > allowed:
         return "RAISED"
     if gained:
@@ -1561,13 +1635,17 @@ def _report(found: Baseline, baseline: Baseline) -> tuple[Baseline, set[str]]:
     print("ADR lifecycle checks (current / baseline):")
     for name in CHECKS:
         current, allowed = _total(found[name]), _total(baseline[name])
-        print(
-            f"  {name:<{width}}  {current:>3} / {allowed:<3}  "
-            f"{_marker(current, allowed, len(excess[name]))}"
+        marker = _marker(
+            current, allowed, len(excess[name]), zero_tolerance=name in ZERO_TOLERANCE_CHECKS
         )
+        print(f"  {name:<{width}}  {current:>3} / {allowed:<3}  {marker}")
     return (
         excess,
-        {name for name in CHECKS if not found[name] and not baseline[name]},
+        {
+            name
+            for name in CHECKS
+            if name not in ZERO_TOLERANCE_CHECKS and not found[name] and not baseline[name]
+        },
     )
 
 
@@ -1681,17 +1759,19 @@ def run(
         # outright rather than reporting "absent" (Copilot would have caught
         # this as a false CONFIG failure had a test not already covered the
         # case), so this is checked before asking git anything.
-        refusal = _base_ref_refusal(repo_root, baseline_path, found, writing=True)
+        refusal = _base_ref_refusal(repo_root, baseline_path, recordable(found), writing=True)
         if refusal is not None:
             print(refusal[1], file=sys.stderr)
             return refusal[0]
+        recorded = recordable(found)
         write_baseline(baseline_path, found)
         print(
             f"[OK] Wrote {baseline_path} from {len(violations)} violation(s) "
             f"across {examined} ADR record(s):"
         )
         for name in CHECKS:
-            print(f"  {name}: {_total(found[name])}")
+            note = " (zero-tolerance, never recorded)" if name in ZERO_TOLERANCE_CHECKS else ""
+            print(f"  {name}: {_total(recorded[name])}{note}")
         return EXIT_OK
 
     baseline = read_baseline(baseline_path)
