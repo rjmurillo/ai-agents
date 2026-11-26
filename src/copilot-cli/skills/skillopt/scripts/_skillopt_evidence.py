@@ -131,6 +131,9 @@ def _splits(eval_set: dict[str, Any]) -> tuple[list[str], set[str]]:
     train = _split_task_ids(eval_set, "train")
     splits = eval_set["splits"]
     sel = set(_split_task_ids(eval_set, "sel")) if "sel" in splits else set()
+    shared = sorted(sel.intersection(train))
+    if shared:
+        raise SkillOptError(f"task(s) {', '.join(shared)} are in both train and sel")
     return train, sel
 
 
