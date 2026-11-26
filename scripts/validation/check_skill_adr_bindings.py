@@ -174,7 +174,7 @@ Every terminal line carries the examined count beside the violation count, which
 MUST 12 requires in as many words: "0 violations in 381 files" is verifiable,
 "OK" is not.
 
-The lifecycle gate prints the same pairing at `check_adr_lifecycle.py:1821`:
+The lifecycle gate prints the same pairing at `check_adr_lifecycle.py:1824`:
 `violation(s) across {examined} ADR record(s)`.
 """
 
