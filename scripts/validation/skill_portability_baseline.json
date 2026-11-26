@@ -102,6 +102,7 @@
     "skills/ship/scripts/_ship_paths.py": 1,
     "skills/skill-bootstrap/scripts/adr_locate.py": 1,
     "skills/skill-bootstrap/scripts/bootstrap_boundary.py": 1,
+    "skills/skill-doctor/scripts/adr_corpus.py": 1,
     "skills/skill-doctor/scripts/session_discovery.py": 1,
     "skills/skillforge/scripts/discover_skills.py": 1,
     "skills/skillforge/scripts/init_skill.py": 1,
