@@ -85,6 +85,7 @@ __all__ = [
     "ControllerError",
     "load_config",
     "main",
+    "optimizer",
     "task_file",
     "write_artifact",
 ]

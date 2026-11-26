@@ -203,7 +203,7 @@ def _check_workspace_and_artifact(config: Config) -> None:
 
 
 def _check_protected_paths(config: Config) -> None:
-    for path in [*config.deny_paths, *config.trusted_paths]:
+    for path in [*config.deny_paths, *trusted_code(config)]:
         if overlaps(path, config.workspace_dir) or overlaps(path, config.artifact):
             raise ControllerError(
                 "a deny or trusted path overlaps the proposer workspace or the artifact; "
@@ -286,18 +286,16 @@ def kill_group(proc: subprocess.Popen[bytes]) -> None:
         pass
 
 
-def run_child(
-    argv: list[str],
-    what: str,
-    timeout: int,
-    env: Mapping[str, str] | None = None,
-    ok_codes: Sequence[int] = (0,),
-) -> float:
-    """Run one scorer or proposer call; return its duration in seconds."""
-    # Output goes to temporary files, not pipes. A descendant that escapes the
-    # process group would otherwise hold a pipe open, and the read would block
-    # past the timeout until that descendant exited.
-    started = time.monotonic()
+def _spawn(
+    argv: list[str], what: str, timeout: int, env: Mapping[str, str] | None
+) -> tuple[int, str, str]:
+    """Run one child in its own session; return its exit code and output.
+
+    Output goes to temporary files, not pipes. A descendant that escapes the
+    process group would otherwise hold a pipe open, and the read would block
+    past the timeout until that descendant exited. The child's group is
+    killed when the call ends, on timeout as well as on a normal exit.
+    """
     with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
         try:
             proc = subprocess.Popen(
@@ -318,53 +316,48 @@ def run_child(
             raise ControllerError(f"{what} timed out after {timeout}s", EXIT_EXTERNAL) from exc
         finally:
             kill_group(proc)
-        if proc.returncode not in ok_codes:
-            err.seek(0)
-            out.seek(0)
-            tail = (err.read() or out.read()).decode("utf-8", errors="replace").strip()[-_TAIL:]
-            raise ControllerError(
-                f"{what} exited {proc.returncode}; see the controller log",
-                EXIT_EXTERNAL,
-                detail=tail,
-            )
+        out.seek(0)
+        err.seek(0)
+        stdout = out.read().decode("utf-8", errors="replace")
+        stderr = err.read().decode("utf-8", errors="replace")
+    return proc.returncode, stdout, stderr
+
+
+def run_child(
+    argv: list[str],
+    what: str,
+    timeout: int,
+    env: Mapping[str, str] | None = None,
+    ok_codes: Sequence[int] = (0,),
+) -> float:
+    """Run one scorer or proposer call; return its duration in seconds."""
+    started = time.monotonic()
+    code, stdout, stderr = _spawn(argv, what, timeout, env)
+    if code not in ok_codes:
+        raise ControllerError(
+            f"{what} exited {code}; see the controller log",
+            EXIT_EXTERNAL,
+            detail=(stderr or stdout).strip()[-_TAIL:],
+        )
     return round(time.monotonic() - started, 3)
 
 
 def optimizer(
     args: list[str], timeout: int, env: Mapping[str, str] | None = None
 ) -> tuple[int, dict[str, Any]]:
-    argv = [sys.executable, str(OPTIMIZER), *args]
+    what = f"optimize-artifact {args[0]}"
+    code, stdout, stderr = _spawn([sys.executable, str(OPTIMIZER), *args], what, timeout, env)
     try:
-        proc = subprocess.run(
-            argv,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            check=False,
-            cwd=REPO_ROOT,
-            env=None if env is None else dict(env),
-            timeout=timeout,
-        )
-    except subprocess.TimeoutExpired as exc:
-        raise ControllerError(
-            f"optimize-artifact {args[0]} timed out after {timeout}s", EXIT_EXTERNAL
-        ) from exc
-    except OSError as exc:
-        raise ControllerError(
-            f"optimize-artifact {args[0]} could not start: {exc}", EXIT_EXTERNAL
-        ) from exc
-    try:
-        payload = json.loads(proc.stdout)
+        payload = json.loads(stdout)
     except ValueError as exc:
         raise ControllerError(
-            f"optimize-artifact {args[0]} returned no JSON (exit {proc.returncode})",
+            f"{what} returned no JSON (exit {code})",
             EXIT_EXTERNAL,
-            detail=proc.stderr.strip()[-_TAIL:],
+            detail=stderr.strip()[-_TAIL:],
         ) from exc
     if not isinstance(payload, dict):
-        raise ControllerError(f"optimize-artifact {args[0]} returned a non-object", EXIT_EXTERNAL)
-    return proc.returncode, payload
+        raise ControllerError(f"{what} returned a non-object", EXIT_EXTERNAL)
+    return code, payload
 
 
 def write_artifact(path: Path, data: bytes, mode: int) -> None:

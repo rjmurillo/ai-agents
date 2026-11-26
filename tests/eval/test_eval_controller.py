@@ -868,3 +868,26 @@ def test_symlinked_deny_directory_is_digested_by_content(tmp_path: Path) -> None
     _edit_config(config, deny_paths=[str(link)])
     assert ec.load_config(config).deny_paths == [(tmp_path / "fixtures").resolve()]
     assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+
+
+def test_artifact_inside_the_eval_directory_is_refused(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    _edit_config(config, artifact=str(_SCRIPT))
+    with pytest.raises(ec.ControllerError):
+        ec.load_config(config)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="setsid is POSIX only")
+def test_optimizer_timeout_is_bounded_and_external(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import time
+
+    slow = tmp_path / "slow.py"
+    slow.write_text("import time; time.sleep(30)\n", encoding="utf-8")
+    monkeypatch.setattr(sys.modules["_controller_io"], "OPTIMIZER", slow)
+    started = time.monotonic()
+    with pytest.raises(ec.ControllerError) as caught:
+        ec.optimizer(["gate"], 1)
+    assert caught.value.code == ec.EXIT_EXTERNAL
+    assert time.monotonic() - started < 10

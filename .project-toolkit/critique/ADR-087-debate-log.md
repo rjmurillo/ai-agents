@@ -208,6 +208,13 @@ Second Cursor pass on `f3f27f824`:
 | A failed baseline scoring run left a scorer-rewritten artifact on disk. | Fixed. The baseline restores the incumbent on failure. |
 | `state_dir`, `workspace_dir`, `deny_paths`, and `trusted_paths` were not canonical, so a symlinked directory skipped the content digest. | Fixed. All resolve at config load. |
 
+Third Cursor pass on `3d6635d79`:
+
+| Finding | Disposition |
+| --- | --- |
+| An artifact under `scripts/eval/` passed the layout check, then tripped the integrity digest after an ACCEPT. | Fixed. The artifact is checked against all trusted code. |
+| Optimizer calls used `subprocess.run`, which kills only the child on timeout. | Fixed. Optimizer, scorer, and proposer share one spawn path: new session, file output, group kill. |
+
 ## Dissent and residual risk
 
 - The boundary holds only under a launcher deny rule the controller cannot verify. The owner chose this in decision D2 over an OS user or a CI job.
