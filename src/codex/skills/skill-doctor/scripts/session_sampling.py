@@ -10,6 +10,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any
 
+from session_common import THREAD_SUBAGENT, THREAD_TOP_LEVEL
+
 SAMPLING_RULE = (
     "Harnesses with scoreable sessions are ranked by scoreable count (descending), "
     "then by harness name (ascending). The --max-sessions cap is dealt one slot at a time "
@@ -26,6 +28,15 @@ WITHIN_HARNESS_RULE = (
     "it favors sessions that exercise skills, so per-harness grades describe that "
     "slice, not the harness as a whole. The --per-skill and --no-skill caps apply "
     "within each harness, and a quota the caps cannot fill is left unused."
+)
+
+TOP_LEVEL_RULE = (
+    "When --top-level-quota is above 0, top-level sessions are sampled first into up to that "
+    "many of the --max-sessions slots, by the rules above. Open reserved slots then take the "
+    "remaining top-level sessions, newest first, past the --per-skill and --no-skill caps. "
+    "Subagent sessions fill every slot the top-level sessions leave open, and slots the "
+    "subagent sessions cannot fill return to the remaining top-level sessions, newest first. "
+    "--top-level-quota 0 samples both session types as one pool."
 )
 
 SKILL_FIRST = "skill_first"
@@ -94,33 +105,24 @@ def _omission_notice(cap: int, ranked: list[str], omitted: list[dict[str, Any]])
     )
 
 
-def sample_sessions(
-    sessions: Any, skills: Any, args: Any
-) -> tuple[set[str], dict[str, dict[str, int]], dict[str, Any]]:
-    """Sample per harness. Returns the sampled keys, per-harness counts, and a sampling block.
-
-    ``sessions`` must already be in recency order; that order is kept inside each harness.
-    """
+def _skill_first_by_harness(
+    sessions: Any, skills: Any, args: Any, cap: int
+) -> tuple[set[str], dict[str, dict[str, int]]]:
+    """Deal ``cap`` slots across harnesses, then sample each harness skill-first."""
     groups: dict[str, list[Any]] = {}
     for session in sessions:
         groups.setdefault(session["harness"], []).append(session)
-    quotas = harness_quotas(
-        {harness: len(group) for harness, group in groups.items()}, args.max_sessions
-    )
-    ranked = sorted(quotas, key=lambda harness: (-len(groups[harness]), harness))
+    quotas = harness_quotas({harness: len(group) for harness, group in groups.items()}, cap)
     sampled: set[str] = set()
     per_harness: dict[str, dict[str, int]] = {}
-    omitted: list[dict[str, Any]] = []
-    for harness in ranked:
-        group, quota = groups[harness], quotas[harness]
-        picked = set()
+    for harness, group in groups.items():
+        quota = quotas[harness]
+        picked: set[str] = set()
         if quota:
             sub = SimpleNamespace(
                 max_sessions=quota, per_skill=args.per_skill, no_skill=args.no_skill
             )
             picked = sample_one_harness(group, skills, sub)
-        else:
-            omitted.append({"harness": harness, "scoreable": len(group)})
         sampled |= picked
         per_harness[harness] = {
             "scoreable": len(group),
@@ -131,11 +133,88 @@ def sample_sessions(
                 1 for session in group if session["_key"] in picked and session["skills_used"]
             ),
         }
+    return sampled, per_harness
+
+
+def _is_top_level(session: Any) -> bool:
+    return session.get("thread", THREAD_TOP_LEVEL) != THREAD_SUBAGENT
+
+
+def _merge_harness_counts(
+    target: dict[str, dict[str, int]], extra: dict[str, dict[str, int]]
+) -> None:
+    for harness, counts in extra.items():
+        entry = target.setdefault(harness, dict.fromkeys(counts, 0))
+        for name, value in counts.items():
+            entry[name] = entry.get(name, 0) + value
+
+
+def _backfill(
+    pool: Any, picked: set[str], per_harness: dict[str, dict[str, int]], limit: int
+) -> None:
+    """Add unsampled sessions from ``pool``, newest first, until ``picked`` holds ``limit``."""
+    for session in pool:
+        if len(picked) >= limit:
+            break
+        if session["_key"] not in picked:
+            picked.add(session["_key"])
+            entry = per_harness[session["harness"]]
+            entry["sampled"] += 1
+            entry["quota"] = max(entry["quota"], entry["sampled"])
+            entry["sampled_with_skills"] += bool(session["skills_used"])
+
+
+def _reserve_top_level(
+    sessions: Any, skills: Any, args: Any, reserve: int
+) -> tuple[set[str], dict[str, dict[str, int]], dict[str, Any]]:
+    """Fill up to ``reserve`` slots with top-level sessions, then give the rest to subagents."""
+    top = [session for session in sessions if _is_top_level(session)]
+    children = [session for session in sessions if not _is_top_level(session)]
+    reserved = min(reserve, max(args.max_sessions, 0))
+    top_keys, per_harness = _skill_first_by_harness(top, skills, args, reserved)
+    _backfill(top, top_keys, per_harness, reserved)
+    child_cap = max(args.max_sessions - len(top_keys), 0)
+    child_keys, child_counts = _skill_first_by_harness(children, skills, args, child_cap)
+    _merge_harness_counts(per_harness, child_counts)
+    # Slots the subagent sessions left open return to the remaining top-level sessions.
+    _backfill(top, top_keys, per_harness, args.max_sessions - len(child_keys))
+    block = {
+        "top_level_rule": TOP_LEVEL_RULE,
+        "top_level_quota": reserve,
+        "top_level_reserved": reserved,
+        "top_level_sampled": len(top_keys),
+        "subagent_slots": child_cap,
+    }
+    return top_keys | child_keys, per_harness, block
+
+
+def sample_sessions(
+    sessions: Any, skills: Any, args: Any
+) -> tuple[set[str], dict[str, dict[str, int]], dict[str, Any]]:
+    """Sample per harness. Returns the sampled keys, per-harness counts, and a sampling block.
+
+    ``sessions`` must already be in recency order; that order is kept inside each harness.
+    A positive ``args.top_level_quota`` reserves that many slots for top-level sessions.
+    """
+    reserve = max(int(getattr(args, "top_level_quota", 0) or 0), 0)
+    if reserve:
+        sampled, per_harness, block = _reserve_top_level(sessions, skills, args, reserve)
+    else:
+        sampled, per_harness = _skill_first_by_harness(sessions, skills, args, args.max_sessions)
+        block = {}
+    ranked = sorted(per_harness, key=lambda harness: (-per_harness[harness]["scoreable"], harness))
+    per_harness = {harness: per_harness[harness] for harness in ranked}
+    omitted = [
+        {"harness": harness, "scoreable": per_harness[harness]["scoreable"]}
+        for harness in ranked
+        if not per_harness[harness]["quota"]
+    ]
     skill_first = set(sampled)
     sampling = {
         "rule": SAMPLING_RULE,
         "within_harness": WITHIN_HARNESS_RULE,
         "max_sessions": args.max_sessions,
+        **block,
         "harness_coverage_complete": not omitted,
         "omitted_harnesses": omitted,
         "notice": _omission_notice(args.max_sessions, ranked, omitted),

@@ -76,8 +76,8 @@ def top_level_gap_notice(split: dict[str, dict[str, int]]) -> str | None:
         return (
             f"the sample holds no top-level sessions although {top['scoreable']} top-level "
             f"sessions are scoreable; {split[THREAD_SUBAGENT]['sampled']} sampled sessions are "
-            "subagent sessions. Pass --no-include-subagents or raise --max-sessions to cover "
-            "top-level work."
+            "subagent sessions. Raise --top-level-quota, pass --no-include-subagents, or raise "
+            "--max-sessions to cover top-level work."
         )
     return None
 

@@ -470,6 +470,16 @@ def _non_negative_minutes(value: str) -> float:
     return minutes
 
 
+def _non_negative_int(value: str) -> int:
+    try:
+        number = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not an integer: {value!r}") from None
+    if number < 0:
+        raise argparse.ArgumentTypeError("must be 0 or greater")
+    return number
+
+
 def _add_sampling_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--min-idle-minutes",
@@ -479,14 +489,32 @@ def _add_sampling_arguments(parser: argparse.ArgumentParser) -> None:
         "still be running (default: 15; 0 keeps every session)",
     )
     parser.add_argument(
-        "--days", type=int, default=45, help="only consider sessions modified in the last N days"
+        "--days",
+        type=int,
+        default=14,
+        help="only consider sessions modified in the last N days (default: 14)",
     )
     parser.add_argument(
-        "--max-sessions", type=int, default=12, help="max sessions to sample for scoring"
+        "--max-sessions",
+        type=int,
+        default=100,
+        help="max sessions to sample for scoring (default: 100)",
     )
-    parser.add_argument("--per-skill", type=int, default=3, help="max sampled sessions per skill")
     parser.add_argument(
-        "--no-skill", type=int, default=4, help="max sampled sessions that used no skill"
+        "--top-level-quota",
+        type=_non_negative_int,
+        default=40,
+        help="reserve up to N of the --max-sessions slots for top-level sessions, so "
+        "subagent sessions cannot crowd them out (default: 40; 0 pools both types)",
+    )
+    parser.add_argument(
+        "--per-skill", type=int, default=10, help="max sampled sessions per skill (default: 10)"
+    )
+    parser.add_argument(
+        "--no-skill",
+        type=int,
+        default=20,
+        help="max sampled sessions that used no skill (default: 20)",
     )
     parser.add_argument(
         "--timeline-supplement",

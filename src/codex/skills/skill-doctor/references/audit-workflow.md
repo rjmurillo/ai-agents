@@ -56,12 +56,14 @@ It recomputes the score artifact from `scores.json` and sets `scores`, `stats.se
 
 ## Batched reviews
 
-For a long review, split the work into batches instead of scoring in one pass:
+For a long review, split the work into batches instead of scoring in one pass. Size each batch by transcript bytes. `--max-batch-bytes` closes a batch before its transcripts pass the cap. A transcript over the cap gets its own batch, and `--batch-size` still caps the count:
 
 ```bash
-python3 "$SKILL_ROOT/scripts/audit_batches.py" assign "$REPORT_DIR/inventory.json" --batch-size 20 --out "$REPORT_DIR/batches"
+python3 "$SKILL_ROOT/scripts/audit_batches.py" assign "$REPORT_DIR/inventory.json" --batch-size 20 --max-batch-bytes 150000 --out "$REPORT_DIR/batches"
 python3 "$SKILL_ROOT/scripts/audit_batches.py" import "$REPORT_DIR/batches/<batch file>" <rows.json> --accepted "$REPORT_DIR/scores.json"
 ```
+
+Why bytes: one Sonnet scorer starts near 120k tokens of context once it holds the rubrics, the system prompt, and the repository rule files. Each transcript byte adds about 0.45 tokens. In calibration on 2026-11-26, 12 scorers ran batches of 63 KB to 342 KB. Batches up to 259 KB finished without compaction, at a 136k to 237k token peak. The 292 KB and 342 KB batches each compacted twice. The 292 KB scorer wrote all its rows after compacting, so its early scores came from a summary. Top-level transcripts run about 56 KB each and subagent transcripts about 10 KB, so a count rule is wrong for one type. A 20-transcript batch of top-level sessions is over 1 MB. Keep batches at or under 150 KB. Treat 200 KB as the ceiling, and set it lower when a repository's rule files are large.
 
 Each score row carries its `batch_id` and `source_digest`. An import that has missing, extra, duplicate, malformed, or foreign rows, or a batch file stripped of its selection rule, counts, or non-probability note, exits 1 and leaves the accepted file unchanged. A changed inventory needs a new assignment.
 
