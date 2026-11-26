@@ -47,7 +47,7 @@ uv run python .claude/skills/skillopt/scripts/skillopt.py pair-gate --eval eval.
 uv run python .claude/skills/skillopt/scripts/mine_sessions.py sources
 ```
 
-Subcommands: `budget`, `apply`, `run`, `gate`, `pair-gate`, `efficiency-gate`, `report`, `score`, `hash`, `buffer-check`, `buffer-add`, `where`.
+Subcommands: `budget`, `apply`, `run`, `gate`, `pair-gate`, `efficiency-gate`, `report`, `score`, `hash`, `buffer-check`, `buffer-add`, `weakness-check`, `manifesto-check`, `manifesto-verify`, `pin`, `pin-check`, `proposer-check`, `where`.
 
 `apply` runs skillforge's `lint_skill_frontmatter.py` on the incumbent and the candidate. It exits `2` when the candidate adds a MUST failure the incumbent did not have, such as a SKILL.md over the byte cap or frontmatter the stdlib parser refuses. New SHOULD findings print as warnings.
 
@@ -59,8 +59,14 @@ Subcommands: `budget`, `apply`, `run`, `gate`, `pair-gate`, `efficiency-gate`, `
 | `run` | `0` results written, `1` a task `UNVERIFIED`, `2` refused or invalid |
 | `hash --expect SHA` | `0` match, `1` `MISMATCH` |
 | `buffer-check` | `0` `KNOWN-BAD` (discard), `1` `NOVEL` (proceed) |
+| `weakness-check`, `manifesto-check`, `pin` | `0` valid, `2` usage or validation error |
+| `manifesto-verify` | `0` `PREDICTIONS_HELD`, `1` `PREDICTION_FALSIFIED` or `PREDICTION_UNVERIFIED`, `2` invalid |
+| `pin-check` | `0` `MATCH`, `1` `MISMATCH`, `2` invalid |
+| `proposer-check` | `0` `CAPABLE`, `1` `LIGHTWEIGHT` or `UNKNOWN` (warning), `2` usage error |
 
 `buffer-check` is inverted on purpose, so branch on the printed word, never on `&&`.
+
+**Evidence-driven edits.** Before proposing, check the proposer model with `proposer-check` and cluster failing train tasks into verifier-grounded patterns (`weakness-check`). Each patch carries a manifesto entry: failure evidence, root cause, targeted fix, predicted fixes, and at-risk regressions (`manifesto-check`). After the re-roll, `manifesto-verify` scores those predictions on train results. At baseline, `pin` records sha256 digests of the eval set, verifiers, tracer, and model; when `eval.json` names the pins file, `pair-gate` exits `2` if any of them changed. Read [`references/evidence-manifesto.md`](../../src/claude/skills/skillopt/references/evidence-manifesto.md).
 
 **Nondeterministic scorer.** Set `"scorer": "nondeterministic"` in the manifest and rerun the byte-identical incumbent into `null_results.json`. Pass `--null-results`, `--incumbent-sha256`, and `--null-sha256` to `pair-gate`. A gain the no-op also produced is noise.
 
@@ -93,4 +99,5 @@ The gate compares incumbent against candidate. It never measures skill against n
 - Source: [`SKILL.md`](../../src/claude/skills/skillopt/SKILL.md)
 - Eval set format: [`eval-set-format.md`](../../src/claude/skills/skillopt/references/eval-set-format.md)
 - Eval authoring: [`eval-authoring.md`](../../src/claude/skills/skillopt/references/eval-authoring.md)
+- Evidence files and read-only pins: [`evidence-manifesto.md`](../../src/claude/skills/skillopt/references/evidence-manifesto.md)
 - How to call skills on each host: [Call agents and skills](../call-agents-and-skills.md)
