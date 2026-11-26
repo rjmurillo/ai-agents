@@ -10,7 +10,7 @@ The repo verified each reason against the code on 2026-11-26.
 1. **Empty line sets from deletion-only hunks in diff-line ratchets.**
    A hunk header of `+N,0` touches no post-image line.
    A pure rename has no `+++ b/` hunk.
-   `scripts/ci/diff_line_scope.py` returns an empty set for both on purpose.
+   `scripts/ci/diff_line_scope.py` gives a deletion-only hunk an empty set and leaves a pure rename out of the map, both on purpose.
    Counting them would flag unchanged neighbor lines (issue #2993).
 2. **Content quality of generated session episodes.**
    The `extract-session-episodes` lefthook job writes episode JSON under `.project-toolkit/memory/episodes/` from session logs.

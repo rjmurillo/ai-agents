@@ -127,7 +127,7 @@
     ".claude/skills/ai-agents-research-frontier/references/program3-self-improving-loop.md": 2,
     ".claude/skills/ai-agents-research-methodology/SKILL.md": 21,
     ".claude/skills/ai-agents-validation-and-qa/SKILL.md": 14,
-    ".claude/skills/ai-agents-validation-and-qa/references/python-and-test-conventions.md": 11,
+    ".claude/skills/ai-agents-validation-and-qa/references/python-and-test-conventions.md": 9,
     ".claude/skills/ai-agents-validation-and-qa/references/reviewer-guidance.md": 3,
     ".claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md": 22,
     ".github/agents/implementer.agent.md": 33,

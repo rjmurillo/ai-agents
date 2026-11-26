@@ -1,6 +1,6 @@
 # Python and Test Conventions
 
-<!-- vendor-portability: contributor-facing reference for the rjmurillo/ai-agents repo itself. It names upstream-only paths under scripts, tests, src/claude, .claude/hooks, and .github because its audience is repo contributors, not plugin consumers. Declared paths: build/scripts/surface_manifest.py, scripts/AGENTS.md, scripts/ai_review_outputs.py, scripts/ci/adr101_publisher_execute.py, scripts/github_core/not_found.py, scripts/validate_pr_review_config.py, scripts/validation/check_plugin_frontmatter_self_containment.py, scripts/validation/check_subprocess_encoding.py, src/claude/skills/github/scripts/issue/get_issue_comments.py -->
+<!-- vendor-portability: contributor-facing reference for the rjmurillo/ai-agents repo itself. It names upstream-only paths under scripts, tests, src/claude, .claude/hooks, and .github because its audience is repo contributors, not plugin consumers. Declared paths: scripts/ai_review_outputs.py, scripts/ci/adr101_publisher_execute.py, scripts/github_core/not_found.py, scripts/validate_pr_review_config.py, scripts/validation/check_plugin_frontmatter_self_containment.py, scripts/validation/check_subprocess_encoding.py, src/claude/skills/github/scripts/issue/get_issue_comments.py -->
 
 Read this before you write or review Python under `scripts/`, `build/`, `.github/scripts/`, or `tests/`.
 Each item names a site that does it right, so you can copy a working pattern.
@@ -39,8 +39,8 @@ The repo verified each item against the code on 2026-11-26.
 7. **Compare paths from CLI output as `Path` objects.**
    Wrap the printed path in `Path(...)` before you assert on it.
    A string compare fails on Windows separators.
-8. **Find plugin roots with the manifest helpers.**
-   Use `plugin_roots()` in `scripts/validation/check_plugin_frontmatter_self_containment.py` or `load_manifest()` in `build/scripts/surface_manifest.py`.
+8. **Find plugin roots with `plugin_roots()`.**
+   Call `plugin_roots()` in `scripts/validation/check_plugin_frontmatter_self_containment.py`.
    Do not walk the tree with an unbounded `rglob`.
    It reaches worktrees, caches, and mirror trees.
 
@@ -50,12 +50,12 @@ The repo verified each item against the code on 2026-11-26.
    Running a script by its file path puts only that script's own directory on `sys.path`.
    A `scripts.*` import then fails unless the script inserts the repo root first.
    `scripts/ai_review_outputs.py` shows the guarded `sys.path.insert(0, ...)` form.
-   A script run by a bare interpreter must stay stdlib-only (`scripts/AGENTS.md`).
+   A plugin-root script run by bare `python3` must stay stdlib-only at import time (`plugin-self-containment.md` MUST 4).
 10. **Type-guard YAML nodes before you use them.**
     `yaml.safe_load` can return a scalar, a list, or `None` where you expect a dict.
     Check `isinstance(node, dict)` before you index a node or build CLI args from it.
-    Report the bad shape as a config error (exit 2), not a traceback.
-    `scripts/validate_pr_review_config.py` guards its nodes this way.
+    Report the bad shape as a finding, not a traceback.
+    `scripts/validate_pr_review_config.py` shows the split: exit 2 for a document that is not a mapping, exit 1 for a bad nested field.
 
 ## GitHub API payloads
 

@@ -238,7 +238,7 @@
   {
    "kind": "contains",
    "path": "scripts/validation/check_subprocess_encoding.py",
-   "text": "\"scripts/**/*.py\",",
+   "text": "\"\"\"Return tracked Python files under ``scripts/`` that are not in cache dirs.\"\"\"",
    "id": "R43"
   },
   {
@@ -258,12 +258,6 @@
    "path": "scripts/validation/check_plugin_frontmatter_self_containment.py",
    "text": "def plugin_roots(repo_root: Path)",
    "id": "R46"
-  },
-  {
-   "kind": "contains",
-   "path": "build/scripts/surface_manifest.py",
-   "text": "def load_manifest(repo_root: Path)",
-   "id": "R47"
   },
   {
    "kind": "contains",
