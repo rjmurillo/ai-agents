@@ -27,7 +27,7 @@ Commit `3f145f26fd` deleted every GitHub Actions job gated by an `agent-*` envir
 
 ## Round 1
 
-Reviewed five records: ADR-057, ADR-088, ADR-101, ADR-109, and the pattern doc. Critic verdict: REVISE. Architect verdict: ACCEPT-WITH-CHANGES. No P0. All P1 items were applied.
+Reviewed ADR-057, ADR-088, ADR-101, ADR-109, and the pattern doc. Critic verdict: REVISE. Architect verdict: ACCEPT-WITH-CHANGES. No P0. All P1 items were applied.
 
 ### Accepted
 
@@ -105,3 +105,19 @@ Both seats re-ran the four rows and compared the diffs. Only the two ADR-071 lin
 - **Same-day ordering**: commit `be56d5276c` made the smoke job dispatch-only at 10:30 on 2026-11-25. `3f145f26fd` deleted it at 12:52 the same day. The records use "until 2026-11-25" for both.
 - **Ratchets**: `check_adr_lifecycle.py` reports 153 violations across 127 records, none outside the baseline, with the amendments applied. No baseline changed.
 - **ADR-114**: it sets the approval policy that created the `agent-*` environments. It is not edited, by owner decision.
+
+## Post-review correction
+
+After round 4, the `doc_accuracy.py` same-PR gate ran on the committed branch at `47196b8704` (2026-11-26). It returned FAIL with two findings on lines this change wrote. Both are wording, not fact.
+
+- ADR-071:642 named a constant from `scripts/validation/cli_smoke_paths.py` in backticks beside one path that the constant holds. The gate read the sentence as a partial list of that constant. The sentence now says "the hook e2e globs" and keeps the file path. The claim did not change. The two ADR-071 ledger rows that show the constant still hold.
+- Round 1 of this log gave a record count before its list. The gate counted the list differently, because one listed item is not an ADR id. The sentence now lists the records with no count.
+
+No ADR line count changed. ADR-071 stays at 850 lines.
+
+Both seats read the wording diff. Architect vote: Accept. Critic vote: Accept. Neither seat raised a P0 or a P1.
+
+### Not changed
+
+- The critic judged the first gate finding a false positive. The sentence cites `tests/e2e/test_cli_hook_e2e.py` as the test target, not as a list of the globs. The reword stays, because the gate has no way to suppress one finding.
+- The critic noted that the ADR no longer gives a direct search hit for the constant name. The ADR-071 ledger keeps that anchor.
