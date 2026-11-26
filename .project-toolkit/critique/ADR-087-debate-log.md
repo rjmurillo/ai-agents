@@ -4,7 +4,7 @@
 
 - ADR: `.project-toolkit/architecture/ADR-087-held-out-validated-improvement.md`, the "Amendment 2026-11-25" section, plus short pointers at the Open Requirement 1 paragraph, the "What the mechanism protects against" section, and Validation Status.
 - Driver: issue #7642. The owner kept the ADR (decision D1) and chose the controller boundary (decision D2, option A: controller process plus a launcher deny rule).
-- Panel: reduced, architect and critic. The amendment adds no executable enforcement that another gate reads. `scripts/eval/eval-controller.py` is opt-in tooling that no hook or CI job calls.
+- Panel: reduced, architect and critic. The amendment adds no executable enforcement that another gate reads. `scripts/eval/eval_controller.py` is opt-in tooling that no hook or CI job calls.
 - Claims ledger: `.project-toolkit/critique/ADR-087-claims-ledger.md`. This is the first ADR-087 debate log; no prior log exists.
 - Outcome: consensus after four rounds. The architect voted Accept in rounds 2 and 3. The critic voted Block in rounds 1 to 3 and Accept in round 4.
 - Status: stays `proposed`. Ten Open Requirements remain open.
@@ -107,6 +107,31 @@ Vote: Accept. 39 of 39 tests passed. Probes for mode and hard link re-run: mode 
 
 The architect did not re-vote in round 4. The round 3 code changes add refusals and keep the mode; the ADR text changed in two sentences the architect had asked for.
 
+## After consensus: `/review` and pre-PR fixes
+
+The `/review` skill ran on commit `bfe33e69b` after round 4: spec-compliance, a
+correctness pass, and the 11 canonical axes in four batched seats. Spec-compliance
+and roadmap returned PASS; the rest returned WARN. `pre_pr.py` failed on the
+file-size, naming, and complexity taste ratchet, the ADR size cap, and test file
+encodings. The fixes below changed code and condensed ADR text, so the panel's
+round 4 vote covers the decision, and a follow-up review pass covers the code.
+
+| Source | Finding | Disposition |
+| --- | --- | --- |
+| correctness | A gate exit 1 that refused without comparing was counted as a REJECT and spent budget. | Fixed. Only `compared: true` counts; a refusal stops the run with exit 3. |
+| correctness, qa | `OSError`, `KeyError`, `ValueError`, and a directory at the artifact path escaped as exit 1. | Fixed. `main` maps them to exit 3; `write_artifact` removes a planted directory and raises `ControllerError`. |
+| security, agent-safety | The gate and controller code were writable and undigested. | Fixed. `scripts/eval/*.py` and `trusted_paths` are digested and printed as `deny_write`. |
+| security, plugin review | For `hook`, candidate code runs inside the scorer. | Partly fixed. State outside the new run's directory is digested around scoring, and the workspace is emptied each step. Forged results remain a stated residual risk. |
+| security | The proposer inherited the full environment; child stderr went to the launcher. | Fixed. `EVAL_LEDGER_DIR` is dropped, `proposer_env` allowlists, and stderr goes to the log. |
+| reliability | `optimize-artifact.py` calls had no timeout. | Fixed. |
+| devops | SIGTERM skipped the restore. | Fixed. A handler raises, so `finally` runs. |
+| architect | A deny path could contain `state_dir`; a missing opt task file was skipped. | Fixed. Both refused. |
+| architect | A candidate that breaks the scorer stops the run instead of counting as REJECT. | Kept. It fails closed; recorded as residual risk. |
+| observability | No timestamps, no abort event. | Fixed. Every event carries `ts` and `session`; calls carry `duration_s`; an early exit logs `abort`. |
+| decision-rigor | "Did not produce a false accept" overstated a pair with little power. | Fixed. The ADR now says three all-failing tasks tie almost by construction. |
+| analyst | The ledger root is `state_dir/ledger`, not the state directory. | Fixed in the analysis file. |
+| pre-PR | Taste ratchet (+3), ADR size cap, test encodings. | Fixed. The controller is split into `eval_controller.py` (snake_case) and `_controller_io.py`. The ADR is back to 1000 lines, with detail moved to `.project-toolkit/analysis/7678-adr-087-trusted-controller-and-null-control.md`. |
+
 ## Dissent and residual risk
 
 - The boundary holds only under a launcher deny rule the controller cannot verify. The owner chose this in decision D2 over an OS user or a CI job.
@@ -114,3 +139,5 @@ The architect did not re-vote in round 4. The round 3 code changes add refusals 
 - The null control is one pair on one benchmark, and both runs flag their own methodology as unstable. It is not a false-accept rate.
 - `deny_paths` must cover earlier report directories for the same tasks. The controller documents this and cannot enforce it.
 - `killpg` after a normal exit carries a pid-reuse risk that needs an empty group first.
+- For the `hook` kind, candidate code run by the scorer can forge its own results.
+- A candidate that breaks the scorer stops the run rather than counting as a REJECT.

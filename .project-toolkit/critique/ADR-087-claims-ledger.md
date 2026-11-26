@@ -1,6 +1,7 @@
 # ADR-087 claims ledger
 
-Verified 2026-11-25 for issue #7642, covering the "Amendment 2026-11-25" text.
+Verified 2026-11-25 for issue #7642, covering the "Amendment 2026-11-25" text and
+`.project-toolkit/analysis/7678-adr-087-trusted-controller-and-null-control.md`.
 
 | Claim | Kind | Check | Result |
 | --- | --- | --- | --- |
@@ -9,8 +10,8 @@ Verified 2026-11-25 for issue #7642, covering the "Amendment 2026-11-25" text.
 | #7679 and #7682 are closed as completed. | Behavior | `close_issue.py` output | `state: closed`, `reason: completed` for both. VERIFIED |
 | #3436 is closed. | Behavior | `gh issue view 3436 --json state` | `CLOSED`. VERIFIED |
 | `optimize-artifact.py report` exists and reads the test group. | Path | `optimize-artifact.py` lines 3252-3269 | `sub.add_parser("report", help="read the test group once, at the end")`. VERIFIED |
-| The controller runs scorer, `extract`, `split`, and `gate` itself. | Behavior | `scripts/eval/eval-controller.py`, `Controller.score` and `Controller.run` | Each is a subprocess the controller starts. VERIFIED |
-| The proposer workspace holds `feedback.json` (step, artifact path, opt results, opt score, consultations left, last decision) and opt task files. | Behavior | `test_proposer_never_sees_a_held_out_id`, `test_accept_keeps_the_candidate_and_reports_one_bit`, `test_opt_task_files_are_copied_and_nothing_else` | 39 of 39 tests pass after round 3 fixes. VERIFIED |
+| The controller runs scorer, `extract`, `split`, and `gate` itself. | Behavior | `scripts/eval/eval_controller.py`, `Controller.score` and `Controller.run` | Each is a subprocess the controller starts. VERIFIED |
+| The proposer workspace holds `feedback.json` (step, artifact path, opt results, opt score, consultations left, last decision) and opt task files. | Behavior | `test_proposer_never_sees_a_held_out_id`, `test_accept_keeps_the_candidate_and_reports_one_bit`, `test_opt_task_files_are_copied_and_nothing_else` | 50 of 50 tests pass after the /review fixes. VERIFIED |
 | Every step exit restores the incumbent before the gate. | Behavior | `test_reject_restores_the_incumbent`, `test_proposer_that_edits_then_fails_leaves_the_incumbent`, `test_artifact_changed_during_scoring_is_refused` | Pass. VERIFIED |
 | A planted workspace symlink does not redirect a controller write. | Behavior | `test_planted_feedback_symlink_is_not_followed` | Pass. VERIFIED |
 | `deny_paths` is required, and `policy` lists state, config, and `deny_paths`. | Behavior | `test_bad_config_is_refused[deny_paths-value9]`, `test_policy_lists_state_and_task_paths` | Pass. VERIFIED |
@@ -35,3 +36,13 @@ Verified 2026-11-25 for issue #7642, covering the "Amendment 2026-11-25" text.
 | Restores keep the artifact's mode. | Behavior | `test_artifact_mode_survives_restore_and_accept`; fails with the `os.chmod` line removed | 0o755 kept. VERIFIED |
 | A hard-linked artifact is refused. | Behavior | `test_artifact_hard_linked_to_a_denied_file_is_refused` | Exit 2. VERIFIED |
 | The summary digest is read from disk. | Behavior | `test_summary_digest_is_the_file_on_disk` | Pass. VERIFIED |
+| A gate exit 1 without a comparison stops the run and spends nothing. | Behavior | `test_gate_refusal_stops_the_run_and_spends_nothing` | Exit 3, `abort` logged. VERIFIED |
+| `max_p` reaches the gate. | Behavior | `test_max_p_reaches_the_gate` | `--max-p 0.5` in the gate argv. VERIFIED |
+| Scoring that edits controller state is refused before the gate. | Behavior | `test_scorer_that_edits_controller_state_is_refused` | Exit 2, no gate event. VERIFIED |
+| The workspace is emptied each step. | Behavior | `test_workspace_is_emptied_between_steps` | Step 2 lists only `feedback.json` and `tasks`. VERIFIED |
+| A `trusted_paths` edit stops the loop. | Behavior | `test_trusted_path_edit_stops_the_loop` | Exit 2. VERIFIED |
+| The proposer env drops `EVAL_LEDGER_DIR` and honors an allowlist. | Behavior | `test_proposer_env_drops_the_ledger_variable_and_honors_an_allowlist` | Pass. VERIFIED |
+| An artifact replaced by a directory is refused and restored. | Behavior | `test_artifact_replaced_by_a_directory_is_refused_and_restored` | Exit 2, file restored. VERIFIED |
+| Child stderr goes to the log, not the launcher's stderr. | Behavior | `test_failure_detail_goes_to_the_log_not_stderr` | Pass. VERIFIED |
+| SIGTERM raises so the restore runs. | Behavior | `test_sigterm_handler_raises_a_controller_error` (handler only; no signal delivered) | Pass. VERIFIED (handler), NOT RUN (live signal) |
+| Held-out tasks in the null control were A004, A006, A008. | Count | `split.json` `sel` from `split --seed 7642` | VERIFIED |

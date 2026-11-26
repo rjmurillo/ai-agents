@@ -1,4 +1,4 @@
-"""Tests for scripts/eval/eval-controller.py (ADR-087 Open Requirement 1, #7678).
+"""Tests for scripts/eval/eval_controller.py (ADR-087 Open Requirement 1, #7678).
 
 The controller runs the optimizing agent as a child proposer. The properties
 under test are the ones the cooperating-optimizer design could not give:
@@ -24,7 +24,7 @@ from typing import Any
 
 import pytest
 
-_SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "eval" / "eval-controller.py"
+_SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "eval" / "eval_controller.py"
 _spec = importlib.util.spec_from_file_location("eval_controller", _SCRIPT)
 assert _spec is not None and _spec.loader is not None
 ec = importlib.util.module_from_spec(_spec)
@@ -120,12 +120,14 @@ def _setup(
 
 
 def _split(tmp_path: Path) -> dict[str, Any]:
-    data: dict[str, Any] = json.loads((tmp_path / "state" / "split.json").read_text())
+    data: dict[str, Any] = json.loads(
+        (tmp_path / "state" / "split.json").read_text(encoding="utf-8")
+    )
     return data
 
 
 def _transcript(tmp_path: Path) -> list[dict[str, Any]]:
-    lines = (tmp_path / "transcript.jsonl").read_text().splitlines()
+    lines = (tmp_path / "transcript.jsonl").read_text(encoding="utf-8").splitlines()
     return [json.loads(line) for line in lines]
 
 
@@ -136,7 +138,7 @@ def _all_true() -> dict[str, bool]:
 def test_accept_keeps_the_candidate_and_reports_one_bit(tmp_path: Path) -> None:
     config, artifact = _setup(tmp_path, {"1": _all_true()}, steps=2)
     assert ec.main(["run", "--config", str(config)]) == 0
-    assert json.loads(artifact.read_text()) == _all_true()
+    assert json.loads(artifact.read_text(encoding="utf-8")) == _all_true()
     second = _transcript(tmp_path)[1]["feedback"]
     assert second["last_decision"] == "ACCEPT"
     assert set(second) == {
@@ -152,9 +154,9 @@ def test_accept_keeps_the_candidate_and_reports_one_bit(tmp_path: Path) -> None:
 def test_reject_restores_the_incumbent(tmp_path: Path) -> None:
     worse = {task: False for task in TASKS}
     config, artifact = _setup(tmp_path, {"1": worse}, steps=2)
-    before = artifact.read_text()
+    before = artifact.read_text(encoding="utf-8")
     assert ec.main(["run", "--config", str(config)]) == 0
-    assert artifact.read_text() == before
+    assert artifact.read_text(encoding="utf-8") == before
     assert _transcript(tmp_path)[1]["feedback"]["last_decision"] == "REJECT"
 
 
@@ -208,11 +210,12 @@ def test_edited_task_definition_refuses_before_scoring(
     # artifact to force a scoring attempt in the same step.
     monkeypatch.setenv("TAMPER_TARGET", str(tmp_path / "fixtures" / "T01.json"))
     plan = tmp_path / "plan.json"
-    plan.write_text(json.dumps({"1": "TAMPER"}))
+    plan.write_text(json.dumps({"1": "TAMPER"}), encoding="utf-8")
     proposer = tmp_path / "scripts" / "proposer.py"
     proposer.write_text(
-        proposer.read_text()
-        + "\njson.dump({t: True for t in json.load(open(artifact))}, open(artifact, 'w'))\n"
+        proposer.read_text(encoding="utf-8")
+        + "\njson.dump({t: True for t in json.load(open(artifact))}, open(artifact, 'w'))\n",
+        encoding="utf-8",
     )
     assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
     assert not list((tmp_path / "state" / "runs").glob("candidate-*"))
@@ -244,24 +247,26 @@ def test_policy_lists_state_and_task_paths(
         str(config.resolve()),
         str(tmp_path / "fixtures"),
     ]
+    assert any(path.endswith("optimize-artifact.py") for path in policy["deny_write"])
+    assert any(path.endswith("eval_controller.py") for path in policy["deny_write"])
 
 
 def test_scorer_failure_is_external(tmp_path: Path) -> None:
     config, _ = _setup(tmp_path, {}, steps=1)
-    data = json.loads(config.read_text())
+    data = json.loads(config.read_text(encoding="utf-8"))
     data["scorer"] = [sys.executable, "-c", "raise SystemExit(4)"]
-    config.write_text(json.dumps(data))
+    config.write_text(json.dumps(data), encoding="utf-8")
     assert ec.main(["run", "--config", str(config)]) == ec.EXIT_EXTERNAL
 
 
 def test_proposer_failure_is_external_and_restores_nothing_ungated(tmp_path: Path) -> None:
     config, artifact = _setup(tmp_path, {}, steps=1)
-    before = artifact.read_text()
-    data = json.loads(config.read_text())
+    before = artifact.read_text(encoding="utf-8")
+    data = json.loads(config.read_text(encoding="utf-8"))
     data["proposer"] = [sys.executable, "-c", "raise SystemExit(5)"]
-    config.write_text(json.dumps(data))
+    config.write_text(json.dumps(data), encoding="utf-8")
     assert ec.main(["run", "--config", str(config)]) == ec.EXIT_EXTERNAL
-    assert artifact.read_text() == before
+    assert artifact.read_text(encoding="utf-8") == before
 
 
 @pytest.mark.parametrize(
@@ -282,63 +287,64 @@ def test_proposer_failure_is_external_and_restores_nothing_ungated(tmp_path: Pat
 )
 def test_bad_config_is_refused(tmp_path: Path, key: str, value: object) -> None:
     config, _ = _setup(tmp_path, {}, steps=1)
-    data = json.loads(config.read_text())
+    data = json.loads(config.read_text(encoding="utf-8"))
     data[key] = value
-    config.write_text(json.dumps(data))
+    config.write_text(json.dumps(data), encoding="utf-8")
     assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
 
 
 def test_workspace_inside_state_is_refused(tmp_path: Path) -> None:
     config, _ = _setup(tmp_path, {}, steps=1)
-    data = json.loads(config.read_text())
+    data = json.loads(config.read_text(encoding="utf-8"))
     data["workspace_dir"] = str(tmp_path / "state" / "ws")
-    config.write_text(json.dumps(data))
+    config.write_text(json.dumps(data), encoding="utf-8")
     assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
 
 
 def test_deny_path_covering_the_artifact_is_refused(tmp_path: Path) -> None:
     config, _ = _setup(tmp_path, {}, steps=1)
-    data = json.loads(config.read_text())
+    data = json.loads(config.read_text(encoding="utf-8"))
     data["deny_paths"] = [str(tmp_path)]
-    config.write_text(json.dumps(data))
+    config.write_text(json.dumps(data), encoding="utf-8")
     assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
 
 
 def _edit_config(config: Path, **changes: object) -> None:
-    data = json.loads(config.read_text())
+    data = json.loads(config.read_text(encoding="utf-8"))
     data.update(changes)
-    config.write_text(json.dumps(data))
+    config.write_text(json.dumps(data), encoding="utf-8")
 
 
 def test_proposer_that_edits_then_fails_leaves_the_incumbent(tmp_path: Path) -> None:
     config, artifact = _setup(tmp_path, {}, steps=1)
-    before = artifact.read_text()
+    before = artifact.read_text(encoding="utf-8")
     script = (
         "import json, sys; json.dump({'T01': True}, open(sys.argv[1], 'w')); raise SystemExit(5)"
     )
     _edit_config(config, proposer=[sys.executable, "-c", script, "{artifact}"])
     assert ec.main(["run", "--config", str(config)]) == ec.EXIT_EXTERNAL
-    assert artifact.read_text() == before
+    assert artifact.read_text(encoding="utf-8") == before
 
 
 def test_artifact_changed_during_scoring_is_refused(tmp_path: Path) -> None:
     config, artifact = _setup(tmp_path, {"1": _all_true()}, steps=1)
-    before = artifact.read_text()
+    before = artifact.read_text(encoding="utf-8")
     scorer = tmp_path / "scripts" / "scorer.py"
     # On the candidate run only, rewrite the artifact after scoring it, the way
     # a proposer's leftover child process could.
     scorer.write_text(
-        scorer.read_text()
-        + "\nif 'candidate' in out:\n    open(artifact, 'w').write(json.dumps({'T01': False}))\n"
+        scorer.read_text(encoding="utf-8")
+        + "\nif 'candidate' in out:\n    open(artifact, 'w').write(json.dumps({'T01': False}))\n",
+        encoding="utf-8",
     )
     assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
-    assert artifact.read_text() == before
+    assert artifact.read_text(encoding="utf-8") == before
 
 
 def test_planted_feedback_symlink_is_not_followed(tmp_path: Path) -> None:
     config, _ = _setup(tmp_path, {}, steps=2)
     outside = tmp_path / "outside.txt"
-    outside.write_text("untouched")
+    outside.write_text("untouched", encoding="utf-8")
     plant = (
         "import os, sys; p = os.path.join(sys.argv[1], 'feedback.json'); "
         "os.remove(p); os.symlink(sys.argv[2], p)"
@@ -347,7 +353,7 @@ def test_planted_feedback_symlink_is_not_followed(tmp_path: Path) -> None:
     # Step 1 plants the link; the controller's step 2 write must replace it
     # rather than write through it.
     assert ec.main(["run", "--config", str(config)]) == 0
-    assert outside.read_text() == "untouched"
+    assert outside.read_text(encoding="utf-8") == "untouched"
 
 
 def test_no_change_then_change_gates_the_second_step(
@@ -384,14 +390,14 @@ def test_missing_collected_output_is_external(tmp_path: Path) -> None:
 
 def test_proposer_timeout_is_external(tmp_path: Path) -> None:
     config, artifact = _setup(tmp_path, {}, steps=1)
-    before = artifact.read_text()
+    before = artifact.read_text(encoding="utf-8")
     _edit_config(
         config,
         timeout_seconds=1,
         proposer=[sys.executable, "-c", "import time; time.sleep(30)"],
     )
     assert ec.main(["run", "--config", str(config)]) == ec.EXIT_EXTERNAL
-    assert artifact.read_text() == before
+    assert artifact.read_text(encoding="utf-8") == before
 
 
 def test_config_inside_workspace_is_refused(tmp_path: Path) -> None:
@@ -399,18 +405,18 @@ def test_config_inside_workspace_is_refused(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     moved = workspace / "config.json"
-    moved.write_text(config.read_text())
+    moved.write_text(config.read_text(encoding="utf-8"))
     assert ec.main(["run", "--config", str(moved)]) == ec.EXIT_CONFIG
 
 
 def test_artifact_swapped_for_symlink_cannot_redirect_the_restore(tmp_path: Path) -> None:
     config, artifact = _setup(tmp_path, {}, steps=1)
     denied = tmp_path / "fixtures" / "T01.json"
-    before = denied.read_text()
+    before = denied.read_text(encoding="utf-8")
     swap = "import os, sys; os.remove(sys.argv[1]); os.symlink(sys.argv[2], sys.argv[1])"
     _edit_config(config, proposer=[sys.executable, "-c", swap, "{artifact}", str(denied)])
     assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
-    assert denied.read_text() == before
+    assert denied.read_text(encoding="utf-8") == before
     assert not artifact.is_symlink()
 
 
@@ -465,3 +471,147 @@ def test_summary_digest_is_the_file_on_disk(
     assert ec.main(["run", "--config", str(config)]) == 0
     summary = json.loads(capsys.readouterr().out)
     assert summary["artifact_sha256"] == hashlib.sha256(artifact.read_bytes()).hexdigest()
+
+
+def _events(tmp_path: Path) -> list[dict[str, Any]]:
+    lines = (tmp_path / "state" / "log.jsonl").read_text(encoding="utf-8").splitlines()
+    return [json.loads(line) for line in lines]
+
+
+def _wrap_optimizer(
+    monkeypatch: pytest.MonkeyPatch, seen: list[list[str]], gate: dict[str, Any] | None = None
+) -> None:
+    real = ec.optimizer
+
+    def fake(args: list[str], timeout: int, env: Any = None) -> tuple[int, dict[str, Any]]:
+        seen.append(list(args))
+        if gate is not None and args[0] == "gate":
+            return 1, gate
+        return real(args, timeout, env)
+
+    monkeypatch.setattr(ec, "optimizer", fake)
+
+
+def test_gate_refusal_stops_the_run_and_spends_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, artifact = _setup(tmp_path, {"1": _all_true()}, steps=2)
+    before = artifact.read_text(encoding="utf-8")
+    refusal = {"decision": "REJECT", "compared": False, "consultations": 0}
+    _wrap_optimizer(monkeypatch, [], gate=refusal)
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_EXTERNAL
+    assert artifact.read_text(encoding="utf-8") == before
+    assert _events(tmp_path)[-1]["event"] == "abort"
+    assert len(_transcript(tmp_path)) == 1
+
+
+def test_max_p_reaches_the_gate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    config, _ = _setup(tmp_path, {"1": _all_true()}, steps=1)
+    _edit_config(config, max_p=0.5)
+    seen: list[list[str]] = []
+    _wrap_optimizer(monkeypatch, seen)
+    assert ec.main(["run", "--config", str(config)]) == 0
+    gate = next(args for args in seen if args[0] == "gate")
+    assert gate[gate.index("--max-p") + 1] == "0.5"
+
+
+def test_scorer_that_edits_controller_state_is_refused(tmp_path: Path) -> None:
+    config, artifact = _setup(tmp_path, {"1": _all_true()}, steps=1)
+    before = artifact.read_text(encoding="utf-8")
+    scorer = tmp_path / "scripts" / "scorer.py"
+    tasks = tmp_path / "state" / "tasks.txt"
+    scorer.write_text(
+        scorer.read_text(encoding="utf-8")
+        + f"\nif 'candidate' in out:\n    open({str(tasks)!r}, 'a').write('x')\n",
+        encoding="utf-8",
+    )
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+    assert artifact.read_text(encoding="utf-8") == before
+    assert not any(e["event"] == "gate" for e in _events(tmp_path))
+
+
+def test_workspace_is_emptied_between_steps(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {}, steps=2)
+    note = "import os, sys; open(os.path.join(sys.argv[1], 'note.txt'), 'w').write('x')"
+    record = (
+        "import json, os, sys; seen = sorted(os.listdir(sys.argv[1])); "
+        "open(sys.argv[2], 'a').write(json.dumps(seen) + '\\n'); " + note.split("; ", 1)[1]
+    )
+    log = tmp_path / "listing.jsonl"
+    _edit_config(config, proposer=[sys.executable, "-c", record, "{workspace}", str(log)])
+    assert ec.main(["run", "--config", str(config)]) == 0
+    listings = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
+    assert listings[1] == ["feedback.json", "tasks"]
+
+
+def test_trusted_path_edit_stops_the_loop(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {}, steps=2)
+    trusted = tmp_path / "trusted.py"
+    trusted.write_text("x = 1\n", encoding="utf-8")
+    edit = "import sys; open(sys.argv[1], 'a').write('y = 2\\n')"
+    _edit_config(
+        config,
+        trusted_paths=[str(trusted)],
+        proposer=[sys.executable, "-c", edit, str(trusted)],
+    )
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+
+
+def test_proposer_env_drops_the_ledger_variable_and_honors_an_allowlist(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    monkeypatch.setenv("EVAL_LEDGER_DIR", "/should/not/pass")
+    monkeypatch.setenv("SECRET_TOKEN", "hidden")
+    monkeypatch.setenv("ALLOWED_VAR", "kept")
+    dump = "import json, os, sys; json.dump(dict(os.environ), open(sys.argv[1], 'w'))"
+    out = tmp_path / "env.json"
+    _edit_config(
+        config, proposer_env=["ALLOWED_VAR"], proposer=[sys.executable, "-c", dump, str(out)]
+    )
+    assert ec.main(["run", "--config", str(config)]) == 0
+    env = json.loads(out.read_text(encoding="utf-8"))
+    assert env.get("ALLOWED_VAR") == "kept"
+    assert "SECRET_TOKEN" not in env
+    assert "EVAL_LEDGER_DIR" not in env
+
+
+def test_artifact_replaced_by_a_directory_is_refused_and_restored(tmp_path: Path) -> None:
+    config, artifact = _setup(tmp_path, {}, steps=1)
+    before = artifact.read_text(encoding="utf-8")
+    swap = "import os, sys; os.remove(sys.argv[1]); os.mkdir(sys.argv[1])"
+    _edit_config(config, proposer=[sys.executable, "-c", swap, "{artifact}"])
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+    assert artifact.is_file()
+    assert artifact.read_text(encoding="utf-8") == before
+
+
+def test_missing_opt_task_file_is_refused(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    _edit_config(config, opt_task_files=str(tmp_path / "nowhere" / "{task_name}.json"))
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+
+
+def test_deny_path_containing_state_is_refused(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    data = json.loads(config.read_text(encoding="utf-8"))
+    data["state_dir"] = str(tmp_path / "fixtures" / "state")
+    config.write_text(json.dumps(data), encoding="utf-8")
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+
+
+def test_sigterm_handler_raises_a_controller_error() -> None:
+    with pytest.raises(ec.ControllerError) as caught:
+        ec._terminated(15, None)
+    assert caught.value.code == ec.EXIT_EXTERNAL
+
+
+def test_failure_detail_goes_to_the_log_not_stderr(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    noisy = "import sys; sys.stderr.write('PRIVATE-DETAIL'); raise SystemExit(4)"
+    _edit_config(config, proposer=[sys.executable, "-c", noisy])
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_EXTERNAL
+    assert "PRIVATE-DETAIL" not in capsys.readouterr().err
+    assert "PRIVATE-DETAIL" in _events(tmp_path)[-1]["detail"]
