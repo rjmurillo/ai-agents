@@ -303,15 +303,20 @@ def _snap_out_of_tokens(text: str, point: int) -> int:
 
 
 def _gap_split(line: str, prev_end: int, next_start: int) -> int:
-    """Split the gap between two citations near its midpoint, whole tokens only."""
-    gap = line[prev_end:next_start]
-    point = len(gap) // 2
+    """Split the gap between two citations near its midpoint, whole tokens only.
+
+    Tokens are paired on the whole line, not the gap alone. The gap starts
+    with the closing backtick of the first citation's span, so pairing inside
+    the gap is off by one and the snap would bisect a span (issue #7656). The
+    result is clamped to the gap so a segment never loses its own citation.
+    """
+    point = prev_end + (next_start - prev_end) // 2
     for _ in range(3):
-        snapped = _snap_out_of_tokens(gap, point)
+        snapped = _snap_out_of_tokens(line, point)
         if snapped == point:
             break
         point = snapped
-    return prev_end + point
+    return min(max(point, prev_end), next_start)
 
 
 def _same_line_segment(line: str, matches: list[re.Match[str]], index: int) -> str:
