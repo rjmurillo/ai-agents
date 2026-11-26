@@ -247,7 +247,9 @@ def test_github_pending_past_the_deadline_fails(github_pr, fakes, scripts, capsy
         scripts, capsys, "--check", "pipeline", "--deadline", str(int(time.time()) - 1)
     )
     assert code == 1
-    assert values(lines, "CHECK") == ["pipeline=FAIL still pending after 30 minutes"]
+    assert values(lines, "CHECK") == [
+        "pipeline=FAIL still pending after 30 minutes: pr=9 required checks still running"
+    ]
 
 
 @pytest.mark.parametrize(

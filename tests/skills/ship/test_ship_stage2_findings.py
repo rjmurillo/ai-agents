@@ -129,7 +129,9 @@ class TestDeadlineIsBound:
         )
         code, lines = invoke(scripts[2], ["--check", "pipeline"], capsys)
         assert code == 1
-        assert values(lines, "CHECK")[-1] == "pipeline=FAIL still pending after 30 minutes"
+        assert values(lines, "CHECK")[-1] == (
+            "pipeline=FAIL still pending after 30 minutes: pr=9 required checks still running"
+        )
 
     def test_an_unreadable_state_file_starts_a_fresh_window(
         self, make_repo, fakes, scripts, capsys
@@ -187,10 +189,12 @@ class TestProcessFailuresEndOnStop:
         _repo, body = owner
         common = scripts[0]
         real_git = common.git
+        # A full budget: the push gets 540 less the 120 seconds kept for the PR create.
+        monkeypatch.setattr(common, "remaining_seconds", lambda: 540.0)
 
         def slow(args, cwd=None, timeout=60):
             if args[:1] == ["push"]:
-                assert timeout == 540
+                assert timeout == 420
                 return common.Completed(124, "", "git: timed out after 540s")
             return real_git(args, cwd=cwd, timeout=timeout)
 

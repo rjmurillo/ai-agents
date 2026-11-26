@@ -9,7 +9,7 @@ States: tree clean|dirty; reviewed PASS|FAIL|SKIPPED|ADVISORY;
 pipeline PASS|FAIL|PENDING|DEFERRED.
 
 Terminal line:
-  any FAIL            -> STOP: check-failed, exit 1
+  any FAIL or tree=dirty -> STOP: check-failed, exit 1
   pipeline PENDING    -> NEXT: rerun-pipeline (the stored deadline carries over)
   pipeline DEFERRED   -> NEXT: publish-then-discharge (contributor: NEXT: report)
   all clear           -> NEXT: write-body (owner) or NEXT: report
@@ -105,7 +105,7 @@ def check_reviewed(ctx: Context, draft: bool, require_axes: list[str]) -> Check 
         return Check("reviewed", "SKIPPED", "draft")
     if ctx.mode == "contributor":
         return Check("reviewed", "ADVISORY", "contributor mode: attest the review in the report")
-    refused = f"draft exemption refused: PR {ctx.pr} is not a verified draft; " if draft else ""
+    refused = f"draft exemption refused: PR {ctx.pr} is not a verified draft" if draft else ""
     validator = common.skill_script("review", "validate_review_marker.py")
     if not validator.is_file():
         return Halt("validator-missing", common.EXIT_CONFIG, "review skill validator not found")
@@ -116,12 +116,12 @@ def check_reviewed(ctx: Context, draft: bool, require_axes: list[str]) -> Check 
     if done.returncode == 0:
         match = _PASS_AXES_RE.search(done.stdout)
         axes = match.group(1) if match else "unknown"
-        return Check("reviewed", "PASS", f"{refused}axes={axes}")
+        # The spec shape is ``axes=<list>``, so a refusal note follows it.
+        return Check("reviewed", "PASS", f"axes={axes}" + (f"; {refused}" if refused else ""))
     if done.returncode == 1:
         lines = [line for line in done.stderr.splitlines() if line.strip()]
-        return Check(
-            "reviewed", "FAIL", refused + (lines[-1] if lines else "no valid review marker")
-        )
+        cause = lines[-1] if lines else "no valid review marker"
+        return Check("reviewed", "FAIL", f"{refused}; {cause}" if refused else cause)
     last = [line for line in done.stderr.splitlines() if line.strip()][-1:]
     detail = f"validator exit {done.returncode}" + (f": {last[0]}" if last else "")
     return Halt("validator-config", common.EXIT_CONFIG, detail)
@@ -213,7 +213,8 @@ def _run_check(
         return check_reviewed(ctx, args.draft, args.require_axis)
     outcome = check_pipeline(ctx, pr, wait_seconds, after_publish)
     if isinstance(outcome, Check) and outcome.state == "PENDING" and time.time() >= deadline:
-        return Check("pipeline", "FAIL", f"still pending after {TOTAL_WAIT_SECONDS // 60} minutes")
+        waited = f"{TOTAL_WAIT_SECONDS // 60} minutes"
+        return Check("pipeline", "FAIL", f"still pending after {waited}: {outcome.detail}")
     return outcome
 
 

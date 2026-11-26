@@ -260,14 +260,12 @@ def _report(result: common.Result, name: str, problem: str | None) -> bool:
     return problem is None
 
 
-def run_checks(
-    ctx: Context, title: str, body_file: Path, base: str, result: common.Result
-) -> list[str]:
+def run_checks(ctx: Context, title: str, body_file: Path, result: common.Result) -> list[str]:
     """Run every body and title check; add CHECK lines; return failed check names.
 
     A check that could not run is reported as ``<name>:not-run``.
     """
-    text = body_file.read_text(encoding="utf-8", errors="replace")
+    text = body_file.read_text(encoding="utf-8")
     # az is az.cmd on Windows: refuse what cmd.exe would rewrite before any push.
     via_cmd = ctx.host == "ado" and common.on_windows()
     title_issue = title_problem(title)
@@ -279,7 +277,7 @@ def run_checks(
     outcomes: list[tuple[str, bool | None]] = [
         ("title", _report(result, "title", title_issue)),
         ("body", _report(result, "body", body_issue)),
-        ("paths", _check_paths(ctx, body_file, base, result)),
+        ("paths", _check_paths(ctx, body_file, ctx.base, result)),
     ]
     # A title or body that failed its own check never reaches a helper's argv.
     if ctx.host == "ado" and all(ok for _name, ok in outcomes[:2]):

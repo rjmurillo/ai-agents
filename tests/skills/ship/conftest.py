@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -46,6 +47,20 @@ for index, rule in enumerate(rules):
 sys.stderr.write(f"fake {prog}: no rule for {argv}\\n")
 sys.exit(99)
 """
+
+# The real seed helper: ship_pr.py prepare loads it by path on Windows, where
+# new_pr.py cannot allocate the scratch file. It is stdlib only, so the fake
+# skill tree gets a copy of the real one.
+REAL_PREPARE_PR_BODY = (
+    Path(__file__).resolve().parents[3]
+    / "src"
+    / "claude"
+    / "skills"
+    / "github"
+    / "scripts"
+    / "pr"
+    / "prepare_pr_body.py"
+)
 
 HELPERS = {
     ("github", "pr", "new_pr.py"),
@@ -124,6 +139,8 @@ def fakes(tmp_path, monkeypatch, scripts) -> Fakes:
     skills = root / "skills"
     for parts in HELPERS:
         _executable(skills.joinpath(parts[0], "scripts", *parts[1:]), _FAKE)
+    prepare = skills / "github" / "scripts" / "pr" / "prepare_pr_body.py"
+    shutil.copyfile(REAL_PREPARE_PR_BODY, prepare)
     spec = root / "spec.json"
     spec.write_text("[]", encoding="utf-8")
     log = root / "calls.jsonl"

@@ -209,7 +209,9 @@ class TestDraftOnExistingPr:
         fakes.marker(0)
         code, lines = invoke(scripts[2], ["--check", "reviewed", "--draft"], capsys)
         assert code == 0
-        assert values(lines, "CHECK")[0].startswith("reviewed=PASS draft exemption refused")
+        assert values(lines, "CHECK") == [
+            "reviewed=PASS axes=analyst,qa; draft exemption refused: PR 9 is not a verified draft"
+        ]
 
     def test_detect_reports_the_draft_state(self, make_repo, fakes, scripts, capsys):
         make_repo(GITHUB)

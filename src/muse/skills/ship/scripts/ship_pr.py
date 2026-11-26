@@ -28,6 +28,7 @@ import importlib.util
 import re
 import sys
 from pathlib import Path
+from types import ModuleType
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -71,8 +72,12 @@ REASONS = preflight_mod.REASONS | frozenset(
     }
 )
 BODY_MARKER = checks_mod.BODY_MARKER
-# Under the 600-second agent tool cap, so a slow pre-push hook ends on a STOP.
+# The shared run budget (common.RUN_BUDGET_SECONDS) caps the push: a slow
+# pre-push hook ends on a STOP, and PR_RESERVE_SECONDS stay for the PR create.
 PUSH_TIMEOUT_SECONDS = 540
+PR_RESERVE_SECONDS = 120
+_EXTERNAL_RETURN_CODES = (124, 126, 127)  # timeout, cannot run, not found
+_RERUN_NOTE = "rerun publish; it detects an existing PR"
 _BRANCH_RE = re.compile(
     r"^(feat|fix|docs|refactor|test|chore|ci|build|perf|style|revert)/[a-z0-9][a-z0-9-]{1,60}$"
 )
@@ -101,20 +106,47 @@ def cmd_branch(args: argparse.Namespace, result: common.Result, root: Path) -> c
     return result.next("commit-then-review")
 
 
-def _windows_body_file(root: Path) -> Path | None:
-    """Seed a body file through the guarded scratch writer; None when it is unsafe."""
-    template = root / ".github" / "PULL_REQUEST_TEMPLATE.md"
-    seed = BODY_MARKER + "\n"
-    if template.is_file():
-        seed += template.read_text(encoding="utf-8", errors="replace")
-    return common.write_private(root, "pr-body", ".md", seed)
+def _load_module(path: Path) -> ModuleType:
+    """Load one stdlib-only helper script by path, without putting it on ``sys.path``."""
+    spec = importlib.util.spec_from_file_location(path.stem, path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load {path.name}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _windows_body_file(args: argparse.Namespace, result: common.Result, root: Path) -> Path | None:
+    """Seed a body file through the guarded scratch writer; None after a STOP."""
+    helper = common.skill_script("github", "pr", "prepare_pr_body.py")
+    if not helper.is_file():
+        result.stop("prepare-failed", common.EXIT_CONFIG, "prepare_pr_body.py not found")
+        return None
+    try:
+        module = _load_module(helper)
+    except (ImportError, SyntaxError, OSError) as exc:
+        result.stop("prepare-failed", common.EXIT_CONFIG, f"cannot load prepare_pr_body.py: {exc}")
+        return None
+    try:
+        seed = module._seed_content(root, f"origin/{args.base}" if args.base else None)
+    except module.PreparePrBodyError as exc:
+        result.stop("prepare-failed", common.EXIT_CONFIG, str(exc))
+        return None
+    path = common.write_private(root, "pr-body", ".md", seed)
+    if path is None:
+        result.stop("prepare-failed", common.EXIT_CONFIG, "scratch directory is unsafe")
+    return path
 
 
 def cmd_prepare(args: argparse.Namespace, result: common.Result, root: Path) -> common.Result:
     if common.on_windows():
-        path = _windows_body_file(root)
+        # _seed_content runs a bare git, which CreateProcess may find in the checkout first.
+        unsafe = detect_mod.unsafe_checkout(root)
+        if unsafe is not None:
+            return result.stop(unsafe.reason, unsafe.code, unsafe.detail)
+        path = _windows_body_file(args, result, root)
         if path is None:
-            return result.stop("prepare-failed", common.EXIT_CONFIG, "scratch directory is unsafe")
+            return result
         result.add("BODY_FILE", path.relative_to(root.resolve()).as_posix())
         return result.next("write-body")
     helper = _new_pr()
@@ -126,7 +158,12 @@ def cmd_prepare(args: argparse.Namespace, result: common.Result, root: Path) -> 
     done = common.run(argv, cwd=root)
     path_text = done.stdout.strip().splitlines()[-1:] if done.stdout.strip() else []
     if done.returncode != 0 or not path_text:
-        return result.stop("prepare-failed", common.EXIT_CONFIG, done.stderr.strip()[-200:])
+        code = (
+            common.EXIT_EXTERNAL
+            if done.returncode in _EXTERNAL_RETURN_CODES
+            else common.EXIT_CONFIG
+        )
+        return result.stop("prepare-failed", code, done.stderr.strip()[-200:])
     result.add("BODY_FILE", path_text[0])
     return result.next("write-body")
 
@@ -140,6 +177,18 @@ def _detect(args: argparse.Namespace, result: common.Result) -> Context | None:
     return ctx
 
 
+def _read_body(body: Path, result: common.Result) -> str | None:
+    """Read a body file as strict UTF-8; None after ``STOP: bad-body-file``.
+
+    A lossy decode would publish U+FFFD in place of the author's bytes.
+    """
+    try:
+        return body.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        result.stop("bad-body-file", common.EXIT_CONFIG, "body file is not UTF-8")
+        return None
+
+
 def _body_file(args: argparse.Namespace, result: common.Result, ctx: Context) -> Path | None:
     body = common.confine_body_file(args.body_file, ctx.root)
     if body is None:
@@ -148,7 +197,8 @@ def _body_file(args: argparse.Namespace, result: common.Result, ctx: Context) ->
             common.EXIT_CONFIG,
             "body file must be a regular file in the scratch directory",
         )
-    return body
+        return None
+    return body if _read_body(body, result) is not None else None
 
 
 def cmd_check(args: argparse.Namespace, result: common.Result, _root: Path) -> common.Result:
@@ -158,7 +208,7 @@ def cmd_check(args: argparse.Namespace, result: common.Result, _root: Path) -> c
     body = _body_file(args, result, ctx)
     if body is None:
         return result
-    failed, paths_not_run = split_not_run(run_checks(ctx, args.title, body, ctx.base, result))
+    failed, paths_not_run = split_not_run(run_checks(ctx, args.title, body, result))
     if failed:
         return result.stop("check-failed", common.EXIT_LOGIC, ",".join(failed))
     return result.next("compare-paths-by-hand" if paths_not_run else "publish")
@@ -166,9 +216,8 @@ def cmd_check(args: argparse.Namespace, result: common.Result, _root: Path) -> c
 
 def _push(ctx: Context, result: common.Result) -> bool:
     refspec = f"refs/heads/{ctx.branch}:refs/heads/{ctx.branch}"
-    done = common.git(
-        ["push", "--set-upstream", "origin", refspec], cwd=ctx.root, timeout=PUSH_TIMEOUT_SECONDS
-    )
+    timeout = max(1, min(PUSH_TIMEOUT_SECONDS, common.remaining_seconds() - PR_RESERVE_SECONDS))
+    done = common.git(["push", "--set-upstream", "origin", refspec], cwd=ctx.root, timeout=timeout)
     if done.returncode == 0:
         result.add("PUSH", "pushed")
         return True
@@ -196,6 +245,14 @@ def _push(ctx: Context, result: common.Result) -> bool:
     return False
 
 
+def _create_halt(done: common.Completed) -> Halt:
+    """The halt for a failed PR create; a timeout says the PR may already exist."""
+    halt = detect_mod.query_halt("pr-create-failed", done)
+    if done.returncode != 124:
+        return halt
+    return Halt(halt.reason, halt.code, f"{halt.detail} ({_RERUN_NOTE})")
+
+
 def _create_github(
     ctx: Context, args: argparse.Namespace, body: Path, result: common.Result
 ) -> common.Result:
@@ -204,7 +261,7 @@ def _create_github(
         return result.stop("pr-create-failed", common.EXIT_CONFIG, "new_pr.py not found")
     argv = [sys.executable, "-I", str(helper), "--title", args.title, "--base", ctx.base]
     if common.on_windows():
-        argv.extend(["--body", body.read_text(encoding="utf-8", errors="replace")])
+        argv.extend(["--body", body.read_text(encoding="utf-8")])
     else:
         argv.extend(["--body-file", str(body)])
     if args.draft:
@@ -215,7 +272,7 @@ def _create_github(
     matches = list(_GITHUB_PR_URL_RE.finditer(done.stdout))
     match = matches[-1] if matches else None
     if done.returncode != 0 or match is None:
-        halt = detect_mod.query_halt("pr-create-failed", done)
+        halt = _create_halt(done)
         # new_pr.py exits 2 on its own config error. Any other code is gh's,
         # and gh uses 1 for an API error and 4 for an auth error.
         if done.returncode == 4 or halt.code == common.EXIT_AUTH:
@@ -247,7 +304,7 @@ def _create_ado(
     ]
     done = common.run(argv, cwd=ctx.root, timeout=180)
     if done.returncode != 0:
-        halt = detect_mod.query_halt("pr-create-failed", done)
+        halt = _create_halt(done)
         return result.stop(halt.reason, halt.code, halt.detail)
     data = common.parse_json(done.stdout)
     if not isinstance(data, dict) or not isinstance(data.get("pullRequestId"), int):
@@ -295,13 +352,14 @@ def _checked_snapshot(
     The host gets the snapshot, never the original path, so the bytes that
     passed the checks are the bytes that publish.
     """
-    snapshot = common.write_private(
-        ctx.root, "pr-body-publish", ".md", body.read_text(encoding="utf-8", errors="replace")
-    )
+    text = _read_body(body, result)
+    if text is None:
+        return None
+    snapshot = common.write_private(ctx.root, "pr-body-publish", ".md", text)
     if snapshot is None:
         result.stop("bad-body-file", common.EXIT_CONFIG, "could not write the body snapshot")
         return None
-    failed, paths_not_run = split_not_run(run_checks(ctx, args.title, snapshot, ctx.base, result))
+    failed, paths_not_run = split_not_run(run_checks(ctx, args.title, snapshot, result))
     if failed:
         result.stop("check-failed", common.EXIT_LOGIC, ",".join(failed))
         return None

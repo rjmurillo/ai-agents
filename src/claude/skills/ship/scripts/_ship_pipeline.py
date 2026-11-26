@@ -24,6 +24,9 @@ else:
 
 POLL_SECONDS = 30
 CHECKS_TIMEOUT_SECONDS = 300
+# Seconds of the shared run budget kept for the calls after a wait.
+RESERVE_SECONDS = 120
+MAX_LISTED = 10
 
 
 @dataclass(frozen=True)
@@ -66,9 +69,11 @@ def _read_github_checks(
 ) -> tuple[int, dict[str, Any]] | Check | Halt:
     """Run get_pr_checks.py once; return (exit code, Data), a PENDING check, or a Halt.
 
-    It waits at most ``min(wait_seconds, CHECKS_TIMEOUT_SECONDS)``. Zero reads once.
+    It waits at most ``min(wait_seconds, CHECKS_TIMEOUT_SECONDS)``, and never past the
+    run budget less ``RESERVE_SECONDS``. Zero reads once.
     """
-    budget = max(0, min(wait_seconds, CHECKS_TIMEOUT_SECONDS))
+    left = int(common.remaining_seconds()) - RESERVE_SECONDS
+    budget = max(0, min(wait_seconds, CHECKS_TIMEOUT_SECONDS, left))
     helper = common.skill_script("github", "pr", "get_pr_checks.py")
     if not helper.is_file():
         return Halt("checks-query-failed", common.EXIT_CONFIG, "get_pr_checks.py not found")
@@ -112,7 +117,7 @@ def _github_verdict(ctx: Context, pr: int, code: int, data: dict[str, Any]) -> C
         "FailedRequiredChecks"
     ):
         # Read without waiting, or the wait ended early: still running, not failed.
-        pending = _names(data, "pending", ("PendingRequiredChecks",))
+        pending = _names(data, "pending", "PendingRequiredChecks")
         return Check("pipeline", "PENDING", f"pr={pr} required checks still running{pending}")
     detail = f"pr={pr} required={data.get('RequiredState')} all_passing={data.get('AllPassing')}"
     for label, key in (
@@ -120,7 +125,7 @@ def _github_verdict(ctx: Context, pr: int, code: int, data: dict[str, Any]) -> C
         ("missing", "MissingRequiredChecks"),
         ("pending", "PendingRequiredChecks"),
     ):
-        detail += _names(data, label, (key,))
+        detail += _names(data, label, key)
     if data.get("MergeRefUsable") is False:
         # A conflicting branch has no merge ref, so CI cannot run: name that cause.
         detail += f" merge_state={data.get('MergeState')}"
@@ -129,14 +134,21 @@ def _github_verdict(ctx: Context, pr: int, code: int, data: dict[str, Any]) -> C
     return Check("pipeline", "FAIL", detail)
 
 
-def _names(data: dict[str, Any], label: str, keys: tuple[str, ...]) -> str:
-    """Return `` label=a,b`` for up to 10 check names under the Data keys, or ''."""
-    items = [item for key in keys for item in data.get(key) or []][:10]
-    names = [str(i.get("Name", i)) if isinstance(i, dict) else str(i) for i in items]
-    return f" {label}=" + ",".join(names) if names else ""
+def _more(total: int) -> str:
+    """`` (+N more)`` when a list was cut at ``MAX_LISTED``, else ''."""
+    return f" (+{total - MAX_LISTED} more)" if total > MAX_LISTED else ""
 
 
-def _github_pipeline(ctx: Context, pr: int, after_publish: bool, wait_seconds: int) -> Check | Halt:
+def _names(data: dict[str, Any], label: str, key: str) -> str:
+    """Return `` label=a,b`` for up to 10 check names under ``key``, or ''."""
+    items = list(data.get(key) or [])
+    names = [str(i.get("Name", i)) if isinstance(i, dict) else str(i) for i in items[:MAX_LISTED]]
+    return f" {label}=" + ",".join(names) + _more(len(items)) if names else ""
+
+
+def _github_pipeline(
+    ctx: Context, *, pr: int, after_publish: bool, wait_seconds: int
+) -> Check | Halt:
     """Read CI only for PR ``pr`` at this branch and HEAD, and re-check the head after."""
     before = _github_head(ctx, pr)
     if isinstance(before, Halt):
@@ -210,6 +222,11 @@ def _ado_state(ctx: Context, pr: int) -> dict[str, Any] | Halt:
     return data
 
 
+def _is_build_id(value: object) -> bool:
+    """A host-returned build id is a positive int; a bool is not one."""
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
 def _ado_evaluate(
     ctx: Context, pr: int, rows: list[dict[str, Any]], state: dict[str, Any]
 ) -> Check | Halt:
@@ -220,7 +237,8 @@ def _ado_evaluate(
     for row in rows:
         status = str(row.get("status"))
         build_id = row.get("buildId")
-        if status != "approved" or build_id in (None, "", "None"):
+        # The id reaches az as an argument, so only a positive integer is trusted.
+        if status != "approved" or not _is_build_id(build_id):
             failures.append(f"policy={status} build={build_id}")
             continue
         build = common.run(
@@ -248,9 +266,8 @@ def _ado_evaluate(
                 f"build={build_id} result={info.get('result')} at={info.get('sourceVersion')}"
             )
     if failures:
-        return Check(
-            "pipeline", "FAIL", f"pr={pr} merge={merge_commit} " + "; ".join(failures[:10])
-        )
+        listed = "; ".join(failures[:MAX_LISTED]) + _more(len(failures))
+        return Check("pipeline", "FAIL", f"pr={pr} merge={merge_commit} {listed}")
     return Check("pipeline", "PASS", f"pr={pr} builds={len(rows)} merge={merge_commit}")
 
 
@@ -267,7 +284,7 @@ def _ado_moved(ctx: Context, pr: int, state: dict[str, Any]) -> Check | Halt | N
     return None
 
 
-def _ado_pipeline(ctx: Context, pr: int, wait_seconds: int, after_publish: bool) -> Check | Halt:
+def _ado_pipeline(ctx: Context, *, pr: int, after_publish: bool, wait_seconds: int) -> Check | Halt:
     state = _ado_state(ctx, pr)
     if isinstance(state, Halt):
         return state
@@ -277,7 +294,8 @@ def _ado_pipeline(ctx: Context, pr: int, wait_seconds: int, after_publish: bool)
     if mismatch is not None:
         return mismatch
     # Leave room for the evaluation calls after the wait, inside the run budget.
-    call_end = time.monotonic() + min(wait_seconds, max(0.0, common.remaining_seconds() - 120))
+    left = max(0.0, common.remaining_seconds() - RESERVE_SECONDS)
+    call_end = time.monotonic() + min(wait_seconds, left)
     while True:
         rows = _ado_policy_rows(ctx, pr)
         if isinstance(rows, Halt):
@@ -290,9 +308,12 @@ def _ado_pipeline(ctx: Context, pr: int, wait_seconds: int, after_publish: bool)
             return Check("pipeline", "FAIL", f"pr={pr} has no blocking build policy evaluation")
         remaining = call_end - time.monotonic()
         if remaining <= 0:
-            return Check(
-                "pipeline", "PENDING", f"pr={pr} {len(pending)} of {len(rows)} queued or running"
+            seen = (
+                f"{len(pending)} of {len(rows)} queued or running"
+                if rows
+                else "no blocking build policy has evaluated yet"
             )
+            return Check("pipeline", "PENDING", f"pr={pr} {seen}")
         time.sleep(min(POLL_SECONDS, remaining))
 
 
@@ -302,5 +323,5 @@ def check_pipeline(
     if pr is None:
         return Check("pipeline", "DEFERRED", "no open PR yet")
     if ctx.host == "github":
-        return _github_pipeline(ctx, pr, after_publish, wait_seconds)
-    return _ado_pipeline(ctx, pr, wait_seconds, after_publish)
+        return _github_pipeline(ctx, pr=pr, after_publish=after_publish, wait_seconds=wait_seconds)
+    return _ado_pipeline(ctx, pr=pr, after_publish=after_publish, wait_seconds=wait_seconds)

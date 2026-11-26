@@ -61,6 +61,8 @@ Replaces both host-detection blocks and the PR ownership prose.
 - An open PR with no author in the host reply: `STOP: pr-author-unknown`, exit 3.
   It never prints `PR: none` after a failed query.
 - In owner mode with no open PR, a base branch (`main`, `master`, the origin default, or `--base`) is `STOP: on-base-branch`, exit 1.
+- On Windows, a checkout root that holds a file named `git`, `gh`, or `az` with a `PATHEXT` suffix, such as `git.exe`, is `STOP: unsafe-checkout`, exit 2.
+  CreateProcess searches the current directory before `PATH`, so that file would run in place of the installed program (CWE-427).
 - Host rule: match the parsed URL host, not a substring.
   This fixes finding LOW-1 from the 2026-11-25 security review.
 
@@ -160,7 +162,7 @@ STOP reasons, by the script that first declares them. A later script also uses t
 
 | Script | STOP reasons |
 |---|---|
-| `ship_detect.py` | `bad-arguments`, `no-repo`, `no-origin`, `unsupported-remote`, `detached-head`, `on-base-branch`, `pr-query-failed`, `user-query-failed`, `auth-failed`, `pr-author-unknown` |
+| `ship_detect.py` | `bad-arguments`, `no-repo`, `no-origin`, `unsupported-remote`, `detached-head`, `on-base-branch`, `pr-query-failed`, `user-query-failed`, `auth-failed`, `pr-author-unknown`, `unsafe-checkout` |
 | `ship_preflight.py` | `check-failed`, `validator-missing`, `validator-config`, `checks-query-failed`, `pipeline-query-failed`, `deadline-unstored` |
 | `ship_pr.py` | `bad-branch-name`, `branch-create-failed`, `prepare-failed`, `bad-body-file`, `contributor-mode`, `tree-dirty`, `head-not-reviewed`, `paths-not-checked`, `push-rejected`, `push-failed`, `pr-create-failed`, `description-upload-failed` |
 

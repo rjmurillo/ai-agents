@@ -71,18 +71,130 @@ class TestPrepare:
         assert code == 2
         assert lines[-1].startswith("STOP: prepare-failed")
 
-    def test_windows_seeds_a_scratch_file_without_the_allocator(
+    @pytest.mark.parametrize(
+        ("child_code", "exit_code"), [(1, 2), (2, 2), (124, 3), (126, 3), (127, 3)]
+    )
+    def test_allocator_exit_codes_map_to_config_or_external(
+        self, make_repo, fakes, scripts, capsys, child_code, exit_code
+    ):
+        make_repo(GITHUB)
+        fakes.rule("new_pr", ["--prepare-body-file"], {"rc": child_code, "stderr": "boom\n"})
+        code, lines = run_pr(scripts, capsys, "prepare")
+        assert code == exit_code
+        assert lines[-1] == "STOP: prepare-failed boom"
+
+
+TEMPLATE_PATH = ".github/PULL_REQUEST_TEMPLATE.md"
+PLACEHOLDER = "<!-- replace with PR body -->\n"
+
+
+def _commit_template(repo, text: str, *, to: str) -> None:
+    """Commit ``text`` as the PR template on ``to`` of origin, then return to the branch."""
+    branch = git(repo, "branch", "--show-current")
+    git(repo, "switch", "-q", "-c", f"tmp-{to}", "main")
+    (repo / ".github").mkdir(exist_ok=True)
+    (repo / TEMPLATE_PATH).write_text(text, encoding="utf-8")
+    git(repo, "add", ".github")
+    git(repo, "commit", "-q", "-m", "chore: add the template")
+    git(repo, "push", "-q", "origin", f"HEAD:refs/heads/{to}")
+    git(repo, "switch", "-q", branch)
+    git(repo, "branch", "-q", "-D", f"tmp-{to}")
+
+
+class TestWindowsPrepare:
+    """On Windows the body is seeded from the base ref, as new_pr.py does elsewhere (#6506)."""
+
+    @pytest.fixture
+    def windows(self, scripts, monkeypatch):
+        monkeypatch.setattr(scripts[0], "on_windows", lambda: True)
+
+    def test_seeds_from_the_base_ref_template_not_the_working_tree(
+        self, make_repo, fakes, scripts, capsys, windows
+    ):
+        repo = make_repo(GITHUB)
+        _commit_template(repo, "## Summary\n", to="main")
+        (repo / ".github").mkdir(exist_ok=True)
+        (repo / TEMPLATE_PATH).write_text("## Edited on the branch\n", encoding="utf-8")
+        code, lines = run_pr(scripts, capsys, "prepare")
+        assert code == 0, lines
+        body = (repo / values(lines, "BODY_FILE")[0]).read_text(encoding="utf-8")
+        assert body == PLACEHOLDER + "\n## Summary\n"
+        assert "Edited on the branch" not in body
+        assert not fakes.calls("new_pr")
+
+    def test_base_flag_selects_origin_base(self, make_repo, fakes, scripts, capsys, windows):
+        repo = make_repo(GITHUB)
+        _commit_template(repo, "## Main\n", to="main")
+        _commit_template(repo, "## Release\n", to="release")
+        code, lines = run_pr(scripts, capsys, "prepare", "--base", "release")
+        assert code == 0, lines
+        body = (repo / values(lines, "BODY_FILE")[0]).read_text(encoding="utf-8")
+        assert body == PLACEHOLDER + "\n## Release\n"
+        code, lines = run_pr(scripts, capsys, "prepare")
+        assert (
+            (repo / values(lines, "BODY_FILE")[0]).read_text(encoding="utf-8").endswith("## Main\n")
+        )
+
+    def test_unfetched_base_is_prepare_failed(self, make_repo, fakes, scripts, capsys, windows):
+        repo = make_repo(GITHUB)
+        _commit_template(repo, "## Main\n", to="main")
+        code, lines = run_pr(scripts, capsys, "prepare", "--base", "nosuch")
+        assert code == 2
+        assert lines[-1].startswith("STOP: prepare-failed")
+        assert "origin/nosuch" in lines[-1]
+        assert not list((repo / ".project-toolkit" / "scratch").glob("pr-body-*"))
+
+    def test_missing_helper_is_prepare_failed(self, make_repo, fakes, scripts, capsys, windows):
+        make_repo(GITHUB)
+        (fakes.skills / "github" / "scripts" / "pr" / "prepare_pr_body.py").unlink()
+        code, lines = run_pr(scripts, capsys, "prepare")
+        assert code == 2
+        assert lines[-1] == "STOP: prepare-failed prepare_pr_body.py not found"
+
+    def test_unloadable_helper_is_prepare_failed(self, make_repo, fakes, scripts, capsys, windows):
+        make_repo(GITHUB)
+        helper = fakes.skills / "github" / "scripts" / "pr" / "prepare_pr_body.py"
+        helper.write_text("def broken(:\n", encoding="utf-8")
+        code, lines = run_pr(scripts, capsys, "prepare")
+        assert code == 2
+        assert lines[-1].startswith("STOP: prepare-failed cannot load prepare_pr_body.py")
+
+    def test_helper_without_a_loader_is_prepare_failed(
+        self, make_repo, fakes, scripts, capsys, windows, monkeypatch
+    ):
+        make_repo(GITHUB)
+        monkeypatch.setattr(
+            scripts[3].importlib.util, "spec_from_file_location", lambda *a, **k: None
+        )
+        code, lines = run_pr(scripts, capsys, "prepare")
+        assert code == 2
+        assert (
+            lines[-1]
+            == "STOP: prepare-failed cannot load prepare_pr_body.py: cannot load prepare_pr_body.py"
+        )
+
+    def test_a_planted_git_exe_stops_before_the_seed_runs_git(
+        self, make_repo, fakes, scripts, capsys, windows, monkeypatch
+    ):
+        repo = make_repo(GITHUB)
+        monkeypatch.setenv("PATHEXT", ".EXE;.CMD")
+        (repo / "git.EXE").write_text("not git\n", encoding="utf-8")
+        code, lines = run_pr(scripts, capsys, "prepare")
+        assert code == 2
+        assert lines[-1].startswith("STOP: unsafe-checkout")
+        assert "git.EXE" in lines[-1]
+        assert not values(lines, "BODY_FILE")
+
+    def test_off_windows_a_file_named_git_exe_does_not_stop_prepare(
         self, make_repo, fakes, scripts, capsys, monkeypatch
     ):
         repo = make_repo(GITHUB)
-        (repo / ".github").mkdir()
-        (repo / ".github" / "PULL_REQUEST_TEMPLATE.md").write_text("## Summary\n", encoding="utf-8")
-        monkeypatch.setattr(scripts[0], "on_windows", lambda: True)
+        monkeypatch.setenv("PATHEXT", ".EXE;.CMD")
+        (repo / "git.EXE").write_text("not git\n", encoding="utf-8")
+        fakes.rule("new_pr", ["--prepare-body-file"], {"stdout": "path/pr-body-x.md\n"})
         code, lines = run_pr(scripts, capsys, "prepare")
         assert code == 0
-        path = repo / values(lines, "BODY_FILE")[0]
-        assert path.read_text(encoding="utf-8") == "<!-- replace with PR body -->\n## Summary\n"
-        assert not fakes.calls("new_pr")
+        assert values(lines, "BODY_FILE") == ["path/pr-body-x.md"]
 
 
 class TestCheck:

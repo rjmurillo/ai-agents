@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import _ship_common as common
+    import _ship_windows as windows_mod
 else:
     _HERE = Path(__file__).resolve(strict=True).parent  # the real entry, never a symlink's dir
     if "_ship_common" not in sys.modules:  # pragma: no cover - fresh interpreter only
@@ -31,6 +32,7 @@ else:
             sys.modules.setdefault("_ship_common", importlib.util.module_from_spec(_s))
         )
     common = sys.modules["_ship_common"]
+    windows_mod = common.load_sibling("_ship_windows")
 
 SCRIPT = "ship_detect.py"
 REASONS = frozenset(
@@ -45,6 +47,7 @@ REASONS = frozenset(
         "user-query-failed",
         "auth-failed",
         "pr-author-unknown",
+        "unsafe-checkout",
     }
 )
 _NO_PR_SIGNAL = "no pull requests found"
@@ -199,11 +202,33 @@ def _ado_user(root: Path) -> str | Halt:
     return name
 
 
+def unsafe_checkout(root: Path) -> Halt | None:
+    """On Windows, a Halt when ``root`` holds a file CreateProcess would run for git, gh, or az.
+
+    CreateProcess searches the current directory before ``PATH``, and helpers run
+    with the checkout root as their directory, so a committed ``git.exe`` would
+    run in place of git (CWE-427). Elsewhere the check does not apply.
+    """
+    if not common.on_windows():
+        return None
+    planted = windows_mod.planted_programs(root)
+    if not planted:
+        return None
+    detail = (
+        f"the checkout root holds {', '.join(planted)}, which Windows would run instead "
+        "of the installed program; remove or rename it"
+    )
+    return Halt("unsafe-checkout", common.EXIT_CONFIG, detail)
+
+
 def _checkout(cwd: Path | None) -> tuple[Path, str, str, str, str] | Halt:
     """Return root, host, remote host, branch, and HEAD of the local checkout."""
     root = common.repo_root(cwd)
     if root is None:
         return Halt("no-repo", common.EXIT_CONFIG, "not inside a git work tree")
+    unsafe = unsafe_checkout(root)
+    if unsafe is not None:
+        return unsafe
     origin = common.git(["remote", "get-url", "origin"], cwd=root)
     if origin.returncode != 0 or not origin.stdout.strip():
         return Halt("no-origin", common.EXIT_CONFIG, "origin remote is not configured")
