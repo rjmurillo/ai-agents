@@ -266,31 +266,6 @@ def _refuse_symlinked_ancestors(output_root: Path, rels: list[str]) -> None:
         raise HermesPackError(problems)
 
 
-def _report_staleness(report_root: str, changed: list[str], stale: list[str]) -> None:
-    """Print one stderr line per drifted or stale path for the pre-PR gate.
-
-    ``check`` compares and never writes, so a gitignored stale file never
-    reaches the git-diff list ``build_all.py`` prints. The pre-PR gate reads
-    only that list and ``STALENESS DETECTED: <kind>: <path>`` lines
-    (``_STALE_ITEM`` in ``scripts/validation/generated_staleness_report.py``);
-    without these lines it said the check "failed without listing stale paths"
-    (issue #7659). Paths are repo-relative, the form the git-diff list uses, so
-    the gate counts a file both lists name once.
-    ``tests/build_scripts/test_hermes_packs_bytecode.py`` feeds this output to
-    that parser.
-    """
-    for rel in changed:
-        print(
-            f"STALENESS DETECTED: Hermes pack differs from its sources: {report_root}/{rel}",
-            file=sys.stderr,
-        )
-    for rel in stale:
-        print(
-            f"STALENESS DETECTED: Hermes pack holds a file no pack names: {report_root}/{rel}",
-            file=sys.stderr,
-        )
-
-
 def apply_tree(
     output_root: Path,
     tree: dict[str, PackFile],
@@ -318,7 +293,20 @@ def apply_tree(
     for rel in stale:
         print(f"  {'DRIFT' if check else 'Remove'} (stale): {output_root / rel}")
     if check:
-        _report_staleness(report_root, changed, stale)
+        # The pre-PR gate reads build_all.py's git-diff list, which never names a
+        # gitignored stale file, and ``STALENESS DETECTED: <kind>: <path>`` lines
+        # (``_STALE_ITEM`` in ``scripts/validation/generated_staleness_report.py``).
+        # Paths are repo-relative, so a file both lists name counts once (issue
+        # #7659). ``tests/build_scripts/test_hermes_packs_bytecode.py`` feeds this
+        # output to that parser.
+        for kind, rels in (
+            ("differs from its sources", changed),
+            ("holds a file no pack names", stale),
+        ):
+            for rel in rels:
+                print(
+                    f"STALENESS DETECTED: Hermes pack {kind}: {report_root}/{rel}", file=sys.stderr
+                )
     if check or what_if:
         return len(changed), len(stale)
     for rel in changed:
