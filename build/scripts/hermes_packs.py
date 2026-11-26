@@ -234,6 +234,10 @@ def _existing_files(root: Path) -> set[str]:
     files, so without the skip ``--check`` reports them as stale. The rule is
     :func:`binplace_manifest.is_bytecode_artifact`, the one binplace and the
     skill mirrors use, applied to the path relative to ``root``.
+
+    A symlink is never bytecode, whatever its name: CPython writes regular
+    files. Skipping a ``__pycache__`` link would leave it on disk, and
+    ``_prune_empty_dirs`` would then call ``rmdir`` on it.
     """
     if not root.is_dir():
         return set()
@@ -242,7 +246,7 @@ def _existing_files(root: Path) -> set[str]:
         if not (path.is_symlink() or path.is_file()):
             continue
         rel = path.relative_to(root)
-        if not is_bytecode_artifact(rel):
+        if path.is_symlink() or not is_bytecode_artifact(rel):
             files.add(rel.as_posix())
     return files
 

@@ -14,6 +14,7 @@ Coverage:
   lookalike ``__pycache__x`` folder is not skipped.
 - edge: a write run leaves bytecode alone, so a retired pack that holds only a
   cache folder keeps it (git ignores both shapes, so no tracked file remains).
+  A ``__pycache__`` symlink is not bytecode: check reports it, write removes it.
 - conformance: the real ``apply_tree`` stderr parses through the gate's own
   ``parse_stale_report`` and ``failure_detail``; a file that both it and the
   real ``build_all._print_stale_paths`` block name counts once.
@@ -129,6 +130,39 @@ def test_a_retired_pack_keeps_only_its_cache_folder(tmp_path: Path) -> None:
     assert sorted(p.relative_to(retired).as_posix() for p in retired.rglob("*") if p.is_file()) == [
         "lib/__pycache__/mod.cpython-314.pyc"
     ]
+
+
+def _link_cache_to_an_empty_dir(tmp_path: Path, repo: Path) -> tuple[Path, Path]:
+    target = tmp_path / "empty-cache-target"
+    target.mkdir()
+    link = repo / _PACK / "lib/__pycache__"
+    link.parent.mkdir(parents=True, exist_ok=True)
+    link.symlink_to(target, target_is_directory=True)
+    return link, target
+
+
+def test_a_write_run_removes_a_cache_symlink(tmp_path: Path) -> None:
+    # CPython writes bytecode as regular files, so a symlink is never bytecode.
+    # Kept on disk, a link to an empty folder reached ``rmdir`` in the prune.
+    repo, stanza = _rendered(tmp_path)
+    link, target = _link_cache_to_an_empty_dir(tmp_path, repo)
+
+    assert hermes_packs.generate_hermes_packs(stanza, repo) == 0
+    assert not link.is_symlink()
+    assert target.is_dir()
+
+
+def test_check_reports_a_cache_symlink_as_stale(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo, stanza = _rendered(tmp_path)
+    _link_cache_to_an_empty_dir(tmp_path, repo)
+    capsys.readouterr()
+
+    assert hermes_packs.generate_hermes_packs(stanza, repo, check=True) == 1
+    captured = capsys.readouterr()
+    assert "stale: 1" in captured.out
+    assert parse_stale_report(captured.err).paths == (f"{_PACK}/lib/__pycache__",)
 
 
 def test_check_names_stale_and_drifted_paths_for_the_pre_pr_gate(
