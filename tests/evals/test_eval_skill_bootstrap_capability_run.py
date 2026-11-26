@@ -794,6 +794,23 @@ def test_checkout_whose_refs_added_the_tasks_file_exits_2(tmp_path, monkeypatch,
     assert not out.exists()
 
 
+def test_tasks_file_inside_a_checkout_outside_the_repo_exits_2(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(cap.shutil, "which", lambda name: "/bin/claude")
+    monkeypatch.setattr(cap, "run_one", lambda *a: pytest.fail("run_one must not be called"))
+    monkeypatch.setattr(cap, "_REPO_ROOT", tmp_path / "runner")
+    co = _make_checkout(tmp_path, "bench")
+    tasks = co / "evals" / "cases.json"
+    tasks.parent.mkdir(parents=True)
+    tasks.write_text(json.dumps(TASKS), encoding="utf-8")
+    out = tmp_path / "o.jsonl"
+
+    code = _run([], tasks, co, out, "before")
+
+    assert code == 2
+    assert "can read the gold" in capsys.readouterr().err
+    assert not out.exists()
+
+
 def test_clean_checkout_and_outside_tasks_file_pass_the_gold_check(tmp_path, monkeypatch):
     tasks, co = _gold_layout(tmp_path, monkeypatch)
     _git(co, "init", "-q")

@@ -377,11 +377,15 @@ def _gold_exposure(checkout: Path, tasks_path: Path) -> str | None:
     The tasks file holds the gold answers. A checkout that holds the file, or any of
     whose refs ever touched it, lets the agent read or `git show` the answer key. A
     linked worktree shares every ref of its main repository, so use a standalone
-    clone. A tasks file outside this repository is not checked. A git failure here
+    clone. A tasks file inside the checkout always fails. A tasks file outside both
+    the checkout and this repository has no history check. A git failure here
     passes; `_checkout_head` then fails the run on a broken repository.
     """
+    resolved = tasks_path.resolve()
+    if resolved.is_relative_to(checkout.resolve()):
+        return f"{checkout} holds {resolved}, so the agent can read the gold"
     try:
-        rel = tasks_path.resolve().relative_to(_REPO_ROOT).as_posix()
+        rel = resolved.relative_to(_REPO_ROOT).as_posix()
     except ValueError:
         return None
     if (checkout / rel).exists():
