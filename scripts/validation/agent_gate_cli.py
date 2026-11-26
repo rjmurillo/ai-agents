@@ -1,17 +1,86 @@
 """Shared plumbing for gates that scan a rendered agent tree.
 
 ``check_agent_delegation.py``, ``check_agent_success_criterion.py``, and
-``check_orchestrator_vocabulary.py`` all list an agent tree and expose the
-same ADR-035 CLI. This module holds that code once.
+``check_orchestrator_vocabulary.py`` all list an agent tree, read agent
+frontmatter, skip fenced code, and expose the same ADR-035 CLI. This module
+holds that code once, so the three gates agree on what a readable agent file
+is and what counts as prose.
 """
 
 from __future__ import annotations
 
+import re
 import sys
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
+import yaml
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from scripts.hook_utilities.frontmatter_block import (
+    FrontmatterStatus,
+    parse_frontmatter,
+)
+
 _REPO_ROOT = Path(__file__).resolve().parents[2]
+_FENCE = re.compile(r"^\s*(`{3,}|~{3,})")
+
+
+@dataclass(frozen=True)
+class AgentText:
+    """One agent file split into its frontmatter mapping and its body."""
+
+    frontmatter: dict[str, object]
+    body: str
+    body_line_offset: int
+
+
+def read_agent_text(text: str) -> AgentText:
+    """Split agent text into frontmatter and body.
+
+    Raises ``ValueError`` with a reason when the text has no frontmatter block,
+    the block is not valid YAML, or it is not a mapping.
+    ``body_line_offset`` is the number of lines before the body, so body line
+    ``n`` is file line ``n + body_line_offset``.
+    """
+    result = parse_frontmatter(text, yaml, allow_duplicate_keys=True)
+    if not result.present or result.status is FrontmatterStatus.UNTERMINATED:
+        raise ValueError("no YAML frontmatter block")
+    if result.status is FrontmatterStatus.MALFORMED:
+        detail = (result.error or "").removeprefix("invalid YAML frontmatter: ")
+        raise ValueError(f"frontmatter is not valid YAML: {detail}")
+    loaded = result.metadata
+    if result.status is not FrontmatterStatus.VALID or not isinstance(loaded, dict):
+        raise ValueError("frontmatter is not a mapping")
+    # parse_frontmatter returns the body as a suffix of the text, so the
+    # prefix length gives the line offset exactly.
+    offset = text[: len(text) - len(result.body)].count("\n")
+    return AgentText(frontmatter=loaded, body=result.body, body_line_offset=offset)
+
+
+def prose_lines(body: str) -> tuple[list[tuple[int, str]], bool]:
+    """Return ``(line_number, text)`` for body lines outside fenced code blocks.
+
+    A fence closes on a marker of the same character that is at least as long
+    as the opener. The second value is True when a fence is still open at the
+    end of the body: every line after the opener was dropped, so a caller that
+    treats the drop as "no prose" would pass content it never read.
+    """
+    kept: list[tuple[int, str]] = []
+    opener = ""
+    for number, line in enumerate(body.splitlines(), start=1):
+        match = _FENCE.match(line)
+        if opener:
+            if match and match.group(1)[0] == opener[0] and len(match.group(1)) >= len(opener):
+                opener = ""
+            continue
+        if match:
+            opener = match.group(1)
+            continue
+        kept.append((number, line))
+    return kept, bool(opener)
 
 
 def agent_markdown_files(repo_root: Path, tree: Path) -> list[Path]:

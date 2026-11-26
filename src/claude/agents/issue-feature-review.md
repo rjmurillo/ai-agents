@@ -1,10 +1,10 @@
 ---
 name: issue-feature-review
 description: Review GitHub feature requests with constructive skepticism. Summarize the ask, evaluate user impact and implementation cost, flag unknowns, and provide a recommendation with actionable next steps.
+success_criterion:
+  kind: human-judgment
+  rationale: A feature recommendation is weighed by the maintainer, who owns the product priority call.
 metadata:
-  success_criterion:
-    kind: human-judgment
-    rationale: A feature recommendation is weighed by the maintainer, who owns the product priority call.
   role: coordinator
 argument-hint: Provide the issue title, issue body, and any known repository context
 disallowedTools: Agent

@@ -56,14 +56,6 @@ from pathlib import Path
 
 import agent_gate_cli
 import delegation_contract as contract_rules
-import yaml
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-from scripts.hook_utilities.frontmatter_block import (
-    FrontmatterStatus,
-    parse_frontmatter,
-)
 
 AGENT_TREE = Path("src/claude/agents")
 
@@ -73,7 +65,6 @@ DELEGATORS = frozenset({"orchestrator"})
 
 _DELEGATION_TOOL = re.compile(r"^(Agent|Task)(\(.*\))?$")
 _DENIAL = re.compile(r"\byou\s+cannot\s+delegate\b", re.IGNORECASE)
-_FENCE = re.compile(r"^\s*(`{3,}|~{3,})")
 
 
 @dataclass(frozen=True)
@@ -88,19 +79,8 @@ class AgentFacts:
 
 def _strip_fences(body: str) -> str:
     """Drop fenced code blocks so an example never counts as a statement."""
-    kept: list[str] = []
-    opener = ""
-    for line in body.splitlines():
-        match = _FENCE.match(line)
-        if opener:
-            if match and match.group(1)[0] == opener[0] and len(match.group(1)) >= len(opener):
-                opener = ""
-            continue
-        if match:
-            opener = match.group(1)
-            continue
-        kept.append(line)
-    return "\n".join(kept)
+    lines, _ = agent_gate_cli.prose_lines(body)
+    return "\n".join(text for _, text in lines)
 
 
 def _tool_names(value: object) -> list[str]:
@@ -142,16 +122,9 @@ def _declared_contract(frontmatter: dict[str, object]) -> object:
 
 def read_agent_facts(path: Path) -> AgentFacts:
     """Parse one agent file. Raises ``ValueError`` when it cannot be read as an agent."""
-    result = parse_frontmatter(path.read_text(encoding="utf-8"), yaml, allow_duplicate_keys=True)
-    if not result.present or result.status is FrontmatterStatus.UNTERMINATED:
-        raise ValueError("no YAML frontmatter block")
-    if result.status is FrontmatterStatus.MALFORMED:
-        detail = (result.error or "").removeprefix("invalid YAML frontmatter: ")
-        raise ValueError(f"frontmatter is not valid YAML: {detail}")
-    loaded = result.metadata
-    if result.status is not FrontmatterStatus.VALID or loaded is None:
-        raise ValueError("frontmatter is not a mapping")
-    prose = _strip_fences(result.body)
+    agent = agent_gate_cli.read_agent_text(path.read_text(encoding="utf-8"))
+    loaded = agent.frontmatter
+    prose = _strip_fences(agent.body)
     return AgentFacts(
         states_denial=bool(_DENIAL.search(prose)),
         grants_agent=grants_agent_tool(loaded),

@@ -106,6 +106,20 @@ class TestScanFails:
         body = "````\n```\nsupervise\n````\nRoute it."
         assert gate.scan_text(_text(body)) == []
 
+    def test_unclosed_fence_is_a_finding(self) -> None:
+        findings = gate.scan_text(_text("Route it.\n```text\nYou supervise the worker."))
+        assert findings == [
+            "a fenced code block never closes, so the rest of the body went unscanned"
+        ]
+
+    def test_non_string_description_is_a_finding(self) -> None:
+        text = "---\nname: orchestrator\ndescription: [a, list]\n---\n\nRoute it.\n"
+        assert gate.scan_text(text) == ["description is not a string (list)"]
+
+    def test_backticks_are_the_only_escape(self) -> None:
+        assert gate.scan_text(_text("Never `supervise` a worker.")) == []
+        assert gate.scan_text(_text("Never supervise a worker.")) != []
+
     def test_missing_frontmatter_raises(self) -> None:
         with pytest.raises(ValueError, match="frontmatter"):
             gate.scan_text("You manage the team.\n")
@@ -124,7 +138,7 @@ class TestTree:
 
     def test_missing_router_file_fails(self, tmp_path: Path) -> None:
         root = _root(tmp_path, _text("Route it."))
-        tree, suffix = gate.AGENT_TREES[0]
+        tree, suffix = gate.AGENT_TREES[1]
         (root / tree / f"orchestrator{suffix}").unlink()
         findings = gate.find_vocabulary_findings(root)
         assert findings == [
@@ -146,6 +160,9 @@ class TestEntryPoints:
     ) -> None:
         assert gate.main([str(_root(tmp_path, _text("You coach them.")))]) == 1
         assert "src/claude/agents/orchestrator.md: line 6: 'coach'" in capsys.readouterr().err
+
+    def test_missing_claude_tree_exit_two(self, tmp_path: Path) -> None:
+        assert gate.main([str(tmp_path)]) == 2
 
     def test_invalid_root_exit_two(self, tmp_path: Path) -> None:
         assert gate.main([str(tmp_path / "absent")]) == 2

@@ -18,16 +18,24 @@ three rendered trees that carry the full body: ``src/claude/agents/``,
 What is scanned: the ``description`` frontmatter value and the body. Other
 frontmatter keys are skipped, because tool lists name MCP servers such as
 ``cloudmcp-manager`` that are not prose. Fenced code blocks and inline code
-spans are skipped for the same reason.
+spans are skipped for the same reason. A fence that never closes is itself a
+finding, because everything after it would otherwise go unread. Fence rules
+come from ``agent_gate_cli.prose_lines``, the same ones the delegation gate
+uses.
 
 Tokens. ADR-065's initial list is ``manage``, ``supervise``, ``coach``,
 ``mentor``, ``course-correct``, ``course correct``, ``notice when``,
-``motivate``, and ``oversee``. This gate matches their verb and agent-noun
-forms at word boundaries (``manages``, ``managing``, ``supervisor``,
-``oversaw``). Different than canonical: it does not match ``management``,
-because the orchestrator's ``Context Budget Management`` section manages a
-context window, not an agent, and a bare ``manage`` substring would flag it.
-It does match ``manager``, the retired ADR-098 tier name.
+``motivate``, and ``oversee``. This gate matches them at word boundaries in
+their verb forms (``manages``, ``managing``, ``oversaw``), their agent nouns
+(``manager``, ``supervisor``, ``overseer``), and their action nouns
+(``supervision``, ``motivation``, ``course-correction``). Different than
+canonical: it does not match ``management``, because the orchestrator's
+``Context Budget Management`` section manages a context window, not an agent.
+The action nouns that remain each describe one agent acting on another, so
+they stay banned. ``manager`` is also the retired ADR-098 tier name.
+
+Limit. ADR-065 Decision 1 also bans "semantically equivalent language". A token
+list cannot see a paraphrase, so that part stays a review duty.
 
 CLI::
 
@@ -36,8 +44,8 @@ CLI::
 
 Exit codes (ADR-035):
     0 - Success (no banned token in any router agent)
-    1 - Logic error (one or more banned tokens found, or a router file is missing)
-    2 - Config error (invalid repository root)
+    1 - Logic error (a banned token, an unclosed fence, or a missing router file)
+    2 - Config error (invalid repository root, or the Claude agent tree is missing)
 """
 
 from __future__ import annotations
@@ -46,18 +54,11 @@ import re
 import sys
 from pathlib import Path
 
-import yaml
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import agent_gate_cli
 from check_agent_delegation import DELEGATORS
-
-from scripts.hook_utilities.frontmatter_block import (
-    FrontmatterStatus,
-    parse_frontmatter,
-)
 
 # (tree, filename suffix) for each rendered tree that carries the full body.
 AGENT_TREES: tuple[tuple[Path, str], ...] = (
@@ -80,48 +81,28 @@ BANNED = re.compile(
     re.IGNORECASE,
 )
 
-_FENCE = re.compile(r"^\s*(`{3,}|~{3,})")
 _INLINE_CODE = re.compile(r"`[^`\n]*`")
-
-
-def _prose_lines(body: str) -> list[tuple[int, str]]:
-    """Return ``(line_number, text)`` for body lines outside fences, code spans removed."""
-    kept: list[tuple[int, str]] = []
-    fence: str | None = None
-    for number, line in enumerate(body.splitlines(), start=1):
-        match = _FENCE.match(line)
-        if match:
-            marker = match.group(1)
-            if fence is None:
-                fence = marker
-            elif marker[0] == fence[0] and len(marker) >= len(fence):
-                fence = None
-            continue
-        if fence is None:
-            kept.append((number, _INLINE_CODE.sub("", line)))
-    return kept
 
 
 def scan_text(text: str) -> list[str]:
     """Return findings for one rendered agent file's text.
 
-    Raises ``ValueError`` when the file has no readable frontmatter.
+    Raises ``ValueError`` with a reason when the frontmatter cannot be read.
     """
-    result = parse_frontmatter(text, yaml, allow_duplicate_keys=True)
-    if not result.present or result.status is not FrontmatterStatus.VALID:
-        raise ValueError("no readable YAML frontmatter block")
-    loaded = result.metadata if isinstance(result.metadata, dict) else {}
+    agent = agent_gate_cli.read_agent_text(text)
     findings: list[str] = []
-    description = loaded.get("description")
+    description = agent.frontmatter.get("description")
     if isinstance(description, str):
         for match in BANNED.finditer(_INLINE_CODE.sub("", description)):
             findings.append(f"description: '{match.group(0)}'")
-    # Report file line numbers, not body-relative ones, so a reader can jump to them.
-    body = result.body
-    offset = text[: len(text) - len(body)].count("\n") if text.endswith(body) else 0
-    for number, line in _prose_lines(body):
-        for match in BANNED.finditer(line):
-            findings.append(f"line {number + offset}: '{match.group(0)}'")
+    elif description is not None:
+        findings.append(f"description is not a string ({type(description).__name__})")
+    lines, unclosed = agent_gate_cli.prose_lines(agent.body)
+    for number, line in lines:
+        for match in BANNED.finditer(_INLINE_CODE.sub("", line)):
+            findings.append(f"line {number + agent.body_line_offset}: '{match.group(0)}'")
+    if unclosed:
+        findings.append("a fenced code block never closes, so the rest of the body went unscanned")
     return findings
 
 
@@ -171,7 +152,7 @@ def validate_orchestrator_vocabulary(repo_root: Path) -> bool:
 
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point. Returns an ADR-035 exit code."""
-    return agent_gate_cli.run_repo_gate(argv, validate_orchestrator_vocabulary)
+    return agent_gate_cli.run_repo_gate(argv, validate_orchestrator_vocabulary, AGENT_TREES[0][0])
 
 
 if __name__ == "__main__":

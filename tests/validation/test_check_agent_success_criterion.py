@@ -1,7 +1,7 @@
 """Guards for the agent success-criterion gate (ADR-065 Decision 2, issue #7639).
 
 A router can only retry on a signal it can read, so every agent declares one
-under ``metadata.success_criterion``.
+in a top-level ``success_criterion`` frontmatter key.
 
 Coverage:
 
@@ -12,7 +12,7 @@ Coverage:
   field, a machine kind with no value, ``human-judgment`` with a value, a
   regex that does not compile, an out-of-range exit code, an empty or short
   rationale, placeholder text, and a rationale copied across agents all fail.
-- edge: boolean exit codes, a ``metadata`` key that is not a mapping, malformed
+- edge: boolean exit codes, a criterion nested under ``metadata``, malformed
   or missing frontmatter, a missing tree, an empty tree, and an invalid root.
 """
 
@@ -45,8 +45,8 @@ def _agent_text(criterion: object = None, *, metadata: object = "absent") -> str
     frontmatter: dict[str, object] = {"name": "sample", "description": "A sample agent."}
     if metadata != "absent":
         frontmatter["metadata"] = metadata
-    elif criterion is not None:
-        frontmatter["metadata"] = {"role": "support", "success_criterion": criterion}
+    if criterion is not None:
+        frontmatter["success_criterion"] = criterion
     return f"---\n{yaml.safe_dump(frontmatter, sort_keys=False)}---\n\n# Sample\n"
 
 
@@ -79,7 +79,7 @@ class TestCriterionPasses:
 
 class TestCriterionFails:
     def test_missing(self) -> None:
-        assert "no metadata.success_criterion" in rules.check_criterion(None)[0]
+        assert "no top-level success_criterion" in rules.check_criterion(None)[0]
 
     def test_not_a_mapping(self) -> None:
         assert "must be a mapping" in rules.check_criterion("human-judgment")[0]
@@ -177,16 +177,25 @@ class TestTree:
 
     def test_agent_without_metadata_fails(self, tmp_path: Path) -> None:
         root = _tree(tmp_path, {"one": _agent_text()})
-        assert "no metadata.success_criterion" in gate.find_criterion_findings(root)[0][1]
+        assert "no top-level success_criterion" in gate.find_criterion_findings(root)[0][1]
 
-    def test_metadata_not_a_mapping_fails(self, tmp_path: Path) -> None:
-        root = _tree(tmp_path, {"one": _agent_text(metadata="support")})
-        assert "no metadata.success_criterion" in gate.find_criterion_findings(root)[0][1]
+    def test_metadata_without_criterion_is_missing(self, tmp_path: Path) -> None:
+        root = _tree(tmp_path, {"one": _agent_text(metadata={"role": "support"})})
+        assert "no top-level success_criterion" in gate.find_criterion_findings(root)[0][1]
 
-    def test_top_level_criterion_does_not_count(self, tmp_path: Path) -> None:
-        text = "---\nname: one\ndescription: d\nsuccess_criterion:\n  kind: human-judgment\n---\n"
+    def test_nested_criterion_is_reported(self, tmp_path: Path) -> None:
+        nested = {"role": "support", "success_criterion": _hj()}
+        root = _tree(tmp_path, {"one": _agent_text(metadata=nested)})
+        findings = [text for _, text in gate.find_criterion_findings(root)]
+        assert "success_criterion is nested under metadata; move it to the top level" in findings
+        assert any("no top-level success_criterion" in text for text in findings)
+
+    def test_nested_and_top_level_still_reports_the_nested_copy(self, tmp_path: Path) -> None:
+        text = _agent_text(_hj(), metadata={"success_criterion": _hj()})
         root = _tree(tmp_path, {"one": text})
-        assert "no metadata.success_criterion" in gate.find_criterion_findings(root)[0][1]
+        assert gate.find_criterion_findings(root) == [
+            ("one", "success_criterion is nested under metadata; move it to the top level")
+        ]
 
     @pytest.mark.parametrize(
         ("text", "detail"),
@@ -222,7 +231,7 @@ class TestEntryPoints:
     ) -> None:
         root = _tree(tmp_path, {"lonely": _agent_text()})
         assert gate.main([str(root)]) == 1
-        assert "lonely: no metadata.success_criterion" in capsys.readouterr().err
+        assert "lonely: no top-level success_criterion" in capsys.readouterr().err
 
     def test_empty_tree_exit_one(self, tmp_path: Path) -> None:
         (tmp_path / gate.AGENT_TREE).mkdir(parents=True)
@@ -243,6 +252,7 @@ class TestRealTree:
         ("agent", "good", "bad"),
         [
             ("code-reviewer", "Findings.\nVERDICT: WARN\n", "VERDICT: OK\n"),
+            ("code-reviewer", "Findings.\nVERDICT: PASS", "VERDICT: PASS\nmore findings\n"),
             (
                 "critic",
                 "## Verdict\nNEEDS_REVISION - Confidence: MEDIUM\n",
@@ -253,8 +263,30 @@ class TestRealTree:
     def test_regex_criteria_match_their_verdict_lines(
         self, agent: str, good: str, bad: str
     ) -> None:
-        criterion = gate.read_criterion(REPO_ROOT / gate.AGENT_TREE / f"{agent}.md")
-        assert isinstance(criterion, dict) and criterion["kind"] == "regex"
-        pattern = re.compile(str(criterion["value"]))
+        pattern = _criterion_pattern(agent)
         assert pattern.search(good)
         assert not pattern.search(bad)
+
+    def test_code_reviewer_criterion_matches_every_verdict_its_body_mandates(self) -> None:
+        body = (REPO_ROOT / gate.AGENT_TREE / "code-reviewer.md").read_text(encoding="utf-8")
+        tokens = re.search(r"`VERDICT: ([A-Z_]+(?:\|[A-Z_]+)+)`", body)
+        assert tokens, "code-reviewer body no longer names its verdict tokens"
+        pattern = _criterion_pattern("code-reviewer")
+        for token in tokens.group(1).split("|"):
+            assert pattern.search(f"Findings.\nVERDICT: {token}\n"), token
+
+    def test_critic_criterion_matches_every_verdict_its_body_mandates(self) -> None:
+        body = (REPO_ROOT / gate.AGENT_TREE / "critic.md").read_text(encoding="utf-8")
+        verdicts = re.findall(r"^\| \*\*([A-Z_]+)\*\* \|", body, re.MULTILINE)
+        levels = re.search(r"\[VERDICT\] - Confidence: \[([A-Z|]+)\]", body)
+        assert verdicts and levels, "critic body no longer defines its verdict line"
+        pattern = _criterion_pattern("critic")
+        for verdict in verdicts:
+            for level in levels.group(1).split("|"):
+                assert pattern.search(f"## Verdict\n{verdict} - Confidence: {level}\n")
+
+
+def _criterion_pattern(agent: str) -> re.Pattern[str]:
+    criterion = gate.read_criterion(REPO_ROOT / gate.AGENT_TREE / f"{agent}.md")
+    assert isinstance(criterion, dict) and criterion["kind"] == "regex"
+    return re.compile(str(criterion["value"]))

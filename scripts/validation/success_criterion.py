@@ -1,6 +1,6 @@
 """Rules for an agent's declared success criterion (ADR-065 Decision 2, issue #7639).
 
-Every agent declares, in its frontmatter under ``metadata.success_criterion``,
+Every agent declares, in a top-level ``success_criterion`` frontmatter key,
 the one signal that says its work succeeded. The router, not the agent, reads
 it. ``check_agent_success_criterion.py`` applies these rules to every rendered
 agent.
@@ -21,7 +21,9 @@ Shape:
 The ``human-judgment`` escape hatch is the one ADR-065 says will be abused if
 the rationale is not enforced. So a rationale must clear a length floor, must
 not be placeholder text, and must not be copied from another agent: one
-sentence pasted into every file says nothing about any of them.
+sentence pasted into every file says nothing about any of them. The copy
+check folds case and whitespace only, so it catches a pasted sentence, not a
+paraphrase; judging a paraphrase stays a review duty.
 """
 
 from __future__ import annotations
@@ -92,16 +94,16 @@ def _check_rationale(criterion: Mapping[str, object]) -> list[str]:
 def check_criterion(criterion: object) -> list[str]:
     """Return findings for one declared criterion; empty when it is valid.
 
-    ``criterion`` is the raw value under ``metadata.success_criterion``, or
+    ``criterion`` is the raw value of the ``success_criterion`` key, or
     ``None`` when the agent declares none.
     """
     if criterion is None:
         return [
-            f"no metadata.{CRITERION_KEY} declared (add kind, rationale, and value "
+            f"no top-level {CRITERION_KEY} declared (add kind, rationale, and value "
             "unless kind is human-judgment; ADR-065 Decision 2)"
         ]
     if not isinstance(criterion, Mapping):
-        return [f"metadata.{CRITERION_KEY} must be a mapping, got {type(criterion).__name__}"]
+        return [f"{CRITERION_KEY} must be a mapping, got {type(criterion).__name__}"]
     findings = [
         f"unknown field '{key}' (allowed: {', '.join(sorted(FIELDS))})"
         for key in sorted(str(k) for k in criterion if k not in FIELDS)

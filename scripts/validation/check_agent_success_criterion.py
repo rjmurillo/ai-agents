@@ -3,8 +3,11 @@
 
 ADR-065 says the orchestrator is a router with a retry policy, not a
 supervisor. A router can only retry on a signal it can read, so each agent
-names that signal in frontmatter under ``metadata.success_criterion``. Before
-this gate, no agent declared one and nothing read the field (issue #7639).
+names that signal in a top-level ``success_criterion`` frontmatter key, the
+location ADR-065's schema gives. Before this gate, no agent declared one
+(issue #7639). The field is declarative today: no code reads it yet. The
+orchestrator prompt reads it, and ADR-065 step 6 (retry code) is its future
+code consumer.
 
 The rules for one criterion live in ``success_criterion.py``. This gate adds
 the cross-agent rule: two agents may not share a rationale, because a copied
@@ -18,7 +21,8 @@ frontmatter sits. ``.claude/agents/`` links into that tree (ADR-119), and
 
 The field lives only in the Claude templates (``templates/agents/*.claude.md.tmpl``).
 The Copilot and VS Code trees, and the Cursor and Codex trees that keep only
-``name`` and ``description``, do not carry it.
+``name`` and ``description``, do not carry it. A criterion nested under
+``metadata`` is reported, so the key cannot sit where nothing looks for it.
 
 CLI::
 
@@ -36,40 +40,31 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import yaml
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import agent_gate_cli
 import success_criterion as rules
 
-from scripts.hook_utilities.frontmatter_block import (
-    FrontmatterStatus,
-    parse_frontmatter,
-)
-
 AGENT_TREE = Path("src/claude/agents")
 
 
-def read_criterion(path: Path) -> object:
-    """Return ``metadata.success_criterion`` for one agent, or None when absent.
+def read_frontmatter(path: Path) -> dict[str, object]:
+    """Return one agent's frontmatter mapping.
 
     Raises ``ValueError`` when the file cannot be read as an agent.
     """
-    result = parse_frontmatter(path.read_text(encoding="utf-8"), yaml, allow_duplicate_keys=True)
-    if not result.present or result.status is FrontmatterStatus.UNTERMINATED:
-        raise ValueError("no YAML frontmatter block")
-    if result.status is FrontmatterStatus.MALFORMED:
-        detail = (result.error or "").removeprefix("invalid YAML frontmatter: ")
-        raise ValueError(f"frontmatter is not valid YAML: {detail}")
-    loaded = result.metadata
-    if result.status is not FrontmatterStatus.VALID or not isinstance(loaded, dict):
-        raise ValueError("frontmatter is not a mapping")
-    metadata = loaded.get("metadata")
-    if not isinstance(metadata, dict):
-        return None
-    return metadata.get(rules.CRITERION_KEY)
+    return agent_gate_cli.read_agent_text(path.read_text(encoding="utf-8")).frontmatter
+
+
+def read_criterion(path: Path) -> object:
+    """Return the top-level ``success_criterion`` for one agent, or None when absent."""
+    return read_frontmatter(path).get(rules.CRITERION_KEY)
+
+
+def _nested_criterion(frontmatter: dict[str, object]) -> bool:
+    metadata = frontmatter.get("metadata")
+    return isinstance(metadata, dict) and rules.CRITERION_KEY in metadata
 
 
 def find_criterion_findings(repo_root: Path) -> list[tuple[str, str]]:
@@ -84,10 +79,15 @@ def find_criterion_findings(repo_root: Path) -> list[tuple[str, str]]:
     rationales: dict[str, str] = {}
     for path in files:
         try:
-            criterion = read_criterion(path)
+            frontmatter = read_frontmatter(path)
         except ValueError as exc:
             findings.append((path.stem, f"cannot read success criterion: {exc}"))
             continue
+        if _nested_criterion(frontmatter):
+            findings.append(
+                (path.stem, "success_criterion is nested under metadata; move it to the top level")
+            )
+        criterion = frontmatter.get(rules.CRITERION_KEY)
         findings.extend((path.stem, text) for text in rules.check_criterion(criterion))
         if isinstance(criterion, dict) and isinstance(criterion.get("rationale"), str):
             rationales[path.stem] = criterion["rationale"]
