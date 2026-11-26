@@ -44,9 +44,6 @@ routes first, then creates only when no existing skill covers the need.
 SkillForge: create a skill for automated code review
   -> Creates a new skill after checking for duplicates
 
-help me debug this TypeError
-  -> Recommends an existing debugging skill
-
 improve the testgen skill to handle React components better
   -> Loads the skill and enters improvement mode
 
@@ -69,7 +66,6 @@ flow and script examples.
 - `create skill`: natural language activation
 - `design skill for {purpose}`: purpose-first creation
 - `ultimate skill`: maximum quality creation path
-- `SkillForge --plan-only`: generate specification without execution
 
 ### Routing Triggers
 
@@ -256,15 +252,11 @@ and [references/script-patterns-catalog.md](references/script-patterns-catalog.m
 
 ### Placement Check
 
-Before a new skill lands, run `context-optimizer` placement analysis on its
-knowledge content: the facts, rules, and reference material, not the
-procedure. Run it again when an edit adds standing knowledge to a skill or
-moves it in or out. When the analysis places content in passive context or a
-hybrid split, follow that placement instead of keeping it all in the skill.
-Knowledge that belongs in passive context fails silently inside a skill,
-because the skill may never trigger. Mechanics-only edits (scripts, tests,
-wording) skip this check. `context-optimizer` owns the analysis and its
-decision framework.
+Before a new skill lands, or an edit adds or moves standing knowledge,
+run `context-optimizer` placement analysis on the knowledge content (facts,
+rules, reference material). Follow a Passive Context or Hybrid result: a skill
+that never triggers fails silently.
+Mechanics-only edits (scripts, tests, wording) skip this.
 
 ---
 
@@ -395,10 +387,6 @@ Entry scripts: `init_skill.py`, `triage_skill_request.py`, `discover_skills.py`,
 | [Changelog](references/changelog.md) | You check version history |
 
 ---
-
-## Related Skills
-
-skill-composer (orchestrate created skills), claude-authoring-guide (deeper patterns), codereview (multi-agent panel pattern), maker-framework (zero-error standard).
 
 ## Extension Points
 

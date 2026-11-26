@@ -56,11 +56,9 @@ gains are its claims; this skill does not reproduce them.
    back. If the harness cannot provide both, do not run skillopt. Report that the gate cannot be
    independent. Replacement holdouts written by the same agent are still
    exposed.
-5. **Right container.** When the target is a skill, run `context-optimizer`
-   placement analysis on its knowledge content before you spend any rollout
-   budget. If the analysis says that content belongs in passive context, stop
-   and report that. Do not optimize the wrong container. This is an intake
-   check only; the patch loop and the gates do not run it.
+5. **Right container.** For a skill, run `context-optimizer`
+   placement analysis on its knowledge first. If it belongs in passive
+   context, stop and report it. Intake only.
 
 Freeze the `train` and `sel` task lists before authoring any candidate. Keep
 `sel` prompts, verifiers, and outcomes away from the candidate author for the
@@ -92,17 +90,16 @@ SKILLOPT_FOUND="$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .
 : "${SKILLOPT_DIR:?no plugin root holds skillopt.py; set SKILLOPT_DIR to the scripts folder beside this SKILL.md}"
 ```
 
-The `where` command prints the scripts folder of the same plugin root the other
-commands use. When no plugin root holds it (for example Codex, or a plain
-checkout under PowerShell), set `SKILLOPT_DIR` first to the `scripts` folder
-beside this SKILL.md, then run the block above; a found root still wins:
+`where` prints the scripts folder the other commands use.
+With no plugin root (Codex, or a plain checkout under PowerShell), first set
+`SKILLOPT_DIR` to the `scripts` folder beside this SKILL.md; a found root wins:
 
 ```bash
 SKILLOPT_DIR="<folder that holds this SKILL.md>/scripts"
 python3 "${SKILLOPT_DIR:?}/skillopt.py" --help
 ```
 
-On Windows PowerShell, no Bash required:
+Windows PowerShell, no Bash:
 
 ```powershell
 $Found = @($env:CLAUDE_PLUGIN_ROOT, $env:COPILOT_PLUGIN_ROOT, '.claude') | Where-Object {
@@ -133,8 +130,8 @@ Below, `skillopt.py` means that resolved path. References use `$SKILLOPT_DIR`
 `buffer-check` is inverted on purpose: exit 0 means the edit was already
 rejected. Branch on the printed word or the exact code, never on `&&`.
 
-Modules named `_skillopt_*.py` and `_mine_*.py` are internal helpers the
-two entry scripts import. Do not call them directly.
+`_skillopt_*.py` and `_mine_*.py` are internal helpers of the two entry
+scripts. Do not call them directly.
 
 ## Process
 
@@ -347,8 +344,8 @@ no skill. That baseline lives in `skill-bootstrap`'s `bootstrap_eval.py score`.
 
 ## Close-out
 
-After each run, check this skill and its references for a reusable lesson
-from a user correction, failed verifier, or tool discovery. Patch the
+After each run, check this skill and its references for a lesson from a
+user correction, failed verifier, or tool discovery. Patch the
 class-level guidance; do not add an incident-named reference.
 
 ## References
