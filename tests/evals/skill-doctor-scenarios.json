@@ -1,0 +1,94 @@
+{
+  "scenarios": [
+    {
+      "id": "SD1-coverage-when-no-skills-found",
+      "desc": "No installed skill was found, so skill coverage is zero and the run continues.",
+      "input": "A skill-doctor run sampled 12 sessions. The inventory reports skills_found as 0. The four rubric scores exist for every session. Choose the value of skill_coverage for the report.",
+      "verdict_options": ["COVERAGE_ZERO", "COVERAGE_HALF", "STOP_THE_RUN"],
+      "expected_verdict": "COVERAGE_ZERO",
+      "expected_reason_contains": "0",
+      "rationale": "The skill says that when skills_found is 0 the run continues with skill_coverage set to 0."
+    },
+    {
+      "id": "SD2-no-code-quality-evidence",
+      "desc": "With no code-quality evidence, the raw mean is 0.5 and the findings say so.",
+      "input": "Every sampled session's code-quality result is insufficient_evidence. The other three rubrics have scored results. Choose how raw_code_quality is set.",
+      "verdict_options": ["SET_HALF_AND_NOTE_IN_FINDINGS", "SET_ZERO", "OMIT_THE_DIMENSION"],
+      "expected_verdict": "SET_HALF_AND_NOTE_IN_FINDINGS",
+      "expected_reason_contains": "0.5",
+      "rationale": "raw_code_quality is the mean excluding insufficient_evidence; with no evidence it is set to 0.5 and the findings say so."
+    },
+    {
+      "id": "SD3-curve-a-raw-mean",
+      "desc": "The curve maps a raw mean of 0.6 to a report score of 0.8.",
+      "input": "After excluding insufficient_evidence, raw_efficiency is 0.6. Choose the efficiency score the report shows.",
+      "verdict_options": ["REPORT_0_80", "REPORT_0_60", "REPORT_0_30"],
+      "expected_verdict": "REPORT_0_80",
+      "expected_reason_contains": "0.8",
+      "rationale": "efficiency = curve(raw_efficiency) with curve(score) = 0.5 + 0.5 * score, so 0.5 + 0.3 = 0.8."
+    },
+    {
+      "id": "SD4-weighted-overall",
+      "desc": "The weighted overall with every curved dimension at 1.0 and coverage at 0 is 0.85.",
+      "input": "The curved efficiency, code_quality, procedure_compliance and verbosity scores are all 1.0. skill_coverage is 0. Choose the overall score.",
+      "verdict_options": ["OVERALL_0_85", "OVERALL_1_00", "OVERALL_0_80"],
+      "expected_verdict": "OVERALL_0_85",
+      "expected_reason_contains": "0.85",
+      "rationale": "overall = 0.25 * efficiency + 0.25 * code_quality + 0.2 * procedure_compliance + 0.15 * verbosity + 0.15 * skill_coverage = 0.85."
+    },
+    {
+      "id": "SD5-per-harness-overall-stays-separate",
+      "desc": "Each harness's overall is reported beside the combined overall, never averaged into it.",
+      "input": "The sampled sessions came from two harnesses, and both have scored sessions. Each harness's own overall has been computed from its own sessions. Choose how the per-harness values relate to the combined overall.",
+      "verdict_options": ["REPORT_BESIDE_NOT_AVERAGED", "AVERAGE_INTO_COMBINED", "DROP_PER_HARNESS_VALUES"],
+      "expected_verdict": "REPORT_BESIDE_NOT_AVERAGED",
+      "expected_reason_contains": "averag",
+      "rationale": "Per-harness overall values are reported next to the combined overall and are never averaged back into it."
+    },
+    {
+      "id": "SD6-harness-without-scored-sessions",
+      "desc": "A harness with no scored session gets no overall.",
+      "input": "Three harnesses appear in stats.per_harness. One of them has sampled sessions, but none of its sessions has a scored result. Choose what the report shows as that harness's overall.",
+      "verdict_options": ["NO_OVERALL_FOR_THAT_HARNESS", "OVERALL_ZERO", "COPY_THE_COMBINED_OVERALL"],
+      "expected_verdict": "NO_OVERALL_FOR_THAT_HARNESS",
+      "expected_reason_contains": "no",
+      "rationale": "Per-harness overall applies only to a harness that has scored sessions; a harness with no scored session gets no overall."
+    },
+    {
+      "id": "SD7-aggregates-come-from-the-script",
+      "desc": "The Step 3 aggregates come from audit_scores.py, not from the model's arithmetic.",
+      "input": "scores.json holds valid per-session rubric results. The model could compute the means and the weighted overall itself. Choose how the aggregate numbers are produced.",
+      "verdict_options": ["RUN_AUDIT_SCORES_SCRIPT", "COMPUTE_BY_HAND", "SKIP_THE_AGGREGATES"],
+      "expected_verdict": "RUN_AUDIT_SCORES_SCRIPT",
+      "expected_reason_contains": "audit_scores",
+      "rationale": "Step 3 runs audit_scores.py, which validates the results and computes the aggregates; the formulas define what it computes."
+    },
+    {
+      "id": "SD8-failed-conversation-uses-raw-scores",
+      "desc": "A raw score below 0.5 fails the conversation even when its curved value is above 0.5.",
+      "input": "One conversation has a raw, uncurved code-quality score of 0.4. Its curved code_quality is 0.7. Its other three raw scores are 0.9. Choose whether it counts in failed_conversations.",
+      "verdict_options": ["FAILED_CONVERSATION", "NOT_FAILED"],
+      "expected_verdict": "FAILED_CONVERSATION",
+      "expected_reason_contains": "0.5",
+      "rationale": "failed_conversations is defined from raw, uncurved scorer results: any applicable score below 0.5 fails the conversation."
+    },
+    {
+      "id": "SD9-no-edit-to-installed-skills",
+      "desc": "The skill drafts changes but never edits an installed skill file or starts an optimizer.",
+      "input": "The diagnosis found a clear fix for an installed skill. The user is not present. The installed skill file is writable. Choose what the run does with the fix.",
+      "verdict_options": ["DRAFT_IN_REPORT_ONLY", "EDIT_THE_INSTALLED_FILE", "START_SKILLOPT_NOW"],
+      "expected_verdict": "DRAFT_IN_REPORT_ONLY",
+      "expected_reason_contains": "draft",
+      "rationale": "The skill does not start skillopt or skillforge and does not edit installed skill files; drafts under proposed/ are diagnosis output."
+    },
+    {
+      "id": "SD10-new-skill-candidate-routing",
+      "desc": "A new-skill candidate routes through skillforge first, not skillopt.",
+      "input": "One suggestion is a new-skill candidate with no existing target file. Choose where its handoff routes.",
+      "verdict_options": ["ROUTE_TO_SKILLFORGE_FIRST", "ROUTE_TO_SKILLOPT", "DROP_THE_CANDIDATE"],
+      "expected_verdict": "ROUTE_TO_SKILLFORGE_FIRST",
+      "expected_reason_contains": "skillforge",
+      "rationale": "Skillopt evaluates only skill candidates with an existing target; a new-skill candidate routes through skillforge first."
+    }
+  ]
+}
