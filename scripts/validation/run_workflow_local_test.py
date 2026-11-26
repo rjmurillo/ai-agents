@@ -1505,10 +1505,12 @@ _ACT_SMOKE_DECIDE_STEP = "Decide whether the smoke must run"
 _ACT_SMOKE_GIT_ANNOTATION = r"::error::The process '(?:[^']*/)?git' failed with exit code 128[ \t]*"
 _ACT_SMOKE_CHECKOUT_ALTERNATION = "|".join(re.escape(step) for step in _ACT_SMOKE_CHECKOUT_STEPS)
 _ACT_SMOKE_GIT_ANNOTATION_LINE = re.compile(
-    rf"^[ \t]*{_ACT_SMOKE_WORKFLOW_LABEL}[ \t]+\S+[ \t]+{_ACT_SMOKE_GIT_ANNOTATION}$",
-    re.MULTILINE,
+    rf"^[ \t]*(?P<label>{_ACT_SMOKE_WORKFLOW_LABEL})[ \t]+\S+[ \t]+{_ACT_SMOKE_GIT_ANNOTATION}$"
 )
-_ACT_SMOKE_LABEL_PREFIX = re.compile(rf"^[ \t]*{_ACT_SMOKE_WORKFLOW_LABEL}")
+_ACT_SMOKE_DECIDE_ERROR_LINE = re.compile(
+    rf"^[ \t]*(?P<label>{_ACT_SMOKE_WORKFLOW_LABEL})[ \t]+\| "
+    r"cli_smoke_paths\.py: error: --base and --head are required for pull_request[ \t]*$"
+)
 _ACT_SMOKE_FATAL_LINE = re.compile(
     rf"^[ \t]*(?P<label>{_ACT_SMOKE_WORKFLOW_LABEL})[ \t]+\| fatal: "
 )
@@ -1541,38 +1543,62 @@ def _smoke_job_name(label: str) -> str:
     return label.strip().strip("[]").split("/", 1)[1].strip()
 
 
-def _is_act_smoke_payload_limitation(text: str) -> bool:
-    """True when the smoke workflow's act-payload failures are the only failures.
+def _act_smoke_payload_jobs(text: str) -> dict[str, set[str]] | None:
+    """Failing step names per smoke job when the payload gap explains every failure.
 
-    A checkout failure counts only with the unknown-SHA fatal line of its own
-    job, so a checkout that failed for another reason (a nonexistent explicit
-    ref, an auth error) keeps blocking.
+    None when the gap does not explain the log. A checkout failure needs the
+    unknown-SHA fatal line of its own job, so a checkout that failed for another
+    reason (a nonexistent explicit ref, an auth error) keeps blocking. The path
+    filter failure needs its own job's ``--base and --head are required`` error.
     """
     if not _ACT_SMOKE_PAYLOAD_PATTERN.search(text):
-        return False
+        return None
     allowed_steps = {*_ACT_SMOKE_CHECKOUT_STEPS, _ACT_SMOKE_DECIDE_STEP}
     # Split on \n only, as the line regexes do: str.splitlines() also breaks on
     # U+2028 and U+0085, which a step could print to forge a labelled line.
     lines = re.split(r"\r?\n", text)
     unknown_sha_jobs: set[str] = set()
+    decide_error_jobs: set[str] = set()
     for line in lines:
-        if _ACT_SMOKE_FATAL_LINE.match(line) is None:
-            continue
-        unknown_sha = _ACT_SMOKE_UNKNOWN_SHA_LINE.match(line)
-        if unknown_sha is None:
-            return False
-        unknown_sha_jobs.add(_smoke_job_name(unknown_sha.group("label")))
+        if _ACT_SMOKE_FATAL_LINE.match(line) is not None:
+            unknown_sha = _ACT_SMOKE_UNKNOWN_SHA_LINE.match(line)
+            if unknown_sha is None:
+                return None
+            unknown_sha_jobs.add(_smoke_job_name(unknown_sha.group("label")))
+        decide_error = _ACT_SMOKE_DECIDE_ERROR_LINE.match(line)
+        if decide_error is not None:
+            decide_error_jobs.add(_smoke_job_name(decide_error.group("label")))
+    explained: dict[str, set[str]] = {}
     for line in lines:
         if _ACT_MAIN_FAILURE_MARKER not in line:
             continue
         failure = _ACT_SMOKE_FAILURE_LINE.match(line)
         if failure is None or failure.group("step") not in allowed_steps:
-            return False
-        if failure.group("step") in _ACT_SMOKE_CHECKOUT_STEPS and (
-            _smoke_job_name(failure.group("label")) not in unknown_sha_jobs
-        ):
-            return False
-    return True
+            return None
+        job = _smoke_job_name(failure.group("label"))
+        step = failure.group("step")
+        evidence = decide_error_jobs if step == _ACT_SMOKE_DECIDE_STEP else unknown_sha_jobs
+        if job not in evidence:
+            return None
+        explained.setdefault(job, set()).add(step)
+    return explained
+
+
+def _is_act_smoke_payload_limitation(text: str) -> bool:
+    """True when the smoke workflow's act-payload failures are the only failures."""
+    return _act_smoke_payload_jobs(text) is not None
+
+
+def _act_smoke_checkout_failures(text: str) -> set[str]:
+    """Smoke jobs whose base-commit checkout the payload gap explains."""
+    jobs = _act_smoke_payload_jobs(text) or {}
+    return {job for job, steps in jobs.items() if steps & set(_ACT_SMOKE_CHECKOUT_STEPS)}
+
+
+def _is_act_smoke_checkout_annotation(line: str, jobs: set[str]) -> bool:
+    """True for a git 128 annotation of a job whose checkout failure is explained."""
+    match = _ACT_SMOKE_GIT_ANNOTATION_LINE.match(line.rstrip())
+    return match is not None and _smoke_job_name(match.group("label")) in jobs
 
 
 # act stages a cached action into the container at /var/run/act/actions/<ref>/
@@ -1921,8 +1947,8 @@ def _unexplained_error_annotations(
         (scope is None or scope == event) and matches(combined)
         for scope, matches, _ in _ACT_LIMITATION_RULES
     )
-    smoke_payload_attributed = (event is None or event == "pull_request") and (
-        _is_act_smoke_payload_limitation(combined)
+    smoke_checkout_failures = (
+        _act_smoke_checkout_failures(combined) if event == "pull_request" else set()
     )
     for line in combined.splitlines():
         if _ACT_ERROR_ANNOTATION not in line:
@@ -1934,7 +1960,7 @@ def _unexplained_error_annotations(
             for scope, matches, _ in _ACT_LIMITATION_RULES
         ):
             continue
-        if smoke_payload_attributed and _ACT_SMOKE_GIT_ANNOTATION_LINE.match(line.rstrip()):
+        if _is_act_smoke_checkout_annotation(line, smoke_checkout_failures):
             continue
         if run_is_attributed and _ACT_WRAPPER_ANNOTATION_PATTERN.search(line):
             continue

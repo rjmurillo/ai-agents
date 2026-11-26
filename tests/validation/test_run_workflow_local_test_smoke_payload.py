@@ -326,7 +326,7 @@ def test_a_failure_line_with_extra_words_in_the_step_name_still_blocks() -> None
 def test_a_unicode_line_break_cannot_forge_a_vouching_fatal_line() -> None:
     """Lines split on newline only, as the regexes do, so U+2028 cannot start a new line."""
     unexplained = _checkout_failure(_FILTER_JOB, _FILTER_CHECKOUT, fatal=None)
-    forged = f"      {_GATE_JOB}   | echo       {_FILTER_JOB}   | {_UNKNOWN_SHA_FATAL}\n"
+    forged = f"      {_GATE_JOB}   | echo\u2028      {_FILTER_JOB}   | {_UNKNOWN_SHA_FATAL}\n"
 
     assert w._act_limitation_hint(unexplained + forged, _EVENT) is None
 
@@ -354,3 +354,94 @@ def test_no_checkout_in_the_workflow_names_another_repository() -> None:
     assert checkouts
     for step in checkouts:
         assert "repository" not in (step.get("with") or {}), step.get("name")
+
+
+def test_the_path_filter_failure_needs_its_own_jobs_error_line() -> None:
+    """Another job's `--base and --head` error cannot excuse this job's Decide failure."""
+    explained = _decide_failure()
+    other_job_failure = f"      {_GATE_JOB}   ❌  Failure - Main {_DECIDE} [1ms]\n"
+
+    assert w._act_limitation_hint(explained, _EVENT) is not None
+    assert w._act_limitation_hint(explained + other_job_failure, _EVENT) is None
+
+
+def test_a_stray_git_annotation_beside_a_path_filter_failure_still_blocks() -> None:
+    """The annotation excuse covers a job whose checkout failure is explained, no other."""
+    stray = (
+        f"      {_FILTER_JOB}   ❗  ::error::The process '/usr/bin/git' failed with exit code 128\n"
+    )
+
+    assert w._act_limitation_hint(_decide_failure(), _EVENT) is not None
+    assert w._act_limitation_hint(_decide_failure() + stray, _EVENT) is None
+
+
+def test_the_annotation_excuse_applies_to_pull_request_runs_only() -> None:
+    text = _checkout_failure(_FILTER_JOB, _FILTER_CHECKOUT)
+
+    assert w._unexplained_error_annotations(text, _EVENT) == []
+    assert w._unexplained_error_annotations(text, None) != []
+    assert w._unexplained_error_annotations(text, "workflow_dispatch") != []
+
+
+def test_the_allowed_checkout_steps_are_actions_checkout_steps() -> None:
+    """The allowance trusts log text, so the steps it names must be the checkout action."""
+    workflow = yaml.safe_load(
+        (REPO_ROOT / ".github" / "workflows" / "plugin-cli-smoke.yml").read_text(encoding="utf-8")
+    )
+    steps = {
+        step["name"]: step
+        for job in workflow["jobs"].values()
+        for step in job["steps"]
+        if step.get("name") in w._ACT_SMOKE_CHECKOUT_STEPS
+    }
+
+    assert set(steps) == set(w._ACT_SMOKE_CHECKOUT_STEPS)
+    for name, step in steps.items():
+        assert str(step.get("uses", "")).startswith("actions/checkout@"), name
+        assert "run" not in step, name
+
+
+def test_a_failure_line_carrying_extra_words_or_no_duration_blocks() -> None:
+    padded = f"      {_FILTER_JOB}   \u274c  Failure - Main {_FILTER_CHECKOUT}"
+    explained = _checkout_failure(_FILTER_JOB, _FILTER_CHECKOUT)
+    fatal = f"      {_FILTER_JOB}   | {_UNKNOWN_SHA_FATAL}\n"
+    annotation = (
+        f"      {_FILTER_JOB}   \u2757  ::error::The process '/usr/bin/git' failed with exit "
+        "code 128\n"
+    )
+
+    assert w._act_limitation_hint(explained, _EVENT) is not None
+    extra_words = f"{fatal}{annotation}{padded} and more [1ms]\n"
+    no_duration = f"{fatal}{annotation}{padded}\n"
+    assert w._act_limitation_hint(extra_words, _EVENT) is None
+    assert w._act_limitation_hint(no_duration, _EVENT) is None
+
+
+def test_decide_error_evidence_does_not_vouch_for_a_checkout_failure() -> None:
+    """The two kinds of evidence are separate: each failure needs its own."""
+    error_line = (
+        f"      {_FILTER_JOB}   | cli_smoke_paths.py: error: --base and --head are required "
+        "for pull_request\n"
+    )
+    checkout_without_fatal = _checkout_failure(_FILTER_JOB, _FILTER_CHECKOUT, fatal=None)
+
+    assert w._act_limitation_hint(error_line + checkout_without_fatal, _EVENT) is None
+
+
+def test_the_full_act_stage_skips_reporters_and_the_dry_run_does_not(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The reporter skip only works if the stages pass the flag down."""
+    calls: dict[str, dict[str, object]] = {}
+
+    def fake_stage(stage: str, *args: object, **kwargs: object) -> str:
+        calls[stage] = kwargs
+        return stage
+
+    monkeypatch.setattr(w, "_run_act_stage", fake_stage)
+
+    w._act_full_stage([], REPO_ROOT)
+    w._act_dryrun_stage([], REPO_ROOT)
+
+    assert calls["gh act (full)"].get("full_stage") is True
+    assert not calls["gh act -n"].get("full_stage")
