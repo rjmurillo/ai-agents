@@ -307,8 +307,8 @@ class TestChildEnv:
     """The harness child is allowlisted, not inherited like the eval cell.
 
     It loads the skill under test with slash commands on, so an unrelated
-    parent secret must never reach it. The gateway pair still does, as a
-    pair, on the gateway step.
+    parent secret must never reach it. On the gateway step the pair and
+    `ANTHROPIC_CUSTOM_HEADERS` still do, never half of the pair.
     """
 
     _PAIR = {"ANTHROPIC_BASE_URL": "http://127.0.0.1:8319", "ANTHROPIC_AUTH_TOKEN": "gw-token"}
@@ -375,3 +375,46 @@ class TestChildEnv:
         assert "ANTHROPIC_BASE_URL" not in env
         assert "ANTHROPIC_CUSTOM_HEADERS" not in env
         assert env["CLAUDE_CODE_OAUTH_TOKEN"] == "oauth-token"
+
+    def test_custom_headers_follow_the_pair_on_the_gateway_step(
+        self, claude_env: pytest.MonkeyPatch
+    ) -> None:
+        """The eval cell forwards them with the pair, so the harness does too."""
+        claude_env.delenv("CLAUDE_CODE_OAUTH_TOKEN")
+        for name, value in self._PAIR.items():
+            claude_env.setenv(name, value)
+        claude_env.setenv("ANTHROPIC_CUSTOM_HEADERS", "x-hub-route: eval")
+
+        env = self._child_env(claude_env)
+
+        assert env["ANTHROPIC_CUSTOM_HEADERS"] == "x-hub-route: eval"
+
+    def test_existing_login_forwards_the_operator_config_dir(
+        self, claude_env: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """The login lives in that directory, so the allowlist must not drop it."""
+        claude_env.delenv("CLAUDE_CODE_OAUTH_TOKEN")
+        claude_env.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "operator"))
+        login = _claude_cli.ResolvedCredential(_claude_cli.STEP_EXISTING_LOGIN, None)
+
+        env = _claude_cli._ClaudeCLIProvider()._build_env(
+            tmp_path / "profile", login, inherit=False
+        )
+
+        assert env["CLAUDE_CONFIG_DIR"] == str(tmp_path / "operator")
+        assert "CLAUDE_CODE_OAUTH_TOKEN" not in env
+
+    def test_real_home_keeps_home_and_sets_no_config_dir(
+        self, claude_env: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        claude_env.delenv("CLAUDE_CODE_OAUTH_TOKEN")
+        claude_env.setenv("HOME", str(tmp_path))
+        claude_env.setenv(_claude_cli.REAL_HOME_ENV, "1")
+        login = _claude_cli.ResolvedCredential(_claude_cli.STEP_EXISTING_LOGIN, None)
+
+        env = _claude_cli._ClaudeCLIProvider()._build_env(
+            tmp_path / "profile", login, inherit=False
+        )
+
+        assert env["HOME"] == str(tmp_path)
+        assert "CLAUDE_CONFIG_DIR" not in env

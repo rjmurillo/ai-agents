@@ -28,10 +28,10 @@ would make the pair differ by something other than the skill.
 Billing and isolation follow the `claude-cli` transport. The credential order,
 the blocked metered variables, and the relocated config directory all come
 from `_ClaudeCLIProvider`. Unlike the eval cell, the child does not inherit the
-parent environment: it gets `BASE_ENV_ALLOWLIST` only, plus the gateway pair on
-the `gateway` step. The skill under test runs with slash commands on, so an
-unrelated parent secret such as `GH_TOKEN` must not reach it. Only project
-settings load, and the workspace holds nothing but the copied skill.
+parent environment: it gets `BASE_ENV_ALLOWLIST` only, plus the gateway pair and
+`ANTHROPIC_CUSTOM_HEADERS` on the `gateway` step. The skill under test runs
+with slash commands on, so an unrelated parent secret such as `GH_TOKEN` must
+not reach it. Only project settings load, and the workspace holds nothing but the copied skill.
 `--tools ""` leaves the model no tool to call.
 """
 

@@ -231,8 +231,9 @@ class _ClaudeCLIProvider:
         With `inherit` (the eval cell), the parent environment is inherited
         minus the deny list in the module docstring. Without it (the skill
         harness, whose child loads the skill under test with slash commands
-        on), the child gets only `BASE_ENV_ALLOWLIST`, plus the gateway pair on
-        the `gateway` step, so no other parent secret can reach it.
+        on), the child gets only `BASE_ENV_ALLOWLIST`, plus `_GATEWAY_ONLY_ENV`
+        (the pair and `ANTHROPIC_CUSTOM_HEADERS`) on the `gateway` step, so no
+        other parent secret can reach it.
 
         An injected token and the `gateway` step run under a relocated, empty
         config directory. The `existing-login` step instead
