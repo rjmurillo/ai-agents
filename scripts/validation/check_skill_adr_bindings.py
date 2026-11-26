@@ -52,10 +52,10 @@ enum verbatim::
 
     status: proposed | accepted | rejected | deprecated | superseded   # enum, no prose
 
-`scripts/validation/check_adr_lifecycle.py:152-155` carries the same list as the
-set it validates against, with the same attribution::
+`scripts/validation/check_adr_lifecycle.py:232-236` carries the same list as the
+set it validates against, `LIFECYCLE_STATUSES`::
 
-    # ADR-073 Decision section, verbatim: "status: proposed | accepted | rejected |
+    # The ADR-073 status enum. `test_lifecycle_statuses_conform_to_adr_073` fails when
     ...
     {"proposed", "accepted", "rejected", "deprecated", "superseded"}
 
@@ -172,7 +172,10 @@ a pass is the silent-pass failure
 
 Every terminal line carries the examined count beside the violation count, which
 MUST 12 requires in as many words: "0 violations in 381 files" is verifiable,
-"OK" is not. `check_adr_lifecycle.py:1195` prints the same pairing.
+"OK" is not.
+
+The lifecycle gate prints the same pairing at `check_adr_lifecycle.py:1824`:
+`violation(s) across {examined} ADR record(s)`.
 """
 
 from __future__ import annotations
@@ -612,7 +615,7 @@ def _report_absent(result: ScanResult) -> None:
 def _corpus_is_empty(adr_dir: Path) -> bool:
     """True when no `ADR-NNN-*.md` is present, so no status can resolve.
 
-    Mirrors the corpus-presence half of `check_adr_lifecycle.py:1261`, quoted
+    Mirrors the corpus-presence half of `check_adr_lifecycle.py:1888`, quoted
     verbatim::
 
         if not any(ADR_FILENAME_RE.match(md.name) for md in adr_dir.glob("ADR-*.md")):
@@ -751,8 +754,8 @@ def _write_baseline_command(repo_root: Path, adr_dir: Path, baseline_path: Path)
     Weaker than the sibling, deliberately and for now. An earlier revision of this
     docstring claimed `check_adr_lifecycle.py` "refuses the same way". That was
     false: it resolves a base ref and compares against the value recorded there
-    (`_resolve_default_base_ref`, `baseline_absent_at_ref` and `_counts_at_ref`,
-    wired at `scripts/validation/check_adr_lifecycle.py:1146-1150`), while this
+    (`_resolve_default_base_ref`, `baseline_absent_at_ref` and `_baseline_at_ref`,
+    wired at `scripts/validation/check_adr_lifecycle.py:1484-1498`), while this
     gate reads the ceiling only from the working-tree file. The gap that leaves is
     real and was reproduced in three ordinary commits: add a violation, `git rm`
     the baseline, then run the remedy line above, which sees no ceiling, treats it
