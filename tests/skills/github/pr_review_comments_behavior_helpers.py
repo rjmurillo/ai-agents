@@ -72,12 +72,13 @@ def _issue_comment(
     author: str = "reviewer",
     author_type: str = "User",
     body: str = "PR-level note",
+    eyes: int = 0,
 ):
     return {
         "id": cid,
         "user": {"login": author, "type": author_type},
         "body": body,
-        "reactions": {"eyes": 0},
+        "reactions": {"eyes": eyes},
         "created_at": created,
         "updated_at": created,
         "html_url": "https://example.com/issue-comment",
