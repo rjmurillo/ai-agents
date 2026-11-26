@@ -33,3 +33,4 @@ Outcome: consensus in round 2, six Accept.
 Not checked by a seat: the analyst could not read the long `cva-analysis` line through search. The independent-thinker read it and confirmed it matches Step 5 of `spec-prior-art-schema.md`.
 
 Status stays `proposed`. The owner decides the layout under Decision 6.
+- `/review` round 4 (three PASS, one WARN, all low): ADR-115 Status now cites this log; the analysis PR-path line names #7586, not the pilot; the claims-ledger follow-up rows are C23 to C27, and C25 now states the `cva-analysis` limit at `spec-prior-art-schema.md:195`.

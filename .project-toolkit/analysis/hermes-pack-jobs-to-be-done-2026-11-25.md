@@ -168,7 +168,7 @@ Both flagged lines are documentation, not code that runs. The rewording keeps wh
 
 The rewording changes text on every host. Line 23 sits in the CWE-22 section, which `security-scan` says it does not scan (`SKILL.md:24`, `:34`). Moving that section out does not help Hermes, because the line flags wherever it lands, and both candidate homes (`codeql-scan`, `security-review`) are packed.
 
-With both lines reworded, the closure clears. After the pilot merges, the PR path on Hermes is the path on every host:
+With both lines reworded, the closure clears. After the #7586 `ship` wiring lands, the PR path on Hermes is the path on every host:
 
 1. `/build`, then `/test`, then `/review` writes the SHA-bound marker.
 2. `/ship` runs its pre-flight checks. It invokes `security-scan` by name and runs `review`'s marker validator in the same pack.

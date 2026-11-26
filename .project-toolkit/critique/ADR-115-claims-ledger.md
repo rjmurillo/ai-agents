@@ -46,10 +46,10 @@ N1: C5 by-path users are seven skills; with `ship` through code, eight. The ADR 
 
 ## PR #7634 follow-up (2026-11-25)
 
-| Claim | Evidence | Result |
-|---|---|---|
-| #7581 is blocked by #7587; #7586 is not | `get_issue_relationships.py --issue 7581` and `--issue 7586` | VERIFIED |
-| #7586 may land with `push-pr` still shipped | Pilot owner confirmation; #7586 wiring criteria and #7587 conditional bundling clause | VERIFIED as a merge boundary, not as completed work |
-| Tier 3 requires threat modeling and SLO design; Tier 4 and 5 require ADR review | `spec-prior-art-schema.md`, lines 214-239; `hermes.yaml` excludes `adr-review` | VERIFIED |
-| Current path validation allows same-pack targets | `check_references` in `build/scripts/hermes_pack_checks.py` | VERIFIED |
-| An old table that names a removed skill fails validation | `check_assignment` in `build/scripts/hermes_pack_checks.py` | VERIFIED |
+| ID | Claim | Evidence | Result |
+|---|---|---|---|
+| C23 | #7581 is blocked by #7587; #7586 is not | `get_issue_relationships.py --issue 7581` and `--issue 7586` | VERIFIED |
+| C24 | #7586 may land with `push-pr` still shipped | Pilot owner confirmation; #7586 wiring criteria and #7587 conditional bundling clause | VERIFIED as a merge boundary, not as completed work |
+| C25 | `spec-generator` calls excluded `cva-analysis` for Tier 3 to 5 and multi-use-case Tier 1 or 2 specs; Tier 4 and 5 also call blocking `adr-review` | `spec-prior-art-schema.md:195` (Step 5) and lines 234-239; `hermes.yaml` excludes both skills | VERIFIED |
+| C26 | Current path validation allows same-pack targets | `check_references` in `build/scripts/hermes_pack_checks.py` | VERIFIED |
+| C27 | An old table that names a removed skill fails validation | `check_assignment` in `build/scripts/hermes_pack_checks.py` | VERIFIED |

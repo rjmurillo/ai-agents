@@ -28,7 +28,7 @@ Amended 2026-11-19 at the owner's direction (decision D10, merged after PR #7552
 
 Amended again 2026-11-19 at the owner's direction (decision D11). Aligns the four-pack layout (`delivery`, `knowledge`, `quality`, `authoring`) and records the four-pack smoke measurements and migration guidance. The debate log is `.project-toolkit/critique/ADR-115-debate-log-8.md`.
 
-Proposed amendment 2026-11-25 for issue #7591, not in force. Decision 6 records a six-pack Hermes layout grouped by the job a user hires each pack for. The owner decides it. `templates/platforms/hermes.yaml` keeps the four-pack table until the owner approves and an implementation pull request lands. The analysis is `.project-toolkit/analysis/hermes-pack-jobs-to-be-done-2026-11-25.md`. The debate log is `.project-toolkit/critique/ADR-115-debate-log-9.md`.
+Proposed amendment 2026-11-25 for issue #7591, not in force. Decision 6 records a six-pack Hermes layout grouped by the job a user hires each pack for. The owner decides it. `templates/platforms/hermes.yaml` keeps the four-pack table until the owner approves and an implementation pull request lands. The analysis is `.project-toolkit/analysis/hermes-pack-jobs-to-be-done-2026-11-25.md`. The debate log is `.project-toolkit/critique/ADR-115-debate-log-9.md`. The PR #7634 follow-up, which gates the layout on #7586 instead of closing #7581, has its debate log at `.project-toolkit/critique/ADR-115-debate-log-10.md`.
 
 ## Context
 
