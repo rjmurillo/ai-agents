@@ -594,7 +594,20 @@ jobs:
       # this key. Its if: allows a write only from the primary leg of a push to
       # refs/heads/main after Run pytest succeeds. Later legs run what it saved.
       # The path is the checkout subtree of the prefix, the same path the restore
-      # step reads, so the entry holds only pycs a later run can use.
+      # step reads. The prune step enforces one invariant before the save: every
+      # file in that subtree is bytecode for this interpreter or pytest rewrite
+      # tag whose source exists now. A nonzero prune stops this job, so the save
+      # never runs after a failed prune.
+      - name: Prune pytest bytecode cache
+        if: >-
+          matrix.primary
+          && github.event_name == 'push' && github.ref == 'refs/heads/main'
+          && steps.run-pytest.outcome == 'success'
+        run: >-
+          uv run --frozen python scripts/ci/prune_bytecode_cache.py
+          --workspace "${{ github.workspace }}"
+          --cache-root "${{ runner.temp }}/pytest-bytecode-cache${{ github.workspace }}"
+
       - name: Save pytest bytecode cache
         if: >-
           matrix.primary

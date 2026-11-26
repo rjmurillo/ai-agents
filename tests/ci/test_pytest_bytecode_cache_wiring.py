@@ -278,6 +278,48 @@ class TestSaveFromThePrimaryLegOnMain:
         assert _save()["uses"] == f"actions/cache/save@{CACHE_SHA}"
 
 
+class TestPruneBeforeCacheSave:
+    @staticmethod
+    def _prune() -> dict[str, Any]:
+        return _step("Prune pytest bytecode cache")
+
+    def test_exactly_one_prune_step_exists(self) -> None:
+        assert _names().count("Prune pytest bytecode cache") == 1
+
+    def test_the_prune_script_is_checked_in(self) -> None:
+        assert (REPO_ROOT / "scripts" / "ci" / "prune_bytecode_cache.py").is_file()
+
+    def test_the_prune_runs_directly_before_the_save(self) -> None:
+        names = _names()
+        assert names.index("Prune pytest bytecode cache") + 1 == names.index(
+            "Save pytest bytecode cache"
+        )
+
+    def test_the_prune_uses_the_same_launcher_as_run_pytest(self) -> None:
+        pytest_command = " ".join(str(_step("Run pytest")["run"]).split())
+        prune_command = " ".join(str(self._prune()["run"]).split())
+        assert pytest_command.startswith("uv run --frozen python ")
+        assert prune_command.startswith(
+            "uv run --frozen python scripts/ci/prune_bytecode_cache.py "
+        )
+
+    def test_the_prune_condition_matches_the_save_condition_exactly(self) -> None:
+        assert self._prune()["if"] == _save()["if"]
+
+    def test_the_prune_targets_the_saved_path_inside_the_workspace(self) -> None:
+        command = " ".join(str(self._prune()["run"]).split())
+        assert '--workspace "${{ github.workspace }}"' in command
+        assert (
+            '--cache-root "${{ runner.temp }}/pytest-bytecode-cache${{ github.workspace }}"'
+            in command
+        )
+
+    def test_the_prune_and_save_failures_are_not_ignored(self) -> None:
+        assert "continue-on-error" not in self._prune()
+        assert "continue-on-error" not in _save()
+        assert "always()" not in str(_save()["if"])
+
+
 class TestPermissionsAndPinningUnchanged:
     def test_the_test_job_keeps_read_only_contents_permission(self) -> None:
         assert workflow_jobs()["test"]["permissions"] == {"contents": "read"}
