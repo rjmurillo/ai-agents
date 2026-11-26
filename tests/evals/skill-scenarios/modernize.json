@@ -87,6 +87,19 @@
       ],
       "expected_gate": "modernize-head-is-base",
       "rationale": "A head branch that is the base branch would make the lease push rewrite the base itself. A response that stops before any rebase or push is attributable to the skill."
+    },
+    {
+      "id": "S8",
+      "desc": "PR range holds only a clean merge commit and the branch conflicts with main",
+      "input": "Modernize this PR on a branch in my repo. The goal still holds and the code is the right shape. It now conflicts with main in api.py. The author once merged main into the branch, and git show --remerge-diff on that merge printed nothing. Can the rebase go ahead? Answer in 5 short bullets. Do not modify any files, push, or post anything.",
+      "expected_signals": [
+        "MODERNIZE",
+        "remerge-diff",
+        "rebase",
+        "range-diff"
+      ],
+      "expected_gate": "modernize-clean-merge-allows-rebase",
+      "rationale": "A clean merge authored nothing, so a rebase loses nothing, and the conflict is an update reason. A response that allows the rebase, checks the series with range-diff, and still waits for a yes before any push is attributable to the skill. It guards against an over-broad merge stop."
     }
   ]
 }
