@@ -163,19 +163,21 @@ def make_repo(tmp_path, monkeypatch):
         ("GIT_COMMITTER_EMAIL", "ship@example.invalid"),
     ):
         monkeypatch.setenv(key, value)
+    # The bare remote is built here, in the tmp_path-rooted fixture body, so the
+    # temp-root guard (tests/test_bare_repo_fixtures_are_temp_rooted.py) sees it.
+    bare = tmp_path / "remote.git"
+    subprocess.run(["git", "init", "-q", "--bare", str(bare)], check=True)
 
     def factory(
         url: str | None = "https://github.com/octo/repo.git", branch: str = "feat/ship-change"
     ) -> Path:
         repo = tmp_path / "repo"
-        bare = tmp_path / "remote.git"
         repo.mkdir()
         git(repo, "init", "-q", "-b", "main")
         (repo / ".gitignore").write_text(".project-toolkit/scratch/\n", encoding="utf-8")
         (repo / "README.md").write_text("hello\n", encoding="utf-8")
         git(repo, "add", ".")
         git(repo, "commit", "-q", "-m", "chore: seed")
-        subprocess.run(["git", "init", "-q", "--bare", str(bare)], check=True)
         if url is not None:
             git(repo, "remote", "add", "origin", url)
             git(repo, "config", f"url.{bare.as_posix()}.pushInsteadOf", url)
