@@ -51,7 +51,7 @@ def _plain_host(host: str) -> str | None:
     holds only letters, digits, dots, and dashes. That refuses a Windows
     drive path (C:\\repo), an ssh option (-oX=y:z), and a bracket literal.
     """
-    if _PLAIN_HOST_RE.match(host) is None:
+    if _PLAIN_HOST_RE.fullmatch(host) is None:
         return None
     return host
 

@@ -401,3 +401,25 @@ class TestFreshRoundFiveFindings:
     )
     def test_a_description_helper_failure_names_its_cause(self, scripts, stderr, expected):
         assert scripts[3].checks_mod.description_problem(2, "", stderr) == expected
+
+    def test_an_axis_with_a_newline_is_refused(self, make_repo, fakes, scripts, capsys):
+        make_repo(GITHUB)
+        fakes.no_pr_github()
+        code, lines = invoke(
+            scripts[2], ["--check", "reviewed", "--require-axis", "security\n"], capsys
+        )
+        assert code == 2
+        assert lines[-1].startswith("STOP: bad-arguments --require-axis")
+
+    def test_a_branch_name_with_a_newline_is_refused(self, make_repo, fakes, scripts, capsys):
+        make_repo(GITHUB)
+        code, lines = run_pr(scripts, capsys, "branch", "--name", "feat/ship-x\n")
+        assert code == 1
+        assert lines[-1].startswith("STOP: bad-branch-name")
+
+    def test_result_keys_and_acts_refuse_a_newline(self, scripts):
+        result = scripts[0].Result("t.py", frozenset({"x-failed"}))
+        with pytest.raises(ValueError, match="invalid result key"):
+            result.add("KEY\n", "v")
+        with pytest.raises(ValueError, match="invalid NEXT act"):
+            result.next("act\n")

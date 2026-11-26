@@ -208,19 +208,19 @@ class Result:
         return self._exit_code
 
     def add(self, key: str, value: object) -> Result:
-        if not KEY_RE.match(key) or key in ("NEXT", "STOP"):
+        if not KEY_RE.fullmatch(key) or key in ("NEXT", "STOP"):
             raise ValueError(f"invalid result key: {key!r}")
         self._lines.append((key, clean(value)))
         return self
 
     def next(self, act: str) -> Result:
-        if not TOKEN_RE.match(act):
+        if not TOKEN_RE.fullmatch(act):
             raise ValueError(f"invalid NEXT act: {act!r}")
         self._set_terminal(("NEXT", act), EXIT_OK)
         return self
 
     def stop(self, reason: str, code: int, detail: object = "") -> Result:
-        if reason not in self._reasons or not TOKEN_RE.match(reason):
+        if reason not in self._reasons or not TOKEN_RE.fullmatch(reason):
             raise ValueError(f"undeclared STOP reason: {reason!r}")
         if code not in _STOP_CODES:
             raise ValueError(f"STOP needs an exit code 1 to 4, got {code}")

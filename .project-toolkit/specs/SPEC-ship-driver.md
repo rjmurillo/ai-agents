@@ -84,7 +84,8 @@ Runs the checks that have one right answer.
 - `PENDING` ends on `NEXT: rerun-pipeline` with a `PIPELINE_DEADLINE:` line. Past the 30-minute deadline it is `FAIL`.
   The first `PENDING` result stores that deadline in a scratch state file keyed by host, PR, and HEAD, so a rerun cannot extend it.
 - On GitHub each call waits at most 300 seconds (`ship_preflight.py` clamps `--wait-seconds` to 300 seconds there).
-  Required checks still running when the call returns are `PENDING`, never `FAIL`.
+  Required checks still running when the call returns are `PENDING`, unless a required check already failed.
+  A failed required check is `FAIL` even while others still run, including on helper exit 7.
 - `reviewed` wraps the existing review-marker validator. It does not reimplement it.
 
 Security scan and tests stay as model-run steps. They need judgment on findings.

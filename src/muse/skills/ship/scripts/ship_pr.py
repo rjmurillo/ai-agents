@@ -85,7 +85,7 @@ def _new_pr() -> Path:
 
 
 def cmd_branch(args, result, root: Path):
-    if not _BRANCH_RE.match(args.name):
+    if not _BRANCH_RE.fullmatch(args.name):
         return result.stop("bad-branch-name", common.EXIT_LOGIC, "use <type>/<3-5-word-slug>")
     done = common.git(["switch", "-c", args.name], cwd=root)
     if done.returncode != 0:
@@ -385,7 +385,7 @@ def run(argv: list[str]):
             None,
         )
     for axis in getattr(args, "require_axis", []):
-        if not preflight_mod.AXIS_RE.match(axis):
+        if not preflight_mod.AXIS_RE.fullmatch(axis):
             return (
                 result.stop(
                     "bad-arguments",

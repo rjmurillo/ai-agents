@@ -404,7 +404,7 @@ def _validate(args) -> str | None:
     if not 0 <= args.wait_seconds <= MAX_CALL_WAIT:
         return f"--wait-seconds must be 0 to {MAX_CALL_WAIT}"
     for axis in args.require_axis:
-        if not AXIS_RE.match(axis):
+        if not AXIS_RE.fullmatch(axis):
             return "--require-axis must be a lowercase axis name"
     if len(set(args.check)) != len(args.check):
         return "--check repeats a check"
