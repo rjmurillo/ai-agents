@@ -295,7 +295,7 @@ Check that `skills/memory/memory_core/memory_router.py` exists under the root th
 # Test the import the same way the tests do
 uv run python -c "
 import os, sys
-_root = os.environ.get('COPILOT_PLUGIN_ROOT') or os.environ.get('CLAUDE_PLUGIN_ROOT') or '.claude'
+_root = next((d for d in (os.environ.get('CLAUDE_PLUGIN_ROOT'), os.environ.get('COPILOT_PLUGIN_ROOT'), '.claude') if d and os.path.isfile(f'{d}/lib/ptk_run.py')), '.claude')
 sys.path.insert(0, f'{_root}/skills/memory')
 from memory_core.memory_router import search_memory
 print('OK')
