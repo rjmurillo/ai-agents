@@ -45,7 +45,9 @@ def test_find_program_finds_az_cmd_on_path(windows_module, fake_az):
 def test_a_batch_command_runs_with_each_argument_literal(windows_module, fake_az):
     built = windows_module.command(["az", "a&b", "c d"])
     assert built is not None
-    done = subprocess.run(built, capture_output=True, text=True, check=False)
+    done = subprocess.run(
+        built, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False
+    )
     assert done.returncode == 0, done.stderr
     assert "a&b" in done.stdout
     assert "c d" in done.stdout
