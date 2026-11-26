@@ -66,6 +66,39 @@ def _real_guard() -> Callable[[str], list[int]]:
     return cast(Callable[[str], list[int]], _load_module_attr(GUARD_PATH, "unpinned_lines"))
 
 
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "scripts/github_core/comment_processing.py",
+        "src/claude/skills/memory/scripts/memory_link_processing.py",
+    ],
+)
+@pytest.mark.parametrize(
+    ("replacement", "expected_findings"),
+    [("encoding=None,", 1), ('encoding="UTF-8",', 0)],
+    ids=["unpinned-dead", "codec-alias-survived"],
+)
+def test_extracted_helpers_preserve_encoding_guard(
+    relative: str, replacement: str, expected_findings: int
+) -> None:
+    """D2: preserve guard detection after extracting five obsolete call sites."""
+    path = REPO_ROOT / relative
+    original_bytes = path.read_bytes()
+    source = original_bytes.decode("utf-8")
+    target = 'encoding="utf-8",'
+    assert source.count(target) == 1, f"DID-NOT-APPLY: ambiguous or missing pin in {relative}"
+    guard = _real_guard()
+    assert guard(source) == [], relative
+
+    mutated = source.replace(target, replacement, 1)
+    assert mutated.encode("utf-8") != original_bytes, f"DID-NOT-APPLY: unchanged {relative}"
+
+    findings = guard(mutated)
+    outcome = "DEAD" if findings else "SURVIVED"
+    assert len(findings) == expected_findings, f"{relative}: {outcome}, findings={findings}"
+    assert path.read_bytes() == original_bytes, f"Source bytes changed: {relative}"
+
+
 # ---------------------------------------------------------------------------
 # One corpus scan per session (issue #5382)
 # ---------------------------------------------------------------------------

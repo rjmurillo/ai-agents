@@ -120,7 +120,7 @@ Evidence is repo code and tests only (vendor docs unavailable, see Coverage note
 
 | Harness | One-shot mechanism | Tools off? | Model choice | Evidence |
 |---|---|---|---|---|
-| Claude Code | `claude --print --output-format json --model M --setting-sources "" --strict-mcp-config --disallowed-tools ... --no-session-persistence` | Yes | `--model` | `scripts/eval/_claude_cli.py:159-177` <!-- citation-freshness: ignore -- anchors here are command strings from another column; cited lines re-read 2026-11-24 --> |
+| Claude Code | `claude --print --output-format json --model M --setting-sources "" --strict-mcp-config --tools "" --disallowed-tools ... --no-session-persistence` | Yes | `--model` | `scripts/eval/_claude_cli.py:202-224` <!-- citation-freshness: ignore -- anchors here are command strings from another column; cited lines re-read 2026-11-25 --> |
 | Codex | `codex exec --model M --sandbox read-only --ephemeral --ignore-user-config --output-last-message F` | Read-only sandbox | `--model` | `scripts/eval/_codex_cli.py:165-177`. Its docstring says no live run yet (lines 21 to 24). <!-- citation-freshness: ignore -- anchors here are command strings from another column; cited lines re-read 2026-11-24 --> |
 | Copilot CLI | `copilot --acp --model M --available-tools= --no-custom-instructions --disable-builtin-mcps` over JSON-RPC | Yes | `--model` | `scripts/eval/_copilot_cli.py:399-418` <!-- citation-freshness: ignore -- anchors here are command strings from another column; cited lines re-read 2026-11-24 --> |
 | Cursor | `cursor-agent --trust --force -p` | No evidence. `--force` allows shell. | None found | `tests/e2e/test_cursor_plugin_smoke.py:190-205` <!-- citation-freshness: ignore -- anchors here are command strings from another column; cited lines re-read 2026-11-24 --> |
@@ -315,8 +315,8 @@ Bounds: 30 s per call, 600 s of fallback time per run.
 
 1. **Measure the band.** Run the heuristic over the 90-day comment set. Record the count and share at 0.4 to 0.6, and the share at exactly 0.5 with no matched pattern. No model needed.
    - Unit: production scores every comment node in a thread, replies included (`update_reviewer_signal_stats.py:212-245`). Report the band share split into thread openers and replies.
-   - Window: the fetch filters on PR `updatedAt`, not comment time (`scripts/github_core/api.py:1365`). State this in the result.
-   - Loss: `reviewThreads(first: 100)` and `comments(first: 50)` request no `pageInfo` (`api.py:1313-1317`). Count PRs and threads that hit either limit and report the loss. Do not present a partial read as the full set.
+   - Window: the fetch filters on PR `updatedAt`, not comment time (`scripts/github_core/api.py:1343`). State this in the result.
+   - Loss: `reviewThreads(first: 100)` and `comments(first: 50)` request no `pageInfo` (`api.py:1341-1345`). Count PRs and threads that hit either limit and report the loss. Do not present a partial read as the full set.
 2. **Build a labeled corpus.** Sample 200 comments, stratified: 100 from the band, 100 outside it, across every reviewer in the signal table.
    - Unit: the eval scores the same unit production scores, with thread position recorded per row.
    - Labelers (owner decision, 2026-11-24): a council of 3 non-Anthropic models. Arm C runs on Anthropic, so no labeler shares its vendor. The label is the majority vote. The council sees only the blinded sheet, never arm output.
@@ -425,7 +425,7 @@ Promoting it (Open question 1, option A) is an architecture change and needs an 
    - C. Write a small stdlib HTTP transport inside `llm_classification` and skip CLI cells. Smallest scope. Gives up local CLI support.
    Recommendation: A, if the eval passes. It is an architecture change, so it needs an ADR and the owner's decision.
 2. Should the summary publish fallback counts per reviewer, or only per run?
-3. Should auto-detect pick the user's harness CLI? The only harness marker with repo evidence is `CLAUDECODE` (`scripts/validation/run_workflow_local_test.py:126`). No Codex or Copilot marker is evidenced. Current answer: no, CLI is opt-in.
+3. Should auto-detect pick the user's harness CLI? The only harness marker with repo evidence is `CLAUDECODE` (`scripts/validation/run_workflow_local_test.py:130`). No Codex or Copilot marker is evidenced. Current answer: no, CLI is opt-in.
 4. Does a `claude --print` child started inside a Claude Code session re-fire the parent's hooks? The eval cell passes `--setting-sources ""` to avoid loading settings, but no test proves hooks stay quiet.
 5. Answered 2026-11-24: a CI secret is acceptable if the eval passes. The `agent-claude` environment already holds `ANTHROPIC_API_KEY`, so no new secret is needed for CI rank 1.
 

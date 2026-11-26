@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import dataclasses
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -273,6 +274,32 @@ def live_reduced_args(tmp_path: Path, *extra: str) -> list[str]:
         str(tmp_path / "out"),
         *extra,
     ]
+
+
+def live_first_task_args(tmp_path: Path, *extra: str) -> list[str]:
+    """CLI args for a live `reduced` run of only the first task into `tmp_path`."""
+    return live_reduced_args(tmp_path, "--only-tasks", load_tasks(tmp_path)[0].id, *extra)
+
+
+# Set while a real-HOME run is in progress, so a runner can record which mode it saw.
+REAL_HOME_ENV = "EVAL_RUNTIME_REAL_HOME"
+
+
+class EnvSpyRunner(FakeClaudeRunner):
+    """Record the env each Claude call received, and the real-HOME switch at that call."""
+
+    def __init__(self, tasks: list[ablation_tasks.Task]) -> None:
+        super().__init__(tasks)
+        self.envs: list[dict[str, str]] = []
+        self.real_home: list[str | None] = []
+
+    def __call__(self, argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        if "--version" not in [str(a) for a in argv]:
+            env = kwargs["env"]
+            assert isinstance(env, dict)
+            self.envs.append({str(k): str(v) for k, v in env.items()})
+            self.real_home.append(os.environ.get(REAL_HOME_ENV))
+        return super().__call__(argv, **kwargs)
 
 
 def make_evidence(**overrides: object) -> ablation.RunEvidence:

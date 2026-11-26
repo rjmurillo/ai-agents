@@ -118,7 +118,7 @@ that a projection makes no ownership claim.
 
 ## Registration
 
-One row in the `_SEQUENCE` table at `scripts/validation/pre_pr_sequence.py:314`,
+One row in the `_SEQUENCE` table at `scripts/validation/pre_pr_sequence.py:318`,
 following the shape the existing frontmatter gates use. The gate is blocking,
 because every one of its findings is deterministic and has a named fix.
 

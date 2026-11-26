@@ -35,6 +35,7 @@ code-qualities-assessment/
 │   └── .qualityrc.json             # Configuration template
 └── references/
     ├── calibration-examples.md     # Scoring examples for team calibration
+    ├── calibration-advanced-notes.md # Automated scoring, language notes, workshop
     └── refactoring-patterns.md     # Remediation patterns
 ```text
 
@@ -83,7 +84,7 @@ scripts, README, and other support files.
 
 ### CI/CD Pipeline
 
-```python
+```yaml
 # GitHub Actions
 - name: Check code quality
   run: |

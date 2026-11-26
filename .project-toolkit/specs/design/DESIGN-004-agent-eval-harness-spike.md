@@ -106,6 +106,9 @@ def validate_fixtures(paths: list[Path]) -> list[Fixture]: ...
 
 **`AssertionKind` enum**:
 ```python
+from enum import Enum
+
+
 class AssertionKind(str, Enum):
     REGEX = "regex"
     VERDICT = "verdict"

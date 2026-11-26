@@ -2,11 +2,13 @@
 
 Each folder below is a portable Agent Plugins v1 package for Hermes.
 A pack holds the skills listed under it and one copy of `lib/`.
-Skills in one pack never refer to skills in another pack by path.
+No skill links to a script, reference, or other support file in another pack by path.
+Some skills name a skill or script from another pack.
+Install every pack for the full set.
 
 ## project-toolkit-delivery
 
-Project Toolkit skills for GitHub pull request work, build, test, and quality gates, security review, and operations.
+Project Toolkit skills for GitHub pull request work, planning, build, test, and review gates.
 
 - `agent-harness-reference`
 - `ai-agents-external-claims`
@@ -14,24 +16,16 @@ Project Toolkit skills for GitHub pull request work, build, test, and quality ga
 - `api-doc-authoring`
 - `benchmark-models`
 - `build`
-- `chaos-experiment`
 - `code-qualities-assessment`
-- `codeql-scan`
-- `destructive-change-safety`
 - `doc-accuracy`
 - `dx-review`
 - `execution-plans`
-- `fix-markdown-fences`
 - `git-advanced-workflows`
 - `github`
 - `github-url-intercept`
-- `golden-principles`
-- `llm-council`
 - `maintainer-review`
 - `merge-resolver`
-- `metrics`
 - `modernize`
-- `observability`
 - `orphan-ref-validator`
 - `pipeline-validator`
 - `plan`
@@ -43,20 +37,33 @@ Project Toolkit skills for GitHub pull request work, build, test, and quality ga
 - `quality-grades`
 - `research`
 - `reviewer-findings`
-- `security-review`
-- `slo-designer`
-- `sol-loop`
 - `steering-matcher`
-- `style-enforcement`
 - `sync`
 - `takeover`
 - `taste-lints`
-- `technical-writing`
 - `test`
-- `threat-modeling`
 - `validate-pr-description`
 - `validation-authority`
 - `windows-image-updater`
+
+## project-toolkit-quality
+
+Project Toolkit skills for security and reliability engineering, code and documentation standards, metrics, and independent model review.
+
+- `chaos-experiment`
+- `codeql-scan`
+- `destructive-change-safety`
+- `fix-markdown-fences`
+- `golden-principles`
+- `llm-council`
+- `metrics`
+- `observability`
+- `security-review`
+- `slo-designer`
+- `sol-loop`
+- `style-enforcement`
+- `technical-writing`
+- `threat-modeling`
 
 ## project-toolkit-knowledge
 
@@ -99,7 +106,7 @@ Project Toolkit skills for memory, context, decisions, requirements, strategy, a
 
 ## project-toolkit-authoring
 
-Project Toolkit skills for writing, tuning, and bootstrapping skills, and for placing context.
+Project Toolkit skills for creating, measuring, and tuning skills, context placement, and agent prose.
 
 - `context-optimizer`
 - `prose-self-check`
@@ -132,10 +139,10 @@ These skills ship in no pack.
 
 These files of a shipped skill ship in no pack.
 
-- `build/references/rule-code-quality.md`: Folded path rule; the delivery pack is at its 400-file cap.
-- `build/references/rule-csharp.md`: Folded path rule; the delivery pack is at its 400-file cap.
-- `build/references/rule-powershell.md`: Folded path rule; the delivery pack is at its 400-file cap.
-- `pr-comment-responder/references/rule-lossless-queue-reads.md`: Folded path rule; the delivery pack is at its 400-file cap.
-- `push-pr/references/rule-push-lock.md`: Folded path rule; the delivery pack is at its 400-file cap.
+- `build/references/rule-code-quality.md`: Folded path rule; references observability in the quality pack.
+- `build/references/rule-csharp.md`: Folded path rule kept out of Hermes pack budget (PR #7541).
+- `build/references/rule-powershell.md`: Folded path rule kept out of Hermes pack budget (PR #7541).
+- `pr-comment-responder/references/rule-lossless-queue-reads.md`: Folded path rule kept out of Hermes pack budget (PR #7541).
+- `push-pr/references/rule-push-lock.md`: Folded path rule kept out of Hermes pack budget (PR #7563).
 - `retrospective/scripts/copilot_journal.py`: Needs the skill-doctor parser, which Hermes does not ship, so --journal always reports unavailable there.
-- `test/references/rule-testing.md`: Folded path rule; the delivery pack is at its 400-file cap.
+- `test/references/rule-testing.md`: Folded path rule kept out of Hermes pack budget (PR #7563).

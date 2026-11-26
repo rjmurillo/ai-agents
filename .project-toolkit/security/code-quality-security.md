@@ -1,5 +1,7 @@
 # Code Quality Security Guide
 
+<!-- doc-accuracy: external-sdk ASP.NET-Core -- C# examples use ASP.NET Core and the .NET base class library, not this repository -->
+
 ## Purpose
 
 This guide identifies code quality issues that have security implications. Poor code quality increases attack surface, makes vulnerabilities harder to detect, and complicates security reviews.
@@ -134,18 +136,32 @@ if (Environment.IsDevelopment())
 ### Remediation
 
 ```csharp
-// BAD: Hardcoded
-var apiUrl = "https://api.production.example.com";
+using System;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.Configuration;
 
-// GOOD: Configured
-var apiUrl = configuration["ApiEndpoint"];
+// BAD: Hardcoded deployment address.
+const string HardcodedApiEndpoint = "https://api.production.example.com";
 
-// BAD: Environment-based security bypass
-if (env.IsDevelopment())
-    app.UseAuthenticationBypass();
+// BAD: A development-only branch that bypasses authentication.
+// if (env.IsDevelopment()) app.UseAuthenticationBypass();
 
-// GOOD: No security bypass, different config instead
-app.UseAuthentication();  // Always enabled
+// GOOD: Read the environment's endpoint from configuration.
+static Uri GetApiEndpoint(IConfiguration configuration)
+{
+    if (!Uri.TryCreate(configuration["ApiEndpoint"], UriKind.Absolute, out var endpoint) ||
+        endpoint.Scheme != Uri.UriSchemeHttps)
+        throw new InvalidOperationException("ApiEndpoint must be an absolute HTTPS URL.");
+
+    return endpoint;
+}
+
+// Register authentication and authorization services before building the app.
+static void ConfigureSecurity(WebApplication app)
+{
+    app.UseAuthentication();
+    app.UseAuthorization();
+}
 ```
 
 ## Testing Burden
@@ -198,14 +214,45 @@ class AuthController {
 ### Proper Boundaries
 
 ```csharp
-// GOOD: Security-aware abstractions
-class AuthController {
-    private readonly ISecurityLogger _logger;
-    private readonly ISecureTokenCache _tokenCache;
+using System;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 
-    void Login() {
-        _logger.LogAuthAttempt(userId);  // PII-safe
-        _tokenCache.Store(userId, token);  // Encrypted
+public interface ISecurityLogger
+{
+    void LogAuthAttempt(bool succeeded);
+}
+
+public interface ISecureTokenCache
+{
+    void Store(string sessionId, string token, TimeSpan lifetime);
+}
+
+public sealed class SecurityLogger(ILogger<SecurityLogger> logger) : ISecurityLogger
+{
+    public void LogAuthAttempt(bool succeeded) =>
+        logger.LogInformation("Authentication attempt succeeded: {Succeeded}", succeeded);
+}
+
+public sealed class ProtectedTokenCache(IMemoryCache cache, IDataProtectionProvider protection) : ISecureTokenCache
+{
+    private readonly IDataProtector _protector = protection.CreateProtector("AuthTokens");
+
+    public void Store(string sessionId, string token, TimeSpan lifetime)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(lifetime, TimeSpan.Zero);
+        cache.Set($"auth-token:{sessionId}", _protector.Protect(token), lifetime);
+    }
+}
+
+public sealed class AuthController(ISecurityLogger logger, ISecureTokenCache tokenCache)
+{
+    // Call only after verifying the credentials. Bound lifetime to token expiry.
+    public void CompleteLogin(string sessionId, string token, TimeSpan lifetime)
+    {
+        tokenCache.Store(sessionId, token, lifetime);
+        logger.LogAuthAttempt(succeeded: true);
     }
 }
 ```

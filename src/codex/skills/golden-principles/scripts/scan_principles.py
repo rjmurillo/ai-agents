@@ -20,6 +20,21 @@ import re
 import sys
 from pathlib import Path
 
+# ADR-047: this file's own plugin lib wins. The environment root is the
+# fallback for a copy outside its plugin.
+_LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+_PLUGIN_ROOT = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+if _PLUGIN_ROOT and not os.path.isfile(_LIB_DIR / "hook_utilities" / "scan_rules.py"):
+    _LIB_DIR = Path(_PLUGIN_ROOT) / "lib"
+if not os.path.isdir(_LIB_DIR):
+    raise RuntimeError(
+        f"Plugin lib not found at {_LIB_DIR}. Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT."
+    )
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from hook_utilities.scan_rules import parse_scan_rules  # noqa: E402
+
 # Allow sibling-module import of scan_principles_core when this script is run
 # directly or loaded via importlib (tests). The scripts directory is not a
 # package, so sys.path must include it for a bare ``import`` to resolve.
@@ -293,7 +308,7 @@ def run_scan(
     for filepath in files:
         if not is_safe_path(filepath):
             continue
-        if not os.path.isfile(filepath):
+        if not Path(filepath).is_file():
             continue
 
         result.files_scanned += 1
@@ -355,32 +370,14 @@ def format_json(result: ScanResult) -> str:
         "error_count": result.error_count,
         "warning_count": result.warning_count,
         "principles_adopted": result.principles_adopted,
-        "violations": [
-            {
-                "rule": v.rule,
-                "principle": v.principle,
-                "severity": v.severity,
-                "file": v.file,
-                "line": v.line,
-                "message": v.message,
-                "remediation": v.remediation,
-            }
-            for v in result.violations
-        ],
+        "violations": [v.to_dict() for v in result.violations],
     }
     return json.dumps(data, indent=2)
 
 
 def parse_rules(rules_str: str) -> tuple[str, ...]:
     """Parse comma-separated rule names."""
-    if not rules_str:
-        return ALL_RULES
-    rules = tuple(r.strip() for r in rules_str.split(","))
-    invalid = [r for r in rules if r not in ALL_RULES]
-    if invalid:
-        print(f"error: unknown rules: {', '.join(invalid)}", file=sys.stderr)
-        print(f"valid rules: {', '.join(ALL_RULES)}", file=sys.stderr)
-        sys.exit(EXIT_ERROR)
+    rules: tuple[str, ...] = parse_scan_rules(rules_str, ALL_RULES, EXIT_ERROR)
     return rules
 
 

@@ -164,7 +164,8 @@ def test_symbol_that_resolves_is_still_checked_in_a_marked_file(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """A named parameter that RealService.Run lacks is still a phantom_parameter."""
-    doc = f"# Aspire\n\n{MARKER}\n\n```csharp\nsvc.Run(bogus: 1);\n```\n\n{FOREIGN_FENCE}"
+    wrong_parameter = REAL_FENCE.replace("Run()", "Run(bogus: 1)")
+    doc = f"# Aspire\n\n{MARKER}\n\n{wrong_parameter}\n{FOREIGN_FENCE}"
     code, findings = _scan(tmp_path, capsys, doc)
 
     phantom = _by_category(findings, "phantom_parameter")

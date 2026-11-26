@@ -44,7 +44,13 @@ from checks_common import (  # noqa: E402
 _REPORT_LINES = 40
 
 
-def _run_workflow_validator(repo_root: Path, relative: str, *args: str, module: str = "") -> bool:
+def _run_workflow_validator(
+    repo_root: Path,
+    relative: str,
+    *args: str,
+    module: str = "",
+    interpreter: tuple[str, ...] = (),
+) -> bool:
     """Run one validator the way its workflow does and report a clean exit.
 
     ``module`` selects the ``-m`` form for a validator the workflow runs as a
@@ -62,7 +68,8 @@ def _run_workflow_validator(repo_root: Path, relative: str, *args: str, module: 
             return False
         raise MissingScriptSkip(f"{relative} not present")
     target = ["-m", module] if module else [str(script)]
-    exit_code, stdout, stderr = _run_subprocess([sys.executable, *target, *args], cwd=repo_root)
+    runner = list(interpreter) if interpreter else [sys.executable]
+    exit_code, stdout, stderr = _run_subprocess([*runner, *target, *args], cwd=repo_root)
     output = ((stdout or "") + (stderr or "")).strip()
     if output:
         for line in output.splitlines()[:_REPORT_LINES]:
@@ -191,6 +198,37 @@ def validate_agent_registry(repo_root: Path) -> bool:
     return _run_workflow_validator(repo_root, "scripts/validation/agent_registry.py")
 
 
+def validate_duplicate_code(repo_root: Path) -> bool:
+    """Reject new Python copy/paste blocks using the workflow's baseline ceiling."""
+    base_ref = _require_base_ref(repo_root, "Python duplication")
+    return _run_workflow_validator(
+        repo_root, "scripts/validation/check_duplicate_code.py", "--base-ref", base_ref
+    )
+
+
+def validate_unused_dependencies(repo_root: Path) -> bool:
+    """Run deptry in the same optional-dependency environment as the workflow."""
+    return _run_workflow_validator(
+        repo_root,
+        "scripts/validation/check_unused_dependencies.py",
+        interpreter=(
+            "uv",
+            "run",
+            "--frozen",
+            "--extra",
+            "dev",
+            "--extra",
+            "eval",
+            "python",
+        ),
+    )
+
+
+def validate_dependency_drift(repo_root: Path) -> bool:
+    """Compare dependency declarations across build packages."""
+    return _run_workflow_validator(repo_root, "scripts/validation/check_dependency_drift.py")
+
+
 def validate_plugin_frontmatter_self_containment(repo_root: Path) -> bool:
     """Fail when a shipped description names an upstream-only path (issue #3565)."""
     return _run_workflow_validator(
@@ -298,6 +336,23 @@ def validate_memory_placement(repo_root: Path) -> bool:
         "scripts/validation/check_memory_placement.py",
         "--ci",
         "--changed-since",
+        base_ref,
+    )
+
+
+def validate_agent_skill_doc_review(repo_root: Path) -> bool:
+    """Fail when a changed skill or agent has no page edit and no review trailer.
+
+    Runs the command the ``Check agent and skill doc review`` step runs, against
+    the same base. It diffs the working tree from the merge base and reads
+    ``Docs-Reviewed:`` trailers from the commits since the base. Rule
+    ``agent-skill-docs`` MUST 2.
+    """
+    base_ref = _require_base_ref(repo_root, "agent and skill doc review")
+    return _run_workflow_validator(
+        repo_root,
+        "scripts/validation/check_agent_skill_doc_review.py",
+        "--base-ref",
         base_ref,
     )
 

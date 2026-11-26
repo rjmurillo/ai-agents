@@ -23,23 +23,19 @@ import os
 import re
 import subprocess
 import sys
+from typing import cast
 
-_plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
-if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
-    _lib_dir = os.path.join(_plugin_root, "lib")
-else:
-    # Anchored on this file, never GITHUB_WORKSPACE: pr-maintenance runs this
-    # script from a trusted copy while the workspace may hold a PR head.
-    _lib_dir = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
-    )
-if not os.path.isdir(_lib_dir):
-    print(f"Plugin lib directory not found: {_lib_dir}", file=sys.stderr)
-    sys.exit(2)  # Config error per ADR-035
-if _lib_dir not in sys.path:
-    sys.path.insert(0, _lib_dir)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from skill_bootstrap import ensure_plugin_paths
+
+# Never resolve the lib from GITHUB_WORKSPACE. pr-maintenance runs this script
+# from a trusted copy (.trusted-helper) while the workspace may hold a PR head.
+# Passing no workspace fallback keeps resolution on this script's own tree.
+ensure_plugin_paths(__file__)
 
 from github_core.api import resolve_repo_params
+from github_core.comment_processing import add_comment_reaction as _shared_add_reaction
+from github_core.comment_processing import format_wontfix_reply, report_comment_action
 
 logger = logging.getLogger(__name__)
 
@@ -116,60 +112,11 @@ def add_comment_reaction(
     *,
     dry_run: bool = False,
 ) -> bool:
-    """Add a reaction to a comment.
-
-    Tries PR review comment endpoint first, falls back to issue comment endpoint.
-    Returns True on success. With ``dry_run`` it reports the reaction and posts nothing.
-    """
+    """Acknowledge a comment without posting when dry-run is set."""
     if dry_run:
         print(f"[dry-run] Would add {reaction} reaction to comment {comment_id}")
         return True
-    base_url = f"repos/{owner}/{repo}"
-
-    # Try PR review comment endpoint first
-    result = subprocess.run(
-        [
-            "gh",
-            "api",
-            f"{base_url}/pulls/comments/{comment_id}/reactions",
-            "-X",
-            "POST",
-            "-f",
-            f"content={reaction}",
-        ],
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    if result.returncode == 0:
-        print(f"Added {reaction} reaction to comment {comment_id}")
-        return True
-
-    # Fall back to issue comment endpoint
-    result = subprocess.run(
-        [
-            "gh",
-            "api",
-            f"{base_url}/issues/comments/{comment_id}/reactions",
-            "-X",
-            "POST",
-            "-f",
-            f"content={reaction}",
-        ],
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    if result.returncode == 0:
-        print(f"Added {reaction} reaction to comment {comment_id}")
-        return True
-
-    error_str = result.stderr.strip() or result.stdout.strip()
-    print(
-        f"WARNING: Failed to add reaction to comment {comment_id}: {error_str}",
-        file=sys.stderr,
-    )
-    return False
+    return cast(bool, _shared_add_reaction(owner, repo, comment_id, reaction))
 
 
 def reply_to_comment(
@@ -259,11 +206,7 @@ def process_comments(
         else:
             stats["errors"] += 1
 
-        if classification == "stale":
-            print("  Stale comment needs manual resolution (thread ID required)")
-            stats["skipped"] += 1
-
-        elif classification == "wontfix":
+        if classification == "wontfix":
             resolution = comment.get("resolution")
             if not resolution:
                 print(
@@ -272,30 +215,13 @@ def process_comments(
                 )
                 stats["skipped"] += 1
                 continue
-
-            body = (
-                "Thank you for the feedback. After review, "
-                "we've decided not to implement this change:\n\n"
-                f"{resolution}"
-            )
+            body = format_wontfix_reply(resolution)
             if reply_to_comment(owner, repo, pr_number, comment_id, body, dry_run=dry_run):
                 stats["replied"] += 1
             else:
                 stats["errors"] += 1
-
-        elif classification == "question":
-            summary = comment.get("summary", "")
-            print(f"  Needs human response: {summary}")
-            stats["skipped"] += 1
-
-        elif classification in ("quick-fix", "standard", "strategic"):
-            action = comment.get("action", "")
-            summary = comment.get("summary", "")
-            print(f"  Action needed: {action} - {summary}")
-            stats["skipped"] += 1
-
         else:
-            print(f"  Unknown classification '{classification}', skipping")
+            report_comment_action(classification, comment)
             stats["skipped"] += 1
 
     return stats

@@ -38,6 +38,8 @@ Four agents reviewed the spike artifacts independently. All four reached the sam
 `scripts/eval/_scoring_engine.py:17`:
 
 ```python
+import re
+
 _VERDICT_RE = re.compile(r"^\s*\*{0,2}(IDENTIFY|OK|ESCALATE)\*{0,2}\b", re.IGNORECASE)
 ```
 

@@ -60,21 +60,10 @@ import time
 from dataclasses import dataclass
 from typing import Any, NoReturn
 
-_plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
-_workspace = os.environ.get("GITHUB_WORKSPACE")
-if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
-    _lib_dir = os.path.join(_plugin_root, "lib")
-elif _workspace:
-    _lib_dir = os.path.join(_workspace, ".claude", "lib")
-else:
-    _lib_dir = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
-    )
-if not os.path.isdir(_lib_dir):
-    print(f"Plugin lib directory not found: {_lib_dir}", file=sys.stderr)
-    sys.exit(2)  # Config error per ADR-035
-if _lib_dir not in sys.path:
-    sys.path.insert(0, _lib_dir)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from skill_bootstrap import ensure_plugin_paths
+
+ensure_plugin_paths(__file__, (".claude", "lib"))
 
 from github_core.api import (
     assert_gh_authenticated,
@@ -175,6 +164,13 @@ _STRATEGY_TO_REPO_FIELD = {
 _STRATEGY_PREFERENCE = ("squash", "merge", "rebase")
 
 _BLOCKED_KEYWORDS = ("BLOCKED", "branch protection", "required status check")
+
+# GraphQL and REST core rate limits are separate budgets. When agent fleets
+# exhaust the shared GraphQL budget, ``gh pr merge`` fails with a rate-limit
+# error while the REST merge endpoint still serves the same head SHA seconds
+# later; four PRs in the 2026-11 fleet incident were merged by hand through
+# raw REST for exactly this reason. Matched case-insensitively.
+_RATE_LIMIT_KEYWORDS = ("rate limit",)
 
 # Issue #5473: GraphQL refuses outright for a PR GitHub considers part of a
 # stack. Retargeting the child to break the stack is refused too. The
@@ -596,6 +592,22 @@ def _rest_merge(
         ) from exc
 
 
+def _pr_is_merged_rest(pr: int, repo_flag: str) -> bool:
+    """REST merged-state probe for when the GraphQL budget is exhausted."""
+    try:
+        result = subprocess.run(
+            ["gh", "api", f"repos/{repo_flag}/pulls/{pr}/merge"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return False
+    return result.returncode == 0 or result.returncode == 204
+
+
 def _pr_is_merged(pr: int, repo_flag: str) -> bool:
     """Return True when GitHub reports the PR as merged.
 
@@ -614,13 +626,13 @@ def _pr_is_merged(pr: int, repo_flag: str) -> bool:
             check=False,
         )
     except subprocess.TimeoutExpired:
-        return False
+        return _pr_is_merged_rest(pr, repo_flag)
     if result.returncode != 0:
-        return False
+        return _pr_is_merged_rest(pr, repo_flag)
     try:
         return bool(json.loads(result.stdout).get("state") == "MERGED")
     except (json.JSONDecodeError, AttributeError):
-        return False
+        return _pr_is_merged_rest(pr, repo_flag)
 
 
 def _api_get_json(endpoint: str, what: str) -> dict[str, Any]:
@@ -1119,8 +1131,12 @@ def _handle_merge_failure(
         # The synchronous REST endpoint refuses a stack, so go asynchronous.
         _merge_stack_async(ctx, subject, body, output)
         return _APPROVAL_ASYNC
-    if not ctx.auto and any(kw in output for kw in _BLOCKED_KEYWORDS):
-        # GraphQL refused with a BLOCKED policy error; retry via REST once.
+    blocked_refusal = any(kw in output for kw in _BLOCKED_KEYWORDS)
+    rate_limited = any(kw in lowered for kw in _RATE_LIMIT_KEYWORDS)
+    if not ctx.auto and (blocked_refusal or rate_limited):
+        # GraphQL refused with a BLOCKED policy error (issue #4362) or died on
+        # an exhausted GraphQL rate budget (2026-11 fleet incident); retry once
+        # via the REST merge endpoint, which draws on the separate core budget.
         rest_result = _rest_merge(
             pr,
             ctx.repo_flag,
@@ -1137,6 +1153,13 @@ def _handle_merge_failure(
             if rest_data.get("merged") or _pr_is_merged(pr, ctx.repo_flag):
                 return _APPROVAL
         # REST also failed; surface the original GraphQL error.
+        if rate_limited and not blocked_refusal:
+            raise _MergeFailureError(
+                f"PR #{pr} merge hit the GraphQL rate limit and the REST fallback "
+                f"also failed: {sanitize_failure_detail(output)}",
+                3,
+                "RateLimitError",
+            )
         raise _MergeFailureError(
             f"PR #{pr} is blocked by branch protection policy: {sanitize_failure_detail(output)}\n"
             "Hint: use --auto to enable auto-merge when checks pass.",
@@ -1184,14 +1207,59 @@ def _read_back(pr: int, repo_flag: str) -> dict[str, Any] | None:
             check=False,
         )
     except subprocess.TimeoutExpired:
+        return _read_back_rest(pr, repo_flag)
+    if result.returncode != 0:
+        return _read_back_rest(pr, repo_flag)
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return _read_back_rest(pr, repo_flag)
+    return data if isinstance(data, dict) else _read_back_rest(pr, repo_flag)
+
+
+def _read_back_rest(pr: int, repo_flag: str) -> dict[str, Any] | None:
+    """Read back merge state through REST when the GraphQL read fails.
+
+    ``gh pr view`` is GraphQL, so an exhausted GraphQL budget makes the
+    post-merge verification fail even when the REST merge landed; the two
+    rate budgets are separate. Maps the REST pull object into the GraphQL
+    readback shape. REST exposes auto-merge as ``auto_merge`` with
+    ``enabled_by`` and ``merge_method``; it maps onto ``autoMergeRequest``.
+    """
+    try:
+        result = subprocess.run(
+            ["gh", "api", f"repos/{repo_flag}/pulls/{pr}"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
         return None
     if result.returncode != 0:
         return None
     try:
-        data = json.loads(result.stdout)
+        pull = json.loads(result.stdout)
     except json.JSONDecodeError:
         return None
-    return data if isinstance(data, dict) else None
+    if not isinstance(pull, dict):
+        return None
+    merged = bool(pull.get("merged"))
+    auto_merge = pull.get("auto_merge")
+    auto_request = None
+    if isinstance(auto_merge, dict):
+        auto_request = {
+            "enabledBy": {"login": (auto_merge.get("enabled_by") or {}).get("login")},
+            "mergeMethod": auto_merge.get("merge_method"),
+        }
+    return {
+        "state": "MERGED" if merged else str(pull.get("state") or "").upper(),
+        "mergeCommit": {"oid": pull.get("merge_commit_sha")} if merged else None,
+        "mergedBy": {"login": (pull.get("merged_by") or {}).get("login")} if merged else None,
+        "headRefOid": (pull.get("head") or {}).get("sha"),
+        "autoMergeRequest": auto_request,
+    }
 
 
 def _login(node: Any) -> str | None:

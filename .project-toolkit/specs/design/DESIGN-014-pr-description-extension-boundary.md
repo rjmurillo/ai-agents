@@ -32,6 +32,9 @@ any continuation character that would extend a real filename into a
 longer extension, identifier, or path component.
 
 ```python
+import re
+
+_EXT_GROUP = r"ps1|md|yml|yaml|json|cs|ts|js|py|sh|bash"
 _EXT_BOUNDARY = r"(?![A-Za-z0-9_/\\])"
 
 FILE_MENTION_PATTERNS: list[re.Pattern[str]] = [

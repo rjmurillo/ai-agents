@@ -64,16 +64,22 @@ uv run python .claude/skills/github/scripts/utils/check_github_transport.py
 
 A transport failure is an unknown, never a verdict. Do not report a PR as blocked or red because the API was unreachable. The script-to-tool map is in [`transport-routing.md`](../../src/claude/skills/github/references/transport-routing.md).
 
+Scripts share library discovery through the internal `skill_bootstrap.py` helper.
+It checks plugin-root environment variables before using the caller's fallback.
+It exits `2` when the selected library directory does not exist.
+
 **Script groups.** Each group lives under `scripts/` in the skill:
 
 | Group | Examples |
 | --- | --- |
 | `pr/` read | `get_pull_requests.py`, `get_pr_context.py`, `get_pr_checks.py`, `get_pr_check_logs.py`, `triage_red_check.py`, `get_pr_review_comments.py`, `get_pr_review_threads.py`, `get_pr_reviews.py`, `test_pr_merge_ready.py`, `why_pr_blocked.py` |
-| `pr/` write | `new_pr.py`, `post_pr_comment_reply.py`, `add_pr_review_thread_reply.py`, `resolve_pr_review_thread.py`, `set_pr_auto_merge.py`, `update_pr_branch.py`, `rerun_failed_jobs.py`, `set_pr_ready.py`, `close_pr.py`, `merge_pr.py` |
+| `pr/` write | `new_pr.py`, `post_pr_comment_reply.py`, `add_pr_review_thread_reply.py`, `resolve_pr_review_thread.py`, `set_pr_auto_merge.py`, `update_pr_branch.py`, `rerun_failed_jobs.py`, `set_pr_ready.py`, `close_pr.py`, `merge_pr.py`, `edit_pr_title.py`, `dismiss_pr_review.py` |
 | `issue/` | `get_issue_context.py`, `new_issue.py`, `close_issue.py`, `set_issue_labels.py`, `set_issue_milestone.py`, `post_issue_comment.py`, `set_issue_relationship.py`, `get_issue_relationships.py` |
 | `milestone/` | `get_latest_semantic_milestone.py`, `set_item_milestone.py` |
 | `reactions/` | `add_comment_reaction.py` (batch mode) |
 | `notifications/` | `get_actionable_items.py` |
+| `repo/` | `get_branch_protection.py` |
+| `actions/` | `get_workflow_runs.py`, `get_workflow_run.py` |
 | `utils/` | `check_github_transport.py`, `extract_github_context.py` |
 
 The full parameter list is in [`script-catalog.md`](../../src/claude/skills/github/references/script-catalog.md). Gate scripts and their exit codes are in [`gate-script-usage.md`](../../src/claude/skills/github/references/gate-script-usage.md). Run any script with `--help` first:
