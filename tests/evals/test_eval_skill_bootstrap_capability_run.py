@@ -232,6 +232,12 @@ def test_checkout_without_the_named_skill_exits_2(tmp_path, checkout, monkeypatc
         {"allowed_tools": ["Bash(*)"]},
         {"allowed_tools": ["Bash(sh:*)"]},
         {"allowed_tools": ["Bash(bash -c:*)"]},
+        {"allowed_tools": ["Bash(/bin/bash:*)"]},
+        {"allowed_tools": ["Bash(timeout 5 sh:*)"]},
+        {"allowed_tools": ["Bash(python3 -c:*)"]},
+        {"allowed_tools": ["Bash(python3:*)"]},
+        {"allowed_tools": ["Bash(find:*)"]},
+        {"allowed_tools": ["Write (x)"]},
     ],
 )
 def test_bad_skill_or_tool_grant_exits_2_before_any_run(tmp_path, checkout, monkeypatch, extra):
@@ -766,23 +772,25 @@ def test_checkout_holding_the_tasks_file_exits_2(tmp_path, monkeypatch, capsys):
     assert not out.exists()
 
 
-def test_checkout_whose_history_added_the_tasks_file_exits_2(tmp_path, monkeypatch, capsys):
+def test_checkout_whose_refs_added_the_tasks_file_exits_2(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(cap.shutil, "which", lambda name: "/bin/claude")
     monkeypatch.setattr(cap, "run_one", lambda *a: pytest.fail("run_one must not be called"))
     tasks, co = _gold_layout(tmp_path, monkeypatch)
     _git(co, "init", "-q")
+    _git(co, "add", "-A")
+    _git(co, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "skill")
     (co / "evals" / "x").mkdir(parents=True)
     (co / "evals" / "x" / "tasks.json").write_text("{}", encoding="utf-8")
     _git(co, "add", "-A")
     _git(co, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "add gold")
-    _git(co, "rm", "-q", "evals/x/tasks.json")
-    _git(co, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "drop gold")
+    _git(co, "branch", "-q", "gold")
+    _git(co, "reset", "-q", "--hard", "HEAD~1")
     out = tmp_path / "o.jsonl"
 
     code = _run([], tasks, co, out, "before")
 
     assert code == 2
-    assert "git show can reveal the gold" in capsys.readouterr().err
+    assert "refs reach evals/x/tasks.json" in capsys.readouterr().err
     assert not out.exists()
 
 

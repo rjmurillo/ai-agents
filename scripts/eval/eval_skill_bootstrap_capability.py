@@ -23,8 +23,9 @@ A tasks file may name another skill with `skill` (default `skill-bootstrap`) and
 grant it more read-only tools with `allowed_tools`, so one runner serves the
 before/after eval of any skill that answers questions about this repository.
 
-`run` refuses (exit 2) a checkout that holds the tasks file or whose HEAD history
-added it, because the agent could then read or `git show` the gold.
+`run` refuses (exit 2) a checkout that holds the tasks file or whose refs reach a
+commit that touched it, because the agent could then read or `git show` the gold.
+A linked worktree shares its main repository's refs, so run from a standalone clone.
 
 Exit codes:
     0 ok
@@ -118,17 +119,29 @@ def _check_task(path: Path, task: object, seen: set[str]) -> None:
     seen.add(task["id"])
 
 
-SHELLS = frozenset({"sh", "bash", "zsh", "dash", "env", "eval", "exec", "xargs"})
+SHELLS = frozenset(
+    {"sh", "bash", "zsh", "dash", "env", "eval", "exec", "xargs", "command", "nohup", "timeout"}
+    | {"find", "sudo", "nice", "time"}
+)
+INTERPRETERS = frozenset({"python", "python3", "node", "perl", "ruby"})
 
 
 def _loose_bash_grant(tool: str) -> bool:
-    """True for a Bash grant that is bare, wildcard-led, or runs a shell."""
+    """True for a Bash grant that is bare, wildcard-led, or can run arbitrary code.
+
+    An interpreter passes only with a script path as its first argument.
+    """
     if tool == "Bash":
         return True
     if not (tool.startswith("Bash(") and tool.endswith(")")):
         return False
-    prefix = tool[5:-1].removesuffix(":*").strip()
-    return not prefix or prefix[0] == "*" or prefix.split()[0] in SHELLS
+    words = tool[5:-1].removesuffix(":*").split()
+    if not words or words[0].startswith("*"):
+        return True
+    head = words[0].rsplit("/", 1)[-1]
+    if head in SHELLS:
+        return True
+    return head in INTERPRETERS and (len(words) < 2 or words[1].startswith(("-", "*")))
 
 
 def load_tasks(path: Path) -> dict[str, Any]:
@@ -148,7 +161,7 @@ def load_tasks(path: Path) -> dict[str, Any]:
     extra = data.get("allowed_tools", [])
     if not (isinstance(extra, list) and all(isinstance(t, str) and t.strip() for t in extra)):
         raise ValueError(f"{path}: 'allowed_tools' must be a list of non-empty strings")
-    if any(t.strip().split("(", 1)[0] in WRITE_TOOLS for t in extra):
+    if any(t.split("(", 1)[0].strip() in WRITE_TOOLS for t in extra):
         raise ValueError(f"{path}: 'allowed_tools' must not grant {', '.join(WRITE_TOOLS)}")
     if loose := [t for t in extra if _loose_bash_grant(t.strip())]:
         raise ValueError(
@@ -361,9 +374,11 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 def _gold_exposure(checkout: Path, tasks_path: Path) -> str | None:
     """Return why the checkout can see the gold, else None.
 
-    The tasks file holds the gold answers. A checkout that holds the file, or whose
-    HEAD history ever added it, lets the agent read or `git show` the answer key.
-    A tasks file outside this repository is not checked.
+    The tasks file holds the gold answers. A checkout that holds the file, or any of
+    whose refs ever touched it, lets the agent read or `git show` the answer key. A
+    linked worktree shares every ref of its main repository, so use a standalone
+    clone. A tasks file outside this repository is not checked. A git failure here
+    passes; `_checkout_head` then fails the run on a broken repository.
     """
     try:
         rel = tasks_path.resolve().relative_to(_REPO_ROOT).as_posix()
@@ -372,12 +387,12 @@ def _gold_exposure(checkout: Path, tasks_path: Path) -> str | None:
     if (checkout / rel).exists():
         return f"{checkout} holds {rel}, so the agent can read the gold"
     try:
-        proc = _git_in(checkout, "log", "-1", "--format=%h", "HEAD", "--", rel)
+        proc = _git_in(checkout, "log", "--all", "--full-history", "-1", "--format=%h", "--", rel)
     except (OSError, subprocess.TimeoutExpired) as exc:
         return f"could not check {checkout} history for {rel}: {exc}"
     if proc.returncode == 0 and proc.stdout.strip():
         sha = proc.stdout.strip()
-        return f"{checkout} HEAD history touches {rel} at {sha}, so git show can reveal the gold"
+        return f"{checkout} refs reach {rel} at {sha}, so git show can reveal the gold"
     return None
 
 
