@@ -398,9 +398,83 @@ HIDDEN = [
         [],
         "test_t",
     ),
+    # Import-time code, compile errors and hooks that hide the test.
+    (
+        "import pytest\npytest.skip('x', allow_module_level=True)\ndef test_t():\n    pass\n",
+        [],
+        "test_t",
+    ),
+    (
+        "import pytest\npytest.importorskip('no_such_module_zz')\ndef test_t():\n    pass\n",
+        [],
+        "test_t",
+    ),
+    (
+        "import pytest\nclass TestR:\n    pytest.skip('x', allow_module_level=True)\n"
+        "    def test_r(self):\n        pass\n",
+        ["TestR"],
+        "test_r",
+    ),
+    ("def test_t():\n    pass\nraise RuntimeError('x')\n", [], "test_t"),
+    ("def test_t():\n    pass\nreturn\n", [], "test_t"),
+    ("def test_t(x, x):\n    pass\n", [], "test_t"),
+    ("# coding: nonexistent_zz\ndef test_t():\n    pass\n", [], "test_t"),
+    (
+        "class TestR:\n    from os import EX_OK as __test__\n    def test_r(self):\n        pass\n",
+        ["TestR"],
+        "test_r",
+    ),
+    (
+        "class TestR:\n    match 0:\n        case __test__:\n            pass\n"
+        "    def test_r(self):\n        pass\n",
+        ["TestR"],
+        "test_r",
+    ),
+    (
+        "import pytest\ndef kill(f):\n    return None\n@pytest.mark.foo(kill)\n"
+        "def test_t():\n    pass\n",
+        [],
+        "test_t",
+    ),
+    (
+        "class mark:\n    foo = staticmethod(lambda f: None)\n@mark.foo\ndef test_t():\n    pass\n",
+        [],
+        "test_t",
+    ),
+    (
+        "import pytest\npytest.mark.kill = lambda f: None\n"
+        "@pytest.mark.kill\ndef test_t():\n    pass\n",
+        [],
+        "test_t",
+    ),
+    ("@mark.foo\ndef test_t():\n    pass\n", [], "test_t"),
+    ("import pytest\n@pytest.mark.foo.mark\ndef test_t():\n    pass\n", [], "test_t"),
+    ("@pytest.mark.foo\ndef test_t():\n    pass\nimport pytest\n", [], "test_t"),
+    ("from pytest import fixture as mark\n@mark.foo\ndef test_t():\n    pass\n", [], "test_t"),
+    ("def __getattr__(n):\n    return None\ndef test_t():\n    pass\n", [], "test_t"),
+    ("pytest_plugins = ['test_x']\ndef test_t():\n    pass\n", [], "test_t"),
+    ("def test_t():\n    yield\n", [], "test_t"),
+    ("def test_t():\n    pass\ntest_t.__dict__['__test__'] = False\n", [], "test_t"),
 ]
 # Full sources pytest collects, with decorators and switches the checker allows.
 COLLECTED = [
+    (
+        "import pytest\n@pytest.mark.usefixtures('tmp_path')\ndef test_t():\n    pass\n",
+        [],
+        "test_t",
+    ),
+    (
+        "import pytest\n@pytest.mark.skip(reason='later')\n"
+        "class TestR:\n    def test_r(self):\n        pass\n",
+        ["TestR"],
+        "test_r",
+    ),
+    ("import pytest\ndef test_t():\n    pytest.skip('inside the test is fine')\n", [], "test_t"),
+    (
+        "import pytest\n@pytest.mark.skipif(1 > 2, reason='no')\ndef test_t():\n    pass\n",
+        [],
+        "test_t",
+    ),
     ("import pytest\n@pytest.mark.parametrize('a', [1])\ndef test_t(a):\n    pass\n", [], "test_t"),
     ("from pytest import mark\n@mark.slow\ndef test_t():\n    pass\n", [], "test_t"),
     (

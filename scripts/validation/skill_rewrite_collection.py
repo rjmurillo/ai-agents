@@ -7,6 +7,8 @@ scenario names is one pytest would run.
 from __future__ import annotations
 
 import ast
+import io
+import tokenize
 from fnmatch import fnmatchcase
 from pathlib import PurePosixPath
 
@@ -40,19 +42,28 @@ def defines_test(source: str, classes: list[str], func: str) -> bool:
     Every class must start with ``Test`` and *func* with ``test_``. False means
     pytest skips the test, or no static read can prove it does not. So False for:
 
-    - a ``[param]`` id, an empty segment, or a file that does not parse
+    - a ``[param]`` id, an empty segment, a file that does not compile, or a
+      coding cookie other than UTF-8
     - any ``__test__`` store but a truthy constant, for the module, a class in
       the chain, or the test (pytest skips on a falsy one)
     - a class in the chain that binds ``__init__`` or ``__new__`` (pytest 9
       skips it, ``_pytest/python.py``), has a base, or has a decorator that is
       not a ``pytest.mark``: either can switch collection off unseen
-    - a test with a decorator that is not a ``pytest.mark`` (``@pytest.fixture``)
+    - a test with a decorator that is not a ``pytest.mark`` (``@pytest.fixture``),
+      or a mark called with one function, which pytest applies as a decorator
+    - a generator test, which pytest 9 reports as an error
     - a name a later statement rebinds, such as ``test_x = None``, even inside a
       ``try`` or ``if`` body: pytest reads the final binding
     - a ``global`` or ``nonlocal`` of a name in the id, or an attribute store such
-      as ``TestA.test_a = None``
+      as ``TestA.test_a = None`` or ``pytest.mark.x = ...``
+    - a module that binds ``__getattr__``, ``pytest`` or ``mark`` other than by
+      importing pytest, or any ``pytest_*`` name (a hook or ``pytest_plugins``)
 
-    ``setattr``, ``globals()`` and other dynamic rebinds are not read. Whether
+    - module or class code, outside a def, that holds a ``raise`` or calls a
+      ``skip``, ``importorskip``, ``exit`` or ``fail`` (a mark is not a call here)
+
+    Other code that fails at import, such as a raising default, is not read,
+    nor are ``setattr`` or ``globals()``. Whether
     the file itself is collected is ``is_collected_file``'s question, not this one's.
     """
     named_like_tests = func.startswith(PYTEST_FUNC_PREFIX) and "[" not in func
@@ -60,39 +71,116 @@ def defines_test(source: str, classes: list[str], func: str) -> bool:
         return False
     try:
         tree = ast.parse(source)
-    except SyntaxError:
+        compile(tree, "<test>", "exec")
+    except (SyntaxError, ValueError):
+        return False
+    if not _declares_utf8(source) or _module_hooks(tree) or _may_stop_at_import(tree):
         return False
     if _rebound_elsewhere(tree, {*classes, func}):
         return False
     body = tree.body
+    top = _final_binding(body, classes[0] if classes else func)
+    before = body[: body.index(top)] if top else []
+    roots = {r for node in before for r in _pytest_roots(node)}
     for name in classes:
         found = _final_binding(body, name)
-        if not (isinstance(found, ast.ClassDef) and found.name == name and _plain_class(found)):
+        if not (
+            isinstance(found, ast.ClassDef) and found.name == name and _plain_class(found, roots)
+        ):
             return False
         body = found.body
     last = _final_binding(body, func)
     funcs = (ast.FunctionDef, ast.AsyncFunctionDef)
-    return isinstance(last, funcs) and last.name == func and _marks_only(last.decorator_list)
+    if not (isinstance(last, funcs) and last.name == func):
+        return False
+    generator = any(isinstance(n, (ast.Yield, ast.YieldFrom)) for n in ast.walk(last))
+    return not generator and _marks_only(last.decorator_list, roots)
 
 
-def _plain_class(node: ast.ClassDef) -> bool:
+def _declares_utf8(source: str) -> bool:
+    """False for a coding cookie pytest would read as another encoding."""
+    readline = io.BytesIO(source.encode("utf-8")).readline
+    try:
+        encoding, _ = tokenize.detect_encoding(readline)
+    except SyntaxError:
+        return False
+    return encoding in {"utf-8", "utf-8-sig"}
+
+
+def _module_hooks(tree: ast.Module) -> bool:
+    """True when the module binds ``__getattr__``, a ``pytest_*`` name, or its own ``pytest``."""
+    for node in tree.body:
+        bound = _bound_names(node)
+        if "__getattr__" in bound or any(n.startswith("pytest_") for n in bound):
+            return True
+        if bound & {"pytest", "mark"} - _pytest_roots(node):
+            return True
+    return False
+
+
+_STOPS = frozenset({"skip", "importorskip", "exit", "fail"})
+
+
+def _may_stop_at_import(tree: ast.Module) -> bool:
+    """True when module or class code, outside a def or lambda, may raise or skip."""
+    stack: list[ast.AST] = list(tree.body)
+    while stack:
+        node = stack.pop()
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            continue
+        if isinstance(node, ast.Raise) or (isinstance(node, ast.Call) and _stops(node)):
+            return True
+        stack.extend(ast.iter_child_nodes(node))
+    return False
+
+
+def _stops(call: ast.Call) -> bool:
+    """True for a call such as ``pytest.skip(...)`` or ``importorskip(...)``, not a mark."""
+    node, parts = call.func, []
+    while isinstance(node, ast.Attribute):
+        parts.append(node.attr)
+        node = node.value
+    last = parts[0] if parts else getattr(node, "id", None)
+    return last in _STOPS and "mark" not in parts
+
+
+def _pytest_roots(node: ast.stmt) -> set[str]:
+    """``pytest`` for ``import pytest``, ``mark`` for ``from pytest import mark``, unaliased."""
+    if isinstance(node, ast.ImportFrom) and node.module == "pytest":
+        return {"mark" for a in node.names if a.name == "mark" and a.asname in (None, "mark")}
+    if isinstance(node, ast.Import):
+        return {"pytest" for a in node.names if a.name == "pytest" and a.asname in (None, "pytest")}
+    return set()
+
+
+def _plain_class(node: ast.ClassDef, roots: set[str]) -> bool:
     """No base, no decorator but a mark, and no constructor binding."""
-    if node.bases or node.keywords or not _marks_only(node.decorator_list):
+    if node.bases or node.keywords or not _marks_only(node.decorator_list, roots):
         return False
     return not any(_bound_names(n) & _CONSTRUCTORS for n in node.body)
 
 
-def _marks_only(decorators: list[ast.expr]) -> bool:
-    """True when every decorator is ``pytest.mark.<x>`` or ``mark.<x>``, called or not."""
+def _marks_only(decorators: list[ast.expr], roots: set[str]) -> bool:
+    """True when every decorator is ``pytest.mark.<x>`` or ``mark.<x>``, called or not.
+
+    *roots* holds ``pytest`` or ``mark`` when an import above the test binds it.
+    """
     for decorator in decorators:
-        node = decorator.func if isinstance(decorator, ast.Call) else decorator
+        call = decorator if isinstance(decorator, ast.Call) else None
+        # pytest applies a mark called with one function or class as a decorator.
+        callables = (ast.Name, ast.Attribute, ast.Lambda)
+        if call and len(call.args) == 1 and not call.keywords:
+            if isinstance(call.args[0], callables):
+                return False
+        node = call.func if call else decorator
         parts: list[str] = []
         while isinstance(node, ast.Attribute):
             parts.insert(0, node.attr)
             node = node.value
         chain = ([node.id] if isinstance(node, ast.Name) else []) + parts
-        start = 2 if chain[:2] == ["pytest", "mark"] else 1 if chain[:1] == ["mark"] else 0
-        if not start or len(chain) <= start:
+        root = chain[0] if chain and chain[0] in roots else None
+        full = ["pytest", *chain] if root == "mark" else chain
+        if root is None or len(full) != 3 or full[1] != "mark":
             return False
     return True
 
@@ -108,19 +196,29 @@ def _rebound_elsewhere(tree: ast.Module, names: set[str]) -> bool:
     for node in ast.walk(tree):
         if isinstance(node, (ast.Assign, ast.AnnAssign)) and isinstance(node.value, ast.Constant):
             targets = node.targets if isinstance(node, ast.Assign) else [node.target]
-            safe |= {id(t) for t in targets} if node.value.value else set()
+            safe |= {id(node), *(id(t) for t in targets)} if node.value.value else set()
     for node in ast.walk(tree):
         if isinstance(node, (ast.Global, ast.Nonlocal)) and names & set(node.names):
             return True
-        if id(node) in safe or not isinstance(getattr(node, "ctx", None), (ast.Store, ast.Del)):
+        if id(node) in safe:
             continue
-        if isinstance(node, ast.Name) and node.id == "__test__":
+        if isinstance(node, ast.stmt) and "__test__" in _bound_names(node):
             return True
-        if isinstance(node, ast.Attribute) and (
-            node.attr in names or (node.attr == "__test__" and _root_name(node) in names)
-        ):
+        if isinstance(node, (ast.Attribute, ast.Subscript)) and _stores_over(node, names):
             return True
     return False
+
+
+def _stores_over(node: ast.Attribute | ast.Subscript, names: set[str]) -> bool:
+    """True when *node* stores to an id name, any ``__test__`` key, or anything under ``pytest``."""
+    if not isinstance(node.ctx, (ast.Store, ast.Del)):
+        return False
+    if isinstance(node, ast.Subscript):
+        key = node.slice
+        return isinstance(key, ast.Constant) and key.value in {"__test__", *names}
+    root = _root_name(node)
+    switch = node.attr == "__test__" and root in names
+    return node.attr in names or switch or root in {"pytest", "mark"}
 
 
 def _root_name(node: ast.expr) -> str | None:
