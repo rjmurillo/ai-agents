@@ -98,6 +98,7 @@ These bind today.
 | [ADR-018](ADR-018-cache-invalidation-strategy.md) | Cache Invalidation Strategy for GitHub Data | 2025-12-23 | Primary: Option 2 (Session-Local Cache) for simplicity Secondary: Option 3 (cloudmcp) when cross-session benefit is critical |
 | [ADR-019](ADR-019-script-organization.md) | Script Organization and Usage Patterns | 2025-12-23 | Establish a hierarchical script organization based on intended audience and execution context: |
 | [ADR-021](ADR-021-model-routing-strategy.md) | AI Review Model Routing Strategy | 2025-12-23 | Adopt an evidence-aware, tiered model routing strategy that routes AI review requests to specialized models based on: |
+| [ADR-022](ADR-022-architecture-governance-split-criteria.md) | Architecture vs Governance Decision Split Criteria | 2026-11-26 | Adopt a hybrid approach with explicit split criteria: |
 | [ADR-023](ADR-023-quality-gate-prompt-testing.md) | Quality Gate Prompt Structural Validation | 2025-12-26 | Chosen option: "Pester Structural Tests", because it provides immediate, repeatable validation of prompt structure with minimal infrastructure overhead, while acknowledging that runtime behavioral... |
 | [ADR-026](ADR-026-pr-automation-concurrency-and-safety.md) | PR Automation Concurrency and Safety Controls | 2026-07-27 | Decision: Use GitHub Actions `concurrency` group instead of file-based locking. |
 | [ADR-029](ADR-029-skill-file-line-ending-normalization.md) | Skill File Line Ending Normalization | 2025-12-27 | Force LF line endings for all `*.skill` files using git attributes: |
@@ -168,14 +169,7 @@ Recorded, not yet binding. The last column is what each record says is holding i
 
 | ADR | Title | Date | Decision | Blocking acceptance |
 | --- | --- | --- | --- | --- |
-| [ADR-011](ADR-011-session-state-mcp.md) | Session State MCP | 2025-12-21 | Create a Session State MCP that: | - |
-| [ADR-012](ADR-012-skill-catalog-mcp.md) | Skill Catalog MCP | 2025-12-21 | Create a Skill Catalog MCP that: | - |
-| [ADR-013](ADR-013-agent-orchestration-mcp.md) | Agent Orchestration MCP | 2025-12-21 | Create an Agent Orchestration MCP that: | - |
-| [ADR-020](ADR-020-feature-request-review-step.md) | Feature Request Review Step in Issue Triage Workflow | 2025-12-19 | Chosen option: Option 1 - New Conditional Step with Analyst Agent | - |
-| [ADR-022](ADR-022-architecture-governance-split-criteria.md) | Architecture vs Governance Decision Split Criteria | 2025-12-23 | Adopt a hybrid approach with explicit split criteria: | - |
-| [ADR-027](ADR-027-github-mcp-agent-isolation.md) | GitHub MCP Server with Agent Isolation Pattern | 2025-12-23 | Chosen option: Phased Hybrid Approach with GitHub MCP as Target Architecture | - |
 | [ADR-038](ADR-038-reflexion-memory-schema.md) | Reflexion Memory Schema | 2026-01-01 | Implement a Four-Tier Reflexion Memory Schema with episodic replay and causal graph capabilities. | - |
-| [ADR-048](ADR-048-mcp-tool-ecosystem-expansion.md) | MCP Tool Ecosystem Expansion | 2026-02-23 | Expand the MCP tool ecosystem in four phases, building on existing ADRs: | - |
 | [ADR-049](ADR-049-pre-pr-validation-gates.md) | Pre-PR Validation Gates | 2026-02-24 | All PRs MUST pass a local validation gate before creation. | - |
 | [ADR-065](ADR-065-orchestrator-as-router.md) | Orchestrator Is a Deterministic Router and Retry Policy, Not a Supervisor | 2026-05-29 | The orchestrator is a deterministic router with a retry policy. | - |
 | [ADR-067](ADR-067-validate-pr-change-claim-context.md) | validate-pr Check 1 default-flip - change-claim context required | 2026-06-02 | Adopt Option (c) Hybrid: keep patterns 1 (bold `path.ext`) and 2 (bullet-list `^[-*+] path.ext`) firing in any context. | - |
@@ -208,6 +202,7 @@ Superseded or deprecated. Do not cite these. The last column is where the decisi
 | [ADR-005](ADR-005-powershell-only-scripting.md) | PowerShell-Only Scripting Standard | superseded | [ADR-042](ADR-042-python-migration-strategy.md) |
 | [ADR-007](ADR-007-memory-first-architecture.md) | Memory-First Architecture | superseded | [ADR-106](ADR-106-serena-only-memory-architecture.md) |
 | [ADR-010](ADR-010-quality-gates-evaluator-optimizer.md) | Quality Gates with Evaluator-Optimizer Pattern | deprecated | not recorded |
+| [ADR-020](ADR-020-feature-request-review-step.md) | Feature Request Review Step in Issue Triage Workflow | deprecated | not recorded |
 | [ADR-024](ADR-024-github-actions-runner-selection.md) | GitHub Actions Runner Selection | superseded | [ADR-055](ADR-055-github-actions-runner-selection.md) |
 | [ADR-025](ADR-025-github-actions-arm-runners.md) | GitHub Actions ARM Runner Migration | superseded | [ADR-055](ADR-055-github-actions-runner-selection.md) |
 | [ADR-028](ADR-028-powershell-output-schema-consistency.md) | PowerShell Output Schema Consistency | superseded | [ADR-103](ADR-103-skill-output-python-contract-correction.md) (via ADR-056) |
@@ -229,8 +224,13 @@ Considered and declined. Kept visible so the proposal is findable and does not r
 
 | ADR | Title | Date | Decision |
 | --- | --- | --- | --- |
+| [ADR-011](ADR-011-session-state-mcp.md) | Session State MCP | 2026-11-26 | Create a Session State MCP that: |
+| [ADR-012](ADR-012-skill-catalog-mcp.md) | Skill Catalog MCP | 2026-11-26 | Create a Skill Catalog MCP that: |
+| [ADR-013](ADR-013-agent-orchestration-mcp.md) | Agent Orchestration MCP | 2026-11-26 | Create an Agent Orchestration MCP that: |
+| [ADR-027](ADR-027-github-mcp-agent-isolation.md) | GitHub MCP Server with Agent Isolation Pattern | 2026-11-26 | Chosen option: Phased Hybrid Approach with GitHub MCP as Target Architecture |
 | [ADR-030](ADR-030-skills-pattern-superiority.md) | Skills Pattern Superiority | 2026-08-25 | - |
 | [ADR-031](ADR-031-hybrid-powershell-architecture.md) | Hybrid PowerShell Architecture for Claude Code Performance | 2026-08-25 | Implement a hybrid architecture for PowerShell skill execution: |
+| [ADR-048](ADR-048-mcp-tool-ecosystem-expansion.md) | MCP Tool Ecosystem Expansion | 2026-11-26 | Expand the MCP tool ecosystem in four phases, building on existing ADRs: |
 | [ADR-061](ADR-061-hook-matcher-shims-delegate-pattern.md) | Hook Matcher Shims Delegate to Canonical Body | 2026-08-25 | Amend REQ-003-007 step 5 so the generator emits delegate shims, not inline-body shims. |
 | [ADR-090](ADR-090-pr-branch-holder-lease.md) | PR Branch Holder Lease | 2026-10-13 | Adopt a fail-closed, PR-comment-backed holder lease for PR branch mutation. |
 | [ADR-095](ADR-095-scoped-re-review-axes.md) | Scoped re-review runs only the axes that flagged (rejected) | 2026-08-15 | - |
