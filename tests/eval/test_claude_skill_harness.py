@@ -404,17 +404,26 @@ class TestChildEnv:
         assert env["CLAUDE_CONFIG_DIR"] == str(tmp_path / "operator")
         assert "CLAUDE_CODE_OAUTH_TOKEN" not in env
 
+    @pytest.mark.parametrize("real_home", [False, True])
     def test_real_home_keeps_home_and_sets_no_config_dir(
-        self, claude_env: pytest.MonkeyPatch, tmp_path: Path
+        self, claude_env: pytest.MonkeyPatch, tmp_path: Path, real_home: bool
     ) -> None:
-        claude_env.delenv("CLAUDE_CODE_OAUTH_TOKEN")
+        """A token run relocates the config dir, except under the real-HOME opt-in."""
         claude_env.setenv("HOME", str(tmp_path))
-        claude_env.setenv(_claude_cli.REAL_HOME_ENV, "1")
-        login = _claude_cli.ResolvedCredential(_claude_cli.STEP_EXISTING_LOGIN, None)
+        claude_env.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "operator"))
+        if real_home:
+            claude_env.setenv(_claude_cli.REAL_HOME_ENV, "1")
+        else:
+            claude_env.delenv(_claude_cli.REAL_HOME_ENV, raising=False)
+        token = _claude_cli.ResolvedCredential(_claude_cli.STEP_ENV, "tok")
 
         env = _claude_cli._ClaudeCLIProvider()._build_env(
-            tmp_path / "profile", login, inherit=False
+            tmp_path / "profile", token, inherit=False
         )
 
         assert env["HOME"] == str(tmp_path)
-        assert "CLAUDE_CONFIG_DIR" not in env
+        assert env["CLAUDE_CODE_OAUTH_TOKEN"] == "tok"
+        if real_home:
+            assert "CLAUDE_CONFIG_DIR" not in env
+        else:
+            assert env["CLAUDE_CONFIG_DIR"] == str(tmp_path / "profile")
