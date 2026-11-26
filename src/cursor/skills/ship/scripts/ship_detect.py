@@ -205,18 +205,22 @@ def _ado_user(root: Path) -> str | Halt:
 def unsafe_checkout(root: Path) -> Halt | None:
     """On Windows, a Halt when ``root`` holds a file CreateProcess would run for git, gh, or az.
 
-    CreateProcess searches the current directory before ``PATH``, and helpers run
-    with the checkout root as their directory, so a committed ``git.exe`` would
+    CreateProcess searches the current directory before ``PATH``. Helpers run
+    with the checkout root as their directory, and an in-process spawn uses this
+    process's directory, so both are checked: a committed ``git.exe`` there would
     run in place of git (CWE-427). Elsewhere the check does not apply.
     """
     if not common.on_windows():
         return None
-    planted = windows_mod.planted_programs(root)
+    places = dict.fromkeys([root.resolve(), Path.cwd().resolve()])
+    planted = [
+        str(place / name) for place in places for name in windows_mod.planted_programs(place)
+    ]
     if not planted:
         return None
     detail = (
-        f"the checkout root holds {', '.join(planted)}, which Windows would run instead "
-        "of the installed program; remove or rename it"
+        f"{', '.join(planted)} would run instead of the installed program on Windows; "
+        "remove or rename it"
     )
     return Halt("unsafe-checkout", common.EXIT_CONFIG, detail)
 

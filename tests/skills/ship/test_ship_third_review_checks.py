@@ -48,6 +48,20 @@ class TestUnsafeCheckout:
         assert "git.exe" in lines[-1]
         assert "az.cmd" in lines[-1]
 
+    def test_windows_checks_the_current_directory_too(
+        self, make_repo, fakes, scripts, capsys, windows, monkeypatch
+    ):
+        repo = make_repo(GITHUB)
+        sub = repo / "docs"
+        sub.mkdir()
+        (sub / "git.exe").write_text("not the real program\n", encoding="utf-8")
+        monkeypatch.chdir(sub)
+        code, lines = invoke(scripts[1], [], capsys)
+        assert code == 2
+        assert lines[-1].startswith("STOP: unsafe-checkout")
+        assert "docs" in lines[-1]
+        assert "git.exe" in lines[-1]
+
     def test_windows_with_a_clean_root_passes(self, make_repo, fakes, scripts, capsys, windows):
         repo = make_repo(GITHUB)
         (repo / "notes.exe").write_text("not a spawned program\n", encoding="utf-8")
