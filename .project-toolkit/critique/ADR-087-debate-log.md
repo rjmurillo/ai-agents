@@ -257,6 +257,7 @@ CodeRabbit follow-ups on resolved threads, after the round cap: twelve asks for 
 - An unreadable directory inside the scorer's own run directory stops the digest (fails closed).
 - A `trusted_paths` entry containing `scripts/eval/` digests its caches (fails closed).
 - Baseline coverage against a launcher-owned inventory: noted on #7689.
+- A failed baseline scoring run restores the artifact but does not re-check protected paths, so a crash after tampering reports as a scorer error (Cursor, after the cap).
 
 ## Dissent and residual risk
 
