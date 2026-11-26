@@ -191,28 +191,34 @@ class TestScenarioFile:
         assert code == 1
         assert f"{SCEN} repeats scenario ids ['S1']" in out
 
-    def test_expected_verdict_outside_verdict_options_blocks(
-        self, repo: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        """The runner rejects this corpus, so the gate must not accept it either."""
+    @staticmethod
+    def _options_outside_label() -> bytes:
         doc = json.loads(scenario_doc())
         doc["scenarios"][0]["verdict_options"] = ["STOP", "HOLD"]
-        write(repo, SCEN, json.dumps(doc))
-        commit(repo, "label outside its options")
-        code, out = run_gated(repo, capsys, evidence=False)
-        assert code == 1
-        assert "fails the eval runner's scenario checks" in out
-        assert "is not in verdict_options" in out
+        return json.dumps(doc).encode()
 
-    def test_a_utf16_scenario_file_is_a_finding_not_a_crash(
-        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    @pytest.mark.parametrize(
+        ("corpus", "detail"),
+        [
+            ("options", "is not in verdict_options"),
+            ("utf16", "codec can't decode"),
+        ],
+    )
+    def test_a_corpus_the_runner_rejects_is_a_finding(
+        self, repo: Path, capsys: pytest.CaptureFixture[str], corpus: str, detail: str
     ) -> None:
-        """json.loads reads UTF-16, the runner's strict UTF-8 decode does not."""
-        write(repo, SCEN, scenario_doc().encode("utf-16"))
-        commit(repo, "utf-16 corpus")
+        """The gate runs the runner's own parse, and a decode error is a finding, not a crash."""
+        data = (
+            self._options_outside_label()
+            if corpus == "options"
+            else scenario_doc().encode("utf-16")
+        )
+        write(repo, SCEN, data)
+        commit(repo, f"corpus the runner rejects: {corpus}")
         code, out = run_gated(repo, capsys, evidence=False)
         assert code == 1
         assert "fails the eval runner's scenario checks" in out
+        assert detail in out
 
     def test_ids_that_differ_only_in_case_are_distinct(
         self, repo: Path, capsys: pytest.CaptureFixture[str]
