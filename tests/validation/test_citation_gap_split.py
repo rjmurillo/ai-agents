@@ -101,14 +101,29 @@ def test_split_without_spans_lands_at_the_gap_midpoint() -> None:
     assert abs(point - (prev_end + (next_start - prev_end) // 2)) <= len("plain")
 
 
-def test_split_stays_inside_an_empty_gap() -> None:
-    """Adjacent citations leave no gap; the split cannot move off it."""
+def test_adjacent_citations_split_inside_their_empty_gap() -> None:
     line = f"`{HOOK}:1``{TARGET}:3`"
     matches = list(_CITATION.finditer(line))
 
     point = _gap_split(line, matches[0].end(), matches[1].start())
 
     assert matches[0].end() <= point <= matches[1].start()
+
+
+def test_split_is_clamped_when_one_span_holds_both_citations() -> None:
+    """The snap jumps to the span start, before the first citation.
+
+    The clamp pulls it back into the gap, so each segment keeps its citation.
+    """
+    line = f"`{HOOK}:1 then {TARGET}:3`"
+    matches = list(_CITATION.finditer(line))
+    prev_end, next_start = matches[0].end(), matches[1].start()
+
+    point = _gap_split(line, prev_end, next_start)
+
+    assert prev_end <= point <= next_start
+    assert f"{HOOK}:1" in _same_line_segment(line, matches, 0)
+    assert f"{TARGET}:3" in _same_line_segment(line, matches, 1)
 
 
 def _inventory_repo(tmp_path: Path, second_anchors: tuple[str, str]) -> Path:
