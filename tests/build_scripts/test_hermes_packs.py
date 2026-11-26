@@ -306,6 +306,7 @@ def test_check_reports_and_generate_removes_a_stale_file(tmp_path: Path) -> None
 def test_bytecode_caches_are_not_stale_output(tmp_path: Path, cache: str) -> None:
     """A test run writes caches beside shipped scripts; --check must not count them."""
     repo = make_repo(tmp_path)
+    subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True, timeout=60)
     stanza = make_stanza()
     hermes_packs.generate_hermes_packs(stanza, repo)
     path = repo / cache
@@ -327,6 +328,41 @@ def test_tracked_bytecode_is_still_stale_output(tmp_path: Path) -> None:
     payload.write_bytes(b"payload")
     for args in (["init", "-q"], ["add", "-f", "--", str(payload)]):
         subprocess.run(["git", "-C", str(repo), *args], check=True, timeout=60)
+
+    assert hermes_packs.generate_hermes_packs(stanza, repo, check=True) == 1
+
+
+def test_caches_count_when_git_cannot_list_tracked_files(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Outside a repository the scan cannot tell a cache from a payload, so it fails closed."""
+    repo = make_repo(tmp_path)
+    stanza = make_stanza()
+    hermes_packs.generate_hermes_packs(stanza, repo)
+    cache = repo / "src/hermes/project-toolkit-one/skills/beta/scripts/__pycache__/x.pyc"
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_bytes(b"cache")
+
+    assert hermes_packs.generate_hermes_packs(stanza, repo, check=True) == 1
+    assert "git ls-files failed" in capsys.readouterr().err
+
+
+def test_inherited_git_location_vars_are_ignored(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A hook's GIT_DIR for another tree must not hide a payload tracked in this one."""
+    repo = make_repo(tmp_path / "repo")
+    stanza = make_stanza()
+    hermes_packs.generate_hermes_packs(stanza, repo)
+    payload = repo / "src/hermes/project-toolkit-one/skills/beta/scripts/__pycache__/x.pyc"
+    payload.parent.mkdir(parents=True, exist_ok=True)
+    payload.write_bytes(b"payload")
+    for args in (["init", "-q"], ["add", "-f", "--", str(payload)]):
+        subprocess.run(["git", "-C", str(repo), *args], check=True, timeout=60)
+    other = tmp_path / "other"
+    other.mkdir()
+    subprocess.run(["git", "-C", str(other), "init", "-q"], check=True, timeout=60)
+    monkeypatch.setenv("GIT_DIR", str(other / ".git"))
 
     assert hermes_packs.generate_hermes_packs(stanza, repo, check=True) == 1
 

@@ -27,6 +27,7 @@ EXIT CODES (ADR-035)
 from __future__ import annotations
 
 import json
+import os
 import stat
 import subprocess
 import sys
@@ -227,17 +228,30 @@ def _matches(dst: Path, packed: PackFile) -> bool:
     return bool(dst.read_bytes() == packed.data)
 
 
-def _tracked_files(root: Path) -> set[str]:
-    """Paths under ``root`` that git tracks, or an empty set outside a repository."""
+_GIT_LOCATION_VARS = ("GIT_DIR", "GIT_INDEX_FILE", "GIT_WORK_TREE", "GIT_COMMON_DIR")
+
+
+def _tracked_files(root: Path) -> set[str] | None:
+    """Paths under ``root`` that git tracks, or None when git cannot say.
+
+    A hook can export the git location variables for another tree, so they
+    are cleared and git finds the repository from ``root`` itself.
+    """
+    env = {k: v for k, v in os.environ.items() if k not in _GIT_LOCATION_VARS}
     try:
         out = subprocess.run(
             ["git", "-C", str(root), "ls-files", "-z", "--", "."],
             capture_output=True,
             check=True,
             timeout=60,
+            env=env,
         ).stdout
-    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
-        return set()
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+        print(
+            f"Warning: git ls-files failed under {root}; caches count as stale: {exc}",
+            file=sys.stderr,
+        )
+        return None
     return {p for p in out.decode("utf-8", "replace").split("\0") if p}
 
 
@@ -250,6 +264,7 @@ def _existing_files(root: Path) -> set[str]:
     ``build_all.py --check`` after a test run report them as stale output.
     A tracked bytecode file is never planned output, so it still counts:
     a force-added ``.pyc`` would run on import in a consumer's install.
+    When git cannot list tracked files, every cache counts (fail closed).
     """
     if not root.is_dir():
         return set()
@@ -259,6 +274,8 @@ def _existing_files(root: Path) -> set[str]:
         if path.is_symlink() or path.is_file()
     }
     tracked = _tracked_files(root)
+    if tracked is None:
+        return files
     return {f for f in files if f in tracked or not is_bytecode_artifact(Path(f))}
 
 
