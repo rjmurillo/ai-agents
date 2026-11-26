@@ -25,7 +25,10 @@ from scripts.hook_utilities.frontmatter_block import (
 )
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_FENCE = re.compile(r"^\s*(`{3,}|~{3,})")
+# CommonMark 4.5: a fence marker may be indented at most 3 spaces. Four or more
+# make an indented code line, not a fence. Fences nested in list items are not
+# modeled; no scanned agent file indents a fence past 3 spaces.
+_FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 
 
 @dataclass(frozen=True)
@@ -67,7 +70,7 @@ def prose_lines(body: str) -> tuple[list[tuple[int, str]], bool]:
     """Return ``(line_number, text)`` for body lines outside fenced code blocks.
 
     A fence closes on a marker of the same character that is at least as long
-    as the opener, with nothing after it on the line. The second value is True
+    as the opener, with only spaces or tabs after it. The second value is True
     when a fence is still open at the end of the body: every line after the
     opener was dropped, so a caller that treats the drop as "no prose" would
     pass content it never read.

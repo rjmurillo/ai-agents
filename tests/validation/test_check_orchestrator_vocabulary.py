@@ -133,6 +133,16 @@ class TestScanFails:
         text = _text("```text\ncode\n```\t\nYou coach them.")
         assert gate.scan_text(text) == [f"line {_line_of(text, 'You coach')}: 'coach'"]
 
+    def test_four_space_indent_is_not_a_fence(self) -> None:
+        text = _text("    ```\n\nYou supervise workers.\n\n    ```")
+        assert gate.scan_text(text) == [f"line {_line_of(text, 'You supervise')}: 'supervise'"]
+
+    def test_double_backtick_code_span_is_not_prose(self) -> None:
+        assert gate.scan_text(_text("Call ``cloudmcp-manager/search`` for memory.")) == []
+
+    def test_code_span_with_inner_backtick_is_not_prose(self) -> None:
+        assert gate.scan_text(_text("Run ``a `manager` b`` here.")) == []
+
     def test_unclosed_fence_is_a_finding(self) -> None:
         findings = gate.scan_text(_text("Route it.\n```text\nYou supervise the worker."))
         assert findings == [

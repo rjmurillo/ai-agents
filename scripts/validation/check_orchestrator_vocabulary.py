@@ -84,7 +84,9 @@ BANNED = re.compile(
 # A code span may wrap onto the next line inside one paragraph (CommonMark 6.1),
 # so the span pattern crosses single newlines. Paragraphs are scanned whole,
 # which keeps a span from crossing a blank line.
-_INLINE_CODE = re.compile(r"`[^`]*`")
+# A code span opens and closes on backtick runs of equal length (CommonMark 6.1),
+# so ``a `b` c`` is one span.
+_INLINE_CODE = re.compile(r"(?<!`)(`+)(?!`)[\s\S]*?(?<!`)\1(?!`)")
 
 
 def _mask_code(text: str) -> str:
