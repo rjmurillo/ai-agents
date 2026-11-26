@@ -27,9 +27,7 @@ EXIT CODES (ADR-035)
 from __future__ import annotations
 
 import json
-import os
 import stat
-import subprocess
 import sys
 from collections.abc import Iterable
 from pathlib import Path
@@ -43,7 +41,6 @@ from atomic_write import (  # noqa: E402
     read_bytes_no_redirect,
     reject_symlinked_ancestors,
 )
-from binplace_manifest import is_bytecode_artifact  # noqa: E402
 from frontmatter_key_drop import (  # noqa: E402
     drop_keys_from_skill_md,
     split_fenced_frontmatter,
@@ -55,6 +52,7 @@ from hermes_pack_checks import (  # noqa: E402
     check_pack_limits,
     check_references,
     discover_skills,
+    drop_untracked_caches,
     find_references,
     skill_files,
 )
@@ -228,33 +226,6 @@ def _matches(dst: Path, packed: PackFile) -> bool:
     return bool(dst.read_bytes() == packed.data)
 
 
-_GIT_LOCATION_VARS = ("GIT_DIR", "GIT_INDEX_FILE", "GIT_WORK_TREE", "GIT_COMMON_DIR")
-
-
-def _tracked_files(root: Path) -> set[str] | None:
-    """Paths under ``root`` that git tracks, or None when git cannot say.
-
-    A hook can export the git location variables for another tree, so they
-    are cleared and git finds the repository from ``root`` itself.
-    """
-    env = {k: v for k, v in os.environ.items() if k not in _GIT_LOCATION_VARS}
-    try:
-        out = subprocess.run(
-            ["git", "-C", str(root), "ls-files", "-z", "--", "."],
-            capture_output=True,
-            check=True,
-            timeout=60,
-            env=env,
-        ).stdout
-    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
-        print(
-            f"Warning: git ls-files failed under {root}; caches count as stale: {exc}",
-            file=sys.stderr,
-        )
-        return None
-    return {p for p in out.decode("utf-8", "replace").split("\0") if p}
-
-
 def _existing_files(root: Path) -> set[str]:
     """Files under ``root``, minus untracked bytecode caches.
 
@@ -273,10 +244,8 @@ def _existing_files(root: Path) -> set[str]:
         for path in root.rglob("*")
         if path.is_symlink() or path.is_file()
     }
-    tracked = _tracked_files(root)
-    if tracked is None:
-        return files
-    return {f for f in files if f in tracked or not is_bytecode_artifact(Path(f))}
+    kept: set[str] = drop_untracked_caches(root, files)
+    return kept
 
 
 def _prune_empty_dirs(root: Path) -> None:

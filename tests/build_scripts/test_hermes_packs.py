@@ -367,6 +367,39 @@ def test_inherited_git_location_vars_are_ignored(
     assert hermes_packs.generate_hermes_packs(stanza, repo, check=True) == 1
 
 
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        ("GIT_CONFIG_PARAMETERS", "'core.worktree={other}'"),
+        ("GIT_CONFIG_COUNT", "1"),
+    ],
+)
+def test_inherited_git_config_injection_is_ignored(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str, value: str
+) -> None:
+    """Injected git config must not hide a tracked payload.
+
+    The property holds two ways: the variables are cleared, and if they were not,
+    git would error on the foreign worktree and the scan would fail closed.
+    """
+    repo = make_repo(tmp_path / "repo")
+    stanza = make_stanza()
+    hermes_packs.generate_hermes_packs(stanza, repo)
+    payload = repo / "src/hermes/project-toolkit-one/skills/beta/scripts/__pycache__/x.pyc"
+    payload.parent.mkdir(parents=True, exist_ok=True)
+    payload.write_bytes(b"payload")
+    for args in (["init", "-q"], ["add", "-f", "--", str(payload)]):
+        subprocess.run(["git", "-C", str(repo), *args], check=True, timeout=60)
+    other = tmp_path / "other"
+    other.mkdir()
+    monkeypatch.setenv(name, value.format(other=other))
+    if name == "GIT_CONFIG_COUNT":
+        monkeypatch.setenv("GIT_CONFIG_KEY_0", "core.worktree")
+        monkeypatch.setenv("GIT_CONFIG_VALUE_0", str(other))
+
+    assert hermes_packs.generate_hermes_packs(stanza, repo, check=True) == 1
+
+
 def test_generate_removes_a_retired_pack_directory(tmp_path: Path) -> None:
     repo = make_repo(tmp_path)
     hermes_packs.generate_hermes_packs(make_stanza(), repo)
