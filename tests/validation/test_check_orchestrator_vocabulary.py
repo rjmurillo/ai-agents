@@ -130,7 +130,8 @@ class TestScanFails:
         assert gate.scan_text(_text(body)) == []
 
     def test_tab_after_a_fence_still_closes_it(self) -> None:
-        assert gate.scan_text(_text("```text\ncode\n```\t\nYou coach them.")) != []
+        text = _text("```text\ncode\n```\t\nYou coach them.")
+        assert gate.scan_text(text) == [f"line {_line_of(text, 'You coach')}: 'coach'"]
 
     def test_unclosed_fence_is_a_finding(self) -> None:
         findings = gate.scan_text(_text("Route it.\n```text\nYou supervise the worker."))
