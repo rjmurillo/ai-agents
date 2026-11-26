@@ -27,33 +27,31 @@ from tests.validation.skill_rewrite_helpers import (
 
 __all__ = ["repo"]
 
+Capsys = pytest.CaptureFixture[str]
+
 
 class TestScenarioFile:
-    def test_missing_scenario_file(self, repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_missing_scenario_file(self, repo: Path, capsys: Capsys) -> None:
         git(repo, "rm", "-q", SCEN)
         commit(repo, "drop scenarios")
         code, out = run_gated(repo, capsys, evidence=False)
         assert code == 1
         assert f"{SCEN} does not exist" in out
 
-    def test_invalid_scenario_json(self, repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_invalid_scenario_json(self, repo: Path, capsys: Capsys) -> None:
         write(repo, SCEN, "{")
         commit(repo, "break")
         code, out = run_gated(repo, capsys, evidence=False)
         assert code == 1
         assert "is not valid scenario JSON" in out
 
-    def test_top_level_array_corpus_is_accepted(
-        self, repo: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_top_level_array_corpus_is_accepted(self, repo: Path, capsys: Capsys) -> None:
         write(repo, SCEN, json.dumps(json.loads(scenario_doc())["scenarios"]))
         commit(repo, "array corpus")
         code, out = run_gated(repo, capsys)
         assert code == 0, out
 
-    def test_duplicate_ids_do_not_satisfy_the_floors(
-        self, repo: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_duplicate_ids_do_not_satisfy_the_floors(self, repo: Path, capsys: Capsys) -> None:
         rows = [{"id": "S1", "desc": "d", "input": "i", "expected_verdict": "GO"}] * 8
         on_main(repo, {SCEN: json.dumps({"scenarios": rows})}, "eight copies of one scenario")
         driver_change(repo)
@@ -79,7 +77,7 @@ class TestScenarioFile:
         ],
     )
     def test_a_corpus_the_runner_rejects_is_a_finding(
-        self, repo: Path, capsys: pytest.CaptureFixture[str], corpus: str, detail: str
+        self, repo: Path, capsys: Capsys, corpus: str, detail: str
     ) -> None:
         """The gate runs the runner's own parse, and a decode error is a finding, not a crash."""
         data = (
@@ -94,9 +92,7 @@ class TestScenarioFile:
         assert "fails the eval runner's scenario checks" in out
         assert detail in out
 
-    def test_ids_that_differ_only_in_case_are_distinct(
-        self, repo: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_ids_that_differ_only_in_case_are_distinct(self, repo: Path, capsys: Capsys) -> None:
         rows = json.loads(scenario_doc())["scenarios"]
         rows.append({"id": "s1", "desc": "d", "input": "i", "expected_verdict": "GO"})
         assert {"S1", "s1"} <= {r["id"] for r in rows}
@@ -106,9 +102,7 @@ class TestScenarioFile:
         assert "repeats scenario ids" not in out
         assert code == 0, out
 
-    def test_ids_that_collide_after_str_are_duplicates(
-        self, repo: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_ids_that_collide_after_str_are_duplicates(self, repo: Path, capsys: Capsys) -> None:
         rows = json.loads(scenario_doc())["scenarios"]
         rows[0]["id"], rows[1]["id"] = 1, "1"
         write(repo, SCEN, json.dumps({"scenarios": rows}))
@@ -117,25 +111,21 @@ class TestScenarioFile:
         assert code == 1
         assert f"{SCEN} repeats scenario ids ['1']" in out
 
-    def test_scenario_without_expected_verdict(
-        self, repo: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_scenario_without_expected_verdict(self, repo: Path, capsys: Capsys) -> None:
         write(repo, SCEN, json.dumps({"scenarios": [{"id": "S1"}]}))
         commit(repo, "thin")
         code, out = run_gated(repo, capsys, evidence=False)
         assert code == 1
         assert "has a scenario with no expected_verdict" in out
 
-    def test_scenario_without_id(self, repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_scenario_without_id(self, repo: Path, capsys: Capsys) -> None:
         write(repo, SCEN, json.dumps({"scenarios": [{"expected_verdict": "GO"}]}))
         commit(repo, "no id")
         code, out = run_gated(repo, capsys, evidence=False)
         assert code == 1
         assert "is not valid scenario JSON with an id on every scenario" in out
 
-    def test_scenario_edit_after_surface_commit_blocks(
-        self, repo: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_scenario_edit_after_surface_commit_blocks(self, repo: Path, capsys: Capsys) -> None:
         driver_change(repo)
         doc = json.loads(scenario_doc())
         doc["scenarios"][0]["desc"] = "changed"
@@ -147,9 +137,7 @@ class TestScenarioFile:
         assert "differs at" in out
         assert "a commit that touches the skill" in out
 
-    def test_scenario_and_skill_in_one_commit_blocks(
-        self, repo: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_scenario_and_skill_in_one_commit_blocks(self, repo: Path, capsys: Capsys) -> None:
         write(repo, SCEN, scenario_doc(9))
         write(repo, SKILL, skill_md("driver", body="Changed body."))
         commit(repo, "scenario and skill together")
@@ -159,7 +147,7 @@ class TestScenarioFile:
         assert "changes in the same commit as the skill" in out
 
     def test_scenario_added_after_the_skill_changed_blocks(
-        self, repo: Path, capsys: pytest.CaptureFixture[str]
+        self, repo: Path, capsys: Capsys
     ) -> None:
         git(repo, "checkout", "-q", "main")
         git(repo, "rm", "-q", SCEN)
@@ -183,7 +171,7 @@ class TestScenarioFile:
         git(repo, "merge", "-q", "--no-ff", "--no-commit", "side")
 
     def test_merge_restoring_an_older_corpus_after_the_skill_changed_blocks(
-        self, repo: Path, capsys: pytest.CaptureFixture[str]
+        self, repo: Path, capsys: Capsys
     ) -> None:
         write(repo, SCEN, scenario_doc(9))
         commit(repo, "scenario commit")
@@ -198,7 +186,7 @@ class TestScenarioFile:
         assert "a commit that touches the skill" in out
 
     def test_corpus_updated_before_the_skill_and_carried_through_a_merge_passes(
-        self, repo: Path, capsys: pytest.CaptureFixture[str]
+        self, repo: Path, capsys: Capsys
     ) -> None:
         write(repo, SCEN, scenario_doc(9))
         commit(repo, "scenario commit")
@@ -208,7 +196,7 @@ class TestScenarioFile:
         assert code == 0, out
 
     def test_template_lookalike_path_is_not_the_skill_surface(
-        self, repo: Path, capsys: pytest.CaptureFixture[str]
+        self, repo: Path, capsys: Capsys
     ) -> None:
         """A `.notes` sibling of the template shares its prefix and is not the template."""
         write(repo, SCEN, scenario_doc(9))
@@ -218,9 +206,7 @@ class TestScenarioFile:
         code, out = run(repo, capsys)
         assert code == 0, out
 
-    def test_exact_template_path_is_the_skill_surface(
-        self, repo: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_exact_template_path_is_the_skill_surface(self, repo: Path, capsys: Capsys) -> None:
         write(repo, SCEN, scenario_doc(9))
         write(repo, "templates/skills/demo.SKILL.md.tmpl", "template\n")
         commit(repo, "scenario edit beside the template")
@@ -229,17 +215,13 @@ class TestScenarioFile:
         assert code == 1
         assert "changes in the same commit as the skill" in out
 
-    def test_scenario_commit_before_surface_is_allowed(
-        self, repo: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_scenario_commit_before_surface_is_allowed(self, repo: Path, capsys: Capsys) -> None:
         write(repo, SCEN, scenario_doc(9))
         commit(repo, "scenario commit")
         code, out = run_gated(repo, capsys)
         assert code == 0, out
 
-    def test_dropped_scenario_without_retired_file(
-        self, repo: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_dropped_scenario_without_retired_file(self, repo: Path, capsys: Capsys) -> None:
         self._base_with_nine(repo)
         write(repo, SCEN, scenario_doc(8))
         commit(repo, "drop S9")
@@ -285,7 +267,7 @@ class TestScenarioFile:
         ],
     )
     def test_retired_file_errors(
-        self, repo: Path, capsys: pytest.CaptureFixture[str], retired: str, message: str
+        self, repo: Path, capsys: Capsys, retired: str, message: str
     ) -> None:
         self._base_with_nine(repo)
         write(repo, SCEN, scenario_doc(8))
@@ -297,7 +279,7 @@ class TestScenarioFile:
 
     @pytest.mark.parametrize("scenario", [["S9"], {"id": "S9"}, 9, None])
     def test_retired_row_with_a_non_string_scenario_id_is_a_finding(
-        self, repo: Path, capsys: pytest.CaptureFixture[str], scenario: object
+        self, repo: Path, capsys: Capsys, scenario: object
     ) -> None:
         self._base_with_nine(repo)
         write(repo, SCEN, scenario_doc(8))
@@ -313,9 +295,7 @@ class TestScenarioFile:
         assert "is not a string" in out
         assert "dropped scenario S9 has no replacing test" in out
 
-    def test_retired_with_real_test_passes(
-        self, repo: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_retired_with_real_test_passes(self, repo: Path, capsys: Capsys) -> None:
         self._base_with_nine(repo)
         write(repo, SCEN, scenario_doc(8))
         test = "tests/skills/demo/test_demo.py::TestX::test_replaces"
@@ -328,9 +308,7 @@ class TestScenarioFile:
         code, out = run_gated(repo, capsys)
         assert code == 0, out
 
-    def _retire_with(
-        self, repo: Path, capsys: pytest.CaptureFixture[str], test: str
-    ) -> tuple[int, str]:
+    def _retire_with(self, repo: Path, capsys: Capsys, test: str) -> tuple[int, str]:
         self._base_with_nine(repo)
         write(repo, SCEN, scenario_doc(8))
         retired = json.dumps({"retired": [{"scenario": "S9", "test": test}]})
@@ -346,7 +324,7 @@ class TestScenarioFile:
         ],
     )
     def test_retired_test_with_a_parameter_id_is_rejected(
-        self, repo: Path, capsys: pytest.CaptureFixture[str], test: str
+        self, repo: Path, capsys: Capsys, test: str
     ) -> None:
         code, out = self._retire_with(repo, capsys, test)
         assert code == 1
@@ -361,7 +339,7 @@ class TestScenarioFile:
         ],
     )
     def test_retired_test_in_a_file_pytest_skips_is_rejected(
-        self, repo: Path, capsys: pytest.CaptureFixture[str], path: str
+        self, repo: Path, capsys: Capsys, path: str
     ) -> None:
         write(repo, path, "class TestX:\n    def test_replaces(self):\n        pass\n")
         code, out = self._retire_with(repo, capsys, f"{path}::TestX::test_replaces")
@@ -370,7 +348,7 @@ class TestScenarioFile:
 
     @pytest.mark.parametrize("test", ["Helper::test_replaces", "TestX::replaces"])
     def test_retired_test_pytest_would_not_name_is_rejected(
-        self, repo: Path, capsys: pytest.CaptureFixture[str], test: str
+        self, repo: Path, capsys: Capsys, test: str
     ) -> None:
         demo = "class Helper:\n    def test_replaces(self):\n        pass\n"
         demo += "class TestX:\n    def replaces(self):\n        pass\n"
@@ -389,7 +367,7 @@ class TestScenarioFile:
         ids=["test-false", "own-init"],
     )
     def test_retired_test_in_a_class_pytest_skips_is_rejected(
-        self, repo: Path, capsys: pytest.CaptureFixture[str], skipped_class: str
+        self, repo: Path, capsys: Capsys, skipped_class: str
     ) -> None:
         path = "tests/skills/demo/test_demo.py"
         write(repo, path, skipped_class)
@@ -401,7 +379,7 @@ class TestScenarioFile:
 
     @pytest.mark.parametrize("broken", ["{", json.dumps({"scenarios": 3})])
     def test_unreadable_base_scenarios_fail_closed(
-        self, repo: Path, capsys: pytest.CaptureFixture[str], broken: str
+        self, repo: Path, capsys: Capsys, broken: str
     ) -> None:
         on_main(repo, {SCEN: broken}, "broken on main")
         write(repo, SCEN, scenario_doc())
@@ -410,9 +388,7 @@ class TestScenarioFile:
         assert code == 1
         assert "does not parse at the merge base" in out
 
-    def test_scenario_file_new_on_branch(
-        self, repo: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_scenario_file_new_on_branch(self, repo: Path, capsys: Capsys) -> None:
         git(repo, "checkout", "-q", "main")
         git(repo, "rm", "-q", SCEN)
         commit(repo, "no scenarios on main")
