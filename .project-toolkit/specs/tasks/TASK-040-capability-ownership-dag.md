@@ -2,13 +2,13 @@
 type: task
 id: TASK-040
 title: Ship the capability frontmatter contract, its validator, and one real conversion
-status: draft
+status: done
 priority: P1
 related:
   - REQ-031
   - DESIGN-029
 created: 2026-09-22
-updated: 2026-09-22
+updated: 2026-11-25
 author: spec
 tags:
   - governance
