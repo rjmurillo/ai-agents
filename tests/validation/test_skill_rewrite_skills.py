@@ -1,7 +1,10 @@
-"""Frontmatter, grant allowlist, and prompt surface in ``skill_rewrite_skills.py``."""
+"""Frontmatter, grants and prompt surface (``skill_rewrite_skills.py``), and pytest collection."""
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -23,7 +26,7 @@ from tests.validation.skill_rewrite_helpers import (
 
 __all__ = ["repo"]
 
-import skill_rewrite_skills as skills
+import skill_rewrite_collection as collection
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -323,7 +326,7 @@ class TestCollectionSwitchedOff:
     def test_switched_off_tests_are_not_defined(
         self, source: str, classes: list[str], func: str
     ) -> None:
-        assert not skills.defines_test(source, classes, func)
+        assert not collection.defines_test(source, classes, func)
 
     def test_unrelated_false_assignments_keep_the_test(self) -> None:
         source = (
@@ -331,7 +334,96 @@ class TestCollectionSwitchedOff:
             "other.__test__ = False\n"
             "class TestA:\n    __test__ = True\n    def test_a(self):\n        pass\n"
         )
-        assert skills.defines_test(source, ["TestA"], "test_a")
+        assert collection.defines_test(source, ["TestA"], "test_a")
+
+
+REBINDS = [
+    ("test_t = None", [], "test_t"),
+    ("del test_t", [], "test_t"),
+    ("from os import path as test_t", [], "test_t"),
+    ("test_t: object = None", [], "test_t"),
+    ("type test_t = int", [], "test_t"),
+    ("for test_t in [None]:\n    pass", [], "test_t"),
+    ("with open(__file__) as test_t:\n    pass", [], "test_t"),
+    ("(test_t := None)", [], "test_t"),
+    ("print(test_t := None)", [], "test_t"),
+    ("x = (test_t := None)", [], "test_t"),
+    ("if (test_t := None):\n    pass", [], "test_t"),
+    ("[test_t := 1 for _ in range(1)]", [], "test_t"),
+    ("while (test_t := None):\n    pass", [], "test_t"),
+    ("match (test_t := 1):\n    case _:\n        pass", [], "test_t"),
+    ("@(test_t := lambda f: f)\ndef helper():\n    pass", [], "test_t"),
+    ("def helper(a=(test_t := None)):\n    pass", [], "test_t"),
+    ("def helper(*, a=(test_t := None)):\n    pass", [], "test_t"),
+    ("class Helper((test_t := object)):\n    pass", [], "test_t"),
+    ("@(TestR := lambda c: c)\nclass Helper:\n    pass", ["TestR"], "test_r"),
+    ("class Helper(metaclass=(test_t := type)):\n    pass", [], "test_t"),
+    ("f = lambda a=(test_t := None): a", [], "test_t"),
+    ("from os import *", [], "test_t"),
+    ("test_t = staticmethod(test_t)", [], "test_t"),
+    ("TestR = None", ["TestR"], "test_r"),
+    # A block body runs in module scope, so its bindings count at any depth.
+    ("try:\n    test_t = None\nexcept Exception:\n    pass", [], "test_t"),
+    ("try:\n    1 / 0\nexcept Exception:\n    test_t = None", [], "test_t"),
+    ("try:\n    1 / 0\nexcept Exception as test_t:\n    pass", [], "test_t"),
+    ("try:\n    pass\nexcept Exception:\n    pass\nelse:\n    test_t = None", [], "test_t"),
+    ("try:\n    pass\nfinally:\n    test_t = None", [], "test_t"),
+    ("try:\n    from os import path as test_t\nexcept ImportError:\n    pass", [], "test_t"),
+    ("if True:\n    test_t = None", [], "test_t"),
+    ("if False:\n    pass\nelif True:\n    test_t = None", [], "test_t"),
+    ("if False:\n    pass\nelse:\n    test_t = None", [], "test_t"),
+    ("if True:\n    print(test_t := None)", [], "test_t"),
+    ("for _ in [1]:\n    test_t = None", [], "test_t"),
+    ("for _ in []:\n    pass\nelse:\n    test_t = None", [], "test_t"),
+    ("while True:\n    test_t = None\n    break", [], "test_t"),
+    ("with open(__file__):\n    test_t = None", [], "test_t"),
+    ("match 1:\n    case _:\n        test_t = None", [], "test_t"),
+    ("match 1:\n    case test_t:\n        pass", [], "test_t"),
+    ("match [1]:\n    case [*test_t]:\n        pass", [], "test_t"),
+    ("match {}:\n    case {**test_t}:\n        pass", [], "test_t"),
+    ("match 1:\n    case _ if (test_t := None) is None:\n        pass", [], "test_t"),
+    (
+        "if True:\n    for _ in [1]:\n        match 1:\n            case _:\n"
+        "                try:\n                    test_t = None\n"
+        "                except Exception:\n                    pass",
+        [],
+        "test_t",
+    ),
+    ("try:\n    TestR = None\nexcept Exception:\n    pass", ["TestR"], "test_r"),
+]
+# pytest collects these, because the rebind leaves a function under the name,
+# but the checker cannot prove that statically, so it fails closed.
+FAIL_CLOSED = frozenset(
+    {
+        "@(test_t := lambda f: f)\ndef helper():\n    pass",
+        "from os import *",
+        "test_t = staticmethod(test_t)",
+    }
+)
+KEPT = [
+    "test_t = None\n\ndef test_t():\n    pass\n",
+    "from os import *\n\ndef test_t():\n    pass\n",
+    "d = {}\nd[test_t] = 1\n",
+    "x: test_t\n",
+    "f = lambda: (test_t := None)\n",
+    "def helper():\n    test_t = None\n",
+    "class Helper:\n    test_t = None\n",
+    "[test_t for test_t in range(1)]\n",
+    "try:\n    x = 1\nexcept Exception:\n    y = 2\n",
+    "if True:\n    def helper():\n        test_t = None\n",
+]
+
+
+def _rebound_source(rebind: str) -> str:
+    return (
+        "def test_t():\n    pass\n\n"
+        "class TestR:\n    def test_r(self):\n        pass\n\n"
+        f"{rebind}\n"
+    )
+
+
+def _kept_source(other: str) -> str:
+    return f"def test_t():\n    pass\n\n{other}"
 
 
 class TestDefinesTest:
@@ -345,7 +437,7 @@ class TestDefinesTest:
         ],
     )
     def test_defined_in_the_named_chain(self, classes: list[str], func: str) -> None:
-        assert skills.defines_test(_TESTS, classes, func)
+        assert collection.defines_test(_TESTS, classes, func)
 
     @pytest.mark.parametrize(
         ("classes", "func"),
@@ -366,7 +458,7 @@ class TestDefinesTest:
         ],
     )
     def test_not_defined_in_the_named_chain(self, classes: list[str], func: str) -> None:
-        assert not skills.defines_test(_TESTS, classes, func)
+        assert not collection.defines_test(_TESTS, classes, func)
 
     @pytest.mark.parametrize(
         "constructor",
@@ -378,98 +470,104 @@ class TestDefinesTest:
     )
     def test_class_with_its_own_constructor_is_not_collected(self, constructor: str) -> None:
         source = f"class TestC:\n    {constructor}\n\n    def test_c(self):\n        pass\n"
-        assert not skills.defines_test(source, ["TestC"], "test_c")
+        assert not collection.defines_test(source, ["TestC"], "test_c")
 
     def test_constructor_on_an_outer_class_blocks_the_nested_test(self) -> None:
         source = (
             "class TestOuter:\n    def __init__(self):\n        pass\n\n"
             "    class TestInner:\n        def test_i(self):\n            pass\n"
         )
-        assert not skills.defines_test(source, ["TestOuter", "TestInner"], "test_i")
+        assert not collection.defines_test(source, ["TestOuter", "TestInner"], "test_i")
 
-    @pytest.mark.parametrize(
-        ("rebind", "classes", "func"),
-        [
-            ("test_t = None", [], "test_t"),
-            ("del test_t", [], "test_t"),
-            ("from os import path as test_t", [], "test_t"),
-            ("test_t: object = None", [], "test_t"),
-            ("type test_t = int", [], "test_t"),
-            ("for test_t in [None]:\n    pass", [], "test_t"),
-            ("with open(__file__) as test_t:\n    pass", [], "test_t"),
-            ("(test_t := None)", [], "test_t"),
-            ("print(test_t := None)", [], "test_t"),
-            ("x = (test_t := None)", [], "test_t"),
-            ("if (test_t := None):\n    pass", [], "test_t"),
-            ("[test_t := 1 for _ in range(1)]", [], "test_t"),
-            ("while (test_t := None):\n    pass", [], "test_t"),
-            ("match (test_t := 1):\n    case _:\n        pass", [], "test_t"),
-            ("@(test_t := lambda f: f)\ndef helper():\n    pass", [], "test_t"),
-            ("def helper(a=(test_t := None)):\n    pass", [], "test_t"),
-            ("def helper(*, a=(test_t := None)):\n    pass", [], "test_t"),
-            ("class Helper((test_t := object)):\n    pass", [], "test_t"),
-            ("@(TestR := lambda c: c)\nclass Helper:\n    pass", ["TestR"], "test_r"),
-            ("class Helper(metaclass=(test_t := type)):\n    pass", [], "test_t"),
-            ("f = lambda a=(test_t := None): a", [], "test_t"),
-            ("from os import *", [], "test_t"),
-            ("test_t = staticmethod(test_t)", [], "test_t"),
-            ("TestR = None", ["TestR"], "test_r"),
-        ],
-    )
+    @pytest.mark.parametrize(("rebind", "classes", "func"), REBINDS)
     def test_a_rebound_name_is_not_collected(
         self, rebind: str, classes: list[str], func: str
     ) -> None:
-        source = (
-            "def test_t():\n    pass\n\n"
-            "class TestR:\n    def test_r(self):\n        pass\n\n"
-            f"{rebind}\n"
-        )
-        assert not skills.defines_test(source, classes, func)
-
-    def test_a_method_rebound_in_its_class_is_not_collected(self) -> None:
-        source = "class TestR:\n    def test_r(self):\n        pass\n    test_r = None\n"
-        assert not skills.defines_test(source, ["TestR"], "test_r")
+        assert not collection.defines_test(_rebound_source(rebind), classes, func)
 
     @pytest.mark.parametrize(
-        "other",
+        "rebind",
         [
-            "test_t = None\n\ndef test_t():\n    pass\n",
-            "from os import *\n\ndef test_t():\n    pass\n",
-            "d = {}\nd[test_t] = 1\n",
-            "x: test_t\n",
-            "f = lambda: (test_t := None)\n",
-            "def helper():\n    test_t = None\n",
-            "try:\n    test_t = None\nexcept Exception:\n    pass\n",
-            "match 1:\n    case _:\n        test_t = None\n",
+            "    test_r = None",
+            "    if True:\n        test_r = None",
+            "    try:\n        pass\n    finally:\n        test_r = None",
         ],
     )
+    def test_a_method_rebound_in_its_class_is_not_collected(self, rebind: str) -> None:
+        source = f"class TestR:\n    def test_r(self):\n        pass\n{rebind}\n"
+        assert not collection.defines_test(source, ["TestR"], "test_r")
+
+    @pytest.mark.parametrize("other", KEPT)
     def test_a_def_that_stays_the_final_binding_is_collected(self, other: str) -> None:
-        source = f"def test_t():\n    pass\n\n{other}"
-        assert skills.defines_test(source, [], "test_t")
+        assert collection.defines_test(_kept_source(other), [], "test_t")
+
+    def test_a_def_inside_a_block_fails_closed(self) -> None:
+        """pytest collects it, but no static read proves the branch runs."""
+        source = "if True:\n    def test_t():\n        pass\n"
+        assert not collection.defines_test(source, [], "test_t")
+
+    def test_the_checker_agrees_with_pytest_collection(self, tmp_path: Path) -> None:
+        """Every REBINDS and KEPT case, against a real ``pytest --collect-only`` run.
+
+        The checker may fail closed, never open. Each fail-closed case is listed
+        in FAIL_CLOSED, so a new disagreement in either direction fails here.
+        """
+        expected: dict[str, bool] = {}
+        closed: set[str] = set()
+        cases = [(r, _rebound_source(r), c, f) for r, c, f in REBINDS]
+        cases += [(o, _kept_source(o), [], "test_t") for o in KEPT]
+        for index, (case, source, classes, func) in enumerate(cases):
+            name = f"test_case_{index}.py"
+            (tmp_path / name).write_text(source, encoding="utf-8")
+            node = "::".join([name, *classes, func])
+            expected[node] = collection.defines_test(source, classes, func)
+            closed |= {node} if case in FAIL_CLOSED else set()
+        (tmp_path / "pytest.ini").write_text(
+            "[pytest]\npython_files = test_*.py\n"
+            "python_classes = Test*\npython_functions = test_*\n",
+            encoding="utf-8",
+        )
+        env = {k: v for k, v in os.environ.items() if not k.startswith("PYTEST_")}
+        result = subprocess.run(
+            [sys.executable, "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider"],
+            cwd=tmp_path,
+            env=env,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=120,
+            check=False,
+        )
+        collected = set(result.stdout.split())
+        actual = {node: node in collected for node in expected}
+        assert any(actual.values()), result.stdout + result.stderr
+        fail_open = {n for n in expected if expected[n] and not actual[n]}
+        fail_closed = {n for n in expected if actual[n] and not expected[n]}
+        assert (fail_open, fail_closed) == (set(), closed), result.stdout + result.stderr
 
     def test_constructor_in_a_sibling_class_does_not_block(self) -> None:
         source = (
             "class TestA:\n    def test_a(self):\n        pass\n\n"
             "class TestB:\n    def __init__(self):\n        pass\n"
         )
-        assert skills.defines_test(source, ["TestA"], "test_a")
+        assert collection.defines_test(source, ["TestA"], "test_a")
 
     def test_unparseable_source_is_not_defined(self) -> None:
-        assert not skills.defines_test("def test_x(:\n", [], "test_x")
+        assert not collection.defines_test("def test_x(:\n", [], "test_x")
 
 
 class TestCollectionRules:
     def test_constants_match_pyproject(self) -> None:
         config = tomllib.loads((_REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
         pytest_config = config["tool"]["pytest"]["ini_options"]
-        assert pytest_config["python_files"] == [skills.PYTEST_FILE_GLOB]
-        assert pytest_config["python_classes"] == [f"{skills.PYTEST_CLASS_PREFIX}*"]
-        assert pytest_config["python_functions"] == [f"{skills.PYTEST_FUNC_PREFIX}*"]
-        assert pytest_config["testpaths"] == [skills.PYTEST_ROOT]
+        assert pytest_config["python_files"] == [collection.PYTEST_FILE_GLOB]
+        assert pytest_config["python_classes"] == [f"{collection.PYTEST_CLASS_PREFIX}*"]
+        assert pytest_config["python_functions"] == [f"{collection.PYTEST_FUNC_PREFIX}*"]
+        assert pytest_config["testpaths"] == [collection.PYTEST_ROOT]
 
     @pytest.mark.parametrize("path", ["tests/test_a.py", "tests/skills/demo/test_demo.py"])
     def test_collected_files(self, path: str) -> None:
-        assert skills.is_collected_file(path)
+        assert collection.is_collected_file(path)
 
     @pytest.mark.parametrize(
         "path",
@@ -486,4 +584,4 @@ class TestCollectionRules:
         ],
     )
     def test_files_pytest_does_not_collect(self, path: str) -> None:
-        assert not skills.is_collected_file(path)
+        assert not collection.is_collected_file(path)

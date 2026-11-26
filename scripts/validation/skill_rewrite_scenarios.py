@@ -13,8 +13,9 @@ from collections import Counter
 from dataclasses import dataclass
 from typing import Any
 
+from skill_rewrite_collection import PYTEST_FILE_GLOB, defines_test, is_collected_file
 from skill_rewrite_context import EVIDENCE_ROOT, RETIRED_FILE, Context
-from skill_rewrite_skills import _SKILL_DIRS, PYTEST_FILE_GLOB, defines_test, is_collected_file
+from skill_rewrite_skills import _SKILL_DIRS
 
 
 def _touches_surface(files: dict[str, str], name: str) -> bool:

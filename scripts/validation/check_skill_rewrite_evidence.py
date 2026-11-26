@@ -353,8 +353,7 @@ def _ambiguous(one: str, other: str, where: str) -> str:
     )
 
 
-# A gated change may not also change the code that judges it: every repo
-# module this check imports, the runner and its imports included.
+# A gated change may not change the code that judges it: any module the check or runner imports.
 # ``test_judge_paths_cover_every_imported_module`` recomputes that closure.
 _JUDGE_PATHS = (
     "scripts/__init__.py",
@@ -369,6 +368,7 @@ _JUDGE_PATHS = (
     "scripts/validation/evidence.py",
     "scripts/validation/models.py",
     "scripts/validation/pre_pr_console.py",
+    "scripts/validation/skill_rewrite_collection.py",
     "scripts/validation/skill_rewrite_context.py",
     "scripts/validation/skill_rewrite_evidence.py",
     "scripts/validation/skill_rewrite_scenarios.py",
