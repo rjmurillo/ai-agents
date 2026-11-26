@@ -1,6 +1,6 @@
 # Reviewer Guidance: What Not to Flag
 
-<!-- vendor-portability: contributor-facing reference for the rjmurillo/ai-agents repo itself. It names upstream-only paths under .project-toolkit, scripts, lefthook.yml, pyproject.toml, and .github because its audience is reviewers of this repo, not plugin consumers. -->
+<!-- vendor-portability: contributor-facing reference for the rjmurillo/ai-agents repo itself. It names upstream-only paths under .project-toolkit, scripts, lefthook.yml, pyproject.toml, and .github because its audience is reviewers of this repo, not plugin consumers. Declared paths: .project-toolkit/memory/episodes, .project-toolkit/security/benchmarks/vulnerable_samples, scripts/ci/diff_line_scope.py -->
 
 Read this before you review a pull request in this repo.
 Each item below is a finding that reviewers kept raising and maintainers kept dismissing.

@@ -1,6 +1,6 @@
 # Python and Test Conventions
 
-<!-- vendor-portability: contributor-facing reference for the rjmurillo/ai-agents repo itself. It names upstream-only paths under scripts, tests, src/claude, .claude/hooks, and .github because its audience is repo contributors, not plugin consumers. -->
+<!-- vendor-portability: contributor-facing reference for the rjmurillo/ai-agents repo itself. It names upstream-only paths under scripts, tests, src/claude, .claude/hooks, and .github because its audience is repo contributors, not plugin consumers. Declared paths: build/scripts/surface_manifest.py, scripts/AGENTS.md, scripts/ai_review_outputs.py, scripts/ci/adr101_publisher_execute.py, scripts/github_core/not_found.py, scripts/validate_pr_review_config.py, scripts/validation/check_plugin_frontmatter_self_containment.py, scripts/validation/check_subprocess_encoding.py, src/claude/skills/github/scripts/issue/get_issue_comments.py -->
 
 Read this before you write or review Python under `scripts/`, `build/`, `.github/scripts/`, or `tests/`.
 Each item names a site that does it right, so you can copy a working pattern.
@@ -47,7 +47,7 @@ The repo verified each item against the code on 2026-11-26.
 ## Script entry points
 
 9. **Give a script run by path a `sys.path` prologue.**
-   `python scripts/x/y.py` puts only `scripts/x/` on `sys.path`.
+   Running a script by its file path puts only that script's own directory on `sys.path`.
    A `scripts.*` import then fails unless the script inserts the repo root first.
    `scripts/ai_review_outputs.py` shows the guarded `sys.path.insert(0, ...)` form.
    A script run by a bare interpreter must stay stdlib-only (`scripts/AGENTS.md`).
