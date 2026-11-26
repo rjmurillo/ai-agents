@@ -114,6 +114,26 @@ class Git:
         entries = filter(None, out.decode("utf-8", "replace").split("\0"))
         return {path: meta.split()[2] for meta, _, path in (e.partition("\t") for e in entries)}
 
+    def adding_commit(self, ref: str, path: str) -> str | None:
+        """The oldest commit reachable from *ref* that added *path*, or None when none shows it.
+
+        A merge shows no diff without ``-m``, so a file that only a merge
+        commit introduced has no entry here. ``--topo-order`` puts every
+        parent after its children, so the last line is the oldest.
+        """
+        out = self.text(
+            "log",
+            "--full-history",
+            "--topo-order",
+            "--diff-filter=A",
+            "--format=%H",
+            ref,
+            "--",
+            path,
+        )
+        shas = out.split()
+        return shas[-1] if shas else None
+
     def blob(self, ref: str, path: str) -> bytes:
         return self._run("cat-file", "blob", f"{ref}:{path}").stdout
 

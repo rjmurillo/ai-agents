@@ -32,23 +32,26 @@ author does not declare. A reviewer still owns those.
 
 For a gated skill the check requires, and fails closed without:
 
-- ``tests/evals/<name>-scenarios.json`` at head, frozen after the first
-  commit that touches the skill (decision 7 item 8), with no kept
-  scenario's ``expected_verdict`` changed since the merge base (item 10);
+- ``tests/evals/<name>-scenarios.json`` at head, frozen (decision 7 item 8):
+  no commit changes it with the skill, and every commit that touches the
+  skill holds head's blob. No kept scenario's ``expected_verdict`` changes
+  since the merge base (item 10);
 - each scenario dropped since the merge base listed in ``retired.json`` with
   a test that exists at head;
 - results files that are append-only on the branch: an edit or delete of
   one fails (item 9), and so does a file missing at head or changed since the
   first commit on the branch that added it, which catches a merge that drops
   a run held by either parent;
-- a results file recording the head prompt-surface sha256. The first one
-  committed among those that also record the head scenario-file sha256 sets
-  the verdict (one already on the base ref counts as first), so a base file
-  for an earlier suite of the same prompt cannot decide it. When none record
-  the head scenario sha256, the first for the prompt surface decides and fails
-  on that identity. The deciding file must match the other identities: prompt
-  path, scenario path and sha256, a base commit that is an ancestor of the
-  base ref, and a model;
+- a results file recording the head prompt-surface sha256. Among those that
+  also record the head scenario-file sha256, the deciding run is the one
+  whose adding commit is an ancestor of every other's (one on the base ref
+  counts by its own commit, so it precedes a branch run). Two added on
+  parallel branches, or in one commit, have no first: the check fails closed
+  and never picks the passing one. When none record the head scenario sha256,
+  the same rule runs over the prompt-surface matches and fails on that
+  identity. The deciding file must match the other identities: prompt path,
+  scenario path and sha256, a base commit that is an ancestor of the base
+  ref, and a model;
 - a merge-base scenario file that parses, when one exists;
 - the verdict recomputed from the per-run labels, plus the decision 7
   floors (``skill_rewrite_evidence.verify_results``);
@@ -275,8 +278,9 @@ def verify_skill(ctx: Context, name: str, head: SkillSide) -> list[str]:
     this_suite = [
         p for p in matching if _identity_value(parsed[p], "scenarios_sha256") == scenarios_sha
     ]
-    order = {p: added.get(p, -1) for p in this_suite or matching}
-    first = min(order.values())
+    first, ambiguous = _deciding_run(ctx, sorted(this_suite or matching), added)
+    if first is None:
+        return ambiguous
     expected = Expected(
         prompt_path=str(head.skill_md_path),
         prompt_surface_sha256=head_sha,
@@ -284,16 +288,62 @@ def verify_skill(ctx: Context, name: str, head: SkillSide) -> list[str]:
         scenarios_sha256=scenarios_sha,
         scenarios=tuple(scen.rows),
     )
-    for path in sorted(p for p, i in order.items() if i == first):
-        found = verify_results(ctx.runner, parsed[path], expected)
-        base_commit = parsed[path]["identity"].get("base_commit")
-        ancestor = None if found else ctx.git.is_ancestor(str(base_commit), ctx.base_ref)
-        if ancestor is None and not found:
-            found.append(f"identity.base_commit {base_commit} is not a commit in this clone")
-        elif ancestor is False:
-            found.append(f"identity.base_commit {base_commit} is not an ancestor of {ctx.base_ref}")
-        problems += [f"{path}: {f}" for f in found]
-    return problems
+    found = verify_results(ctx.runner, parsed[first], expected)
+    base_commit = parsed[first]["identity"].get("base_commit")
+    ancestor = None if found else ctx.git.is_ancestor(str(base_commit), ctx.base_ref)
+    if ancestor is None and not found:
+        found.append(f"identity.base_commit {base_commit} is not a commit in this clone")
+    elif ancestor is False:
+        found.append(f"identity.base_commit {base_commit} is not an ancestor of {ctx.base_ref}")
+    return [f"{first}: {f}" for f in found]
+
+
+def _adding_commit(ctx: Context, path: str, added: dict[str, int]) -> str | None:
+    """The commit that added *path*: from the log, else the branch scan (a merge's own add)."""
+    found: str | None = ctx.git.adding_commit(ctx.head, path)
+    if found is None and path in added:
+        found = ctx.commits[added[path]]
+    return found
+
+
+def _deciding_run(
+    ctx: Context, paths: list[str], added: dict[str, int]
+) -> tuple[str | None, list[str]]:
+    """The results file whose adding commit precedes every other candidate's, or findings.
+
+    A traversal order cannot pick the first run: two files added on parallel
+    branches have no first, and picking the passing one would let a failed
+    run hide. Such a pair, or two files added in one commit, fails closed.
+    """
+    if len(paths) == 1:
+        return paths[0], []
+    adds: dict[str, str] = {}
+    for path in paths:
+        commit = _adding_commit(ctx, path, added)
+        if commit is None:
+            return None, [
+                f"{path} has no adding commit in the history, so the first run is unknown"
+            ]
+        adds[path] = commit
+    for path in paths:
+        twin = next((o for o in paths if o != path and adds[o] == adds[path]), None)
+        if twin:
+            return None, [_ambiguous(path, twin, "in the same commit")]
+    first = [
+        p
+        for p in paths
+        if not any(o != p and ctx.git.is_ancestor(adds[o], adds[p]) is True for o in paths)
+    ]
+    if len(first) == 1:
+        return first[0], []
+    return None, [_ambiguous(first[0], first[1], "on parallel branches")]
+
+
+def _ambiguous(one: str, other: str, where: str) -> str:
+    return (
+        f"results files {one} and {other} were added {where}, so the first run is "
+        "ambiguous; remove one or rerun"
+    )
 
 
 # A gated change may not also change the code that judges it: every repo
