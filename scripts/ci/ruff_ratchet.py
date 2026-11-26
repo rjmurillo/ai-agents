@@ -16,11 +16,24 @@ Fail-closed behavior: an unresolvable diff base, a git failure, or ruff output
 that will not parse all block on every finding, so the gate is never weaker
 than the whole-file check it replaces.
 
+Deadlines: the git name-list call and the ruff call in this module run through
+the shared process-group-aware runner
+``scripts.validation.subprocess_runner._run_subprocess`` with explicit timeouts.
+A timeout kills the child's whole process group and is an external failure
+(exit 3), never a pass. The partial output the child wrote before the deadline
+is printed. A timed-out git call does not retry against the fallback ref: the
+second call would only double the wait.
+
+Not covered here: ``scripts.ci.diff_line_scope.git_diff_unified_zero``, which
+``changed_line_map`` calls from ``main``, still runs ``subprocess.run`` with no
+timeout. It lives in another module and has no injectable runner.
+
 Exit codes (AGENTS.md contract):
     0 - ok (no findings, or only findings outside the change)
     1 - a finding intersects an added or modified line
     2 - config error (repo root is not a git worktree, bad args)
-    3 - external error (git or ruff could not run, unparseable ruff output)
+    3 - external error (git or ruff could not run or timed out, unparseable
+        ruff output)
 """
 
 from __future__ import annotations
@@ -41,6 +54,7 @@ from scripts.ci.diff_line_scope import (
     intersects_changed_lines,
     normalize_path,
 )
+from scripts.validation.subprocess_runner import _run_subprocess
 
 EXIT_OK = 0
 EXIT_VIOLATIONS = 1
@@ -49,6 +63,19 @@ EXIT_EXTERNAL = 3
 
 _ZERO_SHA = re.compile(r"^0+$")
 _FALLBACK_BASE_REF = "origin/main"
+
+# ``git diff --name-only`` reads refs and trees and writes a name list. It
+# returns in well under a second on a healthy checkout; 60s covers a cold
+# object cache on a large repository and still fails a wedged git fast.
+_GIT_TIMEOUT_SECONDS = 60
+
+# One ruff invocation lints every changed file in a single process. Ruff lints
+# the whole repository in a few seconds, so 180s leaves room for a loaded CI
+# runner and a very large change without letting a hung ruff stall the job.
+_RUFF_TIMEOUT_SECONDS = 180
+
+# Cap on partial ruff stdout echoed after a timeout or an unexpected exit.
+_PARTIAL_OUTPUT_LIMIT = 2000
 
 
 def default_base_ref() -> str:
@@ -65,23 +92,18 @@ def git_diff_name_only(base_ref: str, repo_root: Path) -> subprocess.CompletedPr
     # ``-z`` emits NUL-separated raw names. Without it git C-quotes any path
     # holding a quote, a backslash, or a control character, and the quoted form
     # never matches the path ruff reports, so the file silently left the scope.
-    return subprocess.run(
-        [
-            "git",
-            "-C",
-            str(repo_root),
-            "diff",
-            "--name-only",
-            "-z",
-            "--diff-filter=ACMR",
-            f"{base_ref}...HEAD",
-        ],
-        check=False,
-        capture_output=True,
-        text=True,
-        errors="replace",
-        encoding="utf-8",
-    )
+    command = [
+        "git",
+        "-C",
+        str(repo_root),
+        "diff",
+        "--name-only",
+        "-z",
+        "--diff-filter=ACMR",
+        f"{base_ref}...HEAD",
+    ]
+    returncode, stdout, stderr = _run_subprocess(command, timeout=_GIT_TIMEOUT_SECONDS)
+    return subprocess.CompletedProcess(command, returncode, stdout, stderr)
 
 
 def changed_python_files(base_ref: str, repo_root: Path) -> tuple[int, list[str], str]:
@@ -94,7 +116,10 @@ def changed_python_files(base_ref: str, repo_root: Path) -> tuple[int, list[str]
     """
     resolved = base_ref
     result = git_diff_name_only(base_ref, repo_root)
-    if result.returncode != 0 and base_ref != _FALLBACK_BASE_REF:
+    # Only a git exit code (> 0) means the ref did not resolve. The runner's
+    # sentinel (-1: timeout or git missing) and a signal death (< 0) say
+    # nothing about the ref, so retrying would only repeat the wait.
+    if result.returncode > 0 and base_ref != _FALLBACK_BASE_REF:
         resolved = _FALLBACK_BASE_REF
         result = git_diff_name_only(_FALLBACK_BASE_REF, repo_root)
     if result.returncode != 0:
@@ -200,25 +225,30 @@ def run_ruff(
         print("No changed Python files found. Ruff ratchet passed.")
         return EXIT_OK
 
-    result = subprocess.run(
+    returncode, stdout, stderr = _run_subprocess(
         ["ruff", "check", "--output-format=json", "--", *files],
-        check=False,
-        capture_output=True,
+        timeout=_RUFF_TIMEOUT_SECONDS,
         cwd=repo_root,
-        text=True,
-        errors="replace",
-        encoding="utf-8",
     )
-    if result.stderr:
-        print(result.stderr, file=sys.stderr, end="")
+    if stderr:
+        # A timeout stderr ends with the runner's marker and no newline.
+        print(stderr.rstrip("\n"), file=sys.stderr)
 
-    if result.returncode not in (0, 1):
+    if returncode not in (0, 1):
+        # Timeout (-1 plus the marker), missing ruff, a signal death, or a
+        # ruff usage error. Show what ruff wrote so the failure is diagnosable.
+        if stdout.strip():
+            print(
+                f"ruff partial stdout (first {_PARTIAL_OUTPUT_LIMIT} chars):\n"
+                f"{stdout[:_PARTIAL_OUTPUT_LIMIT]}",
+                file=sys.stderr,
+            )
         return EXIT_EXTERNAL
-    if result.returncode == 0:
+    if returncode == 0:
         print(f"Ruff ratchet passed for {len(files)} changed Python file(s).")
         return EXIT_OK
 
-    if not result.stdout.strip():
+    if not stdout.strip():
         print(
             "error: ruff exited 1 (violations found) but produced no JSON output",
             file=sys.stderr,
@@ -226,7 +256,7 @@ def run_ruff(
         return EXIT_EXTERNAL
 
     try:
-        findings = json.loads(result.stdout)
+        findings = json.loads(stdout)
     except json.JSONDecodeError as error:
         print(f"error: could not parse ruff JSON output: {error}", file=sys.stderr)
         return EXIT_EXTERNAL
