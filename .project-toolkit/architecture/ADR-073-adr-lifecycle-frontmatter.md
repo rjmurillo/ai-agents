@@ -191,7 +191,7 @@ A `superseded`, `deprecated`, or `rejected` record is history, so its date is mo
 
 The clock is a parameter of `scan()` and `run()`. The tests fix it. The command line has no flag for it, because a flag would let a branch dodge the gate.
 
-The ratchet treats the three checks like the others. ADR-077 passed its 2026-09-27 checkpoint without a recorded review, so it enters the baseline as one past-due record. ADR-107 to ADR-118 already carry `review-by` without a matching prose date, so they enter the baseline under `review-by-prose-date`. Both counts can only fall. When ADR-083 reaches 2026-10-19 with no review, `review-by-past-due` fails until the review is held or the date is moved. The amendment of 2026-11-26 below makes `review-by-past-due` zero-tolerance, so the baseline no longer holds ADR-077 or any other record under it.
+The ratchet treats the three checks like the others. ADR-077 passed its 2026-09-27 checkpoint without a recorded review, so it enters the baseline as one past-due record. ADR-107 to ADR-118 already carry `review-by` without a matching prose date, so they enter the baseline under `review-by-prose-date`. Both counts can only fall. When ADR-083 reaches 2026-10-19 with no review, `review-by-past-due` fails until the record is fixed. The 2026-11-26 amendment below lists the edits that clear it. It also makes `review-by-past-due` zero-tolerance, so the baseline no longer holds ADR-077 or any other record under it.
 
 Debate log: `.project-toolkit/critique/ADR-073-review-by-amendment-debate-log.md`.
 

@@ -90,8 +90,10 @@ Checks, each named so the baseline tracks them separately:
 
 `review-by-past-due` and `implemented-implies-decided` are zero-tolerance
 (`ZERO_TOLERANCE_CHECKS`): the baseline cannot hold them (issue #7638). An overdue
-review fails every run until the review is held, the date is moved, or the status
-changes. A shipped record that still reads `proposed` fails until its status moves.
+review fails every run until one edit lands: a `review-by` of today or later that
+the prose also states, `accepted` with `review-by: null`, or a closed status. Holding
+the review alone does not clear it; record its outcome in the prose. A shipped
+record that still reads `proposed` fails until its status moves.
 The other checks are ratcheted.
 
 `status-edge-consistency` closes a gap `supersession-reciprocal` leaves open
@@ -1032,8 +1034,9 @@ def _check_review_by(record: Record, today: date) -> list[Violation]:
                 "review-by-past-due",
                 record.path,
                 f"review-by {due.isoformat()} passed {late} day(s) before {today.isoformat()}. "
-                "Hold the review, record its outcome in the prose, then set a new "
-                "review-by or null, or change the status.",
+                "Hold the review and record its outcome in the prose. Then set review-by "
+                "to today or later (also stated in the prose), set null on acceptance, "
+                "or move the status to rejected, deprecated, or superseded.",
             )
         )
     try:

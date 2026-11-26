@@ -130,3 +130,12 @@ Scope: two prose edits after CodeRabbit findings. The recovery text now says to 
 ## Frontmatter update (2026-11-26)
 
 `date` moves from 2026-06-19 to 2026-11-26. The schema at ADR-073 line 49 defines `date` as last updated. The Status prose keeps the 2026-06-19 acceptance date. This is a frontmatter-only edit, so no panel ran.
+
+## Round 5 (2026-11-26, reduced panel)
+
+Scope: one sentence in the 2026-10-13 amendment, after a CodeRabbit follow-up. It said holding the review clears the failure. It now points to the 2026-11-26 recovery list. The checker docstring and failure message changed to match. No check logic changed.
+
+| Agent | Vote | Note |
+|---|---|---|
+| architect | Accept | The pointer is accurate. It asked to merge two "below" pointers. That is done. |
+| critic | Accept | No other sentence says the review alone clears the check. |
