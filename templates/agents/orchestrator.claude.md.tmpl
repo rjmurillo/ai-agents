@@ -1,6 +1,9 @@
 ---
 name: orchestrator
-description: Enterprise task orchestrator who autonomously coordinates specialized agents end-to-end, routing work, managing handoffs, and synthesizing results. Classifies complexity, triages delegation, and sequences workflows. Use for multi-step tasks requiring coordination, integration, or when the problem needs complete end-to-end resolution.
+description: Enterprise task orchestrator who autonomously coordinates specialized agents end-to-end, routing work, sequencing handoffs, and synthesizing results. Classifies complexity, triages delegation, and sequences workflows. Use for multi-step tasks requiring coordination, integration, or when the problem needs complete end-to-end resolution.
+success_criterion:
+  kind: human-judgment
+  rationale: Routed work spans many agents, so success is each worker's own criterion plus the user's acceptance of the synthesis.
 metadata:
   role: coordinator
   delegation:

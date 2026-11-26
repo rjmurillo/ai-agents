@@ -39,6 +39,9 @@ artifacts:
     # takes every skill its path references connect (the quality pack split
     # delivery when delivery reached 404 files, and the authoring pack moved
     # six skill-authoring skills out of knowledge).
+    # The 2026-11-25 move of pipeline-validator and windows-image-updater from
+    # delivery to azure-devops is proposed. It awaits the owner ruling on issue
+    # #7591 and is not yet recorded in ADR-115.
     packs:
       delivery:
         description: "Project Toolkit skills for GitHub pull request work, planning, build, test, and review gates."
@@ -47,11 +50,11 @@ artifacts:
            benchmark-models, build, code-qualities-assessment,
            doc-accuracy, dx-review, execution-plans, git-advanced-workflows,
            github, github-url-intercept, maintainer-review, merge-resolver,
-           modernize, orphan-ref-validator, pipeline-validator, plan,
+           modernize, orphan-ref-validator, plan,
            pr-autofix, pr-babysit, pr-comment-responder, pr-review,
            push-pr, quality-grades, research, reviewer-findings,
            steering-matcher, sync, takeover, taste-lints, test,
-           validate-pr-description, validation-authority, windows-image-updater]
+           validate-pr-description, validation-authority]
       quality:
         description: "Project Toolkit skills for security and reliability engineering, code and documentation standards, metrics, and independent model review."
         skills:
@@ -74,6 +77,9 @@ artifacts:
         description: "Project Toolkit skills for creating, measuring, and tuning skills, context placement, and agent prose."
         skills:
           [context-optimizer, prose-self-check, skill-bootstrap, skillforge, skillify, skillopt]
+      azure-devops:
+        description: "Project Toolkit skills for Azure DevOps pipeline validation and OneBranch pipeline image updates."
+        skills: [pipeline-validator, windows-image-updater]
     # Hermes runs plugin_guard on every install and blocks a dangerous verdict.
     # Exclusion is transitive: a skill that refers to an excluded skill is
     # excluded too, because its reference would point at nothing.

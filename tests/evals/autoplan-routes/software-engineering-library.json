@@ -1,0 +1,193 @@
+{
+  "schema_version": 1,
+  "scenarios": [
+    {
+      "id": "lt-software-engineering-library-upgrade-java",
+      "family": "long-tail-single-domain",
+      "request": "Upgrade this service from Java 8 to Java 21.",
+      "expect": {
+        "kind": "specialist",
+        "route": "software-engineering-library",
+        "routes_absent": [
+          "orchestrator",
+          "modernize"
+        ]
+      },
+      "rationale": "A same-stack runtime upgrade routes to the library, which then opens its version-uplift reference."
+    },
+    {
+      "id": "lt-software-engineering-library-framework-upgrade",
+      "family": "long-tail-single-domain",
+      "request": "Plan the framework upgrade from Spring Boot 2 to 3.",
+      "expect": {
+        "kind": "specialist",
+        "route": "software-engineering-library",
+        "routes_absent": [
+          "orchestrator",
+          "modernize"
+        ]
+      },
+      "rationale": "A framework upgrade is a version uplift, so the framework upgrade intent must route to the library."
+    },
+    {
+      "id": "lt-software-engineering-library-version-uplift",
+      "family": "long-tail-single-domain",
+      "request": "Do a version uplift of the billing module.",
+      "expect": {
+        "kind": "specialist",
+        "route": "software-engineering-library",
+        "routes_absent": [
+          "orchestrator",
+          "modernize"
+        ]
+      },
+      "rationale": "The reference's own name must route to the skill that owns it."
+    },
+    {
+      "id": "lt-software-engineering-library-upgrade-python",
+      "family": "long-tail-single-domain",
+      "request": "Upgrade Python 3.9 to 3.13.",
+      "expect": {
+        "kind": "specialist",
+        "route": "software-engineering-library",
+        "routes_absent": [
+          "orchestrator",
+          "modernize"
+        ]
+      },
+      "rationale": "A Python major bump is one of the reference examples, so it must route to the library."
+    },
+    {
+      "id": "lt-software-engineering-library-upgrade-dotnet",
+      "family": "long-tail-single-domain",
+      "request": "Upgrade this app to .NET 8.",
+      "expect": {
+        "kind": "specialist",
+        "route": "software-engineering-library",
+        "routes_absent": [
+          "orchestrator",
+          "modernize"
+        ]
+      },
+      "rationale": "The common .NET phrasing must route to the library without the word dotnet."
+    },
+    {
+      "id": "lt-software-engineering-library-upgrade-nodejs",
+      "family": "long-tail-single-domain",
+      "request": "Upgrade Node.js 16 to 20 across the services.",
+      "expect": {
+        "kind": "specialist",
+        "route": "software-engineering-library",
+        "routes_absent": [
+          "orchestrator",
+          "modernize"
+        ]
+      },
+      "rationale": "A Node.js major bump is one of the reference examples, so it must route to the library."
+    },
+    {
+      "id": "lt-software-engineering-library-package-upgrade-negative",
+      "family": "negative-noise",
+      "request": "Upgrade the requests package to the latest release.",
+      "expect": {
+        "kind": "none",
+        "route": null,
+        "routes_absent": [
+          "software-engineering-library"
+        ]
+      },
+      "rationale": "Negative control: a single package upgrade is not a runtime or framework uplift."
+    },
+    {
+      "id": "lt-software-engineering-library-plugin-version-negative",
+      "family": "negative-noise",
+      "request": "Bump the plugin version in the changelog.",
+      "expect": {
+        "kind": "none",
+        "route": null,
+        "routes_absent": [
+          "software-engineering-library"
+        ]
+      },
+      "rationale": "Negative control: a release version edit that says bump must not route to the library."
+    },
+    {
+      "id": "lt-software-engineering-library-dependency-versions-negative",
+      "family": "negative-noise",
+      "request": "Upgrade dependencies to the latest versions.",
+      "expect": {
+        "kind": "none",
+        "route": null,
+        "routes_absent": [
+          "software-engineering-library"
+        ]
+      },
+      "rationale": "Negative control: a dependency refresh that says upgrade and versions is not a runtime uplift."
+    },
+    {
+      "id": "lt-software-engineering-library-lodash-major-bump-negative",
+      "family": "negative-noise",
+      "request": "Bump major version of the lodash package.",
+      "expect": {
+        "kind": "none",
+        "route": null,
+        "routes_absent": [
+          "software-engineering-library"
+        ]
+      },
+      "rationale": "Negative control: a major bump of one package is not a runtime or framework uplift."
+    },
+    {
+      "id": "lt-software-engineering-library-runtime-memory-limit-negative",
+      "family": "negative-noise",
+      "request": "Upgrade the runtime memory limit on the container.",
+      "expect": {
+        "kind": "none",
+        "route": null,
+        "routes_absent": [
+          "software-engineering-library"
+        ]
+      },
+      "rationale": "Negative control: a resource limit change that says upgrade and runtime must not route to the library."
+    },
+    {
+      "id": "lt-software-engineering-library-release-notes-negative",
+      "family": "negative-noise",
+      "request": "Write the release notes for the version upgrade.",
+      "expect": {
+        "kind": "none",
+        "route": null,
+        "routes_absent": [
+          "software-engineering-library"
+        ]
+      },
+      "rationale": "Negative control: writing about an upgrade is documentation work, not an uplift."
+    },
+    {
+      "id": "lt-software-engineering-library-node-pool-negative",
+      "family": "negative-noise",
+      "request": "Upgrade the node pool in the cluster.",
+      "expect": {
+        "kind": "none",
+        "route": null,
+        "routes_absent": [
+          "software-engineering-library"
+        ]
+      },
+      "rationale": "Negative control: a cluster node upgrade is infrastructure work, not a Node.js uplift."
+    },
+    {
+      "id": "lt-software-engineering-library-modernize-pr-negative",
+      "family": "long-tail-single-domain",
+      "request": "Modernize this PR.",
+      "expect": {
+        "kind": "specialist",
+        "route": "modernize",
+        "routes_absent": [
+          "software-engineering-library"
+        ]
+      },
+      "rationale": "Negative control: refreshing an old pull request belongs to modernize, not to the version-uplift reference."
+    }
+  ]
+}

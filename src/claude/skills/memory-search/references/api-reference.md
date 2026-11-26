@@ -29,10 +29,10 @@ from memory_core.reflexion_memory import get_episode
 
 | Module | Purpose | Location |
 |--------|---------|----------|
-| [memory_router](#memory_router-module) | Unified memory search (Tier 1) | `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/memory_core/memory_router.py` |
-| [reflexion_memory](#reflexion_memory-module) | Session episodes (Tier 2) | `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/memory_core/reflexion_memory.py` |
+| [memory_router](#memory_router-module) | Unified memory search (Tier 1) | `memory_router.py`, shipped with the `memory` skill |
+| [reflexion_memory](#reflexion_memory-module) | Session episodes (Tier 2) | `reflexion_memory.py`, shipped with the `memory` skill |
 
-Two scripts wrap these modules with a command line: `search_memory.py` and `extract_session_episode.py`, both in `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/`.
+Two scripts wrap these modules with a command line: `search_memory.py` and `extract_session_episode.py`, both shipped with the `memory` skill.
 
 ## memory_router Module
 

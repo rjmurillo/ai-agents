@@ -19,6 +19,14 @@ Usage:
 `run` compares the checkout HEAD with the tasks file `base_commit`, where the gold
 was derived, and warns on stderr when they differ.
 
+A tasks file may name another skill with `skill` (default `skill-bootstrap`) and
+grant it more read-only tools with `allowed_tools`, so one runner serves the
+before/after eval of any skill that answers questions about this repository.
+
+`run` refuses (exit 2) a checkout that holds the tasks file or whose refs reach a
+commit that touched it, because the agent could then read or `git show` the gold.
+A linked worktree shares its main repository's refs, so run from a standalone clone.
+
 Exit codes:
     0 ok
     1 logic (a CLI error in any cell; means would compare unequal samples)
@@ -50,6 +58,8 @@ GIT_TIMEOUT_S = 30
 STDERR_TAIL_CHARS = 2000
 GRADER_KINDS = ("pairs_f1", "set_f1_prefix", "set_f1")
 BASE_COMMIT_RE = re.compile(r"[0-9a-f]{40}")
+DEFAULT_SKILL = "skill-bootstrap"
+SKILL_NAME_RE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 # Deny flags the prefix grants accept: --allow-commands runs repo argv; the rest write
 # files. Claude Code 2.1.302 probe (2026-10-17): drift rule refuses; without it, runs.
 _SCRIPT_DIR = "python3 .claude/skills/skill-bootstrap/scripts"
@@ -84,6 +94,7 @@ READ_ONLY_TOOLS = (
     "Bash(git diff-tree:*)",
     *(f"Bash({_SCRIPT_DIR}/{name}.py:*)" for name in _SKILL_SCRIPTS),
 )
+WRITE_TOOLS = ("Edit", "MultiEdit", "Write", "NotebookEdit")
 CONDITIONS = ("before", "after")
 # Each fenced block ends at the next fence without consuming it, so an unterminated
 # draft block cannot swallow the opening fence of the final block.
@@ -108,6 +119,42 @@ def _check_task(path: Path, task: object, seen: set[str]) -> None:
     seen.add(task["id"])
 
 
+INTERPRETERS = frozenset({"python", "python3", "node", "perl", "ruby"})
+# A script grant must name a script reviewed to only read the checkout and print.
+# No static check can prove a script is read-only, so add a script here after review.
+REVIEWED_SCRIPTS = frozenset({".claude/skills/chestertons-fence/scripts/investigate.py"})
+# A git grant must name one of these subcommands; reset, checkout, clean, and the
+# rest could move HEAD or change the tree that later repetitions share.
+GIT_READ_ONLY = frozenset({"log", "show", "ls-tree", "rev-parse", "rev-list", "diff-tree", "blame"})
+
+
+def _is_script(word: str) -> bool:
+    return word.removeprefix("./") in REVIEWED_SCRIPTS
+
+
+def _loose_bash_grant(tool: str) -> bool:
+    """True for a Bash grant outside the read-only allowlist.
+
+    A Bash grant passes only as a git subcommand from GIT_READ_ONLY, a script from
+    REVIEWED_SCRIPTS, or an interpreter whose first argument is such a script.
+    Anything else, such as `rm`, `find`, a shell, or a script that writes files,
+    could change the checkout that later runs share.
+    """
+    if tool == "Bash":
+        return True
+    if not (tool.startswith("Bash(") and tool.endswith(")")):
+        return False
+    words = tool[5:-1].removesuffix(":*").split()
+    if not words:
+        return True
+    head = words[0].rsplit("/", 1)[-1]
+    if head == "git":
+        return len(words) < 2 or words[1] not in GIT_READ_ONLY
+    if head in INTERPRETERS:
+        return len(words) < 2 or not _is_script(words[1])
+    return not _is_script(words[0])
+
+
 def load_tasks(path: Path) -> dict[str, Any]:
     data = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
@@ -119,6 +166,18 @@ def load_tasks(path: Path) -> dict[str, Any]:
     base = data.get("base_commit")
     if base is not None and not (isinstance(base, str) and BASE_COMMIT_RE.fullmatch(base)):
         raise ValueError(f"{path}: 'base_commit' must be a 40-character lowercase hex SHA")
+    skill = data.get("skill", DEFAULT_SKILL)
+    if not (isinstance(skill, str) and SKILL_NAME_RE.fullmatch(skill)):
+        raise ValueError(f"{path}: 'skill' must be a lowercase hyphenated skill name")
+    extra = data.get("allowed_tools", [])
+    if not (isinstance(extra, list) and all(isinstance(t, str) and t.strip() for t in extra)):
+        raise ValueError(f"{path}: 'allowed_tools' must be a list of non-empty strings")
+    if any(t.split("(", 1)[0].strip() in WRITE_TOOLS for t in extra):
+        raise ValueError(f"{path}: 'allowed_tools' must not grant {', '.join(WRITE_TOOLS)}")
+    if loose := [t for t in extra if _loose_bash_grant(t.strip())]:
+        raise ValueError(
+            f"{path}: 'allowed_tools' Bash grants must be read-only git or a script: {loose}"
+        )
     seen: set[str] = set()
     for task in data["tasks"]:
         _check_task(path, task, seen)
@@ -226,7 +285,9 @@ def _kill_group(child: subprocess.Popen[str]) -> None:
         pass  # a process outside the group still holds the pipes; leave it
 
 
-def run_one(checkout: Path, prompt: str, model: str) -> dict[str, Any]:
+def run_one(
+    checkout: Path, prompt: str, model: str, extra_tools: tuple[str, ...] = ()
+) -> dict[str, Any]:
     started = time.monotonic()
     command = [
         "claude",
@@ -238,10 +299,9 @@ def run_one(checkout: Path, prompt: str, model: str) -> dict[str, Any]:
         "json",
         "--allowedTools",
         *READ_ONLY_TOOLS,
+        *extra_tools,
         "--disallowedTools",
-        "Edit",
-        "Write",
-        "NotebookEdit",
+        *WRITE_TOOLS,
         DENY_DRIFT_COMMANDS,
         DENY_EVAL_IN_REPO,
         *DENY_WRITES,
@@ -319,6 +379,40 @@ def _checkout_head(checkout: Path) -> str:
     return head
 
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _gold_exposure(checkout: Path, tasks_path: Path) -> str | None:
+    """Return why the checkout can see the gold, else None.
+
+    The tasks file holds the gold answers. A checkout that holds the file, or any of
+    whose refs ever touched it, lets the agent read or `git show` the answer key. A
+    linked worktree shares every ref of its main repository, so use a standalone
+    clone. A tasks file inside the checkout always fails. A tasks file outside both
+    the checkout and this repository has no history check. A failed history check
+    fails, because `--all` reads refs that `_checkout_head` never reads.
+    """
+    resolved = tasks_path.resolve()
+    if resolved.is_relative_to(checkout.resolve()):
+        return f"{checkout} holds {resolved}, so the agent can read the gold"
+    try:
+        rel = resolved.relative_to(_REPO_ROOT).as_posix()
+    except ValueError:
+        return None
+    if (checkout / rel).exists():
+        return f"{checkout} holds {rel}, so the agent can read the gold"
+    try:
+        proc = _git_in(checkout, "log", "--all", "--full-history", "-1", "--format=%h", "--", rel)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return f"could not check {checkout} history for {rel}: {exc}"
+    if proc.returncode != 0:
+        detail = proc.stderr.strip() or f"exit {proc.returncode}"
+        return f"could not check {checkout} history for {rel}: {detail}"
+    if sha := proc.stdout.strip():
+        return f"{checkout} refs reach {rel} at {sha}, so git show can reveal the gold"
+    return None
+
+
 def _base_commit_warning(checkout: Path, head: str, base: str | None) -> str | None:
     """Return a warning when the gold's base commit is not the checkout's HEAD, else None.
 
@@ -346,15 +440,25 @@ def _base_commit_warning(checkout: Path, head: str, base: str | None) -> str | N
     )
 
 
+def _checkout_problem(checkout: Path, skill: str, tasks_path: Path) -> str | None:
+    """Return why the checkout cannot host this eval, else None."""
+    if not (checkout / ".claude" / "skills" / skill / "SKILL.md").is_file():
+        return f"{checkout} carries no {skill}"
+    if exposure := _gold_exposure(checkout, tasks_path):
+        return f"{exposure}; run from a standalone clone without the tasks file"
+    return None
+
+
 def cmd_run(args: argparse.Namespace) -> int:
     if shutil.which("claude") is None:
         print("ERROR: claude CLI not found", file=sys.stderr)
         return 3
     checkout = Path(args.checkout).resolve()
-    if not (checkout / ".claude" / "skills" / "skill-bootstrap" / "SKILL.md").is_file():
-        print(f"ERROR: {checkout} carries no skill-bootstrap", file=sys.stderr)
-        return 2
     data = load_tasks(Path(args.tasks))
+    if problem := _checkout_problem(checkout, data.get("skill", DEFAULT_SKILL), Path(args.tasks)):
+        print(f"ERROR: {problem}", file=sys.stderr)
+        return 2
+    extra_tools = tuple(data.get("allowed_tools", []))
     unknown = sorted(set(args.task or ()) - {t["id"] for t in data["tasks"]})
     if unknown or args.reps < 1:
         print(
@@ -374,7 +478,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         for rep in range(args.reps):
             for task in selected:
                 prompt = f"{data['preamble']}\n\n{task['prompt']}"
-                record = run_one(checkout, prompt, args.model)
+                record = run_one(checkout, prompt, args.model, extra_tools)
                 answer = extract_answer(record["result"])
                 record.update(
                     condition=args.condition,

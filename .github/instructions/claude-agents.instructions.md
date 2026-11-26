@@ -124,6 +124,10 @@ That workflow is a **weekly and manual audit, not a PR merge gate**: its only tr
 
 This is the tool working as documented (`SECTIONS_TO_COMPARE` names the sections it focuses on), not a defect. The error to avoid is reading its silence as parity.
 
+## Success Criterion
+
+Every agent declares a success criterion. A router can only retry on a signal it can read (ADR-065). The field is declarative until ADR-065 step 6 (retry code) reads it; today only the orchestrator prompt does. Each Claude template MUST carry a top-level `success_criterion` frontmatter key with `kind` (`exit-code`, `schema`, `regex`, `test`, or `human-judgment`), a `value` for every kind but `human-judgment`, and a `rationale` written for that agent. Use a machine kind only when the agent's body already mandates the literal signal; an invented check is worse than an honest `human-judgment`. The router agents in `DELEGATORS` MUST NOT use manager or supervisor vocabulary. Gates: `check_agent_success_criterion.py` and `check_orchestrator_vocabulary.py`. Refs issue #7639.
+
 ## References
 
 - `build/scripts/agent_templates.py`. Generator (emits `src/claude/agents/`)
