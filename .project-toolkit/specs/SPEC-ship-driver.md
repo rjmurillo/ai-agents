@@ -135,12 +135,15 @@ Owns everything `/push-pr` did after the body is written.
 - It never creates a commit.
 - It reruns `check` and stops on any failure before the push.
 - It holds the shared push lock, `$HOME/src/scratch/locks/push-lock-<slug>.lock`, for the whole push. It prints `PUSH_LOCK: held`.
-  The commit guard reads that lock, so a commit cannot land while the pre-push suite runs.
+  The commit guard (`scripts/validation/check_push_lock_before_commit.py`) probes that lock when a commit starts
+  and refuses the commit while the push holds it. The probe releases the lock at once, so it narrows the race and does not close it:
+  a commit that passed the probe can still land during a later pre-push.
   The lock stays in the script process; children never inherit it.
   So a daemon that git or a hook starts, such as `git credential-cache`, cannot keep it after the push.
   Off Windows the push runs in a new session, so it gets no signal sent to the caller's process group.
   A push timeout, a Ctrl-C, or a SIGTERM, SIGHUP, or SIGQUIT to the script kills the push's process group, hooks included, before the lock is released.
   A signal kill ends `STOP: push-interrupted`, exit 3; the remote may or may not hold the push, so the note says to check it.
+  A signal that lands while the push process is being created is held, then raised once the process is under that cleanup, so it is killed too.
   A signal the caller ignores stays ignored, so a push under `nohup` survives a hangup.
   A hook child that moves to its own process group or session escapes that kill and runs on unlocked.
   So does every child when the script dies from any other signal, such as SIGKILL.
