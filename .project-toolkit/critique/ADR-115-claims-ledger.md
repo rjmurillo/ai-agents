@@ -43,3 +43,13 @@ N1: C5 by-path users are seven skills; with `ship` through code, eight. The ADR 
 - C13 corrected: 398 came from an early single-pack run that also held `spec`, `spec-generator`, `api-doc-authoring`, and five git skills. The current fold-in is 384, from `check_layout.py` on the round-2 table with `git` merged.
 - C21: the pilot adds 4 scripts under `ship/scripts/` and changes no `SKILL.md` (`git diff --stat main...3a619dabd6 -- src/claude/skills/ship templates/skills/ship.SKILL.md.tmpl`: 4 files). Pilot `ship/SKILL.md:31,159` still hand off to `/push-pr`. VERIFIED.
 - C22: the chain adds 56 files (pilot `ship` 8, `review` 28, `security-scan` 17, `pr-quality` 1, `security-detection` 2). VERIFIED. The analysis said 60; corrected.
+
+## PR #7634 follow-up (2026-11-25)
+
+| Claim | Evidence | Result |
+|---|---|---|
+| #7581 is blocked by #7587; #7586 is not | `get_issue_relationships.py --issue 7581` and `--issue 7586` | VERIFIED |
+| #7586 may land with `push-pr` still shipped | Pilot owner confirmation; #7586 wiring criteria and #7587 conditional bundling clause | VERIFIED as a merge boundary, not as completed work |
+| Tier 3 requires threat modeling and SLO design; Tier 4 and 5 require ADR review | `spec-prior-art-schema.md`, lines 214-239; `hermes.yaml` excludes `adr-review` | VERIFIED |
+| Current path validation allows same-pack targets | `check_references` in `build/scripts/hermes_pack_checks.py` | VERIFIED |
+| An old table that names a removed skill fails validation | `check_assignment` in `build/scripts/hermes_pack_checks.py` | VERIFIED |

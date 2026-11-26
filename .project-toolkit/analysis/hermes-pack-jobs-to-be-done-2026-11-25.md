@@ -31,9 +31,11 @@ The layout depends on the pilot `ship`, not main's.
 
 Required order:
 
-1. The `ship` pilot merges (#7581) with `SKILL.md` calling `ship_pr.py`, not `/push-pr`.
+1. Land the `ship` driver wiring (#7586) with `push-pr` still shipped. `ship` must call its publish driver and must not delegate to `push-pr`.
 2. The implementation pull request for this layout merges.
-3. The `push-pr` retirement (#7587) merges, with or after step 2.
+3. Retire `push-pr` (#7587) only when step 2 has proven the replacement on Hermes.
+
+The pilot owner confirmed that #7586 can land before #7587. Do not wait for pilot tracker #7581 to close: it is blocked by #7587. #7586 remains open and depends on #7582 through #7585 plus the pilot review and evidence gates.
 
 If #7587 merged before step 2, Hermes would have no skill that opens a PR. If this layout shipped before step 1, Hermes `ship` would call `push-pr`, which #7587 then removes.
 
@@ -179,7 +181,7 @@ Restoring these skills adds scripts that Hermes runs, not just text. `push-pr` a
 ### The fate of `push-pr`
 
 - `push-pr` stays in delivery on Hermes until the pilot `ship` ships there.
-- #7587 retires `push-pr` on every host, with or after this layout's implementation pull request (see Preconditions).
+- #7587 retires `push-pr` on every host only after this layout's implementation pull request merges and proves the Hermes PR path (see Preconditions). It must not share that pull request.
 - Retiring `push-pr` removes 2 files and 3 reviewed `high` findings from delivery (`push-pr/SKILL.md:33-35`, measured 2026-11-25).
 - `takeover` names `push-pr` twice, and `autoplan`, `validate-pr-description`, and `agent-harness-reference` name it once each (2026-11-25). #7587 already owns those callers.
 
@@ -221,10 +223,12 @@ After the edits above, no path crosses a pack. These name-level calls cross pack
 | J1, J2, J3 (build, review, ship, see a PR through) | delivery |
 | J4 (adopt a branch, rewrite history) | delivery, git |
 | J5 (Azure DevOps pipelines) | delivery, azure-devops |
-| J6, J7 (decide, remember) | knowledge |
+| J6, J7 (decide, remember) | knowledge for basic work; see the spec tier limits below |
 | J8, J9 (harden, second opinion) | quality |
 | J10 (write skills and docs) | authoring |
 | The full toolkit | all six |
+
+Spec generation on Hermes has two limits. First, `spec-generator` calls excluded `cva-analysis` for every Tier 3 to 5 spec and for a Tier 1 or 2 spec with several use cases (`spec-prior-art-schema.md`, Step 5). No proposed pack ships it, so those specs cannot finish on Hermes. Second, Tier 4 and 5 also need blocking `adr-review`, which no proposed pack ships. A Tier 1 or 2 spec with one use case needs knowledge, plus delivery for validation. Finish the other specs on a host that ships `cva-analysis` and `adr-review`.
 
 ## Install order and reinstalls
 
@@ -248,14 +252,14 @@ The build check cannot see paths joined in code, and the smoke is the only runti
 4. A negative-control test that `security-scan`'s detection results on its fixtures do not change after the rewording.
 5. A list of each script restored to Hermes, with its subprocess, network, and credential use.
 6. Updates to `docs/training/install-on-every-host.md` (pack table, skill count, remove-then-install steps) and `src/hermes/README.md`.
-7. A build check that fails when a pack script joins a path into `skills/` of another skill in code. If it does not land, record that gap as an accepted risk in ADR-115.
-8. A build check that fails when no Hermes pack holds `ship` or `push-pr`, so no ordering mistake leaves Hermes without a way to open a PR.
+7. A build check for paths assembled in code. Allow same-pack targets. Reject targets in another pack or excluded from Hermes. Keep the existing exception: `skillforge/scripts/_packs.py` may look up a sibling pack and must report not evaluated when it is absent. Test same-pack, cross-pack, excluded, and `_packs.py` cases. The check proves only the path forms it parses. If it does not land, record that gap as an accepted risk in ADR-115.
+8. A build check that requires `push-pr` or an independently wired `ship`. Exercise the installed `ship` publish handoff with a fake PR transport and no `push-pr`. A negative control must fail if `ship` delegates to the missing skill. Require that proof before #7587.
 9. Commits that each pass the build check alone, in this order: (1) the name-only references and the `security-scan` rewording, which change no pack table; (2) restore the chain and move `codeql-scan` and `golden-principles` into delivery in one commit, because `review` names their paths; (3) the remaining pack moves. Run the smoke after step 2 and at the last commit.
 10. A check that each line reworded to clear the guard is prose that does not run.
 
 ## Reversibility
 
-- The layout can be undone. A revert restores the four-pack table and costs each Hermes user one more remove-and-reinstall. No user data is lost.
+- Before #7587, the previous four-pack table can still use `push-pr`. #7587 must not merge until one of two things is recorded. Either a four-pack rollback table that keeps the `ship` chain fits the cap and its smoke opens a PR without `push-pr`, or the owner accepts roll-forward-only recovery. Users reinstall the affected packs on any rollback.
 - The prerequisite edits can stay after a revert. Name-only references work on every host, and the reworded `security-scan` lines keep their meaning.
 - The claim that users predict packs by job is a hypothesis from this job table, not user data. After rollout, check install-guide questions and reports of missing skills per pack. The by-choice moves (`benchmark-models`, `prompt-engineer`, `technical-writing`, `fix-markdown-fences`, `api-doc-authoring`) are the cheapest to reverse.
 
