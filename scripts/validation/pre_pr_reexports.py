@@ -21,6 +21,7 @@ from check_agent_skill_docs import (
     validate_agent_skill_docs,
     validate_skill_page_freshness,
 )
+from check_agent_success_criterion import validate_agent_success_criterion
 from check_agent_tree_frontmatter import validate_agent_tree_frontmatter
 from check_agents_write_targets import validate_agents_write_targets
 from check_bypass_allowlist import validate_bypass_allowlist
@@ -31,6 +32,7 @@ from check_git_hook_health import validate_git_hook_health
 from check_host_marketplaces import validate_host_marketplaces
 from check_in_root_worktrees import validate_in_root_worktrees
 from check_index_line_endings import validate_index_line_endings
+from check_orchestrator_vocabulary import validate_orchestrator_vocabulary
 from check_promotion_exceptions import validate_promotion_exceptions
 from check_push_lock_paths import validate_push_lock_paths
 from check_required_context_conditions import validate_required_context_conditions
@@ -85,6 +87,8 @@ __all__ = [
     "validate_agent_template_drift",
     "validate_adr_exception_markers",
     "validate_agent_delegation",
+    "validate_agent_success_criterion",
+    "validate_orchestrator_vocabulary",
     "validate_agent_tree_frontmatter",
     "validate_agents_write_targets",
     "validate_always_on_corpus_claims",

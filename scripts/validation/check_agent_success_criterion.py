@@ -1,0 +1,149 @@
+#!/usr/bin/env python3
+"""Gate: every agent declares an explicit success criterion (ADR-065 Decision 2).
+
+ADR-065 says the orchestrator is a router with a retry policy, not a
+supervisor. A router can only retry on a signal it can read, so each agent
+names that signal in frontmatter under ``metadata.success_criterion``. Before
+this gate, no agent declared one and nothing read the field (issue #7639).
+
+The rules for one criterion live in ``success_criterion.py``. This gate adds
+the cross-agent rule: two agents may not share a rationale, because a copied
+rationale explains neither agent.
+
+The scan reads ``src/claude/agents/``, the rendered plugin source, for the
+same reason ``check_agent_delegation.py`` does: templates compose their
+frontmatter from partials, so the rendered file is the one place the final
+frontmatter sits. ``.claude/agents/`` links into that tree (ADR-119), and
+``Generated Artifact Staleness`` keeps the render honest.
+
+The field lives only in the Claude templates (``templates/agents/*.claude.md.tmpl``).
+The Copilot and VS Code trees, and the Cursor and Codex trees that keep only
+``name`` and ``description``, do not carry it.
+
+CLI::
+
+    uv run python scripts/validation/check_agent_success_criterion.py
+    uv run python scripts/validation/check_agent_success_criterion.py <repo-root>
+
+Exit codes (ADR-035):
+    0 - Success (every agent declares a valid, distinct criterion)
+    1 - Logic error (one or more agents miss or break the contract)
+    2 - Config error (invalid repository root, or the tree is missing)
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import yaml
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import success_criterion as rules
+
+from scripts.hook_utilities.frontmatter_block import (
+    FrontmatterStatus,
+    parse_frontmatter,
+)
+
+AGENT_TREE = Path("src/claude/agents")
+
+
+def read_criterion(path: Path) -> object:
+    """Return ``metadata.success_criterion`` for one agent, or None when absent.
+
+    Raises ``ValueError`` when the file cannot be read as an agent.
+    """
+    result = parse_frontmatter(path.read_text(encoding="utf-8"), yaml, allow_duplicate_keys=True)
+    if not result.present or result.status is FrontmatterStatus.UNTERMINATED:
+        raise ValueError("no YAML frontmatter block")
+    if result.status is FrontmatterStatus.MALFORMED:
+        detail = (result.error or "").removeprefix("invalid YAML frontmatter: ")
+        raise ValueError(f"frontmatter is not valid YAML: {detail}")
+    loaded = result.metadata
+    if result.status is not FrontmatterStatus.VALID or not isinstance(loaded, dict):
+        raise ValueError("frontmatter is not a mapping")
+    metadata = loaded.get("metadata")
+    if not isinstance(metadata, dict):
+        return None
+    return metadata.get(rules.CRITERION_KEY)
+
+
+def find_criterion_findings(repo_root: Path) -> list[tuple[str, str]]:
+    """Return ``(agent, finding)`` pairs across the tree.
+
+    Raises ``FileNotFoundError`` when the tree is absent or empty: a silently
+    empty scan is a passing scan that proves nothing.
+    """
+    tree = repo_root / AGENT_TREE
+    if not tree.is_dir():
+        raise FileNotFoundError(f"agent tree not found: {tree}")
+    files = sorted(tree.glob("*.md"))
+    if not files:
+        raise FileNotFoundError(f"agent tree yields no Markdown files: {tree}")
+
+    findings: list[tuple[str, str]] = []
+    rationales: dict[str, str] = {}
+    for path in files:
+        try:
+            criterion = read_criterion(path)
+        except ValueError as exc:
+            findings.append((path.stem, f"cannot read success criterion: {exc}"))
+            continue
+        findings.extend((path.stem, text) for text in rules.check_criterion(criterion))
+        if isinstance(criterion, dict) and isinstance(criterion.get("rationale"), str):
+            rationales[path.stem] = criterion["rationale"]
+    for name, others in sorted(rules.duplicate_rationales(rationales).items()):
+        findings.append(
+            (name, f"'rationale' is copied from {', '.join(others)}; write one for this agent")
+        )
+    return sorted(findings)
+
+
+def validate_agent_success_criterion(repo_root: Path) -> bool:
+    """Return True when every agent declares a valid, distinct success criterion.
+
+    Entry point matching the ``validate_*(repo_root) -> bool`` contract used by
+    ``pre_pr.py``.
+    """
+    try:
+        findings = find_criterion_findings(repo_root)
+    except FileNotFoundError as exc:
+        print(f"[FAIL] {exc}", file=sys.stderr)
+        return False
+    if not findings:
+        return True
+    print(
+        f"[FAIL] {len(findings)} success-criterion finding(s) under "
+        f"{AGENT_TREE.as_posix()}/. A router can only retry on a signal the agent "
+        "declares (ADR-065 Decision 2):",
+        file=sys.stderr,
+    )
+    for name, text in findings:
+        print(f"  {name}: {text}", file=sys.stderr)
+    print(
+        "\nFix the Claude template under templates/agents/, then run "
+        "'uv run python build/scripts/build_all.py'. Contract: MUST 10 in "
+        "templates/rules/claude-agents.md. Refs issue #7639.",
+        file=sys.stderr,
+    )
+    return False
+
+
+def main(argv: list[str] | None = None) -> int:
+    """CLI entry point. Returns an ADR-035 exit code."""
+    args = argv if argv is not None else sys.argv[1:]
+    repo_root = Path(args[0]).resolve() if args else Path(__file__).resolve().parents[2]
+    if not repo_root.is_dir():
+        print(f"[FAIL] Invalid repository root: {repo_root}", file=sys.stderr)
+        return 2
+    if not (repo_root / AGENT_TREE).is_dir():
+        print(f"[FAIL] Missing agent tree: {repo_root / AGENT_TREE}", file=sys.stderr)
+        return 2
+    return 0 if validate_agent_success_criterion(repo_root) else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
