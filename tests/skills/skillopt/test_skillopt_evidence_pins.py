@@ -137,6 +137,21 @@ class TestPins:
         assert skillopt.main(["pin-check", "--pins", str(out)]) == 1
         assert json.loads(capsys.readouterr().out)["changed_surfaces"] == ["verifier"]
 
+    def test_pins_without_target_still_match(self, tmp_path: Path, capsys: Capture) -> None:
+        pins = self.pin(tmp_path)
+        data = json.loads(pins.read_text(encoding="utf-8"))
+        for entry in data["surfaces"].values():
+            entry.pop("target")
+        pins.write_text(json.dumps(data), encoding="utf-8")
+        assert skillopt.main(["pin-check", "--pins", str(pins)]) == 0
+        assert json.loads(capsys.readouterr().out)["verdict"] == "MATCH"
+
+    def test_pins_file_follows_umask(self, tmp_path: Path) -> None:
+        pins = self.pin(tmp_path)
+        probe = tmp_path / "probe"
+        probe.write_text("x", encoding="utf-8")
+        assert pins.stat().st_mode & 0o777 == probe.stat().st_mode & 0o777
+
     def test_duplicate_surface_name_exits_2(self, tmp_path: Path, capsys: Capture) -> None:
         eval_path, verifier = self.setup_files(tmp_path)
         other = tmp_path / "other.py"

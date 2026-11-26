@@ -95,6 +95,9 @@ def _write_atomic(out: Path, text: str) -> None:
     """Write a sibling temp file, then replace, so an alias of --out is never truncated."""
     fd, tmp = tempfile.mkstemp(dir=out.parent, prefix=f".{out.name}.", suffix=".tmp")
     try:
+        umask = os.umask(0)
+        os.umask(umask)
+        os.fchmod(fd, 0o666 & ~umask)
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             handle.write(text)
         os.replace(tmp, out)

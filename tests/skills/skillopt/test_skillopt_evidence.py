@@ -204,6 +204,13 @@ class TestManifestoCheck:
         assert run(tmp_path, argv, eval=EVAL, inc2=inc, w=weakness(), m=m, p=PATCHES) == 2
         assert "no verified failing result" in capsys.readouterr().err
 
+    def test_unverified_at_risk_exits_2(self, tmp_path: Path, capsys: Capture) -> None:
+        argv = [x if x != "@inc" else "@inc2" for x in self.ARGV]
+        inc = {**INCUMBENT, "t4": "UNVERIFIED"}
+        m = manifesto(at_risk=["t4"])
+        assert run(tmp_path, argv, eval=EVAL, inc2=inc, w=weakness(), m=m, p=PATCHES) == 2
+        assert "do not pass at baseline" in capsys.readouterr().err
+
     def test_unaddressable_pattern_exits_2(self, tmp_path: Path, capsys: Capture) -> None:
         assert self.call(tmp_path, manifesto(), w=weakness(addressable=False)) == 2
         assert "not addressable" in capsys.readouterr().err

@@ -110,7 +110,7 @@ at-risk regressions.
 - `predicted_fixes`: train tasks that fail now and you expect to flip to
   pass. At least one. A task that passes at baseline exits 2.
 - `at_risk`: train tasks that pass now and might break. May be empty. A task
-  that fails at baseline exits 2.
+  whose baseline result is not `true` exits 2.
 
 `skillopt.py manifesto-check --eval eval.json --incumbent-results
 incumbent_results.json --weakness weakness.json --manifesto manifesto.json
