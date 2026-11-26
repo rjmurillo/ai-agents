@@ -88,6 +88,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -236,9 +237,34 @@ def matches_pattern(file_path: str, patterns: list[str]) -> bool:
     return False
 
 
-def get_security_risk_level(file_path: str) -> str:
-    """Determine security risk level for a file path."""
+def _repo_relative_path(file_path: str, repo_root: Path | None) -> str:
+    """Return the repo-relative spelling used for pattern matching.
+
+    Git input is already repo-relative. Explicit input may carry a leading
+    ``./`` or an absolute path, so both spellings are normalized here. An
+    absolute path outside ``repo_root`` stays absolute and matches no anchored
+    repository pattern.
+    """
     normalized = file_path.replace("\\", "/")
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    if repo_root is None or not os.path.isabs(normalized):
+        return normalized
+
+    root = os.path.realpath(os.fspath(repo_root))
+    candidate = os.path.realpath(normalized)
+    try:
+        relative = os.path.relpath(candidate, root)
+    except ValueError:
+        return normalized
+    if relative == os.pardir or relative.startswith(os.pardir + os.sep):
+        return normalized
+    return relative.replace(os.sep, "/")
+
+
+def get_security_risk_level(file_path: str, repo_root: Path | None = None) -> str:
+    """Determine security risk level for a file path."""
+    normalized = _repo_relative_path(file_path, repo_root)
     if matches_pattern(normalized, CRITICAL_PATTERNS):
         return "critical"
     if matches_pattern(normalized, HIGH_PATTERNS):
@@ -271,7 +297,8 @@ def detect_infrastructure(
 ) -> dict[str, Any]:
     """Analyze files and return security risk findings.
 
-    ``repo_root`` is where ``use_git_staged`` reads the index (default: cwd).
+    ``repo_root`` is where ``use_git_staged`` reads the index (default: cwd)
+    and the root used to match absolute explicit paths.
     """
     if use_git_staged:
         changed_files = get_staged_files(repo_root)
@@ -287,7 +314,7 @@ def detect_infrastructure(
     highest_risk = "none"
 
     for file_path in changed_files:
-        risk = get_security_risk_level(file_path)
+        risk = get_security_risk_level(file_path, repo_root=repo_root)
         if risk != "none":
             findings.append({"File": file_path, "RiskLevel": risk})
             if risk == "critical":

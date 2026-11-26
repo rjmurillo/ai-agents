@@ -125,3 +125,37 @@ class TestAuthFilenamePattern:
 
     def test_non_code_extension_does_not_match_auth_pattern(self) -> None:
         assert get_security_risk_level("docs/auth-notes.md") == "none"
+
+
+class TestExplicitPathNormalization:
+    """Explicit path spellings are matched as repo-relative paths."""
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "./scripts/validation/adr_debate_evidence.py",
+            "././scripts/validation/adr_debate_evidence.py",
+        ],
+    )
+    def test_dot_relative_repo_path_stays_critical(self, path: str) -> None:
+        assert get_security_risk_level(path) == "critical"
+
+    def test_absolute_path_inside_repo_root_is_critical(self, tmp_path: Path) -> None:
+        repo_root = tmp_path / "repo"
+        file_path = repo_root / "scripts" / "validation" / "adr_debate_evidence.py"
+
+        assert get_security_risk_level(str(file_path), repo_root=repo_root) == "critical"
+
+    def test_absolute_path_outside_repo_root_is_not_critical(self, tmp_path: Path) -> None:
+        repo_root = tmp_path / "repo"
+        outside = tmp_path / "outside" / "scripts" / "validation" / "adr_debate_evidence.py"
+
+        assert get_security_risk_level(str(outside), repo_root=repo_root) == "none"
+
+    def test_absolute_path_without_repo_root_is_not_critical(self, tmp_path: Path) -> None:
+        outside = tmp_path / "scripts" / "validation" / "adr_debate_evidence.py"
+
+        assert get_security_risk_level(str(outside)) == "none"
+
+    def test_empty_path_is_none(self) -> None:
+        assert get_security_risk_level("") == "none"

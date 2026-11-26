@@ -1447,10 +1447,12 @@ def _is_linked_worktree(repo_root: Path) -> bool:
 def _is_committed_here(repo_root: Path, path: Path) -> bool:
     """Return True when ``path`` exists in the current checkout's ``HEAD``.
 
-    In a linked worktree, presence in HEAD indicates the file arrived with
-    the checkout rather than being created in the working tree during this
-    session.  The proxy is imperfect: a log committed during the current
-    session would also satisfy this test.  The guard is acceptable because
+    This is a path-existence probe, not a content comparison: uncommitted
+    working-tree edits still satisfy it. In a linked worktree, presence in
+    HEAD indicates the file arrived with the checkout rather than being
+    created in the working tree during this session. The proxy is imperfect:
+    a log committed during the current session would also satisfy this test.
+    The guard is acceptable because
     the worktree exemption only fires in combination with
     ``_is_linked_worktree``, and linked-worktree users do not typically
     commit session logs to their feature branch mid-session.
@@ -2349,7 +2351,7 @@ def check_branch_context(repo_root: Path) -> int:
             )
         if _is_linked_worktree(repo_root) and _is_committed_here(repo_root, session_log):
             return _branch_context_pass(
-                REASON_POLICY_EXEMPT, "linked worktree with a session log committed at HEAD"
+                REASON_POLICY_EXEMPT, "linked worktree with a session log path present at HEAD"
             )
         print(
             "ERROR: branch context mismatch: "

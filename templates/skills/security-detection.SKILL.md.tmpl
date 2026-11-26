@@ -101,7 +101,7 @@ No infrastructure/security files detected.
 
 - CI/CD workflows (`.github/workflows/*`)
 - Git hook configuration (`{lefthook,.lefthook,lefthook-local,.lefthook-local}.{yml,yaml,json,jsonc,toml}`, `.config/{lefthook,lefthook-local}.{yml,yaml,json,jsonc,toml}`, `.husky/*`)
-- Git hook policy (`scripts/validation/git_hook_policy.py`)
+- Git hook policy (`scripts/validation/git_hook_policy.py`, `scripts/validation/adr_debate_evidence.py`)
 - Authentication code (`**/Auth/**`, `**/Security/**`)
 - Environment files (`*.env*`)
 - Credentials and keys (`*.pem`, `*.key`, `*secret*`)
