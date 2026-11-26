@@ -253,6 +253,7 @@ class TestRealTree:
         [
             ("code-reviewer", "Findings.\nVERDICT: WARN\n", "VERDICT: OK\n"),
             ("code-reviewer", "Findings.\nVERDICT: PASS", "VERDICT: PASS\nmore findings\n"),
+            ("code-reviewer", "Findings.\nVERDICT: PASS\r\n\n", "VERDICT: PASS\n\nmore\n"),
             (
                 "critic",
                 "## Verdict\nNEEDS_REVISION - Confidence: MEDIUM\n",
