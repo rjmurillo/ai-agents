@@ -156,6 +156,163 @@ def test_configured_runner_points_at_this_script() -> None:
     assert " ".join(runner.RUNNER_COMMAND) == config["lefthook"]
 
 
+# --- delete-only pushes run only the ref guard jobs ------------------------
+
+ZERO_SHA = "0" * 40
+SOME_SHA = "954729fa9af4ef395fd0b8643f9c50a0b04b7d36"
+DELETE_LINE = f"(delete) {ZERO_SHA} refs/heads/old {SOME_SHA}\n"
+UPDATE_LINE = f"refs/heads/topic {SOME_SHA} refs/heads/topic {ZERO_SHA}\n"
+GIT_ARGUMENTS = ["origin", "https://example.test/repo.git"]
+# Pre-push jobs that read stdin but inspect tree content, so a delete skips them.
+TREE_JOBS_WITH_STDIN = frozenset({"security-scan", "hook-anchoring-e2e", "plugin-load-e2e"})
+
+
+def _guard_job_args() -> list[str]:
+    return [item for job in runner.REF_GUARD_JOBS for item in ("--job", job)]
+
+
+def _pre_push(stdin: bytes | None, *flags: str) -> list[str]:
+    arguments = ["run", "pre-push", *flags, *GIT_ARGUMENTS]
+    with mock.patch.object(runner, "lefthook_file_args", return_value=["--file=a.py"]):
+        return runner._child_arguments(arguments, stdin)
+
+
+def _job_names(jobs: list[dict]) -> list[str]:
+    names: list[str] = []
+    for job in jobs:
+        if "name" in job:
+            names.append(job["name"])
+        names.extend(_job_names(job.get("group", {}).get("jobs", [])))
+    return names
+
+
+def _stdin_job_names(jobs: list[dict]) -> list[str]:
+    names: list[str] = []
+    for job in jobs:
+        if job.get("use_stdin"):
+            names.append(job["name"])
+        names.extend(_stdin_job_names(job.get("group", {}).get("jobs", [])))
+    return names
+
+
+def _pre_push_jobs() -> list[dict]:
+    config = yaml.safe_load((PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
+    return config["pre-push"]["jobs"]
+
+
+def test_delete_only_push_adds_one_job_flag_per_ref_guard() -> None:
+    result = _pre_push(DELETE_LINE.encode())
+
+    assert result == [
+        "run",
+        "pre-push",
+        "--file=a.py",
+        *_guard_job_args(),
+        "--",
+        *GIT_ARGUMENTS,
+    ]
+
+
+def test_delete_only_push_with_several_deletes_adds_the_jobs() -> None:
+    stdin = (DELETE_LINE + DELETE_LINE.replace("old", "older")).encode()
+
+    assert _guard_job_args() == _pre_push(stdin)[3 : 3 + 2 * len(runner.REF_GUARD_JOBS)]
+
+
+def test_delete_only_push_says_tree_jobs_were_skipped(capsys: pytest.CaptureFixture[str]) -> None:
+    _pre_push(DELETE_LINE.encode())
+
+    err = capsys.readouterr().err
+    assert err.count("\n") == 1
+    assert "skipped the tree jobs" in err
+    assert "only deletes refs" in err
+    assert f"{len(runner.REF_GUARD_JOBS)} ref guard jobs run" in err
+
+
+def test_mixed_delete_and_update_keeps_every_job() -> None:
+    stdin = (DELETE_LINE + UPDATE_LINE).encode()
+
+    assert "--job" not in _pre_push(stdin)
+
+
+def test_update_before_delete_keeps_every_job() -> None:
+    stdin = (UPDATE_LINE + DELETE_LINE).encode()
+
+    assert "--job" not in _pre_push(stdin)
+
+
+def test_update_only_push_keeps_every_job(capsys: pytest.CaptureFixture[str]) -> None:
+    assert "--job" not in _pre_push(UPDATE_LINE.encode())
+    assert capsys.readouterr().err == ""
+
+
+@pytest.mark.parametrize("stdin", [None, b"", b"\n"])
+def test_empty_stdin_keeps_every_job(stdin: bytes | None) -> None:
+    assert "--job" not in _pre_push(stdin)
+
+
+@pytest.mark.parametrize(
+    "flags",
+    [
+        ("--job", "python-tests"),
+        ("--job=python-tests",),
+        ("--tag", "fast"),
+        ("--command", "lint"),
+    ],
+)
+def test_caller_supplied_scope_flag_is_respected(
+    flags: tuple[str, ...], capsys: pytest.CaptureFixture[str]
+) -> None:
+    result = _pre_push(DELETE_LINE.encode(), *flags)
+
+    assert result == ["run", "pre-push", "--file=a.py", *flags, "--", *GIT_ARGUMENTS]
+    assert capsys.readouterr().err == ""
+
+
+def test_caller_supplied_file_flag_is_respected() -> None:
+    arguments = ["run", "pre-push", "--file", "x.py", *GIT_ARGUMENTS]
+
+    result = runner._child_arguments(arguments, DELETE_LINE.encode())
+
+    assert result == ["run", "pre-push", "--file", "x.py", "--", *GIT_ARGUMENTS]
+
+
+def test_other_hooks_never_get_job_flags() -> None:
+    arguments = ["run", "pre-commit"]
+
+    assert runner._child_arguments(arguments, DELETE_LINE.encode()) == arguments
+
+
+def test_malformed_ref_line_still_stops_the_push() -> None:
+    arguments = ["run", "pre-push", *GIT_ARGUMENTS]
+
+    with pytest.raises(runner.PushFileListError):
+        runner._child_arguments(arguments, b"not a ref line\n")
+
+
+def test_ref_guard_list_names_only_real_pre_push_jobs() -> None:
+    real = set(_job_names(_pre_push_jobs()))
+
+    assert set(runner.REF_GUARD_JOBS) <= real
+    assert len(set(runner.REF_GUARD_JOBS)) == len(runner.REF_GUARD_JOBS)
+
+
+def test_every_stdin_job_is_a_ref_guard_or_a_known_tree_job() -> None:
+    stdin_jobs = set(_stdin_job_names(_pre_push_jobs()))
+
+    unclassified = stdin_jobs - set(runner.REF_GUARD_JOBS) - TREE_JOBS_WITH_STDIN
+    assert not unclassified, f"classify as ref guard or tree job: {sorted(unclassified)}"
+    assert TREE_JOBS_WITH_STDIN <= set(_job_names(_pre_push_jobs()))
+    assert not TREE_JOBS_WITH_STDIN & set(runner.REF_GUARD_JOBS)
+
+
+def test_protected_branch_guard_runs_on_a_delete() -> None:
+    # check_push_refs refusing a protected delete is covered end to end by
+    # tests/test_pre_push_ref_guard_entrypoint.py. This pins that a delete reaches it.
+    assert "push-ref-policy" in runner.REF_GUARD_JOBS
+    assert "push-ref-policy" in _pre_push(DELETE_LINE.encode())
+
+
 # --- behavior through a real generated shim -------------------------------
 
 _LEFTHOOK = resolve_lefthook()

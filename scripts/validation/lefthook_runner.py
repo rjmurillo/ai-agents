@@ -31,6 +31,13 @@ pre-push`` this program reads the ref lines git writes to stdin, asks
 as ``--file`` arguments. The ref lines are replayed to Lefthook unchanged. When
 the list cannot be built the push stops with exit 1. It never skips.
 
+Delete-only pushes: a delete pushes no code, so jobs that inspect the working
+tree can only block cleanup. When every ref line is a delete and the caller
+passed no ``--job``, ``--tag``, ``--command``, or file flag, this program adds one
+``--job`` per name in ``REF_GUARD_JOBS`` and prints one stderr line. The ref
+guards, including the protected-branch check, still run. A push that mixes a
+delete with an update, or has an empty stdin, runs every job as before.
+
 Failure report (issue #6734, item 5): ``run <hook>`` goes through
 ``lefthook_failure_report.py``, which names the failed stage and job and prints a
 rerun command.
@@ -61,6 +68,7 @@ from push_file_list import (  # noqa: E402
     PushFileListError,
     caller_chose_files,
     lefthook_file_args,
+    parse_ref_lines,
 )
 
 EXIT_FILE_LIST = 1
@@ -138,22 +146,67 @@ def _split_hook_arguments(rest: list[str], from_git: bool) -> tuple[list[str], l
     return rest, []
 
 
+# The pre-push jobs that guard refs, not tree content. A push that only deletes
+# refs runs just these. Every pre-push job with ``use_stdin: true`` must be here
+# or in the tree-job list of tests/test_lefthook_runner.py, which parses
+# lefthook.yml so a new ref guard cannot be skipped on a delete unnoticed.
+REF_GUARD_JOBS = (
+    "repo-health",
+    "repair-packed-refs",
+    "mutation-safety",
+    "push-ref-staleness",
+    "push-ref-policy",
+    "security-suppression-policy",
+    "placeholder-identity",
+)
+_SCOPE_FLAGS = ("--job", "--tag", "--command")
+
+
+def _caller_chose_scope(flags: list[str]) -> bool:
+    """Return True when the caller already limited which jobs Lefthook runs."""
+    return any(
+        item == flag or item.startswith(f"{flag}=") for item in flags for flag in _SCOPE_FLAGS
+    )
+
+
+def _delete_only_job_args(stdin_bytes: bytes | None, flags: list[str]) -> list[str]:
+    """Return ``--job`` arguments that limit a delete-only push to the ref guards.
+
+    A delete pushes no code, so a job that inspects the working tree can only
+    block cleanup. Returns nothing for an empty stdin, for any ref line that
+    updates or creates a ref, and when the caller already chose jobs.
+    """
+    if not stdin_bytes or _caller_chose_scope(flags):
+        return []
+    updates = parse_ref_lines(stdin_bytes)
+    if not updates or not all(update.is_delete for update in updates):
+        return []
+    sys.stderr.write(
+        "lefthook_runner: pre-push skipped the tree jobs because the push only "
+        f"deletes refs. {len(REF_GUARD_JOBS)} ref guard jobs run.\n"
+    )
+    return [item for job in REF_GUARD_JOBS for item in ("--job", job)]
+
+
 def _child_arguments(arguments: list[str], stdin_bytes: bytes | None) -> list[str]:
     """Return what Lefthook receives: for pre-push, the file list and a ``--`` boundary.
 
     ``--`` ends Lefthook's flags, so git's arguments always reach ``{1}`` and
     ``{2}`` and never act as a flag. With an empty stdin there is no push and
-    no file list. Raises :class:`PushFileListError` when the list cannot be built.
+    no file list. A push that only deletes refs also gets one ``--job`` per ref
+    guard. Raises :class:`PushFileListError` when the list cannot be built.
     """
     if hook_name(arguments) != "pre-push":
         return arguments
     flags, git_arguments = _split_hook_arguments(arguments[2:], bool(stdin_bytes))
     file_args: list[str] = []
+    job_args: list[str] = []
     if stdin_bytes and not caller_chose_files(flags):
         remote = git_arguments[0] if git_arguments else None
         file_args = lefthook_file_args(stdin_bytes, remote)
+        job_args = _delete_only_job_args(stdin_bytes, flags)
     boundary = ["--", *git_arguments] if git_arguments else []
-    return [*arguments[:2], *file_args, *flags, *boundary]
+    return [*arguments[:2], *file_args, *job_args, *flags, *boundary]
 
 
 # The command the shim runs, from lefthook.yml. Git hooks run at the repository root.
