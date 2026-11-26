@@ -48,27 +48,23 @@ def push_lock(branch: str) -> Iterator[str]:
     cannot take it: no flock, no HOME, or an unwritable lock directory.
     """
     path = push_lock_path(branch)
-    if _fcntl is None or path is None:
+    fd = -1
+    if _fcntl is not None and path is not None:
+        with contextlib.suppress(OSError):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            fd = os.open(path, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    if fd < 0 or _fcntl is None:
         yield "unavailable"
         return
+    state = "held"
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        fd = os.open(path, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
-    except OSError:
-        yield "unavailable"
-        return
+        _fcntl.flock(fd, _fcntl.LOCK_EX | _fcntl.LOCK_NB)
+    except BlockingIOError:
+        state = "busy"
     try:
-        try:
-            _fcntl.flock(fd, _fcntl.LOCK_EX | _fcntl.LOCK_NB)
-        except BlockingIOError:
-            yield "busy"
-            return
-        try:
-            yield "held"
-        finally:
-            _fcntl.flock(fd, _fcntl.LOCK_UN)
+        yield state
     finally:
-        os.close(fd)
+        os.close(fd)  # closing this only descriptor also releases the flock
 
 
 def scratch_dir(root: Path, create: bool = False) -> Path | None:
