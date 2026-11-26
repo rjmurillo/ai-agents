@@ -827,3 +827,28 @@ def test_gate_event_records_the_candidate_digest(tmp_path: Path) -> None:
     gate = next(e for e in _events(tmp_path) if e["event"] == "gate")
     expected = hashlib.sha256(json.dumps(_all_true()).encode()).hexdigest()
     assert gate["candidate_sha256"] == expected
+
+
+def test_artifact_inside_state_is_refused(tmp_path: Path) -> None:
+    config, artifact = _setup(tmp_path, {}, steps=1)
+    inside = tmp_path / "state" / "artifact.json"
+    inside.parent.mkdir()
+    inside.write_text(artifact.read_text(encoding="utf-8"), encoding="utf-8")
+    _edit_config(config, artifact=str(inside))
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+
+
+def test_tamper_refusal_still_collects_the_scorer_report(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    scorer = tmp_path / "scripts" / "scorer.py"
+    loose = tmp_path / "loose"
+    loose.mkdir()
+    report = loose / "copy.xml"
+    scorer.write_text(
+        scorer.read_text(encoding="utf-8")
+        + f"\nimport shutil\nshutil.copy(out, {str(report)!r})\nopen(artifact, 'a').write(' ')\n",
+        encoding="utf-8",
+    )
+    _edit_config(config, collect=[str(report)])
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+    assert not report.exists()

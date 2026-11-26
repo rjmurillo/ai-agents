@@ -41,6 +41,7 @@ Exit codes (ADR-035): 0 loop finished, 2 config or integrity refusal,
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime as dt
 import hashlib
 import json
@@ -194,11 +195,16 @@ class Controller:
             )
         except ControllerError:
             # A failed scorer may still have written a report outside state,
-            # with held-out outcomes in it. Move what exists before stopping.
-            self._collect(values, run_dir, required=False)
+            # with held-out outcomes in it. Move what exists before stopping;
+            # a failed move must not hide the scorer's own error.
+            with contextlib.suppress(OSError):
+                self._collect(values, run_dir, required=False)
             raise
         if tree_digest([self.state], exclude=run_dir) != before:
             raise ControllerError(f"controller state changed while {label} was scored")
+        # Collected before the checks below, so a tamper refusal never leaves
+        # the scorer's report outside state.
+        self._collect(values, run_dir, required=True)
         self._check_integrity()
         if read_artifact(self.config.artifact) != expected:
             raise ControllerError(
@@ -206,7 +212,6 @@ class Controller:
                 "refusing to use results for bytes that were not the ones scored"
             )
         self._record({"event": "call", "label": f"scorer {label}", "duration_s": duration})
-        self._collect(values, run_dir, required=True)
         inputs = [fill(item, values) for item in self.config.inputs]
         code, payload = self._optimizer(
             ["extract", "--kind", self.config.kind, "--input", *inputs, *self.config.extract_args]

@@ -197,6 +197,8 @@ def check_layout(config: Config) -> None:
                 "a deny or trusted path overlaps the proposer workspace or the artifact; "
                 "the proposer would need it to do its job"
             )
+    if overlaps(config.artifact, config.state_dir):
+        raise ControllerError("the artifact must not sit inside state_dir")
     for path in trusted_code(config):
         if overlaps(path, config.state_dir) or overlaps(path, config.workspace_dir):
             raise ControllerError(
