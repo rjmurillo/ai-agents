@@ -1,7 +1,7 @@
 ---
 id: ADR-067
 status: accepted
-date: 2026-06-02
+date: 2026-11-25
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -151,7 +151,7 @@ Confidence: MEDIUM. Sample size is small enough that rare false-positive shapes 
 - Removes the #2252 recurrence and the entire class. PR #2214 / #2225 / similar narrative-prose citations stop tripping the gate.
 - Eliminates the "expand the strip list" treadmill (issues #1874, #1881, #1923, #2113, #2252) for the inline-backtick / markdown-link shape.
 - Aligns the validator with the actual PR-template contract: `## Changes` is where change claims live.
-- Failure message authored in Part A now has a single rule to reference: "Move the path under `## Changes`, or use a bullet/bold, or wrap in a code fence."
+- Failure message authored in Part A now has a single rule to reference. Original text: "Move the path under `## Changes`, or use a bullet/bold, or wrap in a code fence." Superseded by the 2026-11-25 amendment: when a change heading exists, a path outside it is not a claim whatever its format, so the bullet/bold advice no longer applies. The live Check 1 message in `validate_pr_description` includes: "Remove the path, move it out of that heading, or wrap it in a code fence."
 
 ### Negative
 
@@ -192,7 +192,7 @@ The follow-up implementer task (spawned as a child of this kanban task) MUST:
    - "Bold `**foo.py**` in `## Summary` IS still a claim." Asserts: flagged if not in diff.
    - "Bullet-list `- bar.py` in `## Summary` IS still a claim." Asserts: flagged if not in diff.
    - All four `_CHANGE_CLAIM_SECTION_NAMES` variants accepted case-insensitively.
-5. The failure-message text from Part A MUST be amended to name the rule: "Inline-backtick file paths outside `## Changes` / `## Per-file changes` / `## Files Changed` / `## Changed Files` are informational. Move the path under one of those headings, use a bullet (`- path.ext`) or bold (`**path.ext**`), or wrap in a code fence."
+5. Superseded by the 2026-11-25 amendment, kept as history. The live Check 1 message says that when the body has a change heading, "only paths under it are change claims; paths elsewhere are informational." Original item: the failure-message text from Part A MUST be amended to name the rule: "Inline-backtick file paths outside `## Changes` / `## Per-file changes` / `## Files Changed` / `## Changed Files` are informational. Move the path under one of those headings, use a bullet (`- path.ext`) or bold (`**path.ext**`), or wrap in a code fence."
 6. The implementer MUST run the regression simulator at `.project-toolkit/analysis/2252-pr-description-default-flip-regression-sim.py` (sample-of-40 PRs) after the change and confirm baseline -> hybrid totals match this ADR.
 
 ### Rollback Plan
