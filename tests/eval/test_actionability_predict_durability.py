@@ -376,7 +376,7 @@ class TestTemperature:
     def test_temperature_is_none_so_call_api_does_not_retry_without_it(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Group 2c: the default model rejects temperature, so send none (_anthropic_api.py:37)."""
+        """Group 2c: send no temperature; a rejected one makes call_api retry, doubling calls."""
         fake = install_call_api(monkeypatch, FakeCallApi())
 
         code = aa.main(

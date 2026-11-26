@@ -27,8 +27,12 @@ would make the pair differ by something other than the skill.
 
 Billing and isolation follow the `claude-cli` transport. The credential order,
 the blocked metered variables, and the relocated config directory all come
-from `_ClaudeCLIProvider`. Only project settings load, and the workspace holds
-nothing but the copied skill. `--tools ""` leaves the model no tool to call.
+from `_ClaudeCLIProvider`. Unlike the eval cell, the child does not inherit the
+parent environment: it gets `BASE_ENV_ALLOWLIST` only, plus the gateway pair and
+`ANTHROPIC_CUSTOM_HEADERS` on the `gateway` step. The skill under test runs
+with slash commands on, so an unrelated parent secret such as `GH_TOKEN` must
+not reach it. Only project settings load, and the workspace holds nothing but the copied skill.
+`--tools ""` leaves the model no tool to call.
 """
 
 from __future__ import annotations
@@ -215,7 +219,9 @@ def run_harness(
     prepare = None if skill_dir is None or skill_name is None else _installer(skill_dir, skill_name)
     with tempfile.TemporaryDirectory(prefix="eval-claude-harness-") as profile:
         credential = provider._resolve_credential(executable)
-        env = provider._build_env(Path(profile), credential)
+        # Allowlisted, not inherited: this child loads the skill under test with
+        # slash commands on, so no unrelated parent secret may reach it.
+        env = provider._build_env(Path(profile), credential, inherit=False)
         completed = run_cli(
             build_argv(executable, model),
             prompt,

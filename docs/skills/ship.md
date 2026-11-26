@@ -1,6 +1,6 @@
 # ship
 
-Runs four pre-flight checks, then opens the PR. If you are pushing onto someone else's branch, it validates the branch and leaves it untouched. It works on GitHub and Azure DevOps.
+Runs four pre-flight checks, then hands PR creation to [`push-pr`](push-pr.md). If you are pushing onto someone else's branch, it validates the branch and leaves it untouched. It works on GitHub and Azure DevOps.
 
 ## When to use it
 
@@ -71,7 +71,7 @@ In contributor mode, the skill never writes a marker commit, never creates a PR,
 3. **Reviewed on this SHA.** In owner mode, the review-marker validator must exit `0`. That means `HEAD` is a `/review` marker commit whose `Reviewed-By` trailer binds the reviewed tip. If the working tree is dirty, this check fails: commit, re-run `/review`, then re-run `/ship`. The report lists only the axes the marker declares, and any axis it omits is `NOT RUN`. Use `--require-axis <axis>` when policy requires one. In contributor mode, this check is advisory: a logged `/review` run or a PR comment counts as the attestation.
 4. **Tests passing.** All tests green, with no unjustified skips.
 
-**After the checks.** In owner mode on GitHub, the skill runs [`validate-pr-description`](validate-pr-description.md), then [`push-pr`](push-pr.md). On Azure DevOps, it validates the description, pushes, and runs `az repos pr create --output json`. It then discharges any deferred pipeline check against the new PR, waiting up to 30 minutes on Azure DevOps. A finished report never carries a bare `Pipeline: DEFERRED`.
+**After the checks.** In owner mode on both hosts, the skill runs [`push-pr`](push-pr.md). `push-pr` detects the host and owns the title, the body, its validation, and the create, so `ship` does not validate PR metadata. On Azure DevOps it reads the `pullRequestId` from the `push-pr` output. It then discharges any deferred pipeline check against the new PR, waiting up to 30 minutes on Azure DevOps. A finished report never carries a bare `Pipeline: DEFERRED`.
 
 **References.** `ado-policy-wait.md` holds the Azure DevOps wait block. `review-marker-resolution.md` holds the validator resolution steps and exit-code table.
 

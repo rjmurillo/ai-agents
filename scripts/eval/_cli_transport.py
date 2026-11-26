@@ -35,12 +35,13 @@ from __future__ import annotations
 
 import json
 import math
-import os
 import subprocess
 import tempfile
 from collections.abc import Callable
 from pathlib import Path
 from typing import cast
+
+from _cli_child_env import inherited_process_env, minimal_process_env
 
 #: A `subprocess.run` work-alike. Named so the fake a test installs and the
 #: real thing are one type, which is what lets `run_cli` call either without a
@@ -53,6 +54,7 @@ __all__ = [
     "Runner",
     "CLIProcessResult",
     "build_envelope",
+    "inherited_process_env",
     "minimal_process_env",
     "run_cli",
     "safe_process_error",
@@ -70,8 +72,9 @@ TRUST_BOUNDARY = (
     "text only."
 )
 
-#: Runtime variables every CLI needs to start at all. Credentials are added
-#: per transport; nothing else is inherited.
+#: Runtime variables every CLI needs to start at all, for the allowlist builder
+#: (`minimal_process_env`). Credentials are added per transport; nothing else is
+#: inherited there. The Claude cell uses `inherited_process_env` instead.
 BASE_ENV_ALLOWLIST = frozenset(
     {
         "APPDATA",
@@ -147,27 +150,6 @@ def safe_process_error(provider_label: str, returncode: int, stderr: str) -> Run
         f"{provider_label} exited with code {returncode}: error={error_code}; "
         "process output redacted"
     )
-
-
-def minimal_process_env(
-    *,
-    allow: frozenset[str],
-    blocked: frozenset[str],
-    overrides: dict[str, str],
-) -> dict[str, str]:
-    """Build the child environment for one CLI run.
-
-    `blocked` wins over `allow`. That ordering is the guard rail, not a
-    detail: the API-billing credentials a subscription transport must not
-    inherit are the same names its API-billed sibling puts in `allow`, and a
-    future edit that adds one to both lists should fail closed.
-    """
-    env = {name: value for name in allow - blocked if (value := os.environ.get(name)) is not None}
-    env.setdefault("PATH", os.defpath)
-    env["NO_COLOR"] = "1"
-    env["PYTHONUTF8"] = "1"
-    env.update(overrides)
-    return env
 
 
 def build_envelope(
