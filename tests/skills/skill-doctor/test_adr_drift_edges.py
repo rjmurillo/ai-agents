@@ -209,3 +209,31 @@ def test_frontmatter_edges_win_over_a_longer_prose_chain(tmp_path, capsys):
     found = kinds(scan(capsys, repo), "adr-supersession-not-reciprocal")
 
     assert [f["evidence"]["path"] for f in found] == [adr_path(2)]
+
+
+@pytest.mark.parametrize(
+    "front",
+    ["supersedes: []\n", "supersedes: [ ]\n"],
+    ids=["empty-list", "spaced-empty-list"],
+)
+def test_an_empty_frontmatter_list_clears_a_prose_edge_of_that_kind(tmp_path, capsys, front):
+    files = {adr_path(1): _raw(1, front, extra="**Supersedes**: ADR-777 (pending validation)")}
+
+    assert _numbers(_scan(tmp_path, capsys, files)) == []
+
+
+@pytest.mark.parametrize(
+    "front",
+    ["", "supersedes: null\n", "supersedes:\n", "superseded-by: []\n"],
+    ids=["absent", "null", "blank", "other-kind-cleared"],
+)
+def test_a_prose_edge_survives_when_frontmatter_does_not_clear_its_kind(tmp_path, capsys, front):
+    files = {adr_path(1): _raw(1, front, extra="Supersedes: ADR-777")}
+
+    assert _numbers(_scan(tmp_path, capsys, files)) == [777]
+
+
+def test_a_blank_key_with_list_items_declares_its_edges_over_prose(tmp_path, capsys):
+    files = {adr_path(1): _raw(1, "supersedes:\n  - ADR-777\n", extra="Supersedes: ADR-888")}
+
+    assert _numbers(_scan(tmp_path, capsys, files)) == [777]

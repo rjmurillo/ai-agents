@@ -12,7 +12,8 @@ is no single repository to check.
 
 For each selected repository, scan into the report directory. Never write into
 the repository. `<repo-slug>` is the repo folder name, kept to letters, digits,
-`.`, `_`, and `-`.
+`.`, `_`, and `-`. When two selected repositories share a folder name, add `-2`,
+`-3`, and so on, so each keeps its own scan file.
 
 ```bash
 mkdir -p "$REPORT_DIR/adr_drift"
@@ -35,6 +36,10 @@ UNAVAILABLE" and continue.
 
 Handle its result as Undocumented decisions describes. Then add the
 `adr_drift` section to `report.json` as `references/report-schema.md` describes.
+
+For an ADR-only run, write the ADR-only `report.json` that reference shows and
+run `render_report.py` on it. Do not run `assemble_report.py`: it needs a scores
+file, and this run never makes one.
 
 ## Commands
 
@@ -163,7 +168,8 @@ Details that decide what fires:
   whole integer. A date is not an edge. Each (kind, number) pair is one edge, and
   a frontmatter finding carries the line of its key. When frontmatter declares
   an edge kind, prose edges of that kind are dropped, since status prose often
-  tells a longer chain. A number resolves in the
+  tells a longer chain. An empty list (`supersedes: []`) declares the kind with
+  no edges; `null` or a blank value does not. A number resolves in the
   citing record's folder first, then in the one other folder that holds it.
   When two other folders hold it, the edge is not checked. A back-edge counts
   only when it resolves, from its own folder, to the record that cites it. When

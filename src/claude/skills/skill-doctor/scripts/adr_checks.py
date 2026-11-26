@@ -327,9 +327,13 @@ def edges(doc: AdrDoc) -> list[Edge]:
 
     Frontmatter wins: when it declares an edge kind, prose edges of that kind are dropped,
     because prose often tells a longer chain ("superseded by ADR-91, later by ADR-92").
+    An empty list declares the kind with no edges.
     """
     declared = _frontmatter_edges(doc)
     declared_kinds = {edge.kind for edge in declared}
+    # An explicit list, even an empty one, is a statement: `supersedes: []` clears the edge.
+    # `null` or a blank value is a template placeholder, so prose still speaks for that kind.
+    declared_kinds |= {k for key, k in EDGE_KEYS if isinstance(doc.frontmatter.get(key), list)}
     found = list(declared)
     in_status = False
     for number, line in prose_lines(doc.lines, doc.body_start):
