@@ -305,6 +305,8 @@ class TestCollectionSwitchedOff:
                 ["TestA"],
                 "test_a",
             ),
+            ("__test__ = 0\ndef test_a():\n    pass\n", [], "test_a"),
+            ("__test__ = None\ndef test_a():\n    pass\n", [], "test_a"),
         ],
     )
     def test_switched_off_tests_are_not_defined(

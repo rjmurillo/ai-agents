@@ -44,7 +44,8 @@ def scenario_rows(data: bytes) -> list[dict[str, Any]] | None:
     reads ``data.get("scenarios", data) if isinstance(data, dict) else data``.
     A top-level array is a corpus, so the check hashes and verifies the same
     file the runner accepted. The runner also rejects an empty list and
-    rows missing fields; this check leaves the field floors to the results.
+    rows missing fields; ``load_scenarios`` applies those checks through the
+    runner's own ``parse_scenarios``.
     """
     try:
         parsed = json.loads(data)
@@ -144,7 +145,7 @@ def load_scenarios(ctx: Context, name: str) -> tuple[Scenarios | None, list[str]
     try:
         # The runner's own checks, such as expected_verdict in verdict_options.
         ctx.runner.parse_scenarios(data, path)
-    except RuntimeError as exc:
+    except (RuntimeError, UnicodeDecodeError) as exc:
         return None, [f"{path} fails the eval runner's scenario checks: {exc}"]
     problems = _freeze_findings(ctx, name, path)
     if path in ctx.git.files(ctx.merge_base, path):

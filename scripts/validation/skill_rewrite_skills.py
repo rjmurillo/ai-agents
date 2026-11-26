@@ -327,7 +327,7 @@ def defines_test(source: str, classes: list[str], func: str) -> bool:
 
 
 def _turns_off_collection(body: list[ast.stmt], names: set[str]) -> bool:
-    """True when *body* sets ``__test__ = False``, or ``<name>.__test__ = False`` for a name."""
+    """True when *body* sets ``__test__`` falsy, directly or as ``<name>.__test__`` for a name."""
     for node in body:
         if isinstance(node, ast.Assign):
             targets, value = node.targets, node.value
@@ -335,7 +335,8 @@ def _turns_off_collection(body: list[ast.stmt], names: set[str]) -> bool:
             targets, value = [node.target], node.value
         else:
             continue
-        if not (isinstance(value, ast.Constant) and value.value is False):
+        # pytest skips on any falsy __test__, not only False.
+        if not (isinstance(value, ast.Constant) and not value.value):
             continue
         for target in targets:
             if isinstance(target, ast.Name) and target.id == "__test__":

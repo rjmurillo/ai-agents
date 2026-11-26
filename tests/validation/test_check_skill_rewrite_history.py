@@ -204,6 +204,16 @@ class TestScenarioFile:
         assert "fails the eval runner's scenario checks" in out
         assert "is not in verdict_options" in out
 
+    def test_a_utf16_scenario_file_is_a_finding_not_a_crash(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """json.loads reads UTF-16, the runner's strict UTF-8 decode does not."""
+        write(repo, SCEN, scenario_doc().encode("utf-16"))
+        commit(repo, "utf-16 corpus")
+        code, out = run_gated(repo, capsys, evidence=False)
+        assert code == 1
+        assert "fails the eval runner's scenario checks" in out
+
     def test_ids_that_differ_only_in_case_are_distinct(
         self, repo: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
