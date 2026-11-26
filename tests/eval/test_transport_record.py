@@ -1,8 +1,8 @@
 """Tests for the run's transport record: cell, payer, credential step, host.
 
 `eval-prompt-change.py` writes this record into `result.json` and prints it on
-stderr, on success and on failure, so a gateway or proxy run is never read
-back as a direct run. The record names the host, never the token.
+stderr, on success and on failure, so a gateway run is never read back as a
+direct run. The record names the host, never the token.
 """
 
 from __future__ import annotations
@@ -269,7 +269,7 @@ def test_real_home_with_no_credential_records_the_existing_login(
 def test_a_pair_exported_before_any_call_still_reads_gateway(
     gateway_env: pytest.MonkeyPatch,
 ) -> None:
-    """A run that fails before resolution must not print `proxy` for a hub."""
+    """A run that fails before resolution must not read as a direct run for a hub."""
     gateway_env.setenv("EVAL_PROVIDER", "claude-subscription")
 
     record = transport.transport_record()

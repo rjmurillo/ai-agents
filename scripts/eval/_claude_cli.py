@@ -64,11 +64,12 @@ only ever goes to api.anthropic.com.
 (https://code.claude.com/docs/en/claude-directory, read 2026-09-16). Pointing
 it at a fresh directory is what keeps user-level CLAUDE.md, settings, and
 plugins out of a cell whose subject is usually those very files, and it is
-also why an injected token is needed on those steps: a relocated config
-directory has no stored login in it. That is a deliberate trade, the same one
+also why the OAuth steps need an injected token: a relocated config directory
+has no stored login in it. That is a deliberate trade, the same one
 `eval_runtime_parity.py` already makes. Credential order and its steps live in
-`_cli_credentials`. Only the `existing-login` step skips the relocation and
-the injected token, so user config may load there; the run records that step.
+`_cli_credentials`. The `gateway` step also relocates but injects no token,
+because the pair authenticates. Only the `existing-login` step skips the
+relocation, so user config may load there; the run records that step.
 The `EVAL_RUNTIME_REAL_HOME` opt-in also skips the relocation and reads no
 credential file: it forwards an exported token or uses the CLI's own login.
 
