@@ -1,6 +1,9 @@
 ---
 name: architect
 description: Technical authority on system design who guards architectural coherence, enforces patterns, and maintains boundaries. Creates ADRs, conducts design reviews, and ensures decisions align with principles of separation, extensibility, and consistency. Use for governance, trade-off analysis, and blueprints that protect long-term system health.
+success_criterion:
+  kind: human-judgment
+  rationale: A design review or ADR is judged on trade-off quality, which no schema or test can score.
 metadata:
   role: strategic
 # Requires fresh context and separate tool state to make architecture decisions without inherited assumptions.
