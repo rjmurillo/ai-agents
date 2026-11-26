@@ -39,7 +39,7 @@ miss can be audited and `--rescore` reproduces the numbers with no model call).
 | Caught in top 5 (same file and class) | 3/32 (9%, CI 3% to 24%) |
 | Same file in top 5 (class ignored) | 10/32 (31%, CI 18% to 49%) |
 
-Which model: `claude-sonnet-5` is `DEFAULT_MODEL` in `scripts/eval/_anthropic_api.py`,
+Which model: `claude-sonnet-5`, which was `DEFAULT_MODEL` in `scripts/eval/_anthropic_api.py` at run time,
 the harness default. The `code-reviewer` agent pins no model (ADR-119) and
 inherits each harness's default, which can differ from it. Issue #7149 asks for
 the "current default model"; this run measures the eval default, not a measured
