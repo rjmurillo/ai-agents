@@ -141,6 +141,10 @@ class TestScanFails:
         text = _text("    ```\n\nYou supervise workers.\n\n    ```")
         assert gate.scan_text(text) == [f"line {_line_of(text, 'You supervise')}: 'supervise'"]
 
+    def test_indented_markers_beside_prose_do_not_mask_it(self) -> None:
+        text = _text("    ```\nYou supervise workers.\n    ```")
+        assert gate.scan_text(text) == [f"line {_line_of(text, 'You supervise')}: 'supervise'"]
+
     def test_double_backtick_code_span_is_not_prose(self) -> None:
         assert gate.scan_text(_text("Call ``cloudmcp-manager/search`` for memory.")) == []
 

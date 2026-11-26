@@ -89,6 +89,9 @@ BANNED = re.compile(
 _INLINE_CODE = re.compile(r"(?<!`)(`+)(?!`)[\s\S]*?(?<!`)\1(?!`)")
 
 
+_INDENTED_MARKER = re.compile(r"^(?: {4,}|\t)[ \t]*(?:`+|~+)[ \t]*$")
+
+
 def _mask_code(text: str) -> str:
     """Blank out inline code spans, keeping newlines so offsets map to lines."""
     return _INLINE_CODE.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), text)
@@ -109,6 +112,12 @@ def _paragraphs(lines: list[tuple[int, str]]) -> list[tuple[int, str]]:
             if chunk:
                 paragraphs.append((start, "\n".join(chunk)))
             start, chunk = number, []
+        # With no paragraph open, a line indented 4 or more spaces is an
+        # indented code block (CommonMark 4.4). A bare backtick or tilde run
+        # there is code, so it must not pair with a later run as a code span.
+        if not chunk and _INDENTED_MARKER.match(line):
+            previous = number
+            continue
         if line.strip():
             chunk.append(line)
         previous = number
