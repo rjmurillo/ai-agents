@@ -137,7 +137,11 @@ def _link_cache_to_an_empty_dir(tmp_path: Path, repo: Path) -> tuple[Path, Path]
     target.mkdir()
     link = repo / _PACK / "lib/__pycache__"
     link.parent.mkdir(parents=True, exist_ok=True)
-    link.symlink_to(target, target_is_directory=True)
+    try:
+        link.symlink_to(target, target_is_directory=True)
+    except (OSError, NotImplementedError) as exc:
+        # Windows without Developer Mode denies symlinks (issue #4632).
+        pytest.skip(f"symlink creation unavailable: {exc}")
     return link, target
 
 
