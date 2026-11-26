@@ -73,16 +73,18 @@ For MUST 2, run the review gate. Pre-PR runs it as
 in `pr-validation.yml` runs it on every pull request:
 
 ```bash
-uv run python scripts/validation/check_agent_skill_doc_review.py --base-ref origin/main
+uv run python scripts/validation/check_agent_skill_doc_review.py --base-ref origin/<target>
 ```
 
-It diffs the working tree with the fork point and reads `Docs-Reviewed:`
+`<target>` is the branch the PR targets, `main` by default. Pre-PR resolves it
+from the open PR. It diffs the working tree with the fork point and reads `Docs-Reviewed:`
 trailers from the commits in `<base-ref>..HEAD`. It fails for each changed
 source whose page did not change and whose name no trailer lists. Its output
 prints the trailer line to use after reading. Put it in the final trailer
 block of a commit made after your last source change, beside
 `Co-Authored-By:`; git reads no trailer from an
-earlier paragraph. Amend an unpushed commit, or add a new commit with
+earlier paragraph. Commit the source change first: a trailer never clears an
+uncommitted change. Then amend an unpushed commit, or add a new commit with
 `git commit --allow-empty`; never force-push a shared branch. A trailer on a
 commit outside the branch does not count, and neither does a trailer or page
 edit older than a change it must cover. A whole skill or agent that is new

@@ -290,7 +290,8 @@ def print_report(review: Review, base_ref: str) -> None:
         "\nOnly if every page is still true, put this line in the final trailer block"
         "\nof a commit made after your last change to the source, beside Co-Authored-By:"
         f"\n\n  {TRAILER}: {', '.join(review.tokens)}"
-        "\n\nAmend the last commit if it is unpushed; otherwise add a new commit"
+        "\n\nCommit the source change first: a trailer never clears an uncommitted change."
+        "\nThen amend the last commit if it is unpushed; otherwise add a new commit"
         " (git commit --allow-empty). Never force-push a shared branch."
         "\nRule: templates/rules/agent-skill-docs.md MUST 2.\n",
         file=sys.stderr,

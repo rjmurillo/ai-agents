@@ -334,6 +334,7 @@ def test_fix_text_puts_trailer_before_findings(tmp_path, capsys):
     err = capsys.readouterr().err
     assert err.index("Docs-Reviewed: alpha") < err.index("docs/skills/alpha.md:")
     assert "final trailer block" in err
+    assert "Commit the source change first" in err
 
 
 def test_git_log_failure_is_external_error(tmp_path, monkeypatch, capsys):
