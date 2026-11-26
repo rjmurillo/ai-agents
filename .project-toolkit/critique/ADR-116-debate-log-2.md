@@ -19,7 +19,7 @@ Both seats voted Disagree-and-Commit. No P0.
 
 | Seat | Priority | Finding | Resolution |
 | --- | --- | --- | --- |
-| Critic | P1 | The new index row shifts 14 inbound line citations to `FAILURE-MODES.md` by one. | Fixed. Each citation moved by one line. Templates and generated copies changed together. `citation_reverse_pass.py` reports none blocking. |
+| Critic | P1 | The new index row shifts inbound line citations to `FAILURE-MODES.md` by one. | Fixed. `citation_reverse_pass.py` named 14 citations. A later `/review` found 3 more with no checkable anchor: `ai-agents-validation-and-qa` (template and generated copy) and `incidents.md:251`. All 17 now point at their content. Templates and generated copies changed together. |
 | Critic | P1 | "Across nine files" overstated the hook catch. The retro says the hook named three files and a sweep found six more. | Fixed in the FM-14 Evidence section. |
 | Critic | P1 | The Enforcement table prescribed a practice no gate backs. ADR Decision item 6 says "None new". | Fixed. The section now says none new and records the absence with a date. |
 | Critic | P1 | ADR body still said the taxonomy was unchanged until acceptance. | Fixed in Decision, Impact, and Reversibility. |
@@ -40,6 +40,19 @@ Both seats voted Accept. No P0 or P1.
 | Critic | P2 | Consequences still said the owner can decline. | Fixed. It records the acceptance. |
 | Architect | P2 | "No open issue owns it" had no date. | Fixed. An open-issue search on 2026-11-25 found no owner. |
 | Critic | P2 | The title still reads "Propose a Failure Mode". | Not adopted. The title names the record as filed, and the index keys on it. The Status section carries the decision. |
+
+## Gates
+
+Run on the final branch content, 2026-11-25.
+
+| Gate | Command | Result |
+| --- | --- | --- |
+| adr-review policy | `scripts/validation/git_hook_policy.py adr-review` on the staged branch diff | exit 0 |
+| Staged dash policy | `scripts/validation/git_hook_policy.py staged-dashes` on the staged branch diff | exit 0 |
+| Citation reverse pass | `scripts/validation/citation_reverse_pass.py` | 0 blocking. 4 citations were already stale at the merge base. |
+| Pre-PR | `scripts/validation/pre_pr.py` | exit 0. 126 PASS, 0 FAIL, 2 BLOCKED. |
+
+The two BLOCKED gates are `actionlint` and `yamllint`, which are not installed locally. This change edits no workflow or YAML file. CI runs both.
 
 ## Outcome
 

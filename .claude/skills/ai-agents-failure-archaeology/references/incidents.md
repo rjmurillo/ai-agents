@@ -248,7 +248,7 @@ hides uncertainty. The canonical statement, quoted verbatim from
 `.agents/governance/FAILURE-MODES.md:391`: "there is no neutral default for a
 missing signal."
 
-**Evidence**: `.agents/governance/FAILURE-MODES.md:318-410` (FM-10, includes
+**Evidence**: `.agents/governance/FAILURE-MODES.md:319-411` (FM-10, includes
 the code shapes: `except: pass`, `x or default` on numerics,
 `dict.get(key, default)` on required keys, verdict laundering, `|| true`).
 Related: issue #2006 (truncated security-agent output silently became a
