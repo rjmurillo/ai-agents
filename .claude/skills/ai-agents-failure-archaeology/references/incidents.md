@@ -245,10 +245,10 @@ translator, and the workflow gate (commits `5bbf355`, `c1d8209`, `6cb5370`).
 
 **Root cause**: defaulting a missing signal to PASS (or any neutral value)
 hides uncertainty. The canonical statement, quoted verbatim from
-`.agents/governance/FAILURE-MODES.md:390`: "there is no neutral default for a
+`.agents/governance/FAILURE-MODES.md:391`: "there is no neutral default for a
 missing signal."
 
-**Evidence**: `.agents/governance/FAILURE-MODES.md:318-410` (FM-10, includes
+**Evidence**: `.agents/governance/FAILURE-MODES.md:319-411` (FM-10, includes
 the code shapes: `except: pass`, `x or default` on numerics,
 `dict.get(key, default)` on required keys, verdict laundering, `|| true`).
 Related: issue #2006 (truncated security-agent output silently became a
