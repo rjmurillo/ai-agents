@@ -172,7 +172,10 @@ a pass is the silent-pass failure
 
 Every terminal line carries the examined count beside the violation count, which
 MUST 12 requires in as many words: "0 violations in 381 files" is verifiable,
-"OK" is not. `check_adr_lifecycle.py:1810` prints the same pairing.
+"OK" is not.
+
+The lifecycle gate prints the same pairing at `check_adr_lifecycle.py:1810`:
+`violation(s) across {examined} ADR record(s)`.
 """
 
 from __future__ import annotations
