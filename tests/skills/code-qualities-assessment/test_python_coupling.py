@@ -1,26 +1,13 @@
 """Python dependency counting from a Tree-sitter syntax tree (issue #7436)."""
 
-import importlib.util
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
-from .test_assess import _commit, _init_repo, _regression_argv, _run_git
+from .test_assess import _commit, _init_repo, _mod, _regression_argv, _run_git
 
-_SCRIPT = (
-    Path(__file__).resolve().parents[3]
-    / ".claude"
-    / "skills"
-    / "code-qualities-assessment"
-    / "scripts"
-    / "assess.py"
-)
-_spec = importlib.util.spec_from_file_location("assess", _SCRIPT)
-assert _spec is not None and _spec.loader is not None
-_mod = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_mod)
 assess_content = _mod.assess_content
 
 

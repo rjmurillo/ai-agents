@@ -12,7 +12,7 @@ import pytest
 from scripts.ci import pytest_module_split as module_split
 from scripts.ci import run_pytest_partition as mod
 
-_SPLIT_PARTITIONS = ("split-1", "split-2", "split-3", "split-4", "split-5")
+_SPLIT_PARTITIONS = ("split-1", "split-2", "split-3", "split-4", "split-5", "split-6")
 
 _POOL_EXCLUDED = {
     "tests/test_ai_review.py",
@@ -29,12 +29,12 @@ def _flag_value(args: list[str], flag: str) -> str:
     return args[args.index(flag) + 1]
 
 
-@pytest.mark.parametrize("index", range(1, 6))
+@pytest.mark.parametrize("index", range(1, 7))
 def test_split_group_flags(index: int) -> None:
     """AC2: group i of N runs the shared pool by recorded duration, whole modules at a time."""
     args = mod._PARTITION_FULL_ARGS[f"split-{index}"]
     assert _flag_value(args, "-p") == "scripts.ci.pytest_module_split"
-    assert _flag_value(args, "--module-splits") == "5"
+    assert _flag_value(args, "--module-splits") == "6"
     assert _flag_value(args, "--module-group") == str(index)
     assert _flag_value(args, "--durations-path") == f"artifacts/durations-split-{index}.json"
     assert "--store-durations" in args
@@ -42,7 +42,7 @@ def test_split_group_flags(index: int) -> None:
     assert args[-1] == "tests/"
 
 
-@pytest.mark.parametrize("index", range(1, 6))
+@pytest.mark.parametrize("index", range(1, 7))
 def test_split_group_does_not_also_run_the_pytest_split_split(index: int) -> None:
     """Issue #6846: pytest-split's own split would deselect again by single test."""
     args = mod._PARTITION_FULL_ARGS[f"split-{index}"]
@@ -73,7 +73,7 @@ def test_split_groups_ignore_exactly_the_dedicated_and_pinned_files(partition: s
 def test_each_split_leg_stores_to_its_own_path() -> None:
     args = [mod._PARTITION_FULL_ARGS[n] for n in _SPLIT_PARTITIONS]
     paths = {_flag_value(a, "--durations-path") for a in args}
-    assert len(paths) == 5
+    assert len(paths) == 6
 
 
 def test_dedicated_legs_run_only_their_files() -> None:

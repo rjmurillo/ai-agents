@@ -25,6 +25,11 @@ Factual questions about concepts, patterns, or rules.
 Historical questions about past sessions.
 
 ```python
+from datetime import UTC, datetime, timedelta
+
+# Use the Python API setup in the integration example below.
+from memory_core.reflexion_memory import get_episode, get_episodes
+
 get_episode("2026-01-01-session-126")
 get_episodes(outcome="failure", since=datetime.now(UTC) - timedelta(days=7))
 ```

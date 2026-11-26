@@ -25,22 +25,14 @@ import re
 import subprocess
 import sys
 
-_plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
-_workspace = os.environ.get("GITHUB_WORKSPACE")
-if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
-    _lib_dir = os.path.join(_plugin_root, "lib")
-elif _workspace:
-    _lib_dir = os.path.join(_workspace, ".claude", "lib")
-else:
-    _lib_dir = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
-    )
-if not os.path.isdir(_lib_dir):
-    print(f"Plugin lib directory not found: {_lib_dir}", file=sys.stderr)
-    sys.exit(2)  # Config error per ADR-035
-if _lib_dir not in sys.path:
-    sys.path.insert(0, _lib_dir)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from skill_bootstrap import ensure_plugin_paths
+
+ensure_plugin_paths(__file__, (".claude", "lib"))
+
+from github_core.actions_output import write_github_output as _write_github_output
+from github_core.actions_output import write_step_summary as _write_step_summary
 from github_core.api import (
     assert_gh_authenticated,
     error_and_exit,
@@ -65,31 +57,6 @@ GH_TIMEOUT_SECONDS = 30
 
 def _parse_semver_tuple(version: str) -> tuple[int, ...]:
     return tuple(int(part) for part in version.removeprefix("v").split("."))
-
-
-def _write_github_output(outputs: dict[str, str]) -> None:
-    """Write key=value pairs to GITHUB_OUTPUT if available."""
-    output_file = os.environ.get("GITHUB_OUTPUT")
-    if not output_file:
-        return
-    try:
-        with open(output_file, "a", encoding="utf-8") as fh:
-            for key, value in outputs.items():
-                fh.write(f"{key}={value}\n")
-    except OSError:
-        pass
-
-
-def _write_step_summary(content: str) -> None:
-    """Write content to GITHUB_STEP_SUMMARY if available."""
-    summary_file = os.environ.get("GITHUB_STEP_SUMMARY")
-    if not summary_file:
-        return
-    try:
-        with open(summary_file, "a", encoding="utf-8") as fh:
-            fh.write(content)
-    except OSError:
-        pass
 
 
 def _write_result(

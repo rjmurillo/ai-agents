@@ -36,6 +36,7 @@ from citation_continuations import (
 from citation_continuations import (
     _unique_move as _unique_move,
 )
+from citation_tables import table_row
 from stale_script_refs import HISTORICAL_ROOTS
 
 # A citation: a repo path with a known extension, then :N or :N-M. The
@@ -165,13 +166,9 @@ def _atx_heading(line: str) -> bool:
     return bool(_ATX_HEADING.match(line))
 
 
-# A Markdown table row: its cells end in `|`, never in sentence punctuation.
-_TABLE_ROW = re.compile(r"^ {0,3}\|")
-
-
-def _table_row(line: str) -> bool:
-    """Return whether a line is a Markdown table row."""
-    return bool(_TABLE_ROW.match(line))
+def _markdown_unit(lines: list[str], index: int) -> bool:
+    """Return whether a Markdown line is a complete unit: a heading or a table row."""
+    return _atx_heading(lines[index]) or table_row(lines, index)
 
 
 def _hash_prefixed(line: str) -> bool:
@@ -255,22 +252,24 @@ def _context_lines(
     context = [segment]
     if citing_lines is None:
         return context
-    if markdown and (_atx_heading(line_text) or _table_row(line_text)):
+    if markdown and _markdown_unit(citing_lines, line_index):
         # A Markdown heading is a complete unit: it never wraps into any
         # neighbor, another heading included (an equal-prefix rule would
         # let adjacent headings pool anchors). A table row is one too: it
-        # ends in `|`, so the punctuation rule would join every neighbor row.
+        # ends in `|` or a bare cell, so the punctuation rule would join
+        # every neighbor row.
         return context
     own_indent = _indent_width(line_text)
     own_hash = _hash_prefixed(line_text)
 
-    def _blocks(neighbor: str) -> bool:
+    def _blocks(index: int) -> bool:
         # In Markdown only a real heading is a hash boundary, so a
         # hashtag paragraph stays ordinary body text; in code files a
         # comment marker must match on both sides, so comment lines
         # continue into comment lines and never into code.
+        neighbor = citing_lines[index]
         if markdown:
-            return _atx_heading(neighbor) or _table_row(neighbor)
+            return _markdown_unit(citing_lines, index)
         return _hash_prefixed(neighbor) != own_hash
 
     for offset in (1, 2):
@@ -282,12 +281,12 @@ def _context_lines(
         # quote, say), not this sentence wrapping across lines.
         if _indent_width(citing_lines[index]) > own_indent:
             break
-        if _blocks(citing_lines[index]):
+        if _blocks(index):
             break
         context.insert(0, citing_lines[index])
     if _sentence_continues(line_text) and line_index + 1 < len(citing_lines):
         following = citing_lines[line_index + 1]
-        if _indent_width(following) <= own_indent and not _blocks(following):
+        if _indent_width(following) <= own_indent and not _blocks(line_index + 1):
             context.append(following)
     return context
 

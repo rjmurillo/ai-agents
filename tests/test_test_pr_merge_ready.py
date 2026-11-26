@@ -3,11 +3,9 @@
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import shlex
 import subprocess
-import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
@@ -16,29 +14,12 @@ import pytest
 import yaml
 
 from scripts.github_core.api import RepoInfo
+from tests.skills.claude_skills_import import import_skill_script
 
-# ---------------------------------------------------------------------------
-# Import the script via importlib (not a package)
-# ---------------------------------------------------------------------------
-_SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
-)
-
-
-def _import_script(name: str):
-    spec = importlib.util.spec_from_file_location(name, _SCRIPTS_DIR / f"{name}.py")
-    assert spec is not None
-    assert spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[name] = mod
-    spec.loader.exec_module(mod)
-    return mod
-
-
-_mod = _import_script("test_pr_merge_ready")
+_mod = import_skill_script(".claude/skills/github/scripts/pr/test_pr_merge_ready.py")
 # The completion-gate dispatcher, imported so the wiring test at the bottom of
 # this file can drive a real producer verdict through the real gate predicate.
-_gate = _import_script("run_completion_gate")
+_gate = import_skill_script(".claude/skills/github/scripts/pr/run_completion_gate.py")
 main = _mod.main
 build_parser = _mod.build_parser
 check_merge_readiness = _mod.check_merge_readiness
