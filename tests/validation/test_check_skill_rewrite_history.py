@@ -64,6 +64,29 @@ class TestAppendOnly:
         code, out = run(repo, capsys)
         assert code == 0, out
 
+    def test_a_second_add_on_a_side_branch_blocks(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Both parents add run-1.json; the side branch's add is the second one."""
+        driver_change(repo)
+        write(repo, f"{EVID}/run-1.json", results(repo, {"S1": ("PPP", "FFF")}, verdict="FAIL"))
+        commit(repo, "failed run")
+        git(repo, "checkout", "-q", "-b", "side", "HEAD~1")
+        write(repo, f"{EVID}/run-1.json", results(repo))
+        side = commit(repo, "side run")
+        git(repo, "checkout", "-q", "feature")
+        subprocess.run(
+            ["git", "-C", str(repo), "-c", "commit.gpgsign=false", "merge", "-q", "side"],
+            capture_output=True,
+            check=False,
+            timeout=60,
+        )
+        write(repo, f"{EVID}/run-1.json", results(repo))
+        commit(repo, "resolve")
+        code, out = run(repo, capsys)
+        assert code == 1
+        assert f"run-1.json is added again in {side[:10]}" in out
+
     def test_merge_resolution_edit_blocks(
         self, repo: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
