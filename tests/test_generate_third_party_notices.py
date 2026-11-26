@@ -253,6 +253,52 @@ class TestTstackTakeoverAttribution:
         assert "Copyright (c) 2026 Theo Browne" in notices
 
 
+class TestClaudePluginsOfficialAttribution:
+    """References adapted from Apache-2.0 plugins must produce a shipped notice."""
+
+    ENTRIES = {
+        "claude-plugins-official code-modernization": (
+            "src/claude/skills/software-engineering-library/references/version-uplift.md"
+        ),
+        "claude-plugins-official skill-creator": (
+            "src/claude/skills/skillopt/references/judge-grading-discipline.md"
+        ),
+    }
+
+    @pytest.mark.parametrize("name", sorted(ENTRIES))
+    def test_entry_metadata_identifies_the_shipped_reference(self, name: str) -> None:
+        entry = FORKED_COMPONENTS[name]
+
+        assert entry["license"] == "Apache-2.0"
+        assert entry["author"] == "Anthropic"
+        assert entry["url"] == "https://github.com/anthropics/claude-plugins-official"
+        assert entry["local_path"] == self.ENTRIES[name]
+
+    @pytest.mark.parametrize("name", sorted(ENTRIES))
+    def test_shipped_reference_exists_and_cites_its_source(self, name: str) -> None:
+        reference = PROJECT_ROOT / self.ENTRIES[name]
+
+        text = reference.read_text(encoding="utf-8")
+        assert "## Source" in text
+        assert "claude-plugins-official" in text
+        assert "Apache-2.0" in text
+
+    def test_generated_notice_lists_both_entries_with_a_license_pointer(self) -> None:
+        plugins = load_marketplace_config(PROJECT_ROOT)
+        shipped_paths = get_shipped_source_paths(PROJECT_ROOT, plugins)
+        notices = format_notices(find_forked_components(PROJECT_ROOT, shipped_paths), [])
+
+        for name in self.ENTRIES:
+            assert f"{name} ((fork))" in notices
+        assert "https://www.apache.org/licenses/LICENSE-2.0" in notices
+        assert "License text not embedded" not in notices
+
+    def test_entry_is_skipped_when_its_path_is_not_shipped(self, tmp_path: Path) -> None:
+        components = find_forked_components(PROJECT_ROOT, [tmp_path])
+
+        assert all("claude-plugins-official" not in c.name for c in components)
+
+
 class TestCommittedNotice:
     """The committed notice artifacts must be current generator output."""
 

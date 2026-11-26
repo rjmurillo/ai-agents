@@ -89,4 +89,4 @@ Feedback is diagnostic. The gate still decides.
 
 Blind comparison (an LLM judge sees two outputs without knowing which is
 which) may serve as a train-side diagnostic for holistic quality. Never gate
-on it.
+on it. See `references/judge-grading-discipline.md` for how a judge must grade.

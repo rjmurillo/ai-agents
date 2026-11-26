@@ -42,6 +42,7 @@ The router table maps task types to references:
 | Persistence, repository, unit of work | [`enterprise-patterns.md`](../../src/claude/skills/software-engineering-library/references/enterprise-patterns.md) |
 | Refactoring, code smells | [`refactoring.md`](../../src/claude/skills/software-engineering-library/references/refactoring.md) |
 | Legacy code, seams, characterization tests | [`working-with-legacy-code.md`](../../src/claude/skills/software-engineering-library/references/working-with-legacy-code.md) |
+| Runtime or framework version uplift, delta catalog, dual-run proof | [`version-uplift.md`](../../src/claude/skills/software-engineering-library/references/version-uplift.md) |
 | Data systems, consistency, schema evolution | [`data-intensive-applications.md`](../../src/claude/skills/software-engineering-library/references/data-intensive-applications.md) |
 | Production resilience, timeouts, bulkheads | [`release-it.md`](../../src/claude/skills/software-engineering-library/references/release-it.md) |
 | DRY, orthogonality, tracer bullets, design by contract | [`pragmatic-programmer.md`](../../src/claude/skills/software-engineering-library/references/pragmatic-programmer.md) |

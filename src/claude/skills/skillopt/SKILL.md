@@ -370,6 +370,8 @@ class-level guidance; do not add an incident-named reference.
 - `references/eval-set-format.md`: eval manifest, patch, and results schemas.
 - `references/eval-authoring.md`: read when you draft tasks and verifiers, lay
   out a step's artifacts, or act on a report signal.
+- `references/judge-grading-discipline.md`: read when a model, not a verifier,
+  judges an output or a transcript.
 - `references/description-optimization.md`: trigger-rate eval for `description` edits.
 - `references/rollout-validity.md`: preflight, grading, and audit rules for rollouts.
 - `references/target-selection.md`: defect confirmation, split timing, anchors, cohorts.
