@@ -256,6 +256,7 @@ def test_policy_lists_state_and_task_paths(
         str(tmp_path / "state"),
         str(config.resolve()),
         str(tmp_path / "fixtures"),
+        str(sys.modules["_controller_lock"].artifact_lock_path(tmp_path / "artifact.json")),
     ]
     # The whole eval directory, so a planted sibling module is covered too.
     assert policy["deny_write"] == [str(_SCRIPT.parent)]
@@ -716,8 +717,12 @@ def test_gate_runs_with_bytecode_cache_under_state(
 
     monkeypatch.setattr(ec, "optimizer", fake)
     assert ec.main(["run", "--config", str(config)]) == 0
-    prefix = str(tmp_path / "state" / "pycache")
-    assert envs and all(env["PYTHONPYCACHEPREFIX"] == prefix for env in envs)
+    prefixes = [Path(env["PYTHONPYCACHEPREFIX"]) for env in envs]
+    # One fresh private directory per call, under state, gone once it returns,
+    # so a cache planted between calls is never read.
+    assert len(prefixes) >= 3 and len(set(prefixes)) == len(prefixes)
+    assert all(prefix.parent == tmp_path / "state" for prefix in prefixes)
+    assert not any(prefix.exists() for prefix in prefixes)
 
 
 @pytest.mark.parametrize("task", ["suite::../secret", "suite::a/b", "suite::..", "a\\b"])
@@ -1237,7 +1242,7 @@ def test_real_directory_at_the_collect_destination_fails_the_run(tmp_path: Path)
 # its `split.json` check and before it writes the split.
 _HOLD_FIRST = textwrap.dedent(
     """
-    import os, sys, time
+    import os, runpy, sys, time
     held, release = sys.argv[1], sys.argv[2]
     try:
         os.close(os.open(held, os.O_CREAT | os.O_EXCL | os.O_WRONLY))
@@ -1247,7 +1252,8 @@ _HOLD_FIRST = textwrap.dedent(
         deadline = time.monotonic() + 60
         while not os.path.exists(release) and time.monotonic() < deadline:
             time.sleep(0.05)
-    os.execv(sys.executable, [sys.executable, *sys.argv[3:]])
+    sys.argv = sys.argv[3:]
+    runpy.run_path(sys.argv[0], run_name="__main__")
     """
 )
 
@@ -1279,42 +1285,49 @@ def _hold_first_scorer(tmp_path: Path, config: Path) -> tuple[Path, Path]:
     return held, release
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="fcntl lock is POSIX only")
+def _race(tmp_path: Path, first_config: Path, second_config: Path) -> tuple[int, int]:
+    """Park a first controller mid-baseline, run a second, then let the first finish."""
+    held, release = _hold_first_scorer(tmp_path, first_config)
+    first = subprocess.Popen(
+        [sys.executable, str(_SCRIPT), "run", "--config", str(first_config)],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        _wait_for(held)
+        second = ec.main(["run", "--config", str(second_config)])
+    finally:
+        release.touch()
+        first.wait(timeout=120)
+    return first.returncode, second
+
+
 def test_second_controller_on_the_same_state_dir_is_refused(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     config, _ = _setup(tmp_path, {}, steps=1)
-    held, release = _hold_first_scorer(tmp_path, config)
-    first = subprocess.Popen(
-        [sys.executable, str(_SCRIPT), "run", "--config", str(config)],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    try:
-        _wait_for(held)
-        second = ec.main(["run", "--config", str(config)])
-    finally:
-        release.touch()
-        first.wait(timeout=120)
+    first, second = _race(tmp_path, config, config)
     assert second == ec.EXIT_CONFIG
-    assert "another controller" in capsys.readouterr().err
-    assert first.returncode == ec.EXIT_OK
+    assert "use a fresh state_dir" in capsys.readouterr().err
+    assert first == ec.EXIT_OK
 
 
-def test_finished_run_releases_the_state_lock(tmp_path: Path) -> None:
-    config, _ = _setup(tmp_path, {}, steps=1)
-    assert ec.main(["run", "--config", str(config)]) == 0
-    # The lock is free: taking it again succeeds.
-    with sys.modules["_controller_io"].state_lock(tmp_path / "state"):
-        pass
-
-
-def test_failed_run_releases_the_state_lock(tmp_path: Path) -> None:
-    config, _ = _setup(tmp_path, {}, steps=1)
-    _edit_config(config, collect=[str(tmp_path / "never-written.xml")])
-    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_EXTERNAL
-    with sys.modules["_controller_io"].state_lock(tmp_path / "state"):
-        pass
+def test_second_controller_on_the_same_artifact_is_refused(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config, artifact = _setup(tmp_path, {"1": _all_true()}, steps=1)
+    before = artifact.read_bytes()
+    other = tmp_path / "other.json"
+    data = json.loads(config.read_text(encoding="utf-8"))
+    data.update(state_dir=str(tmp_path / "state2"), workspace_dir=str(tmp_path / "workspace2"))
+    other.write_text(json.dumps(data), encoding="utf-8")
+    first, second = _race(tmp_path, config, other)
+    assert second == ec.EXIT_CONFIG
+    assert "one controller per artifact" in capsys.readouterr().err
+    assert first == ec.EXIT_OK
+    # The refused run never scored, so it left no state behind but its lock.
+    assert not (tmp_path / "state2" / "split.json").exists()
+    assert artifact.read_bytes() != before
 
 
 def test_reused_state_dir_still_names_the_old_session_not_the_lock(
@@ -1329,42 +1342,97 @@ def test_reused_state_dir_still_names_the_old_session_not_the_lock(
     assert "another controller" not in err
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="fcntl lock is POSIX only")
-def test_held_flock_refuses_without_writing_to_state(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    config, _ = _setup(tmp_path, {}, steps=1)
-    state = tmp_path / "state"
-    state.mkdir()
-    io = sys.modules["_controller_io"]
-    with io.state_lock(state):
-        assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
-    assert "another controller is running" in capsys.readouterr().err
-    assert sorted(p.name for p in state.iterdir()) == [io.STATE_LOCK]
+# The scorer is told `{run_dir}`. These plant something in or around it before
+# running the real scorer, as candidate code inside a hook scorer could.
+_PLANT_AROUND_RUN = textwrap.dedent(
+    """
+    import os, runpy, shutil, sys
+    mode, run_dir, outside = sys.argv[1:4]
+    runs = os.path.dirname(run_dir)
+    state = os.path.dirname(runs)
+    if mode == "run_dir":
+        shutil.rmtree(run_dir)
+        os.symlink(outside, run_dir)
+    elif mode == "runs":
+        os.rename(runs, os.path.join(outside, "moved-runs"))
+        os.symlink(outside, runs)
+        os.mkdir(run_dir)
+    elif mode == "log_link":
+        os.symlink(os.path.join(outside, "victim.txt"), os.path.join(state, "log.jsonl"))
+    elif mode == "log_fifo":
+        os.mkfifo(os.path.join(state, "log.jsonl"))
+    sys.argv = sys.argv[4:]
+    runpy.run_path(sys.argv[0], run_name="__main__")
+    """
+)
 
 
-def test_without_fcntl_an_existing_lock_file_refuses_and_is_kept(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    io = sys.modules["_controller_io"]
-    monkeypatch.setattr(io, "_FCNTL", None)
+def _plant_around_run(tmp_path: Path, mode: str, *, collect: bool = False) -> tuple[Path, Path]:
     config, _ = _setup(tmp_path, {}, steps=1)
-    state = tmp_path / "state"
-    state.mkdir()
-    (state / io.STATE_LOCK).touch()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "victim.txt").write_text("keep", encoding="utf-8")
+    scorer = tmp_path / "scripts" / "scorer.py"
+    plant = [sys.executable, "-c", _PLANT_AROUND_RUN, mode, "{run_dir}", str(outside)]
+    if collect:
+        loose = tmp_path / "loose"
+        loose.mkdir()
+        report = str(loose / "{run_id}.xml")
+        changes: dict[str, Any] = {"collect": [report], "inputs": ["{run_dir}/0"]}
+    else:
+        report = "{run_dir}/junit.xml"
+        changes = {}
+    _edit_config(config, scorer=[*plant, str(scorer), "{artifact}", report], **changes)
+    return config, outside
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
+@pytest.mark.parametrize("collect", [False, True])
+def test_run_dir_swapped_for_a_link_is_refused_before_anything_lands_outside(
+    tmp_path: Path, collect: bool
+) -> None:
+    config, outside = _plant_around_run(tmp_path, "run_dir", collect=collect)
     assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
-    err = capsys.readouterr().err
-    assert "another controller is running" in err
-    assert io.STATE_LOCK in err
-    # The refused run must not break a lock it does not hold.
-    assert (state / io.STATE_LOCK).exists()
+    # The scorer's own report and bytecode cache may be there; nothing the
+    # controller wrote is.
+    scorer_wrote = {"junit.xml", "pycache"}
+    assert [p.name for p in outside.iterdir() if p.name not in scorer_wrote] == ["victim.txt"]
 
 
-def test_without_fcntl_a_finished_run_removes_its_lock_file(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    io = sys.modules["_controller_io"]
-    monkeypatch.setattr(io, "_FCNTL", None)
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
+def test_runs_directory_swapped_for_a_link_is_refused(tmp_path: Path) -> None:
+    config, outside = _plant_around_run(tmp_path, "runs", collect=True)
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+    planted = outside / next(p.name for p in outside.iterdir() if p.name.startswith("incumbent"))
+    assert [p.name for p in planted.iterdir() if p.name != "pycache"] == []
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
+def test_log_planted_as_a_link_is_never_written_through(tmp_path: Path) -> None:
+    config, outside = _plant_around_run(tmp_path, "log_link")
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+    assert (outside / "victim.txt").read_text(encoding="utf-8") == "keep"
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX FIFOs")
+@pytest.mark.timeout(60)
+def test_log_planted_as_a_fifo_does_not_hang_the_controller(tmp_path: Path) -> None:
+    config, _ = _plant_around_run(tmp_path, "log_fifo")
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
+def test_ledger_directory_swapped_for_a_link_stops_the_gate(tmp_path: Path) -> None:
     config, _ = _setup(tmp_path, {}, steps=1)
-    assert ec.main(["run", "--config", str(config)]) == 0
-    assert not (tmp_path / "state" / io.STATE_LOCK).exists()
+    outside = tmp_path / "outside"
+    plant = (
+        "import json, os, sys; state, outside, artifact = sys.argv[1:4]; "
+        "ledger = os.path.join(state, 'ledger'); os.rename(ledger, outside); "
+        "os.symlink(outside, ledger); "
+        "json.dump({f'T{n:02d}': True for n in range(1, 11)}, open(artifact, 'w'))"
+    )
+    state = str(tmp_path / "state")
+    _edit_config(config, proposer=[sys.executable, "-c", plant, state, str(outside), "{artifact}"])
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+    assert "ledger directory was replaced" in _events(tmp_path)[-1]["error"]
+    assert list(outside.iterdir()) == []

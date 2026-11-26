@@ -26,13 +26,14 @@ Exit codes (ADR-035): 0 loop finished, 2 config or integrity refusal,
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime as dt
 import hashlib
 import json
 import os
-import shutil
 import signal
 import sys
+import tempfile
 import uuid
 from collections.abc import Mapping
 from pathlib import Path
@@ -54,17 +55,22 @@ from _controller_config import (
 )
 from _controller_io import (
     clear_dir,
-    collect_into,
+    collect_all,
+    contained_inputs,
     fill,
+    is_real_dir,
     optimizer,
     proposer_env,
     read_artifact,
+    read_private,
+    refuse_stale_reports,
     run_child,
-    state_lock,
     task_file,
     tree_digest,
     write_artifact,
+    write_private,
 )
+from _controller_lock import artifact_lock, artifact_lock_path, state_lock
 
 __all__ = [
     "EXIT_CONFIG",
@@ -103,16 +109,17 @@ class Controller:
     def _record(self, event: Mapping[str, Any]) -> None:
         stamp = dt.datetime.now(dt.UTC).isoformat(timespec="milliseconds")
         line = {"ts": stamp, "session": self.session, **event}
-        with self.log.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(line, sort_keys=True) + "\n")
+        # The scorer can plant `log.jsonl`; an append never writes through it.
+        write_private(self.log, json.dumps(line, sort_keys=True) + "\n", append=True)
 
     def _optimizer(
         self, args: list[str], extra: Mapping[str, str] | None = None
     ) -> tuple[int, dict[str, Any]]:
-        # Bytecode caches live under state, so a cache planted in
-        # `scripts/eval/__pycache__` is never read by the gate.
-        env = {**os.environ, "PYTHONPYCACHEPREFIX": str(self.state / "pycache"), **(extra or {})}
-        result: tuple[int, dict[str, Any]] = optimizer(args, self.config.timeout_seconds, env)
+        # A fresh private cache per call, so neither a cache planted in
+        # `scripts/eval/__pycache__` nor one left in state is ever read.
+        with tempfile.TemporaryDirectory(prefix="pycache-", dir=self.state) as cache:
+            env = {**os.environ, "PYTHONPYCACHEPREFIX": cache, **(extra or {})}
+            result: tuple[int, dict[str, Any]] = optimizer(args, self.config.timeout_seconds, env)
         return result
 
     def _protected(self) -> list[Path]:
@@ -135,41 +142,6 @@ class Controller:
         )
         return duration
 
-    def _collect(self, values: Mapping[str, str], run_dir: Path) -> list[str]:
-        """Move every `collect` output into the run; return what went wrong.
-
-        Each path is attempted on its own, so one missing or unmovable report
-        never leaves a later one, with its held-out outcomes, in the checkout.
-        """
-        problems: list[str] = []
-        for index, template in enumerate(self.config.collect):
-            source = resolve(fill(template, values))
-            if not (source.exists() or source.is_symlink()):
-                problems.append(f"scorer output {source} was not produced")
-                continue
-            # The scorer knows `run_dir`, so it may have planted the destination.
-            problems.extend(collect_into(source, run_dir / str(index)))
-        return problems
-
-    def _refuse_stale_reports(self, values: Mapping[str, str], label: str) -> None:
-        # A report already sitting at a collect path belongs to some earlier
-        # run. Collecting it would gate on the wrong results.
-        for template in self.config.collect:
-            stale = resolve(fill(template, values))
-            if stale.exists() or stale.is_symlink():
-                raise ControllerError(
-                    f"scorer output {stale} exists before {label} was scored; "
-                    "use a collect path that names the run (`{run_id}`) or clear it"
-                )
-
-    def _contained_inputs(self, values: Mapping[str, str], run_dir: Path) -> list[str]:
-        inputs = [fill(item, values) for item in self.config.inputs]
-        for item in inputs:
-            # The template check at load is lexical; `{run_dir}/../x` passes it.
-            if run_dir.resolve() not in Path(item).resolve().parents:
-                raise ControllerError(f"extract input {item} is outside the run directory")
-        return inputs
-
     def score(self, label: str, expected: bytes) -> Path:
         """Run the scorer, move its output into state, extract all results.
 
@@ -186,7 +158,7 @@ class Controller:
         # The candidate's code may run inside the scorer. Everything already in
         # state must be exactly as the controller left it when the scorer ends.
         before = tree_digest([self.state], exclude=run_dir)
-        self._refuse_stale_reports(values, label)
+        refuse_stale_reports(self.config.collect, values, label)
         # The scorer's bytecode cache goes inside its own run directory, so a
         # cache planted beside the scorer's code is never read and the state
         # digest above still excludes everything the scorer may write.
@@ -204,12 +176,15 @@ class Controller:
             # A failed scorer may still have written a report outside state,
             # with held-out outcomes in it. Move what exists before stopping;
             # collection problems must not hide the scorer's own error.
-            self._collect(values, run_dir)
+            if is_real_dir(run_dir):
+                collect_all(self.config.collect, values, run_dir)
             raise
+        # The digest skips `run_dir` by path, so a link swapped in for it (or
+        # for `runs/`) would carry reports and results outside state unseen.
+        self._require_run_dir(run_dir, label)
         # Collected before every check below, so no refusal leaves a report
-        # outside state. Collection writes only inside `run_dir`, which the
-        # state digest excludes.
-        problems = self._collect(values, run_dir)
+        # outside state.
+        problems = collect_all(self.config.collect, values, run_dir)
         if tree_digest([self.state], exclude=run_dir) != before:
             raise ControllerError(f"controller state changed while {label} was scored")
         if problems:
@@ -221,23 +196,26 @@ class Controller:
                 "refusing to use results for bytes that were not the ones scored"
             )
         self._record({"event": "call", "label": f"scorer {label}", "duration_s": duration})
-        inputs = self._contained_inputs(values, run_dir)
+        inputs = contained_inputs(self.config.inputs, values, run_dir)
         code, payload = self._optimizer(
             ["extract", "--kind", self.config.kind, "--input", *inputs, *self.config.extract_args]
         )
         if code != 0:
             raise ControllerError(f"extract refused the {label} scorer output", EXIT_EXTERNAL)
+        self._require_run_dir(run_dir, label)
         results: Path = run_dir / "results.json"
         # Exclusive create: the scorer ran in this directory and could have
         # planted `results.json` as a link into state.
-        try:
-            with results.open("x", encoding="utf-8") as handle:
-                handle.write(json.dumps(payload, indent=2, sort_keys=True) + "\n")
-        except FileExistsError as exc:
-            raise ControllerError(
-                f"{results} already existed; refusing to write through it"
-            ) from exc
+        write_private(results, json.dumps(payload, indent=2, sort_keys=True) + "\n")
         return results
+
+    def _require_run_dir(self, run_dir: Path, label: str) -> None:
+        if not is_real_dir(run_dir):
+            raise ControllerError(f"{run_dir} was replaced while {label} was scored")
+
+    def _results(self, path: Path) -> dict[str, Any]:
+        document: dict[str, Any] = json.loads(read_private(path, "controller file"))
+        return document
 
     def _publish(self, step: int) -> Path:
         """Empty the workspace, then write the step's feedback and task copies.
@@ -248,8 +226,8 @@ class Controller:
         """
         workspace = self.config.workspace_dir
         clear_dir(workspace)
-        mapping = json.loads(self.incumbent.read_text(encoding="utf-8"))["results"]
-        opt_ids = json.loads((self.state / "split.json").read_text(encoding="utf-8"))["opt"]
+        mapping = self._results(self.incumbent)["results"]
+        opt_ids = self._results(self.state / "split.json")["opt"]
         opt = {task: mapping[task] for task in opt_ids if task in mapping}
         if self.config.opt_task_files:
             tasks_dir = workspace / "tasks"
@@ -264,15 +242,16 @@ class Controller:
                     )
                 # A link could point at a held-out definition and hand it over
                 # under an optimize-group name, so links are refused.
-                if source.is_symlink() or not source.is_file():
-                    raise ControllerError(f"optimize-group task file {source} is missing or a link")
+                # One descriptor, so a link or hard link swapped in after the
+                # path check is refused rather than copied.
+                data = read_private(source, "optimize-group task file")
                 target = tasks_dir / source.name
                 if target.exists():
                     raise ControllerError(
                         f"two optimize-group task files share the name {source.name}; "
                         "use a template whose file names are unique per task"
                     )
-                shutil.copyfile(source, target)
+                target.write_bytes(data)
         passed = sum(1 for value in opt.values() if value)
         document = {
             "step": step,
@@ -297,8 +276,9 @@ class Controller:
                 "workspace_dir must be absent or empty; the controller empties it every step"
             )
         self.started = True
-        self.state.mkdir(parents=True, exist_ok=True)
-        os.chmod(self.state, 0o700)
+        # `state_lock` made state private. The ledger is made here, so the
+        # gate never creates it through a link.
+        (self.state / "ledger").mkdir(mode=0o700, exist_ok=True)
         self.incumbent_bytes = read_artifact(config.artifact)
         self.mode = config.artifact.stat().st_mode & 0o7777
         self.integrity = tree_digest(self._protected())
@@ -310,9 +290,9 @@ class Controller:
             self.restoring = True
             self._restore()
             raise
-        document = json.loads(self.incumbent.read_text(encoding="utf-8"))
+        document = self._results(self.incumbent)
         tasks = self.state / "tasks.txt"
-        tasks.write_text("\n".join(sorted(document["results"])) + "\n", encoding="utf-8")
+        write_private(tasks, "\n".join(sorted(document["results"])) + "\n")
         args = ["split", "--tasks", str(tasks), "--seed", config.seed]
         args += ["--sel-ratio", config.sel_ratio, "--out", str(self.state / "split.json")]
         if document.get("corpus"):
@@ -324,6 +304,8 @@ class Controller:
         self._record({"event": "baseline", "results": str(self.incumbent), "split": split_doc})
 
     def _gate(self, step: int, candidate: Path, candidate_sha: str) -> str:
+        if not is_real_dir(self.state / "ledger"):
+            raise ControllerError("the consultation ledger directory was replaced")
         args = ["gate", "--incumbent", str(self.incumbent), "--candidate", str(candidate)]
         args += ["--split", str(self.state / "split.json")]
         args += ["--max-consultations", str(self.config.max_consultations)]
@@ -413,13 +395,20 @@ class Controller:
         previous_int = signal.signal(signal.SIGINT, self.on_sigterm)
         try:
             # Held for the whole run; a refused second run has not started.
-            with state_lock(self.state):
+            with state_lock(self.state), artifact_lock(self.config.artifact):
                 return self._run()
         except ControllerError as exc:
-            if self.started and self.log.parent.is_dir():
-                self._record(
-                    {"event": "abort", "code": exc.code, "error": str(exc), "detail": exc.detail}
-                )
+            # A planted log refuses the abort record; the original error wins.
+            with contextlib.suppress(ControllerError):
+                if self.started and self.log.parent.is_dir():
+                    self._record(
+                        {
+                            "event": "abort",
+                            "code": exc.code,
+                            "error": str(exc),
+                            "detail": exc.detail,
+                        }
+                    )
             raise
         finally:
             # A handler installed from C reads back as None; fall back to default.
@@ -459,7 +448,11 @@ class Controller:
 
 
 def cmd_policy(args: argparse.Namespace) -> int:
-    print(json.dumps(access_rule(load_config(args.config)), indent=2))
+    config = load_config(args.config)
+    rule = access_rule(config)
+    # A proposer that removed an artifact lock could let a second controller on.
+    rule["deny_read_write"].append(str(artifact_lock_path(config.artifact)))
+    print(json.dumps(rule, indent=2))
     return int(EXIT_OK)
 
 

@@ -2325,7 +2325,7 @@ The config is launcher-owned JSON:
 | `workspace_dir` | The proposer's only input. Must be absent or empty at start, and must not contain the artifact. Emptied each step, then given `feedback.json` and optional `tasks/`. |
 | `scorer` | argv. `{run_id}`, `{run_dir}`, and `{artifact}` are filled in. |
 | `scorer_exit_codes` | Exit codes that count as a completed scoring run (default `[0]`). pytest and the rule scorer exit 1 on failures, so use `[0, 1]` there. |
-| `collect` | Paths the scorer writes outside `{run_dir}`. Each is moved to `{run_dir}/<index>`, every one attempted even if another is missing. A report already at a `collect` path before scoring stops the run, so include `{run_id}` in fixed paths. The proposer must not read them meanwhile: `policy` prints them as `deny_read_write_collect`; deny the directory each names. |
+| `collect` | Paths the scorer writes outside `{run_dir}`. Each is moved to `{run_dir}/<index>`, every one attempted even if another is missing. A report already at a `collect` path before scoring stops the run, so include `{run_id}` in fixed paths. Anything already at `{run_dir}/<index>` also fails the run; a link there is removed first, so a report never moves through it. The proposer must not read them meanwhile: `policy` prints them as `deny_read_write_collect`; deny the directory each names. |
 | `inputs` | `extract --input` paths. Each must start with `{run_dir}`; a report written elsewhere is named in `collect` and read from `{run_dir}/<index>`. |
 | `extract_args` | Extra `extract` flags, such as `--variant agent`. |
 | `proposer` | argv. `{feedback}`, `{artifact}`, `{workspace}`, and `{step}` are filled in. |
@@ -2355,21 +2355,29 @@ The controller refuses to gate when the artifact changed while it was scored.
 It refuses an artifact replaced by a symlink, a hard link, or a directory.
 Restores keep the artifact's mode and never follow a link. It digests
 `deny_paths`, `trusted_paths`, and every entry under `scripts/eval/` before the
-loop and again around every scoring run and step. The optimizer runs with
-`PYTHONPYCACHEPREFIX` under `state_dir`, so a planted bytecode cache in
-`scripts/eval/__pycache__` is never read. It also checks that scoring changed
-nothing in `state_dir` outside the new run's directory.
+loop and again around every scoring run and step. Each optimizer call gets a
+fresh `PYTHONPYCACHEPREFIX` directory under `state_dir`, removed after the
+call, so it does not reuse an earlier cache. It also checks that scoring
+changed nothing in `state_dir` outside the new run's directory.
 
-One controller runs per `state_dir`. The run locks `state_dir/controller.lock`
-before its fresh-session check, and a second run on the same `state_dir` exits
-2 with "another controller is running". On POSIX it is an `fcntl` file lock,
-which the kernel drops when the holder dies. Without `fcntl` (Windows) the
-lock is an exclusive-create file, removed when the run ends. A killed run
-leaves it behind; the refusal names the file to remove.
+The scorer runs inside `state_dir/runs/` and can leave links there.
+The controller checks that the run directory still resolves to itself.
+It checks the ledger directory before invoking the gate. Controller file
+reads and writes reject leaf symlinks, hard links, and non-regular files.
+These checks do not replace isolation from a child that keeps running.
 
-Run one controller per artifact at a time. The lock covers `state_dir`, not the
-artifact. Two runs with different `state_dir`s on the same artifact can restore
-over each other's accepted bytes.
+The controller holds two locks throughout each run:
+
+- The state lock lives in `state_dir`. A second run there exits 2.
+- The artifact lock sits beside the resolved artifact. Its name derives
+  from the artifact filename and does not depend on the temp directory.
+  Another run on that artifact exits 2, even with a different `state_dir`.
+  `policy` lists the lock file under `deny_read_write`.
+
+The locks use `fcntl` on POSIX and `msvcrt` on Windows. The operating system
+releases them on process exit. The artifact lock file stays in place.
+Do not remove it while any controller could be using it. A platform without
+either locking primitive refuses to run.
 
 **The boundary is conditional.** Python cannot stop a same-user process from
 reading a file. The held-out group is withheld only when the launcher applies
