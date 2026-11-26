@@ -292,7 +292,7 @@ relying on them:
 | Memory naming + index-row hazard | `.claude/skills/memory/SKILL.md` "Serena Write Conventions" | `grep -n "Serena Write Conventions" .claude/skills/memory/SKILL.md` |
 | Memory/skill separate-PR rule | `.claude/rules/claude-agents.md` MUST NOT item 2 | `grep -n "same PR" .claude/rules/claude-agents.md` |
 | Handoff tiers (session log, per-issue, per-branch) | `.project-toolkit/sessions/handoffs/README.md` tier table; ADR-014 | `grep -n "Tier" .project-toolkit/sessions/handoffs/README.md` |
-| FM-9 verbatim-quote rule | `.agents/governance/FAILURE-MODES.md:287-310` | `grep -n "character-for-character" .agents/governance/FAILURE-MODES.md` |
+| FM-9 verbatim-quote rule | `.agents/governance/FAILURE-MODES.md:288-311` | `grep -n "character-for-character" .agents/governance/FAILURE-MODES.md` |
 | Scope-explosion lint scope story | `.project-toolkit/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md:281-296` | `grep -n "markdownlint" .project-toolkit/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md` |
 | CONTRIBUTING.md staleness example | Commit b320f4ac1 repointed `CONTRIBUTING.md` to `build/generate_agents.py` | `git show b320f4ac1 -- CONTRIBUTING.md` |
 | Serena is the only memory backend | `.project-toolkit/architecture/ADR-106-serena-only-memory-architecture.md:87` | `grep -n "the only memory backend" .project-toolkit/architecture/ADR-106-serena-only-memory-architecture.md` |
