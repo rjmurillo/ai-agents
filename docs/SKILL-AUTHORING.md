@@ -68,7 +68,7 @@ model, which is the correct default under
 
 - `name`: Only lowercase letters, numbers, hyphens. Regex: `^[a-z0-9-]{1,64}$`
 - `description`: Non-empty, max 1024 characters, no XML tags.
-- `version`: Semver string. `validate-skill.py` checks the format only, and accepts `metadata.version` too. No gate checks that it is present.
+- `version`: Semver string. `validate-skill.py` warns, but does not fail, on a bad format. It also reads `metadata.version`. No gate checks that it is present.
 - `model`: Omitted, or a bare rolling alias that prices below the harness default (see Model Selection below). A versioned id is rejected.
 - `model-rationale`: Required whenever `model` is present.
 - `allowed-tools`: Tool names must match available Claude Code tools.
