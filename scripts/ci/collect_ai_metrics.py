@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Collect repository AI metrics for the weekly analysis workflow.
+"""Collect repository AI metrics.
 
-Extracted from ``.github/workflows/ai-metrics-analysis.yml`` (deleted 2026-11-25)
-under ADR-006 (no logic in workflow YAML). Issue #3539.
+Extracted from ``.github/workflows/ai-metrics-analysis.yml`` (the weekly analysis
+workflow, deleted 2026-11-25; no workflow runs this script now) under ADR-006
+(no logic in workflow YAML). Issue #3539.
 
 The shell this replaces computed a date window, called ``gh metrics`` twice,
 and folded a failure of either call into a warning plus placeholder text. That
-fail-soft behaviour is deliberate: a metrics outage must not fail the weekly
-run, so it is preserved exactly. Both calls are made with an argument vector,
+fail-soft behaviour is deliberate: a metrics outage must not fail a run,
+so it is preserved exactly. Both calls are made with an argument vector,
 never a shell string, so a repository name cannot be word-split (CWE-78).
 """
 

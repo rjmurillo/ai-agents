@@ -71,7 +71,7 @@ def test_state_tracks_each_moved_reference_and_resets_passes(tmp_path: Path):
     )
 
     assert state["owner"] == "agent-qa"
-    assert state["cadence"] == "weekly Monday 06:30 UTC and pull_request dry-run gate"
+    assert state["cadence"] == "manual, see scripts/eval/README.md"
     assert sorted(state["references"]) == sorted(gate.MOVED_REFERENCE_IDS)
     assert state["references"]["refactoring"]["consecutive_activation_failures"] == 0
     assert state["references"]["refactoring"]["last_verdict"] == "PASS"

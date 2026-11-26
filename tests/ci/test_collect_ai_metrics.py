@@ -102,7 +102,7 @@ class TestFailSoft:
     """A metrics outage warns; it never fails the run."""
 
     def test_a_csv_failure_still_exits_zero(self, tmp_path: Path, monkeypatch) -> None:
-        """Positive: the weekly run survives an export outage."""
+        """Positive: a run survives an export outage."""
         _stub(monkeypatch, csv_rc=1)
         _outputs(tmp_path, monkeypatch)
         assert collector.main(_argv(tmp_path)) == 0

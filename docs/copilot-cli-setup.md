@@ -47,8 +47,8 @@ Without the correct token, Copilot CLI exits with code 1 and produces no output.
 
 ### Step 3: Verify Workflow Configuration
 
-Only the Copilot smoke steps read the token, and the job declares the
-`agent-copilot` environment:
+A restored Copilot leg should be the only step that reads the token, and its
+job should declare the `agent-copilot` environment, as the deleted job did:
 
 ```yaml
 environment: agent-${{ matrix.cli }}
@@ -89,7 +89,7 @@ skipped, so a missing token surfaces as a red run.
 - **Token scope**: The "Copilot Requests" permission only allows sending
   prompts to Copilot; it doesn't grant repository access
 - **Separate tokens**: Use different tokens for `BOT_PAT` (the repo-operations
-  token for jobs in `agent-*` environments, not a repository secret) and
+  token the deleted `agent-*` environment jobs used, not a repository secret) and
   `COPILOT_GITHUB_TOKEN` (Copilot access)
 - **Rotation**: Rotate tokens periodically and after any suspected compromise
 - **Audit logs**: Monitor token usage in GitHub's security audit logs

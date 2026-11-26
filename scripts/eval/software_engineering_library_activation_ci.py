@@ -145,7 +145,7 @@ def create_issue() -> int:
     body = f"""
         ## Software Engineering Library Activation Threshold
 
-        The weekly ADR-088 activation gate failed. Review the uploaded
+        The ADR-088 activation gate failed. Review the uploaded
         `activation-gate-report.md` artifact and open a restoration PR if any
         reference reached the consecutive activation failure threshold.
 
@@ -153,7 +153,7 @@ def create_issue() -> int:
         - Restore the failing book reference to the always-on rule surface, or
           strengthen the skill trigger and scenario coverage.
         - Include the latest activation gate report in the PR body.
-        - The PR must pass this workflow before merge.
+        - The PR must include a passing run of this gate (see `scripts/eval/README.md`).
 
         Workflow run: {workflow_url()}
         """
@@ -177,10 +177,10 @@ def create_issue() -> int:
 
 def comment_issue(issue_number: str) -> int:
     body = f"""
-        The weekly ADR-088 activation gate failed again.
+        The ADR-088 activation gate failed again.
 
         Review the latest uploaded activation artifacts and keep or open the
-        restoration PR until this workflow passes.
+        restoration PR until this gate passes.
 
         Workflow run: {workflow_url()}
         """

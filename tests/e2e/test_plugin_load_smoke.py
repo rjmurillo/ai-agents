@@ -67,13 +67,16 @@ release and flaked on machines with globally installed plugins (surfaced under
 problems: a hook fires or it does not, on every version.
 
 This is the plugin-LOAD smoke. The plugin-HOOK anchoring smoke lives in
-``tests/e2e/test_cli_hook_e2e.py``. Both run in the same PR workflow
-(``.github/workflows/plugin-cli-smoke.yml``) under ``RUN_CLI_E2E=1``; each has its own
-JUnit report so a silent skip of either is a red run.
+``tests/e2e/test_cli_hook_e2e.py``. Until 2026-11-25 both ran in the same PR
+workflow (``.github/workflows/plugin-cli-smoke.yml``) under ``RUN_CLI_E2E=1``. Of
+the two files, that workflow now runs only this file's Codex cases. The pre-push jobs
+``plugin-load-e2e`` and ``hook-anchoring-e2e`` run the non-Copilot cases of both
+files; no workflow or hook runs the Copilot cases.
 
 Why opt-in: these spawn real CLIs that need authentication and spend model
 credits, which bare CI does not have. They run wherever the CLIs are installed
-and ``RUN_CLI_E2E=1`` is set (local dev, the CLI smoke job with secrets); elsewhere
+and ``RUN_CLI_E2E=1`` is set (local dev, the pre-push jobs, and the CLI smoke job
+for the Codex cases, which reads no secret); elsewhere
 they SKIP with a loud reason so a skipped run never reads as a passed run. The
 fast, always-on guards are the unit checks at the bottom of this file: they pin
 the expected-skills set against the shipped plugin trees, and pin the fired-hook
