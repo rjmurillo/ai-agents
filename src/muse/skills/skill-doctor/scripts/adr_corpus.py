@@ -202,13 +202,13 @@ def path_is_dir(path: Path) -> bool:
         return False
 
 
-def _is_file(path: Path, rel: str, survey: Survey) -> bool:
-    """`Path.is_file`. An OS error is a read error, not a crash: before 3.14 it raises."""
+def _is_file(path: Path, rel: str, survey: Survey) -> bool | None:
+    """`Path.is_file`, or None after recording a read error: before 3.14 it raises."""
     try:
         return path.is_file()
     except (OSError, ValueError) as exc:
         survey.read_errors.append({"path": rel, "error": str(exc)})
-        return False
+        return None
 
 
 def _resolve(path: Path) -> Path | None:
@@ -270,7 +270,10 @@ def _marker_text(repo: Path, survey: Survey) -> str | None:
     target = _resolve(marker)
     reason = "resolves outside the repository"
     if target is not None and within(target, repo):
-        reason = "" if _is_file(target, ".adr-dir", survey) else "is not a regular file"
+        is_file = _is_file(target, ".adr-dir", survey)
+        if is_file is None:
+            return None
+        reason = "" if is_file else "is not a regular file"
     if target is None or reason:
         survey.rejected.append({"path": ".adr-dir", "reason": reason})
         return None
