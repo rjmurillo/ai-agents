@@ -98,7 +98,7 @@ Read `$SKILL_ROOT/references/supported-harnesses.md` and identify the harness ex
 
 #### ADR-only fast path
 
-For only `check ADR drift`: confirm the repository, create `REPORT_DIR`, run Step 1a, skip to Step 5.
+For only `check ADR drift`: confirm the repository, create `REPORT_DIR`, run Step 1a, then in Step 5 write the ADR-only `report.json` (`"mode": "adr_only"`) and render it. Skip the inventory copy and `assemble_report.py`.
 
 #### Ask which conversations to grade
 

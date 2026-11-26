@@ -88,7 +88,9 @@ def make_finding(
     key: Sequence[str],
 ) -> Finding:
     """Build one finding. `key` names the evidence fields that identify it."""
-    digest = hashlib.sha256("\x1f".join((kind, *key)).encode("utf-8")).hexdigest()
+    # surrogateescape: a file name with undecodable bytes reaches here as lone surrogates.
+    joined = "\x1f".join((kind, *key)).encode("utf-8", errors="surrogateescape")
+    digest = hashlib.sha256(joined).hexdigest()
     return {
         "id": digest[:12],
         "kind": kind,

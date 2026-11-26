@@ -157,3 +157,19 @@ def test_every_active_status_is_a_status_word():
     import adr_checks
 
     assert adr_checks.ACTIVE_STATUSES - {""} <= adr_text.STATUS_WORDS
+
+
+def test_a_finding_key_with_undecodable_file_name_bytes_still_gets_an_id():
+    name = b"ADR-002-caf\xe9.md".decode("utf-8", errors="surrogateescape")
+
+    finding = adr_corpus.make_finding(
+        "adr-number-mismatch", "Numbering", "low", "deterministic", {"path": name}, "fix", (name,)
+    )
+
+    assert re.fullmatch(r"[0-9a-f]{12}", finding["id"])
+
+
+def test_an_ordinary_finding_key_keeps_its_id():
+    finding = adr_corpus.make_finding("k", "Setup", "info", "deterministic", {}, "fix", ("é",))
+
+    assert finding["id"] == "031f59a0e23a"
