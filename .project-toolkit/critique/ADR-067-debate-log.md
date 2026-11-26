@@ -3,8 +3,8 @@
 ## Summary
 
 - **Records**: ADR-067.
-- **Rounds**: 2 of 10.
-- **Outcome**: Consensus after round 2 fixes.
+- **Rounds**: 3 of 10.
+- **Outcome**: Consensus after round 3.
 - **Final Status**: unchanged. ADR-067 stays accepted.
 - **Panel**: reduced panel, architect and critic.
 - **Why reduced**: the edit fixes two quotes. No Decision changes and no gate logic changes.
@@ -24,7 +24,7 @@ Devin Review found this during PR #7691.
 1. Line 154 keeps the original quote and marks it superseded by the amendment.
    It then quotes the end of the live Check 1 message in `validate_pr_description`.
 2. Line 195, Implementation Notes item 5, is marked superseded and kept as history.
-   It states the live rule with its condition: a change heading must exist.
+   It quotes the live rule with its condition: a change heading must exist.
 3. Frontmatter `date` moved to 2026-11-25.
 4. Each edit stays one physical line. The file keeps 234 lines, so line citations hold.
 
@@ -61,6 +61,21 @@ Architect verdict: Accept. Critic verdict: Revise.
 - Critic P1: this log claimed consensus before a re-review. Round 2 is now recorded.
 
 The critic confirmed the rest: 234 lines, the date, the #6414 commit, and the scoping claim.
-The only round 2 change is one verb, which the critic named as the fix.
 
-**Verdict**: Consensus, no BLOCK.
+## /review follow-up
+
+`/review` ran spec-compliance, analyst, decision-rigor, and correctness on `ed120509b`.
+
+- spec-compliance WARN: line 195 paraphrased the live message. It now quotes it verbatim.
+- correctness and analyst: the log claimed consensus with a critic Revise open. Round 3 below closes it.
+- spec-compliance and correctness asked about the `date` change. The `adr-generator` Amend mode says to update frontmatter `date`.
+  Its template defines `date` as the last-updated day. The original 2026-06-02 date stays in git history.
+- analyst Low: line 194 says four heading variants, but the live tuple also has `What changed`. Out of scope here.
+
+## Round 3
+
+Critic verdict: Accept, no P0 or P1.
+The critic confirmed "includes" on line 154 and the verbatim quote on line 195.
+Both lines keep the change-heading condition and the original text. The file has 234 lines.
+
+**Verdict**: Consensus, no BLOCK. Architect accepted in round 2, critic in round 3.

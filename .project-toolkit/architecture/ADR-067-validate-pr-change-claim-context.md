@@ -192,7 +192,7 @@ The follow-up implementer task (spawned as a child of this kanban task) MUST:
    - "Bold `**foo.py**` in `## Summary` IS still a claim." Asserts: flagged if not in diff.
    - "Bullet-list `- bar.py` in `## Summary` IS still a claim." Asserts: flagged if not in diff.
    - All four `_CHANGE_CLAIM_SECTION_NAMES` variants accepted case-insensitively.
-5. Superseded by the 2026-11-25 amendment, kept as history. The live Check 1 message says that when the body has a change heading, only paths under it are change claims and paths elsewhere are informational. Original item: the failure-message text from Part A MUST be amended to name the rule: "Inline-backtick file paths outside `## Changes` / `## Per-file changes` / `## Files Changed` / `## Changed Files` are informational. Move the path under one of those headings, use a bullet (`- path.ext`) or bold (`**path.ext**`), or wrap in a code fence."
+5. Superseded by the 2026-11-25 amendment, kept as history. The live Check 1 message says that when the body has a change heading, "only paths under it are change claims; paths elsewhere are informational." Original item: the failure-message text from Part A MUST be amended to name the rule: "Inline-backtick file paths outside `## Changes` / `## Per-file changes` / `## Files Changed` / `## Changed Files` are informational. Move the path under one of those headings, use a bullet (`- path.ext`) or bold (`**path.ext**`), or wrap in a code fence."
 6. The implementer MUST run the regression simulator at `.project-toolkit/analysis/2252-pr-description-default-flip-regression-sim.py` (sample-of-40 PRs) after the change and confirm baseline -> hybrid totals match this ADR.
 
 ### Rollback Plan
