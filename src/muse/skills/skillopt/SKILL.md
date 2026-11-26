@@ -34,8 +34,8 @@ You run rollouts and reflect on failures. The bundled scripts decide whether
 an edit may exist: the edit budget, the patch applier, the protected-section
 guard, the rejected-edit buffer, and the acceptance gate are deterministic.
 Do not edit the target by hand. Route every edit through the scripts so the
-gate is real. Method: Yang et al., arXiv:2605.23904. The paper's reported
-gains are its claims; this skill does not reproduce them.
+gate is real. Method: Yang et al., arXiv:2605.23904; this skill does not
+reproduce its reported gains.
 
 ## Triggers
 
@@ -54,7 +54,7 @@ gains are its claims; this skill does not reproduce them.
 | Create a skill, find one, or route a request to one | `skillforge` |
 | Decide skill vs passive context, or compress markdown with no eval | `context-optimizer` |
 | Measured improvement of an existing skill, agent file, or prompt | this skill |
-| Held-out optimization of agents, rules, and hooks inside the `rjmurillo/ai-agents` checkout | `optimize-artifact.py` in that repository's eval tooling (not shipped) |
+| Held-out optimization of agents, rules, and hooks inside the `rjmurillo/ai-agents` checkout | `optimize-artifact.py` in that repo's eval tooling (not shipped) |
 
 ## Preconditions (hard stop if unmet)
 
@@ -75,8 +75,8 @@ gains are its claims; this skill does not reproduce them.
    independent. Replacement holdouts written by the same agent are still
    exposed.
 5. **Right container.** For a skill, run `context-optimizer`
-   placement analysis on its knowledge first. If it belongs in passive
-   context, stop and report it. Intake only.
+   placement analysis on its knowledge before any rollout budget. If it
+   belongs in passive context, stop and report it. Never in the loop or gates.
 
 Freeze the `train` and `sel` task lists before authoring any candidate. Keep
 `sel` prompts, verifiers, and outcomes away from the candidate author for the
@@ -98,8 +98,8 @@ after baseline, anchor rules, and library-wide passes.
 
 ## Scripts
 
-Every subcommand takes explicit file paths, so it runs from any working
-directory and needs no clone of the source repository. Pure standard library.
+Every subcommand takes explicit file paths, so it runs from any directory
+with no clone of the source repo. Pure standard library.
 
 ```bash
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillopt/scripts/skillopt.py --help; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
@@ -108,9 +108,10 @@ SKILLOPT_FOUND="$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .
 : "${SKILLOPT_DIR:?no plugin root holds skillopt.py; set SKILLOPT_DIR to the scripts folder beside this SKILL.md}"
 ```
 
-`where` prints the scripts folder the other commands use.
-With no plugin root (Codex, or a plain checkout under PowerShell), first set
-`SKILLOPT_DIR` to the `scripts` folder beside this SKILL.md; a found root wins:
+`where` prints the scripts folder the commands use.
+With no plugin root (Codex, or a plain checkout under PowerShell), set
+`SKILLOPT_DIR` to the `scripts` folder beside this SKILL.md before the block
+above; a found root wins:
 
 ```bash
 SKILLOPT_DIR="<folder that holds this SKILL.md>/scripts"
@@ -362,8 +363,8 @@ no skill. That baseline lives in `skill-bootstrap`'s `bootstrap_eval.py score`.
 
 ## Close-out
 
-After each run, check this skill and its references for a lesson from a
-user correction, failed verifier, or tool discovery. Patch the
+After each run, check this skill and its references for a reusable lesson
+from a user correction, failed verifier, or tool discovery. Patch the
 class-level guidance; do not add an incident-named reference.
 
 ## References
