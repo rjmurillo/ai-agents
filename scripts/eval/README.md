@@ -2321,11 +2321,11 @@ The config is launcher-owned JSON:
 | --- | --- |
 | `kind` | `agent`, `rule`, or `hook`, passed to `extract --kind`. |
 | `artifact` | The file the proposer edits. |
-| `state_dir` | Controller-only. Holds scorer output, results, split, ledger, log, and bytecode caches. Must not hold an earlier session (`split.json`). |
+| `state_dir` | Controller-only. Holds scorer output, results, split, ledger, log, and bytecode caches. Must not hold an earlier session (`split.json`). The consultation ledger lives here, so a new `state_dir` starts a new budget, even over the same held-out tasks. Reuse the cap across runs by launcher policy, not by this directory. |
 | `workspace_dir` | The proposer's only input. Must be absent or empty at start, and must not contain the artifact. Emptied each step, then given `feedback.json` and optional `tasks/`. |
 | `scorer` | argv. `{run_id}`, `{run_dir}`, and `{artifact}` are filled in. |
 | `scorer_exit_codes` | Exit codes that count as a completed scoring run (default `[0]`). pytest and the rule scorer exit 1 on failures, so use `[0, 1]` there. |
-| `collect` | Paths the scorer writes outside `{run_dir}`. Each is moved to `{run_dir}/<index>`. |
+| `collect` | Paths the scorer writes outside `{run_dir}`. Each is moved to `{run_dir}/<index>`, every one attempted even if another is missing. The proposer must not read them meanwhile: `policy` prints them as `deny_read_write_collect`; deny the directory each names. |
 | `inputs` | `extract --input` paths, usually under `{run_dir}`. |
 | `extract_args` | Extra `extract` flags, such as `--variant agent`. |
 | `proposer` | argv. `{feedback}`, `{artifact}`, `{workspace}`, and `{step}` are filled in. |
@@ -2345,8 +2345,9 @@ consultations left, and `last_decision`: `ACCEPT`, `REJECT`, or `NO_CHANGE`.
 An unchanged artifact spends no consultation. A gate refusal (split drift,
 corpus mismatch, a guard) spends none either and stops the run with exit 3.
 
-The full gate payload, child output, and an `abort` event on early exit go to
-`state_dir/log.jsonl` only. Every exit from a step restores the incumbent
+The full gate payload, a 400-character tail of a failed child's output, and an
+`abort` event on early exit go to `state_dir/log.jsonl` only. Successful child
+output is discarded. Every exit from a step restores the incumbent
 before the gate, including a failed proposer or scorer and SIGTERM. Only an
 ACCEPT writes the candidate back.
 

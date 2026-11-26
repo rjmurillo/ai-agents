@@ -215,6 +215,24 @@ Third Cursor pass on `3d6635d79`:
 | An artifact under `scripts/eval/` passed the layout check, then tripped the integrity digest after an ACCEPT. | Fixed. The artifact is checked against all trusted code. |
 | Optimizer calls used `subprocess.run`, which kills only the child on timeout. | Fixed. Optimizer, scorer, and proposer share one spawn path: new session, file output, group kill. |
 
+CodeRabbit and fourth Cursor pass on `c65d91240`:
+
+| Finding | Disposition |
+| --- | --- |
+| Windows proposer env dropped startup variables and matched `PATH` case-sensitively. | Fixed. |
+| The artifact could be the config. | Fixed. Refused. |
+| `rglob` skips unreadable directories, so a digest could attest to an incomplete scan. | Fixed. `os.walk` with an error handler refuses. |
+| Child output was read back unbounded. | Partly fixed. Reads are bounded; disk use while a child runs is not, since a pipe would bring back the round 2 timeout bypass. |
+| `_collect` stopped at the first missing or failed report. | Fixed. Each is attempted. |
+| A state-change refusal ran before collection. | Fixed. Collection runs first. |
+| `results.json` could be written through a planted link. | Fixed. Exclusive create. |
+| A baseline `OSError` skipped the restore. | Fixed. Any exception restores. |
+| A SIGTERM before `_restore` set its guard could skip the restore. | Fixed. Callers set the guard first. |
+| A new `state_dir` resets the budget; README did not say so. | Fixed in README. |
+| `collect` paths were not in the printed policy. | Fixed. `deny_read_write_collect`. |
+| README overstated logged child output. | Fixed. |
+| Timeout tests did not prove the proposer timed out. | Fixed. |
+
 ## Dissent and residual risk
 
 - The boundary holds only under a launcher deny rule the controller cannot verify. The owner chose this in decision D2 over an OS user or a CI job.

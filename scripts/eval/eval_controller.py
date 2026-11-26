@@ -41,7 +41,6 @@ Exit codes (ADR-035): 0 loop finished, 2 config or integrity refusal,
 from __future__ import annotations
 
 import argparse
-import contextlib
 import datetime as dt
 import hashlib
 import json
@@ -99,6 +98,10 @@ def access_rule(config: Config) -> dict[str, Any]:
         "deny_read_write": [str(p) for p in (config.state_dir, config.config_path)]
         + [str(p) for p in config.deny_paths],
         "deny_write": [str(p) for p in trusted_code(config)],
+        # Scorer reports sit here until the controller moves them. They can
+        # hold held-out outcomes, so the proposer must not read them either.
+        # Templates are printed as given; deny the directory each one names.
+        "deny_read_write_collect": list(config.collect),
         "proposer_workspace": str(config.workspace_dir),
         "proposer_may_write": [str(config.artifact)],
     }
@@ -157,13 +160,23 @@ class Controller:
         )
         return duration
 
-    def _collect(self, values: Mapping[str, str], run_dir: Path, required: bool) -> None:
+    def _collect(self, values: Mapping[str, str], run_dir: Path) -> list[str]:
+        """Move every `collect` output into the run; return what went wrong.
+
+        Each path is attempted on its own, so one missing or unmovable report
+        never leaves a later one, with its held-out outcomes, in the checkout.
+        """
+        problems: list[str] = []
         for index, template in enumerate(self.config.collect):
             source = resolve(fill(template, values))
-            if source.exists() or source.is_symlink():
+            if not (source.exists() or source.is_symlink()):
+                problems.append(f"scorer output {source} was not produced")
+                continue
+            try:
                 shutil.move(str(source), str(run_dir / str(index)))
-            elif required:
-                raise ControllerError(f"scorer output {source} was not produced", EXIT_EXTERNAL)
+            except OSError as exc:
+                problems.append(f"could not move scorer output {source}: {exc}")
+        return problems
 
     def score(self, label: str, expected: bytes) -> Path:
         """Run the scorer, move its output into state, extract all results.
@@ -197,15 +210,17 @@ class Controller:
         except ControllerError:
             # A failed scorer may still have written a report outside state,
             # with held-out outcomes in it. Move what exists before stopping;
-            # a failed move must not hide the scorer's own error.
-            with contextlib.suppress(OSError):
-                self._collect(values, run_dir, required=False)
+            # collection problems must not hide the scorer's own error.
+            self._collect(values, run_dir)
             raise
+        # Collected before every check below, so no refusal leaves a report
+        # outside state. Collection writes only inside `run_dir`, which the
+        # state digest excludes.
+        problems = self._collect(values, run_dir)
         if tree_digest([self.state], exclude=run_dir) != before:
             raise ControllerError(f"controller state changed while {label} was scored")
-        # Collected before the checks below, so a tamper refusal never leaves
-        # the scorer's report outside state.
-        self._collect(values, run_dir, required=True)
+        if problems:
+            raise ControllerError("; ".join(problems), EXIT_EXTERNAL)
         self._check_integrity()
         if read_artifact(self.config.artifact) != expected:
             raise ControllerError(
@@ -220,7 +235,15 @@ class Controller:
         if code != 0:
             raise ControllerError(f"extract refused the {label} scorer output", EXIT_EXTERNAL)
         results: Path = run_dir / "results.json"
-        results.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        # Exclusive create: the scorer ran in this directory and could have
+        # planted `results.json` as a link into state.
+        try:
+            with results.open("x", encoding="utf-8") as handle:
+                handle.write(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+        except FileExistsError as exc:
+            raise ControllerError(
+                f"{results} already existed; refusing to write through it"
+            ) from exc
         return results
 
     def _publish(self, step: int) -> Path:
@@ -282,9 +305,10 @@ class Controller:
         self.integrity = tree_digest(self._protected())
         try:
             self.incumbent = self.score("incumbent-0", self.incumbent_bytes)
-        except ControllerError:
+        except Exception:
             # A scorer that runs the incumbent's code may have rewritten it.
-            # Put the launcher's file back before stopping.
+            # Put the launcher's file back before stopping, whatever failed.
+            self.restoring = True
             self._restore()
             raise
         document = json.loads(self.incumbent.read_text(encoding="utf-8"))
@@ -350,6 +374,9 @@ class Controller:
             # a failed proposer, a failed scorer, and a normal step. Only an
             # ACCEPT below writes the candidate back. The integrity check runs
             # here too, so a NO_CHANGE step that edited a denied file stops.
+            # Guard set before the call, so a SIGTERM between here and the
+            # write is deferred rather than raised ahead of the restore.
+            self.restoring = True
             self._restore()
             self._check_integrity()
         self.last = self._gate(step, candidate, hashlib.sha256(candidate_bytes).hexdigest())
@@ -366,7 +393,7 @@ class Controller:
         the ungated candidate on disk. The signal is recorded, and honored
         once the incumbent is in place.
         """
-        self.restoring = True
+        self.restoring = True  # callers set it first too; see `_step`
         try:
             write_artifact(self.config.artifact, self.incumbent_bytes, self.mode)
         finally:

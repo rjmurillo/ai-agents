@@ -11,7 +11,7 @@ Verified 2026-11-25 for issue #7642, covering the "Amendment 2026-11-25" text an
 | #3436 is closed. | Behavior | `gh issue view 3436 --json state` | `CLOSED`. VERIFIED |
 | `optimize-artifact.py report` exists and reads the test group. | Path | `optimize-artifact.py` lines 3252-3269 | `sub.add_parser("report", help="read the test group once, at the end")`. VERIFIED |
 | The controller runs scorer, `extract`, `split`, and `gate` itself. | Behavior | `scripts/eval/eval_controller.py`, `Controller.score` and `Controller.run` | Each is a subprocess the controller starts. VERIFIED |
-| The proposer workspace holds `feedback.json` (step, artifact path, opt results, opt score, consultations left, last decision) and opt task files. | Behavior | `test_proposer_never_sees_a_held_out_id`, `test_accept_keeps_the_candidate_and_reports_one_bit`, `test_opt_task_files_are_copied_and_nothing_else` | 79 of 79 tests pass after the PR #7699 review fixes. VERIFIED |
+| The proposer workspace holds `feedback.json` (step, artifact path, opt results, opt score, consultations left, last decision) and opt task files. | Behavior | `test_proposer_never_sees_a_held_out_id`, `test_accept_keeps_the_candidate_and_reports_one_bit`, `test_opt_task_files_are_copied_and_nothing_else` | 87 of 87 tests pass after the PR #7699 review fixes. VERIFIED |
 | Every step exit restores the incumbent before the gate. | Behavior | `test_reject_restores_the_incumbent`, `test_proposer_that_edits_then_fails_leaves_the_incumbent`, `test_artifact_changed_during_scoring_is_refused` | Pass. VERIFIED |
 | A planted workspace symlink does not redirect a controller write. | Behavior | `test_planted_feedback_symlink_is_not_followed` | Pass. VERIFIED |
 | `deny_paths` is required, and `policy` lists state, config, and `deny_paths`. | Behavior | `test_bad_config_is_refused[deny_paths-value9]`, `test_policy_lists_state_and_task_paths` | Pass. VERIFIED |
@@ -63,3 +63,9 @@ Verified 2026-11-25 for issue #7642, covering the "Amendment 2026-11-25" text an
 | A symlinked deny directory resolves and is digested by content. | Behavior | `test_symlinked_deny_directory_is_digested_by_content` | Exit 2 on an edit inside it. VERIFIED |
 | An artifact inside `scripts/eval/` is refused at load. | Behavior | `test_artifact_inside_the_eval_directory_is_refused` | Pass. VERIFIED |
 | An optimizer call that hangs is stopped within its timeout, with its group killed. | Behavior | `test_optimizer_timeout_is_bounded_and_external` | Exit 3 under 10 s with a 1 s timeout. VERIFIED |
+| The artifact may not be the config; a planted `results.json` is not written through. | Behavior | `test_artifact_that_is_the_config_is_refused`, `test_planted_results_file_is_not_written_through` | Pass. VERIFIED |
+| Every `collect` output is moved even when one is missing. | Behavior | `test_every_collect_output_is_moved_even_when_one_is_missing` | Pass. VERIFIED |
+| A baseline `OSError` still restores the incumbent. | Behavior | `test_baseline_os_error_still_restores` | Pass. VERIFIED |
+| An unreadable protected directory is refused. | Behavior | `test_unreadable_protected_directory_is_refused` | Pass (non-root POSIX). VERIFIED |
+| On Windows the proposer keeps startup variables, matched case-insensitively. | Behavior | `test_windows_proposer_env_keeps_startup_variables` (`os.name` patched; not run on Windows) | Pass. VERIFIED (logic), NOT RUN (Windows) |
+| An oversized optimizer reply is refused; `policy` names `collect` paths. | Behavior | `test_oversized_optimizer_reply_is_refused`, `test_policy_names_collect_paths` | Pass. VERIFIED |

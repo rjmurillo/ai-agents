@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
 import textwrap
 from pathlib import Path
@@ -407,6 +408,7 @@ def test_proposer_timeout_is_external(tmp_path: Path) -> None:
     )
     assert ec.main(["run", "--config", str(config)]) == ec.EXIT_EXTERNAL
     assert artifact.read_text(encoding="utf-8") == before
+    assert "proposer step 1 timed out" in _events(tmp_path)[-1]["error"]
 
 
 def test_config_inside_workspace_is_refused(tmp_path: Path) -> None:
@@ -444,15 +446,22 @@ def test_escaped_grandchild_cannot_stretch_the_timeout(tmp_path: Path) -> None:
     import time
 
     config, _ = _setup(tmp_path, {}, steps=1)
+    started_marker = tmp_path / "grandchild-started"
     escape = (
         "import os, subprocess, sys, time; "
         "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(20)'], "
-        "start_new_session=True); time.sleep(20)"
+        "start_new_session=True); open(sys.argv[1], 'w').write('x'); time.sleep(20)"
     )
-    _edit_config(config, timeout_seconds=1, proposer=[sys.executable, "-c", escape])
+    _edit_config(
+        config,
+        timeout_seconds=1,
+        proposer=[sys.executable, "-c", escape, str(started_marker)],
+    )
     started = time.monotonic()
     assert ec.main(["run", "--config", str(config)]) == ec.EXIT_EXTERNAL
     assert time.monotonic() - started < 10
+    assert started_marker.exists()
+    assert "proposer step 1 timed out" in _events(tmp_path)[-1]["error"]
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX mode bits")
@@ -891,3 +900,98 @@ def test_optimizer_timeout_is_bounded_and_external(
         ec.optimizer(["gate"], 1)
     assert caught.value.code == ec.EXIT_EXTERNAL
     assert time.monotonic() - started < 10
+
+
+def test_artifact_that_is_the_config_is_refused(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    _edit_config(config, artifact=str(config))
+    with pytest.raises(ec.ControllerError):
+        ec.load_config(config)
+
+
+def test_planted_results_file_is_not_written_through(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    scorer = tmp_path / "scripts" / "scorer.py"
+    scorer.write_text(
+        scorer.read_text(encoding="utf-8")
+        + "\nimport os\nopen(os.path.join(os.path.dirname(out), 'results.json'), 'w').write('x')\n",
+        encoding="utf-8",
+    )
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+
+
+def test_every_collect_output_is_moved_even_when_one_is_missing(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    loose = tmp_path / "loose"
+    loose.mkdir()
+    present = loose / "second.xml"
+    write = f"open({str(present)!r}, 'w').write('held-out')"
+    _edit_config(
+        config,
+        scorer=[sys.executable, "-c", write],
+        collect=[str(loose / "first.xml"), str(present)],
+    )
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_EXTERNAL
+    assert not present.exists()
+
+
+def test_baseline_os_error_still_restores(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    config, artifact = _setup(tmp_path, {}, steps=1)
+    before = artifact.read_bytes()
+
+    def broken(self: Any, label: str, expected: bytes) -> Path:
+        artifact.write_bytes(b"changed by scorer")
+        raise OSError("disk went away")
+
+    monkeypatch.setattr(ec.Controller, "score", broken)
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_EXTERNAL
+    assert artifact.read_bytes() == before
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32" or getattr(os, "geteuid", lambda: 1)() == 0,
+    reason="needs POSIX permissions and a non-root user",
+)
+def test_unreadable_protected_directory_is_refused(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    hidden = tmp_path / "fixtures" / "hidden"
+    hidden.mkdir()
+    hidden.chmod(0)
+    try:
+        assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+    finally:
+        hidden.chmod(0o700)
+
+
+def test_windows_proposer_env_keeps_startup_variables(monkeypatch: pytest.MonkeyPatch) -> None:
+    io = sys.modules["_controller_io"]
+    monkeypatch.setattr(io.os, "name", "nt")
+    monkeypatch.setattr(
+        io.os,
+        "environ",
+        {"Path": "C:/bin", "SystemRoot": "C:/Windows", "SECRET": "x", "EVAL_LEDGER_DIR": "y"},
+    )
+    config = type("C", (), {"proposer_env": []})()
+    env = io.proposer_env(config)
+    assert env == {"Path": "C:/bin", "SystemRoot": "C:/Windows"}
+
+
+def test_oversized_optimizer_reply_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    io = sys.modules["_controller_io"]
+    big = tmp_path / "big.py"
+    big.write_text("print('{' + ' ' * 5000 + '}')\n", encoding="utf-8")
+    monkeypatch.setattr(io, "OPTIMIZER", big)
+    monkeypatch.setattr(io, "_MAX_JSON_BYTES", 1000)
+    with pytest.raises(ec.ControllerError):
+        ec.optimizer(["gate"], 30)
+
+
+def test_policy_names_collect_paths(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    _edit_config(config, collect=["evals/x/reports/{run_id}"])
+    assert ec.main(["policy", "--config", str(config)]) == 0
+    assert json.loads(capsys.readouterr().out)["deny_read_write_collect"] == [
+        "evals/x/reports/{run_id}"
+    ]

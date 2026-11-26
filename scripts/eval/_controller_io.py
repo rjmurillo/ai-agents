@@ -19,7 +19,7 @@ import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 
 EXIT_OK = 0
 EXIT_CONFIG = 2
@@ -30,6 +30,11 @@ EVAL_DIR = Path(__file__).resolve().parent
 OPTIMIZER = EVAL_DIR / "optimize-artifact.py"
 REPO_ROOT = EVAL_DIR.parents[1]
 _TAIL = 400
+# Largest optimizer reply the controller will parse. Real gate and extract
+# documents are a few kilobytes; anything near this is a fault, not data.
+_MAX_JSON_BYTES = 16 * 1024 * 1024
+# Variables a Windows child needs to start at all; kept whatever the allowlist.
+_WINDOWS_BASE_ENV = ("SYSTEMROOT", "COMSPEC", "PATHEXT", "TEMP", "TMP", "WINDIR")
 
 
 class ControllerError(Exception):
@@ -200,6 +205,8 @@ def _check_workspace_and_artifact(config: Config) -> None:
         )
     if overlaps(config.artifact, config.state_dir):
         raise ControllerError("the artifact must not sit inside state_dir")
+    if config.artifact == config.config_path:
+        raise ControllerError("the artifact must not be the launcher config")
 
 
 def _check_protected_paths(config: Config) -> None:
@@ -223,14 +230,29 @@ def _check_protected_paths(config: Config) -> None:
             )
 
 
+def _walk(root: Path) -> list[Path]:
+    """Every entry under `root`, failing on a directory it cannot read.
+
+    `Path.rglob` skips unreadable directories silently, so two scans of a
+    subtree nobody can read would digest equal without checking a file.
+    """
+
+    def refuse(error: OSError) -> None:
+        raise ControllerError(f"cannot read protected path {error.filename}: {error.strerror}")
+
+    entries: list[Path] = []
+    for current, dirs, files in os.walk(root, onerror=refuse):
+        dirs[:] = [name for name in dirs if name != "__pycache__"]
+        base = Path(current)
+        entries.extend(base / name for name in (*dirs, *files))
+    return sorted(entries)
+
+
 def tree_digest(paths: Sequence[Path], exclude: Path | None = None) -> str:
     """One digest over the names and bytes of every file under `paths`."""
     sha = hashlib.sha256()
     for root in paths:
-        if root.is_dir() and not root.is_symlink():
-            entries = sorted(p for p in root.rglob("*") if "__pycache__" not in p.parts)
-        else:
-            entries = [root]
+        entries = _walk(root) if root.is_dir() and not root.is_symlink() else [root]
         for entry in entries:
             if exclude is not None and (entry == exclude or exclude in entry.parents):
                 continue
@@ -287,7 +309,11 @@ def kill_group(proc: subprocess.Popen[bytes]) -> None:
 
 
 def _spawn(
-    argv: list[str], what: str, timeout: int, env: Mapping[str, str] | None
+    argv: list[str],
+    what: str,
+    timeout: int,
+    env: Mapping[str, str] | None,
+    limit: int | None = None,
 ) -> tuple[int, str, str]:
     """Run one child in its own session; return its exit code and output.
 
@@ -295,6 +321,11 @@ def _spawn(
     process group would otherwise hold a pipe open, and the read would block
     past the timeout until that descendant exited. The child's group is
     killed when the call ends, on timeout as well as on a normal exit.
+
+    Only a bounded tail of stderr is read back, and stdout is read in full
+    only up to `limit`. The files themselves are not capped while the child
+    runs: capping them needs a pipe, and a pipe brings back the timeout
+    bypass described above.
     """
     with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
         try:
@@ -316,11 +347,27 @@ def _spawn(
             raise ControllerError(f"{what} timed out after {timeout}s", EXIT_EXTERNAL) from exc
         finally:
             kill_group(proc)
-        out.seek(0)
-        err.seek(0)
-        stdout = out.read().decode("utf-8", errors="replace")
-        stderr = err.read().decode("utf-8", errors="replace")
+        stdout = _bounded(out, limit)
+        stderr = _tail(err)
     return proc.returncode, stdout, stderr
+
+
+def _tail(stream: IO[bytes]) -> str:
+    """The last bytes of a child's output; only a diagnostic tail is kept."""
+    size = stream.seek(0, os.SEEK_END)
+    stream.seek(max(0, size - 4 * _TAIL))
+    return stream.read().decode("utf-8", errors="replace")[-_TAIL:]
+
+
+def _bounded(stream: IO[bytes], limit: int | None) -> str:
+    """The child's stdout, refused past `limit` bytes, or its tail when unlimited."""
+    if limit is None:
+        return _tail(stream)
+    size = stream.seek(0, os.SEEK_END)
+    if size > limit:
+        raise ControllerError(f"child output of {size} bytes exceeds {limit}", EXIT_EXTERNAL)
+    stream.seek(0)
+    return stream.read().decode("utf-8", errors="replace")
 
 
 def run_child(
@@ -337,7 +384,7 @@ def run_child(
         raise ControllerError(
             f"{what} exited {code}; see the controller log",
             EXIT_EXTERNAL,
-            detail=(stderr or stdout).strip()[-_TAIL:],
+            detail=(stderr or stdout).strip(),
         )
     return round(time.monotonic() - started, 3)
 
@@ -346,14 +393,16 @@ def optimizer(
     args: list[str], timeout: int, env: Mapping[str, str] | None = None
 ) -> tuple[int, dict[str, Any]]:
     what = f"optimize-artifact {args[0]}"
-    code, stdout, stderr = _spawn([sys.executable, str(OPTIMIZER), *args], what, timeout, env)
+    code, stdout, stderr = _spawn(
+        [sys.executable, str(OPTIMIZER), *args], what, timeout, env, _MAX_JSON_BYTES
+    )
     try:
         payload = json.loads(stdout)
     except ValueError as exc:
         raise ControllerError(
             f"{what} returned no JSON (exit {code})",
             EXIT_EXTERNAL,
-            detail=stderr.strip()[-_TAIL:],
+            detail=stderr.strip(),
         ) from exc
     if not isinstance(payload, dict):
         raise ControllerError(f"{what} returned a non-object", EXIT_EXTERNAL)
@@ -418,5 +467,15 @@ def proposer_env(config: Config) -> dict[str, str]:
     `EVAL_LEDGER_DIR` never passes, so a proposer that shells out to
     `optimize-artifact.py` cannot find the controller's ledger by it.
     """
-    keep = {"PATH", *config.proposer_env} - {"EVAL_LEDGER_DIR"}
+    keep = {"PATH", *config.proposer_env}
+    if os.name == "nt":
+        # Windows children fail to start without these, and its variable
+        # names are case-insensitive (`Path` is `PATH`).
+        keep = {name.upper() for name in (*keep, *_WINDOWS_BASE_ENV)}
+        return {
+            key: value
+            for key, value in os.environ.items()
+            if key.upper() in keep and key.upper() != "EVAL_LEDGER_DIR"
+        }
+    keep.discard("EVAL_LEDGER_DIR")
     return {key: value for key, value in os.environ.items() if key in keep}

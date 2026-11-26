@@ -128,6 +128,8 @@ The post-score byte check and the integrity checks are what remain then.
 - `deny_read_write`: the state directory, the config file, and every
   `deny_paths` entry;
 - `deny_write`: the `scripts/eval/` directory and every `trusted_paths` entry;
+- `deny_read_write_collect`: the `collect` templates, whose reports wait there
+  until the controller moves them;
 - `proposer_may_write`: the artifact. `proposer_workspace` names the workspace,
   which must be absent or empty at start and must not contain the artifact.
 
