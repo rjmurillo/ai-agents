@@ -157,6 +157,20 @@ class TestPins:
         assert skillopt.main(["pin-check", "--pins", str(out)]) == 1
         assert json.loads(capsys.readouterr().out)["changed_surfaces"] == ["tracer"]
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privileges on Windows")
+    def test_directory_gaining_link_mismatches(self, tmp_path: Path, capsys: Capture) -> None:
+        eval_path, _ = self.setup_files(tmp_path)
+        graders = tmp_path / "graders"
+        graders.mkdir()
+        (graders / "grade.py").write_text("v1\n", encoding="utf-8")
+        out = tmp_path / "pins.json"
+        argv = ["pin", "--eval", str(eval_path), "--surface", f"tracer={graders}"]
+        assert skillopt.main([*argv, "--model", "m", "--out", str(out)]) == 0
+        capsys.readouterr()
+        (graders / "extra.py").symlink_to(graders / "grade.py")
+        assert skillopt.main(["pin-check", "--pins", str(out)]) == 1
+        assert json.loads(capsys.readouterr().out)["changed_surfaces"] == ["tracer"]
+
     @pytest.mark.skipif(sys.platform == "win32", reason="named pipes are POSIX only")
     def test_named_pipe_surface_is_refused_not_read(self, tmp_path: Path, capsys: Capture) -> None:
         pins = self.pin(tmp_path)

@@ -103,6 +103,8 @@ at-risk regressions.
 ```
 
 - `patch`: index into `patches.json`. Every patch needs exactly one entry.
+  `manifesto-check` enforces that. `manifesto-verify` reads no patches, so
+  it checks only that each index is a nonnegative integer used once.
 - `evidence`: tasks from the named pattern.
 - `component`: one of AHE's seven editable components: `system-prompt`,
   `tool-description`, `tool-implementation`, `middleware`, `skill`,

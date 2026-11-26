@@ -17,8 +17,8 @@ after Weng, "Harness Engineering for Self-Improvement" (Lil'Log, 2026):
   - proposer tier   : warn on a lightweight-tier proposer (STOP, Zelikman et
                       al., COLM 2024)
 
-Every check reads train evidence only. A sel task id in a task list or a
-free-text field of a weakness pattern or a manifesto entry exits 2, because
+Every check reads train evidence only. A sel task id in a task list exits 2,
+and so does one in a free-text field read by weakness-check or manifesto-check, because
 the candidate author must not see sel tasks (SKILL.md Precondition 4). Patch
 text is not scanned.
 """
@@ -412,6 +412,14 @@ def _hashable(path: Path) -> bool:
     return path.is_file() or path.is_dir()
 
 
+def _digest(path: Path) -> str | None:
+    """Digest of a pinned surface, or None when it now holds a link or special file."""
+    try:
+        return path_sha256(path.resolve())
+    except SkillOptError:
+        return None
+
+
 def make_pins(surfaces: dict[str, Path], model: str) -> dict[str, Any]:
     """Record sha256 digests of the read-only surfaces and the model in use."""
     if "eval" not in surfaces:
@@ -444,9 +452,7 @@ def check_pins(pins: Any, model: str | None = None) -> dict[str, Any]:
             raise SkillOptError(f"pins surface {name!r} must have a 'path' string")
         path = Path(entry["path"])
         retargeted = "target" in entry and str(path.resolve()) != entry["target"]
-        if retargeted or not _hashable(path):
-            changed.append(name)
-        elif path_sha256(path.resolve()) != entry.get("sha256"):
+        if retargeted or not _hashable(path) or _digest(path) != entry.get("sha256"):
             changed.append(name)
     model_changed = model is not None and model.strip() != doc.get("model")
     return {
