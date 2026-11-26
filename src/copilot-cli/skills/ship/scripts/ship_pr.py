@@ -65,6 +65,7 @@ REASONS = preflight_mod.REASONS | frozenset(
         "head-not-reviewed",
         "push-rejected",
         "push-failed",
+        "push-interrupted",
         "push-locked",
         "pr-create-failed",
         "description-upload-failed",
@@ -239,7 +240,12 @@ def _push_now(ctx: Context, result: common.Result) -> bool:
     timeout = max(1, min(PUSH_TIMEOUT_SECONDS, common.remaining_seconds() - PR_RESERVE_SECONDS))
     ref = f"refs/heads/{ctx.branch}"
     push = ["push", "--set-upstream", "origin", f"{ref}:{ref}"]
-    done = common.git(push, cwd=ctx.root, timeout=timeout, group=not common.on_windows())
+    try:
+        done = common.git(push, cwd=ctx.root, timeout=timeout, group=not common.on_windows())
+    except (KeyboardInterrupt, SystemExit) as exc:  # run killed the push's process group
+        cause = "interrupted" if isinstance(exc, KeyboardInterrupt) else f"signal exit {exc.code}"
+        result.stop("push-interrupted", common.EXIT_EXTERNAL, f"{cause}; {_TIMEOUT_NOTE}")
+        return False
     if done.returncode == 0:
         result.add("PUSH", "pushed")
         return True
@@ -472,17 +478,9 @@ def run(argv: list[str]) -> tuple[common.Result, str, Path | None]:
             fmt,
             None,
         )
-    for axis in getattr(args, "require_axis", []):
-        if not preflight_mod.AXIS_RE.fullmatch(axis):
-            return (
-                result.stop(
-                    "bad-arguments",
-                    common.EXIT_CONFIG,
-                    "--require-axis must be a lowercase axis name",
-                ),
-                fmt,
-                None,
-            )
+    if not all(preflight_mod.AXIS_RE.fullmatch(axis) for axis in getattr(args, "require_axis", [])):
+        message = "--require-axis must be a lowercase axis name"
+        return result.stop("bad-arguments", common.EXIT_CONFIG, message), fmt, None
     root = common.repo_root()
     if root is None:
         return result.stop("no-repo", common.EXIT_CONFIG, "not inside a git work tree"), fmt, None

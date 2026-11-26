@@ -398,13 +398,12 @@ def run(
 ) -> Completed:
     """Run ``argv`` without a shell. A missing binary is 127; a timeout is 124.
 
-    ``env`` adds variables on top of ``child_env()``. ``group`` (POSIX only)
-    starts the child in a new session. A timeout, an interrupt, or a SIGTERM
-    or SIGHUP to this script then kills the child's process group, hooks
-    included, before the call returns or the error propagates. On Windows,
-    ``_ship_windows`` resolves a bare name and refuses (126) an argument
-    cmd.exe would rewrite for a ``.cmd`` target. The timeout never exceeds
-    the time left in the run's shared budget.
+    ``env`` adds variables on top of ``child_env()``. ``group`` (POSIX only) starts
+    the child in a new session; a timeout, an interrupt, or a SIGTERM, SIGHUP, or
+    SIGQUIT the caller does not ignore then kills its process group, hooks included,
+    before the call returns or the error propagates. On Windows, ``_ship_windows``
+    resolves a bare name and refuses (126) an argument cmd.exe would rewrite for a
+    ``.cmd`` target. The timeout never exceeds the time left in the shared budget.
     """
     timeout = min(timeout, remaining_seconds())
     saved = _trap_exit_signals() if group else {}
@@ -449,8 +448,10 @@ def _exit_on_signal(signum: int, _frame: object) -> None:
 
 
 def _trap_exit_signals() -> dict[int, Any]:
-    """Make SIGTERM and SIGHUP raise, so ``run`` can kill a group child first."""
-    return {sig: signal.signal(sig, _exit_on_signal) for sig in (signal.SIGTERM, signal.SIGHUP)}
+    """Make SIGTERM, SIGHUP, and SIGQUIT raise, unless ignored (``nohup``), for ``_kill``."""
+    exits = (signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT)
+    live = [sig for sig in exits if signal.getsignal(sig) is not signal.SIG_IGN]
+    return {sig: signal.signal(sig, _exit_on_signal) for sig in live}
 
 
 def _kill(child: subprocess.Popen[str], group: bool) -> None:

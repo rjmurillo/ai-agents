@@ -1,7 +1,7 @@
 """Parse and classify a git remote URL for the ship scripts (ADR-127 decision 3 item 4).
 
 Stdlib only, Python 3.10 floor. ``_ship_common`` loads this file by path and
-re-exports ``remote_host``, ``classify_host``, and ``strip_userinfo``.
+re-exports ``remote_host`` and ``classify_host``; ``clean`` calls ``strip_userinfo``.
 """
 
 from __future__ import annotations

@@ -412,34 +412,69 @@ class TestPushLock:
             _reap(pid_file)
 
     @pytest.mark.parametrize(
-        ("sig", "error"),
+        ("sig", "cause"),
         [
-            (signal.SIGINT, KeyboardInterrupt),
-            (signal.SIGTERM, SystemExit),
-            (signal.SIGHUP, SystemExit),
+            (signal.SIGINT, "interrupted"),
+            (signal.SIGTERM, "signal exit 143"),
+            (signal.SIGHUP, "signal exit 129"),
+            (signal.SIGQUIT, "signal exit 131"),
         ],
     )
     def test_a_signal_mid_push_kills_the_hook_tree_before_the_lock_frees(
-        self, owner, scripts, capsys, tmp_path, sig, error
+        self, owner, scripts, capsys, tmp_path, sig, cause
     ):
-        """Ctrl-C, a SIGTERM, or a hangup must not leave the push running unlocked."""
+        """Ctrl-C, Ctrl-backslash, SIGTERM, or a hangup must not leave the push running unlocked."""
         repo, body = owner
         pid_file = tmp_path / "hook-child.pid"
-        trapped = (signal.SIGTERM, signal.SIGHUP)
+        trapped = (signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT)
         before = [signal.getsignal(each) for each in trapped]
         script = f"sleep 60 &\necho $! > '{pid_file}'\nkill -{sig.name[3:]} {os.getpid()}\nwait\n"
         _hook(repo, script)
         try:
-            with pytest.raises(error) as raised:
-                publish(scripts, capsys, body)
+            code, lines = publish(scripts, capsys, body)
+            assert code == 3, lines
+            assert lines[-1] == (
+                f"STOP: push-interrupted {cause}; check the remote, then rerun publish"
+            ), lines
             _assert_dead(pid_file)
             _assert_lock_free()
             assert not _remote_has_branch(tmp_path)
             assert [signal.getsignal(each) for each in trapped] == before
-            if error is SystemExit:
-                assert raised.value.code == 128 + sig
         finally:
             _reap(pid_file)
+
+    def test_a_signal_mid_unlocked_push_still_kills_the_hook_tree(
+        self, owner, scripts, capsys, monkeypatch, tmp_path
+    ):
+        """PUSH_LOCK: unavailable is no reason to orphan the push's hooks."""
+        repo, body = owner
+        monkeypatch.delenv("HOME")
+        pid_file = tmp_path / "hook-child.pid"
+        _hook(repo, f"sleep 60 &\necho $! > '{pid_file}'\nkill -TERM {os.getpid()}\nwait\n")
+        try:
+            code, lines = publish(scripts, capsys, body)
+            assert code == 3, lines
+            assert values(lines, "PUSH_LOCK") == ["unavailable"]
+            assert lines[-1].startswith("STOP: push-interrupted signal exit 143"), lines
+            _assert_dead(pid_file)
+        finally:
+            _reap(pid_file)
+
+    def test_an_ignored_hangup_stays_ignored_and_the_push_lands(
+        self, owner, scripts, capsys, tmp_path
+    ):
+        """Under nohup a hangup mid-push must not kill a push the operator kept alive."""
+        repo, body = owner
+        _hook(repo, f"kill -HUP {os.getpid()}\n")
+        previous = signal.signal(signal.SIGHUP, signal.SIG_IGN)
+        try:
+            code, lines = publish(scripts, capsys, body)
+            assert signal.getsignal(signal.SIGHUP) is signal.SIG_IGN
+        finally:
+            signal.signal(signal.SIGHUP, previous)
+        assert code == 0, lines
+        assert values(lines, "PUSH") == ["pushed"]
+        assert _remote_has_branch(tmp_path)
 
     def test_a_failed_lock_call_pushes_without_the_lock(
         self, owner, scripts, capsys, monkeypatch, tmp_path

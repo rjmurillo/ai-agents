@@ -139,8 +139,11 @@ Owns everything `/push-pr` did after the body is written.
   The lock stays in the script process; children never inherit it.
   So a daemon that git or a hook starts, such as `git credential-cache`, cannot keep it after the push.
   Off Windows the push runs in a new session, so it gets no signal sent to the caller's process group.
-  A push timeout, a Ctrl-C, or a SIGTERM or SIGHUP to the script kills the push's process group, hooks included, before the lock is released.
-  A hook child that moves to its own process group or session escapes that kill and runs on unlocked, and so does every child when the script itself gets SIGKILL.
+  A push timeout, a Ctrl-C, or a SIGTERM, SIGHUP, or SIGQUIT to the script kills the push's process group, hooks included, before the lock is released.
+  A signal kill ends `STOP: push-interrupted`, exit 3; the remote may or may not hold the push, so the note says to check it.
+  A signal the caller ignores stays ignored, so a push under `nohup` survives a hangup.
+  A hook child that moves to its own process group or session escapes that kill and runs on unlocked.
+  So does every child when the script dies from any other signal, such as SIGKILL.
   The push has no terminal there, so git cannot prompt for a password; that push ends `STOP: auth-failed`.
   A lock another push holds is `STOP: push-locked`, exit 3, and nothing is pushed.
   With no flock (Windows), no `HOME`, an unwritable lock directory, or a failed lock call, it pushes and prints `PUSH_LOCK: unavailable`.
@@ -199,7 +202,7 @@ STOP reasons, by the script that first declares them. A later script also uses t
 |---|---|
 | `ship_detect.py` | `bad-arguments`, `no-repo`, `no-origin`, `unsupported-remote`, `detached-head`, `on-base-branch`, `pr-query-failed`, `user-query-failed`, `auth-failed`, `pr-author-unknown`, `unsafe-checkout`, `base-mismatch` |
 | `ship_preflight.py` | `check-failed`, `validator-missing`, `validator-config`, `checks-query-failed`, `pipeline-query-failed`, `deadline-unstored` |
-| `ship_pr.py` | `bad-branch-name`, `branch-create-failed`, `prepare-failed`, `bad-body-file`, `contributor-mode`, `tree-dirty`, `head-not-reviewed`, `paths-not-checked`, `push-rejected`, `push-failed`, `push-locked`, `pr-create-failed`, `description-upload-failed` |
+| `ship_pr.py` | `bad-branch-name`, `branch-create-failed`, `prepare-failed`, `bad-body-file`, `contributor-mode`, `tree-dirty`, `head-not-reviewed`, `paths-not-checked`, `push-rejected`, `push-failed`, `push-interrupted`, `push-locked`, `pr-create-failed`, `description-upload-failed` |
 
 ## Permissions
 
