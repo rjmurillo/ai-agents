@@ -1,12 +1,12 @@
 {
   "base_commit": "8104f1166537de524e872e37ea3ccd4db0c95e9e",
-  "frozen": "2026-11-26: tasks and gold written before any chestertons-fence edit; gold derived with git log -S, git log --follow, and git show by the author, not by the skill's script",
+  "frozen": "2026-11-26: tasks and gold written before any chestertons-fence edit; gold derived with git log -S, git log --follow, and git show by the author, not by the skill's script; correction after one baseline run (before any skill edit): Q1 rep 0 answered 33b9871d63, a pre-squash commit on remotes/pr/1256 that the prompt's 'into the repository' admitted, so every prompt now counts only commits reachable from HEAD",
   "skill": "chestertons-fence",
   "allowed_tools": [
     "Bash(git blame:*)",
     "Bash(python3 .claude/skills/chestertons-fence/scripts/investigate.py:*)"
   ],
-  "preamble": "You are in a checkout of this repository. Use the chestertons-fence skill: read .claude/skills/chestertons-fence/SKILL.md and follow it for the investigation step only (skip the report file and the decision). Answer from this checkout's files and git history alone. End your reply with exactly one fenced ```json block holding the answer object.",
+  "preamble": "You are in a checkout of this repository. Use the chestertons-fence skill: read .claude/skills/chestertons-fence/SKILL.md and follow it for the investigation step only (skip the report file and the decision). Answer from this checkout's files and git history alone. Count only commits reachable from HEAD (plain `git log`, no ref arguments); ignore PR branches and other remote refs. End your reply with exactly one fenced ```json block holding the answer object.",
   "tasks": [
     {
       "id": "Q1-moved-file",
