@@ -54,15 +54,8 @@ from collections.abc import Collection
 from dataclasses import dataclass
 from pathlib import Path
 
+import agent_gate_cli
 import delegation_contract as contract_rules
-import yaml
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-from scripts.hook_utilities.frontmatter_block import (
-    FrontmatterStatus,
-    parse_frontmatter,
-)
 
 AGENT_TREE = Path("src/claude/agents")
 
@@ -72,7 +65,6 @@ DELEGATORS = frozenset({"orchestrator"})
 
 _DELEGATION_TOOL = re.compile(r"^(Agent|Task)(\(.*\))?$")
 _DENIAL = re.compile(r"\byou\s+cannot\s+delegate\b", re.IGNORECASE)
-_FENCE = re.compile(r"^\s*(`{3,}|~{3,})")
 
 
 @dataclass(frozen=True)
@@ -87,19 +79,8 @@ class AgentFacts:
 
 def _strip_fences(body: str) -> str:
     """Drop fenced code blocks so an example never counts as a statement."""
-    kept: list[str] = []
-    opener = ""
-    for line in body.splitlines():
-        match = _FENCE.match(line)
-        if opener:
-            if match and match.group(1)[0] == opener[0] and len(match.group(1)) >= len(opener):
-                opener = ""
-            continue
-        if match:
-            opener = match.group(1)
-            continue
-        kept.append(line)
-    return "\n".join(kept)
+    lines, _ = agent_gate_cli.prose_lines(body)
+    return "\n".join(text for _, text in lines)
 
 
 def _tool_names(value: object) -> list[str]:
@@ -141,16 +122,9 @@ def _declared_contract(frontmatter: dict[str, object]) -> object:
 
 def read_agent_facts(path: Path) -> AgentFacts:
     """Parse one agent file. Raises ``ValueError`` when it cannot be read as an agent."""
-    result = parse_frontmatter(path.read_text(encoding="utf-8"), yaml, allow_duplicate_keys=True)
-    if not result.present or result.status is FrontmatterStatus.UNTERMINATED:
-        raise ValueError("no YAML frontmatter block")
-    if result.status is FrontmatterStatus.MALFORMED:
-        detail = (result.error or "").removeprefix("invalid YAML frontmatter: ")
-        raise ValueError(f"frontmatter is not valid YAML: {detail}")
-    loaded = result.metadata
-    if result.status is not FrontmatterStatus.VALID or loaded is None:
-        raise ValueError("frontmatter is not a mapping")
-    prose = _strip_fences(result.body)
+    agent = agent_gate_cli.read_agent_text(path.read_text(encoding="utf-8"))
+    loaded = agent.frontmatter
+    prose = _strip_fences(agent.body)
     return AgentFacts(
         states_denial=bool(_DENIAL.search(prose)),
         grants_agent=grants_agent_tool(loaded),
@@ -211,12 +185,7 @@ def find_delegation_findings(repo_root: Path) -> list[tuple[str, str]]:
     Raises ``FileNotFoundError`` when the tree is absent or empty: a silently
     empty scan is a passing scan that proves nothing.
     """
-    tree = repo_root / AGENT_TREE
-    if not tree.is_dir():
-        raise FileNotFoundError(f"agent tree not found: {tree}")
-    files = sorted(tree.glob("*.md"))
-    if not files:
-        raise FileNotFoundError(f"agent tree yields no Markdown files: {tree}")
+    files = agent_gate_cli.agent_markdown_files(repo_root, AGENT_TREE)
 
     findings: list[tuple[str, str]] = []
     seen = {path.stem for path in files}
@@ -268,15 +237,7 @@ def validate_agent_delegation(repo_root: Path) -> bool:
 
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point. Returns an ADR-035 exit code."""
-    args = argv if argv is not None else sys.argv[1:]
-    repo_root = Path(args[0]).resolve() if args else Path(__file__).resolve().parents[2]
-    if not repo_root.is_dir():
-        print(f"[FAIL] Invalid repository root: {repo_root}", file=sys.stderr)
-        return 2
-    if not (repo_root / AGENT_TREE).is_dir():
-        print(f"[FAIL] Missing agent tree: {repo_root / AGENT_TREE}", file=sys.stderr)
-        return 2
-    return 0 if validate_agent_delegation(repo_root) else 1
+    return agent_gate_cli.run_repo_gate(argv, validate_agent_delegation, AGENT_TREE)
 
 
 if __name__ == "__main__":
