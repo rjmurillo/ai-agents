@@ -74,6 +74,11 @@ gains are its claims; this skill does not reproduce them.
    back. If the harness cannot provide both, do not run skillopt. Report that the gate cannot be
    independent. Replacement holdouts written by the same agent are still
    exposed.
+5. **Right container.** When the target is a skill, run `context-optimizer`
+   placement analysis on its knowledge content before you spend any rollout
+   budget. If the analysis says that content belongs in passive context, stop
+   and report that. Do not optimize the wrong container. This is an intake
+   check only; the patch loop and the gates do not run it.
 
 Freeze the `train` and `sel` task lists before authoring any candidate. Keep
 `sel` prompts, verifiers, and outcomes away from the candidate author for the

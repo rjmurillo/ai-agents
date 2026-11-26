@@ -233,6 +233,18 @@ See [references/phase3-generation-deep-dive.md](references/phase3-generation-dee
 [references/script-integration-framework.md](references/script-integration-framework.md),
 and [references/script-patterns-catalog.md](references/script-patterns-catalog.md).
 
+### Placement Check
+
+Before a new skill lands, run `context-optimizer` placement analysis on its
+knowledge content: the facts, rules, and reference material, not the
+procedure. Run it again when an edit adds standing knowledge to a skill or
+moves it in or out. When the analysis places content in passive context or a
+hybrid split, follow that placement instead of keeping it all in the skill.
+Knowledge that belongs in passive context fails silently inside a skill,
+because the skill may never trigger. Mechanics-only edits (scripts, tests,
+wording) skip this check. `context-optimizer` owns the analysis and its
+decision framework.
+
 ---
 
 ## Phase 4: Synthesis Panel
