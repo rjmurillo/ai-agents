@@ -115,6 +115,8 @@ Owns everything `/push-pr` did after the body is written.
 - It reruns `check` and stops on any failure before the push.
 - GitHub create calls `new_pr.py` as today.
 - ADO create builds a fixed argument list and runs it without a shell.
+- On Windows, `az` is `az.cmd`, which runs through cmd.exe. The scripts find it on absolute `PATH` entries only, never the current directory.
+  Every argument is double-quoted, and an argument holding `%`, `!`, a quote, a line break, or a trailing backslash is refused (exit 126, so a STOP).
   Only `--output json`, `--title`, `--description @<checked body file>`, `--target-branch`, and `--draft true|false` are passed.
 - After an ADO create, it reads the JSON `description`.
   If it starts with `@`, it prints `STOP: description-upload-failed`, exit 3.

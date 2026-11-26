@@ -24,7 +24,6 @@ import importlib.util
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 import time
@@ -112,9 +111,11 @@ def load_sibling(
 if TYPE_CHECKING:
     import _ship_paths as _paths
     import _ship_remote as _remote
+    import _ship_windows as _windows
 else:
     _remote = load_sibling("_ship_remote")
     _paths = load_sibling("_ship_paths")
+    _windows = load_sibling("_ship_windows")
 SCRATCH_REL = _paths.SCRATCH_REL
 scratch_dir = _paths.scratch_dir
 write_private = _paths.write_private
@@ -416,12 +417,18 @@ def run(
 ) -> Completed:
     """Run ``argv`` without a shell. A missing binary is 127; a timeout is 124.
 
+    On Windows, ``_ship_windows`` resolves a bare name, and an argument that
+    cmd.exe would rewrite for a ``.cmd`` target is refused as 126.
+
     The timeout never exceeds the time left in the run's shared budget.
     """
     timeout = min(timeout, remaining_seconds())
+    command = _windows.command(argv)
+    if command is None:
+        return Completed(126, "", f"{argv[0]}: refused an argument cmd.exe would rewrite")
     try:
         done = subprocess.run(
-            _resolved(argv),
+            command,
             cwd=str(cwd) if cwd is not None else None,
             input=stdin_text,
             capture_output=True,
@@ -442,18 +449,6 @@ def run(
     except subprocess.TimeoutExpired:
         return Completed(124, "", f"{argv[0]}: timed out after {timeout:g}s")
     return Completed(done.returncode, done.stdout or "", done.stderr or "")
-
-
-def _resolved(argv: list[str]) -> list[str]:
-    """On Windows, resolve a bare program name through PATHEXT (``az`` is ``az.cmd``).
-
-    Without a shell, CreateProcess finds only ``.exe`` files. Elsewhere, and
-    for a name with a path, ``argv`` is returned unchanged.
-    """
-    if os.name != "nt" or os.path.dirname(argv[0]):
-        return argv
-    found = shutil.which(argv[0])
-    return [found, *argv[1:]] if found else argv
 
 
 def git(args: list[str], cwd: Path | None = None, timeout: float = 60) -> Completed:

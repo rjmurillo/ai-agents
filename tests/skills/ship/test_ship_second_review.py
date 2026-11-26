@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
 
 import pytest
@@ -208,37 +209,55 @@ class TestEscapedNewlineRuleMatchesTheHelper:
 
 
 class TestWindowsProgramResolution:
-    def test_a_bare_name_resolves_through_pathext_on_windows(self, scripts, monkeypatch):
-        common = scripts[0]
-        monkeypatch.setattr(common.os, "name", "nt")
-        monkeypatch.setattr(common.shutil, "which", lambda name: f"C:/Azure/{name}.cmd")
-        assert common._resolved(["az", "repos", "pr", "list"]) == [
-            "C:/Azure/az.cmd",
-            "repos",
-            "pr",
-            "list",
-        ]
+    @pytest.fixture
+    def windows(self, scripts, monkeypatch, tmp_path):
+        """A Windows host whose PATH holds az.cmd and git.exe, with a decoy az.cmd in the cwd."""
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
+        (bin_dir / "az.cmd").write_text("@echo off\n", encoding="utf-8")
+        (bin_dir / "git.exe").write_text("", encoding="utf-8")
+        cwd = tmp_path / "repo"
+        cwd.mkdir()
+        (cwd / "az.cmd").write_text("decoy\n", encoding="utf-8")
+        monkeypatch.chdir(cwd)
+        monkeypatch.setattr(scripts[0].os, "name", "nt")
+        monkeypatch.setenv("PATH", os.pathsep.join([".", "relative", str(bin_dir)]))
+        monkeypatch.setenv("PATHEXT", ".exe;.cmd")  # this host matches case
+        return sys.modules["_ship_windows"], bin_dir
 
-    def test_an_unfound_name_is_left_for_the_127_path(self, scripts, monkeypatch):
-        common = scripts[0]
-        monkeypatch.setattr(common.os, "name", "nt")
-        monkeypatch.setattr(common.shutil, "which", lambda name: None)
-        assert common._resolved(["az", "x"]) == ["az", "x"]
+    def test_a_batch_target_gets_every_argument_quoted(self, windows):
+        module, bin_dir = windows
+        built = module.command(["az", "repos", "pr", "list", "--query", "[?a && b]"])
+        assert built == f'"{bin_dir / "az.cmd"}" "repos" "pr" "list" "--query" "[?a && b]"'
 
-    @pytest.mark.parametrize("name", ["posix", "nt"])
-    def test_a_path_or_a_posix_host_is_unchanged(self, scripts, monkeypatch, name):
-        common = scripts[0]
-        monkeypatch.setattr(common.os, "name", name)
-        monkeypatch.setattr(common.shutil, "which", lambda program: "/elsewhere/" + program)
-        argv = [sys.executable, "-I", "x.py"] if name == "nt" else ["az", "x"]
-        assert common._resolved(argv) == argv
+    def test_the_cwd_and_relative_entries_are_never_searched(self, windows):
+        module, bin_dir = windows
+        assert module.find_program("az") == str(bin_dir / "az.cmd")
 
-    def test_run_passes_the_resolved_program(self, scripts, monkeypatch, tmp_path):
-        common = scripts[0]
-        seen = []
-        monkeypatch.setattr(common, "_resolved", lambda argv: seen.append(argv) or argv)
-        common.run([sys.executable, "-c", "pass"], cwd=tmp_path)
-        assert seen == [[sys.executable, "-c", "pass"]]
+    def test_an_exe_target_stays_an_argument_list(self, windows):
+        module, bin_dir = windows
+        assert module.command(["git", "status"]) == [str(bin_dir / "git.exe"), "status"]
+
+    @pytest.mark.parametrize(
+        "arg", ["feat: %AZURE_DEVOPS_EXT_PAT%", "feat: hi!", 'a"b', "a\nb", "C:\\dir\\"]
+    )
+    def test_an_argument_cmd_would_rewrite_is_refused(self, windows, scripts, arg):
+        module, _bin = windows
+        assert module.command(["az", "--title", arg]) is None
+        done = scripts[0].run(["az", "--title", arg])
+        assert (done.returncode, done.stderr) == (
+            126,
+            "az: refused an argument cmd.exe would rewrite",
+        )
+
+    def test_an_unfound_name_or_a_path_is_unchanged(self, windows):
+        module, _bin = windows
+        assert module.command(["gh", "x"]) == ["gh", "x"]
+        assert module.command([sys.executable, "-I"]) == [sys.executable, "-I"]
+
+    def test_posix_hosts_are_unchanged(self, scripts, monkeypatch):
+        monkeypatch.setattr(scripts[0].os, "name", "posix")
+        assert sys.modules["_ship_windows"].command(["az", "%x%"]) == ["az", "%x%"]
 
 
 class TestPrivateDirectoryFailure:
