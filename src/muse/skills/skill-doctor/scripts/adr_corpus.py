@@ -2,8 +2,6 @@
 
 python3, stdlib only, no network, no git. adr_git.py runs git.
 
-Conventions:
-
 - The known-folder list equals skill-bootstrap's `KNOWN_FOLDERS` in
   `adr_locate.py`, which already holds adr-review's folders. A test pins both.
   Each skill installs on its own, so the list is copied, not imported.
