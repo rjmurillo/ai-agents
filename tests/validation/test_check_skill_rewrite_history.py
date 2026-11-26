@@ -442,6 +442,26 @@ class TestScenarioFile:
         assert code == 1
         assert "does not exist at HEAD" in out
 
+    @pytest.mark.parametrize(
+        "skipped_class",
+        [
+            "class TestX:\n    __test__ = False\n\n    def test_replaces(self):\n        pass\n",
+            "class TestX:\n    def __init__(self):\n        pass\n\n"
+            "    def test_replaces(self):\n        pass\n",
+        ],
+        ids=["test-false", "own-init"],
+    )
+    def test_retired_test_in_a_class_pytest_skips_is_rejected(
+        self, repo: Path, capsys: pytest.CaptureFixture[str], skipped_class: str
+    ) -> None:
+        path = "tests/skills/demo/test_demo.py"
+        write(repo, path, skipped_class)
+        code, out = self._retire_with(repo, capsys, f"{path}::TestX::test_replaces")
+        assert code == 1
+        assert (
+            f"dropped scenario S9: test {path}::TestX::test_replaces does not exist at HEAD" in out
+        )
+
     @pytest.mark.parametrize("broken", ["{", json.dumps({"scenarios": 3})])
     def test_unreadable_base_scenarios_fail_closed(
         self, repo: Path, capsys: pytest.CaptureFixture[str], broken: str

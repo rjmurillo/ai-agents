@@ -368,6 +368,32 @@ class TestDefinesTest:
     def test_not_defined_in_the_named_chain(self, classes: list[str], func: str) -> None:
         assert not skills.defines_test(_TESTS, classes, func)
 
+    @pytest.mark.parametrize(
+        "constructor",
+        [
+            "def __init__(self):\n        pass",
+            "def __new__(cls):\n        return super().__new__(cls)",
+            "async def __init__(self):\n        pass",
+        ],
+    )
+    def test_class_with_its_own_constructor_is_not_collected(self, constructor: str) -> None:
+        source = f"class TestC:\n    {constructor}\n\n    def test_c(self):\n        pass\n"
+        assert not skills.defines_test(source, ["TestC"], "test_c")
+
+    def test_constructor_on_an_outer_class_blocks_the_nested_test(self) -> None:
+        source = (
+            "class TestOuter:\n    def __init__(self):\n        pass\n\n"
+            "    class TestInner:\n        def test_i(self):\n            pass\n"
+        )
+        assert not skills.defines_test(source, ["TestOuter", "TestInner"], "test_i")
+
+    def test_constructor_in_a_sibling_class_does_not_block(self) -> None:
+        source = (
+            "class TestA:\n    def test_a(self):\n        pass\n\n"
+            "class TestB:\n    def __init__(self):\n        pass\n"
+        )
+        assert skills.defines_test(source, ["TestA"], "test_a")
+
     def test_unparseable_source_is_not_defined(self) -> None:
         assert not skills.defines_test("def test_x(:\n", [], "test_x")
 

@@ -25,6 +25,7 @@ sys.path[:0] = [p for p in (str(_REPO_ROOT),) if p not in sys.path]
 from scripts.hook_utilities.frontmatter_block import split_frontmatter  # noqa: E402
 
 SHAPES = frozenset({"driver", "reference"})
+_CONSTRUCTORS = frozenset({"__init__", "__new__"})
 _SKILL_DIRS = ("src/claude/skills/{n}", ".claude/skills/{n}")
 
 
@@ -306,7 +307,9 @@ def defines_test(source: str, classes: list[str], func: str) -> bool:
     ``[param]`` id is False: a parameter id exists only at run time, so no
     static read of *source* can confirm it. An empty segment, or a file that
     does not parse, is False. So is a test that ``__test__ = False`` turns
-    off in its module or class chain, which pytest skips. Whether the file
+    off in its module or class chain, which pytest skips. So is a class in
+    the chain that defines ``__init__`` or ``__new__``: pytest 9 skips it
+    with a warning (``_pytest/python.py``). Whether the file
     itself is collected is ``is_collected_file``'s question, not this one's.
     """
     named_like_tests = func.startswith(PYTEST_FUNC_PREFIX) and "[" not in func
@@ -322,9 +325,17 @@ def defines_test(source: str, classes: list[str], func: str) -> bool:
         found = [n for n in body if isinstance(n, ast.ClassDef) and n.name == name]
         if not found or _turns_off_collection(found[0].body, {func}):
             return False
+        if _defines_constructor(found[0].body):
+            return False
         body = found[0].body
     funcs = (ast.FunctionDef, ast.AsyncFunctionDef)
     return any(isinstance(n, funcs) and n.name == func for n in body)
+
+
+def _defines_constructor(body: list[ast.stmt]) -> bool:
+    """True when a class *body* defines ``__init__`` or ``__new__``, which pytest 9 will not collect."""
+    funcs = (ast.FunctionDef, ast.AsyncFunctionDef)
+    return any(isinstance(n, funcs) and n.name in _CONSTRUCTORS for n in body)
 
 
 def _turns_off_collection(body: list[ast.stmt], names: set[str]) -> bool:
