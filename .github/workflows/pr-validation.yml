@@ -361,12 +361,12 @@ jobs:
           uv run --frozen python3 scripts/validation/check_memory_placement.py --ci --changed-since FETCH_HEAD
       # Rule agent-skill-docs: the reference-page checks ran only in the
       # pre-push hook, so a push that skips lefthook skipped them. The first
-      # command blocks a missing page or README row. The second blocks a changed
-      # SKILL.md or agent template whose page was not edited and is not named in
-      # a Docs-Reviewed: commit trailer. PR #7572 left docs/skills/ship.md stale.
-      # The checks own the diff, the merge-base lookup, and the trailers (ADR-006).
-      # PR events only: a merge-queue commit need not carry the branch's
-      # trailers, and the PR run already judged the same diff.
+      # command blocks a missing page or README row. The second blocks a changed skill
+      # or agent source (SKILL.md, skill template, agent template, or rendered agent)
+      # whose page was not edited and is not named in a Docs-Reviewed: commit trailer.
+      # PR #7572 left docs/skills/ship.md stale. The checks own the diff, the merge-base
+      # lookup, and the trailers (ADR-006). PR events only: a merge-queue commit need not
+      # carry the branch's trailers, and the PR run already judged the same diff.
       - name: Check agent and skill doc review
         if: github.event_name == 'pull_request'
         env:
