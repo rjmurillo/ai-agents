@@ -14,8 +14,8 @@ The after commit changes only `src/claude/skills/chestertons-fence/SKILL.md`. It
 is `6ca14ecdca`, the same file as in commit `47c2b6535c` of PR #7733
 (`refs/pull/7733/head` history). To replay the after arm, clone `origin/main` at
 `8104f11665`. Copy in that one file and commit it, so the two arms differ in HEAD.
-After the run, the shipped file moved its agent table and anti-patterns to
-`references/agent-workflows.md` to fit the instruction-byte ceiling. Steps, the
+After the run, the shipped file dropped its agent table and anti-patterns to
+fit the instruction-byte ceiling. Both tables now live on `docs/skills/chestertons-fence.md`. Steps, the
 checker, and the Gotchas the tasks exercise did not change. Each arm ran in a standalone
 clone of `origin/main`. Neither clone holds the tasks file, and no ref in either
 reaches a commit that touched it. The runner now refuses any other setup.

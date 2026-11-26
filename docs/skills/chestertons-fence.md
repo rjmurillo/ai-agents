@@ -74,6 +74,15 @@ Agents use the report as follows:
 | [`implementer`](../agents/implementer.md) | Before deletions or major refactors, verify a report exists. If not, route to the analyst. |
 | [`critic`](../agents/critic.md) | When a plan removes or replaces an existing system, check for investigation evidence. |
 
+Anti-patterns to avoid:
+
+| Avoid | Why | Instead |
+| --- | --- | --- |
+| Removing code you do not understand | May break hidden invariants | Investigate first, then decide |
+| Assuming dead code is unused | Hyrum's Law: someone depends on it | Run dependency analysis |
+| Skipping PR/ADR search | Loses original design rationale | Always check git history and PRs |
+| Proposing replacement without evidence | Cannot compare tradeoffs | Document original constraints first |
+
 [`memory-gate`](memory-gate.md) points here for the full four-phase investigation.
 
 ## Where it runs
@@ -93,5 +102,4 @@ Agents use the report as follows:
 - [`review`](review.md): consumes the code-intent evidence this skill gathers.
 - Source: [`SKILL.md`](../../src/claude/skills/chestertons-fence/SKILL.md)
 - Reference: [`references/chestertons-fence-mental-model.md`](../../src/claude/skills/chestertons-fence/references/chestertons-fence-mental-model.md)
-- Agent use and anti-patterns: [`references/agent-workflows.md`](../../src/claude/skills/chestertons-fence/references/agent-workflows.md)
 - How to call skills on each host: [Call agents and skills](../call-agents-and-skills.md)

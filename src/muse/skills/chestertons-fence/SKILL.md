@@ -152,7 +152,6 @@ python3 scripts/investigate.py --target path/to/file.py --change "description" -
 | File | Content |
 |------|---------|
 | `references/chestertons-fence-mental-model.md` | Core mental model, principle, investigation checklist, related models |
-| `references/agent-workflows.md` | How each agent uses the skill, and anti-patterns |
 | `references/boy-scout-rule.md` | Scoped improvement boundaries, connection to investigation workflow |
 | `references/legacy-code-techniques.md` | Bottom-up refactoring approach, inheritance vs composition, reading list |
 
