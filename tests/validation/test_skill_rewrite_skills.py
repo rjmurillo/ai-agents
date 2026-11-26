@@ -394,6 +394,12 @@ class TestDefinesTest:
             ("del test_t", [], "test_t"),
             ("from os import path as test_t", [], "test_t"),
             ("test_t: object = None", [], "test_t"),
+            ("type test_t = int", [], "test_t"),
+            ("for test_t in [None]:\n    pass", [], "test_t"),
+            ("with open(__file__) as test_t:\n    pass", [], "test_t"),
+            ("(test_t := None)", [], "test_t"),
+            ("from os import *", [], "test_t"),
+            ("test_t = staticmethod(test_t)", [], "test_t"),
             ("TestR = None", ["TestR"], "test_r"),
         ],
     )

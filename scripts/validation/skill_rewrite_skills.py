@@ -359,19 +359,22 @@ def defines_test(source: str, classes: list[str], func: str) -> bool:
 def _final_binding(body: list[ast.stmt], name: str) -> ast.stmt | None:
     """The last statement directly in *body* that binds *name*, or None.
 
-    A def, a class, an import, ``del``, or an assignment with a value binds.
-    A binding nested in ``if`` or ``try`` is not read: no static read knows
-    which branch runs.
+    A def, a class, an import, ``del``, an assignment with a value, a ``type``
+    alias, a ``for`` or ``with`` target, or a walrus statement binds. A star
+    import may bind any name, so it counts. A wrapper such as
+    ``test_x = mark(test_x)`` counts too and fails closed: use decorator syntax.
+    A binding nested in a block body (``if``, ``try``, ``for``) is not read:
+    no static read knows which branch runs.
     """
     found = None
     for node in body:
-        if name in _bound_names(node):
+        if _bound_names(node) & {name, "*"}:
             found = node
     return found
 
 
 def _bound_names(node: ast.stmt) -> set[str]:
-    """Names *node* binds or deletes at its own level."""
+    """Names *node* binds or deletes at its own level; ``*`` for a star import."""
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
         return {node.name}
     if isinstance(node, (ast.Import, ast.ImportFrom)):
@@ -383,6 +386,14 @@ def _bound_names(node: ast.stmt) -> set[str]:
         isinstance(node, ast.AnnAssign) and node.value is not None
     ):
         targets = [node.target]
+    elif isinstance(node, (ast.For, ast.AsyncFor)):
+        targets = [node.target]
+    elif isinstance(node, (ast.With, ast.AsyncWith)):
+        targets = [i.optional_vars for i in node.items if i.optional_vars is not None]
+    elif isinstance(node, ast.TypeAlias):
+        targets = [node.name]
+    elif isinstance(node, ast.Expr) and isinstance(node.value, ast.NamedExpr):
+        targets = [node.value.target]
     stores = (ast.Store, ast.Del)
     return {
         n.id
