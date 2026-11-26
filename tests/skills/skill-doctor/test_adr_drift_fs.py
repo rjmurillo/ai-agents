@@ -283,4 +283,5 @@ def test_a_marker_that_cannot_be_statted_is_a_read_error_and_known_folders_still
     located = _locate(capsys, repo)
 
     assert [e["path"] for e in located["read_errors"]] == [".adr-dir"]
+    assert located["rejected"] == []
     assert [d["path"] for d in located["adr_dirs"]] == [ADR_DIR]
