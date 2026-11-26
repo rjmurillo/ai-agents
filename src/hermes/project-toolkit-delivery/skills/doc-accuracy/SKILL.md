@@ -1,13 +1,7 @@
 ---
 name: doc-accuracy
 version: 1.0.0
-description: >-
-  Multi-phase documentation verification treating code as source of truth. Use
-  when you say "check documentation accuracy", "verify code examples compile",
-  "audit docs vs code", "check doc consistency", or "run doc-accuracy". Use for
-  pre-release doc audits and checking behavioral claims. Do NOT use for broad
-  codebase analysis (use analyze) or fixing markdown fence syntax (use
-  fix-markdown-fences).
+description: "Verify documentation against code as source of truth. Use when you say \"check documentation accuracy\", \"verify code examples compile\", or \"audit docs vs code\", or for pre-release doc audits. Do NOT use for broad analysis (use analyze) or markdown fence syntax (use fix-markdown-fences)."
 license: Apache-2.0
 ---
 

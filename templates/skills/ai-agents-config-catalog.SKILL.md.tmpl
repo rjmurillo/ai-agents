@@ -1,6 +1,6 @@
 ---
 name: ai-agents-config-catalog
-description: Catalog of every configuration axis in this repo, env vars, commit markers, frontmatter keys, QA skip verdicts, and escape hatches, each with its enforcement point and abuse story, plus the checklist for adding a new flag safely. Use when you say `what does a skip flag do`, `list escape hatches`, `can I skip this gate`, `add a config flag`. Do NOT use for hook runtime behavior (use `agent-harness-reference`) or change gating policy (use `ai-agents-change-control`).
+description: "Catalog of config axes with enforcement points: env vars, commit markers, frontmatter keys, QA skips. Use when you say `what does a skip flag do`, `list escape hatches`, `can I skip this gate`, `add a config flag`. Do NOT use for hook runtime behavior (use `agent-harness-reference`) or change gating (use `ai-agents-change-control`)."
 version: 1.0.0
 license: Apache-2.0
 metadata:

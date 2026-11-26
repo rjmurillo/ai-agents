@@ -1,7 +1,7 @@
 ---
 name: skill-bootstrap
 version: 1.0.0
-description: Mine a repository's history, reviews, and agent sessions to author and evaluate its project skill library. Use when you say `bootstrap skills`, `capture project workflow knowledge`, `build this repo's skill library`, or `project skill library`, including existing-skill improvements. Do NOT use for one skill (use skillforge), scored tuning (use skillopt), or session diagnosis (use skill-doctor).
+description: "Mine a repo's history, reviews, and agent sessions to author and evaluate its project skill library. Use when you say `bootstrap skills`, `capture project workflow knowledge`, or `build this repo's skill library`. Do NOT use for one skill (use skillforge), scored tuning (use skillopt), or session diagnosis (use skill-doctor)."
 license: Apache-2.0
 user-invocable: true
 metadata:
