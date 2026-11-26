@@ -55,6 +55,10 @@ def _fake_run(protection, rules, protection_err="", rules_err=""):
             return type(
                 "R", (), {"returncode": 0, "stdout": json.dumps(protection), "stderr": ""}
             )()
+        if "/rules/" not in endpoint:
+            return type(
+                "R", (), {"returncode": 0, "stdout": json.dumps({"name": "main"}), "stderr": ""}
+            )()
         if rules_err:
             return type("R", (), {"returncode": 1, "stdout": "", "stderr": rules_err})()
         return type("R", (), {"returncode": 0, "stdout": json.dumps(rules), "stderr": ""})()

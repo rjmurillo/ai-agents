@@ -1586,6 +1586,8 @@ class TestBlockedRestMergedStateFallback:
                 return _completed(stdout=rest_stdout)
             if _is_readback(cmd):
                 return _completed(stdout=readback)
+            if list(cmd[:2]) == ["gh", "api"]:
+                return _completed(rc=1, stderr="rest fallback unscripted")
             return _completed(rc=view_rc, stdout=view_state)
 
         with (
@@ -2539,6 +2541,10 @@ class _FakeGh:
             if isinstance(self.merge, BaseException):
                 raise self.merge
             return self.merge
+        if list(cmd[:2]) == ["gh", "api"]:
+            # REST readback fallback (rate-limit path): strict tests do not
+            # script it, so it fails closed like the GraphQL read it follows.
+            return _completed(rc=1, stderr="rest fallback unscripted")
         raise AssertionError(f"unexpected command: {cmd!r}")
 
     def merge_calls(self) -> list[list[str]]:

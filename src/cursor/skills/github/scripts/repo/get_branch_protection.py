@@ -183,6 +183,17 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
+    branch_obj, branch_error = gh_api_get(f"repos/{owner}/{repo}/branches/{args.branch}")
+    if branch_obj is None and ("404" in branch_error or "Not Found" in branch_error):
+        write_skill_error(
+            f"Branch '{args.branch}' not found in {owner}/{repo}; a mistyped branch is not an unprotected one",
+            2,
+            error_type="NotFound",
+            output_format=fmt,
+            script_name=_SCRIPT_NAME,
+        )
+        return 2
+
     protection, protection_error = gh_api_get(
         f"repos/{owner}/{repo}/branches/{args.branch}/protection"
     )

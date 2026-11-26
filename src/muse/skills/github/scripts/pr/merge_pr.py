@@ -592,6 +592,22 @@ def _rest_merge(
         ) from exc
 
 
+def _pr_is_merged_rest(pr: int, repo_flag: str) -> bool:
+    """REST merged-state probe for when the GraphQL budget is exhausted."""
+    try:
+        result = subprocess.run(
+            ["gh", "api", f"repos/{repo_flag}/pulls/{pr}/merge"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return False
+    return result.returncode == 0 or result.returncode == 204
+
+
 def _pr_is_merged(pr: int, repo_flag: str) -> bool:
     """Return True when GitHub reports the PR as merged.
 
@@ -610,13 +626,13 @@ def _pr_is_merged(pr: int, repo_flag: str) -> bool:
             check=False,
         )
     except subprocess.TimeoutExpired:
-        return False
+        return _pr_is_merged_rest(pr, repo_flag)
     if result.returncode != 0:
-        return False
+        return _pr_is_merged_rest(pr, repo_flag)
     try:
         return bool(json.loads(result.stdout).get("state") == "MERGED")
     except (json.JSONDecodeError, AttributeError):
-        return False
+        return _pr_is_merged_rest(pr, repo_flag)
 
 
 def _api_get_json(endpoint: str, what: str) -> dict[str, Any]:
@@ -1191,14 +1207,51 @@ def _read_back(pr: int, repo_flag: str) -> dict[str, Any] | None:
             check=False,
         )
     except subprocess.TimeoutExpired:
+        return _read_back_rest(pr, repo_flag)
+    if result.returncode != 0:
+        return _read_back_rest(pr, repo_flag)
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return _read_back_rest(pr, repo_flag)
+    return data if isinstance(data, dict) else _read_back_rest(pr, repo_flag)
+
+
+def _read_back_rest(pr: int, repo_flag: str) -> dict[str, Any] | None:
+    """Read back merge state through REST when the GraphQL read fails.
+
+    ``gh pr view`` is GraphQL, so an exhausted GraphQL budget makes the
+    post-merge verification fail even when the REST merge landed; the two
+    rate budgets are separate. Maps the REST pull object into the GraphQL
+    readback shape. ``autoMergeRequest`` has no REST equivalent and stays
+    absent, which the actor fallback already tolerates.
+    """
+    try:
+        result = subprocess.run(
+            ["gh", "api", f"repos/{repo_flag}/pulls/{pr}"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
         return None
     if result.returncode != 0:
         return None
     try:
-        data = json.loads(result.stdout)
+        pull = json.loads(result.stdout)
     except json.JSONDecodeError:
         return None
-    return data if isinstance(data, dict) else None
+    if not isinstance(pull, dict):
+        return None
+    merged = bool(pull.get("merged"))
+    return {
+        "state": "MERGED" if merged else str(pull.get("state") or "").upper(),
+        "mergeCommit": {"oid": pull.get("merge_commit_sha")} if merged else None,
+        "mergedBy": {"login": (pull.get("merged_by") or {}).get("login")} if merged else None,
+        "headRefOid": (pull.get("head") or {}).get("sha"),
+    }
 
 
 def _login(node: Any) -> str | None:

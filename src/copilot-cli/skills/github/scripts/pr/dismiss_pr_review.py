@@ -216,14 +216,14 @@ def _thread_gate(
     pr: int,
     review_id: int,
     fmt: str,
-) -> tuple[int, int]:
+) -> tuple[int | None, int]:
     """Run the unresolved-thread gate. Return (count, exit code).
 
     Exit code 0 means dismissal may proceed. A nonzero code means the error
     output is already written and main returns it unchanged.
     """
     if args.skip_thread_check:
-        return 0, 0
+        return None, 0
     unresolved, thread_error = count_unresolved_threads(owner, repo, pr)
     if unresolved is None:
         write_skill_error(
