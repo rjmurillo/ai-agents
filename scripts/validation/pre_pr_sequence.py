@@ -49,6 +49,7 @@ from check_agent_skill_docs import (
     validate_agent_skill_docs,
     validate_skill_page_freshness,
 )
+from check_agent_success_criterion import validate_agent_success_criterion
 from check_agent_tree_frontmatter import validate_agent_tree_frontmatter
 from check_agents_write_targets import validate_agents_write_targets
 from check_bypass_allowlist import validate_bypass_allowlist
@@ -66,6 +67,7 @@ from check_io_portability import validate_io_portability
 from check_md_links import validate_md_links
 from check_measurement_anchoring import validate_measurement_anchoring
 from check_nested_tests import validate_no_nested_tests
+from check_orchestrator_vocabulary import validate_orchestrator_vocabulary
 from check_promotion_exceptions import validate_promotion_exceptions
 from check_push_lock_paths import validate_push_lock_paths
 from check_required_context_conditions import validate_required_context_conditions
@@ -712,6 +714,14 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # withholds Agent; Claude Code lets subagents spawn subagents otherwise.
     # Issue #5184; contract is MUST 9 in templates/rules/claude-agents.md.
     _Gate("Agent Delegation (src/claude/agents)", _root_only(validate_agent_delegation)),
+    # ADR-065: every agent declares the signal a router retries on, and the
+    # router agents carry no supervisor vocabulary. Issue #7639; contract is the
+    # Success Criterion section of templates/rules/claude-agents.md.
+    _Gate(
+        "Agent Success Criterion (src/claude/agents)",
+        _root_only(validate_agent_success_criterion),
+    ),
+    _Gate("Router Vocabulary (orchestrator)", _root_only(validate_orchestrator_vocabulary)),
     # A loose file directly under .claude/skills/ registers as a skill named after
     # the file (issue #5503, CLAUDE.md registered as skill "CLAUDE").
     _Gate(
