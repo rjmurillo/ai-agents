@@ -69,11 +69,17 @@ def normalize_job(job: dict) -> dict:
 
 def normalize_pending_deployment(dep: dict) -> dict:
     environment = dep.get("environment") or {}
-    reviewer = dep.get("current_reviewer") or {}
+    reviewers = []
+    for entry in dep.get("reviewers") or []:
+        reviewer = entry.get("reviewer") or {}
+        if isinstance(reviewer, dict):
+            name = reviewer.get("login") or reviewer.get("name")
+            if name:
+                reviewers.append(name)
     return {
         "environment": environment.get("name") if isinstance(environment, dict) else environment,
         "wait_minutes": dep.get("wait_timer"),
-        "current_reviewer": reviewer.get("login") if isinstance(reviewer, dict) else None,
+        "reviewers": reviewers,
     }
 
 
@@ -162,7 +168,9 @@ def main(argv: list[str] | None = None) -> int:
         "jobs_error": None if jobs_read else jobs_error,
         "pending_deployments": pending_deployments,
         "pending_deployments_read": pending_read,
-        "waiting_on_environment_approval": bool(pending_deployments),
+        "waiting_on_environment_approval": (
+            None if not pending_read else any(dep["reviewers"] for dep in pending_deployments)
+        ),
     }
 
     failed_jobs = [job["name"] for job in data["jobs"] if job["conclusion"] == "failure"]

@@ -52,8 +52,11 @@ def _jobs_payload(failed_step=False):
     }
 
 
-def _pending(environment="production"):
-    return [{"environment": {"name": environment}, "current_user_can_approve": False}]
+def _pending(environment="production", reviewers=True):
+    entry = {"environment": {"name": environment}, "current_user_can_approve": False}
+    if reviewers:
+        entry["reviewers"] = [{"type": "User", "reviewer": {"login": "octocat"}}]
+    return [entry]
 
 
 def _fake_run(run=None, jobs=None, pending=None, run_err=""):
@@ -96,6 +99,13 @@ class TestMain:
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
         assert result["Data"]["waiting_on_environment_approval"] is True
+
+    def test_timer_only_wait_is_not_an_approval_wait(self, mod, capsys):
+        rc = _exec(mod, ["--run-id", "42"], pending=_pending(reviewers=False))
+        assert rc == 0
+        result = json.loads(capsys.readouterr().out)
+        assert result["Data"]["waiting_on_environment_approval"] is False
+        assert len(result["Data"]["pending_deployments"]) == 1
 
     def test_no_pending_means_false(self, mod, capsys):
         rc = _exec(mod, ["--run-id", "42"])

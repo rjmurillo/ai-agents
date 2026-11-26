@@ -1038,14 +1038,19 @@ def gh_api_get(endpoint: str, timeout: int = 30) -> tuple[object, str]:
     never exits, so read-only scripts can distinguish a 404 (a missing object)
     from a transport or permission failure.
     """
-    result = subprocess.run(
-        ["gh", "api", endpoint],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=timeout,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            ["gh", "api", endpoint],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return None, f"gh api {endpoint} timed out after {timeout}s"
+    except OSError as exc:
+        return None, f"gh api {endpoint} could not start: {exc}"
     if result.returncode != 0:
         detail = (
             result.stderr.strip()

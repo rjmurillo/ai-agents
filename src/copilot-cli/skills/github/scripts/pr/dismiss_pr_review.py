@@ -343,7 +343,9 @@ def main(argv: list[str] | None = None) -> int:
     except (RuntimeError, subprocess.SubprocessError, OSError):
         head_sha = ""
     review_commit = str(review.get("commit_id") or "")
-    on_current_head = bool(head_sha) and review_commit == head_sha
+    # Unknown head is unknown, not false: a failed head read must not read
+    # as evidence the review is stale.
+    on_current_head = None if not head_sha else review_commit == head_sha
 
     facts = {
         "pull_request": pr,

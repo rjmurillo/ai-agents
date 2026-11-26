@@ -1223,8 +1223,8 @@ def _read_back_rest(pr: int, repo_flag: str) -> dict[str, Any] | None:
     ``gh pr view`` is GraphQL, so an exhausted GraphQL budget makes the
     post-merge verification fail even when the REST merge landed; the two
     rate budgets are separate. Maps the REST pull object into the GraphQL
-    readback shape. ``autoMergeRequest`` has no REST equivalent and stays
-    absent, which the actor fallback already tolerates.
+    readback shape. REST exposes auto-merge as ``auto_merge`` with
+    ``enabled_by`` and ``merge_method``; it maps onto ``autoMergeRequest``.
     """
     try:
         result = subprocess.run(
@@ -1246,11 +1246,19 @@ def _read_back_rest(pr: int, repo_flag: str) -> dict[str, Any] | None:
     if not isinstance(pull, dict):
         return None
     merged = bool(pull.get("merged"))
+    auto_merge = pull.get("auto_merge")
+    auto_request = None
+    if isinstance(auto_merge, dict):
+        auto_request = {
+            "enabledBy": {"login": (auto_merge.get("enabled_by") or {}).get("login")},
+            "mergeMethod": auto_merge.get("merge_method"),
+        }
     return {
         "state": "MERGED" if merged else str(pull.get("state") or "").upper(),
         "mergeCommit": {"oid": pull.get("merge_commit_sha")} if merged else None,
         "mergedBy": {"login": (pull.get("merged_by") or {}).get("login")} if merged else None,
         "headRefOid": (pull.get("head") or {}).get("sha"),
+        "autoMergeRequest": auto_request,
     }
 
 

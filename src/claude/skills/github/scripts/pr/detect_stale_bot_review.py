@@ -199,20 +199,26 @@ def _readiness_reasons(pr: dict[str, Any], ci_state: str) -> list[str]:
     return reasons
 
 
-def build_dismissal_command(pr: int, review_id: object) -> str:
+def build_dismissal_command(pr: int, review_id: object, owner: str = "", repo: str = "") -> str:
     """Return the handoff command a human runs to dismiss one stale review.
 
     Points at dismiss_pr_review.py from this skill (scripts/pr/), which checks
     the review state and unresolved threads before it writes, where the raw
-    ``gh api`` paste it replaces checked nothing. The script infers owner and
-    repo from the checkout the human runs it in; cross-repo dismissal passes
-    --owner/--repo.
+    ``gh api`` paste it replaces checked nothing. The plugin-root fallback
+    chain resolves in this checkout (``.claude`` symlink) and in a vendored
+    install with the harness variable set. owner/repo are always passed: the
+    script otherwise infers the repository from whatever checkout the human
+    happens to run it in.
     """
-    return (
-        "dismiss_pr_review.py (github skill) "
-        f"--pull-request {pr} --review-id {review_id} "
-        f'--message "{_DISMISS_MESSAGE}"'
-    )
+    parts = [
+        'uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}'
+        '/skills/github/scripts/pr/dismiss_pr_review.py"',
+    ]
+    if owner and repo:
+        parts.append(f"--owner {owner} --repo {repo}")
+    parts.append(f"--pull-request {pr} --review-id {review_id}")
+    parts.append(f'--message "{_DISMISS_MESSAGE}"')
+    return " ".join(parts)
 
 
 def _bot_entry(
@@ -251,6 +257,8 @@ def build_handoff(
     head_sha: str,
     bots: list[dict[str, Any]],
     human_blockers: list[str],
+    owner: str = "",
+    repo: str = "",
 ) -> str:
     """Return the ready-to-run text a human needs to dismiss the stale reviews."""
     lines = [
@@ -262,7 +270,7 @@ def build_handoff(
     ]
     for bot in bots:
         lines.append(f"- {bot['login']} review {bot['review_id']} on commit {bot['commit_id']}:")
-        lines.append(f"  {build_dismissal_command(pr, bot['review_id'])}")
+        lines.append(f"  {build_dismissal_command(pr, bot['review_id'], owner, repo)}")
     if human_blockers:
         lines.append(
             "A human CHANGES_REQUESTED review also stands ("
@@ -308,7 +316,9 @@ def classify(
     data["verdict"] = _aggregate(data["bots"])
     if data["verdict"] == "DISMISSAL_HANDOFF":
         stale = [b for b in data["bots"] if b["action"] == "DISMISSAL_HANDOFF"]
-        data["handoff"] = build_handoff(pr_number, head_sha, stale, data["human_changes_requested"])
+        data["handoff"] = build_handoff(
+            pr_number, head_sha, stale, data["human_changes_requested"], owner, repo
+        )
     return data
 
 

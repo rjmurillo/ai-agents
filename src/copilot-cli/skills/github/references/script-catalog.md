@@ -106,7 +106,10 @@ Dismiss a stale `CHANGES_REQUESTED` review. Verifies the review exists and is
 in `CHANGES_REQUESTED` state, counts unresolved review threads through one
 GraphQL query and refuses while any remain, requires `--message`, and reports
 whether the review is on the current head. `--skip-thread-check` is the
-audit-recorded escape for GraphQL-refused sessions. The execution path the
+audit-recorded escape for GraphQL-refused sessions, and using it means the
+human verified thread resolution another way (the GitHub UI) first; the
+escape records that bypass in the audit output, it does not replace the
+check. The execution path the
 `detect_stale_bot_review.py` handoff points a human at; detection never
 dismisses, this script never detects.
 
@@ -121,8 +124,10 @@ check that could not run; 4 auth.
 
 Edit a PR title with a stale-write guard. A squash merge uses the title as
 the commit subject, so the edit is a merge-message fix. Warns when the title
-does not parse as a conventional commit. `--expected-title` aborts on a
-concurrent edit.
+does not parse as a conventional commit. `--expected-title` aborts when
+the title read before the write differs from it. The check narrows the
+concurrent-edit race but cannot close it: the PATCH itself is unconditional
+because the REST API offers no conditional write for pull requests.
 
 Parameters: `--pull-request`, `--title` (required), `--expected-title`,
 `--dry-run`, `--owner`, `--repo`.

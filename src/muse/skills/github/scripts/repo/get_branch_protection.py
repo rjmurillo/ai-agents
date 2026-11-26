@@ -125,14 +125,23 @@ def normalize(protection: dict | None, rules: list[dict], branch: str) -> dict:
         "enforce_admins": bool(
             protection and (protection.get("enforce_admins") or {}).get("enabled")
         ),
+        # Ruleset blocks bind even when classic protection allows: a
+        # non_fast_forward rule overrides a classic force-push allowance.
         "allows_force_pushes": bool(
             protection and (protection.get("allow_force_pushes") or {}).get("enabled")
-        ),
+        )
+        and "non_fast_forward" not in rule_types,
         "allows_deletions": bool(
             protection and (protection.get("allow_deletions") or {}).get("enabled")
-        ),
+        )
+        and "deletion" not in rule_types,
         "strict_required_status_checks": bool(
             protection and (protection.get("required_status_checks") or {}).get("strict")
+        )
+        or any(
+            (rule.get("parameters") or {}).get("strict_required_status_checks_policy")
+            for rule in rules
+            if rule.get("type") == "required_status_checks"
         ),
         "rule_types": sorted(set(rule_types)),
         "ruleset_sources": ruleset_sources,
@@ -252,6 +261,7 @@ def main(argv: list[str] | None = None) -> int:
     if protection_missing:
         data["classic_protection_present"] = False
     data["ruleset_rules_read"] = ruleset_read
+    data["ruleset_scan_capped"] = isinstance(rules, list) and len(rules) >= 100
     if not ruleset_read:
         data["coverage_warning"] = (
             "ruleset rules were not read (403); required contexts and review "
