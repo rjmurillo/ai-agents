@@ -116,6 +116,19 @@ class TestInheritedRuns:
         assert code == 1, out
         assert "run-1.json" in out
 
+    def test_two_later_runs_in_one_commit_do_not_hide_the_first(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        driver_change(repo)
+        write(repo, f"{EVID}/run-1.json", results(repo))
+        commit(repo, "the first run passes")
+        failed = _run_text(repo, failed=True)
+        write(repo, f"{EVID}/run-2.json", failed)
+        write(repo, f"{EVID}/run-3.json", failed)
+        commit(repo, "two diagnostic runs together")
+        code, out = run(repo, capsys)
+        assert code == 0, out
+
 
 class TestAddingCommit:
     @pytest.mark.skipif(os.name == "nt", reason="NTFS rejects * in a file name")

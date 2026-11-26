@@ -320,7 +320,7 @@ def _deciding_run(
 
     A traversal order cannot pick the first run: two files added on parallel
     branches have no first, and picking the passing one would let a failed
-    run hide. Such a pair, or two files added in one commit, fails closed.
+    run hide. Such a pair, or two first candidates added in one commit, fails closed.
     """
     if len(paths) == 1:
         return paths[0], []
@@ -332,18 +332,18 @@ def _deciding_run(
                 f"{path} has no adding commit in the history, so the first run is unknown"
             ]
         adds[path] = commit
-    for path in paths:
-        twin = next((o for o in paths if o != path and adds[o] == adds[path]), None)
-        if twin:
-            return None, [_ambiguous(path, twin, "in the same commit")]
     first = [
         p
         for p in paths
-        if not any(o != p and ctx.git.is_ancestor(adds[o], adds[p]) is True for o in paths)
+        if not any(
+            adds[o] != adds[p] and ctx.git.is_ancestor(adds[o], adds[p]) is True for o in paths
+        )
     ]
     if len(first) == 1:
         return first[0], []
-    return None, [_ambiguous(first[0], first[1], "on parallel branches")]
+    twin = next((o for o in first[1:] if adds[o] == adds[first[0]]), None)
+    where = "in the same commit" if twin else "on parallel branches"
+    return None, [_ambiguous(first[0], twin or first[1], where)]
 
 
 def _ambiguous(one: str, other: str, where: str) -> str:
