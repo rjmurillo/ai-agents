@@ -93,4 +93,5 @@ Agents use the report as follows:
 - [`review`](review.md): consumes the code-intent evidence this skill gathers.
 - Source: [`SKILL.md`](../../src/claude/skills/chestertons-fence/SKILL.md)
 - Reference: [`references/chestertons-fence-mental-model.md`](../../src/claude/skills/chestertons-fence/references/chestertons-fence-mental-model.md)
+- Agent use and anti-patterns: [`references/agent-workflows.md`](../../src/claude/skills/chestertons-fence/references/agent-workflows.md)
 - How to call skills on each host: [Call agents and skills](../call-agents-and-skills.md)

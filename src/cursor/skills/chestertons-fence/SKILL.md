@@ -134,24 +134,6 @@ python3 scripts/investigate.py --target path/to/file.py --change "description" -
 |--------|---------|------------|
 | [`scripts/investigate.py`](scripts/investigate.py) | Git archaeology (origin commit, recent changes), related-ADR search, and dependent search for a target; emits a Markdown or JSON investigation report from the bundled template. | 0=success, 1=error |
 
-## Integration with Agent Workflows
-
-| Agent | How to Integrate |
-|-------|------------------|
-| **Analyst** | Run this skill first when investigating changes. The report is a prerequisite for any change proposal. |
-| **Architect** | ADRs that deprecate or replace existing patterns MUST include a "Prior Art Investigation" section. Use this skill to generate it. |
-| **Implementer** | Before implementing deletions or major refactoring, verify an investigation report exists. If missing, route to analyst. |
-| **Critic** | When validating plans that remove or replace existing systems, check for investigation evidence. Auto-reject proposals without historical context. |
-
-## Anti-Patterns
-
-| Avoid | Why | Instead |
-|-------|-----|---------|
-| Removing code you do not understand | May break hidden invariants | Investigate first, then decide |
-| Assuming dead code is unused | Hyrum's Law: someone depends on it | Run dependency analysis |
-| Skipping PR/ADR search | Loses original design rationale | Always check git history and PRs |
-| Proposing replacement without evidence | Cannot compare tradeoffs | Document original constraints first |
-
 ## Gotchas
 
 - A file a build step mirrored or moved has a newer add commit at its current path. Without `--follow`, `--diff-filter=A` returns that copy.
@@ -170,6 +152,7 @@ python3 scripts/investigate.py --target path/to/file.py --change "description" -
 | File | Content |
 |------|---------|
 | `references/chestertons-fence-mental-model.md` | Core mental model, principle, investigation checklist, related models |
+| `references/agent-workflows.md` | How each agent uses the skill, and anti-patterns |
 | `references/boy-scout-rule.md` | Scoped improvement boundaries, connection to investigation workflow |
 | `references/legacy-code-techniques.md` | Bottom-up refactoring approach, inheritance vs composition, reading list |
 
