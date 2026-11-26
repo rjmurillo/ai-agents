@@ -2,12 +2,12 @@
 name: memory-gate
 version: 0.1.0
 description: Memory-First Gate (BLOCKING) and the Chesterton's Fence investigation
-  protocol, split out of the memory router per ADR-063. Forces a memory search
-  before you change existing code, constraints, or protocol, so the "why" is
-  recovered before the fence comes down. Use when you say `memory-first gate`,
-  `search memory before changing`, or `chesterton fence check`. Do NOT use for
-  plain Tier 1 lookups (use memory-search) or recording a session (use
-  memory-reflexion).
+  protocol, split out of the memory router. Forces a memory search before you
+  change existing code, constraints, or protocol, so the "why" is recovered
+  before the fence comes down. Use when you say `memory-first gate`,
+  `search memory before changing`, `chesterton fence check`, or
+  `log this contradiction`. Do NOT use for Tier 1 lookups (use
+  memory-search) or recording a session (use memory-reflexion).
 license: Apache-2.0
 metadata:
   adr: ADR-063, ADR-070, ADR-106

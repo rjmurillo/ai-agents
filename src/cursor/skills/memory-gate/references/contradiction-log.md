@@ -44,15 +44,17 @@ Serena MCP server is optional; file tools on the same folder work.
 2. Write the entry. In an indexed Serena corpus, add its row to the matching
    domain `*-index` file in the same change.
 3. When the host also configures a memory service for this project, retain
-   the same entry there. A service is a retrieval aid, not a replacement for
-   the repository entry.
+   the same entry there, unless the worktree note below forbids it. A
+   service is a retrieval aid, not a replacement for the repository entry.
 4. State in the reply where the entry landed.
 
 > Serena writes to the checkout active at server start, not your current
 > directory. In a linked git worktree, or when you cannot tell, do not call
 > Serena memory mutation tools. Make the same change to this checkout's
 > memory folder with file tools, or return it to the parent session
-> (`universal.md` MUST NOT 11, issue #5061).
+> (`universal.md` MUST NOT 11, issue #5061). The same bar applies to a host
+> memory service: when its store resolves to another checkout, or you cannot
+> tell, skip step 3 and return the entry to the parent session.
 
 Why log: the next reader (you in three months, or another agent next session) will hit the same fork and want the reasoning. Without the log they will either repeat the analysis or revert to the conventional answer and undo your work. The log compounds.
 

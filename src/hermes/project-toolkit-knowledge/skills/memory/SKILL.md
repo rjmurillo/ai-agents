@@ -82,11 +82,11 @@ What do you need?
 ├─► Record what happened in a completed session?
 │   └─► memory-reflexion sub-skill (Tier 2 episode extraction)
 │
+├─► A measured result contradicts a memory, ADR, skill, or common guidance?
+│   └─► memory-gate contradiction log (decision-<slug>), or the write procedure below if memory-gate is unavailable
+│
 ├─► Store new factual knowledge directly?
 │   └─► Follow the project memory write procedure below
-│
-├─► A measured result contradicts a memory, ADR, skill, or common guidance?
-│   └─► memory-gate contradiction log (decision-<slug>), then the write procedure
 │
 ├─► Check health, count tokens, benchmark, or improve graph density?
 │   └─► memory-maintenance sub-skill

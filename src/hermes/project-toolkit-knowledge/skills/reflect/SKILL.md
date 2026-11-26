@@ -42,8 +42,11 @@ Use this skill when:
 - User praises specific output ("perfect", "exactly")
 - Edge cases are discovered during work
 - A measured result contradicts a memory, ADR, skill, or common guidance. Log
-  it with the `memory-gate` skill's contradiction log, even when the task
-  ends at "do not ship"
+  it with the `memory-gate` skill's contradiction log, or, when that skill is
+  not installed, as a `decision-<slug>` entry through the `memory` skill's
+  Write a Durable Project Fact procedure, even when the task ends at "do not
+  ship". The log skips the Phase 2 threshold: one measured result is enough.
+  A change to a skill file still waits for Phase 3 approval
 - Session end after skill-heavy work
 - Want to capture learnings before they are lost
 
