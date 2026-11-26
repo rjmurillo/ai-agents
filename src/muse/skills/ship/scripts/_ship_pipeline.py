@@ -7,6 +7,7 @@ changes the PR. ``ship_preflight.py`` owns the deadline and the terminal line.
 
 from __future__ import annotations
 
+import re
 import sys
 import time
 from dataclasses import dataclass
@@ -27,6 +28,11 @@ CHECKS_TIMEOUT_SECONDS = 300
 # Seconds of the shared run budget kept for the calls after a wait.
 RESERVE_SECONDS = 120
 MAX_LISTED = 10
+# A GitHub PR URL: https://<host>/<owner>/<repo>/pull/<number>, as gh prints it.
+_PR_URL_RE = re.compile(
+    r"^https://(?P<host>[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?)"
+    r"/(?P<owner>[A-Za-z0-9_.-]+)/(?P<repo>[A-Za-z0-9_.-]+)/pull/(?P<number>[0-9]+)/?$"
+)
 
 
 @dataclass(frozen=True)
@@ -40,16 +46,42 @@ class Check:
         return self.state in ("FAIL", "dirty")
 
 
-def _github_head(ctx: Context, pr: int) -> tuple[str, str] | Halt:
+@dataclass(frozen=True)
+class PrRepo:
+    """The repository that owns a PR, read from the PR URL the host returned."""
+
+    host: str
+    owner: str
+    repo: str
+
+
+def _pr_repo(url: str, pr: int) -> PrRepo | None:
+    match = _PR_URL_RE.match(url)
+    if match is None or int(match["number"]) != pr:
+        return None
+    return PrRepo(match["host"].lower(), match["owner"], match["repo"])
+
+
+def _github_head(ctx: Context, pr: int, owner: PrRepo | None) -> tuple[str, str, PrRepo] | Halt:
+    """Return the head branch, head SHA, and owning repository of PR ``pr``.
+
+    The first read finds the PR as ``gh`` resolves the number. A later read
+    names that repository, so it cannot drift to a PR with the same number in
+    another repository.
+    """
+    repo = ["--repo", f"{owner.host}/{owner.owner}/{owner.repo}"] if owner else []
     done = common.run(
-        ["gh", "pr", "view", str(pr), "--json", "headRefName,headRefOid"], cwd=ctx.root
+        ["gh", "pr", "view", str(pr), *repo, "--json", "headRefName,headRefOid,url"], cwd=ctx.root
     )
     if done.returncode != 0:
         return detect_mod.query_halt("checks-query-failed", done)
     data = common.parse_json(done.stdout)
     if not isinstance(data, dict) or not data.get("headRefName") or not data.get("headRefOid"):
         return Halt("checks-query-failed", common.EXIT_EXTERNAL, f"PR {pr} head did not parse")
-    return str(data["headRefName"]), str(data["headRefOid"])
+    owner = _pr_repo(str(data.get("url") or ""), pr)
+    if owner is None:
+        return Halt("checks-query-failed", common.EXIT_EXTERNAL, f"PR {pr} URL did not parse")
+    return str(data["headRefName"]), str(data["headRefOid"]), owner
 
 
 def _binding(ctx: Context, pr: int, branch: str, sha: str, after_publish: bool) -> Check | None:
@@ -65,12 +97,13 @@ def _binding(ctx: Context, pr: int, branch: str, sha: str, after_publish: bool) 
 
 
 def _read_github_checks(
-    ctx: Context, pr: int, wait_seconds: int
+    ctx: Context, pr: int, owner: PrRepo, wait_seconds: int
 ) -> tuple[int, dict[str, Any]] | Check | Halt:
     """Run get_pr_checks.py once; return (exit code, Data), a PENDING check, or a Halt.
 
     It waits at most ``min(wait_seconds, CHECKS_TIMEOUT_SECONDS)``, and never past the
-    run budget less ``RESERVE_SECONDS``. Zero reads once.
+    run budget less ``RESERVE_SECONDS``. Zero reads once. The helper reads the
+    repository that owns the PR, on that PR's host, never one inferred from origin.
     """
     left = int(common.remaining_seconds()) - RESERVE_SECONDS
     budget = max(0, min(wait_seconds, CHECKS_TIMEOUT_SECONDS, left))
@@ -81,6 +114,10 @@ def _read_github_checks(
         sys.executable,
         "-I",
         str(helper),
+        "--owner",
+        owner.owner,
+        "--repo",
+        owner.repo,
         "--pull-request",
         str(pr),
         *(["--wait", "--timeout-seconds", str(budget)] if budget else []),
@@ -88,7 +125,7 @@ def _read_github_checks(
         "--output-format",
         "json",
     ]
-    done = common.run(argv, cwd=ctx.root, timeout=budget + 60)
+    done = common.run(argv, cwd=ctx.root, timeout=budget + 60, env={"GH_HOST": owner.host})
     if done.returncode == 4:
         return Halt("auth-failed", common.EXIT_AUTH, "check query was not authorized")
     lines = done.stdout.strip().splitlines()
@@ -150,16 +187,17 @@ def _github_pipeline(
     ctx: Context, *, pr: int, after_publish: bool, wait_seconds: int
 ) -> Check | Halt:
     """Read CI only for PR ``pr`` at this branch and HEAD, and re-check the head after."""
-    before = _github_head(ctx, pr)
+    before = _github_head(ctx, pr, None)
     if isinstance(before, Halt):
         return before
-    mismatch = _binding(ctx, pr, *before, after_publish)
+    branch, sha, owner = before
+    mismatch = _binding(ctx, pr, branch, sha, after_publish)
     if mismatch is not None:
         return mismatch
-    read = _read_github_checks(ctx, pr, wait_seconds)
+    read = _read_github_checks(ctx, pr, owner, wait_seconds)
     if not isinstance(read, tuple):
         return read
-    after = _github_head(ctx, pr)
+    after = _github_head(ctx, pr, owner)
     if isinstance(after, Halt):
         return after
     if after != before:

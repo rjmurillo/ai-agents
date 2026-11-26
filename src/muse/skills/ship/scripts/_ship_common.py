@@ -121,6 +121,7 @@ scratch_dir = _paths.scratch_dir
 write_private = _paths.write_private
 confine_body_file = _paths.confine_body_file
 stored_int = _paths.stored_int
+push_lock = _paths.push_lock
 remote_host = _remote.remote_host
 classify_host = _remote.classify_host
 cmd_rewrites = _windows.cmd_rewrites
@@ -424,8 +425,11 @@ def run(
     cwd: Path | None = None,
     timeout: float = 120,
     stdin_text: str | None = None,
+    env: dict[str, str] | None = None,
 ) -> Completed:
     """Run ``argv`` without a shell. A missing binary is 127; a timeout is 124.
+
+    ``env`` adds variables on top of ``child_env()``, such as a validated ``GH_HOST``.
 
     On Windows, ``_ship_windows`` resolves a bare name, and an argument that
     cmd.exe would rewrite for a ``.cmd`` target is refused as 126.
@@ -448,7 +452,7 @@ def run(
             timeout=timeout,
             check=False,
             shell=False,
-            env=child_env(),
+            env={**child_env(), **(env or {})},
         )
     except FileNotFoundError:
         return Completed(127, "", f"{argv[0]}: not found")

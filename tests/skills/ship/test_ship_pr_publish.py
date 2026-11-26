@@ -131,7 +131,13 @@ class TestPublishGitHub:
             ["pr", "view"],
             {
                 "stdout": json.dumps(
-                    {"number": 3, "state": "OPEN", "author": {"login": "alice"}, "url": "u"}
+                    {
+                        "number": 3,
+                        "state": "OPEN",
+                        "author": {"login": "alice"},
+                        "url": "u",
+                        "baseRefName": "main",
+                    }
                 )
             },
         )
@@ -163,6 +169,7 @@ class TestPublishGitHub:
                         "state": "OPEN",
                         "author": {"login": "me"},
                         "url": "https://x/pull/7",
+                        "baseRefName": "main",
                     }
                 )
             },

@@ -128,7 +128,13 @@ class TestDetectRefusesProtectedBranches:
             ["pr", "view"],
             {
                 "stdout": json.dumps(
-                    {"number": 5, "state": "OPEN", "author": {"login": "me"}, "url": "u"}
+                    {
+                        "number": 5,
+                        "state": "OPEN",
+                        "author": {"login": "me"},
+                        "url": "u",
+                        "baseRefName": "main",
+                    }
                 )
             },
         )

@@ -38,6 +38,7 @@ def _head(fakes, pr: int, *, branch: str | None = None, sha: str | None = None) 
                 {
                     "headRefName": branch or git(repo, "branch", "--show-current"),
                     "headRefOid": sha or git(repo, "rev-parse", "HEAD"),
+                    "url": f"https://github.com/o/r/pull/{pr}",
                 }
             )
         },
@@ -75,7 +76,13 @@ def github_pr(make_repo, fakes):
         ["pr", "view"],
         {
             "stdout": json.dumps(
-                {"number": 9, "state": "OPEN", "author": {"login": "me"}, "url": "u"}
+                {
+                    "number": 9,
+                    "state": "OPEN",
+                    "author": {"login": "me"},
+                    "url": "u",
+                    "baseRefName": "main",
+                }
             )
         },
     )
@@ -143,7 +150,13 @@ def test_contributor_is_advisory_and_never_runs_the_validator(make_repo, fakes, 
         ["pr", "view"],
         {
             "stdout": json.dumps(
-                {"number": 9, "state": "OPEN", "author": {"login": "alice"}, "url": "u"}
+                {
+                    "number": 9,
+                    "state": "OPEN",
+                    "author": {"login": "alice"},
+                    "url": "u",
+                    "baseRefName": "main",
+                }
             )
         },
     )
@@ -182,6 +195,10 @@ def test_github_green_needs_success_and_all_passing(github_pr, fakes, scripts, c
     assert values(lines, "CHECK")[0].startswith("pipeline=PASS pr=9 head=")
     call = fakes.calls("get_pr_checks")[0]
     assert call[1:] == [
+        "--owner",
+        "o",
+        "--repo",
+        "r",
         "--pull-request",
         "9",
         "--wait",
@@ -293,7 +310,17 @@ def _ado(make_repo, fakes, pr: int | None = 77):
     fakes.rule(
         "az",
         ["repos", "pr", "list"],
-        {"stdout": json.dumps([{"pullRequestId": pr, "createdBy": {"uniqueName": "me"}}])},
+        {
+            "stdout": json.dumps(
+                [
+                    {
+                        "pullRequestId": pr,
+                        "targetRefName": "refs/heads/main",
+                        "createdBy": {"uniqueName": "me"},
+                    }
+                ]
+            )
+        },
     )
     fakes.rule("az", ["account", "show"], {"stdout": "me\n"})
 

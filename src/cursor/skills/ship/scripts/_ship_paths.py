@@ -10,11 +10,65 @@ re-exports its names.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import uuid
+from collections.abc import Iterator
 from pathlib import Path
+from types import ModuleType
+
+_fcntl: ModuleType | None
+try:
+    import fcntl as _fcntl_module
+
+    _fcntl = _fcntl_module
+except ImportError:  # pragma: no cover - Windows has no fcntl and no flock
+    _fcntl = None
 
 SCRATCH_REL = Path(".project-toolkit") / "scratch"
+# The one shared push lock path: $HOME/src/scratch/locks/push-lock-<slug>.lock,
+# where the slug is the branch with each / as -. The commit guard reads it.
+PUSH_LOCK_REL = Path("src") / "scratch" / "locks"
+
+
+def push_lock_path(branch: str) -> Path | None:
+    """Return the shared push lock file for ``branch``, or None when HOME is unset."""
+    home = os.environ.get("HOME", "")
+    if not home:
+        return None
+    return Path(home) / PUSH_LOCK_REL / f"push-lock-{branch.replace('/', '-')}.lock"
+
+
+@contextlib.contextmanager
+def push_lock(branch: str) -> Iterator[str]:
+    """Hold the shared push lock for ``branch`` without waiting; yield its state.
+
+    ``held`` means this process holds it until the block ends. ``busy`` means
+    another push of the branch holds it now. ``unavailable`` means this host
+    cannot take it: no flock, no HOME, or an unwritable lock directory.
+    """
+    path = push_lock_path(branch)
+    if _fcntl is None or path is None:
+        yield "unavailable"
+        return
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(path, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    except OSError:
+        yield "unavailable"
+        return
+    try:
+        try:
+            _fcntl.flock(fd, _fcntl.LOCK_EX | _fcntl.LOCK_NB)
+        except BlockingIOError:
+            yield "busy"
+            return
+        try:
+            yield "held"
+        finally:
+            _fcntl.flock(fd, _fcntl.LOCK_UN)
+    finally:
+        os.close(fd)
 
 
 def scratch_dir(root: Path, create: bool = False) -> Path | None:

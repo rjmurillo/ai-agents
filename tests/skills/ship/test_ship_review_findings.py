@@ -137,7 +137,13 @@ class TestFreshRoundTwoFindings:
             ["pr", "view"],
             {
                 "stdout": json.dumps(
-                    {"number": 7, "state": "OPEN", "author": {"login": author}, "url": "u"}
+                    {
+                        "number": 7,
+                        "state": "OPEN",
+                        "author": {"login": author},
+                        "url": "u",
+                        "baseRefName": "main",
+                    }
                 )
             },
         )
@@ -150,6 +156,7 @@ class TestFreshRoundTwoFindings:
                     {
                         "headRefName": "feat/ship-change",
                         "headRefOid": head or git(repo, "rev-parse", "HEAD"),
+                        "url": "https://github.com/o/r/pull/7",
                     }
                 )
             },
@@ -267,7 +274,13 @@ class TestFreshRoundFourFindings:
             ["pr", "view"],
             {
                 "stdout": json.dumps(
-                    {"number": 3, "state": "OPEN", "author": {"login": "me"}, "url": "u"}
+                    {
+                        "number": 3,
+                        "state": "OPEN",
+                        "author": {"login": "me"},
+                        "url": "u",
+                        "baseRefName": "main",
+                    }
                 )
             },
         )
@@ -285,7 +298,17 @@ class TestFreshRoundFourFindings:
         fakes.rule(
             "az",
             ["repos", "pr", "list"],
-            {"stdout": json.dumps([{"pullRequestId": 77, "createdBy": {"uniqueName": "me"}}])},
+            {
+                "stdout": json.dumps(
+                    [
+                        {
+                            "pullRequestId": 77,
+                            "targetRefName": "refs/heads/main",
+                            "createdBy": {"uniqueName": "me"},
+                        }
+                    ]
+                )
+            },
         )
         fakes.rule("az", ["account", "show"], {"stdout": "me\n"})
         head = git(repo, "rev-parse", "HEAD")
@@ -342,6 +365,7 @@ class TestFreshRoundFiveFindings:
                     {
                         "headRefName": "feat/ship-change",
                         "headRefOid": git(repo, "rev-parse", "HEAD"),
+                        "url": "https://github.com/o/r/pull/41",
                     }
                 )
             },

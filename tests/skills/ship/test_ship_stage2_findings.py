@@ -233,6 +233,7 @@ class TestPipelineDetail:
                     {
                         "headRefName": "feat/ship-change",
                         "headRefOid": git(repo, "rev-parse", "HEAD"),
+                        "url": "https://github.com/o/r/pull/41",
                     }
                 )
             },
