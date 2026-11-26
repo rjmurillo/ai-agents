@@ -1,7 +1,7 @@
 ---
 id: ADR-087
 status: proposed
-date: 2026-07-26
+date: 2026-11-25
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -433,7 +433,8 @@ first call. What closed is the version an ordinary invocation could reach by
 accident.
 
 Making this a real boundary needs a controller the optimizing agent cannot
-write to. That is named under Open Requirements rather than claimed here.
+write to. That is named under Open Requirements rather than claimed here. The
+2026-11-25 amendment records the controller built for it, and its condition.
 
 ### What this does not require
 
@@ -592,7 +593,9 @@ first for that reason.
    the optimizer still runs `extract` itself under the documented workflow,
    task definitions still resolve to readable grading criteria, and `split`
    still publishes `opt`. A trusted controller owning those surfaces remains
-   the prerequisite for the Decision statement's stronger form. The second carries a real tension:
+   the prerequisite for the Decision statement's stronger form. The 2026-11-25
+   amendment below records the controller that now exists and the condition
+   it still depends on. The second carries a real tension:
    reporting `p` always and never enforcing it is load-bearing elsewhere in
    this ADR, and a `--diagnostics` flag the loop passes itself would be the
    same caller-supplied-restriction defect this document catalogs five times
@@ -790,11 +793,12 @@ Honest statement of what has and has not been exercised against real data.
 - **Agent path**: validated against a real report,
   `evals/analyst-spike/reports/20260528T050708Z-91be1106/report.json`, 24
   fixtures. Baseline 15/24 against agent 13/24; the decision correctly refused
-  a real regression. **No null control has been run on this path.** One was
-  claimed on 2026-07-27 and retracted the same day: the two architect-spike
-  runs it used disagree on `fixture_set_sha`, so the corpus was a second changed
-  variable. A valid control needs two runs agreeing on both `fixture_set_sha`
-  and `agent_prompt_sha`, and no committed pair does.
+  a real regression. One null control was claimed on 2026-07-27 and retracted
+  the same day: the two architect-spike runs it used disagree on
+  `fixture_set_sha`, so the corpus was a second changed variable. A valid
+  control needs two runs agreeing on both `fixture_set_sha` and
+  `agent_prompt_sha`. The first such pair ran on 2026-11-25; see the amendment
+  of that date.
 - **Hook path**: validated against real `pytest tests/hooks` JUnit output, 532
   node ids extracted. No null control has been run on the hook path, and none
   is needed for the same reason: `pytest_results` is deterministic, so a
@@ -882,7 +886,8 @@ The corrected state of the evidence is one measured path, not three:
   artifact fixed. Both held-out gains that earned the ACCEPT reproduced under
   the no-op.
 - **Agent path, unmeasured.** A control needs two runs agreeing on both
-  `fixture_set_sha` and `agent_prompt_sha`. No committed pair does.
+  `fixture_set_sha` and `agent_prompt_sha`. No committed pair did at the time.
+  The 2026-11-25 amendment records the first such pair.
 - **Hook path, deterministic by construction.**
 
 The error is more useful than the claim would have been, and it belongs in this
@@ -948,4 +953,139 @@ on two, one of which was not measuring what it said.
 ADR-088 moved the book-derived rule cited above into the `software-engineering-library` skill. The original citation remains as historical decision text. Use these paths for current guidance:
 
 - Current guidance now lives at `.claude/skills/software-engineering-library/references/working-with-legacy-code.md`.
+
+## Amendment 2026-11-25
+
+Issue #7642 asked the owner whether this ADR is still wanted. The owner said
+yes. The status stays `proposed`.
+
+### Tracking
+
+Each Open Requirement now has a sub-issue of #7642:
+
+| Open Requirement | Issue | State on 2026-11-25 |
+| --- | --- | --- |
+| 1, trusted controller | #7678 | Built, see below |
+| 2, provenance binding | #7679 | Closed, discharged by #3436 |
+| 3, boolean seam decision | #7680 | Open |
+| 4, governance document | #7681 | Open |
+| 5, live rule-path run | #7682 | Closed, done 2026-07-27 |
+| 6, rule run-count floor | #7683 | Open |
+| 7, test-group reveal | #7684 | Open; `optimize-artifact.py report` may already discharge it |
+| 8, Thresholdout study | #7685 | Open |
+| 9, initial-cap policy | #7686 | Open; the controller path takes the cap from launcher config |
+| 10, fixed ledger root | #7687 | Open; the controller path takes the root from launcher config |
+| 11, expiring lock | #7688 | Open |
+| 12, corpus namespace | #7689 | Open |
+
+### Open Requirement 1: the controller
+
+`scripts/eval/eval-controller.py` inverts the loop. The launcher runs the
+controller. The controller runs the scorer, `extract`, `split`, and `gate`
+itself. It runs the optimizing agent as a child proposer, once per step.
+
+Each step, the proposer's workspace holds two things:
+
+- `feedback.json`, with the step number, the artifact path, the
+  optimize-group results of the current incumbent and their pass fraction,
+  the consultations left, and `last_decision`;
+- copies of the optimize-group task files, when the config names them.
+
+`last_decision` is `ACCEPT` or `REJECT` after a gated step. It is `NO_CHANGE`
+when the proposer left the artifact alone, which spends no consultation. So a
+gated candidate teaches the proposer one bit.
+
+Scorer output, every results file, the split, the ledger, and the full gate
+payloads stay in a controller state directory. Every exit from a step restores
+the incumbent before the gate, including a failed proposer or scorer. Only an
+ACCEPT writes the candidate back. The controller re-reads the artifact after
+scoring and refuses to gate if it changed. It refuses an artifact the proposer
+replaced with a symlink or a hard link, and it writes the artifact by swapping
+the directory entry with the original mode, so the write never follows a link.
+The final digest it reports is read from disk. It deletes and recreates the
+workspace files each step for the same reason. Scorer and proposer output goes
+to files, not pipes, so a lingering descendant cannot stretch the timeout.
+
+On POSIX the controller kills the process group of each scorer and proposer
+call when the call ends. A descendant that leaves the group with `setsid` survives that, and on
+Windows only the direct child is killed. The post-score byte check and an
+integrity check after every step are what remain in those cases.
+
+The config must name the task-definition paths (`deny_paths`). The controller
+digests them before the loop. It checks them again before each scoring run
+and after each step, and stops on any change.
+The gate cap and the ledger root both come from the config. The cap is
+`max_consultations`, and the ledger root is the state directory.
+
+The owner chose this boundary over a separate OS user and over a protected CI
+job (#7642, decision D2). Both of those are kernel or GitHub boundaries. Both
+need infrastructure outside this repository.
+
+**The boundary is conditional, and this ADR must say so.** Python cannot stop
+a same-user process from reading a file. The held-out group is withheld only
+when the launcher denies the proposer read and write access to every path
+`eval-controller.py policy` prints: the state directory, the config file, and
+every `deny_paths` entry. The config is on that list because it names the seed
+and the task inventory. `deny_paths` must cover the whole task directory, not
+only the held-out files: if the proposer can list the directory, the held-out
+group is the complement of the optimize ids it was given. It must also cover
+earlier results for the same tasks, such as committed report directories,
+because those hold per-task outcomes for the held-out group.
+
+Under that rule, the three surfaces Open Requirement 1 names are closed: the
+proposer does not run `extract`, cannot read held-out task definitions, and
+never sees `split` output. Without the rule, a proposer that goes looking can
+still read the state directory. The controller cannot check that the launcher
+applied the rule.
+
+So the Decision statement's stronger form holds for a loop run through the
+controller under a launcher deny rule. It does not hold for a loop that drives
+`optimize-artifact.py` directly, which remains a supported path.
+
+The controller does not close the noise threat in "What follows for anyone
+running this loop". `max_p` is optional in the config, as `--max-p` is at the
+gate. A noisy scorer can still earn an ACCEPT. Open Requirement 6 owns that for the
+rule adapter. No open requirement covers it for the agent adapter, which
+averages over runs; the null control below is the first measurement there.
+
+Open Requirements 9 and 10 stay open. The controller path takes the cap and the
+ledger root from launcher config. A direct `optimize-artifact.py` loop still
+takes both from its caller.
+
+### First valid agent-path null control
+
+Two architect-spike runs ran on 2026-11-25 (local time; the run ids are UTC
+and read 2026-11-26) from one checkout, with no edit between them. Both reports agree on `fixture_set_sha` (`f6310eb016cb`) and on
+`agent_prompt_sha` (`dfcb7790a0e8`). Both used `claude-sonnet-5-5`, three runs
+per fixture, with zero errors. The hub no longer serves `claude-sonnet-4-6`, so
+these runs are not comparable to the 2026-05-28 reports.
+
+| Measure | Run A (`20261126T051545Z-9db16cc0`) | Run B (`20261126T051950Z-bffd8a14`) |
+| --- | --- | --- |
+| Agent recall | 0.583 | 0.625 |
+| Baseline recall | 0.729 | 0.708 |
+| Flaky fixtures | 5 of 8 | 4 of 8 |
+| `recommendation` | `halt-due-to-flakiness` | `halt-due-to-flakiness` |
+
+Gated B against A, seed `7642`, three tasks held out:
+
+- At the default `--pass-threshold 1.0`, both runs pass the same 2 of 8 tasks.
+  The gate returned REJECT on a tie at 0/3, with 0 gains, 0 losses, p = 1.0,
+  `corpus_verified: true`, and `corpus_pinned: true`. The no-op earned no
+  accept.
+- Three agent-variant means moved with no input change: A001 from 0.33 to
+  0.50, A004 from 0.83 to 0.67, and A007 from 0.50 to 0.83. None crossed 1.0.
+- At `--pass-threshold 0.5`, one task flipped: A001 went from fail to pass.
+  It fell in the optimize group, so the held-out group tied again.
+
+Both reports set `flaky_halt_threshold_crossed: true`. By the eval's own
+methodology, neither run is fit to judge the architect agent. That does not
+spoil the control: a null control asks what the gate does with noise, and these
+runs are noisy. It does mean the pair measures a noise floor, not agent quality.
+Baseline recall moved too, from 0.729 to 0.708.
+
+This is one pair on one benchmark. It shows the agent path did not produce a
+false accept here. It does not estimate a false-accept rate. At a lower pass
+threshold, the same noise flips tasks, and a flip in the held-out group would
+read as a gain.
 

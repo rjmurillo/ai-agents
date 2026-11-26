@@ -298,6 +298,7 @@ Copilot equivalent.
 | `eval_harness_capability.py` | Run fail-closed live capability probes from a shell-free JSON plan and derive the #5422 arm matrix. | #5423 |
 | `eval_recorded_capabilities.py` | Classify recorded Codex rollouts and Copilot event files offline for `concurrency_limit` and `context_reset_observability`. | #5423 |
 | `optimize-artifact.py` | Held-out-gated edit loop for agents, rules, and hooks. Splits tasks, bounds how many times an edit may be measured against the held-out group, and applies patches. A budgeted comparison, not an access boundary; see the seam section below. Core in `_optimizer_core.py`, scorer adapters in `_optimizer_adapters.py`. | #3422 |
+| `eval-controller.py` | Trusted controller for `optimize-artifact.py` (ADR-087 Open Requirement 1). The launcher runs it; it runs the scorer and the gate, and runs the optimizing agent as a child that sees only optimize-group results and a one-bit verdict. A boundary only when the launcher denies the paths `policy` prints. | #7678 |
 | `eval_billing_matrix.py` | Print the harness x billing matrix and report which cells this machine can reach. `--json` for a machine-readable form, `--require-ready` to exit 3 as a precondition step. | Complementary |
 | `_anthropic_api.py` | Shared API utilities (key loading, API calls). | N/A |
 | `_billing_matrix.py` | The 3x2 table itself: cells, aliases, credentials, cost basis, and selection precedence. Read by `_providers` and by `_eval_common.cost_basis`. | Complementary |
@@ -2298,6 +2299,67 @@ Four further refusals close holes that open once a loop runs many steps:
   `<!-- SLOW_UPDATE_END -->` is off limits, markers included. Patches carrying a
   fence marker in their text are rejected too, since one could otherwise open a
   fence over the rest of the file or close an existing one.
+
+### Running the loop under the trusted controller
+
+`eval-controller.py` removes the cooperating-optimizer assumption from the
+loop above. The optimizing agent stops calling `extract`, `split`, and `gate`.
+The launcher runs the controller, and the controller runs the agent as a child
+proposer, once per step.
+
+```bash
+uv run python scripts/eval/eval-controller.py policy --config loop.json
+uv run python scripts/eval/eval-controller.py run --config loop.json
+```
+
+The config is launcher-owned JSON:
+
+| Key | Meaning |
+| --- | --- |
+| `kind` | `agent`, `rule`, or `hook`, passed to `extract --kind`. |
+| `artifact` | The file the proposer edits. |
+| `state_dir` | Controller-only. Holds scorer output, results, split, ledger, and log. Must be fresh. |
+| `workspace_dir` | The proposer's only input: `feedback.json` and optional `tasks/`. |
+| `scorer` | argv. `{run_id}`, `{run_dir}`, and `{artifact}` are filled in. |
+| `collect` | Paths the scorer writes outside `{run_dir}`. Each is moved to `{run_dir}/<index>`. |
+| `inputs` | `extract --input` paths, usually under `{run_dir}`. |
+| `extract_args` | Extra `extract` flags, such as `--variant agent`. |
+| `proposer` | argv. `{feedback}`, `{artifact}`, `{workspace}`, and `{step}` are filled in. |
+| `seed`, `sel_ratio` | Passed to `split`. |
+| `max_consultations` | The gate cap. It comes from the launcher, not from the proposer. |
+| `max_p` | Optional `gate --max-p`. |
+| `steps` | Proposer calls at most. The loop also stops when the cap is spent. |
+| `opt_task_files` | Optional path template with `{task_id}` or `{task_name}`. Optimize-group files are copied into `tasks/`. |
+| `deny_paths` | Required. Paths the proposer must not reach. Name the whole task directory, or the held-out group is the complement of the optimize ids. Name earlier report directories for the same tasks too, since they hold held-out outcomes. |
+| `timeout_seconds` | Per scorer or proposer call (default 3600). On POSIX the child's process group is killed when the call ends; on Windows only the direct child. |
+
+Each step, `feedback.json` carries the optimize-group results of the current
+incumbent, their pass fraction, the step, the artifact path, the
+consultations left, and `last_decision`.
+That last field is `ACCEPT`, `REJECT`, or `NO_CHANGE`. The full gate payload
+goes to `state_dir/log.jsonl` only. Every exit from a step restores the
+incumbent before the gate runs, including a failed proposer or scorer. Only an
+ACCEPT writes the candidate back. The controller refuses to gate when the
+artifact changed while it was scored, and it refuses an artifact replaced by a
+symlink or a hard link. Restores keep the artifact's original mode. It writes the artifact and the workspace files without following a
+link, so a planted symlink cannot redirect its writes. A descendant that leaves
+the process group with `setsid` survives the kill; the byte check and an
+integrity check after every step remain. An unchanged artifact
+spends no consultation.
+
+The controller digests every `deny_paths` file before the loop. It refuses to
+score once any of them changed, so an edited task definition is caught rather
+than scored. It sets `EVAL_LEDGER_DIR` to `state_dir/ledger` for the gate, so
+the ledger root comes from the launcher's config.
+
+**The boundary is conditional.** Python cannot stop a same-user process from
+reading a file. The held-out group is withheld only when the launcher denies the
+proposer read and write access to every path `policy` prints (the state
+directory, the config file, and `deny_paths`), for example with
+a sandbox or a harness deny rule. Without that rule the controller still
+removes the accidental paths, but a proposer that goes looking can read
+`state_dir`. Exit codes: 0 finished, 2 config or integrity refusal, 3 scorer,
+proposer, or optimizer failure.
 
 ### What the numbers can and cannot show
 

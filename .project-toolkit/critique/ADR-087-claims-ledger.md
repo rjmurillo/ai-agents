@@ -1,0 +1,37 @@
+# ADR-087 claims ledger
+
+Verified 2026-11-25 for issue #7642, covering the "Amendment 2026-11-25" text.
+
+| Claim | Kind | Check | Result |
+| --- | --- | --- | --- |
+| Sub-issues #7678 to #7689 are children of #7642, in that order. | Behavior | `gh api repos/rjmurillo/ai-agents/issues/7642/sub_issues --jq '.[].number'` | `7678 ... 7689`, twelve rows. VERIFIED |
+| #7678 blocks #7686 and #7687. | Behavior | `set_issue_relationship.py --issue 7678 --relation blocking --target 7686 7687` | Both `linked`, `failed: []`. VERIFIED |
+| #7679 and #7682 are closed as completed. | Behavior | `close_issue.py` output | `state: closed`, `reason: completed` for both. VERIFIED |
+| #3436 is closed. | Behavior | `gh issue view 3436 --json state` | `CLOSED`. VERIFIED |
+| `optimize-artifact.py report` exists and reads the test group. | Path | `optimize-artifact.py` lines 3252-3269 | `sub.add_parser("report", help="read the test group once, at the end")`. VERIFIED |
+| The controller runs scorer, `extract`, `split`, and `gate` itself. | Behavior | `scripts/eval/eval-controller.py`, `Controller.score` and `Controller.run` | Each is a subprocess the controller starts. VERIFIED |
+| The proposer workspace holds `feedback.json` (step, artifact path, opt results, opt score, consultations left, last decision) and opt task files. | Behavior | `test_proposer_never_sees_a_held_out_id`, `test_accept_keeps_the_candidate_and_reports_one_bit`, `test_opt_task_files_are_copied_and_nothing_else` | 39 of 39 tests pass after round 3 fixes. VERIFIED |
+| Every step exit restores the incumbent before the gate. | Behavior | `test_reject_restores_the_incumbent`, `test_proposer_that_edits_then_fails_leaves_the_incumbent`, `test_artifact_changed_during_scoring_is_refused` | Pass. VERIFIED |
+| A planted workspace symlink does not redirect a controller write. | Behavior | `test_planted_feedback_symlink_is_not_followed` | Pass. VERIFIED |
+| `deny_paths` is required, and `policy` lists state, config, and `deny_paths`. | Behavior | `test_bad_config_is_refused[deny_paths-value9]`, `test_policy_lists_state_and_task_paths` | Pass. VERIFIED |
+| Both reports set `flaky_halt_threshold_crossed: true` and `recommendation: halt-due-to-flakiness`. | Count | Read both `report.json` files | As stated. VERIFIED |
+| An edited task-definition path refuses scoring. | Behavior | `test_edited_task_definition_refuses_before_scoring` | Exit 2, no candidate run directory. VERIFIED |
+| The gate cap and ledger root come from the launcher config. | Behavior | `Controller.run` passes `config.max_consultations` and sets `EVAL_LEDGER_DIR` to `state_dir/ledger`; `test_state_dir_is_private_and_holds_the_ledger` | Pass. VERIFIED |
+| Python cannot stop a same-user process from reading a file. | Behavior | POSIX permission model: mode `0700` restricts other users, not the owner | Stated as a limit, not a property. VERIFIED |
+| The hub does not serve `claude-sonnet-4-6`. | Behavior | `claude -p "reply OK" --model claude-sonnet-4-6` | `API Error: 400 unknown provider for model claude-sonnet-4-6`. VERIFIED |
+| Both new reports agree on `fixture_set_sha` and `agent_prompt_sha`. | Count | Read both `report.json` files | `f6310eb016cb...` and `dfcb7790a0e8...` in both. VERIFIED |
+| Both runs used `claude-sonnet-5-5`, three runs, zero errors. | Count | `model_id`, `per_fixture_pass_rates` lengths, `error_count` | As stated. VERIFIED |
+| Agent recall 0.583 and 0.625; baseline 0.729 and 0.708. | Count | `agent_recall`, `baseline_recall` | 0.583333, 0.625, 0.729167, 0.708333. VERIFIED |
+| Flaky fixtures 5 of 8 and 4 of 8. | Count | `flaky_fixtures_detected` | 5 and 4 ids. VERIFIED |
+| At threshold 1.0, both runs pass 2 of 8, and the gate ties at 0/3. | Behavior | `extract`, `split --seed 7642`, `gate` | REJECT, gain 0, loss 0, p 1.0, `corpus_verified` and `corpus_pinned` true. VERIFIED |
+| A001, A004, A007 agent means moved as stated. | Count | Per-fixture agent scores | 0.33 to 0.50, 0.83 to 0.67, 0.50 to 0.83. VERIFIED |
+| At threshold 0.5, only A001 flips, and it is in `opt`. | Behavior | `extract --pass-threshold 0.5`; `split.json` `sel` is A006, A008, A004 | One flip; gate REJECT tie at 1.0. VERIFIED |
+| `optimize-artifact.py` remains a supported direct path. | Behavior | `scripts/eval/README.md` still documents the direct loop | VERIFIED |
+| An artifact swapped for a symlink is refused, and the restore does not follow it. | Behavior | `test_artifact_swapped_for_symlink_cannot_redirect_the_restore` | Exit 2, denied file unchanged. VERIFIED |
+| A denied file edited on a NO_CHANGE step stops the loop. | Behavior | `test_denied_file_edited_on_a_no_change_step_stops_the_loop` | Exit 2 after one step. VERIFIED |
+| A `setsid` grandchild cannot stretch the timeout. | Behavior | `test_escaped_grandchild_cannot_stretch_the_timeout` | Exit 3 under 10 s with a 1 s timeout and a 20 s grandchild. VERIFIED |
+| A proposer that exceeds the timeout is stopped and the incumbent stays. | Behavior | `test_proposer_timeout_is_external` | Exit 3, artifact unchanged. VERIFIED |
+| On Windows only the direct child is killed. | Behavior | `_kill_group` calls `proc.kill()` when `os.name != "posix"` | Code read; not run on Windows. VERIFIED (code), NOT RUN (Windows) |
+| Restores keep the artifact's mode. | Behavior | `test_artifact_mode_survives_restore_and_accept`; fails with the `os.chmod` line removed | 0o755 kept. VERIFIED |
+| A hard-linked artifact is refused. | Behavior | `test_artifact_hard_linked_to_a_denied_file_is_refused` | Exit 2. VERIFIED |
+| The summary digest is read from disk. | Behavior | `test_summary_digest_is_the_file_on_disk` | Pass. VERIFIED |

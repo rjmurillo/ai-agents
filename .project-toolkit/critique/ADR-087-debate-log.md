@@ -1,0 +1,116 @@
+# ADR Debate Log: ADR-087 amendment 2026-11-25, trusted controller and first agent-path null control
+
+## Summary
+
+- ADR: `.project-toolkit/architecture/ADR-087-held-out-validated-improvement.md`, the "Amendment 2026-11-25" section, plus short pointers at the Open Requirement 1 paragraph, the "What the mechanism protects against" section, and Validation Status.
+- Driver: issue #7642. The owner kept the ADR (decision D1) and chose the controller boundary (decision D2, option A: controller process plus a launcher deny rule).
+- Panel: reduced, architect and critic. The amendment adds no executable enforcement that another gate reads. `scripts/eval/eval-controller.py` is opt-in tooling that no hook or CI job calls.
+- Claims ledger: `.project-toolkit/critique/ADR-087-claims-ledger.md`. This is the first ADR-087 debate log; no prior log exists.
+- Outcome: consensus after four rounds. The architect voted Accept in rounds 2 and 3. The critic voted Block in rounds 1 to 3 and Accept in round 4.
+- Status: stays `proposed`. Ten Open Requirements remain open.
+
+## How this panel was run
+
+Each seat ran as a separate subagent with a fresh context and the same brief. The brief held the ADR diff, the controller code, the tests, and the ledger. It did not hold the author's reasoning. One model family ran both seats. Seats read files and ran tests and probes; they did not edit the repository. The author made every fix.
+
+## Pre-panel gates (adr-generator exit gates)
+
+| Gate | Result |
+| --- | --- |
+| Claims ledger | VERIFIED. One row per factual claim, updated after each round. |
+| Documentation accuracy (`doc-accuracy` Phase 4) | NOT RUN. The ledger and both panel seats checked each claim against source instead. |
+| Self-consistency | VERIFIED after round 1. Round 1 found the stale "No committed pair does" bullet and the stale "needs a controller" sentence; both now point to the amendment. |
+| Refuting seat (analyst) | One factual finding: the amendment said the proposer gets "three things, and nothing else" and "one bit". `feedback.json` carries six keys, and `NO_CHANGE` is a third value. Fixed in round 1. All null-control numbers matched the reports. |
+
+## Round 1
+
+### Architect
+
+Vote: Block.
+
+| Id | Pri | Finding | Disposition |
+| --- | --- | --- | --- |
+| A1 | P1 | A proposer that edits the artifact and exits non-zero left the edit on disk; the proposer call sat outside the restore block. | Fixed. Proposer, scoring, and the byte check now sit inside one `try`; `finally` restores. Test `test_proposer_that_edits_then_fails_leaves_the_incumbent`. |
+| A2 | P1 | `policy` omitted the config file, which names the seed and the task inventory. | Fixed. `policy` lists the config; a config inside the workspace is refused. |
+| A3 | P1 | `deny_paths` was optional, so an empty list protected nothing. | Fixed. Required and non-empty. |
+| A4 | P1 | Validation Status still said no committed pair agreed on both digests. | Fixed. The bullet now says "at the time" and points to the amendment. |
+| A5 | P2 | "Three things, and nothing else" was wrong. | Fixed. The amendment lists every `feedback.json` field. |
+| A6 | P2 | The "needs a controller" sentence needed a pointer. | Fixed. |
+| A7 | P2 | `max_p` stays optional; the noise threat stays open. | Fixed. Stated in the amendment. |
+
+### Critic
+
+Vote: Block.
+
+| Id | Pri | Finding | Disposition |
+| --- | --- | --- | --- |
+| C1 | P1 | Same as A1. | Fixed with A1. |
+| C2 | P1 | The accepted bytes could differ from the scored bytes. No timeout and no process-group kill. | Fixed. The artifact is re-read after scoring and the step is refused on a change. Calls run in a new session with `timeout_seconds`, and the group is killed when the call ends. |
+| C3 | P1 | A symlink planted in the workspace redirected controller writes. | Fixed. Workspace files are deleted and recreated each step; `feedback.json` opens with `x`. Test `test_planted_feedback_symlink_is_not_followed`. |
+| C4 | P1 | Held-out membership is the complement of the optimize ids if the fixtures directory is listable. | Fixed. `deny_paths` is required, and the ADR says it must cover the whole task directory. |
+| C5 | P1 | Both reports flag `halt-due-to-flakiness`; the amendment omitted it. | Fixed. The amendment states the flag and calls the pair a noise-floor observation. |
+| C6 | P2 | The run ids are UTC and read 2026-11-26. | Fixed. Stated. |
+| C7 | P2 | The OR9 and OR10 rows read as blocked while the controller path already pins both. | Fixed. Rows reworded. |
+| C8 | P2 | Missing tests for `collect`, missing output, and `NO_CHANGE` followed by a change. | Fixed. Three tests added. |
+
+## Round 2
+
+### Architect
+
+Vote: Accept. All round 1 items verified fixed; 33 of 33 tests passed.
+
+| Id | Pri | Finding | Disposition |
+| --- | --- | --- | --- |
+| N1 | P2 | The process-group kill is POSIX only, and a `setsid` child leaves the group. The caveat was only in a docstring. | Fixed. ADR and README state it. |
+| N2 | P2 | Open Requirement 6 covers the rule adapter, not the agent adapter. | Fixed. The amendment says no open requirement covers agent-path noise. |
+| N3 | P2 | No ledger rows for the timeout and the kill. | Fixed. Rows added. |
+
+### Critic
+
+Vote: Block. The critic re-ran the gate with a fresh ledger: REJECT on a 0.0 tie, p = 1.0, `corpus_verified` and `corpus_pinned` true, matching the amendment.
+
+| Id | Pri | Finding | Disposition |
+| --- | --- | --- | --- |
+| N1 | P0 | A proposer swapped the artifact for a symlink to a denied fixture. The controller's restore wrote through it and overwrote `fixtures/T01.json`. Reproduced by probe. | Fixed. `_read_artifact` refuses a symlinked artifact; `_write_artifact` writes a temp file and calls `os.replace`, which replaces the link instead of following it. An integrity check now runs after every step. Test `test_artifact_swapped_for_symlink_cannot_redirect_the_restore`. |
+| N2 | P1 | A `setsid` grandchild held the stdout pipe, so a 2 s timeout took 25 s. Reproduced by probe. | Fixed. Output goes to temporary files, not pipes. Test `test_escaped_grandchild_cannot_stretch_the_timeout`. |
+| N3 | P2 | Windows kills only the direct child; unqualified in README and ADR. | Fixed. Stated in both. |
+| N4 | P2 | Earlier report directories hold held-out outcomes and were not named. | Fixed. ADR and README require them in `deny_paths`. |
+
+## Round 3
+
+### Architect
+
+Vote: Accept. All round 2 P2 items verified.
+
+| Id | Pri | Finding | Disposition |
+| --- | --- | --- | --- |
+| R3-1 | P2 | The ADR said the controller kills the proposer's process group; `_run` serves scorer and proposer alike. | Fixed. The ADR now names both. |
+| R3-2 | P2 | `killpg` after a normal exit could reach an unrelated group if the pid were reused. | Accepted as residual risk. A process group id stays reserved while the group has a live member, so reuse needs the group to be empty first. |
+| R3-3 | P2 | `mkstemp` resets the artifact mode. | Fixed with the critic's R3-1. |
+
+### Critic
+
+Vote: Block. Round 2 N1 to N3 verified fixed by probe; N4 judged partial (documented, not enforced).
+
+| Id | Pri | Finding | Disposition |
+| --- | --- | --- | --- |
+| R3-1 | P1 | Every restore installed mode 0600. A probe showed 0o755 become 0o600 with a no-op proposer. | Fixed. The mode is recorded before the loop and set on the temp file before `os.replace`. `test_artifact_mode_survives_restore_and_accept` fails with the fix removed and passes with it. |
+| R3-2 | P2 | A hard-linked artifact was accepted. | Fixed. `_read_artifact` refuses `st_nlink > 1`. |
+| R3-3 | P2 | The summary digest came from memory. | Fixed. The final digest is read from disk and compared to the incumbent. |
+| N4 | P2 | `deny_paths` coverage of report directories is documented, not enforced. | Accepted as residual risk. The controller cannot know which paths hold held-out data. |
+
+## Round 4
+
+### Critic
+
+Vote: Accept. 39 of 39 tests passed. Probes for mode and hard link re-run: mode kept at 0o755, hard link refused with exit 2. No new blocking concern. Two P3 notes, not acted on: a failing restore inside `finally` masks the original error, and `os.replace` keeps mode bits but drops xattrs, ACLs, and ownership.
+
+The architect did not re-vote in round 4. The round 3 code changes add refusals and keep the mode; the ADR text changed in two sentences the architect had asked for.
+
+## Dissent and residual risk
+
+- The boundary holds only under a launcher deny rule the controller cannot verify. The owner chose this in decision D2 over an OS user or a CI job.
+- A `setsid` descendant survives the group kill on POSIX, and Windows kills only the direct child. The byte check and the per-step integrity check are the remaining guards.
+- The null control is one pair on one benchmark, and both runs flag their own methodology as unstable. It is not a false-accept rate.
+- `deny_paths` must cover earlier report directories for the same tasks. The controller documents this and cannot enforce it.
+- `killpg` after a normal exit carries a pid-reuse risk that needs an empty group first.
