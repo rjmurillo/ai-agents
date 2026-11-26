@@ -41,16 +41,19 @@ status since ADR-073 landed, so no prose fallback is needed. A record whose
 status is empty (missing, unparseable, or non-scalar) is counted, not failed: it
 is not `accepted`, so its citations are not skipped as if it were (issue #6506).
 
+`proposed`, `rejected`, `deprecated` and `superseded` are non-accepted. The
+issue names the first, second and fourth; `deprecated` is in ADR-073's enum and
+a rule cannot cite a deprecated record as live any more than a superseded one.
+
 ## Existence
 
 A cited number with no tracked `ADR-NNN-*.md` record is MISSING and fails,
 whatever the sentence says. The link gate (`check_adr_links.py`) resolves
 Markdown link targets only, so a bare `ADR-999` in prose reached no gate. An
 example number that names no record belongs in a code span, which is masked.
-
-`proposed`, `rejected`, `deprecated` and `superseded` are non-accepted. The
-issue names the first, second and fourth; `deprecated` is in ADR-073's enum and
-a rule cannot cite a deprecated record as live any more than a superseded one.
+A heading such as `## Pin policy (ADR-999)` gets the existence check and nothing
+more: a heading is not prose that binds, so a heading that names a non-accepted
+record is not classified.
 
 ## Citation classes
 
@@ -70,11 +73,21 @@ the classifier cannot place is UNCLASSIFIED and is reported, never failed.
 - BINDING: the sentence carries MUST, SHALL, REQUIRED, "binding", "governs" or
   "requires", or the mention directly follows "per", "under", "comply with",
   "conform to", "governed by", "required by", "mandated by", "defined by" or
-  "according to", or a compliance verb: "pass", "satisfy", "meet", "need",
-  "follow" or "obey", as in "Pin changes pass ADR-080". A sentence or pipe cell
-  that is only a label and ADR numbers, such as the terse `pins: ADR-080` that
-  sat in `AGENTS.md`, is a pointer to the owning record and is BINDING too,
-  unless the label is a history or reference word ("Refs:", "Replaces:").
+  "according to", or a compliance verb: "pass", "satisfy", "meet", "need" or
+  "obey", as in "Pin changes pass ADR-080". A negator or a "once" or "first" in
+  the three words before the verb ("no longer pass", "Nobody needs", "On the
+  first pass") makes it history or narration, not compliance. "follows" is not a
+  compliance verb: "ADR-111 follows ADR-080" is sequence, not obedience. A
+  sentence or pipe cell that is only a label and ADR numbers, such as the terse
+  `pins: ADR-080` that sat in `AGENTS.md`, is a pointer to the owning record and
+  is BINDING too, unless the label is a history or bibliography word ("Refs:",
+  "Replaces:", "Background:", "Prior art:").
+
+  The pointer default is binding-unless-history, not an allowlist of binding
+  labels. Terse pipe guides such as `AGENTS.md` use arbitrary labels (`pins:`),
+  and an allowlist would have missed the regression this gate exists for. The
+  escape for a false positive is a history label, a code span, or a baseline
+  entry.
 - UNCLASSIFIED: everything else, such as "(ADR-065)" after a claim, or an
   example like "architecture violates ADR-007". Recall is partial by design.
 
@@ -114,6 +127,7 @@ import argparse
 import json
 import re
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
@@ -137,6 +151,7 @@ EXIT_EXTERNAL = 3
 
 CHECK = "rule-adr-citation"
 ADR_DIR = ".project-toolkit/architecture"
+ADR_RECORD_GLOB = f"{ADR_DIR}/ADR-*.md"
 
 #: ADR-073 status enum minus `accepted`. See the module docstring.
 NON_ACCEPTED = frozenset({"proposed", "rejected", "deprecated", "superseded"})
@@ -163,7 +178,6 @@ SCAN_GLOBS = (
 #: Template sources that render into a whole document only when combined.
 FRAGMENT_SUFFIXES = (".mustache", ".tmpl")
 
-ADR_RECORD_GLOB = ".project-toolkit/architecture/ADR-*.md"
 _RECORD_NAME_RE = re.compile(r"(?:^|/)ADR-(\d{1,4})(?:-[^/]*)?\.md$")
 
 BINDING = "binding"
@@ -186,8 +200,11 @@ _BIB_HEADING_RE = re.compile(
     r"^(?:references?|see also|sources?|bibliography|further reading|related\b.*|prior art)",
     re.IGNORECASE,
 )
+#: Words that open a bibliography label. Shared by `_BIB_LABEL_RE` and
+#: `_POINTER_HISTORY_RE` so a label one accepts is never read as a pointer by the other.
+_BIB_WORDS = r"references?|refs?|see also|sources?"
 _BIB_LABEL_RE = re.compile(
-    r"^[\s>*_\-]*(?:\d+[.)]\s*)?[*_]*(?:references?|refs?|see also|sources?)[*_]*\s*[:\-]",
+    rf"^[\s>*_\-]*(?:\d+[.)]\s*)?[*_]*(?:{_BIB_WORDS})[*_]*\s*[:\-]",
     re.IGNORECASE,
 )
 _BLOCK_START_RE = re.compile(r"^\s*(?:[-*+]\s|\d+[.)]\s|\||>)")
@@ -216,16 +233,26 @@ _BINDING_BEFORE_RE = re.compile(
 # "needs an ADR-080 sidecar entry". Kept apart from `_BINDING_BEFORE_RE`, which
 # check_adr_supersession_citations.py imports for ADR bodies.
 _COMPLY_BEFORE_RE = re.compile(
-    r"\b(?:pass(?:es)?|satisf(?:y|ies)|meets?|needs?|follows?|obeys?)\s+(?:an?\s+|the\s+)?$",
+    r"\b(?:pass(?:es)?|satisf(?:y|ies)|meets?|needs?|obeys?)\s+(?:an?\s+|the\s+)?$",
     re.IGNORECASE,
 )
-# A sentence or pipe cell that is only `label: ADR-NNN[, ADR-MMM]`.
+# A negator, "once" or "first" in the words before a compliance verb turns it into
+# history or narration: "no longer pass", "Nobody needs", "On the first pass".
+_COMPLY_NEGATED_RE = re.compile(
+    r"\b(?:no longer|not|never|nobody|once|first)\b|n['’]t\b",
+    re.IGNORECASE,
+)
+_COMPLY_NEGATION_WINDOW = 3
+# A sentence or pipe cell that is only `label: ADR-NNN[, ADR-MMM]`. The tail is one
+# optional period and one whitespace run, so a long blanked-code-span run cannot
+# backtrack through two adjacent `\s*` groups.
 _POINTER_RE = re.compile(
     r"^\s*(?:[-*+>]\s+|\d+[.)]\s+)?(?P<label>[A-Za-z*_][\w */+-]{0,40}?)[*_]*:[*_]*\s*"
-    r"ADR-\d+(?:\s*(?:,|and\b|/|\+)\s*ADR-\d+)*\s*\.?\s*$"
+    r"ADR-\d+(?:\s*(?:,|and\b|/|\+)\s*ADR-\d+)*(?:\s*\.)?\s*$"
 )
 _POINTER_HISTORY_RE = re.compile(
-    rf"{_LINEAGE_WORD}|\b(?:refs?|references?|related|see|history|historical|was|cf|examples?)\b",
+    rf"{_LINEAGE_WORD}|\b(?:{_BIB_WORDS}|related|see|history|historical|was|cf|examples?|"
+    r"background|context|prior(?: art)?|predecessors?|old|origins?|compare|rationale|notes?)\b",
     re.IGNORECASE,
 )
 
@@ -238,6 +265,7 @@ class Citation:
     line: int
     adr: int
     status: str
+    """The record's frontmatter status. Equals ``kind`` for a MISSING citation, which has none."""
     kind: str
     sentence: str
 
@@ -355,12 +383,35 @@ def _sentence_spans(text: str) -> list[tuple[int, int]]:
     return spans
 
 
-def classify(sentence: str, match: re.Match[str], tail_end: int, in_bibliography: bool) -> str:
+def _complies(before: str) -> bool:
+    """True when ``before`` ends in a compliance verb that nothing negates."""
+    verb = _COMPLY_BEFORE_RE.search(before)
+    if verb is None:
+        return False
+    lead = " ".join(before[: verb.start()].split()[-_COMPLY_NEGATION_WINDOW:])
+    return _COMPLY_NEGATED_RE.search(lead) is None
+
+
+def is_binding_pointer(sentence: str) -> bool:
+    """True when ``sentence`` is only a non-history label and ADR numbers."""
+    pointer = _POINTER_RE.match(sentence)
+    return pointer is not None and _POINTER_HISTORY_RE.search(pointer.group("label")) is None
+
+
+def classify(
+    sentence: str,
+    match: re.Match[str],
+    tail_end: int,
+    in_bibliography: bool,
+    pointer: bool | None = None,
+) -> str:
     """Class of the mention ``match`` found in ``sentence``.
 
     ``tail_end`` bounds the text after the mention at the next ADR mention, so
     "ADR-092, which supersedes ADR-079" reads ADR-092's tail as ", which
-    supersedes" and not as a statement that ADR-092 is retired.
+    supersedes" and not as a statement that ADR-092 is retired. ``pointer`` is
+    :func:`is_binding_pointer` for ``sentence``; a caller that classifies many
+    mentions of one sentence computes it once and passes it in.
     """
     if in_bibliography:
         return META
@@ -370,12 +421,42 @@ def classify(sentence: str, match: re.Match[str], tail_end: int, in_bibliography
         return META
     if _BINDING_SENTENCE_RE.search(sentence) or _BINDING_BEFORE_RE.search(before):
         return BINDING
-    if _COMPLY_BEFORE_RE.search(before):
+    if _complies(before):
         return BINDING
-    pointer = _POINTER_RE.match(sentence)
-    if pointer and not _POINTER_HISTORY_RE.search(pointer.group("label")):
-        return BINDING
-    return UNCLASSIFIED
+    if pointer is None:
+        pointer = is_binding_pointer(sentence)
+    return BINDING if pointer else UNCLASSIFIED
+
+
+def _mentions_in_sentence(
+    path: str,
+    sentence: str,
+    line_of: Callable[[int], int],
+    in_bibliography: bool,
+    statuses: dict[int, str],
+    unknown: set[int],
+    records: frozenset[int] | None,
+) -> list[Citation]:
+    """Citations of one sentence. ``line_of`` maps a sentence offset to a line number."""
+    matches = list(_MENTION_RE.finditer(sentence))
+    pointer = is_binding_pointer(sentence) if matches else False
+    found: list[Citation] = []
+    for index, match in enumerate(matches):
+        adr = int(match.group(1))
+        status = statuses.get(adr)
+        lineno = line_of(match.start())
+        if records is not None and adr not in records:
+            found.append(Citation(path, lineno, adr, MISSING, MISSING, sentence))
+            continue
+        if not status:
+            unknown.add(adr)
+            continue
+        if status not in NON_ACCEPTED:
+            continue
+        tail_end = matches[index + 1].start() if index + 1 < len(matches) else len(sentence)
+        kind = classify(sentence, match, tail_end, in_bibliography, pointer)
+        found.append(Citation(path, lineno, adr, status, kind, sentence))
+    return found
 
 
 def _mentions_in_block(
@@ -394,24 +475,32 @@ def _mentions_in_block(
         offset += len(line) + 1
     found: list[Citation] = []
     for start, end in _sentence_spans(text):
-        sentence = text[start:end]
-        matches = list(_MENTION_RE.finditer(sentence))
-        for index, match in enumerate(matches):
+
+        def line_of(relative: int, start: int = start) -> int:
+            return max(n for o, n in starts if o <= start + relative)
+
+        found.extend(
+            _mentions_in_sentence(
+                path, text[start:end], line_of, in_bibliography, statuses, unknown, records
+            )
+        )
+    return found
+
+
+def _heading_missing(path: str, masked: str, records: frozenset[int]) -> list[Citation]:
+    """MISSING citations in heading lines, which `_blocks` skips.
+
+    Existence only: a heading is not prose that binds, so a heading that names a
+    non-accepted record is not classified.
+    """
+    found: list[Citation] = []
+    for number, line in enumerate(masked.split("\n"), start=1):
+        if not _HEADING_RE.match(line):
+            continue
+        for match in _MENTION_RE.finditer(line):
             adr = int(match.group(1))
-            status = statuses.get(adr)
-            absolute = start + match.start()
-            lineno = max(n for o, n in starts if o <= absolute)
-            if records is not None and adr not in records:
-                found.append(Citation(path, lineno, adr, MISSING, MISSING, sentence))
-                continue
-            if not status:
-                unknown.add(adr)
-                continue
-            if status not in NON_ACCEPTED:
-                continue
-            tail_end = matches[index + 1].start() if index + 1 < len(matches) else len(sentence)
-            kind = classify(sentence, match, tail_end, in_bibliography)
-            found.append(Citation(path, lineno, adr, status, kind, sentence))
+            if adr not in records:
+                found.append(Citation(path, number, adr, MISSING, MISSING, line))
     return found
 
 
@@ -436,7 +525,10 @@ def citations_in(
     holds statuses only.
     """
     found: list[Citation] = []
-    for in_bibliography, block in _blocks(mask_noise(text)):
+    masked = mask_noise(text)
+    if records is not None:
+        found.extend(_heading_missing(path, masked, records))
+    for in_bibliography, block in _blocks(masked):
         found.extend(_mentions_in_block(path, block, in_bibliography, statuses, unknown, records))
     # The masked sentence is blanked where code spans were, which reads badly in
     # a report. Show the author's own line instead.
@@ -502,10 +594,15 @@ def scan(repo_root: Path, statuses: dict[int, str]) -> ScanResult | str:
     enumerated nothing never reports an empty findings list as a clean tree.
     """
     listed = tracked_files(repo_root, SCAN_GLOBS)
-    records = adr_record_numbers(repo_root)
-    if listed is None or records is None:
+    if listed is None:
         return (
             f"git could not list tracked rule files under {repo_root}, so nothing "
+            "was examined and the gate did not run"
+        )
+    records = adr_record_numbers(repo_root)
+    if records is None:
+        return (
+            f"git could not list ADR records under {ADR_DIR} in {repo_root}, so nothing "
             "was examined and the gate did not run"
         )
     relatives = sorted(set(listed))
@@ -572,6 +669,37 @@ def _report(result: ScanResult, new: list[str], stale: list[str], verbose: bool)
             print(f"{citation.path}:{citation.line}: [{CHECK}] unclassified ADR-{citation.adr:03d}")
 
 
+def _report_fences(result: ScanResult, verbose: bool) -> None:
+    for location in result.unterminated:
+        print(
+            f"{location}: [{CHECK}] code fence is never closed, so every later line of "
+            "the file is masked and its citations went unchecked.",
+            file=sys.stderr,
+        )
+    if not verbose:
+        return
+    for location in result.fragments:
+        print(
+            f"{location}: [{CHECK}] code fence is never closed in a template fragment, "
+            "so later lines of the fragment are masked; counted, not failed.",
+            file=sys.stderr,
+        )
+
+
+def _scope_line(result: ScanResult, current: set[str], baseline: set[str]) -> str:
+    """Counts for the terminal line. ``known`` is against the combined failing total."""
+    binding = len({c.key for c in result.binding})
+    missing = len({c.key for c in result.missing})
+    return (
+        f"{binding} binding violation(s) and {missing} missing record(s), "
+        f"{len(current)} failing ({len(current & baseline)} known), "
+        f"{len(result.unclassified)} unclassified, across "
+        f"{result.examined} of {result.candidates} tracked instruction file(s), "
+        f"{len(result.unknown)} ADR number(s) with no usable status, "
+        f"{len(result.fragments)} fragment fence(s) not failed"
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Flag an instruction file citing a missing or non-accepted ADR (issue #5200)."
@@ -582,7 +710,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     repo_root = Path(args.repo_root).resolve()
-    adr_dir = repo_root / ".project-toolkit" / "architecture"
+    adr_dir = repo_root / ADR_DIR
     statuses = adr_statuses(repo_root, adr_dir) if adr_dir.is_dir() else {}
     fault = _config_fault(adr_dir, statuses)
     baseline = read_baseline(Path(args.baseline)) if fault is None else fault
@@ -596,7 +724,7 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_EXTERNAL
     if not result.examined:
         print(
-            f"[{CHECK}] config: examined 0 of {result.candidates} tracked rule file(s), "
+            f"[{CHECK}] config: examined 0 of {result.candidates} tracked instruction file(s), "
             "so this run measured nothing",
             file=sys.stderr,
         )
@@ -611,7 +739,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         print(
             f"[{CHECK}] config: skipped {len(result.absent)} of {result.candidates} "
-            "tracked rule file(s); a gate that cannot see every file has not passed.",
+            "tracked instruction file(s); a gate that cannot see every file has not passed.",
             file=sys.stderr,
         )
         return EXIT_CONFIG
@@ -620,20 +748,8 @@ def main(argv: list[str] | None = None) -> int:
     new = sorted(current - baseline)
     stale = sorted(baseline - current)
     _report(result, new, stale, args.verbose)
-    for location in result.unterminated:
-        print(
-            f"{location}: [{CHECK}] code fence is never closed, so every later line of "
-            "the file is masked and its citations went unchecked.",
-            file=sys.stderr,
-        )
-    scope = (
-        f"{len({c.key for c in result.binding})} binding violation(s) ({len(baseline)} known), "
-        f"{len({c.key for c in result.missing})} missing record(s), "
-        f"{len(result.unclassified)} unclassified, across "
-        f"{result.examined} of {result.candidates} tracked rule file(s), "
-        f"{len(result.unknown)} ADR number(s) with no usable status, "
-        f"{len(result.fragments)} fragment fence(s) not failed"
-    )
+    _report_fences(result, args.verbose)
+    scope = _scope_line(result, current, baseline)
     if new or stale or result.unterminated:
         print(
             f"[{CHECK}] REGRESSION: {len(new)} new, {len(stale)} stale, "

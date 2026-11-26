@@ -13,6 +13,7 @@ from __future__ import annotations
 import re
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -105,13 +106,63 @@ def test_a_history_or_reference_label_is_not_a_pointer(text: str) -> None:
     assert BINDING not in [kind for _, kind, _ in _kinds(text)]
 
 
-def test_a_long_run_of_numbers_that_is_not_a_pointer_classifies_in_linear_time() -> None:
-    """Blanked code spans leave long space runs; a failed match must not backtrack."""
+#: Pointer pattern before the tail was collapsed to one whitespace run. Kept only as the
+#: negative control that proves the scaling check below can tell quadratic from linear.
+_OLD_TAIL_POINTER = re.compile(gate._POINTER_RE.pattern.replace(r"(?:\s*\.)?\s*$", r"\s*\.?\s*$"))
+
+
+def _best_seconds(run: Callable[[], object], repeats: int = 5) -> float:
+    best = float("inf")
+    for _ in range(repeats):
+        started = time.perf_counter()
+        run()
+        best = min(best, time.perf_counter() - started)
+    return best
+
+
+def _space_run_sentence(spaces: int) -> str:
+    return "pins: ADR-080" + " " * spaces + "and more prose"
+
+
+def test_the_pointer_match_scales_linearly_over_a_long_space_run() -> None:
+    """Blanked code spans leave long space runs; a failed match must not backtrack.
+
+    Times only the pointer match (the cost this pattern controls), at two sizes 8x
+    apart. Linear gives a ratio near 8, quadratic near 64. The sentence splitter and
+    the per-mention searches in `classify` are quadratic for unrelated reasons and
+    are not asserted here.
+    """
+    small, large = 6_250, 50_000
+    short, long_ = _space_run_sentence(small), _space_run_sentence(large)
+    ratio = _best_seconds(lambda: gate.is_binding_pointer(long_)) / max(
+        _best_seconds(lambda: gate.is_binding_pointer(short)), 1e-9
+    )
+    assert ratio < 40, f"pointer match grew {ratio:.0f}x for 8x input"
+
+
+def test_the_pointer_match_scales_linearly_over_many_numbers() -> None:
+    sentence = "pins: " + ", ".join(["ADR-080"] * 1_600) + " and more prose"
+    short = "pins: " + ", ".join(["ADR-080"] * 100) + " and more prose"
+    ratio = _best_seconds(lambda: gate.is_binding_pointer(sentence)) / max(
+        _best_seconds(lambda: gate.is_binding_pointer(short)), 1e-9
+    )
+    assert ratio < 64, f"pointer match grew {ratio:.0f}x for 16x input"
+
+
+def test_the_scaling_check_fails_on_the_old_quadratic_tail() -> None:
+    """Negative control: the same ratio on the old pattern is far above the bound."""
+    small, large = 1_500, 12_000
+    ratio = _best_seconds(lambda: _OLD_TAIL_POINTER.match(_space_run_sentence(large)), 3) / max(
+        _best_seconds(lambda: _OLD_TAIL_POINTER.match(_space_run_sentence(small)), 3), 1e-9
+    )
+    assert ratio > 30, (
+        f"old tail grew only {ratio:.0f}x for 8x input; control is not discriminating"
+    )
+
+
+def test_a_long_run_of_numbers_that_is_not_a_pointer_is_unclassified() -> None:
     text = "pins: " + ", ".join("ADR-080" + " " * 40 for _ in range(60)) + " and more prose\n"
-    started = time.perf_counter()
-    kinds = {kind for _, kind, _ in _kinds(text)}
-    assert kinds == {UNCLASSIFIED}
-    assert time.perf_counter() - started < 2.0
+    assert {kind for _, kind, _ in _kinds(text)} == {UNCLASSIFIED}
 
 
 def test_a_pointer_with_trailing_prose_is_not_a_pointer() -> None:
@@ -119,7 +170,9 @@ def test_a_pointer_with_trailing_prose_is_not_a_pointer() -> None:
     assert _kinds("pins: ADR-080 was the first attempt\n") == [(80, UNCLASSIFIED, 1)]
 
 
-@pytest.mark.parametrize("verb", ["pass", "passes", "satisfy", "satisfies", "meet", "follows"])
+@pytest.mark.parametrize(
+    "verb", ["pass", "passes", "satisfy", "satisfies", "meet", "needs", "obeys"]
+)
 def test_a_compliance_verb_before_the_mention_is_binding(verb: str) -> None:
     assert _kinds(f"Pin changes {verb} ADR-080 first.\n") == [(80, BINDING, 1)]
     assert _kinds(f"Pin changes {verb} the ADR-080 bar.\n") == [(80, BINDING, 1)]
@@ -257,7 +310,7 @@ def test_a_file_matched_by_two_globs_is_examined_once(
 ) -> None:
     repo = _make_repo(tmp_path, {"AGENTS.md": GOOD, "templates/agents/AGENTS.md": GOOD})
     assert _run(repo, _baseline(tmp_path, [])) == EXIT_OK
-    assert "2 of 2 tracked rule file(s)" in capsys.readouterr().out
+    assert "2 of 2 tracked instruction file(s)" in capsys.readouterr().out
 
 
 def test_git_failing_to_list_records_is_an_external_fault(
@@ -271,6 +324,38 @@ def test_git_failing_to_list_records_is_an_external_fault(
 
     monkeypatch.setattr(gate, "tracked_files", _records_fail)
     assert _run(repo, _baseline(tmp_path, [])) == EXIT_EXTERNAL
+
+
+def test_git_failing_to_list_records_names_the_adr_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = _make_repo(tmp_path, {"CLAUDE.md": GOOD})
+    real = gate.tracked_files
+    monkeypatch.setattr(
+        gate,
+        "tracked_files",
+        lambda root, globs: None if globs == (gate.ADR_RECORD_GLOB,) else real(root, globs),
+    )
+    assert _run(repo, _baseline(tmp_path, [])) == EXIT_EXTERNAL
+    err = capsys.readouterr().err
+    assert f"git could not list ADR records under {gate.ADR_DIR}" in err
+    assert "tracked rule files" not in err
+
+
+def test_git_failing_to_list_the_scan_set_keeps_its_own_message(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = _make_repo(tmp_path, {"CLAUDE.md": GOOD})
+    real = gate.tracked_files
+    monkeypatch.setattr(
+        gate,
+        "tracked_files",
+        lambda root, globs: None if globs == gate.SCAN_GLOBS else real(root, globs),
+    )
+    assert _run(repo, _baseline(tmp_path, [])) == EXIT_EXTERNAL
+    err = capsys.readouterr().err
+    assert "git could not list tracked rule files" in err
+    assert "ADR records" not in err
 
 
 @pytest.mark.parametrize(

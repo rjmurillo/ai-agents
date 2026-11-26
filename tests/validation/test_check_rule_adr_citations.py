@@ -280,8 +280,8 @@ def test_known_violation_passes_and_names_the_scope(
     code = _run(repo, _baseline(tmp_path, ["CLAUDE.md::ADR-078"]))
     out = capsys.readouterr().out
     assert code == EXIT_OK
-    assert "1 binding violation(s) (1 known)" in out
-    assert "1 of 1 tracked rule file(s)" in out
+    assert "1 binding violation(s) and 0 missing record(s), 1 failing (1 known)" in out
+    assert "1 of 1 tracked instruction file(s)" in out
 
 
 def test_new_violation_fails_and_names_the_line(
