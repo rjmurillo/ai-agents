@@ -1049,8 +1049,11 @@ Cadence: manual. The CI workflow that ran this weekly was removed because its
 `agent-claude` approval was never given. Run `software_engineering_library_activation_ci.py`
 and the gate script by hand when the skill, fixtures, or eval script change.
 
-Persistent state lives in the GitHub Actions cache at
-`.eval-state/software-engineering-library-activation-state.json`. The state records
+Persistent state lives in a local file at
+`.eval-state/software-engineering-library-activation-state.json`, relative to the
+directory you run from. The Actions cache that carried it between weekly runs went
+away with the workflow, so separate checkouts do not share a rollback streak. Run
+from one checkout to accumulate one. The state records
 one entry per moved reference with `consecutive_activation_failures`,
 `last_verdict`, `last_run_id`, and `last_checked_at`. `FAIL_THRESHOLD`,
 `FAIL_NO_DELTA`, `NO_POSITIVE_CASES`, and `NO_RESULT` increment the rollback streak.
