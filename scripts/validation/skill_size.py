@@ -33,6 +33,7 @@ import importlib.util
 import os
 import re
 import subprocess
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -40,6 +41,13 @@ from pathlib import Path
 # the PyPI ``python-frontmatter`` package which also installs as ``frontmatter``.
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _SCRIPT_DIR.parents[1]
+# lefthook runs this file by path, so put the repository root on sys.path
+# before the package import below.
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.validation import skill_corpus as _skill_corpus  # noqa: E402
+
 _FRONTMATTER_PATH = (
     _PROJECT_ROOT / ".claude" / "skills" / "skillforge" / "scripts" / "frontmatter.py"
 )
@@ -474,33 +482,15 @@ def default_corpus_files() -> list[Path]:
     ``.claude/skills`` and measured 98 of 209 bodies, then printed "All skill
     files within size limits", a sentence about a corpus it never opened.
 
-    Roots are anchored on ``_PROJECT_ROOT`` rather than the working directory so
-    the audit reports the same corpus from any subdirectory
-    (``.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`` MUST-8). An
-    absent tree is skipped, not an error: a vendored install legitimately ships one tree and not
-    the other.
+    Discovery lives in ``skill_corpus.corpus_files``. Module globals are read
+    at call time so tests can repoint ``_PROJECT_ROOT``.
     """
-    files: list[Path] = []
-    for prefix in _SKILL_TREE_PREFIXES:
-        root = _PROJECT_ROOT / prefix
-        if root.is_dir():
-            files.extend(root.rglob("SKILL.md"))
-    return sorted(files)
+    return _skill_corpus.corpus_files(_PROJECT_ROOT, _SKILL_TREE_PREFIXES)
 
 
 def default_corpus_summary() -> str:
-    """One line naming the trees a default full scan measures, and any absent.
-
-    Printed so the corpus behind the summary sentence is stated rather than
-    assumed. An absent tree is named too: silence there is what let the
-    single-tree scan read as a whole-repository result.
-    """
-    present = [p for p in _SKILL_TREE_PREFIXES if (_PROJECT_ROOT / p).is_dir()]
-    absent = [p for p in _SKILL_TREE_PREFIXES if p not in present]
-    line = f"Scanning skill trees: {', '.join(present) if present else '(none present)'}"
-    if absent:
-        line += f"; absent, not scanned: {', '.join(absent)}"
-    return line
+    """One line naming the trees a default full scan measures, and any absent."""
+    return _skill_corpus.corpus_summary(_PROJECT_ROOT, _SKILL_TREE_PREFIXES)
 
 
 def get_skill_files(
