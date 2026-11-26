@@ -126,3 +126,7 @@ Scope: two prose edits after CodeRabbit findings. The recovery text now says to 
 |---|---|---|
 | architect | Accept | No check reads a review outcome, so the stated limit is accurate. |
 | critic | Disagree-and-Commit | Text is accurate. It asked to say that every path edits prose. That is fixed. |
+
+## Frontmatter update (2026-11-26)
+
+`date` moves from 2026-06-19 to 2026-11-26. The schema at ADR-073 line 49 defines `date` as last updated. The Status prose keeps the 2026-06-19 acceptance date. This is a frontmatter-only edit, so no panel ran.
