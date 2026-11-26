@@ -68,6 +68,13 @@ The most valuable outcome of searching is not finding a solution to copy. It is:
 
 This is the 11 out of 10: zig while others zag. When you find one, name it and build on it.
 
+**A eureka is a required deliverable.** It counts when a measured result contradicts a memory, an ADR, a skill, or common guidance. The task is not terminal until two things are done:
+
+1. The reply states it on one line starting `Surprise:`, with the numbers.
+2. A `decision-<slug>` entry records it, per the `memory-gate` skill's contradiction log. A gitignored scratch file does not count.
+
+This holds when the verdict is "do not ship." The finding is often the most valuable output.
+
 ---
 
 ## 3. User Sovereignty
