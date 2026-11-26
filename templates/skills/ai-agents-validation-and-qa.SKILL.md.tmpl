@@ -23,6 +23,8 @@ Audience: a zero-context contributor (human or model) about to write, run, or sk
 
 Before authoring or editing a CI workflow, composite action, validation script, or CI ratchet baseline file, read [ci-scripts](references/rule-ci-scripts.md).
 
+Before writing or reviewing Python or tests, read [python-and-test-conventions](references/python-and-test-conventions.md). Before reviewing a pull request in this repo, read [reviewer-guidance](references/reviewer-guidance.md) for findings maintainers dismiss.
+
 - `what counts as evidence`
 - `how do I test this change`
 - `run skill tests`
