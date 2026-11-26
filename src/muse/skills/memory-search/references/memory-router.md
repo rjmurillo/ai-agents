@@ -11,8 +11,8 @@ it up:
 
 | Artifact | Role |
 |----------|------|
-| `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/memory_core/memory_router.py` | Importable module. Searches the repository's one memory store (ADR-126). |
-| `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py` | CLI wrapper. Adds the Tier 2 episode store. |
+| `memory_router.py`, shipped with the `memory` skill | Importable module. Searches the repository's one memory store (ADR-126). |
+| `search_memory.py`, shipped with the `memory` skill | CLI wrapper. Adds the Tier 2 episode store. |
 
 Agents call the CLI. Python callers import the module.
 

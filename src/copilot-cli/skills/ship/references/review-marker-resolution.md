@@ -40,8 +40,8 @@ resolves when the working directory happens to be the repository root, and from
 a subdirectory it falls through to an installed-plugin copy that can be
 arbitrarily old.
 
-The default form, when nothing else resolves, is
-`${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/review/scripts/validate_review_marker.py`.
+When nothing else resolves, the default is
+`.claude/skills/review/scripts/validate_review_marker.py` under the working directory.
 
 ## Exit codes
 

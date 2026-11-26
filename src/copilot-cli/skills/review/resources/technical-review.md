@@ -8,7 +8,7 @@ this file is the one place the doctrine lives.
 
 Boundaries: publication wording and thread conduct belong to the
 review-conversation protocol
-(`${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/pr-comment-responder/references/review-conversation.md`), not to
+(the `pr-comment-responder` skill's `references/review-conversation.md`), not to
 this contract. Maintainability, cohesion,
 coupling, and YAGNI scoring belong to the code-quality axis and
 `code-qualities-assessment`; this contract points to that axis instead of

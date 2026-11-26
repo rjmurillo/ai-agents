@@ -1064,7 +1064,7 @@ Three procedures moved out of this file into `references/`. Resolve the
 
 1. `references/` next to this `SKILL.md`, at the path the harness loaded this file from. This covers every install layout, including the Codex repository install, whatever directory holds the skill.
 2. `${CLAUDE_SKILL_DIR}/references/` (if `CLAUDE_SKILL_DIR` is set by the harness)
-3. `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-}}/skills/pr-autofix/references/` (plugin install, Copilot CLI and Claude Code)
+3. `${CLAUDE_PLUGIN_ROOT}/skills/pr-autofix/references/`, or the same path under `${COPILOT_PLUGIN_ROOT}`, when the harness set that variable (plugin install, Copilot CLI and Claude Code)
 4. `.claude/skills/pr-autofix/references/` (Claude Code project layout)
 5. `skills/pr-autofix/references/` (vendored install)
 

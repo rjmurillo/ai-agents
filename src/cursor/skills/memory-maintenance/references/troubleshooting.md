@@ -266,12 +266,11 @@ reads these fields:
 **Diagnosis**:
 
 ```bash
-# Verify skill location
-test -f "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" && echo "exists" || echo "not found"
-
-# List available skills
-find "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills" -name "*.py" -type f
+# Verify the skill resolves: exit 0 prints usage; exit 2 with a ptk_run: line means no plugin root holds it
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/search_memory.py --help; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
+
+To list the available skill scripts, list the `.py` files under `skills/` in the plugin root the locator chose: the first of `${CLAUDE_PLUGIN_ROOT}`, `${COPILOT_PLUGIN_ROOT}`, and `.claude` that holds `lib/ptk_run.py`.
 
 **Solutions**:
 
@@ -290,10 +289,9 @@ find "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills" -name "*.py
 
 **Diagnosis**:
 
-```bash
-# Check the module file
-test -f "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/memory_core/memory_router.py" && echo exists || echo missing
+Check that `skills/memory/memory_core/memory_router.py` exists under that same plugin root, then:
 
+```bash
 # Test the import the same way the tests do
 uv run python -c "
 import os, sys

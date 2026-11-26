@@ -13,7 +13,7 @@ Load this when a step names a command that your harness does not run as written.
 | Search memory | run the `memory` skill's `search_memory.py` with the topic (keyword match on file names, ADR-037) | the `mcp__serena__` memory tools | the `mcp__serena__` memory tools |
 | Plan tracking | `TodoWrite` | the harness task list | the harness task list |
 | Shell tool | `Bash` | `shell` | `execute` |
-| Script root | `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts` | same expression | same expression |
+| Script root | the `github` skill's scripts, run through the plugin-root locator | same | same |
 
 ## Delegation bounds
 

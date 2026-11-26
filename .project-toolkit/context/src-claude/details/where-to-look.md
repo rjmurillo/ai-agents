@@ -2,4 +2,4 @@
 
 | Path | Why |
 |---|---|
-| `agents/merge-resolver.md`, `agents/quality-auditor.md` | Hard-code a plugin-root skills path; see Constraints |
+| `agents/merge-resolver.md` | Runs skill scripts through the ADR-121 locator; see Constraints |
