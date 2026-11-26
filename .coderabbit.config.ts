@@ -6,6 +6,14 @@
 // CodeRabbit dashboard. CodeRabbit reads this file only when no
 // .coderabbit.yaml exists, so do not add one back.
 //
+// CodeRabbit evaluates this file on its servers, so the @coderabbitai/config
+// package is needed only for editor types. It is not a repo dependency.
+//
+// With inheritance on, CodeRabbit matches path_instructions entries by
+// `path`. An entry here replaces the dashboard entry with the same path, so
+// no rule applies twice. An empty array here takes the dashboard array.
+// Source: https://docs.coderabbit.ai/configuration/configuration-inheritance
+//
 // Noise tuning comes from Issue #326: fewer than 20 comments per PR,
 // high-confidence findings only, generated files and agent artifacts skipped.
 
