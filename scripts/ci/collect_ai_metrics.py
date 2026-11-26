@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Collect repository AI metrics for the weekly analysis workflow.
 
-Extracted from ``.github/workflows/ai-metrics-analysis.yml`` under ADR-006
-(no logic in workflow YAML). Issue #3539.
+Extracted from ``.github/workflows/ai-metrics-analysis.yml`` (deleted 2026-11-25)
+under ADR-006 (no logic in workflow YAML). Issue #3539.
 
 The shell this replaces computed a date window, called ``gh metrics`` twice,
 and folded a failure of either call into a warning plus placeholder text. That

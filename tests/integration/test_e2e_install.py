@@ -6,7 +6,7 @@ artifact tree is well-formed.
 
 Marked with @pytest.mark.integration. The Copilot-CLI-binary-dependent
 test additionally skips when `copilot` is not on PATH (covers contributors
-without Copilot CLI installed; runs in nightly CI when present).
+without Copilot CLI installed; runs locally when present; no CI leg).
 
 Verification scope (per task M6-T5):
   1. plugin.json parses and preserves only metadata required by marketplace install
