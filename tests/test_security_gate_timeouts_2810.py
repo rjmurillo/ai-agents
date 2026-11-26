@@ -1,7 +1,8 @@
 """Timeout hardening for the security gate (issue #2810).
 
-A wedged network call on the pre-commit security path must not hang every
-commit, and a pathological semgrep run must not hang the scan.
+A pathological semgrep run must not hang the pre-push scan. The surviving
+cases cover ``run_semgrep`` only. A PSScriptAnalyzer timeout case went with
+the retired ``invoke_precommit_security.py`` script.
 
 This module also covered an MCP stdio client's read timeouts, including the
 Windows case where ``select`` does not work on pipes. That client was the
