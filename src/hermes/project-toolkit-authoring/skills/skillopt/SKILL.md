@@ -123,10 +123,6 @@ Below, `skillopt.py` means that resolved path. References use `$SKILLOPT_DIR`
 | `skillopt.py gate`, `pair-gate` | 0 accept, 1 reject, 2 usage or validation error |
 | `skillopt.py efficiency-gate` | 0 `ACCEPT_EFFICIENCY`, 1 reject, 2 usage or validation error |
 | `skillopt.py report` | 0 report printed, 2 usage or validation error. Never gates |
-| `skillopt.py weakness-check`, `manifesto-check`, `pin` | 0 valid, 2 usage or validation error |
-| `skillopt.py manifesto-verify` | 0 `PREDICTIONS_HELD`, 1 `PREDICTION_FALSIFIED` or `PREDICTION_UNVERIFIED`, 2 usage or validation error |
-| `skillopt.py pin-check` | 0 `MATCH`, 1 `MISMATCH`, 2 usage or validation error |
-| `skillopt.py proposer-check` | 0 `CAPABLE`, 1 `LIGHTWEIGHT` or `UNKNOWN` (warning), 2 usage error |
 | `skillopt.py run` | 0 results written, 1 results written with a task `UNVERIFIED`, 2 refused or invalid (no results written) |
 | `skillopt.py hash PATH...` | 0 digests printed; a directory hashes as one whole bundle |
 | `skillopt.py hash PATH --expect SHA` | 0 match, 1 `MISMATCH`, 2 usage or validation error |
@@ -159,28 +155,19 @@ One optimization step:
    incumbent: `skillopt.py hash target.md`. For tasks with an argv `command`,
    `skillopt.py run --eval eval.json --bundle DIR --role incumbent --out-dir
    results/` runs them and writes `results/incumbent_results.json`. It
-   replaces the whole file, so run it first and add your grades for tasks with
-   no `command` after it finishes. Read the security note in
-   `references/eval-set-format.md` first, because `eval.json` commands run any
-   binary on `PATH`. When the target is a skill directory with scripts, pass
-   the directory to `hash` and `apply`; it hashes as one whole bundle. When the
-   manifest sets
-   `"scorer": "nondeterministic"`, the `sel` runner also reruns the
-   byte-identical incumbent into `null_results.json` now (see Before
-   promotion, step 2). The `sel` runner then pins the read-only surfaces
-   (eval set, verifiers, tracer, model) with `skillopt.py pin` and names the
-   pins file in `eval.json`, so `pair-gate` refuses a changed verifier.
+   replaces the whole file; run it first, then grade tasks with no `command`.
+   Read the security note in `references/eval-set-format.md` first:
+   `eval.json` commands run any binary on `PATH`. For a skill directory with
+   scripts, pass the directory to `hash` and `apply`; it hashes as one bundle.
+   When the manifest sets `"scorer": "nondeterministic"`, the `sel` runner
+   also reruns the byte-identical incumbent into `null_results.json` now (see
+   Before promotion, step 2). The `sel` runner also runs `pin`.
 2. **Budget.** `skillopt.py budget --step T --total N` prints L_t, the
    cosine-decayed cap on atomic patches this step. T is 0-based, from 0 to
    N-1; `--step N` exits 2 with `out of range`.
-3. **Reflect.** Read `references/evidence-manifesto.md` first. Run
-   `skillopt.py proposer-check` on the proposer model; a weak proposer can
-   make the target worse. Cluster failing train tasks into verifier-grounded
-   patterns in `weakness.json` (`weakness-check`) before proposing. Failures
-   become corrective rules; successes become behaviors to preserve. Write at
-   most L_t patches to `patches.json`, aimed at recurrent, addressable
-   patterns, with one `manifesto.json` entry per patch (`manifesto-check`).
-   Use only `train` evidence.
+3. **Reflect.** Follow `references/evidence-manifesto.md`. Failures become
+   corrective rules; successes become behaviors to preserve. Write at most
+   L_t patches to `patches.json`. Use only `train` evidence.
    Read train traces and train-split reviewer notes, not only outputs. Propose
    `delete` patches for instructions that cause wasted work or when the gate
    plateaus. Helper code every rollout rewrites becomes a bundled script; hash
@@ -198,13 +185,12 @@ One optimization step:
 6. **Re-roll** every task on `candidate.md` into `candidate_results.json`.
    For a bundle, `apply` writes a new directory. Finish every edit to its
    scripts first, then run the command tasks, then `hash` the final
-   `CANDIDATE_DIR`. That digest is the candidate's identity, so results from
-   an earlier state of the bundle would gate a different candidate. The `sel`
-   runner does the `sel` half. For command tasks, run
+   `CANDIDATE_DIR`. That digest is the candidate's identity; results from an
+   earlier bundle state gate a different candidate. The `sel` runner does the
+   `sel` half. For command tasks, run
    `skillopt.py run --eval eval.json --bundle CANDIDATE_DIR --role candidate
-   --out-dir results/`, then add your grades for tasks with no `command`.
-   Then run `skillopt.py manifesto-verify` on the train results. A
-   `PREDICTION_FALSIFIED` means the root cause was wrong; note it.
+   --out-dir results/`, then grade tasks with no `command`.
+   Then run `manifesto-verify`.
 7. **Gate.** `skillopt.py pair-gate --eval eval.json --incumbent-results
    incumbent_results.json --candidate-results candidate_results.json`. If you
    used `run --out-dir results/`, pass the files under `results/`. For a
@@ -366,8 +352,6 @@ class-level guidance; do not add an incident-named reference.
 ## References
 
 - `references/eval-set-format.md`: eval manifest, patch, and results schemas.
-- `references/evidence-manifesto.md`: proposer tier, weakness patterns,
-  manifesto entries, prediction checks, and read-only pins.
 - `references/eval-authoring.md`: read when you draft tasks and verifiers, lay
   out a step's artifacts, or act on a report signal.
 - `references/description-optimization.md`: trigger-rate eval for `description` edits.
