@@ -10,14 +10,20 @@ from __future__ import annotations
 import sys
 import time
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
-common = sys.modules["_ship_common"]
-detect_mod = common.load_sibling("ship_detect")
+if TYPE_CHECKING:
+    import _ship_common as common
+    import ship_detect as detect_mod
+    from ship_detect import Context, Halt
+else:
+    common = sys.modules["_ship_common"]
+    detect_mod = common.load_sibling("ship_detect")
+    # One Halt type across the ship scripts, so a detect-side halt reads as a halt here.
+    Halt = detect_mod.Halt
 
 POLL_SECONDS = 30
 CHECKS_TIMEOUT_SECONDS = 300
-# One Halt type across the ship scripts, so a detect-side halt reads as a halt here.
-Halt = detect_mod.Halt
 
 
 @dataclass(frozen=True)
@@ -31,7 +37,7 @@ class Check:
         return self.state in ("FAIL", "dirty")
 
 
-def _github_head(ctx, pr: int) -> tuple[str, str] | Halt:
+def _github_head(ctx: Context, pr: int) -> tuple[str, str] | Halt:
     done = common.run(
         ["gh", "pr", "view", str(pr), "--json", "headRefName,headRefOid"], cwd=ctx.root
     )
@@ -43,7 +49,7 @@ def _github_head(ctx, pr: int) -> tuple[str, str] | Halt:
     return str(data["headRefName"]), str(data["headRefOid"])
 
 
-def _binding(ctx, pr: int, branch: str, sha: str, after_publish: bool) -> Check | None:
+def _binding(ctx: Context, pr: int, branch: str, sha: str, after_publish: bool) -> Check | None:
     """Return a non-PASS check when PR ``pr`` does not carry this branch at HEAD."""
     if branch != ctx.branch:
         return Check("pipeline", "FAIL", f"pr={pr} head branch {branch} is not {ctx.branch}")
@@ -55,7 +61,9 @@ def _binding(ctx, pr: int, branch: str, sha: str, after_publish: bool) -> Check 
     return None
 
 
-def _read_github_checks(ctx, pr: int, wait_seconds: int) -> tuple[int, dict] | Check | Halt:
+def _read_github_checks(
+    ctx: Context, pr: int, wait_seconds: int
+) -> tuple[int, dict[str, Any]] | Check | Halt:
     """Run get_pr_checks.py once; return (exit code, Data), a PENDING check, or a Halt.
 
     It waits at most ``min(wait_seconds, CHECKS_TIMEOUT_SECONDS)``. Zero reads once.
@@ -96,7 +104,7 @@ def _read_github_checks(ctx, pr: int, wait_seconds: int) -> tuple[int, dict] | C
     return done.returncode, data
 
 
-def _github_verdict(ctx, pr: int, code: int, data: dict) -> Check:
+def _github_verdict(ctx: Context, pr: int, code: int, data: dict[str, Any]) -> Check:
     """Turn one get_pr_checks.py result into PASS or FAIL. Exit 0 alone is not green."""
     if code == 0 and data.get("RequiredState") == "SUCCESS" and data.get("AllPassing") is True:
         return Check("pipeline", "PASS", f"pr={pr} head={ctx.head[:12]}")
@@ -111,14 +119,14 @@ def _github_verdict(ctx, pr: int, code: int, data: dict) -> Check:
     return Check("pipeline", "FAIL", detail + _names(data, "failing", keys))
 
 
-def _names(data: dict, label: str, keys: tuple[str, ...]) -> str:
+def _names(data: dict[str, Any], label: str, keys: tuple[str, ...]) -> str:
     """Return `` label=a,b`` for up to 10 check names under the Data keys, or ''."""
     items = [item for key in keys for item in data.get(key) or []][:10]
     names = [str(i.get("Name", i)) if isinstance(i, dict) else str(i) for i in items]
     return f" {label}=" + ",".join(names) if names else ""
 
 
-def _github_pipeline(ctx, pr: int, after_publish: bool, wait_seconds: int) -> Check | Halt:
+def _github_pipeline(ctx: Context, pr: int, after_publish: bool, wait_seconds: int) -> Check | Halt:
     """Read CI only for PR ``pr`` at this branch and HEAD, and re-check the head after."""
     before = _github_head(ctx, pr)
     if isinstance(before, Halt):
@@ -137,7 +145,7 @@ def _github_pipeline(ctx, pr: int, after_publish: bool, wait_seconds: int) -> Ch
     return _github_verdict(ctx, pr, *read)
 
 
-def _ado_policy_rows(ctx, pr: int) -> list[dict] | Halt:
+def _ado_policy_rows(ctx: Context, pr: int) -> list[dict[str, Any]] | Halt:
     done = common.run(
         [
             "az",
@@ -167,7 +175,7 @@ def _ado_policy_rows(ctx, pr: int) -> list[dict] | Halt:
     ]
 
 
-def _ado_state(ctx, pr: int) -> dict | Halt:
+def _ado_state(ctx: Context, pr: int) -> dict[str, Any] | Halt:
     done = common.run(
         [
             "az",
@@ -192,7 +200,9 @@ def _ado_state(ctx, pr: int) -> dict | Halt:
     return data
 
 
-def _ado_evaluate(ctx, pr: int, rows: list[dict], state: dict) -> Check | Halt:
+def _ado_evaluate(
+    ctx: Context, pr: int, rows: list[dict[str, Any]], state: dict[str, Any]
+) -> Check | Halt:
     merge_commit = str(state.get("merge") or "")
     if not merge_commit:
         return Check("pipeline", "FAIL", f"pr={pr} has no merge commit to compare builds against")
@@ -234,7 +244,7 @@ def _ado_evaluate(ctx, pr: int, rows: list[dict], state: dict) -> Check | Halt:
     return Check("pipeline", "PASS", f"pr={pr} builds={len(rows)} merge={merge_commit}")
 
 
-def _ado_moved(ctx, pr: int, state: dict) -> Check | Halt | None:
+def _ado_moved(ctx: Context, pr: int, state: dict[str, Any]) -> Check | Halt | None:
     """Re-read the PR after a check; PENDING when its head or merge commit moved."""
     again = _ado_state(ctx, pr)
     if isinstance(again, Halt):
@@ -247,7 +257,7 @@ def _ado_moved(ctx, pr: int, state: dict) -> Check | Halt | None:
     return None
 
 
-def _ado_pipeline(ctx, pr: int, wait_seconds: int, after_publish: bool) -> Check | Halt:
+def _ado_pipeline(ctx: Context, pr: int, wait_seconds: int, after_publish: bool) -> Check | Halt:
     state = _ado_state(ctx, pr)
     if isinstance(state, Halt):
         return state
@@ -276,7 +286,9 @@ def _ado_pipeline(ctx, pr: int, wait_seconds: int, after_publish: bool) -> Check
         time.sleep(min(POLL_SECONDS, remaining))
 
 
-def check_pipeline(ctx, pr: int | None, wait_seconds: int, after_publish: bool) -> Check | Halt:
+def check_pipeline(
+    ctx: Context, pr: int | None, wait_seconds: int, after_publish: bool
+) -> Check | Halt:
     if pr is None:
         return Check("pipeline", "DEFERRED", "no open PR yet")
     if ctx.host == "github":

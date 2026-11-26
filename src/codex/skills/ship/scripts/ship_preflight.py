@@ -20,21 +20,34 @@ Exit codes (ADR-035): 0 NEXT, 1 logic STOP, 2 config STOP, 3 external STOP,
 
 from __future__ import annotations
 
+import argparse
 import importlib.util
 import re
 import sys
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING, Literal, overload
 
-_HERE = Path(__file__).resolve(strict=True).parent  # the real entry, never a symlink's dir
-if "_ship_common" not in sys.modules:  # pragma: no cover - fresh interpreter only
-    _s = importlib.util.spec_from_file_location("_ship_common", _HERE / "_ship_common.py")
-    _s.loader.exec_module(
-        sys.modules.setdefault("_ship_common", importlib.util.module_from_spec(_s))
-    )
-common = sys.modules["_ship_common"]
-detect_mod = common.load_sibling("ship_detect")
-pipeline_mod = common.load_sibling("_ship_pipeline")
+if TYPE_CHECKING:
+    import _ship_common as common
+    import _ship_pipeline as pipeline_mod
+    import ship_detect as detect_mod
+    from _ship_pipeline import Check, check_pipeline
+    from ship_detect import Context, Halt
+else:
+    _HERE = Path(__file__).resolve(strict=True).parent  # the real entry, never a symlink's dir
+    if "_ship_common" not in sys.modules:  # pragma: no cover - fresh interpreter only
+        _s = importlib.util.spec_from_file_location("_ship_common", _HERE / "_ship_common.py")
+        _s.loader.exec_module(
+            sys.modules.setdefault("_ship_common", importlib.util.module_from_spec(_s))
+        )
+    common = sys.modules["_ship_common"]
+    detect_mod = common.load_sibling("ship_detect")
+    pipeline_mod = common.load_sibling("_ship_pipeline")
+    # One Halt type across the ship scripts, so a detect-side halt reads as a halt here.
+    Halt = detect_mod.Halt
+    Check = pipeline_mod.Check
+    check_pipeline = pipeline_mod.check_pipeline
 
 SCRIPT = "ship_preflight.py"
 CHECKS = ("tree", "reviewed", "pipeline")
@@ -53,10 +66,6 @@ DEFAULT_CALL_WAIT = 480
 MAX_CALL_WAIT = 540
 AXIS_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 _PASS_AXES_RE = re.compile(r"/review@([a-z0-9,-]+)")
-# One Halt type across the ship scripts, so a detect-side halt reads as a halt here.
-Halt = detect_mod.Halt
-Check = pipeline_mod.Check
-check_pipeline = pipeline_mod.check_pipeline
 
 
 def check_tree(root: Path) -> Check | Halt:
@@ -73,7 +82,7 @@ def check_tree(root: Path) -> Check | Halt:
     return Check("tree", "dirty", f"files={len(entries)}")
 
 
-def draft_exempt(ctx, draft: bool) -> bool:
+def draft_exempt(ctx: Context, draft: bool) -> bool:
     """Return whether ``--draft`` may skip the marker check.
 
     Only a new draft PR, or an open PR the host reports as a draft, is
@@ -84,7 +93,7 @@ def draft_exempt(ctx, draft: bool) -> bool:
     return draft and (ctx.pr is None or ctx.pr_draft is True)
 
 
-def check_reviewed(ctx, draft: bool, require_axes: list[str]) -> Check | Halt:
+def check_reviewed(ctx: Context, draft: bool, require_axes: list[str]) -> Check | Halt:
     exempt = draft_exempt(ctx, draft)
     if require_axes and (exempt or ctx.mode == "contributor"):
         return Check(
@@ -118,7 +127,7 @@ def check_reviewed(ctx, draft: bool, require_axes: list[str]) -> Check | Halt:
     return Halt("validator-config", common.EXIT_CONFIG, detail)
 
 
-def build_parser():
+def build_parser() -> common.ResultParser:
     parser = common.ResultParser(prog=SCRIPT, description="Run the fixed ship checks.")
     parser.add_argument("--check", action="append", choices=CHECKS, required=True)
     parser.add_argument("--base", default=None)
@@ -135,7 +144,7 @@ def build_parser():
     return parser
 
 
-def _validate(args) -> str | None:
+def _validate(args: argparse.Namespace) -> str | None:
     if args.base is not None and not common.safe_ref(args.base):
         return "--base is not a plain ref"
     if args.pr is not None and args.pr <= 0:
@@ -152,8 +161,22 @@ def _validate(args) -> str | None:
     return None
 
 
+@overload
 def bound_deadline(
-    ctx, pr: int | None, requested: int | None, *, store: bool = False
+    ctx: Context, pr: int | None, requested: int | None, *, store: Literal[False] = False
+) -> int:
+    """Read the deadline; a read-only call always yields one."""
+
+
+@overload
+def bound_deadline(
+    ctx: Context, pr: int | None, requested: int | None, *, store: Literal[True]
+) -> int | None:
+    """Store the deadline; None when it could not be stored."""
+
+
+def bound_deadline(
+    ctx: Context, pr: int | None, requested: int | None, *, store: bool = False
 ) -> int | None:
     """The 30-minute pipeline deadline for this PR and HEAD.
 
@@ -174,7 +197,15 @@ def bound_deadline(
     return min(stored, requested)
 
 
-def _run_check(name, ctx, args, pr, wait_seconds, after_publish, deadline) -> Check | Halt:
+def _run_check(
+    name: str,
+    ctx: Context,
+    args: argparse.Namespace,
+    pr: int | None,
+    wait_seconds: int,
+    after_publish: bool,
+    deadline: int,
+) -> Check | Halt:
     """Run one named check. A pipeline still pending past the deadline is a FAIL."""
     if name == "tree":
         return check_tree(ctx.root)
@@ -186,7 +217,13 @@ def _run_check(name, ctx, args, pr, wait_seconds, after_publish, deadline) -> Ch
     return outcome
 
 
-def _terminal(result, checks: list[Check], deadline: int, ends_on_report: bool, contributor: bool):
+def _terminal(
+    result: common.Result,
+    checks: list[Check],
+    deadline: int,
+    ends_on_report: bool,
+    contributor: bool,
+) -> common.Result:
     """Set the terminal line from the check states."""
     failed = [check.name for check in checks if check.failed]
     states = {check.name: check.state for check in checks}
@@ -201,7 +238,7 @@ def _terminal(result, checks: list[Check], deadline: int, ends_on_report: bool, 
     return result.next("report" if ends_on_report else "write-body")
 
 
-def run(argv: list[str]):
+def run(argv: list[str]) -> tuple[common.Result, str, Path | None]:
     result = common.Result(SCRIPT, REASONS)
     try:
         args = build_parser().parse_args(argv)
@@ -228,10 +265,11 @@ def run(argv: list[str]):
         checks.append(outcome)
         result.add("CHECK", f"{outcome.name}={outcome.state} {outcome.detail}".rstrip())
     if any(check.name == "pipeline" and check.state == "PENDING" for check in checks):
-        deadline = bound_deadline(ctx, pr, args.deadline, store=True)
-        if deadline is None:
+        stored = bound_deadline(ctx, pr, args.deadline, store=True)
+        if stored is None:
             detail = f"cannot store the pipeline deadline under {common.SCRATCH_REL.as_posix()}"
             return result.stop("deadline-unstored", common.EXIT_CONFIG, detail), fmt, ctx.root
+        deadline = stored
     contributor = ctx.mode == "contributor"
     ends_on_report = after_publish or contributor
     return _terminal(result, checks, deadline, ends_on_report, contributor), fmt, ctx.root

@@ -30,7 +30,8 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, NoReturn
+from types import ModuleType
+from typing import TYPE_CHECKING, Any, NoReturn
 
 KEY_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
 TOKEN_RE = re.compile(r"^[a-z][a-z0-9-]*$")
@@ -94,7 +95,7 @@ def _strip_userinfo(text: str) -> str:
 
 def load_sibling(
     name: str,
-):  # pragma: no cover - runs only in a fresh interpreter; see test_ship_edges.py::test_script_runs_under_isolated_mode
+) -> ModuleType:  # pragma: no cover - runs only in a fresh interpreter; see test_ship_edges.py::test_script_runs_under_isolated_mode
     if name in sys.modules:
         return sys.modules[name]
     path = Path(__file__).resolve().with_name(f"{name}.py")
@@ -107,8 +108,12 @@ def load_sibling(
     return module
 
 
-_remote = load_sibling("_ship_remote")
-_paths = load_sibling("_ship_paths")
+if TYPE_CHECKING:
+    import _ship_paths as _paths
+    import _ship_remote as _remote
+else:
+    _remote = load_sibling("_ship_remote")
+    _paths = load_sibling("_ship_paths")
 SCRATCH_REL = _paths.SCRATCH_REL
 scratch_dir = _paths.scratch_dir
 write_private = _paths.write_private

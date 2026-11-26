@@ -32,14 +32,19 @@ import re
 import sys
 import tempfile
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-_HERE = Path(__file__).resolve(strict=True).parent  # the real entry, never a symlink's dir
-if "_ship_common" not in sys.modules:  # pragma: no cover - fresh interpreter only
-    _s = importlib.util.spec_from_file_location("_ship_common", _HERE / "_ship_common.py")
-    _s.loader.exec_module(
-        sys.modules.setdefault("_ship_common", importlib.util.module_from_spec(_s))
-    )
-common = sys.modules["_ship_common"]
+if TYPE_CHECKING:
+    import _ship_common as common
+    from ship_detect import Context
+else:
+    _HERE = Path(__file__).resolve(strict=True).parent  # the real entry, never a symlink's dir
+    if "_ship_common" not in sys.modules:  # pragma: no cover - fresh interpreter only
+        _s = importlib.util.spec_from_file_location("_ship_common", _HERE / "_ship_common.py")
+        _s.loader.exec_module(
+            sys.modules.setdefault("_ship_common", importlib.util.module_from_spec(_s))
+        )
+    common = sys.modules["_ship_common"]
 
 BODY_MARKER = "<!-- replace with PR body -->"
 BASE_VALIDATOR = "scripts/validation/pr_description.py"
@@ -93,11 +98,11 @@ def body_problem(text: str) -> str | None:
     return None
 
 
-def _not_run(result, reason: str) -> None:
+def _not_run(result: common.Result, reason: str) -> None:
     result.add("CHECK", f"paths=NOT-RUN {reason}; compare the body to the diff by hand")
 
 
-def _base_files(ctx, ref: str) -> list[str] | None:
+def _base_files(ctx: Context, ref: str) -> list[str] | None:
     """Repository paths to copy from ``ref``, or None when it has no validator."""
     if common.git(["cat-file", "-e", f"{ref}:{BASE_VALIDATOR}"], cwd=ctx.root).returncode != 0:
         return None
@@ -113,7 +118,7 @@ def _base_files(ctx, ref: str) -> list[str] | None:
     return files
 
 
-def _write_private_tree(ctx, ref: str, files: list[str], tree: Path) -> str | None:
+def _write_private_tree(ctx: Context, ref: str, files: list[str], tree: Path) -> str | None:
     """Copy each base file into ``tree`` with owner-only modes; the failure cause, or None."""
     for rel in files:
         parts = Path(rel).parts
@@ -133,7 +138,7 @@ def _write_private_tree(ctx, ref: str, files: list[str], tree: Path) -> str | No
     return None
 
 
-def _check_paths(ctx, body_file: Path, base: str, result) -> bool | None:
+def _check_paths(ctx: Context, body_file: Path, base: str, result: common.Result) -> bool | None:
     """Run the base branch's paths-in-diff validator from a private copy.
 
     Returns True on a pass, False on a failure, and None when it could not run.
@@ -194,7 +199,9 @@ def critical_findings(output: str) -> list[str]:
     ]
 
 
-def _check_ado_description(ctx, title: str, body_file: Path, result) -> bool:
+def _check_ado_description(
+    ctx: Context, title: str, body_file: Path, result: common.Result
+) -> bool:
     """Run the offline Azure DevOps description validator; return False on a failure."""
     helper = _validate_description()
     if not helper.is_file():
@@ -228,19 +235,22 @@ def description_problem(returncode: int, stdout: str, stderr: str = "") -> str |
         return "the validator report did not parse"
     if report["ErrorCount"] == 0:
         return None
-    validations = report.get("Validations") if isinstance(report.get("Validations"), dict) else {}
+    raw_validations = report.get("Validations")
+    validations = raw_validations if isinstance(raw_validations, dict) else {}
     for name, item in validations.items():
         if isinstance(item, dict) and item.get("Status") == "FAIL":
             return f"{name}: {item.get('Message', '')}".strip()
     return f"errors={report['ErrorCount']}"
 
 
-def _report(result, name: str, problem: str | None) -> bool:
+def _report(result: common.Result, name: str, problem: str | None) -> bool:
     result.add("CHECK", f"{name}={'FAIL ' + problem if problem else 'PASS'}")
     return problem is None
 
 
-def run_checks(ctx, title: str, body_file: Path, base: str, result) -> list[str]:
+def run_checks(
+    ctx: Context, title: str, body_file: Path, base: str, result: common.Result
+) -> list[str]:
     """Run every body and title check; add CHECK lines; return failed check names.
 
     A check that could not run is reported as ``<name>:not-run``.

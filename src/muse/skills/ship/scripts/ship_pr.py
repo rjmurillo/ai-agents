@@ -29,21 +29,30 @@ import os
 import re
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-_HERE = Path(__file__).resolve(strict=True).parent  # the real entry, never a symlink's dir
-if "_ship_common" not in sys.modules:  # pragma: no cover - fresh interpreter only
-    _s = importlib.util.spec_from_file_location("_ship_common", _HERE / "_ship_common.py")
-    _s.loader.exec_module(
-        sys.modules.setdefault("_ship_common", importlib.util.module_from_spec(_s))
-    )
-common = sys.modules["_ship_common"]
-detect_mod = common.load_sibling("ship_detect")
-preflight_mod = common.load_sibling("ship_preflight")
-checks_mod = common.load_sibling("ship_pr_checks")
-
-# The title, body, and paths checks live in ship_pr_checks.py.
-run_checks = checks_mod.run_checks
-split_not_run = checks_mod.split_not_run
+if TYPE_CHECKING:
+    import _ship_common as common
+    import ship_detect as detect_mod
+    import ship_pr_checks as checks_mod
+    import ship_preflight as preflight_mod
+    from ship_detect import Context, Halt
+    from ship_pr_checks import run_checks, split_not_run
+else:
+    _HERE = Path(__file__).resolve(strict=True).parent  # the real entry, never a symlink's dir
+    if "_ship_common" not in sys.modules:  # pragma: no cover - fresh interpreter only
+        _s = importlib.util.spec_from_file_location("_ship_common", _HERE / "_ship_common.py")
+        _s.loader.exec_module(
+            sys.modules.setdefault("_ship_common", importlib.util.module_from_spec(_s))
+        )
+    common = sys.modules["_ship_common"]
+    detect_mod = common.load_sibling("ship_detect")
+    preflight_mod = common.load_sibling("ship_preflight")
+    checks_mod = common.load_sibling("ship_pr_checks")
+    Halt = detect_mod.Halt
+    # The title, body, and paths checks live in ship_pr_checks.py.
+    run_checks = checks_mod.run_checks
+    split_not_run = checks_mod.split_not_run
 
 SCRIPT = "ship_pr.py"
 _IS_WINDOWS = os.name == "nt"
@@ -84,7 +93,7 @@ def _new_pr() -> Path:
     return common.skill_script("github", "pr", "new_pr.py")
 
 
-def cmd_branch(args, result, root: Path):
+def cmd_branch(args: argparse.Namespace, result: common.Result, root: Path) -> common.Result:
     if not _BRANCH_RE.fullmatch(args.name):
         return result.stop("bad-branch-name", common.EXIT_LOGIC, "use <type>/<3-5-word-slug>")
     done = common.git(["switch", "-c", args.name], cwd=root)
@@ -103,7 +112,7 @@ def _windows_body_file(root: Path) -> Path | None:
     return common.write_private(root, "pr-body", ".md", seed)
 
 
-def cmd_prepare(args, result, root: Path):
+def cmd_prepare(args: argparse.Namespace, result: common.Result, root: Path) -> common.Result:
     if _IS_WINDOWS:
         path = _windows_body_file(root)
         if path is None:
@@ -124,16 +133,16 @@ def cmd_prepare(args, result, root: Path):
     return result.next("write-body")
 
 
-def _detect(args, result):
+def _detect(args: argparse.Namespace, result: common.Result) -> Context | None:
     ctx = detect_mod.detect(base=args.base)
-    if isinstance(ctx, detect_mod.Halt):
+    if isinstance(ctx, Halt):
         result.stop(ctx.reason, ctx.code, ctx.detail)
         return None
     detect_mod.add_context_lines(result, ctx, pr_key="PR_AT_PREFLIGHT")
     return ctx
 
 
-def _body_file(args, result, ctx) -> Path | None:
+def _body_file(args: argparse.Namespace, result: common.Result, ctx: Context) -> Path | None:
     body = common.confine_body_file(args.body_file, ctx.root)
     if body is None:
         result.stop(
@@ -144,7 +153,7 @@ def _body_file(args, result, ctx) -> Path | None:
     return body
 
 
-def cmd_check(args, result, _root: Path):
+def cmd_check(args: argparse.Namespace, result: common.Result, _root: Path) -> common.Result:
     ctx = _detect(args, result)
     if ctx is None:
         return result
@@ -157,7 +166,7 @@ def cmd_check(args, result, _root: Path):
     return result.next("compare-paths-by-hand" if paths_not_run else "publish")
 
 
-def _push(ctx, result):
+def _push(ctx: Context, result: common.Result) -> bool:
     refspec = f"refs/heads/{ctx.branch}:refs/heads/{ctx.branch}"
     done = common.git(
         ["push", "--set-upstream", "origin", refspec], cwd=ctx.root, timeout=PUSH_TIMEOUT_SECONDS
@@ -189,7 +198,9 @@ def _push(ctx, result):
     return False
 
 
-def _create_github(ctx, args, body: Path, result):
+def _create_github(
+    ctx: Context, args: argparse.Namespace, body: Path, result: common.Result
+) -> common.Result:
     helper = _new_pr()
     if not helper.is_file():
         return result.stop("pr-create-failed", common.EXIT_CONFIG, "new_pr.py not found")
@@ -217,7 +228,9 @@ def _create_github(ctx, args, body: Path, result):
     return result.next("discharge")
 
 
-def _create_ado(ctx, args, body: Path, result):
+def _create_ado(
+    ctx: Context, args: argparse.Namespace, body: Path, result: common.Result
+) -> common.Result:
     argv = [
         "az",
         "repos",
@@ -242,7 +255,8 @@ def _create_ado(ctx, args, body: Path, result):
     if not isinstance(data, dict) or not isinstance(data.get("pullRequestId"), int):
         return result.stop("pr-create-failed", common.EXIT_EXTERNAL, "az returned no pullRequestId")
     pr_id = data["pullRequestId"]
-    repository = data.get("repository") if isinstance(data.get("repository"), dict) else {}
+    raw_repository = data.get("repository")
+    repository = raw_repository if isinstance(raw_repository, dict) else {}
     web_url = str(repository.get("webUrl", ""))
     url = f"{web_url}/pullrequest/{pr_id}" if web_url else "unknown"
     result.add("PR", f"host=ado number={pr_id} url={url}")
@@ -255,17 +269,17 @@ def _create_ado(ctx, args, body: Path, result):
     return result.next("discharge")
 
 
-def _review_gate(ctx, args, result) -> bool:
+def _review_gate(ctx: Context, args: argparse.Namespace, result: common.Result) -> bool:
     """Refuse a dirty tree or an unreviewed HEAD; return False after a STOP."""
     tree = preflight_mod.check_tree(ctx.root)
-    if isinstance(tree, preflight_mod.Halt):
+    if isinstance(tree, Halt):
         result.stop(tree.reason, tree.code, tree.detail)
         return False
     if tree.failed:
         result.stop("tree-dirty", common.EXIT_LOGIC, tree.detail)
         return False
     reviewed = preflight_mod.check_reviewed(ctx, args.draft, args.require_axis)
-    if isinstance(reviewed, preflight_mod.Halt):
+    if isinstance(reviewed, Halt):
         result.stop(reviewed.reason, reviewed.code, reviewed.detail)
         return False
     result.add("CHECK", f"reviewed={reviewed.state} {reviewed.detail}".rstrip())
@@ -275,7 +289,9 @@ def _review_gate(ctx, args, result) -> bool:
     return True
 
 
-def _checked_snapshot(ctx, args, body: Path, result) -> Path | None:
+def _checked_snapshot(
+    ctx: Context, args: argparse.Namespace, body: Path, result: common.Result
+) -> Path | None:
     """Snapshot the body once, check the snapshot, and return it; None after a STOP.
 
     The host gets the snapshot, never the original path, so the bytes that
@@ -303,7 +319,7 @@ def _checked_snapshot(ctx, args, body: Path, result) -> Path | None:
     return snapshot
 
 
-def cmd_publish(args, result, _root: Path):
+def cmd_publish(args: argparse.Namespace, result: common.Result, _root: Path) -> common.Result:
     ctx = _detect(args, result)
     if ctx is None:
         return result
@@ -332,7 +348,7 @@ def cmd_publish(args, result, _root: Path):
     return _create_ado(ctx, args, snapshot, result)
 
 
-def build_parser():
+def build_parser() -> common.ResultParser:
     parser = common.ResultParser(prog=SCRIPT, description="Branch, check, push, and open the PR.")
     sub = parser.add_subparsers(dest="command", required=True, parser_class=common.ResultParser)
     branch = sub.add_parser("branch")
@@ -370,7 +386,7 @@ _COMMANDS = {
 }
 
 
-def run(argv: list[str]):
+def run(argv: list[str]) -> tuple[common.Result, str, Path | None]:
     result = common.Result(SCRIPT, REASONS)
     try:
         args = build_parser().parse_args(argv)

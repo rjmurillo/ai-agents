@@ -19,14 +19,18 @@ import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-_HERE = Path(__file__).resolve(strict=True).parent  # the real entry, never a symlink's dir
-if "_ship_common" not in sys.modules:  # pragma: no cover - fresh interpreter only
-    _s = importlib.util.spec_from_file_location("_ship_common", _HERE / "_ship_common.py")
-    _s.loader.exec_module(
-        sys.modules.setdefault("_ship_common", importlib.util.module_from_spec(_s))
-    )
-common = sys.modules["_ship_common"]
+if TYPE_CHECKING:
+    import _ship_common as common
+else:
+    _HERE = Path(__file__).resolve(strict=True).parent  # the real entry, never a symlink's dir
+    if "_ship_common" not in sys.modules:  # pragma: no cover - fresh interpreter only
+        _s = importlib.util.spec_from_file_location("_ship_common", _HERE / "_ship_common.py")
+        _s.loader.exec_module(
+            sys.modules.setdefault("_ship_common", importlib.util.module_from_spec(_s))
+        )
+    common = sys.modules["_ship_common"]
 
 SCRIPT = "ship_detect.py"
 REASONS = frozenset(
@@ -87,7 +91,7 @@ def _auth_failure(stderr: str) -> bool:
     return any(signal in lowered for signal in _AUTH_SIGNALS)
 
 
-def query_halt(reason: str, done) -> Halt:
+def query_halt(reason: str, done: common.Completed) -> Halt:
     """A Halt naming the cause: auth signals anywhere in stderr win over the last line."""
     lines = [line for line in done.stderr.splitlines() if line.strip()]
     auth = [line for line in lines if _auth_failure(line)]
@@ -127,7 +131,8 @@ def _github_pr(root: Path) -> tuple[int | None, str, str, bool | None] | Halt:
         return Halt("pr-query-failed", common.EXIT_EXTERNAL, "gh returned no PR number")
     if data.get("state") != "OPEN":
         return (None, "", "", None)
-    author = data.get("author") if isinstance(data.get("author"), dict) else {}
+    raw_author = data.get("author")
+    author = raw_author if isinstance(raw_author, dict) else {}
     draft = data.get("isDraft") if isinstance(data.get("isDraft"), bool) else None
     return (data["number"], str(data.get("url", "")), str(author.get("login") or ""), draft)
 
@@ -169,10 +174,12 @@ def _ado_pr(root: Path, branch: str) -> tuple[int | None, str, str, bool | None]
     pr_id = first.get("pullRequestId")
     if not isinstance(pr_id, int):
         return Halt("pr-query-failed", common.EXIT_EXTERNAL, "az returned no pullRequestId")
-    repository = first.get("repository") if isinstance(first.get("repository"), dict) else {}
+    raw_repository = first.get("repository")
+    repository = raw_repository if isinstance(raw_repository, dict) else {}
     web_url = str(repository.get("webUrl", ""))
     url = f"{web_url}/pullrequest/{pr_id}" if web_url else ""
-    created_by = first.get("createdBy") if isinstance(first.get("createdBy"), dict) else {}
+    raw_created_by = first.get("createdBy")
+    created_by = raw_created_by if isinstance(raw_created_by, dict) else {}
     draft = first.get("isDraft") if isinstance(first.get("isDraft"), bool) else None
     return (pr_id, url, str(created_by.get("uniqueName") or ""), draft)
 
@@ -249,7 +256,7 @@ def detect(cwd: Path | None = None, base: str | None = None) -> Context | Halt:
     return Context(root, host, host_name, branch, target, head, pr, pr_url, author, mode, pr_draft)
 
 
-def add_context_lines(result, ctx: Context, *, pr_key: str = "PR") -> None:
+def add_context_lines(result: common.Result, ctx: Context, *, pr_key: str = "PR") -> None:
     result.add("HOST", ctx.host)
     result.add("REMOTE_HOST", ctx.remote_host)
     result.add("BRANCH", ctx.branch)
@@ -265,14 +272,14 @@ def add_context_lines(result, ctx: Context, *, pr_key: str = "PR") -> None:
     result.add("MODE", ctx.mode)
 
 
-def build_parser():
+def build_parser() -> common.ResultParser:
     parser = common.ResultParser(prog=SCRIPT, description="Detect the ship context.")
     parser.add_argument("--base", default=None, help="Target branch (default: origin HEAD)")
     common.add_output_format_arg(parser)
     return parser
 
 
-def run(argv: list[str]) -> tuple[object, str, Path | None]:
+def run(argv: list[str]) -> tuple[common.Result, str, Path | None]:
     result = common.Result(SCRIPT, REASONS)
     try:
         args = build_parser().parse_args(argv)
