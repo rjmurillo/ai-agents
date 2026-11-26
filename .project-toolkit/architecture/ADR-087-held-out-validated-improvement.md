@@ -107,8 +107,8 @@ existing shape of the practice rather than as settled authority.
 ADR-022's split criteria are the reason this is filed as an ADR: it constrains
 what the evaluation machinery is structurally allowed to observe at decision
 time, and it changes the shape of every future evaluator, rather than adding a
-compliance step to an existing one. Two caveats a reader deserves. ADR-022 is
-also `proposed`. And its own matrix calls for an ADR *plus* a governance
+compliance step to an existing one. Two caveats a reader deserves. ADR-022 was
+`proposed` when this was written; it was accepted on 2026-11-26. And its own matrix calls for an ADR *plus* a governance
 document when a decision carries an enforcement obligation, which this one
 does. The governance half is not written; that gap is named under Open
 Requirements below rather than papered over.
