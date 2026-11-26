@@ -226,12 +226,21 @@ def _matches(dst: Path, packed: PackFile) -> bool:
 
 
 def _existing_files(root: Path) -> set[str]:
+    """Files under ``root``, minus the bytecode caches ``.gitignore`` drops.
+
+    Running a shipped script writes ``__pycache__/*.pyc`` beside it; the
+    pre-push tests run with ``python3 -I``, which ignores
+    ``PYTHONDONTWRITEBYTECODE``. Counting those caches made every local
+    ``build_all.py --check`` after a test run report them as stale output.
+    """
     if not root.is_dir():
         return set()
     return {
         path.relative_to(root).as_posix()
         for path in root.rglob("*")
-        if path.is_symlink() or path.is_file()
+        if (path.is_symlink() or path.is_file())
+        and "__pycache__" not in path.relative_to(root).parts
+        and path.suffix != ".pyc"
     }
 
 

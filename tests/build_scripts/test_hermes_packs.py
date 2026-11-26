@@ -293,6 +293,28 @@ def test_check_reports_and_generate_removes_a_stale_file(tmp_path: Path) -> None
     assert not stale.parent.exists()
 
 
+@pytest.mark.parametrize(
+    "cache",
+    [
+        "src/hermes/project-toolkit-one/skills/beta/scripts/__pycache__/x.cpython-314.pyc",
+        "src/hermes/project-toolkit-one/lib/__pycache__/notes.txt",
+        "src/hermes/project-toolkit-one/skills/beta/stray.pyc",
+    ],
+)
+def test_bytecode_caches_are_not_stale_output(tmp_path: Path, cache: str) -> None:
+    """A test run writes caches beside shipped scripts; --check must not count them."""
+    repo = make_repo(tmp_path)
+    stanza = make_stanza()
+    hermes_packs.generate_hermes_packs(stanza, repo)
+    path = repo / cache
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"cache")
+
+    assert hermes_packs.generate_hermes_packs(stanza, repo, check=True) == 0
+    assert hermes_packs.generate_hermes_packs(stanza, repo) == 0
+    assert path.exists()
+
+
 def test_generate_removes_a_retired_pack_directory(tmp_path: Path) -> None:
     repo = make_repo(tmp_path)
     hermes_packs.generate_hermes_packs(make_stanza(), repo)
