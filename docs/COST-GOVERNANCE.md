@@ -171,9 +171,9 @@ If monthly costs exceed $100:
 - pester-tests (blocks merge)
 - validate-generated-agents (blocks merge)
 
-### Agent Workflows (Approval-Gated, Advisory)
+### Advisory pull-request workflows
 
-These workflows run on pull requests and stay advisory. The jobs that ran a model behind a provider environment (`agent-claude`, `agent-copilot`) were removed because the reviewer approval was never given. The four environments can be deleted in GitHub settings (ADR-114). Checks from workflows listed as advisory never block merge unless the branch ruleset requires them (ADR-114 Decisions 5 and 7).
+These workflows run on pull requests and stay advisory. The jobs that ran a model behind a provider environment (`agent-claude`, `agent-copilot`) were deleted on 2026-11-25 because the reviewer approval was never given. The four environments below gate no job now and can be deleted in GitHub settings (ADR-114). Checks from workflows listed as advisory never block merge unless the branch ruleset requires them (ADR-114 Decisions 5 and 7).
 
 | Environment | Provider | Secrets |
 |-------------|----------|---------|
@@ -182,7 +182,7 @@ These workflows run on pull requests and stay advisory. The jobs that ran a mode
 | `agent-codex` | Codex | `OPENAI_API_KEY` |
 | `agent-droid` | Droid | `FACTORY_API_KEY` |
 
-All four require a reviewer. `agent-approval` is deleted (ADR-114 Decision 11 item 6).
+All four still require a reviewer, but no job uses them. `agent-approval` is deleted (ADR-114 Decision 11 item 6).
 
 - ai-spec-validation
 - plugin-cli-smoke
