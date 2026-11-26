@@ -77,13 +77,13 @@ def prose_lines(body: str) -> tuple[list[tuple[int, str]], bool]:
     for number, line in enumerate(body.splitlines(), start=1):
         match = _FENCE.match(line)
         if opener:
-            # A closing fence carries no info string (CommonMark 4.5), so an
+            # A closing fence carries only spaces or tabs after it (CommonMark 4.5), so an
             # inner ```python line inside an open fence is content, not a close.
             closes = (
                 match
                 and match.group(1)[0] == opener[0]
                 and len(match.group(1)) >= len(opener)
-                and not line[match.end() :].strip()
+                and not line[match.end() :].strip(" \t")
             )
             if closes:
                 opener = ""

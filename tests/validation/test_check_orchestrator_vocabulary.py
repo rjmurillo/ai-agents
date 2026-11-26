@@ -125,6 +125,13 @@ class TestScanFails:
         body = "```markdown\n```python\nsupervise\n```\nRoute it."
         assert gate.scan_text(_text(body)) == []
 
+    def test_non_ascii_space_after_a_fence_does_not_close_it(self) -> None:
+        body = "```text\n```\u00a0\nsupervise\n```\nRoute it."
+        assert gate.scan_text(_text(body)) == []
+
+    def test_tab_after_a_fence_still_closes_it(self) -> None:
+        assert gate.scan_text(_text("```text\ncode\n```\t\nYou coach them.")) != []
+
     def test_unclosed_fence_is_a_finding(self) -> None:
         findings = gate.scan_text(_text("Route it.\n```text\nYou supervise the worker."))
         assert findings == [
