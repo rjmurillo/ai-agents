@@ -352,11 +352,12 @@ def _initialize_stale_detection(
 def _fetch_paginated_comments(endpoint: str, error_prefix: str) -> list[dict[str, Any]]:
     """Fetch one paginated comment collection with the script's exit contract."""
     try:
-        return gh_api_paginated(endpoint)
+        comments: list[dict[str, Any]] = gh_api_paginated(endpoint)
     except SystemExit:
         raise
     except Exception as exc:
         error_and_exit(f"{error_prefix}: {exc}", 3)
+    return comments
 
 
 def _stale_info_for_review_comment(
@@ -792,8 +793,8 @@ def get_pr_review_comments(
         stale_count,
         domain_counts,
         author_summary,
-        include_issue_comments,
-        detect_stale,
+        include_issue_comments=include_issue_comments,
+        detect_stale=detect_stale,
     )
 
 

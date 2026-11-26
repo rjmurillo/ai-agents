@@ -271,3 +271,90 @@ def test_paginated_comment_system_exit_passes_through(capsys):
 
     assert exc.value.code == 4
     assert "Failed to fetch issue comments" not in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("count", "include_issue", "detect_stale", "expected"),
+    [
+        (1, True, True, "PR #42: 1 review comment + 1 issue comment (1 stale comment)"),
+        (2, True, True, "PR #42: 2 review comments + 2 issue comments (2 stale comments)"),
+        (1, True, False, "PR #42: 1 review comment + 1 issue comment"),
+        (2, True, False, "PR #42: 2 review comments + 2 issue comments"),
+        (1, False, True, "PR #42: 1 review comment (1 stale comment)"),
+        (2, False, True, "PR #42: 2 review comments (2 stale comments)"),
+    ],
+)
+def test_standard_stderr_issue_and_stale_segments(
+    capsys, count, include_issue, detect_stale, expected
+):
+    review = [
+        _review_comment(i, "2024-01-01T00:00:00Z", path="deleted.py", line=1)
+        for i in range(1, count + 1)
+    ]
+    issue = [_issue_comment(10 + i, "2024-01-02T00:00:00Z") for i in range(count)]
+    patches = [
+        patch(
+            "grc_behavior_under_test.gh_api_paginated",
+            side_effect=[review, issue] if include_issue else [review],
+        )
+    ]
+    if detect_stale:
+        patches.append(
+            patch(
+                "grc_behavior_under_test.subprocess.run",
+                side_effect=_stale_detection_subprocess("print('ok')\n"),
+            )
+        )
+
+    with patches[0]:
+        if detect_stale:
+            with patches[1]:
+                grc.get_pr_review_comments(
+                    "o",
+                    "r",
+                    42,
+                    include_issue_comments=include_issue,
+                    detect_stale=detect_stale,
+                )
+        else:
+            grc.get_pr_review_comments(
+                "o",
+                "r",
+                42,
+                include_issue_comments=include_issue,
+                detect_stale=detect_stale,
+            )
+
+    assert capsys.readouterr().err.startswith(expected)
+
+
+def test_standard_output_key_and_author_summary_order():
+    comments = [
+        _review_comment(1, "2024-01-01T00:00:00Z", author="bob"),
+        _review_comment(2, "2024-01-02T00:00:00Z", author="alice"),
+        _review_comment(3, "2024-01-03T00:00:00Z", author="bob"),
+        _review_comment(4, "2024-01-04T00:00:00Z", author="carol"),
+        _review_comment(5, "2024-01-05T00:00:00Z", author="carol"),
+        _review_comment(6, "2024-01-06T00:00:00Z", author="carol"),
+    ]
+
+    with patch("grc_behavior_under_test.gh_api_paginated", return_value=comments):
+        result = grc.get_pr_review_comments("o", "r", 42)
+
+    assert list(result) == [
+        "Success",
+        "PullRequest",
+        "Owner",
+        "Repo",
+        "TotalComments",
+        "ReviewCommentCount",
+        "IssueCommentCount",
+        "TopLevelCount",
+        "ReplyCount",
+        "StaleCount",
+        "DomainCounts",
+        "AuthorSummary",
+        "Comments",
+    ]
+    assert list(result["DomainCounts"]) == ["security", "bug", "style", "summary", "general"]
+    assert [entry["Author"] for entry in result["AuthorSummary"]] == ["bob", "alice", "carol"]
