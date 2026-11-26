@@ -51,9 +51,9 @@ ALLOWED_MISSING: dict[str, str] = {
 }
 
 
-def _tracked_files(root: Path) -> list[str]:
+def _tracked_files(root: Path, *pathspecs: str) -> list[str]:
     result = subprocess.run(
-        ["git", "ls-files", "-z", "--", *SCAN_ROOTS],
+        ["git", "ls-files", "-z", "--", *pathspecs],
         cwd=root,
         capture_output=True,
         encoding="utf-8",
@@ -63,11 +63,16 @@ def _tracked_files(root: Path) -> list[str]:
     return [p for p in result.stdout.split("\0") if p]
 
 
-def find_missing_rule_citations(root: Path, paths: list[str]) -> tuple[list[str], int, int]:
+def find_missing_rule_citations(
+    root: Path, paths: list[str], tracked: frozenset[str] | None = None
+) -> tuple[list[str], int, int]:
     """Return (findings, files examined, citations examined).
 
-    A finding is ``path:line: cited`` for a rule path that does not exist under
-    ``root``. Lines with the ``orphan-ref-ignore`` directive are skipped.
+    A finding is ``path:line: cited`` for a rule path that does not resolve.
+    With ``tracked``, a rule resolves only when it is in that set, so an
+    untracked local file at a deleted path cannot pass here and fail in CI.
+    Without it, a rule resolves when it exists under ``root``. Lines with the
+    ``orphan-ref-ignore`` directive are skipped.
     """
     findings: list[str] = []
     files = 0
@@ -90,7 +95,8 @@ def find_missing_rule_citations(root: Path, paths: list[str]) -> tuple[list[str]
                 cited_paths.append(wrapped)
             for cited in cited_paths:
                 citations += 1
-                if cited in ALLOWED_MISSING or (root / cited).exists():
+                present = cited in tracked if tracked is not None else (root / cited).exists()
+                if cited in ALLOWED_MISSING or present:
                     continue
                 findings.append(f"{rel}:{lineno}: {cited}")
     return findings, files, citations
@@ -114,7 +120,11 @@ def _wrapped_citation(line: str, next_line: str) -> str | None:
 
 
 def test_no_live_file_cites_a_missing_rule() -> None:
-    findings, files, citations = find_missing_rule_citations(_REPO_ROOT, _tracked_files(_REPO_ROOT))
+    findings, files, citations = find_missing_rule_citations(
+        _REPO_ROOT,
+        _tracked_files(_REPO_ROOT, *SCAN_ROOTS),
+        tracked=frozenset(_tracked_files(_REPO_ROOT)),
+    )
     # A scan that read nothing must not pass as clean.
     assert files > 1000, f"examined only {files} files"
     assert citations > 0, "examined zero rule citations"
@@ -160,6 +170,18 @@ def test_citation_wrapped_across_lines_is_flagged(tmp_path: Path) -> None:
     findings, _files, citations = find_missing_rule_citations(tmp_path, ["doc.yml"])
     assert findings == ["doc.yml:1: .claude/rules/gone.md"]
     assert citations == 2
+
+
+def test_untracked_rule_file_does_not_satisfy_a_citation(tmp_path: Path) -> None:
+    (tmp_path / ".claude" / "rules").mkdir(parents=True)
+    (tmp_path / ".claude" / "rules" / "local.md").write_text("x\n", encoding="utf-8")
+    (tmp_path / ".claude" / "rules" / "kept.md").write_text("x\n", encoding="utf-8")
+    doc = tmp_path / "doc.md"
+    doc.write_text("See .claude/rules/local.md and .claude/rules/kept.md.\n", encoding="utf-8")
+    tracked = frozenset({"doc.md", ".claude/rules/kept.md"})
+    findings, _files, citations = find_missing_rule_citations(tmp_path, ["doc.md"], tracked)
+    assert citations == 2
+    assert findings == ["doc.md:1: .claude/rules/local.md"]
 
 
 def test_binary_and_missing_paths_are_skipped(tmp_path: Path) -> None:
