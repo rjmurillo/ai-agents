@@ -24,8 +24,9 @@ Decide by effect, not by path. It applies when the diff can change any of these:
 - what an artifact contains, or what it is named
 - a script, composite action, reusable workflow, or data file that a workflow reads
 
-It does not apply to a docs-only diff, unless a workflow reads a changed file.
-A prompt or data file that a workflow loads and grades is a CI input.
+It does not apply to a docs-only diff, unless a job loads a changed file as
+input to its logic. A prompt a workflow runs and a data file it parses are CI
+inputs. A file that a workflow only lints, link-checks, or path-filters is not.
 
 ## Seven questions
 

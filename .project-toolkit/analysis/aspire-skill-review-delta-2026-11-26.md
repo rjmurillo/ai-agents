@@ -58,8 +58,8 @@ technique that owner lacks? A technique passed only with all three of these:
 - Effect check, run 2026-11-26. Fresh reviewers got the axis prompt as text and
   one real diff from this repository. Each prompt ran once per case, on one
   model. One run per case shows a difference, not a rate. The first three
-  cases below ran on the first draft of the axis text. The last case reran two
-  of them on the final text.
+  cases below ran on the first draft of the axis text. The last two bullets
+  reran cases on later text.
   - Commit `af9a4d392` (2026-11-03) edits a workflow that only `schedule` and
     `workflow_dispatch` start. The old prompt returned PASS with no findings.
     The new prompt returned WARN and named the path the pull request never ran.
@@ -72,11 +72,18 @@ technique that owner lacks? A technique passed only with all three of these:
     opened it. The axis now names two paths to try, and all three later
     reviewers opened it. That was tested in this checkout only. An install
     where no path opens gets the four inline checks alone.
-  - Rerun on the final axis text, 2026-11-26, after review feedback on the
+  - Rerun on the second axis text, 2026-11-26, after review feedback on the
     pull request. One fresh reviewer per case, same model, new prompt only.
     Commit `af9a4d392` (2026-11-03) returned WARN and named the scheduled path
     as not run. Commit `740c858f6` (2026-11-25) returned PASS with a note that
     the bump first runs after merge. Both reviewers opened the resource.
+  - Rerun on the final axis text, 2026-11-26. A second review had narrowed the
+    bump rule and defined a CI input. One fresh reviewer per case, same model.
+    Commit `af9a4d392` (2026-11-03) returned WARN for the scheduled path.
+    Commit `740c858f6` (2026-11-25) returned PASS with a note. Commit
+    `dbac0a995` (2026-11-24) changes one runbook page. It returned PASS, with a
+    note naming one script the reviewer had not opened. The first two reviewers
+    opened the resource. The `continue-on-error` case was not rerun.
 - Routing is unchanged. By path, `select_axes.py` picks the devops axis for
   CI and deploy files, such as workflow and action files. A script-only CI change reaches it through a diff
   effect, a pin, or a deep review.
@@ -88,6 +95,16 @@ techniques, not skill names.
 
 One row per source skill at `91f866a` (2026-11-26). "Carried" means the August
 row stands and the source file did not change in a way that affects it.
+
+Change check between the two pins, run 2026-11-26 on a clone holding both
+commits:
+
+- 8 skills had no file change, 15 had modified files, and 3 were new, at `91f866a` (2026-11-26).
+- 10 of the 18 rows marked "Carried" had modified files, at `91f866a` (2026-11-26).
+- Their changed lines were read. Each edit touches a product version file, a
+  build output path, or a product command.
+- This record gives one decision per skill. It does not list each section of
+  each source file.
 
 | Source skill | Decision | Local owner | Note |
 |---|---|---|---|

@@ -113,7 +113,9 @@ A pull request that changes CI is checked by the CI it changes. When the diff
 touches a workflow, a composite action, or a script or data file a workflow
 reads, a green run on that pull request is not evidence the change works. This
 holds whatever category the scope table above gives the file. A Markdown or
-data file that a workflow reads is a CI input, not a docs-only change. Check:
+data file that a job loads as input to its logic is a CI input, not a docs-only
+change. A prompt a workflow runs and a data file it parses are examples. A file
+that a workflow only lints, link-checks, or path-filters is not one. Check:
 
 - **Coverage loss.** Does the diff remove or narrow a trigger, a path filter, or
   a branch filter, delete a workflow, add `continue-on-error` to a step or a
@@ -127,9 +129,9 @@ data file that a workflow reads is a CI input, not a docs-only change. Check:
   pull request. A step that also ran under a pull request trigger is evidence
   only for the behavior that run exercised. A skipped job reports success, even
   as a required check. Ask what proves the path the pull request run did not
-  take. Scale the ask to the change: new behavior needs evidence, and a
-  pinned-version bump or a comment needs only a note that it first runs after
-  merge.
+  take. Scale the ask to the change. New behavior the pull request writes
+  needs evidence. A version bump of a pinned action with no other edit, or a
+  comment-only edit, needs only a note that it first runs after merge.
 - **Consumers.** Which other workflows use the changed script, action, job
   output, or artifact name? Follow a local composite action or a reusable
   workflow to its own callers. A producer's green run says nothing about them.
@@ -137,8 +139,9 @@ data file that a workflow reads is a CI input, not a docs-only change. Check:
   correct run shows, and show it?
 
 When a check applies to a behavior change and evidence cannot answer it, return
-WARN. Name the file or evidence you need. A pinned-version bump or a
-comment-only edit changes no behavior. Note it and do not WARN for it.
+WARN. Name the file or evidence you need. The two note-only cases above get
+their note and no WARN on this ground. A bump that also changes inputs,
+permissions, or steps is a behavior change.
 
 The full method is in [CI change validation](../resources/ci-change-validation.md).
 When the diff changes CI, read it before you answer. It sits in this skill's
@@ -330,8 +333,9 @@ CRITICAL_FAIL is NOT applicable. Use PASS unless:
 
 #### For DOCS-only PRs
 
-CRITICAL_FAIL is NOT applicable. Use PASS, unless a workflow reads a changed
-file. Then apply the section 2 checks.
+CRITICAL_FAIL is NOT applicable. Use PASS, unless a job loads a changed file
+as input to its logic. Then apply the section 2 checks. When you cannot tell
+whether a job loads the file, say so in a note. That alone is not a WARN.
 
 ### WARN (Proceed with Caution)
 
