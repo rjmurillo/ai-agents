@@ -520,17 +520,19 @@ jobs:
       # ubuntu-latest, and the wiring test pins that. The standard library's pycs
       # sit outside the subtree and are left out: a local measurement put the
       # cost at about 0.5 s for one pytest process.
-      # The key leaves out tests/ on purpose: pytest compares each .pyc header
-      # with the source hash and the interpreter magic number and recompiles any
-      # mismatch, so a stale restore costs time and never changes a test result.
-      # uv.lock carries the pytest version. The setup step output carries the
-      # Python version.
+      # The key leaves out tests/ on purpose: pytest compares each rewritten .pyc
+      # header with the source hash and the interpreter magic number and recompiles
+      # any mismatch, so a stale restore costs time and never changes a test result.
+      # Assertion rewriting also depends on the pytest configuration, which pytest
+      # does not include in that validation, so the restore prefix hashes every
+      # root configuration file pytest 9 can select. uv.lock carries the pytest
+      # version. The setup step output carries the Python version.
       - name: Restore pytest bytecode cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ${{ runner.temp }}/pytest-bytecode-cache${{ github.workspace }}
-          key: pytest-bytecode-${{ runner.os }}-${{ runner.arch }}-${{ steps.setup-code-env.outputs.python-version }}-${{ hashFiles('uv.lock') }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: pytest-bytecode-${{ runner.os }}-${{ runner.arch }}-${{ steps.setup-code-env.outputs.python-version }}-
+          key: pytest-bytecode-${{ runner.os }}-${{ runner.arch }}-${{ steps.setup-code-env.outputs.python-version }}-${{ hashFiles('pytest.toml', '.pytest.toml', 'pytest.ini', '.pytest.ini', 'pyproject.toml', 'tox.ini', 'setup.cfg') }}-${{ hashFiles('uv.lock') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: pytest-bytecode-${{ runner.os }}-${{ runner.arch }}-${{ steps.setup-code-env.outputs.python-version }}-${{ hashFiles('pytest.toml', '.pytest.toml', 'pytest.ini', '.pytest.ini', 'pyproject.toml', 'tox.ini', 'setup.cfg') }}-
 
       - name: Run pytest
         id: run-pytest
@@ -585,19 +587,23 @@ jobs:
           overwrite: true
           retention-days: 7
 
-      # Only the primary leg (split-1) writes. It collects the whole pool, so one
-      # save covers every test module, and eight parallel writers would race the
-      # same logical cache. Pull requests never save, so a fork cannot seed bytecode
-      # that later runs restore. The unique run key lets the restore prefix select
-      # the newest main save. The step sits below the flaky-rerun steps because the
-      # rerun must follow Run pytest directly. This is the only step that writes
-      # this key. Its if: allows a write only from the primary leg of a push to
-      # refs/heads/main after Run pytest succeeds. Later legs run what it saved.
-      # The path is the checkout subtree of the prefix, the same path the restore
-      # step reads. The prune step enforces one invariant before the save: every
-      # file in that subtree is bytecode for this interpreter or pytest rewrite
-      # tag whose source exists now. A nonzero prune stops this job, so the save
-      # never runs after a failed prune.
+      # Only the primary leg (split-1) writes. It collects only split group 1,
+      # and eight parallel writers would race the same logical cache. The other
+      # split groups, dedicated legs, and later coverage-pin modules are outside
+      # that collection, so their rewritten bytecode is not saved. Pull requests
+      # never save, so a fork cannot seed bytecode that later runs restore. The
+      # unique run key lets the restore prefix select the newest main save. The
+      # step sits below the flaky-rerun
+      # steps because the rerun must follow Run pytest directly. This is the only
+      # step that writes this key. Its if: allows a write only from the primary
+      # leg of a push to refs/heads/main after Run pytest succeeds. Later legs run
+      # what it saved. The path is the checkout subtree of the prefix, the same
+      # path the restore step reads. The prune step enforces one invariant before
+      # the save: every file in that subtree is pytest-rewritten bytecode for this
+      # interpreter and pytest tag whose source exists now. Ordinary interpreter
+      # bytecode is removed because its timestamp validation cannot rule out a
+      # same-second same-size source edit. A nonzero prune stops this job, so the
+      # save never runs after a failed prune.
       - name: Prune pytest bytecode cache
         if: >-
           matrix.primary
@@ -616,7 +622,7 @@ jobs:
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ${{ runner.temp }}/pytest-bytecode-cache${{ github.workspace }}
-          key: pytest-bytecode-${{ runner.os }}-${{ runner.arch }}-${{ steps.setup-code-env.outputs.python-version }}-${{ hashFiles('uv.lock') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: pytest-bytecode-${{ runner.os }}-${{ runner.arch }}-${{ steps.setup-code-env.outputs.python-version }}-${{ hashFiles('pytest.toml', '.pytest.toml', 'pytest.ini', '.pytest.ini', 'pyproject.toml', 'tox.ini', 'setup.cfg') }}-${{ hashFiles('uv.lock') }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       # Issue #5610. The count-ratchet registry deadline is calibrated against
       # a wall-clock measurement, and a wall clock taken inside the `-n auto

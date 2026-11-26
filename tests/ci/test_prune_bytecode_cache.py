@@ -21,6 +21,11 @@ OLD_PYTEST_TAG = f"{INTERPRETER_TAG}-pytest-0.0.0"
 OLD_INTERPRETER_TAG = "cpython-999"
 PYC_BYTES = importlib.util.MAGIC_NUMBER + b"\0" * 12
 
+pytestmark = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="cache pruning requires POSIX directory file descriptors and O_NOFOLLOW",
+)
+
 
 def _paths(tmp_path: Path) -> tuple[Path, Path]:
     workspace = tmp_path / "checkout"
@@ -82,24 +87,24 @@ def _run(workspace: Path, cache_root: Path) -> int:
     return prune.main(["--workspace", str(workspace), "--cache-root", str(cache_root)])
 
 
-def test_keeps_current_interpreter_and_pytest_bytecode(tmp_path: Path, capsys) -> None:
+def test_keeps_pytest_bytecode_and_removes_interpreter_bytecode(tmp_path: Path, capsys) -> None:
     workspace, cache_root = _paths(tmp_path)
     interpreter_pyc = _write_pyc(workspace, cache_root, "pkg/module.py")
     pytest_pyc = _write_pyc(workspace, cache_root, "tests/test_probe.py", PYTEST_TAG)
 
     assert _run(workspace, cache_root) == 0
 
-    assert interpreter_pyc.is_file()
+    assert not interpreter_pyc.exists()
     assert pytest_pyc.is_file()
     output = capsys.readouterr().out
     assert "pycs_before=2" in output
-    assert "pycs_after=2" in output
-    assert "removed_files=0" in output
+    assert "pycs_after=1" in output
+    assert "removed_files=1" in output
 
 
 def test_keeps_a_dotted_source_name(tmp_path: Path) -> None:
     workspace, cache_root = _paths(tmp_path)
-    pyc = _write_pyc(workspace, cache_root, "tests/foo.test.py")
+    pyc = _write_pyc(workspace, cache_root, "tests/foo.test.py", PYTEST_TAG)
 
     assert _run(workspace, cache_root) == 0
 
@@ -120,7 +125,11 @@ def test_removes_bytecode_for_another_interpreter_or_pytest_tag(tmp_path: Path, 
 def test_removes_bytecode_whose_source_no_longer_exists(tmp_path: Path) -> None:
     workspace, cache_root = _paths(tmp_path)
     orphan = _write_pyc(
-        workspace, cache_root, ".pytest_tmp/head-guard-e2e-u/test_probe.py", source_exists=False
+        workspace,
+        cache_root,
+        ".pytest_tmp/head-guard-e2e-u/test_probe.py",
+        PYTEST_TAG,
+        source_exists=False,
     )
 
     assert _run(workspace, cache_root) == 0
@@ -142,7 +151,7 @@ def test_removes_files_that_are_not_bytecode(tmp_path: Path) -> None:
 def test_removes_bytecode_in_the_unprefixed_pycache_layout(tmp_path: Path) -> None:
     workspace, cache_root = _paths(tmp_path)
     _write_source(workspace, "pkg/module.py")
-    misplaced = cache_root / "pkg" / "__pycache__" / f"module.{INTERPRETER_TAG}.pyc"
+    misplaced = cache_root / "pkg" / "__pycache__" / f"module.{PYTEST_TAG}.pyc"
     misplaced.parent.mkdir(parents=True)
     misplaced.write_bytes(PYC_BYTES)
 
@@ -153,7 +162,7 @@ def test_removes_bytecode_in_the_unprefixed_pycache_layout(tmp_path: Path) -> No
 
 def test_removes_a_file_with_a_valid_name_but_invalid_magic(tmp_path: Path) -> None:
     workspace, cache_root = _paths(tmp_path)
-    invalid = _write_pyc(workspace, cache_root, "pkg/module.py", content=b"not a pyc")
+    invalid = _write_pyc(workspace, cache_root, "pkg/module.py", PYTEST_TAG, content=b"not a pyc")
 
     assert _run(workspace, cache_root) == 0
 
@@ -232,7 +241,9 @@ def test_removes_interpreter_bytecode_with_a_mismatched_checked_hash(tmp_path: P
     assert not pyc.exists()
 
 
-def test_keeps_interpreter_unchecked_hash_bytecode_after_the_source_changes(tmp_path: Path) -> None:
+def test_removes_interpreter_unchecked_hash_bytecode_after_the_source_changes(
+    tmp_path: Path,
+) -> None:
     workspace, cache_root = _paths(tmp_path)
     source = _write_source(workspace, "pkg/module.py")
     pyc = _write_pyc(
@@ -245,7 +256,7 @@ def test_keeps_interpreter_unchecked_hash_bytecode_after_the_source_changes(tmp_
 
     assert _run(workspace, cache_root) == 0
 
-    assert pyc.is_file()
+    assert not pyc.exists()
 
 
 def test_removes_interpreter_bytecode_with_unknown_flag_bits(tmp_path: Path) -> None:
@@ -260,7 +271,7 @@ def test_removes_interpreter_bytecode_with_unknown_flag_bits(tmp_path: Path) -> 
     assert not pyc.exists()
 
 
-def test_keeps_interpreter_flags_two_when_timestamp_data_matches(tmp_path: Path) -> None:
+def test_removes_interpreter_flags_two_when_timestamp_data_matches(tmp_path: Path) -> None:
     workspace, cache_root = _paths(tmp_path)
     pyc = _write_pyc(workspace, cache_root, "pkg/module.py")
     data = bytearray(pyc.read_bytes())
@@ -269,10 +280,10 @@ def test_keeps_interpreter_flags_two_when_timestamp_data_matches(tmp_path: Path)
 
     assert _run(workspace, cache_root) == 0
 
-    assert pyc.is_file()
+    assert not pyc.exists()
 
 
-def test_keeps_timestamp_bytecode_the_import_machinery_would_reuse(tmp_path: Path) -> None:
+def test_removes_timestamp_bytecode_the_import_machinery_would_reuse(tmp_path: Path) -> None:
     workspace, cache_root = _paths(tmp_path)
     source = workspace / "pkg" / "module.py"
     source.parent.mkdir(parents=True)
@@ -284,7 +295,29 @@ def test_keeps_timestamp_bytecode_the_import_machinery_would_reuse(tmp_path: Pat
 
     assert _run(workspace, cache_root) == 0
 
-    assert pyc.is_file()
+    assert not pyc.exists()
+
+
+def test_removes_timestamp_bytecode_with_same_size_and_whole_second_mtime(tmp_path: Path) -> None:
+    """A same-second edit can satisfy timestamp validation while carrying stale code."""
+    workspace, cache_root = _paths(tmp_path)
+    source = workspace / "pkg" / "module.py"
+    source.parent.mkdir(parents=True)
+    old = 'VALUE = "old"\n'
+    new = 'VALUE = "new"\n'
+    assert len(old) == len(new)
+    source.write_text(old, encoding="utf-8")
+    original_mtime = 1_700_000_000.1
+    os.utime(source, (original_mtime, original_mtime))
+    pyc = _write_pyc(workspace, cache_root, "pkg/module.py")
+    changed_mtime = original_mtime + 0.8
+    source.write_text(new, encoding="utf-8")
+    os.utime(source, (changed_mtime, changed_mtime))
+    assert int(original_mtime) == int(changed_mtime)
+
+    assert _run(workspace, cache_root) == 0
+
+    assert not pyc.exists()
 
 
 def test_removes_interpreter_bytecode_truncated_after_the_header(tmp_path: Path) -> None:
@@ -309,7 +342,7 @@ def test_removes_bytecode_with_a_truncated_marshal_payload(tmp_path: Path) -> No
 
 def test_removes_bytecode_whose_payload_is_not_a_code_object(tmp_path: Path) -> None:
     workspace, cache_root = _paths(tmp_path)
-    pyc = _write_pyc(workspace, cache_root, "pkg/module.py")
+    pyc = _write_pyc(workspace, cache_root, "pkg/module.py", PYTEST_TAG)
     pyc.write_bytes(pyc.read_bytes()[:16] + marshal.dumps({"not": "code"}))
 
     assert _run(workspace, cache_root) == 0
@@ -319,9 +352,9 @@ def test_removes_bytecode_whose_payload_is_not_a_code_object(tmp_path: Path) -> 
 
 def test_removes_a_symlink_even_when_its_name_looks_valid(tmp_path: Path) -> None:
     workspace, cache_root = _paths(tmp_path)
-    valid = _write_pyc(workspace, cache_root, "pkg/module.py")
+    valid = _write_pyc(workspace, cache_root, "pkg/module.py", PYTEST_TAG)
     _write_source(workspace, "pkg/linked.py")
-    link = valid.with_name(f"linked.{INTERPRETER_TAG}.pyc")
+    link = valid.with_name(f"linked.{PYTEST_TAG}.pyc")
     link.symlink_to(valid)
 
     assert _run(workspace, cache_root) == 0
@@ -414,7 +447,7 @@ def test_accepts_a_symlinked_prefix_when_the_resolved_root_is_checkout_shaped(
     link_prefix = tmp_path / "link-prefix"
     link_prefix.symlink_to(real_prefix, target_is_directory=True)
     cache_root = Path(f"{link_prefix}{workspace}")
-    pyc = _write_pyc(workspace, real_root, "pkg/module.py")
+    pyc = _write_pyc(workspace, real_root, "pkg/module.py", PYTEST_TAG)
 
     assert _run(workspace, cache_root) == 0
 
@@ -542,6 +575,56 @@ def test_a_midrun_directory_symlink_swap_cannot_delete_outside(tmp_path: Path, m
     assert victim.is_file()
 
 
+def test_a_midrun_ancestor_symlink_swap_cannot_delete_outside(tmp_path: Path, monkeypatch) -> None:
+    workspace, cache_root = _paths(tmp_path)
+    victim_name = f"gone.{INTERPRETER_TAG}.pyc"
+    stale = cache_root / victim_name
+    stale.write_bytes(PYC_BYTES)
+    outside = tmp_path / "outside"
+    redirected_root = outside / cache_root.name
+    redirected_root.mkdir(parents=True)
+    victim = redirected_root / victim_name
+    victim.write_text("keep", encoding="utf-8")
+    parent = cache_root.parent
+    moved_parent = tmp_path / "moved-parent"
+    original_stale = moved_parent / cache_root.name / victim_name
+    swapped = False
+
+    def swap_during_validation(path, _cache_root, _workspace, _tags) -> bool:
+        nonlocal swapped
+        if path == stale and not swapped:
+            swapped = True
+            parent.rename(moved_parent)
+            parent.symlink_to(outside, target_is_directory=True)
+        return False
+
+    monkeypatch.setattr(prune, "_is_current_pyc", swap_during_validation)
+
+    assert _run(workspace, cache_root) == 0
+
+    assert victim.is_file()
+    assert victim.read_text(encoding="utf-8") == "keep"
+    assert not original_stale.exists()
+
+
+def test_the_root_open_rejects_a_relative_path() -> None:
+    with pytest.raises(ValueError, match="cache root must be absolute"):
+        with prune._opened_root_directory(Path("relative-cache-root")):
+            pass
+
+
+def test_the_root_open_refuses_a_symlinked_ancestor(tmp_path: Path) -> None:
+    real = tmp_path / "real"
+    child = real / "child"
+    child.mkdir(parents=True)
+    link = tmp_path / "link"
+    link.symlink_to(real, target_is_directory=True)
+
+    with pytest.raises(OSError):
+        with prune._opened_root_directory(link / "child"):
+            pass
+
+
 def test_source_mapping_rejects_a_path_outside_the_cache_root(tmp_path: Path) -> None:
     workspace, cache_root = _paths(tmp_path)
     outside = tmp_path / f"module.{INTERPRETER_TAG}.pyc"
@@ -551,7 +634,7 @@ def test_source_mapping_rejects_a_path_outside_the_cache_root(tmp_path: Path) ->
 
 def test_removes_a_pyc_whose_name_has_no_source_stem(tmp_path: Path) -> None:
     workspace, cache_root = _paths(tmp_path)
-    stemless = cache_root / f".{INTERPRETER_TAG}.pyc"
+    stemless = cache_root / f".{PYTEST_TAG}.pyc"
     stemless.write_bytes(PYC_BYTES)
 
     assert _run(workspace, cache_root) == 0
@@ -561,7 +644,7 @@ def test_removes_a_pyc_whose_name_has_no_source_stem(tmp_path: Path) -> None:
 
 def test_a_pyc_read_error_marks_the_file_invalid(tmp_path: Path) -> None:
     workspace, cache_root = _paths(tmp_path)
-    pyc = _write_pyc(workspace, cache_root, "pkg/module.py")
+    pyc = _write_pyc(workspace, cache_root, "pkg/module.py", PYTEST_TAG)
 
     with mock.patch.object(Path, "open", side_effect=PermissionError("denied")):
         assert prune._read_pyc(pyc) is None
@@ -572,10 +655,12 @@ def test_a_file_that_disappears_before_removal_is_not_an_error(tmp_path: Path) -
     missing = cache_root / "missing.pyc"
     entries = prune.CacheEntries((missing,), ())
 
-    assert prune._remove_invalid_entries(entries, cache_root, workspace) == (0, [])
+    with prune._opened_directory(cache_root) as root_fd:
+        assert prune._remove_invalid_entries(entries, cache_root, workspace, root_fd) == (0, [])
 
 
 def test_a_directory_that_disappears_before_removal_is_not_an_error(tmp_path: Path) -> None:
     missing = tmp_path / "missing-directory"
 
-    assert prune._remove_empty_directories((missing,), tmp_path) == (0, [])
+    with prune._opened_directory(tmp_path) as root_fd:
+        assert prune._remove_empty_directories((missing,), tmp_path, root_fd) == (0, [])

@@ -37,12 +37,30 @@ def test_stale_pyc_with_matching_size_and_mtime_loses_to_source(tmp_path: Path) 
     sys.modules.pop("small_hook_probe", None)
 
 
-def test_loader_writes_no_bytecode(tmp_path: Path) -> None:
+def test_loader_writes_no_bytecode(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     hook = tmp_path / "plain_hook.py"
     hook.write_text(NEW, encoding="utf-8")
+    prefix = tmp_path / "pyc-prefix"
+    monkeypatch.setattr(sys, "pycache_prefix", str(prefix))
     load_source_module("plain_hook_probe", hook)
     sys.modules.pop("plain_hook_probe", None)
     assert not (tmp_path / "__pycache__").exists()
+    assert not list(prefix.rglob("*.pyc"))
+
+
+def test_standard_loader_writes_prefixed_bytecode_control(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Negative control: the prefixed-bytecode assertion above can fail."""
+    hook = tmp_path / "control_hook.py"
+    hook.write_text(NEW, encoding="utf-8")
+    prefix = tmp_path / "pyc-prefix"
+    monkeypatch.setattr(sys, "pycache_prefix", str(prefix))
+    spec = util.spec_from_file_location("control_hook_probe", hook)
+    assert spec is not None and spec.loader is not None
+    module = util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert list(prefix.rglob("*.pyc"))
 
 
 def test_missing_source_raises(tmp_path: Path) -> None:

@@ -32,6 +32,11 @@ PREFIX = f"{RUNNER_TEMP}/pytest-bytecode-cache"
 WORKSPACE = "${{ github.workspace }}"
 PYTHON_VERSION_OUTPUT = "steps.setup-code-env.outputs.python-version"
 UNIQUE_SUFFIX = "${{ github.run_id }}-${{ github.run_attempt }}"
+PYTEST_CONFIG_PATTERNS = (
+    "'pytest.toml', '.pytest.toml', 'pytest.ini', '.pytest.ini', "
+    "'pyproject.toml', 'tox.ini', 'setup.cfg'"
+)
+PYTEST_CONFIG_HASH = f"hashFiles({PYTEST_CONFIG_PATTERNS})"
 HASH_FILES = re.compile(r"hashFiles\(([^)]*)\)")
 PINNED_USES = re.compile(r"^\s*(?:-\s*)?uses:\s+\S+@[0-9a-f]{40}\s+#\s+\S+")
 
@@ -197,23 +202,26 @@ class TestRestoreOnEveryLeg:
     def test_exactly_one_bytecode_restore_exists(self) -> None:
         assert len(_bytecode("actions/cache/restore")) == 1
 
-    def test_restore_keys_are_a_stable_prefix_without_run_or_lock_identity(self) -> None:
+    def test_restore_keys_are_scoped_to_the_pytest_configuration(self) -> None:
+        """A rewrite-affecting pytest config change must not restore old bytecode."""
         restore_keys = _restore()["with"]["restore-keys"]
         assert restore_keys.startswith(KEY_PREFIX)
         assert restore_keys.endswith("-")
         assert PYTHON_VERSION_OUTPUT in restore_keys
+        assert PYTEST_CONFIG_HASH in restore_keys
         assert "run_id" not in restore_keys
-        assert "hashFiles" not in restore_keys
+        assert "uv.lock" not in restore_keys
         assert _restore()["with"]["key"].startswith(restore_keys)
 
 
 class TestKeyDesign:
-    def test_the_key_tracks_os_arch_interpreter_and_lock_file(self) -> None:
+    def test_the_key_tracks_os_arch_interpreter_pytest_config_and_lock_file(self) -> None:
         key = _restore()["with"]["key"]
         assert "runner.os" in key
         assert "runner.arch" in key
         assert _key_tracks_python(key)
-        assert HASH_FILES.findall(key) == ["'uv.lock'"]
+        assert PYTEST_CONFIG_HASH in key
+        assert HASH_FILES.findall(key) == [PYTEST_CONFIG_PATTERNS, "'uv.lock'"]
 
     def test_the_key_ignores_test_sources_because_pytest_validates_source_hashes(self) -> None:
         """A test edit must not rotate the key.
@@ -268,7 +276,7 @@ class TestSaveFromThePrimaryLegOnMain:
         for event in ("pull_request", "merge_group", "workflow_dispatch", "schedule"):
             assert event not in condition
 
-    def test_the_primary_leg_is_unique_and_collects_the_whole_split_pool(self) -> None:
+    def test_the_primary_leg_is_unique(self) -> None:
         legs = workflow_jobs()["test"]["strategy"]["matrix"]["include"]
         primary = [leg for leg in legs if leg.get("primary")]
         assert [leg["partition"] for leg in primary] == ["split-1"]

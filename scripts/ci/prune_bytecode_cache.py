@@ -8,20 +8,24 @@ a proper trailing path. The bytecode cache prefix is the resolved leading path
 left after that workspace tail. Equality with that prefix is rejected because
 the prefix itself covers every source tree rather than only this checkout.
 
-A file may remain only when it is regular bytecode for the running interpreter,
-its name carries either the running interpreter tag or the running pytest
+A file may remain only when it is regular pytest-rewritten bytecode for the
+running interpreter and pytest version, its name carries the running pytest
 rewrite tag, it sits at the deterministic prefixed path Python derives for its
 source, that source still exists in the checkout, its invalidation data matches
-what the consumer validates, and its marshal payload loads to a code object.
-Every other entry is removed, then empty directories are removed bottom up.
+what pytest validates, and its marshal payload loads to a code object. Ordinary
+interpreter bytecode is removed even when the import machinery would accept it:
+timestamp validation uses whole seconds and byte count, so a same-size edit
+within one second can carry stale code past that check. Every other entry is
+removed, then empty directories are removed bottom up.
 
-Traversal and deletion are anchored to directory file descriptors opened with
-O_NOFOLLOW, so replacing a scanned directory with a symlink cannot make unlink
-or rmdir follow that symlink outside the resolved root. The residual race is
-replacement of the root or a directory with another real directory, or a
-privileged bind mount, between validation and deletion. Those cases cannot
-follow a symlink to victim files, and unprivileged cache writers cannot use
-them to reach arbitrary directories.
+Traversal and deletion are anchored to one directory file descriptor for the
+resolved root. Every child open uses O_NOFOLLOW relative to that descriptor, so
+replacing the root's ancestor, the root, or a scanned directory with a symlink
+cannot make unlink or rmdir follow that symlink outside the resolved root. The
+residual race is replacement of the root or a directory with another real
+directory, or a privileged bind mount, between validation and deletion. Those
+cases cannot follow a symlink to victim files, and unprivileged cache writers
+cannot use them to reach arbitrary directories.
 
 EXIT CODES (ADR-035):
   0 - success
@@ -84,7 +88,7 @@ def _current_tags() -> frozenset[str]:
     cache_tag = sys.implementation.cache_tag
     if not cache_tag:
         raise RuntimeError("sys.implementation.cache_tag is empty")
-    return frozenset((cache_tag, f"{cache_tag}-pytest-{pytest.__version__}"))
+    return frozenset((f"{cache_tag}-pytest-{pytest.__version__}",))
 
 
 def _resolve_existing_directory(path: Path, label: str) -> Path:
@@ -149,7 +153,25 @@ def _opened_directory(path: str | Path, *, dir_fd: int | None = None) -> Iterato
         os.close(fd)
 
 
-def _scan(cache_root: Path) -> CacheEntries:
+@contextmanager
+def _opened_root_directory(path: Path) -> Iterator[int]:
+    """Open an absolute directory path without following any symlink component."""
+    if not path.is_absolute():
+        raise ValueError("cache root must be absolute")
+    fds: list[int] = []
+    try:
+        fd = os.open(path.anchor, _directory_open_flags())
+        fds.append(fd)
+        for part in _path_tail(path):
+            fd = os.open(part, _directory_open_flags(), dir_fd=fds[-1])
+            fds.append(fd)
+        yield fds[-1]
+    finally:
+        for open_fd in reversed(fds):
+            os.close(open_fd)
+
+
+def _scan(cache_root: Path, root_fd: int) -> CacheEntries:
     files: list[Path] = []
     directories: list[Path] = []
 
@@ -167,8 +189,7 @@ def _scan(cache_root: Path) -> CacheEntries:
             else:
                 files.append(path)
 
-    with _opened_directory(cache_root) as root_fd:
-        visit(root_fd, cache_root)
+    visit(root_fd, cache_root)
     return CacheEntries(tuple(files), tuple(directories))
 
 
@@ -208,27 +229,6 @@ def _source_hash_matches(data: bytes, source: Path) -> bool:
     return data[8:16] == importlib.util.source_hash(source_bytes)
 
 
-def _timestamp_matches(data: bytes, source: Path) -> bool:
-    try:
-        stat = source.stat()
-    except OSError:
-        return False
-    recorded_mtime = int.from_bytes(data[8:12], "little")
-    recorded_size = int.from_bytes(data[12:16], "little")
-    return (
-        recorded_mtime == int(stat.st_mtime) & 0xFFFFFFFF
-        and recorded_size == stat.st_size & 0xFFFFFFFF
-    )
-
-
-def _interpreter_invalidation_matches(data: bytes, source: Path, flags: int) -> bool:
-    if flags & ~0b11:
-        return False
-    if flags & 0b1:
-        return (flags & 0b10) == 0 or _source_hash_matches(data, source)
-    return _timestamp_matches(data, source)
-
-
 def _payload_is_code(data: bytes) -> bool:
     try:
         payload = marshal.loads(data[16:])
@@ -237,14 +237,11 @@ def _payload_is_code(data: bytes) -> bool:
     return isinstance(payload, types.CodeType)
 
 
-def _consumer_accepts(data: bytes, source: Path, *, pytest_tagged: bool) -> bool:
+def _consumer_accepts(data: bytes, source: Path) -> bool:
     if len(data) <= 16 or data[:4] != importlib.util.MAGIC_NUMBER:
         return False
     flags = int.from_bytes(data[4:8], "little")
-    if pytest_tagged:
-        metadata_matches = flags == 3 and _source_hash_matches(data, source)
-    else:
-        metadata_matches = _interpreter_invalidation_matches(data, source, flags)
+    metadata_matches = flags == 3 and _source_hash_matches(data, source)
     return metadata_matches and _payload_is_code(data)
 
 
@@ -260,12 +257,11 @@ def _is_current_pyc(path: Path, cache_root: Path, workspace: Path, tags: frozens
     data = _read_pyc(path)
     if data is None:
         return False
-    pytest_tag = f"{sys.implementation.cache_tag}-pytest-{pytest.__version__}"
-    return _consumer_accepts(data, source, pytest_tagged=tag == pytest_tag)
+    return _consumer_accepts(data, source)
 
 
 @contextmanager
-def _opened_parent_directory(cache_root: Path, path: Path) -> Iterator[int]:
+def _opened_parent_directory(cache_root: Path, path: Path, root_fd: int) -> Iterator[int]:
     try:
         relative_parent = path.parent.relative_to(cache_root)
     except ValueError as exc:
@@ -273,7 +269,7 @@ def _opened_parent_directory(cache_root: Path, path: Path) -> Iterator[int]:
 
     fds: list[int] = []
     try:
-        fd = os.open(cache_root, _directory_open_flags())
+        fd = os.open(".", _directory_open_flags(), dir_fd=root_fd)
         fds.append(fd)
         for part in relative_parent.parts:
             fd = os.open(part, _directory_open_flags(), dir_fd=fds[-1])
@@ -285,7 +281,7 @@ def _opened_parent_directory(cache_root: Path, path: Path) -> Iterator[int]:
 
 
 def _remove_invalid_entries(
-    entries: CacheEntries, cache_root: Path, workspace: Path
+    entries: CacheEntries, cache_root: Path, workspace: Path, root_fd: int
 ) -> tuple[int, list[str]]:
     tags = _current_tags()
     removed = 0
@@ -294,7 +290,7 @@ def _remove_invalid_entries(
         if _is_current_pyc(path, cache_root, workspace, tags):
             continue
         try:
-            with _opened_parent_directory(cache_root, path) as parent_fd:
+            with _opened_parent_directory(cache_root, path, root_fd) as parent_fd:
                 os.unlink(path.name, dir_fd=parent_fd)
         except FileNotFoundError:
             continue
@@ -306,13 +302,13 @@ def _remove_invalid_entries(
 
 
 def _remove_empty_directories(
-    directories: tuple[Path, ...], cache_root: Path
+    directories: tuple[Path, ...], cache_root: Path, root_fd: int
 ) -> tuple[int, list[str]]:
     removed = 0
     errors: list[str] = []
     for path in sorted(directories, key=lambda item: len(item.parts), reverse=True):
         try:
-            with _opened_parent_directory(cache_root, path) as parent_fd:
+            with _opened_parent_directory(cache_root, path, root_fd) as parent_fd:
                 os.rmdir(path.name, dir_fd=parent_fd)
         except FileNotFoundError:
             continue
@@ -327,13 +323,14 @@ def _remove_empty_directories(
 
 
 def prune_cache(cache_root: Path, workspace: Path) -> tuple[PruneSummary, list[str]]:
-    before = _scan(cache_root)
-    removed_files, errors = _remove_invalid_entries(before, cache_root, workspace)
-    removed_directories, directory_errors = _remove_empty_directories(
-        before.directories, cache_root
-    )
-    errors.extend(directory_errors)
-    after = _scan(cache_root)
+    with _opened_root_directory(cache_root) as root_fd:
+        before = _scan(cache_root, root_fd)
+        removed_files, errors = _remove_invalid_entries(before, cache_root, workspace, root_fd)
+        removed_directories, directory_errors = _remove_empty_directories(
+            before.directories, cache_root, root_fd
+        )
+        errors.extend(directory_errors)
+        after = _scan(cache_root, root_fd)
     summary = PruneSummary(
         files_before=len(before.files),
         files_after=len(after.files),
