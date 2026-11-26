@@ -347,10 +347,8 @@ def test_caches_count_when_git_cannot_list_tracked_files(
     assert "git ls-files failed" in capsys.readouterr().err
 
 
-def test_inherited_git_location_vars_are_ignored(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A hook's GIT_DIR for another tree must not hide a payload tracked in this one."""
+def _repo_with_tracked_payload(tmp_path: Path) -> tuple[Path, dict[str, object], Path]:
+    """A generated repo with a force-added .pyc payload, plus an empty sibling dir."""
     repo = make_repo(tmp_path / "repo")
     stanza = make_stanza()
     hermes_packs.generate_hermes_packs(stanza, repo)
@@ -361,6 +359,14 @@ def test_inherited_git_location_vars_are_ignored(
         subprocess.run(["git", "-C", str(repo), *args], check=True, timeout=60)
     other = tmp_path / "other"
     other.mkdir()
+    return repo, stanza, other
+
+
+def test_inherited_git_location_vars_are_ignored(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A hook's GIT_DIR for another tree must not hide a payload tracked in this one."""
+    repo, stanza, other = _repo_with_tracked_payload(tmp_path)
     subprocess.run(["git", "-C", str(other), "init", "-q"], check=True, timeout=60)
     monkeypatch.setenv("GIT_DIR", str(other / ".git"))
 
@@ -386,16 +392,7 @@ def test_inherited_git_config_injection_is_ignored(
     ``ls-files`` reads the index, so a foreign ``core.worktree`` changes nothing
     it reports. The variables are cleared anyway; this pins the outcome.
     """
-    repo = make_repo(tmp_path / "repo")
-    stanza = make_stanza()
-    hermes_packs.generate_hermes_packs(stanza, repo)
-    payload = repo / "src/hermes/project-toolkit-one/skills/beta/scripts/__pycache__/x.pyc"
-    payload.parent.mkdir(parents=True, exist_ok=True)
-    payload.write_bytes(b"payload")
-    for args in (["init", "-q"], ["add", "-f", "--", str(payload)]):
-        subprocess.run(["git", "-C", str(repo), *args], check=True, timeout=60)
-    other = tmp_path / "other"
-    other.mkdir()
+    repo, stanza, other = _repo_with_tracked_payload(tmp_path)
     monkeypatch.setenv(name, value.format(other=other))
     if name == "GIT_CONFIG_COUNT":
         monkeypatch.setenv("GIT_CONFIG_KEY_0", "core.worktree")
