@@ -17,7 +17,7 @@ implemented: true
 Accepted 2026-11-25 by owner direction (issue #7636). Six-seat adr-review debate held 2026-08-25; log at
 `.project-toolkit/critique/ADR-104-debate-log.md`. The first revision was blocked by two
 seats and this record is the rewrite. The branch merged as PR #5319 (`107205cf7`,
-2026-08-25), so `implemented` is true, per ADR-073's definition of that field.
+2026-08-26), so `implemented` is true, per ADR-073's definition of that field.
 
 Acceptance was gated on an end-to-end wall-clock measurement of the hook during
 a real push, because `ci-scripts.md` MUST-16 forbids sizing a pre-push budget

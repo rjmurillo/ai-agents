@@ -18,7 +18,9 @@ answer is the approval, and this log records it.
   purpose until the owner signed. This is that signature.
 - D3: the owner asked for the ADR-077 trial to be investigated first. The
   review found no recorded use and no recorded harm, so it produced no data.
-  The rule is already carried by five live artifacts. The failure class it
+  The rule is already carried by five live artifacts: `TESTING-RIGOR.md`,
+  `TESTING-ANTI-PATTERNS.md`, `rule-testing.md` SHOULD-4, and the implementer
+  and critic agents. The failure class it
   targets recurred in the 2026-09-01 PR #5343 retrospective. Outcome: accepted
   as permanent, with `review-by` cleared.
 - D4: accept ADR-049 now. Issue #7588 had no PR in flight on 2026-11-25, and
@@ -33,11 +35,11 @@ Each `implemented: false` record was checked against the tree at `ffc759356`
 | ADR | Result | Evidence |
 |---|---|---|
 | ADR-088 | Shipped | `software-engineering-library` skill holds every moved book reference |
-| ADR-104 | Shipped | Merged as PR #5319; container clamp and testmon path in `git_hook_policy.py` |
+| ADR-104 | Shipped | PR #5319 merged 2026-08-26 as `107205cf7`; container clamp and testmon path in `git_hook_policy.py` |
 | ADR-107 | Shipped | Issues #5686 to #5691 closed as completed; M5 via PR #5743 |
-| ADR-114 | Shipped | 11 of 11 gated workflows declare `agent-*`; the environments have required reviewers |
+| ADR-114 | Shipped | Each Decision 2 row declares an `agent-*` environment. The 2026-10-11 amendment moved the `ai-spec-validation.yml` row to `ai-spec-review.yml`, which declares `agent-claude` at line 49. The four `agent-*` environments have required reviewers (Environments API, 2026-11-25) |
 | ADR-115 | Not shipped | Decision 4 commits to `src/devin/`, which does not exist |
-| ADR-126 | Shipped | PR #7546 merged 2026-11-24 |
+| ADR-126 | Shipped | PR #7546 merged 2026-11-24 as `4cccb2aa0` |
 
 ## What changed
 
@@ -70,5 +72,11 @@ All findings were fixed in this change:
 - architect P2: ADR-089 cites the live `reflexion_memory.py` path as a code span.
 - architect P2: ADR-115 marks the manifest paths as host-relative.
 - architect and critic P2: ADR-055 notes that ADR-093 was already accepted.
+
+## /review round 1 follow-up
+
+Three `/review` axes returned WARN on claim accuracy: architect, qa, and correctness.
+The ADR-114 row now names the amended workflow. The ADR-077 carriers are listed.
+ADR-104 uses the UTC merge date, and ADR-126 cites its merge SHA.
 
 **Verdict**: Consensus to accept, with no BLOCK.

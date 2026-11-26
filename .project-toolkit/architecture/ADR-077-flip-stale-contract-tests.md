@@ -16,7 +16,7 @@ review-by: null
 
 Accepted 2026-11-25 as a permanent rule by owner direction (issue #7636).
 
-It began as a 90-day experiment with a review checkpoint on 2026-09-27. No review was held by that date. The review on 2026-11-25 searched commit messages on `main` since 2026-06-29, `.project-toolkit/retrospective/`, and `.serena/memories/`. It found no flip recorded under the rule and no recorded harm, so neither the keep test nor the remove test produced data. The failure class the rule targets did recur: `.project-toolkit/retrospective/2026-09-01-pr5343-round-cap-handoff.md` records stale tests failing after a contract change. That shows the problem is real, not that the rule worked. It is also already carried by `.agents/governance/TESTING-RIGOR.md` and the implementer and critic agents. The `review-by` date is cleared.
+It began as a 90-day experiment with a review checkpoint on 2026-09-27. No review was held by that date. The review on 2026-11-25 searched commit messages on `main` since 2026-06-29, `.project-toolkit/retrospective/`, and `.serena/memories/`. It found no flip recorded under the rule and no recorded harm, so neither the keep test nor the remove test produced data. The failure class the rule targets did recur: `.project-toolkit/retrospective/2026-09-01-pr5343-round-cap-handoff.md` records stale tests failing after a contract change. That shows the problem is real, not that the rule worked. It is also already carried by `.agents/governance/TESTING-RIGOR.md`, `.agents/governance/TESTING-ANTI-PATTERNS.md`, `src/claude/skills/test/references/rule-testing.md`, and the implementer and critic agents. The `review-by` date is cleared.
 
 ## Date
 
