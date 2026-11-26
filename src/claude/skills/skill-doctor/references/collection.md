@@ -36,10 +36,13 @@ Top-level sessions are sampled first, by the same rule, into the `--top-level-qu
 
 Calibrated on 2026-11-26 against 546 scoreable local sessions (29 top-level, 517 subagent), all scored. A sample counted as stable when it kept the baseline's top-3 root-cause clusters and top suggestion for each session type, and each per-type rubric mean stayed within 0.05.
 
-- 100 sessions with 40 reserved for top-level was the smallest cap that stayed stable on two pools. Mean drift was at most 0.03. At 60 it reached 0.10. The old default of 12 failed every check.
+- The shipped sampler ran at caps from 60 to 150 with 40 slots reserved for top-level sessions. It ran on two pools: all sessions, and all but the calibration run's own scorers.
+- From 85 up, both pools kept the top-level top-3 clusters and both top suggestions. Every rubric mean stayed within 0.05. At 60, mean drift reached 0.10. 85 was the first cap that passed on both pools, and 100 adds margin. At 100, mean drift was 0.03.
+- The subagent top-3 did not hold at any cap but one. Its third cluster was a 4 to 3 tie and moved with the sample. Treat the subagent top-3 as unstable at the default.
+- The old default of 12 failed the means and the top-3 checks. It kept one suggestion on one pool. Mean drift reached 0.17.
 - Top-level sessions are few and weak (24 of 29 failed a rubric), so they need their own reservation. Without it, subagent sessions took most of the cap.
 - The 40-slot reservation is inferred, not measured. The pool held only 29 top-level sessions. Their score spread puts one standard error at 0.05 near 47 sessions.
-- `--days 14` is inferred, not measured. Local history covered 4 days. The sampler is newest first, so the cap binds before the window for active users. A light user needs about 14 days to fill the top-level reservation.
+- `--days 14` is inferred, not measured. Local history covered 4 days. The sampler is newest first, so the cap binds before the window for active users. The 14 days assume a light user needs about two weeks to fill the top-level reservation. This was not measured.
 - Subagent rankings mostly track how widely one parent fanned out. In calibration, 36 of 37 tags in the top subagent cluster came from one parent session. Read the subagent ranking with that in mind.
 
  Each harness entry holds `scoreable` (candidates), `skill_candidates`, `quota`, `sampled`, and `sampled_with_skills`. Report candidate and sampled counts for every harness separately.

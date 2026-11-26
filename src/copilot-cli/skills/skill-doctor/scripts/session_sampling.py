@@ -35,7 +35,8 @@ TOP_LEVEL_RULE = (
     "many of the --max-sessions slots, by the rules above. Open reserved slots then take the "
     "remaining top-level sessions, newest first, past the --per-skill and --no-skill caps. "
     "Subagent sessions fill every slot the top-level sessions leave open, and slots the "
-    "subagent sessions cannot fill return to the remaining top-level sessions, newest first. "
+    "subagent sessions cannot fill return to top-level sessions that the rules above select "
+    "at the larger cap. "
     "--top-level-quota 0 samples both session types as one pool."
 )
 
@@ -150,12 +151,21 @@ def _merge_harness_counts(
 
 
 def _backfill(
-    pool: Any, picked: set[str], per_harness: dict[str, dict[str, int]], limit: int
+    pool: Any,
+    picked: set[str],
+    per_harness: dict[str, dict[str, int]],
+    limit: int,
+    allowed: set[str] | None = None,
 ) -> None:
-    """Add unsampled sessions from ``pool``, newest first, until ``picked`` holds ``limit``."""
+    """Add unsampled sessions from ``pool``, newest first, until ``picked`` holds ``limit``.
+
+    When ``allowed`` is given, only sessions whose key it holds are added.
+    """
     for session in pool:
         if len(picked) >= limit:
             break
+        if allowed is not None and session["_key"] not in allowed:
+            continue
         if session["_key"] not in picked:
             picked.add(session["_key"])
             entry = per_harness[session["harness"]]
@@ -176,8 +186,12 @@ def _reserve_top_level(
     child_cap = max(args.max_sessions - len(top_keys), 0)
     child_keys, child_counts = _skill_first_by_harness(children, skills, args, child_cap)
     _merge_harness_counts(per_harness, child_counts)
-    # Slots the subagent sessions left open return to the remaining top-level sessions.
-    _backfill(top, top_keys, per_harness, args.max_sessions - len(child_keys))
+    # Slots the subagent sessions left open return to top-level sessions, but only to
+    # ones a skill-first pass at the larger cap would pick, so the caps still bind.
+    top_cap = max(args.max_sessions - len(child_keys), 0)
+    if top_cap > len(top_keys):
+        wider, _ = _skill_first_by_harness(top, skills, args, top_cap)
+        _backfill(top, top_keys, per_harness, top_cap, allowed=wider)
     block = {
         "top_level_rule": TOP_LEVEL_RULE,
         "top_level_quota": reserve,
@@ -225,6 +239,9 @@ def sample_sessions(
         sampled = skill_first | set(supplement)
         _count_supplement(sessions, per_harness, supplement)
         sampling.update(stratum_metadata(sessions, skill_first, supplement, requested))
+        if "top_level_rule" in block:
+            strata = sampling["strata"][SKILL_FIRST]
+            strata["rule"] = f"{strata['rule']} {block['top_level_rule']}"
     return sampled, per_harness, sampling
 
 

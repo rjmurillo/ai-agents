@@ -74,13 +74,28 @@ def test_reserved_slots_backfill_past_per_skill_and_no_skill_caps():
 
 
 def test_slots_subagents_leave_open_return_to_top_level_sessions():
-    # One subagent session cannot fill the five slots left after the reservation.
+    # One subagent session leaves open slots; top-level sessions take them up to --no-skill.
     sampled, _, sampling = sample_sessions(
-        _tops(8) + _children(1), {"review": {}}, _args(max_sessions=7, top_level_quota=2)
+        _tops(8) + _children(1),
+        {"review": {}},
+        _args(max_sessions=7, top_level_quota=2, no_skill=5),
     )
-    assert len(sampled) == 7
     assert "claude:s0" in sampled
-    assert sampling["top_level_sampled"] == 6
+    assert sampling["top_level_sampled"] == 5
+    assert len(sampled) == 6
+
+
+def test_returned_slots_still_respect_the_caps_without_subagents():
+    # No subagent pool: past the reservation, --no-skill still binds.
+    sampled, _, sampling = sample_sessions(
+        _tops(100), {}, _args(max_sessions=100, top_level_quota=40, per_skill=10, no_skill=20)
+    )
+    assert len(sampled) == 40
+    assert sampling["top_level_sampled"] == 40
+    pooled, _, _ = sample_sessions(
+        _tops(100), {}, _args(max_sessions=100, top_level_quota=0, per_skill=10, no_skill=20)
+    )
+    assert len(pooled) == 20
 
 
 def test_reservation_never_exceeds_the_total_cap():
@@ -158,3 +173,8 @@ def test_collector_reserves_the_parent_when_children_fill_the_cap(tmp_path):
     assert sampled == ["top_level"]
     assert inventory["sampling"]["top_level_sampled"] == 1
     json.dumps(inventory["sampling"])
+
+
+def test_timeline_strata_rule_names_the_reservation():
+    _, _, sampling = sample_sessions(_tops(3) + _children(3), {}, _args(timeline_supplement=1))
+    assert sampling["strata"]["skill_first"]["rule"].endswith(TOP_LEVEL_RULE)

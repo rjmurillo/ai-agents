@@ -111,7 +111,8 @@ def _stratum_details(inventory: Mapping[str, Any], stratum: str) -> dict[str, An
             "cap": cap if stratum == "timeline_supplement" else sampling.get("max_sessions"),
             "selection_rule": declared["rule"],
         }
-    rule = f"{sampling.get('rule', '')} {sampling.get('within_harness', '')}".strip()
+    parts = (sampling.get(key, "") for key in ("rule", "within_harness", "top_level_rule"))
+    rule = " ".join(part for part in parts if part)
     return {
         "candidate_count": inventory.get("stats", {}).get("sessions_considered"),
         "cap": sampling.get("max_sessions"),
@@ -129,9 +130,10 @@ def _transcript_bytes(inventory: Mapping[str, Any]) -> dict[str, int]:
     for session in inventory.get("sessions") or []:
         if not session.get("sampled"):
             continue
+        path = session.get("transcript_path")
         try:
-            sizes[session_key(session)] = Path(session.get("transcript_path") or "").stat().st_size
-        except (OSError, ValueError):
+            sizes[session_key(session)] = Path(path).stat().st_size if path else 0
+        except (OSError, TypeError, ValueError):
             sizes[session_key(session)] = 0
     return sizes
 

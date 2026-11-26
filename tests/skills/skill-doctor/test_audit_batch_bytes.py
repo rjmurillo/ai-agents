@@ -43,11 +43,19 @@ def test_oversize_transcript_gets_its_own_batch(tmp_path: Path) -> None:
     assert _sizes(assignment) == [10, 500, 10]
 
 
-def test_unreadable_transcript_counts_as_zero_bytes(tmp_path: Path) -> None:
+@pytest.mark.parametrize("path", ["gone.md", None, ""])
+def test_unreadable_or_missing_transcript_counts_as_zero_bytes(tmp_path: Path, path) -> None:
     inventory = _sized_inventory(tmp_path, [40, 40])
-    inventory["sessions"][0]["transcript_path"] = str(tmp_path / "gone.md")
+    inventory["sessions"][0]["transcript_path"] = str(tmp_path / path) if path else path
     assignment = ab.build_assignment(inventory, 20, max_batch_bytes=50)
     assert _sizes(assignment) == [40]
+
+
+def test_batch_rule_names_the_top_level_reservation(tmp_path: Path) -> None:
+    inventory = _sized_inventory(tmp_path, [10])
+    inventory["sampling"]["top_level_rule"] = "TOP"
+    batch = ab.build_assignment(inventory, 20)["batches"][0]
+    assert batch["selection_rule"] == "R W TOP"
 
 
 def test_no_byte_cap_leaves_the_assignment_unchanged(tmp_path: Path) -> None:
