@@ -30,7 +30,7 @@ Settle these before you edit anything.
 
 1. **Pin both versions exactly.** ".NET" is not a version. If either number is missing, stop and ask.
 2. **Look up support for the target.** Check the vendor's support page today. Never recall it from memory. Apply the same rule to any version you offer as an option.
-3. **Prove the target toolchain works here.** Run a smoke build and one test on the target. Use a new empty project, or a small unit that no delta touches. A version string proves nothing. Then build the unmodified code on the target once. Expect it to fail where the target removed something. Each failure is a delta candidate, so record it as catalog input. It does not fail preflight. The code first builds on the target in the pilot.
+3. **Prove the target toolchain works here.** Run a smoke build and one test on the target. Use a new empty project, or a small unit that no delta touches. A version string proves nothing. Then build a scratch copy of the unmodified code on the target once. Expect it to fail where the target removed something. Each failure is a delta candidate, so record it as catalog input. It does not fail preflight. The code first builds on the target in the pilot.
 4. **Check whether the source runtime also runs here.** It is your baseline oracle. If it does not (no .NET Framework on Linux, for example), the dual run degrades to target-only. Equivalence then falls back to recorded source outputs. Say so in the plan and in the notes.
 5. **Check that the existing test framework runs on the target.** NUnit 2 or MSTest v1 on modern .NET, JUnit 4 without the vintage engine, and `nose` on Python 3 all fail this check. If the framework cannot run, test migration becomes a prerequisite phase, not a leaf task. Nothing migrated can be validated until the tests run.
 6. **Read where the tests point.** Open the test configuration and list every database, queue, and service it connects to. If any target is not local or throwaway, stop and ask which environment to use. Both the baseline and the proof run old code against it.
@@ -102,7 +102,7 @@ Run the existing suite on the source version before any edit. Use a scratch copy
 - Record every test, including the ones that already fail. The claim is "no behavior changed", not "all tests pass".
 - Keep the runner's own result files or raw log (JUnit XML, `.trx`, Maven `surefire-reports`, `pytest --junitxml`, a `dotnet test` log). Name them in the baseline file.
 - Measure the baseline. Do not type it. A typed table without result files is weaker evidence.
-- If the source runtime cannot run here, write one line: `target-only: <why>`. Then name any recorded source outputs you hold, such as old CI result files. They are the only oracle a target-only run has.
+- If the source runtime cannot run here, write one line: `target-only: <why>`. Then name any recorded source outputs you hold, such as old CI result files. They are the only oracle a target-only run has. Wherever this reference names a baseline, a target-only run uses those records.
 
 Do not start migrating until the baseline file exists. Add characterization tests at Behavioral-silent delta sites where coverage is thin. Do not add blanket coverage. Never turn a credential into a fixture.
 

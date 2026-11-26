@@ -51,7 +51,7 @@ The router table maps task types to references:
 
 The process is: classify the task, open the smallest matching set, apply it, and add a second reference only when it changes the decision. Open no more than two references unless the task spans more than two book domains. Baseline code-quality rules stay the default for routine decisions.
 
-The [`autoplan`](autoplan.md) skill routes design-depth and architecture-boundary questions here. Its long-tail resolver also routes a request that names a version, runtime, or framework upgrade here. Other skills that find a risk condition can also route here from their evidence.
+The [`autoplan`](autoplan.md) skill routes design-depth and architecture-boundary questions here. Its long-tail resolver also routes a request that names a runtime, framework, or language upgrade here. Other skills that find a risk condition can also route here from their evidence.
 
 ## Where it runs
 

@@ -11,17 +11,15 @@ metadata:
     user-facing: false
     intents:
       - version uplift
-      - version upgrade
-      - upgrade version
       - runtime upgrade
-      - upgrade runtime
       - framework upgrade
       - upgrade framework
       - upgrade java
       - upgrade jdk
       - upgrade dotnet
-      - major version bump
-      - bump major version
+      - upgrade net
+      - upgrade python
+      - upgrade node js
 ---
 
 # Software Engineering Library
