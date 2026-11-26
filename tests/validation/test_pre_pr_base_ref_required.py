@@ -27,6 +27,7 @@ _DIFF_GATES = (
     "validate_security_suppressions_diff",
     "validate_memory_placement",
     "validate_route_scenario_coverage",
+    "validate_agent_skill_doc_review",
 )
 
 
