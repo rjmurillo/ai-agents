@@ -240,15 +240,47 @@ def test_an_auth_token_without_a_base_url_never_reaches_the_child(
     assert gateway.endpoint_host(os.environ) == "api.anthropic.com"
 
 
-def test_a_base_url_alone_passes_through_and_is_recorded(clean_env: pytest.MonkeyPatch) -> None:
-    clean_env.setenv("ANTHROPIC_BASE_URL", "https://proxy.example.com/anthropic")
+@pytest.mark.parametrize(
+    "url", ["https://proxy.example.com/anthropic", "http://127.0.0.1:8319", "not a url"]
+)
+def test_a_base_url_alone_never_reaches_an_oauth_child(
+    clean_env: pytest.MonkeyPatch, url: str
+) -> None:
+    """Half a pair is stripped: the seat token must not leave for another host."""
+    clean_env.setenv("ANTHROPIC_BASE_URL", url)
     clean_env.setenv("CLAUDE_CODE_OAUTH_TOKEN", OAUTH_TOKEN)
 
     env, _, provider = run_once(clean_env)
 
-    assert env["ANTHROPIC_BASE_URL"] == "https://proxy.example.com/anthropic"
+    assert "ANTHROPIC_BASE_URL" not in env
     assert env["CLAUDE_CODE_OAUTH_TOKEN"] == OAUTH_TOKEN
-    assert gateway.endpoint_host(os.environ) == "proxy.example.com"
+    assert provider.credential_step == creds.STEP_ENV
+
+
+def test_a_base_url_alone_never_reaches_a_stored_login_child(
+    clean_env: pytest.MonkeyPatch,
+) -> None:
+    clean_env.setenv("ANTHROPIC_BASE_URL", "https://proxy.example.com")
+    set_sources(clean_env, "_claude_cli", disk=lambda environ: "stored-oauth", probe=False)
+
+    env, _, provider = run_once(clean_env)
+
+    assert "ANTHROPIC_BASE_URL" not in env
+    assert env["CLAUDE_CODE_OAUTH_TOKEN"] == "stored-oauth"
+    assert provider.credential_step == creds.STEP_DISK
+
+
+def test_a_base_url_alone_never_reaches_a_real_home_child(
+    clean_env: pytest.MonkeyPatch,
+) -> None:
+    """Real HOME uses the CLI's own login; a lone base URL would redirect it too."""
+    clean_env.setenv(_claude_cli.REAL_HOME_ENV, "1")
+    clean_env.setenv("ANTHROPIC_BASE_URL", "https://proxy.example.com")
+
+    env, _, provider = run_once(clean_env)
+
+    assert "ANTHROPIC_BASE_URL" not in env
+    assert provider.credential_step == creds.STEP_EXISTING_LOGIN
 
 
 def test_a_pair_removed_after_resolution_fails_closed(gateway_env: pytest.MonkeyPatch) -> None:

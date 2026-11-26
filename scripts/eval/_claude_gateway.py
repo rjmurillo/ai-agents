@@ -23,8 +23,8 @@ __all__ = [
     "gateway_preempt",
 ]
 
-#: The gateway pair. The auth token reaches the child only with the base URL;
-#: a base URL alone passes through for a proxy in front of the OAuth login.
+#: The gateway pair. Both reach the child together or not at all: a base URL
+#: alone would send the OAuth seat token to that host.
 BASE_URL_ENV = "ANTHROPIC_BASE_URL"
 AUTH_TOKEN_ENV = "ANTHROPIC_AUTH_TOKEN"
 

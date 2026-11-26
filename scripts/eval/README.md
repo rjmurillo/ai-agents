@@ -157,8 +157,9 @@ and the Copilot BYOK set). The `claude-cli` child inherits the parent
 environment instead, so a proxy, CA bundle, or gateway the operator exported
 reaches it. It denies only what breaks the cell: every `CLAUDE*` name (the
 config directory, the parent session's plumbing, and the `CLAUDE_CODE_USE_*`
-cloud switches), `ANTHROPIC_API_KEY`, and `ANTHROPIC_AUTH_TOKEN` plus
-`ANTHROPIC_CUSTOM_HEADERS` on every step except `gateway`. Isolation does not
+cloud switches), `ANTHROPIC_API_KEY`, and `ANTHROPIC_BASE_URL`,
+`ANTHROPIC_AUTH_TOKEN`, and `ANTHROPIC_CUSTOM_HEADERS` on every step except
+`gateway`. Isolation does not
 come from the environment: the config directory is relocated, and settings,
 MCP, tools (`--tools ""`), and slash commands are off.
 `report.json` records which steps ran
@@ -197,8 +198,9 @@ account pays. `result.json` says so in its `transport` block, for example
 The host is recorded without the token, the userinfo, or the URL path. Do not
 compare a gateway score with a direct OAuth score from another run.
 
-A base URL exported without the auth token is a proxy in front of the OAuth
-login: the OAuth token goes to that host, and the record reads payer `proxy`.
+The base URL and the auth token reach the child only as a pair. A base URL
+exported without the token is stripped, so the OAuth token on any other step
+only ever goes to api.anthropic.com.
 `ANTHROPIC_CUSTOM_HEADERS` follows the auth token: it reaches only a gateway
 run, because a header can carry another credential. Only `eval-prompt-change.py`
 writes the `transport` block today (`_transport_record.py`). Other runners on

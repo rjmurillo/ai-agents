@@ -119,8 +119,10 @@ def test_real_home_records_an_oauth_step_too(clean_env: pytest.MonkeyPatch) -> N
     assert creds.recorded_steps() == [creds.STEP_ENV]
 
 
-def test_transport_record_marks_a_proxied_oauth_run(clean_env: pytest.MonkeyPatch) -> None:
-    """A base URL with the OAuth token is not a direct subscription run."""
+def test_transport_record_for_a_lone_base_url_names_the_host_the_run_reached(
+    clean_env: pytest.MonkeyPatch,
+) -> None:
+    """The child never sees half a pair, so the run went to the default host."""
     clean_env.setenv("EVAL_PROVIDER", "claude-subscription")
     clean_env.setenv("ANTHROPIC_BASE_URL", "https://proxy.example.com")
     clean_env.setenv("CLAUDE_CODE_OAUTH_TOKEN", OAUTH_TOKEN)
@@ -128,9 +130,9 @@ def test_transport_record_marks_a_proxied_oauth_run(clean_env: pytest.MonkeyPatc
 
     record = transport.transport_record()
 
-    assert record["payer"] == "proxy"
+    assert record["payer"] == "subscription"
     assert record["credential_steps"] == [creds.STEP_ENV]
-    assert record["endpoint_host"] == "proxy.example.com"
+    assert record["endpoint_host"] == "api.anthropic.com"
 
 
 # --- the runner writes the record ---------------------------------------------
@@ -229,22 +231,20 @@ def test_a_malformed_metadata_failure_still_names_the_transport(
 
 
 @pytest.mark.parametrize(
-    ("url", "payer"),
-    [
-        ("https://api.anthropic.com", "subscription"),
-        ("https://api.anthropic.com:443", "subscription"),
-        ("https://api.anthropic.com:8443", "proxy"),
-    ],
+    "url", ["https://api.anthropic.com:443", "https://api.anthropic.com:8443", "not a url"]
 )
-def test_the_default_host_with_its_default_port_is_still_direct(
-    clean_env: pytest.MonkeyPatch, url: str, payer: str
+def test_any_lone_base_url_records_the_default_host_and_cell_payer(
+    clean_env: pytest.MonkeyPatch, url: str
 ) -> None:
     clean_env.setenv("EVAL_PROVIDER", "claude-subscription")
     clean_env.setenv("ANTHROPIC_BASE_URL", url)
     clean_env.setenv("CLAUDE_CODE_OAUTH_TOKEN", OAUTH_TOKEN)
     run_once(clean_env)
 
-    assert transport.transport_record()["payer"] == payer
+    record = transport.transport_record()
+
+    assert record["payer"] == "subscription"
+    assert record["endpoint_host"] == "api.anthropic.com"
 
 
 @pytest.mark.parametrize("name", ["anthropic-sdk", "Anthropic-SDK", " ANTHROPIC-SDK "])

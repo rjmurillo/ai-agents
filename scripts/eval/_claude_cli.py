@@ -36,10 +36,11 @@ bundle, or a gateway the operator exported reaches it. Only these are denied:
   `CLAUDE_CODE_USE_*` cloud switches. The transport sets back what it needs.
 - `ANTHROPIC_API_KEY` (`_BLOCKED_BILLING_ENV`): it would make the cell
   API-billed under a subscription label.
-- `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_CUSTOM_HEADERS` on every step except
-  `gateway`. The token outranks the OAuth token, and a custom header can carry
-  an `Authorization` or `x-api-key` value, so on another step either could
-  authenticate a run that records a different credential.
+- `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, and `ANTHROPIC_CUSTOM_HEADERS`
+  on every step except `gateway`. The token outranks the OAuth token, and a
+  custom header can carry an `Authorization` or `x-api-key` value, so either
+  could authenticate a run that records a different credential. A base URL
+  alone would send the OAuth seat token to that host.
 
 ## Gateway
 
@@ -53,9 +54,9 @@ reached, and `_transport_record` writes it into `eval-prompt-change.py`
 results (other runners do not write it yet).
 Neither the token nor the URL path is recorded. `_claude_gateway` owns the pair.
 
-A base URL with no auth token passes through on its own, for a proxy in front
-of the OAuth login. The OAuth token then goes to that host. The host is
-recorded, and the run's payer reads `proxy`, not `subscription`.
+The base URL and the auth token reach the child only as a pair. A base URL
+exported without the token is stripped, so the OAuth token on the other steps
+only ever goes to api.anthropic.com.
 
 ## Isolation
 
@@ -124,7 +125,7 @@ _BLOCKED_BILLING_ENV = frozenset({"ANTHROPIC_API_KEY"})
 
 #: Names that may carry a credential other than the one a non-gateway step
 #: records. They reach the child only on the `gateway` step.
-_GATEWAY_ONLY_ENV = frozenset({AUTH_TOKEN_ENV, "ANTHROPIC_CUSTOM_HEADERS"})
+_GATEWAY_ONLY_ENV = frozenset({BASE_URL_ENV, AUTH_TOKEN_ENV, "ANTHROPIC_CUSTOM_HEADERS"})
 
 #: Every `CLAUDE*` name: the config directory, the parent session's plumbing,
 #: and the cloud switches. The transport sets back the one it needs.

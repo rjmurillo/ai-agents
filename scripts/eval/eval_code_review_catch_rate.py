@@ -295,11 +295,11 @@ SUBSCRIPTION_PROVIDERS = ("claude-cli", "codex-cli", "copilot-cli")
 def _cost_note(provider: str) -> str:
     """Subscription CLIs report no dollar cost; the metered API path is not priced here.
 
-    A `claude-cli` run through a gateway or proxy is not a seat run: the host
-    at `ANTHROPIC_BASE_URL` decides who pays, so the note names that host.
+    A `claude-cli` run through a gateway is not a seat run: the host at
+    `ANTHROPIC_BASE_URL` decides who pays, so the note names that host.
     """
     transport = transport_record()
-    if transport["payer"] in ("gateway", "proxy"):
+    if transport["payer"] == "gateway":
         return (
             f"{transport['payer']} at {transport['endpoint_host']} decides the bill; "
             "dollars not reported"
