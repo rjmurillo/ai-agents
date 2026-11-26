@@ -10,7 +10,8 @@ deliverable and deserves to be readable and testable on its own.
 Every line goes to the stream its severity belongs on: a verdict the reader must
 act on to stderr, an all-clear to stdout. Each all-clear carries the number of
 config scopes actually read, so "nothing is wrong" cannot be confused with
-"nothing was examined" (`.claude/rules/ci-scripts.md` MUST-12).
+"nothing was examined" (`.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`
+MUST-12).
 
 Stricter/looser/different than canonical: `.agents/governance/GOTCHAS.md` names
 one repair, quoted verbatim from its "Repair" and "Immunize" lines::

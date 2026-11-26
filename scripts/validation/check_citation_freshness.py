@@ -17,10 +17,10 @@ Deliberate scope: added lines only (``citation_reverse_pass.py`` covers
 unchanged citations into changed files), so historical trees (``stale_script_refs``'s
 ``HISTORICAL_ROOTS``), whose citations were true when written, are never
 re-policed. HEAD is the state verified, because HEAD is what a push ships
-(``.claude/rules/ci-scripts.md``, "Read the state you are asserting
-about, and name the ref"). Anchorless citations get existence and range
-checks only. A slashless name is verified only when it names a file
-tracked at the repository root (``.markdownlint-cli2.yaml:138``), so
+(``ai-agents-validation-and-qa`` skill, ``rule-ci-scripts.md``, "Read the state you are asserting
+about, and name the ref"). Anchorless citations get existence and range checks only.
+A slashless name is verified only when it names a file tracked at the
+repository root (``.markdownlint-cli2.yaml:138``), so
 illustrative snippets such as ``auth.ts:47`` stay ignored. Escape
 hatch: ``citation-freshness: ignore`` (with a reason) on the citing line
 or the line above, or, in Markdown, on the line directly above the code
