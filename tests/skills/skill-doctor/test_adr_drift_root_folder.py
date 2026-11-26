@@ -23,7 +23,7 @@ PATH_KEYS = frozenset({"path", "paths", "adr", "from"})
 SUPERSEDED = "adr-superseded-by-commit"
 
 
-def _root_files() -> dict[str, str]:
+def _root_files() -> dict[str, str | None]:
     return {
         "ADR-001-first.md": adr_text(1, body="See [gone](ADR-009-gone.md) and `src/gone.py`."),
         "ADR-003-third.md": adr_text(3),
