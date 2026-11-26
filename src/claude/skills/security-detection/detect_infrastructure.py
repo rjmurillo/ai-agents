@@ -185,6 +185,7 @@ CRITICAL_PATTERNS = [
     r"^\.github/workflows/.*\.(yml|yaml)$",
     r"^\.github/actions/",
     r"^scripts/validation/git_hook_policy\.py$",
+    r"^scripts/validation/adr_debate_evidence\.py$",
     r"^(?:lefthook|\.lefthook|\.config/lefthook)(?:-local)?\.(?:yml|yaml|json|jsonc|toml)$",
     r"^\.husky/",
     r".*/Auth/",

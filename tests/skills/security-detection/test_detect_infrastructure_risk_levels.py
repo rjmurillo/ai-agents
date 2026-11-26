@@ -33,6 +33,11 @@ class TestGetSecurityRiskLevel:
             pytest.param("certs/server.pem", "critical", id="pem-file"),
             pytest.param("config/database.json", "high", id="config-json"),
             pytest.param("scripts/validation/git_hook_policy.py", "critical", id="git-hook-policy"),
+            pytest.param(
+                "scripts/validation/adr_debate_evidence.py",
+                "critical",
+                id="adr-debate-evidence-policy-module",
+            ),
             pytest.param("scripts/validation/pre_pr.py", "none", id="pre-pr-not-policy"),
             pytest.param(".githooks/pre-commit", "none", id="githooks-not-policy"),
         ],
