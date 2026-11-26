@@ -162,7 +162,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         counter=current_count,
         scan_error="check_subprocess_encoding.py failed to run",
         regression_advice=(
-            'Add errors="replace" to UTF-8-pinned text calls (issue #4261). '
+            'Add a literal errors="replace" to UTF-8-pinned text calls and to '
+            "calls that pass **kwargs (issue #4261). "
             "For strict decoding, add # subprocess-encoding: strict-ok on the "
             "call line and state the reason."
         ),
