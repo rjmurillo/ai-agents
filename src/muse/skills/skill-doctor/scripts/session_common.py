@@ -17,6 +17,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+from session_corpus import current_capture
+
 MAX_MSG_CHARS = 1500
 MAX_TOOL_CHARS = 500
 MAX_TRANSCRIPT_ENTRIES = 160
@@ -95,9 +97,12 @@ def iter_jsonl_records(path: Path) -> Iterator[dict[str, Any]]:
 
     def records() -> Iterator[dict[str, Any]]:
         malformed = 0
+        capture = current_capture()
         with stream:
             try:
-                for line in stream:
+                for lineno, line in enumerate(stream, 1):
+                    if capture is not None:
+                        capture.line = lineno
                     if not line.strip():
                         continue
                     try:
@@ -328,6 +333,9 @@ class SessionState:
             0,
         )
         self.entries: Any = TranscriptBuffer() if bounded else []
+        self._capture = current_capture()
+        if self._capture is not None:
+            self._capture.begin()
         self.skills: set[str] = set()
         self.tools: set[str] = set()
         self.calls: set[str] = set()
@@ -342,6 +350,8 @@ class SessionState:
             self.last_ts = ts
 
     def append(self, role: str, text: str, limit: int = MAX_MSG_CHARS) -> None:
+        if self._capture is not None:
+            self._capture.record(role, text, self.last_ts)
         self.entries.append((role, truncate(text, limit)))
 
     def tool(

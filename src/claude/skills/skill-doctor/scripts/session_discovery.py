@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path, PureWindowsPath
 from typing import Any
 
+from session_cli import HARNESS_CHOICES, add_corpus_arguments
 from session_common import _recent_files, record_collection_issue
 
 CLAUDE_DIRECTORY = ".claude"
@@ -382,6 +383,7 @@ def parse_collector_args(description: str | None) -> argparse.Namespace:
         help="also discover skills in the supported harnesses' global skill directories",
     )
     _add_sampling_arguments(parser)
+    add_corpus_arguments(parser)
     parser.add_argument(
         "--skills-dir",
         action="append",
@@ -398,20 +400,7 @@ def parse_collector_args(description: str | None) -> argparse.Namespace:
 def _add_source_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--harness",
-        choices=(
-            "auto",
-            "all",
-            "claude",
-            "codex",
-            "copilot",
-            "warp",
-            "pi",
-            "grok",
-            "zcode",
-            "hermes",
-            "droid",
-            "muse",
-        ),
+        choices=HARNESS_CHOICES,
         default="auto",
         help="session source (default: auto; scans every locally available source)",
     )
