@@ -37,7 +37,6 @@ area-infrastructure:
           - ".github/FUNDING.yml"
           - ".markdownlint-cli2.yaml"
           - ".coderabbit.config.ts"
-          - ".coderabbit.yaml"
           - ".gitignore"
 
 area-skills:
