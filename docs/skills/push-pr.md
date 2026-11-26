@@ -36,7 +36,7 @@ The body must include an `## Acceptance criteria` heading with `- [ ]` or `* [ ]
 
 ## Advanced use
 
-**Process.** The skill first names `<target>`, the branch the PR merges into. It is the repository default branch unless you name another. Then it follows these steps:
+**Process.** The skill first names `<target>`, the branch the PR merges into. It is the repository default branch unless you name another. The name may hold only letters, digits, `.`, `_`, `/`, and `-`. For any other name, the skill stops and asks you. Then it follows these steps:
 
 1. Create a branch if on `main`.
 2. Read [`.github/PULL_REQUEST_TEMPLATE.md`](../../.github/PULL_REQUEST_TEMPLATE.md).
@@ -52,7 +52,7 @@ The skill never applies the `description-validation-bypass` label. A human maint
 
 **Worktrees.** If the branch is checked out in a worktree outside your clone and you run the command from another checkout, add `--head "<branch>"`. Push the branch first. `new_pr.py` exits `2` and prints the push command when `origin` lacks the branch.
 
-**Windows.** The allocator refuses to run on Windows with `ERROR: secure PR body files are not supported on Windows`. In that case only, pass the body inline with `--body '<text>'` instead of `--body-file`. Use single quotes in bash and a single-quoted here-string in PowerShell, never double quotes. Do not add `--skip-validation`. The source file lists the full fallback steps.
+**Windows.** The allocator refuses to run on Windows with `ERROR: secure PR body files are not supported on Windows`. In that case only, pass the body inline with `--body '<text>'` instead of `--body-file`. Use single quotes in bash and a single-quoted here-string in PowerShell, never double quotes. Do not add `--skip-validation`. Add `--base "<target>"` as in step 7 when `<target>` is not the default branch. The source file lists the full fallback steps.
 
 **Security scope.** The skill's `allowed-tools` grant is scoped: specific `git` subcommands, `new_pr.py`, `pr_description.py`, and `validate_pr_description.py` run in isolated mode (`-I`), `mkdir -p .project-toolkit/scratch`, and edits to `.project-toolkit/scratch/pr-body-*.md`. The [`SKILL.md`](../../src/claude/skills/push-pr/SKILL.md) frontmatter is the full list. Do not widen it to bare `Bash`.
 

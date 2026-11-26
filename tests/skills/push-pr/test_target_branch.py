@@ -62,7 +62,8 @@ def test_process_names_the_target_branch_before_step_1(process: str) -> None:
     preamble = process[: first_step.start()]
     assert "`<target>`" in preamble
     assert "default branch" in preamble
-    assert "otherwise stop and ask the user" in " ".join(preamble.split())
+    guard = "Accept only a name made of letters, digits, `.`, `_`, `/`, and `-`;"
+    assert f"{guard} otherwise stop and ask the user" in " ".join(preamble.split())
 
 
 def test_no_github_step_hardcodes_origin_main(process: str) -> None:
