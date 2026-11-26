@@ -202,6 +202,15 @@ def path_is_dir(path: Path) -> bool:
         return False
 
 
+def _is_file(path: Path, rel: str, survey: Survey) -> bool:
+    """`Path.is_file`. An OS error is a read error, not a crash: before 3.14 it raises."""
+    try:
+        return path.is_file()
+    except (OSError, ValueError) as exc:
+        survey.read_errors.append({"path": rel, "error": str(exc)})
+        return False
+
+
 def _resolve(path: Path) -> Path | None:
     """The real path, or None. A NUL byte (a UTF-16 `.adr-dir`) raises ValueError."""
     try:
@@ -221,13 +230,13 @@ def load_dir(path: Path, rel: str, survey: Survey, explicit: bool = False) -> Ad
         entries = []
     root = _resolve(path)
     for entry in entries:
-        if UNREAD_NAME.match(entry.name) and entry.is_file():
+        if UNREAD_NAME.match(entry.name) and _is_file(entry, f"{rel}/{entry.name}", survey):
             survey.adrs_refused = True
             survey.rejected.append(
                 {"path": f"{rel}/{entry.name}", "reason": "a format this scan does not read"}
             )
             continue
-        if entry.suffix.lower() != ".md" or not entry.is_file():
+        if entry.suffix.lower() != ".md" or not _is_file(entry, f"{rel}/{entry.name}", survey):
             continue
         target = _resolve(entry)
         if root is None or target is None or not within(target, root):
@@ -247,17 +256,7 @@ def load_dir(path: Path, rel: str, survey: Survey, explicit: bool = False) -> Ad
         if parsed is None:
             other.append(entry.name)
             continue
-        convention, number, digits, slug = parsed
-        files.append(
-            AdrFile(
-                entry,
-                f"{rel}/{entry.name}" if rel else entry.name,
-                convention,
-                number,
-                digits,
-                slug,
-            )
-        )
+        files.append(AdrFile(entry, f"{rel}/{entry.name}" if rel else entry.name, *parsed))
     files.sort(key=lambda f: (f.number, f.path.name))
     return AdrDir(path, rel, files, other, explicit)
 
@@ -272,9 +271,9 @@ def _marker_text(repo: Path, survey: Survey) -> str | None:
     reason = None
     if target is None or not within(target, repo):
         reason = "resolves outside the repository"
-    elif not target.is_file():
+    elif not _is_file(target, ".adr-dir", survey):
         reason = "is not a regular file"
-    if reason is not None:
+    if reason is not None or target is None:
         survey.rejected.append({"path": ".adr-dir", "reason": reason})
         return None
     try:

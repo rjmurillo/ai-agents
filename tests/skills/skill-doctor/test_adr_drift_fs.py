@@ -231,3 +231,56 @@ def test_a_record_like_name_with_no_number_is_still_unparseable(tmp_path, capsys
     commit(repo, {f"{ADR_DIR}/adr-draft-x.md": "# x\n"}, "docs: draft")
 
     assert [f for f in scan(capsys, repo)["findings"] if f["kind"] == "adr-unparseable-name"]
+
+
+def _refuse_is_file(monkeypatch, name: str) -> None:
+    """Make `Path.is_file` raise for one name, as Python before 3.14 does on EACCES."""
+    real = Path.is_file
+
+    def is_file(self: Path, **kwargs: Any) -> bool:
+        if self.name == name:
+            raise PermissionError(13, "Permission denied", str(self))
+        return real(self, **kwargs)
+
+    monkeypatch.setattr(Path, "is_file", is_file)
+
+
+def test_an_entry_that_cannot_be_statted_is_a_read_error_and_the_scan_continues(
+    tmp_path, capsys, monkeypatch
+):
+    repo = seeded_repo(tmp_path / "repo")
+    (repo / ADR_DIR / "ADR-002-locked.md").write_text(adr_text(2), encoding="utf-8")
+    _refuse_is_file(monkeypatch, "ADR-002-locked.md")
+
+    result = scan(capsys, repo)
+
+    assert result["locate"]["adr_dirs"][0]["count"] == 1
+    errors = result["read_errors"]
+    assert [e["path"] for e in errors] == [f"{ADR_DIR}/ADR-002-locked.md"]
+    assert "Permission denied" in errors[0]["error"]
+
+
+def test_an_unread_format_entry_that_cannot_be_statted_is_a_read_error(
+    tmp_path, capsys, monkeypatch
+):
+    repo = seeded_repo(tmp_path / "repo")
+    (repo / ADR_DIR / "ADR-002-locked.mdx").write_text(adr_text(2), encoding="utf-8")
+    _refuse_is_file(monkeypatch, "ADR-002-locked.mdx")
+
+    result = scan(capsys, repo)
+
+    assert [e["path"] for e in result["read_errors"]] == [f"{ADR_DIR}/ADR-002-locked.mdx"]
+    assert result["locate"]["rejected"] == []
+
+
+def test_a_marker_that_cannot_be_statted_is_a_read_error_and_known_folders_still_count(
+    tmp_path, capsys, monkeypatch
+):
+    repo = seeded_repo(tmp_path / "repo")
+    (repo / ".adr-dir").write_text("docs/adr\n", encoding="utf-8")
+    _refuse_is_file(monkeypatch, ".adr-dir")
+
+    located = _locate(capsys, repo)
+
+    assert [e["path"] for e in located["read_errors"]] == [".adr-dir"]
+    assert [d["path"] for d in located["adr_dirs"]] == [ADR_DIR]
