@@ -119,7 +119,7 @@ as the corpus and its history grow, because nobody has one place to check
   `lefthook.yml:728` sets `AI_AGENTS_PRE_PR_FAST_STAGE_RAN: "1"`.
   `tests/validation/test_pre_pr_sequence_registry.py:195-203` defines `FAST_STAGE_DUPLICATES`.
   The set names Count Ratchets, Unreachable Code Detection, Path Normalization, Planning Artifacts, and Em/en-dash Prohibition.
-  `tests/validation/test_pre_pr_sequence_registry.py:297-321` defines `TestFastStageDeferral`.
+  `tests/validation/test_pre_pr_sequence_registry.py:298-322` defines `TestFastStageDeferral`.
   These cites stop the duplicate run this memory describes. Relevance: this was the evidentiary basis for a fourth PR
   ("delete duplicate gate execution") in this cohort's original seed plan;
   the mechanism it targeted is already fixed. Decision: propose-amend. The
