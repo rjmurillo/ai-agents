@@ -618,7 +618,9 @@ def test_sigterm_raises_outside_a_restore(tmp_path: Path) -> None:
     assert caught.value.code == ec.EXIT_EXTERNAL
 
 
-def test_sigterm_during_a_restore_waits_for_the_write(tmp_path: Path) -> None:
+def test_sigterm_during_a_restore_waits_for_the_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     config, artifact = _setup(tmp_path, {}, steps=1)
     controller = ec.Controller(ec.load_config(config))
     controller.incumbent_bytes = b"incumbent"
@@ -629,13 +631,9 @@ def test_sigterm_during_a_restore_waits_for_the_write(tmp_path: Path) -> None:
         controller.on_sigterm(15, None)  # arrives mid-restore: must not raise
         real(path, data, mode)
 
-    original = ec.write_artifact
-    ec.write_artifact = interrupted
-    try:
-        with pytest.raises(ec.ControllerError):
-            controller._restore()
-    finally:
-        ec.write_artifact = original
+    monkeypatch.setattr(ec, "write_artifact", interrupted)
+    with pytest.raises(ec.ControllerError):
+        controller._restore()
     assert artifact.read_bytes() == b"incumbent"
 
 

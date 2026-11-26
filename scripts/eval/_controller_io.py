@@ -183,6 +183,11 @@ def trusted_code(config: Config) -> list[Path]:
 
 def check_layout(config: Config) -> None:
     """Refuse a layout where the proposer would need a denied path to work."""
+    _check_workspace_and_artifact(config)
+    _check_protected_paths(config)
+
+
+def _check_workspace_and_artifact(config: Config) -> None:
     if overlaps(config.state_dir, config.workspace_dir):
         raise ControllerError("`workspace_dir` and `state_dir` must not contain each other")
     if overlaps(config.config_path, config.workspace_dir):
@@ -191,14 +196,17 @@ def check_layout(config: Config) -> None:
         raise ControllerError(
             "the artifact must not sit inside the proposer workspace, which is emptied each step"
         )
+    if overlaps(config.artifact, config.state_dir):
+        raise ControllerError("the artifact must not sit inside state_dir")
+
+
+def _check_protected_paths(config: Config) -> None:
     for path in [*config.deny_paths, *config.trusted_paths]:
         if overlaps(path, config.workspace_dir) or overlaps(path, config.artifact):
             raise ControllerError(
                 "a deny or trusted path overlaps the proposer workspace or the artifact; "
                 "the proposer would need it to do its job"
             )
-    if overlaps(config.artifact, config.state_dir):
-        raise ControllerError("the artifact must not sit inside state_dir")
     for path in trusted_code(config):
         if overlaps(path, config.state_dir) or overlaps(path, config.workspace_dir):
             raise ControllerError(
