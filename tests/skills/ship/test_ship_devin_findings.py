@@ -274,6 +274,15 @@ def _alive(pid: int) -> bool:
     return stat.rsplit(")", 1)[1].split()[0] != "Z"
 
 
+def _assert_dead(pid_file: Path) -> None:
+    """The hook's child dies within a bounded poll, so a slow reaper cannot flake it."""
+    pid = int(pid_file.read_text(encoding="utf-8"))
+    deadline = time.monotonic() + 10
+    while _alive(pid) and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert not _alive(pid), "the hook's child outlived the push"
+
+
 def _reap(pid_file: Path) -> None:
     if pid_file.exists():
         with contextlib.suppress(ProcessLookupError, ValueError):
@@ -397,12 +406,38 @@ class TestPushLock:
             code, lines = publish(scripts, capsys, body)
             assert code == 3, lines
             assert lines[-1].startswith("STOP: push-failed git: timed out after 2s"), lines
-            pid = int(pid_file.read_text(encoding="utf-8"))
-            deadline = time.monotonic() + 10
-            while _alive(pid) and time.monotonic() < deadline:
-                time.sleep(0.05)
-            assert not _alive(pid), "the hook's child outlived the push timeout"
+            _assert_dead(pid_file)
             _assert_lock_free()
+        finally:
+            _reap(pid_file)
+
+    @pytest.mark.parametrize(
+        ("sig", "error"),
+        [
+            (signal.SIGINT, KeyboardInterrupt),
+            (signal.SIGTERM, SystemExit),
+            (signal.SIGHUP, SystemExit),
+        ],
+    )
+    def test_a_signal_mid_push_kills_the_hook_tree_before_the_lock_frees(
+        self, owner, scripts, capsys, tmp_path, sig, error
+    ):
+        """Ctrl-C, a SIGTERM, or a hangup must not leave the push running unlocked."""
+        repo, body = owner
+        pid_file = tmp_path / "hook-child.pid"
+        trapped = (signal.SIGTERM, signal.SIGHUP)
+        before = [signal.getsignal(each) for each in trapped]
+        script = f"sleep 60 &\necho $! > '{pid_file}'\nkill -{sig.name[3:]} {os.getpid()}\nwait\n"
+        _hook(repo, script)
+        try:
+            with pytest.raises(error) as raised:
+                publish(scripts, capsys, body)
+            _assert_dead(pid_file)
+            _assert_lock_free()
+            assert not _remote_has_branch(tmp_path)
+            assert [signal.getsignal(each) for each in trapped] == before
+            if error is SystemExit:
+                assert raised.value.code == 128 + sig
         finally:
             _reap(pid_file)
 

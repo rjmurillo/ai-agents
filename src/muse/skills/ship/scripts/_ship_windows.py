@@ -82,7 +82,7 @@ def find_program(name: str) -> str | None:
 
 
 def command(argv: list[str]) -> list[str] | str | None:
-    """Return what to pass to ``subprocess.run``, or None when cmd.exe would rewrite it.
+    """Return what to pass to ``subprocess.Popen``, or None when cmd.exe would rewrite it.
 
     Off Windows, and for a name with a directory part, ``argv`` is unchanged.
     An unfound name raises FileNotFoundError, which ``run`` reports as 127: a

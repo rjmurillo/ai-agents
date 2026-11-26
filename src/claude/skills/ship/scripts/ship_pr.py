@@ -72,7 +72,7 @@ REASONS = preflight_mod.REASONS | frozenset(
     }
 )
 BODY_MARKER = checks_mod.BODY_MARKER
-# The run budget caps the push, less the PR create's reserve. A timeout kills the hook tree.
+# The run budget caps the push, less the PR create's reserve. A timeout kills its hooks.
 PUSH_TIMEOUT_SECONDS = 540
 PR_RESERVE_SECONDS = 120
 _EXTERNAL_RETURN_CODES = (124, 126, 127)  # timeout, cannot run, not found
@@ -232,14 +232,14 @@ def _push(ctx: Context, result: common.Result) -> bool:
             result.stop("push-locked", common.EXIT_EXTERNAL, _LOCK_BUSY)
             return False
         result.add("PUSH_LOCK", lock)
-        return _push_now(ctx, result, lock == "held")
+        return _push_now(ctx, result)
 
 
-def _push_now(ctx: Context, result: common.Result, group: bool) -> bool:
+def _push_now(ctx: Context, result: common.Result) -> bool:
     timeout = max(1, min(PUSH_TIMEOUT_SECONDS, common.remaining_seconds() - PR_RESERVE_SECONDS))
     ref = f"refs/heads/{ctx.branch}"
     push = ["push", "--set-upstream", "origin", f"{ref}:{ref}"]
-    done = common.git(push, cwd=ctx.root, timeout=timeout, group=group)
+    done = common.git(push, cwd=ctx.root, timeout=timeout, group=not common.on_windows())
     if done.returncode == 0:
         result.add("PUSH", "pushed")
         return True

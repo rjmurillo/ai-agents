@@ -65,36 +65,6 @@ CONTROL_RE = re.compile("[\x00-\x1f\x7f-\x9f\u2028\u2029]")  # C0, DEL, C1, line
 _REF_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,199}")
 
 
-# A token ends only at ASCII whitespace. Unicode spaces and control
-# characters stay inside it, so a password holding one is still cut.
-_ASCII_SPACE = frozenset(" \t\n\r\v\f")
-
-
-def _strip_userinfo(text: str) -> str:
-    """Drop everything between ``://`` and the last ``@`` of the same token.
-
-    A token is the run of non-space characters after ``://``. Cutting to the
-    last ``@`` removes a password that itself holds ``@`` or ``/``, at any
-    length. A path segment holding ``@`` is over-redacted; that is the safe
-    side. One pass over the text, so a long value stays linear.
-    """
-    out: list[str] = []
-    start = 0
-    while True:
-        marker = text.find("://", start)
-        if marker < 0:
-            out.append(text[start:])
-            return "".join(out)
-        token_start = marker + 3
-        token_end = token_start
-        while token_end < len(text) and text[token_end] not in _ASCII_SPACE:
-            token_end += 1
-        token = text[token_start:token_end]
-        out.append(text[start:token_start])
-        out.append(token[token.rfind("@") + 1 :])
-        start = token_end
-
-
 def load_sibling(
     name: str,
 ) -> ModuleType:  # pragma: no cover - runs only in a fresh interpreter; see test_ship_edges.py::test_script_runs_under_isolated_mode
@@ -132,7 +102,7 @@ on_windows = _windows.on_windows
 
 def clean(value: object) -> str:
     """Return ``value`` as one safe line: no userinfo, no control characters."""
-    text = _strip_userinfo(str(value))
+    text = _remote.strip_userinfo(str(value))
     text = CONTROL_RE.sub(" ", text)
     return " ".join(text.split())
 
@@ -250,8 +220,12 @@ class Result:
 
 
 def _line_size(line: str) -> int:
-    """Bytes one line costs in the larger format: its JSON-encoded size, since
-    JSON escapes quotes, so the byte cap holds for both (ADR-127 decision 4)."""
+    """Bytes one result line costs in the larger of the two formats.
+
+    The JSON form escapes quotes and backslashes, so a line is charged its
+    JSON-encoded size. That keeps the byte cap true for both formats
+    (ADR-127 decision 4 items 9 and 12).
+    """
     return len(json.dumps(line, ensure_ascii=False).encode("utf-8")) + 1
 
 
@@ -265,7 +239,8 @@ def _capped_lines(result: Result, repo_root: Path | None) -> list[tuple[str, str
     kept: list[tuple[str, str]] = []
     used = 0
     budget = MAX_BYTES - _TAIL_RESERVE - _line_size(terminal)
-    # The check above guarantees a break: the line cap or the byte budget.
+    # The check above guarantees a break: over the line cap, kept stops at
+    # MAX_LINES - 2; over the byte cap, the lines alone exceed the budget.
     for (key, value), line in zip(result.lines, body, strict=True):  # pragma: no branch
         size = _line_size(line)
         if len(kept) >= MAX_LINES - 2 or used + size > budget:
@@ -424,12 +399,15 @@ def run(
     """Run ``argv`` without a shell. A missing binary is 127; a timeout is 124.
 
     ``env`` adds variables on top of ``child_env()``. ``group`` (POSIX only)
-    starts a new session, and a timeout kills it whole, hooks included. On
-    Windows, ``_ship_windows`` resolves a bare name and refuses (126) an
-    argument cmd.exe would rewrite for a ``.cmd`` target. The timeout never
-    exceeds the time left in the run's shared budget.
+    starts the child in a new session. A timeout, an interrupt, or a SIGTERM
+    or SIGHUP to this script then kills the child's process group, hooks
+    included, before the call returns or the error propagates. On Windows,
+    ``_ship_windows`` resolves a bare name and refuses (126) an argument
+    cmd.exe would rewrite for a ``.cmd`` target. The timeout never exceeds
+    the time left in the run's shared budget.
     """
     timeout = min(timeout, remaining_seconds())
+    saved = _trap_exit_signals() if group else {}
     try:
         command = _windows.command(argv)
         if command is None:
@@ -450,17 +428,39 @@ def run(
             try:
                 out, err = child.communicate(stdin_text, timeout=timeout)
             except subprocess.TimeoutExpired:
-                if group:
-                    with contextlib.suppress(OSError):  # the session may be gone already
-                        os.killpg(child.pid, signal.SIGKILL)
-                child.kill()
+                _kill(child, group)
                 return Completed(124, "", f"{argv[0]}: timed out after {timeout:g}s")
+            except BaseException:  # KeyboardInterrupt or a trapped signal: never orphan it
+                _kill(child, group)
+                raise
     except FileNotFoundError:
         return Completed(127, "", f"{argv[0]}: not found")
     except OSError as exc:
         # A binary that cannot run is a failed call, never a crash: still STOP.
         return Completed(126, "", f"{argv[0]}: cannot run: {exc.strerror or exc}")
+    finally:
+        for signum, handler in saved.items():
+            signal.signal(signum, handler)
     return Completed(child.returncode, out or "", err or "")
+
+
+def _exit_on_signal(signum: int, _frame: object) -> None:
+    raise SystemExit(128 + signum)
+
+
+def _trap_exit_signals() -> dict[int, Any]:
+    """Make SIGTERM and SIGHUP raise, so ``run`` can kill a group child first."""
+    return {sig: signal.signal(sig, _exit_on_signal) for sig in (signal.SIGTERM, signal.SIGHUP)}
+
+
+def _kill(child: subprocess.Popen[str], group: bool) -> None:
+    """Kill ``child``, and with ``group`` its whole process group."""
+    if group:
+        with contextlib.suppress(OSError):  # ESRCH: gone; EPERM: only zombies left
+            os.killpg(child.pid, signal.SIGKILL)
+    child.kill()
+    if on_windows():  # pragma: no cover - join the reader threads, as subprocess.run does
+        child.communicate()
 
 
 def git(
