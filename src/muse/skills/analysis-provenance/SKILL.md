@@ -274,13 +274,14 @@ Recommendation: Do NOT modify. Configure via .markdownlint.json instead.
 
 ### In Pre-commit Hooks
 
-pre-commit tokenizes `entry` without shell expansion, so `${COPILOT_PLUGIN_ROOT:-...}` would reach `python3` as a literal string and never resolve. Route it through a shell so the expansion happens before `python3` sees the path:
+pre-commit tokenizes `entry` without shell expansion, so the plugin-root variables in the locator would reach the hook as literal strings and never resolve. Route the locator through a shell so the expansion happens first:
 
 ```yaml
 # Prevent accidental upstream modifications
 - id: provenance-check
   name: Provenance Check
-  entry: bash -c '"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/analysis-provenance/scripts/check_provenance.py" "$@"' --
+  entry: >-
+    bash -c '( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/analysis-provenance/scripts/check_provenance.py "$@"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )' --
   args: [--target, node_modules, --exit-on-upstream]
   language: system
 ```

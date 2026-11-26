@@ -92,12 +92,12 @@ filesystem walk was the first implementation and is wrong for a ratchet.
     happens to have on disk, which inflated a local ruff run to 767 against a real
     tracked count of 361 and made that gate report a phantom regression outside CI.
 
-`.claude/rules/ci-scripts.md` MUST 9 binds it: a ratchet baseline is a claim
-about a ref, so the measurement behind it must not read untracked state, or the
-same commit scores differently on two machines. Measured on this gate before the
-change: one untracked `SKILL.md` declaring ADR-007, on a tree byte-identical at
-HEAD and in the index, took the count from 16 to 17 and exited 1, and the remedy
-it printed sent the reader to repoint a file the repository does not contain.
+`.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md` MUST 9 binds
+it: a ratchet baseline is a claim about a ref, so the measurement behind it must not
+read untracked state, or the same commit scores differently on two machines. Measured on
+this gate before the change: one untracked `SKILL.md` declaring ADR-007, on a tree
+byte-identical at HEAD and in the index, took the count from 16 to 17 and exited 1, and
+the remedy it printed sent the reader to repoint a file the repository does not contain.
 
 Reading each path's content off disk rather than out of the ref is deliberate,
 and matches the same sibling: a staged or unstaged edit to a tracked `SKILL.md`
@@ -167,7 +167,8 @@ directory holding no records, a run that examined nothing,
 and a ``--write-baseline`` that would raise the ceiling or was measured from a
 partial tree. A gate that cannot read its own baseline, cannot enumerate what it
 is meant to scan, or examined nothing has not run, and reporting any of those as
-a pass is the silent-pass failure `.claude/rules/ci-scripts.md` exists to stop.
+a pass is the silent-pass failure
+`.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md` exists to stop.
 
 Every terminal line carries the examined count beside the violation count, which
 MUST 12 requires in as many words: "0 violations in 381 files" is verifiable,
@@ -362,11 +363,11 @@ def _escapes_repo(skill: Path, repo_root: Path) -> bool:
 class ScanResult:
     """What a scan found, and as importantly what it managed to look at.
 
-    `.claude/rules/ci-scripts.md` MUST 12 requires a run that examined nothing to
-    be distinguishable from a run that examined everything and found nothing. The
-    counts therefore travel together, so no caller can render one without the
-    other. ``candidates`` is what the index offered, ``examined`` is what was
-    actually read, and ``absent`` names the difference.
+    `.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md` MUST 12
+    requires a run that examined nothing to be distinguishable from a run that
+    examined everything and found nothing. The counts therefore travel together, so no
+    caller can render one without the other. ``candidates`` is what the index offered,
+    ``examined`` is what was actually read, and ``absent`` names the difference.
     """
 
     violations: list[Violation]
@@ -741,11 +742,11 @@ def _write_baseline_command(repo_root: Path, adr_dir: Path, baseline_path: Path)
     every later full run a permanent regression against a number no tree ever
     held. So any absent path refuses the write.
 
-    A ratchet may only fall. `.claude/rules/ci-scripts.md` MUST NOT 4 forbids
-    raising a count baseline, and the shared `scripts/ci/count_ratchet.py:1016`
-    enforces it by reaching its writer only inside ``if count < baseline:``.
-    Without this, the remedy line this gate itself prints is a one-command way to
-    legalise a new violation.
+    A ratchet may only fall.
+    `.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md` MUST NOT 4
+    forbids raising a count baseline, and the shared `scripts/ci/count_ratchet.py:1016`
+    enforces it by reaching its writer only inside ``if count < baseline:``. Without this,
+    the remedy line this gate itself prints is a one-command way to legalise a new violation.
 
     Weaker than the sibling, deliberately and for now. An earlier revision of this
     docstring claimed `check_adr_lifecycle.py` "refuses the same way". That was

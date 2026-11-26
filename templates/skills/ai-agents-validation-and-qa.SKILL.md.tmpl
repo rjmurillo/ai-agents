@@ -130,7 +130,7 @@ coverage report --include=scripts/ai_review_common/verdict.py --fail-under=100
 | File-set sensitivity | Collect with EVERY test file that exercises the module. After a test-file split, `test_ai_review.py` alone reported 63% and tripped the gate | pytest.yml:508 |
 | Coverage target form | Collect with bare `--cov --cov-branch`, then isolate the module with `coverage report --include=<path> --fail-under=100`. A module-name `--cov=<name>` target fails when the module is a file-path target not importable by name | pytest.yml:524 |
 
-Related discipline, FM-10: there is no neutral default for a missing signal (FAILURE-MODES.md:390). The neutral default is UNKNOWN, not PASS (`extract_verdict` on no-match, `merge_verdicts` on empty; `get_verdict` fails safe to CRITICAL_FAIL). The verdict-parser PR still took 3 fix rounds to make UNKNOWN blocking everywhere it flowed: the workflow verdict list, the action parser allowlist, and the action exit-code mapping. When testing parsers or gates, always include the missing-signal case and assert it raises or blocks, never that it silently passes.
+Related discipline, FM-10: there is "no neutral default for a missing signal" (FAILURE-MODES.md:391). The neutral default is UNKNOWN, not PASS (`extract_verdict` on no-match, `merge_verdicts` on empty; `get_verdict` fails safe to CRITICAL_FAIL). The verdict-parser PR still took 3 fix rounds to make UNKNOWN blocking everywhere it flowed: the workflow verdict list, the action parser allowlist, and the action exit-code mapping. When testing parsers or gates, always include the missing-signal case and assert it raises or blocks, never that it silently passes.
 
 ### Phase 5: QA evidence semantics
 

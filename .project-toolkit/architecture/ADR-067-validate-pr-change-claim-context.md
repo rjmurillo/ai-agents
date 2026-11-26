@@ -1,6 +1,6 @@
 ---
 id: ADR-067
-status: proposed
+status: accepted
 date: 2026-06-02
 decision-makers: [rjmurillo]
 supersedes: []
@@ -185,7 +185,7 @@ The follow-up implementer task (spawned as a child of this kanban task) MUST:
 2. Add `_change_claim_regions(cleaned: str) -> list[tuple[int, int]]` that returns the spans of each matching H2 section, using the same terminator regex as the existing stripper (`(?=^#{1,2}(?!#)|\Z)`).
 3. In `extract_mentioned_files`, after `_strip_informational_sections`, compute regions once. In the per-pattern loop, accept matches for `FILE_MENTION_PATTERNS[0]` (inline-backtick) and `FILE_MENTION_PATTERNS[3]` (markdown-link) only when `match.start()` is inside a region. Patterns 1 and 2 unchanged.
 4. Tests MUST cover:
-   - PR #2214 body shape (inline-backtick `.claude/commands/spec.md` in `## Per-file changes` narrative). Asserts: not flagged.
+   - PR #2214 body shape (an inline-backtick .claude/commands/spec.md path in `## Per-file changes` narrative). Asserts: not flagged.
    - PR #2225 body shape (inline-backtick under `## Testing`). Asserts: not flagged.
    - PR #1873 body shape (inline-backtick `.gemini/styleguide.md` in `## Author Pre-flight`). Asserts: not flagged.
    - "Inline-backtick `foo.py` IS still a claim when it appears under `## Changes`." Asserts: flagged if not in diff.
@@ -220,6 +220,14 @@ Detection signal: any merged PR whose post-merge `gh pr view --json files` shows
 - `.github/PULL_REQUEST_TEMPLATE.md` (canonical PR-body template)
 - `.claude/commands/push-pr.md` (autonomous PR-body author)
 - Regression simulator: `.project-toolkit/analysis/2252-pr-description-default-flip-regression-sim.py` (40-PR sample, seed 2252)
+
+## Amendment 2026-11-25: change headings scope every pattern
+
+PR #6414 (`294ce6aec`, 2026-10-12) went further than Option (c). When a body has a change heading,
+bold and bullet paths outside it no longer count as change claims either.
+`extract_mentioned_files` in `scripts/validation/pr_description.py` applies that rule.
+The hybrid split above still holds for a body with no change heading.
+This note records shipped behavior, found when this record was accepted (issue #7636).
 
 ---
 

@@ -295,7 +295,7 @@ def main() -> int:
     orphans = _shipped_dispatchers(args.install_root)
     # Report the examined counts unconditionally, so a run that checked nothing
     # is distinguishable from one that checked something and passed
-    # (.claude/rules/ci-scripts.md MUST 12).
+    # (.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md MUST 12).
     print(
         f"installed plugin registers {len(events_to_test)} hook event(s): "
         f"{events_to_test or '[]'}; {len(orphans)} dispatcher(s) on disk"
