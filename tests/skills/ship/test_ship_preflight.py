@@ -57,6 +57,10 @@ def _show(
     fakes.rule("az", ["repos", "pr", "show"], {"rc": rc, "stdout": json.dumps(state)})
 
 
+_OPEN_PR = {"number": 9, "state": "OPEN", "url": "u", "baseRefName": "main"}
+_ADO_ENTRY = {"targetRefName": "refs/heads/main", "createdBy": {"uniqueName": "me"}}
+
+
 def _preflight(scripts, capsys, *argv):
     return invoke(scripts[2], list(argv), capsys)
 
@@ -74,17 +78,7 @@ def github_pr(make_repo, fakes):
     fakes.rule(
         "gh",
         ["pr", "view"],
-        {
-            "stdout": json.dumps(
-                {
-                    "number": 9,
-                    "state": "OPEN",
-                    "author": {"login": "me"},
-                    "url": "u",
-                    "baseRefName": "main",
-                }
-            )
-        },
+        {"stdout": json.dumps({**_OPEN_PR, "author": {"login": "me"}})},
     )
     fakes.rule("gh", ["api", "user"], {"stdout": "me\n"})
     _head(fakes, 9)
@@ -148,17 +142,7 @@ def test_contributor_is_advisory_and_never_runs_the_validator(make_repo, fakes, 
     fakes.rule(
         "gh",
         ["pr", "view"],
-        {
-            "stdout": json.dumps(
-                {
-                    "number": 9,
-                    "state": "OPEN",
-                    "author": {"login": "alice"},
-                    "url": "u",
-                    "baseRefName": "main",
-                }
-            )
-        },
+        {"stdout": json.dumps({**_OPEN_PR, "author": {"login": "alice"}})},
     )
     fakes.rule("gh", ["api", "user"], {"stdout": "bob\n"})
     _head(fakes, 9)
@@ -194,11 +178,8 @@ def test_github_green_needs_success_and_all_passing(github_pr, fakes, scripts, c
     assert code == 0
     assert values(lines, "CHECK")[0].startswith("pipeline=PASS pr=9 head=")
     call = fakes.calls("get_pr_checks")[0]
-    assert call[1:] == [
-        "--owner",
-        "o",
-        "--repo",
-        "r",
+    assert call[1:5] == ["--owner", "o", "--repo", "r"]
+    assert call[5:] == [
         "--pull-request",
         "9",
         "--wait",
@@ -310,17 +291,7 @@ def _ado(make_repo, fakes, pr: int | None = 77):
     fakes.rule(
         "az",
         ["repos", "pr", "list"],
-        {
-            "stdout": json.dumps(
-                [
-                    {
-                        "pullRequestId": pr,
-                        "targetRefName": "refs/heads/main",
-                        "createdBy": {"uniqueName": "me"},
-                    }
-                ]
-            )
-        },
+        {"stdout": json.dumps([{"pullRequestId": pr, **_ADO_ENTRY}])},
     )
     fakes.rule("az", ["account", "show"], {"stdout": "me\n"})
 
