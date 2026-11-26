@@ -185,9 +185,10 @@ def _read_frontmatter(side: SkillSide, ref: str) -> None:
     front = front if isinstance(front, dict) else {}
     metadata = front.get("metadata")
     shape = metadata.get("shape") if isinstance(metadata, dict) else None
-    if shape is not None and shape not in SHAPES:
+    valid = isinstance(shape, str) and shape in SHAPES
+    if shape is not None and not valid:
         side.error = f"{ref}: metadata.shape is {shape!r}; it must be driver or reference"
-    side.shape = shape if shape in SHAPES else None
+    side.shape = shape if valid else None
     tools = front.get("allowed-tools")
     if isinstance(tools, list) and all(isinstance(t, str) for t in tools):
         tools = ", ".join(tools)

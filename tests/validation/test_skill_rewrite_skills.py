@@ -36,6 +36,17 @@ class TestFrontmatter:
         assert code == 1
         assert "metadata.shape is 'drivr'; it must be driver or reference" in out
 
+    @pytest.mark.parametrize("shape", ["[driver]", "{a: b}"])
+    def test_unhashable_shape_is_a_finding_not_a_crash(
+        self, repo: Path, capsys: pytest.CaptureFixture[str], shape: str
+    ) -> None:
+        write(repo, SKILL, skill_md(shape))
+        commit(repo, "list shape")
+        code, out = run(repo, capsys)
+        assert code == 1
+        assert "metadata.shape is" in out
+        assert "it must be driver or reference" in out
+
     def test_invalid_yaml(self, repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
         write(repo, SKILL, "---\nname: [unclosed\n---\n\nBody\n")
         commit(repo, "bad yaml")
