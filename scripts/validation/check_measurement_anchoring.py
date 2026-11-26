@@ -12,7 +12,8 @@ Deliberate scope, in the design of ``check_citation_freshness.py``:
 * Added lines only (``base...HEAD``), so the existing backlog is never
   re-policed and the gate passes on day one. ``--tree`` prints the backlog
   at HEAD for a human; it is the corpus demonstration
-  ``.claude/rules/ci-scripts.md`` item 13 asks of a PR that adds a gate.
+  ``.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`` item 13 asks of a PR
+  that adds a gate.
 * Tracked ``.md`` files and ``.md.tmpl`` skill sources, minus point-in-time
   records (``HISTORICAL_ROOTS`` from ``stale_script_refs.py`` plus the
   extras below) and generated mirrors. Those trees state what was true when

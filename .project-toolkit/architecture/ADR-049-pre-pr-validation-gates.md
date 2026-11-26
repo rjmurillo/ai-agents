@@ -1,6 +1,6 @@
 ---
 id: ADR-049
-status: proposed
+status: accepted
 date: 2026-02-24
 decision-makers: [rjmurillo]
 supersedes: []
@@ -92,7 +92,7 @@ A documented bypass flag (e.g., `--force` with a justification argument) allows 
 
 ## Implementation Notes
 
-1. Create `scripts/validate_pr_readiness.py` implementing the checks above (ADR-042: Python for new scripts).
+1. Create the pre-PR validator, shipped as `scripts/validation/pre_pr.py` (ADR-042: Python for new scripts). ADR-099 removed the commit-count block and ADR-100 retired the blocking size ceilings, so those two checks no longer gate.
 2. Update SESSION-PROTOCOL.md to add a MUST gate: "Run pre-PR validation before creating PR."
 3. Integrate into the `push-pr` skill so the gate runs automatically.
 4. Document the bypass process in PROJECT-CONSTRAINTS.md.

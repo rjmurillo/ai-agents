@@ -19,9 +19,9 @@ Exit codes follow ADR-035: ``0`` no commands found, ``1`` at least one command
 found, ``2`` a configuration error (a plugin root that is not a directory).
 
 The scan is over tracked files at ``HEAD`` plus the index, not a directory walk,
-per ``.claude/rules/ci-scripts.md`` MUST 9: an untracked scratch file under a
-``commands/`` directory is not a shipped command and must not fail the build,
-while a staged one must, because the next commit ships it.
+per ``.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`` MUST 9:
+an untracked scratch file under a ``commands/`` directory is not a shipped command and
+must not fail the build, while a staged one must, because the next commit ships it.
 """
 
 from __future__ import annotations

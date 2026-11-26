@@ -12,10 +12,10 @@ uncited claims while the existing ones are cleaned up.
 The count is the number of violations ``STRICT_CANONICAL_CHECK=1`` reports:
 ``check_canonical_citations.scan_file`` is called once per file, so the two
 agree by construction. One difference is deliberate, per
-``.claude/rules/ci-scripts.md`` MUST 9: the checker walks the directory tree
-with ``rglob``, which reads untracked files too. This ratchet lists git-TRACKED
-Python files under the same five scan roots, so the same commit scores the same
-on every machine.
+``.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md``
+MUST 9: the checker walks the directory tree with ``rglob``, which reads
+untracked files too. This ratchet lists git-TRACKED Python files under the same
+five scan roots, so the same commit scores the same on every machine.
 
 Stdlib only: this runs by path in CI and must not depend on the project's
 import graph.

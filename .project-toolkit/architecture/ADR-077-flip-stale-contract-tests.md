@@ -1,20 +1,22 @@
 ---
 id: ADR-077
-status: proposed
+status: accepted
 date: 2026-06-29
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
 explainer: null
 implemented: true
-review-by: 2026-09-27
+review-by: null
 ---
 
 # ADR-077: Flip Stale Contract Tests
 
 ## Status
 
-Proposed. This is a 90-day experimental governance rule. The review checkpoint is 2026-09-27.
+Accepted 2026-11-25 as a permanent rule by owner direction (issue #7636).
+
+It began as a 90-day experiment with a review checkpoint on 2026-09-27. No review was held by that date. The review on 2026-11-25 searched commit messages on `main` since 2026-06-29, `.project-toolkit/retrospective/`, and `.serena/memories/`. It found no flip recorded under the rule and no recorded harm, so neither the keep test nor the remove test produced data. The failure class the rule targets did recur: `.project-toolkit/retrospective/2026-09-01-pr5343-round-cap-handoff.md` records stale tests failing after a contract change. That shows the problem is real, not that the rule worked. It is also already carried by `.agents/governance/TESTING-RIGOR.md`, `.agents/governance/TESTING-ANTI-PATTERNS.md`, `src/claude/skills/test/references/rule-testing.md`, and the implementer and critic agents. The `review-by` date is cleared.
 
 ## Date
 
@@ -90,7 +92,7 @@ The chosen option trades a small search step for fewer false green suites. It do
 - Authors must spend time finding old assertions even when the change looks small.
 - The rule can be misapplied to pure refactors with no observable contract change.
 - Some old behavior may be implied by helpers or fixtures, so the grep target is not always obvious. Authors must name the search terms in the commit body when no stale tests are found.
-- The rule is not CI-enforced. It relies on author discipline and reviewer checks during the 90-day trial.
+- The rule is not CI-enforced. It relies on author discipline and reviewer checks. The 90-day trial ended with acceptance on 2026-11-25; see Status.
 
 ### Neutral
 
@@ -114,6 +116,8 @@ The critic agent template flags missing inverse tests and generated mirror drift
 **Rationale**: The rule applies to new contract-changing PRs after this ADR. Existing merged PRs are not backfilled. PRs already in review should apply the rule when they next change tests for an observable contract.
 
 ## Review Checkpoint
+
+Superseded by the Status section (2026-11-25): the rule is permanent and has no review date. The original checkpoint text follows.
 
 Reevaluate this rule on 2026-09-27. Keep it if it catches at least one stale old-contract assertion or prevents at least one review round. Remove or narrow it if it produces only ceremony.
 
