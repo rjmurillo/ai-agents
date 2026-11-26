@@ -208,6 +208,38 @@ def test_exclude_stale_keeps_current_code_comment():
     assert result["StaleCount"] == 0
 
 
+def test_code_changed_stale_reason_has_matching_context_control():
+    review = [
+        _review_comment(
+            1,
+            "2024-01-01T00:00:00Z",
+            diff_hunk=" old_context\n+missing_call()\n",
+        ),
+        _review_comment(2, "2024-01-02T00:00:00Z"),
+    ]
+    content = "print('start')\nprint('ok')\nprint('end')\n"
+
+    with (
+        patch(
+            "grc_behavior_under_test.gh_api_paginated",
+            return_value=review,
+        ),
+        patch(
+            "grc_behavior_under_test.subprocess.run",
+            side_effect=_stale_detection_subprocess(content),
+        ),
+    ):
+        result = grc.get_pr_review_comments("o", "r", 42, detect_stale=True)
+
+    states = {
+        comment["Id"]: (comment["Stale"], comment["StaleReason"]) for comment in result["Comments"]
+    }
+    assert states == {
+        1: (True, "CodeChanged"),
+        2: (False, None),
+    }
+
+
 def test_include_diff_hunk_controls_diff_hunk_field():
     review = [_review_comment(1, "2024-01-01T00:00:00Z")]
 
@@ -245,6 +277,39 @@ def test_unaddressed_acknowledged_unresolved_comment_is_marked_acknowledged():
 
     assert result["TotalComments"] == 1
     assert result["Comments"][0]["LifecycleState"] == "ACKNOWLEDGED"
+
+
+def test_unaddressed_lifecycle_truth_table_includes_new_and_excludes_resolved_acknowledged():
+    created = "2024-01-01T00:00:00Z"
+    review = [
+        _review_comment(1, created, eyes=0),
+        _review_comment(2, created, eyes=0),
+        _review_comment(3, created, eyes=1),
+        _review_comment(4, created, eyes=1),
+    ]
+    unresolved = [
+        {"comments": {"nodes": [{"databaseId": 1}]}},
+        {"comments": {"nodes": [{"databaseId": 3}]}},
+    ]
+
+    with (
+        patch(
+            "grc_behavior_under_test.gh_api_paginated",
+            return_value=review,
+        ),
+        patch(
+            "grc_behavior_under_test.get_unresolved_review_threads",
+            return_value=unresolved,
+        ),
+    ):
+        result = grc.get_pr_review_comments("o", "r", 42, only_unaddressed=True)
+
+    assert [comment["Id"] for comment in result["Comments"]] == [1, 2, 3]
+    assert [comment["LifecycleState"] for comment in result["Comments"]] == [
+        "NEW",
+        "NEW",
+        "ACKNOWLEDGED",
+    ]
 
 
 @pytest.mark.parametrize(
