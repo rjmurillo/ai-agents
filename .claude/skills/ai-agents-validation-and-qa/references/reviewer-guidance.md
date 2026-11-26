@@ -1,10 +1,11 @@
 # Reviewer Guidance: What Not to Flag
 
-<!-- vendor-portability: contributor-facing reference for the rjmurillo/ai-agents repo itself. It names upstream-only paths under .project-toolkit, scripts, templates, tests, src, lefthook.yml, pyproject.toml, .markdownlint-cli2.yaml, and .github because its audience is reviewers of this repo, not plugin consumers. Declared paths: .project-toolkit/memory/episodes, .project-toolkit/security/benchmarks/vulnerable_samples, scripts/ci/diff_line_scope.py, .markdownlint-cli2.yaml, templates/agents/qa.claude.md.tmpl, src/claude/skills/github/scripts/pr/get_pr_comments_by_reviewer.py, src/vs-code-agents, scripts/validation/skill_frontmatter.py, tests/validation/test_check_serena_memory_worktree_scope_failure_modes.py -->
+<!-- vendor-portability: contributor-facing reference for the rjmurillo/ai-agents repo itself. It names upstream-only paths under .project-toolkit, scripts, templates, tests, src, lefthook.yml, pyproject.toml, .markdownlint-cli2.yaml, and .github because its audience is reviewers of this repo, not plugin consumers. Declared paths: .project-toolkit/memory/episodes, .project-toolkit/security/benchmarks/vulnerable_samples, scripts/ci/diff_line_scope.py, .markdownlint-cli2.yaml, src/claude/agents/qa.md, src/claude/skills/github/scripts/pr/get_pr_comments_by_reviewer.py, src/vs-code-agents, scripts/validation/skill_frontmatter.py, tests/validation/test_check_serena_memory_worktree_scope_failure_modes.py, docs/SKILL-AUTHORING.md -->
 
 Read this before you review a pull request in this repo.
 Each item below is a finding that reviewers kept raising and maintainers kept dismissing.
 Skip these findings unless the diff breaks the reason given.
+Before you cite a repo rule as authority, find it in a rule or config file.
 The repo verified each reason against the code on 2026-11-26.
 
 1. **Empty line sets from deletion-only hunks in diff-line ratchets.**
@@ -38,12 +39,13 @@ The repo verified each reason against the code on 2026-11-26.
    `.markdownlint-cli2.yaml` decides Markdown style, and the pre-PR tooling check runs it.
    Do not flag blank lines around fences or lists (MD031, MD032) by hand.
    A fence nested in a fence needs a longer outer fence, such as four backticks around three.
-   `templates/agents/qa.claude.md.tmpl` uses that form on purpose.
+   The rendered `src/claude/agents/qa.md` uses that form on purpose.
 8. **`sys.exit(2)` for a config or environment error.**
    ADR-035 defines exit 2 as a usage, config, or environment error.
-   Some older GitHub skill scripts still document 2 as "Not found" in their docstrings.
+   Some older GitHub skill scripts still use 2 for "Not found", in the docstring and the code.
    One is `src/claude/skills/github/scripts/pr/get_pr_comments_by_reviewer.py`.
-   Judge a new exit code against ADR-035, not against a stale docstring.
+   ADR-035 maps not-found to 3, so those scripts are legacy, not a precedent.
+   Judge a new exit code against ADR-035, not against them.
 9. **Negative directives in agent and prompt files.**
    "Do not X" and "Never X" are normal prompt style here.
    No rule or validator requires affirmative phrasing.
@@ -57,10 +59,13 @@ The repo verified each reason against the code on 2026-11-26.
     An agent degrades when that server is not configured.
 12. **Skill frontmatter or sections the contract does not require.**
     `.claude/rules/claude-agents.md` MUST 2 requires `name`, `version`, and `description`.
+    `docs/SKILL-AUTHORING.md` lists `version` as optional, so the two sources disagree on it.
+    Do not flag a present or missing `version` until they agree.
     `scripts/validation/skill_frontmatter.py` checks `allowed-tools` only when it is present.
     It caps `description` at 1024 characters, so a long router description is allowed.
     No rule requires a `surface` field or a `Decision Tree` or `Resources` section.
 13. **CWE-78 on fixed-argument subprocess calls in tests.**
     A list-form call with constant arguments on a `tmp_path` path takes no request input.
     `_init_repo` in `tests/validation/test_check_serena_memory_worktree_scope_failure_modes.py` is one.
-    Before you cite a repo rule as authority, find it in a rule or config file.
+    Still flag `shell=True`, a string command, or any argument from the environment, CLI, network, or file content.
+    Still flag the same call outside `tests/`.

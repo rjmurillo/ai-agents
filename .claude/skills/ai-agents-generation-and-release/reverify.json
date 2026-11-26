@@ -273,6 +273,29 @@
    "path": "templates/platforms/cursor.yaml",
    "text": "outputDir: \"src/cursor/skills\"",
    "id": "R51"
+  },
+  {
+   "kind": "contains",
+   "path": "templates/platforms/codex.yaml",
+   "text": "outputDir: \"src/codex/skills\"",
+   "id": "R52"
+  },
+  {
+   "kind": "contains",
+   "path": "templates/platforms/muse.yaml",
+   "text": "outputDir: \"src/muse/skills\"",
+   "id": "R53"
+  },
+  {
+   "kind": "contains",
+   "path": "build/scripts/lib_mirror.py",
+   "text": "\"failure_classifier\",",
+   "id": "R54"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".claude/lib/claude_hook_dispatch.py",
+   "id": "R55"
   }
  ]
 }
