@@ -1048,14 +1048,14 @@ def gh_api_get(endpoint: str, timeout: int = 30) -> tuple[object, str]:
             check=False,
         )
     except subprocess.TimeoutExpired:
-        return None, f"gh api {endpoint} timed out after {timeout}s"
+        return None, f"gh api GET timed out after {timeout}s"
     except OSError as exc:
-        return None, f"gh api {endpoint} could not start: {exc}"
+        return None, f"gh api GET could not start: {exc}"
     if result.returncode != 0:
         detail = (
             result.stderr.strip()
             or result.stdout.strip()
-            or f"gh api {endpoint} failed with no stderr or stdout output"
+            or "gh api GET failed with no stderr or stdout output"
         )
         return None, detail
     try:

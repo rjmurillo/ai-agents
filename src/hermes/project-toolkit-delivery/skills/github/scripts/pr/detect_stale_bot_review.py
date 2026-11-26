@@ -211,7 +211,7 @@ def build_dismissal_command(pr: int, review_id: object, owner: str = "", repo: s
     happens to run it in.
     """
     parts = [
-        'uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}'
+        'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}'
         '/skills/github/scripts/pr/dismiss_pr_review.py"',
     ]
     if owner and repo:
