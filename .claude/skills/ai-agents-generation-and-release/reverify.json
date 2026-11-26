@@ -250,6 +250,64 @@
    "path": ".claude/skills/ai-agents-generation-and-release/scripts/generator_inventory.py",
    "min": 100,
    "id": "R47"
+  },
+  {
+   "kind": "path_exists",
+   "path": "build/scripts/hermes_packs.py",
+   "id": "R48"
+  },
+  {
+   "kind": "contains",
+   "path": "templates/platforms/hermes.yaml",
+   "text": "carries its own copy of lib/",
+   "id": "R49"
+  },
+  {
+   "kind": "contains",
+   "path": "build/scripts/lib_mirror.py",
+   "text": "\"src/muse/lib\"",
+   "id": "R50"
+  },
+  {
+   "kind": "contains",
+   "path": "templates/platforms/cursor.yaml",
+   "text": "outputDir: \"src/cursor/skills\"",
+   "id": "R51"
+  },
+  {
+   "kind": "contains",
+   "path": "templates/platforms/codex.yaml",
+   "text": "outputDir: \"src/codex/skills\"",
+   "id": "R52"
+  },
+  {
+   "kind": "contains",
+   "path": "templates/platforms/muse.yaml",
+   "text": "outputDir: \"src/muse/skills\"",
+   "id": "R53"
+  },
+  {
+   "kind": "contains",
+   "path": "build/scripts/lib_mirror.py",
+   "text": "PACKAGES: tuple[str, ...] = (",
+   "id": "R54"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".claude/lib/claude_hook_dispatch.py",
+   "id": "R55"
+  },
+  {
+   "kind": "contains",
+   "path": "templates/platforms/binplace.yaml",
+   "text": "source: scripts/hook_utilities/bootstrap.py",
+   "id": "R56"
+  },
+  {
+   "kind": "contains",
+   "path": ".claude/rules/templates.md",
+   "text": "**Preview per platform**. SHOULD inspect the generated output",
+   "id": "R57"
   }
  ]
 }
