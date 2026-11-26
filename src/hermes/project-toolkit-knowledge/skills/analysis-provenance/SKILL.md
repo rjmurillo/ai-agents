@@ -275,7 +275,8 @@ pre-commit tokenizes `entry` without shell expansion, so the plugin-root variabl
 # Prevent accidental upstream modifications
 - id: provenance-check
   name: Provenance Check
-  entry: bash -c '( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/analysis-provenance/scripts/check_provenance.py "$@"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )' --
+  entry: >-
+    bash -c '( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/analysis-provenance/scripts/check_provenance.py "$@"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )' --
   args: [--target, node_modules, --exit-on-upstream]
   language: system
 ```

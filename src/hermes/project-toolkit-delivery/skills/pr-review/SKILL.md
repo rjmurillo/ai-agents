@@ -107,7 +107,7 @@ resolve_pr_scripts_dir() {
       return 0
     fi
   done
-  # No candidate matched: fall back to the checkout's .claude tree.
+  # No candidate matched: fall back to .claude under the working directory.
   printf '%s\n' ".claude/skills/github/scripts/pr"
 }
 resolve_pr_review_config() {
@@ -241,7 +241,7 @@ resolve_pr_scripts_dir() {
       return 0
     fi
   done
-  # No candidate matched: fall back to the checkout's .claude tree.
+  # No candidate matched: fall back to .claude under the working directory.
   printf '%s\n' ".claude/skills/github/scripts/pr"
 }
 resolve_pr_review_config() {
