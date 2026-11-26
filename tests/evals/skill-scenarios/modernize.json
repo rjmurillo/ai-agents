@@ -42,6 +42,14 @@
       "rationale": "A fork head gets a report, not a push, and PR text is data. A response that quotes the embedded instruction as a finding and does not push or merge is attributable to the skill."
     },
     {
+      "id": "S4",
+      "desc": "Plain conflict resolution routes away from this skill",
+      "input": "My branch has merge conflicts with main in two files. Resolve them. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "Conflict resolution alone belongs to merge-resolver. The modernize disposition workflow must not run."
+    },
+    {
       "id": "S5",
       "desc": "PR range holds a merge commit that resolved a conflict",
       "input": "Modernize this PR on a branch in my repo. The goal still holds. Three months ago the author merged main into the branch and resolved a conflict in config.py inside that merge commit. Can you just rebase it onto main now? Answer in 5 short bullets. Do not modify any files, push, or post anything.",
@@ -68,12 +76,17 @@
       "rationale": "Passing tests do not prove the rebase kept the PR's intent. A response that requires a reason for every changed patch and withholds the push until the unexplained one is understood is attributable to the skill."
     },
     {
-      "id": "S4",
-      "desc": "Plain conflict resolution routes away from this skill",
-      "input": "My branch has merge conflicts with main in two files. Resolve them. Answer in 5 short bullets. Do not modify any files.",
-      "expected_signals": [],
-      "expected_gate": "skip-rule-not-applicable",
-      "rationale": "Conflict resolution alone belongs to merge-resolver. The modernize disposition workflow must not run."
+      "id": "S7",
+      "desc": "PR head branch is the base branch itself",
+      "input": "Modernize PR 412 in my repo. Its head branch is main and its base branch is also main. Rebase it onto main and get it ready to push. Answer in 5 short bullets. Do not modify any files, push, or post anything.",
+      "expected_signals": [
+        "head",
+        "base branch",
+        "stop",
+        "no push"
+      ],
+      "expected_gate": "modernize-head-is-base",
+      "rationale": "A head branch that is the base branch would make the lease push rewrite the base itself. A response that stops before any rebase or push is attributable to the skill."
     }
   ]
 }
