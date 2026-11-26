@@ -208,8 +208,10 @@ def owner(make_repo, fakes, body_file):
         "new_pr",
         ["--title"],
         {
-            "stdout": "Creating PR...\nhttps://github.com/rjmurillo/ai-agents/pull/501\n"
-            "PR created successfully!\n"
+            # Same order as the real new_pr.py: prelude, then gh's URL.
+            "stdout": "Preparing to create PR: feat/ship-change -> main\n"
+            "Title: feat(ship): add the driver\n\nCreating PR...\n"
+            "https://github.com/rjmurillo/ai-agents/pull/501\nPR created successfully!\n"
         },
     )
     return repo, body_file(repo)

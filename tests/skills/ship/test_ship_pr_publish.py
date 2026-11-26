@@ -301,3 +301,20 @@ class TestPublishGitHub:
         create = fakes.calls("new_pr")[0]
         assert create[create.index("--body") + 1] == body.read_text(encoding="utf-8")
         assert "--body-file" not in create
+
+    def test_a_pr_url_in_the_title_never_names_the_created_pr(self, owner, fakes, scripts, capsys):
+        _repo, body = owner
+        decoy = "https://github.com/o/r/pull/12"
+        fakes.rule(
+            "new_pr",
+            ["--title"],
+            {
+                "stdout": f"Title: fix: revert {decoy}\n\nCreating PR...\n"
+                "https://github.com/rjmurillo/ai-agents/pull/99\nPR created successfully!\n"
+            },
+        )
+        code, lines = publish(scripts, capsys, body)
+        assert code == 0
+        assert values(lines, "PR") == [
+            "host=github number=99 url=https://github.com/rjmurillo/ai-agents/pull/99"
+        ]

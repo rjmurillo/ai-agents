@@ -198,7 +198,10 @@ def _create_github(ctx, args, body: Path, result):
     if args.draft:
         argv.append("--draft")
     done = common.run(argv, cwd=ctx.root, timeout=180)
-    match = _GITHUB_PR_URL_RE.search(done.stdout)
+    # new_pr.py echoes the title before gh prints the new PR URL, so a title
+    # holding a PR URL must not win: take the last URL printed.
+    matches = list(_GITHUB_PR_URL_RE.finditer(done.stdout))
+    match = matches[-1] if matches else None
     if done.returncode != 0 or match is None:
         last = done.stderr.strip().splitlines()[-1:] or [f"exit {done.returncode}"]
         return result.stop("pr-create-failed", common.EXIT_EXTERNAL, last[0])
