@@ -15,6 +15,7 @@ Exit codes (ADR-035): 0 NEXT, 1 logic STOP, 2 config STOP, 3 external STOP,
 from __future__ import annotations
 
 import importlib.util
+import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -43,7 +44,20 @@ REASONS = frozenset(
     }
 )
 _NO_PR_SIGNAL = "no pull requests found"
-_AUTH_SIGNALS = ("gh auth login", "authentication", "http 401", "az login", "unauthorized")
+# Phrases a CLI prints for an auth failure. Bare words such as "authentication"
+# also appear in echoed branch names and titles, so they are not signals.
+_AUTH_SIGNALS = (
+    "gh auth login",
+    "authentication failed",
+    "authentication required",
+    "http 401",
+    "401 unauthorized",
+    "bad credentials",
+    "az login",
+)
+# gh echoes a branch or title in double quotes: that is user data, never a cause.
+# Single quotes stay, since az prints its own advice that way (Please run 'az login').
+_QUOTED_RE = re.compile(r'"[^"]*"')
 
 
 @dataclass(frozen=True)
@@ -69,7 +83,7 @@ class Halt:
 
 
 def _auth_failure(stderr: str) -> bool:
-    lowered = stderr.lower()
+    lowered = _QUOTED_RE.sub(" ", stderr).lower()
     return any(signal in lowered for signal in _AUTH_SIGNALS)
 
 
@@ -77,7 +91,7 @@ def query_halt(reason: str, done) -> Halt:
     """A Halt naming the cause: auth signals anywhere in stderr win over the last line."""
     lines = [line for line in done.stderr.splitlines() if line.strip()]
     auth = [line for line in lines if _auth_failure(line)]
-    detail = auth[-1:] or lines[-1:] or [f"exit {done.returncode}"]
+    detail = auth[-1:] or [common.cause_line(done.stderr, f"exit {done.returncode}")]
     if _auth_failure(done.stderr):
         return Halt("auth-failed", common.EXIT_AUTH, detail[0])
     return Halt(reason, common.EXIT_EXTERNAL, detail[0])

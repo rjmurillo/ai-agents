@@ -81,5 +81,6 @@ src/claude/skills/ship/scripts/_ship_paths.py
 # ship_pr_checks.py names the consumer repository's scripts/validation/pr_description.py
 # as a blob on its base branch. It reads the blob with git show origin/<base>:<path>
 # and runs a private copy; it never opens the path on disk. Owner ruling on
-# security finding 1, option A. Added for issue #7585 on 2026-11-25.
+# security finding 1 (it rejected running the checkout copy through uv).
+# Added for issue #7585 on 2026-11-25.
 src/claude/skills/ship/scripts/ship_pr_checks.py

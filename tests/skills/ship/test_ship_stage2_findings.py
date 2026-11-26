@@ -220,7 +220,7 @@ class TestProcessFailuresEndOnStop:
         monkeypatch.setattr(common, "git", slow)
         code, lines = publish(scripts, capsys, body)
         assert code == 3
-        assert lines[-1].startswith("STOP: push-failed push timed out after 540s")
+        assert lines[-1].startswith("STOP: push-failed git: timed out after 540s")
 
 
 class TestDefaultBase:
@@ -438,3 +438,71 @@ class TestFreshRoundTwoFindings:
         common = scripts[0]
         assert common.stored_int(tmp_path, "s.txt", 5, store=False) == 5
         assert not (tmp_path / common.SCRATCH_REL).exists()
+
+
+class TestFreshRoundThreeFindings:
+    def test_an_echoed_branch_name_is_not_an_auth_signal(self, scripts):
+        detect = scripts[1]
+        done = scripts[0].Completed(
+            1,
+            "",
+            'a pull request for branch "feat/authentication-fix" into branch "main" '
+            "already exists\n",
+        )
+        halt = detect.query_halt("pr-create-failed", done)
+        assert halt.reason == "pr-create-failed"
+        assert halt.code == 3
+        assert "already exists" in halt.detail
+
+    def test_create_failure_keeps_the_cause_not_the_footer(self, owner, fakes, scripts, capsys):
+        _repo, body = owner
+        stderr = "a pull request for branch already exists\nPR creation failed (exit code: 1)\n"
+        fakes.rule("new_pr", ["--title"], {"rc": 1, "stderr": stderr})
+        code, lines = publish(scripts, capsys, body)
+        assert code == 3
+        assert lines[-1] == "STOP: pr-create-failed a pull request for branch already exists"
+
+    def test_a_hook_declined_push_names_the_rejection(self, owner, scripts, capsys, monkeypatch):
+        _repo, body = owner
+        stderr = (
+            "remote: policy says no\nTo ../remote.git\n"
+            " ! [remote rejected] feat/ship-change -> feat/ship-change"
+            " (pre-receive hook declined)\n"
+            "error: failed to push some refs to '../remote.git'\n"
+        )
+        common = scripts[0]
+        real_git = common.git
+
+        def failing(args, cwd=None, timeout=60):
+            if args[:1] == ["push"]:
+                return common.Completed(1, "", stderr)
+            return real_git(args, cwd=cwd, timeout=timeout)
+
+        monkeypatch.setattr(common, "git", failing)
+        code, lines = publish(scripts, capsys, body)
+        assert code == 3
+        assert "pre-receive hook declined" in lines[-1]
+
+    def test_a_crashing_base_validator_names_its_error(
+        self, owner, base_validator, scripts, capsys
+    ):
+        repo, body = owner
+        base_validator(repo, "import missing_module_for_ship_test\n", closure=False)
+        code, lines = run_pr(
+            scripts,
+            capsys,
+            "check",
+            "--title",
+            "feat(ship): add the driver",
+            "--body-file",
+            str(body),
+        )
+        assert code == 0
+        assert "ModuleNotFoundError" in values(lines, "CHECK")[-1]
+
+    def test_cause_line_falls_back_when_stderr_is_empty(self, scripts):
+        assert scripts[0].cause_line("", "exit 9") == "exit 9"
+        assert (
+            scripts[0].cause_line("PR creation failed (exit code: 1)\n", "x")
+            == "PR creation failed (exit code: 1)"
+        )

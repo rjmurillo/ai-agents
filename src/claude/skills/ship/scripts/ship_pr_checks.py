@@ -6,7 +6,8 @@
 ``<name>:not-run`` and is never a pass.
 
 The paths-in-diff check never runs code from the branch being shipped
-(owner ruling, 2026-11-25, security finding 1, option A). It reads the
+(owner ruling, 2026-11-25, on security finding 1 of the ship review: the
+rejected alternative ran the checkout copy through uv). It reads the
 validator and its import closure from the base branch with
 ``git show origin/<base>:<path>``, writes them to a private temporary tree
 (directory 0700, files 0600), and runs that copy under this interpreter with
@@ -53,7 +54,6 @@ _CONVENTIONAL_RE = re.compile(
     r"^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)"
     r"(\(.+\))?!?: .+"
 )
-_TITLE_CONTROL_RE = re.compile("[\x00-\x1f\x7f-\x9f\u2028\u2029]")
 # Built with chr() so a formatter cannot turn escapes into the banned bytes.
 _DASHES = (chr(0x2013), chr(0x2014))
 _TITLE_FORBIDDEN = ('"', "$", "`")
@@ -72,7 +72,7 @@ def title_problem(title: str) -> str | None:
         return "title has an em or en dash"
     if any(char in title for char in _TITLE_FORBIDDEN):
         return "title has a quote, dollar sign, or backtick"
-    if _TITLE_CONTROL_RE.search(title):
+    if common.CONTROL_RE.search(title):
         return "title has a control character"
     if not _CONVENTIONAL_RE.match(title):
         return "title is not a conventional commit"
@@ -168,7 +168,8 @@ def _check_paths(ctx, body_file: Path, base: str, result) -> bool | None:
         result.add("CHECK", "paths=PASS")
         return True
     if done.returncode != 1 or "Traceback (most recent call last)" in done.stderr:
-        _not_run(result, f"the {shown} validator could not run (exit {done.returncode})")
+        cause = common.cause_line(done.stderr, f"exit {done.returncode}")
+        _not_run(result, f"the {shown} validator could not run (exit {done.returncode}): {cause}")
         return None
     result.add("CHECK", f"paths=FAIL exit={done.returncode}")
     for finding in critical_findings(done.stdout)[:10]:

@@ -80,8 +80,9 @@ Runs the checks that have one right answer.
 - `pipeline` with `PR: none` prints `DEFERRED` and `NEXT: publish-then-discharge`.
 - `pipeline` reads checks only when the PR head branch and SHA match the local branch and HEAD.
   A stale head is `DEFERRED` before publish and `PENDING` after it.
+  A contributor never publishes, so a contributor `DEFERRED` pipeline ends on `NEXT: report`.
 - `PENDING` ends on `NEXT: rerun-pipeline` with a `PIPELINE_DEADLINE:` line. Past the 30-minute deadline it is `FAIL`.
-  The first call stores that deadline in a scratch state file keyed by host, PR, and HEAD, so a rerun cannot extend it.
+  The first `PENDING` result stores that deadline in a scratch state file keyed by host, PR, and HEAD, so a rerun cannot extend it.
 - On GitHub each call waits at most 300 seconds (`ship_preflight.py` clamps `--wait-seconds` to 300 seconds there).
   Required checks still running when the call returns are `PENDING`, never `FAIL`.
 - `reviewed` wraps the existing review-marker validator. It does not reimplement it.

@@ -178,11 +178,14 @@ def _push(ctx, result):
         result.stop(
             "push-failed",
             common.EXIT_EXTERNAL,
-            f"push timed out after {PUSH_TIMEOUT_SECONDS}s; check the remote, then rerun publish",
+            f"{common.cause_line(done.stderr, 'push timed out')}; check the remote, then rerun publish",
         )
     else:
-        last = done.stderr.strip().splitlines()[-1:] or [f"exit {done.returncode}"]
-        result.stop("push-failed", common.EXIT_EXTERNAL, last[0])
+        result.stop(
+            "push-failed",
+            common.EXIT_EXTERNAL,
+            common.cause_line(done.stderr, f"exit {done.returncode}"),
+        )
     return False
 
 

@@ -10,8 +10,8 @@ pipeline PASS|FAIL|PENDING|DEFERRED.
 
 Terminal line:
   any FAIL            -> STOP: check-failed, exit 1
-  pipeline PENDING    -> NEXT: rerun-pipeline (pass the printed --deadline)
-  pipeline DEFERRED   -> NEXT: publish-then-discharge
+  pipeline PENDING    -> NEXT: rerun-pipeline (the stored deadline carries over)
+  pipeline DEFERRED   -> NEXT: publish-then-discharge (contributor: NEXT: report)
   all clear           -> NEXT: write-body (owner) or NEXT: report
 
 Exit codes (ADR-035): 0 NEXT, 1 logic STOP, 2 config STOP, 3 external STOP,

@@ -58,7 +58,7 @@ _ERROR_TYPES = {
 OUTPUT_FORMATS = ("json", "human", "auto")
 VERSION = "1.0.0"
 
-_CONTROL_RE = re.compile("[\x00-\x1f\x7f-\x9f\u2028\u2029]")  # C0, DEL, C1, line breaks
+CONTROL_RE = re.compile("[\x00-\x1f\x7f-\x9f\u2028\u2029]")  # C0, DEL, C1, line breaks
 _REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$")
 
 
@@ -114,7 +114,6 @@ scratch_dir = _paths.scratch_dir
 write_private = _paths.write_private
 confine_body_file = _paths.confine_body_file
 stored_int = _paths.stored_int
-ALLOWED_URL_SCHEMES = _remote.ALLOWED_URL_SCHEMES
 remote_host = _remote.remote_host
 classify_host = _remote.classify_host
 
@@ -122,7 +121,7 @@ classify_host = _remote.classify_host
 def clean(value: object) -> str:
     """Return ``value`` as one safe line: no userinfo, no control characters."""
     text = _strip_userinfo(str(value))
-    text = _CONTROL_RE.sub(" ", text)
+    text = CONTROL_RE.sub(" ", text)
     return " ".join(text.split())
 
 
@@ -383,6 +382,19 @@ def child_env() -> dict[str, str]:
 # Every child call shares this budget, so the run ends on a terminal line.
 RUN_BUDGET_SECONDS = 540
 _RUN_DEADLINE = time.monotonic() + RUN_BUDGET_SECONDS
+
+
+# Lines a helper prints after the real cause: they name the failure, not why.
+_FOOTER_RE = re.compile(
+    r"^(PR creation failed \(exit code|error: failed to push some refs|hint:|To \S)"
+)
+
+
+def cause_line(stderr: str, fallback: str) -> str:
+    """The last stderr line that states a cause, skipping helper footer lines."""
+    lines = [line.strip() for line in stderr.splitlines() if line.strip()]
+    causes = [line for line in lines if not _FOOTER_RE.match(line)]
+    return (causes or lines or [fallback])[-1]
 
 
 def remaining_seconds() -> float:
