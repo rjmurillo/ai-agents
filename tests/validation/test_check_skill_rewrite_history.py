@@ -224,11 +224,13 @@ class TestScenarioFile:
         self, repo: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         rows = json.loads(scenario_doc())["scenarios"]
-        rows[0]["id"], rows[1]["id"] = "S1", "s1"
+        rows.append({"id": "s1", "desc": "d", "input": "i", "expected_verdict": "GO"})
+        assert {"S1", "s1"} <= {r["id"] for r in rows}
         write(repo, SCEN, json.dumps({"scenarios": rows}))
         commit(repo, "case-distinct ids")
-        code, out = run_gated(repo, capsys, evidence=False)
+        code, out = run_gated(repo, capsys)
         assert "repeats scenario ids" not in out
+        assert code == 0, out
 
     def test_ids_that_collide_after_str_are_duplicates(
         self, repo: Path, capsys: pytest.CaptureFixture[str]
