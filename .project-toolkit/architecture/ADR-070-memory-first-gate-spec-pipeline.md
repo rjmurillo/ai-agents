@@ -1,6 +1,6 @@
 ---
 id: ADR-070
-status: proposed
+status: accepted
 date: 2026-07-27
 decision-makers: [rjmurillo]
 supersedes: []
@@ -101,7 +101,7 @@ running after Step 0 and before Step 1. This ADR codifies four binding points.
    in `.claude/skills/memory/SKILL.md` (remove an ADR constraint, bypass a
    protocol, delete more than 100 lines, refactor a complex component): each
    fires when memory search returns no prior art for the change. H10 is a
-   separate `.claude/commands/spec.md` halt that fires when a validator,
+   separate .claude/commands/spec.md halt (now the `spec` skill, ADR-064) that fires when a validator,
    linter, hook, or shared-infrastructure component is changed without a
    prior-art citation in the PriorArtBlock. H11 fires when adjudicated
    blast-radius entities meet the threshold (2 in human mode, 3 in auto mode).

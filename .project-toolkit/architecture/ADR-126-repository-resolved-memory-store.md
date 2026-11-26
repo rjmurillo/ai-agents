@@ -1,13 +1,13 @@
 ---
 id: ADR-126
-status: proposed
+status: accepted
 date: 2026-11-25
 decision-makers:
   - rjmurillo
 supersedes: []
 superseded-by: null
 explainer: null
-implemented: false
+implemented: true
 ---
 
 # ADR-126: Repository-Resolved Memory Store

@@ -1,6 +1,6 @@
 ---
 id: ADR-098
-status: proposed
+status: accepted
 date: 2026-08-20
 decision-makers: [rjmurillo]
 supersedes: []
@@ -13,17 +13,12 @@ implemented: true
 
 ## Status
 
-Proposed
+Accepted 2026-11-25 by owner direction (issue #7636).
 
-**`status: proposed` against `implemented: true` is deliberate, not drift.**
-ADR-073 binds a transition to `accepted` to adr-review debate-log evidence under
-`.project-toolkit/critique/`, which now exists, so the flip is mechanically available and
-is not taken here. A debate authorizing the acceptance of its own subject is the
-self-asserted approval that rule exists to prevent, and the acceptance of a
-governance ADR is a maintainer act. ADR-093 carries the same pair for the same
-reason. The critic re-vote raised this and it is answered rather than left for a
-reader to reconcile: the decision ships, the record says a human has not yet
-signed it.
+This record shipped as `status: proposed` with `implemented: true` on purpose.
+A debate authorizing the acceptance of its own subject is the self-asserted
+approval ADR-073 exists to prevent, and the acceptance of a governance ADR is a
+maintainer act. The owner's direction on issue #7636 is that act.
 
 ## Date
 

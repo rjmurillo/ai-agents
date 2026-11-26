@@ -1,12 +1,12 @@
 ---
 id: ADR-114
-status: proposed
+status: accepted
 date: 2026-11-07
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
 explainer: null
-implemented: false
+implemented: true
 review-by: 2027-04-03
 ---
 

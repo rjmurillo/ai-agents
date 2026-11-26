@@ -1,6 +1,6 @@
 ---
 id: ADR-075
-status: proposed
+status: accepted
 date: 2026-07-20
 decision-makers: [rjmurillo]
 supersedes: []
@@ -13,9 +13,9 @@ implemented: true
 
 ## Status
 
-Proposed. Requested by issue [#1875](https://github.com/rjmurillo/ai-agents/issues/1875). Follow-on to ADR-058 (agent eval discipline), which scoped the form-factor question out and tracked it here.
+Accepted 2026-11-25 by owner direction (issue #7636). Requested by issue [#1875](https://github.com/rjmurillo/ai-agents/issues/1875). Follow-on to ADR-058 (agent eval discipline), which scoped the form-factor question out and tracked it here.
 
-This ADR records a methodology and a first result. It requires adr-review before its status moves to Accepted.
+This ADR records a methodology and a first result. Its adr-review debate log is `.project-toolkit/critique/ADR-075-debate-log.md`. ADR-055 recorded it as left proposed on purpose until the owner accepted it.
 
 ## Date
 
