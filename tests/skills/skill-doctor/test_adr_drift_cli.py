@@ -169,18 +169,106 @@ def test_repo_root_follows_a_symlink_to_the_repository(tmp_path):
     assert adr_drift.repo_root(str(link)) == repo.resolve()
 
 
-@pytest.mark.parametrize("command", ["locate", "scan"])
-def test_a_core_worktree_outside_the_named_folder_is_refused(tmp_path, capsys, command):
+def _core_worktree_sibling(tmp_path: Path) -> Path:
     repo = seeded_repo(tmp_path / "repo")
-    elsewhere = tmp_path / "elsewhere"
-    elsewhere.mkdir()
-    git(repo, "config", "core.worktree", str(elsewhere))
+    (tmp_path / "elsewhere").mkdir()
+    git(repo, "config", "core.worktree", str(tmp_path / "elsewhere"))
+    return repo
+
+
+def _core_worktree_parent(tmp_path: Path) -> Path:
+    repo = seeded_repo(tmp_path / "repo")
+    git(repo, "config", "core.worktree", str(tmp_path))
+    return repo
+
+
+def _core_worktree_root(tmp_path: Path) -> Path:
+    repo = seeded_repo(tmp_path / "repo")
+    git(repo, "config", "core.worktree", "/")
+    return repo
+
+
+def _core_worktree_parent_repo(tmp_path: Path) -> Path:
+    outer = init_repo(tmp_path / "outer")
+    repo = seeded_repo(outer / "repo")
+    git(repo, "config", "core.worktree", str(outer))
+    return repo
+
+
+def _core_worktree_through_gitdir_file(tmp_path: Path) -> Path:
+    repo = tmp_path / "repo"
+    git(tmp_path, "init", "-q", "-b", "main", "--separate-git-dir", str(tmp_path / "gd"), "repo")
+    assert (repo / ".git").is_file()
+    subprocess.run(
+        ["git", f"--git-dir={tmp_path / 'gd'}", "config", "core.worktree", str(tmp_path)],
+        check=True,
+    )
+    return repo
+
+
+@pytest.mark.parametrize(
+    "build",
+    [
+        _core_worktree_sibling,
+        _core_worktree_parent,
+        _core_worktree_root,
+        _core_worktree_parent_repo,
+        _core_worktree_through_gitdir_file,
+    ],
+)
+@pytest.mark.parametrize("command", ["locate", "scan"])
+def test_a_core_worktree_that_is_not_the_named_repository_is_refused(
+    tmp_path, capsys, command, build
+):
+    repo = build(tmp_path)
     extra = ["--out", str(tmp_path / "o.json")] if command == "scan" else []
 
     code, out, err = run_cli(capsys, command, "--repo", str(repo), *extra)
 
     assert code == 2 and out == "" and "git top level outside itself" in err
     assert not (tmp_path / "o.json").exists()
+
+
+def test_a_bare_repository_is_refused(tmp_path, capsys):
+    git(tmp_path, "init", "-q", "--bare", "bare.git")
+
+    code, out, err = run_cli(capsys, "locate", "--repo", str(tmp_path / "bare.git"))
+
+    assert code == 2 and out == "" and "not a git repository" in err
+
+
+def test_a_folder_with_no_git_entry_anywhere_above_it_is_refused(tmp_path, monkeypatch):
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    monkeypatch.setattr(adr_drift, "run_git", lambda *args, **kwargs: str(plain))
+
+    with pytest.raises(adr_drift.ExitError) as caught:
+        adr_drift.repo_root(str(plain))
+
+    assert caught.value.code == 2 and "no .git entry" in str(caught.value)
+
+
+def test_repo_root_accepts_a_linked_worktree_and_its_subfolder(tmp_path):
+    repo = seeded_repo(tmp_path / "repo")
+    linked = tmp_path / "linked"
+    git(repo, "worktree", "add", "-q", "-b", "side", str(linked))
+    (linked / "deep").mkdir()
+
+    assert (linked / ".git").is_file()
+    assert adr_drift.repo_root(str(linked)) == linked.resolve()
+    assert adr_drift.repo_root(str(linked / "deep")) == linked.resolve()
+
+
+def test_repo_root_accepts_a_submodule_with_its_relative_core_worktree(tmp_path):
+    inner = seeded_repo(tmp_path / "inner")
+    repo = seeded_repo(tmp_path / "repo")
+    git(repo, "-c", "protocol.file.allow=always", "submodule", "add", "-q", str(inner), "sub")
+    sub = repo / "sub"
+    (sub / "deep").mkdir()
+
+    assert (sub / ".git").is_file()
+    assert adr_drift.repo_root(str(sub)) == sub.resolve()
+    assert adr_drift.repo_root(str(sub / "deep")) == sub.resolve()
 
 
 def _digest(repo: Path) -> dict[str, str]:

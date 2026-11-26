@@ -301,7 +301,7 @@ def test_a_dot_marker_gives_repo_relative_paths_without_a_dot_slash(tmp_path, ca
     survey = adr_corpus.find_adr_dirs(repo)
 
     assert [f.rel for f in survey.dirs[0].files] == ["ADR-001-x.md"]
-    assert entry["path"] == "" and survey.markers == [".adr-dir"]
+    assert entry["path"] == "." and survey.markers == [".adr-dir"]
 
 
 def test_a_dot_marker_rejection_has_no_leading_slash(tmp_path):

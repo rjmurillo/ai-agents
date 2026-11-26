@@ -28,6 +28,7 @@ SCAN_MAX_BYTES = 5_000_000
 ADR_MAX_BYTES = 1_000_000
 
 SETUP = "Setup"
+
 NUMBERING = "Numbering"
 LINKS = "Links"
 HISTORY = "History"
@@ -188,3 +189,18 @@ def clean_path(token: str) -> str | None:
     if not (value.endswith("/") or FILE_EXTENSION.search(last)):
         return None
     return value
+
+
+def folder_rel(posix: str) -> str:
+    """A folder's repo-relative path with the repository root as `""`, never `"."`."""
+    return "" if posix == "." else posix
+
+
+def rel_join(rel: str, name: str) -> str:
+    """A file's repo-relative path: the bare name when its folder is the root."""
+    return f"{rel}/{name}" if rel else name
+
+
+def display_rel(rel: str) -> str:
+    """A folder's path as shown in JSON and reports: `"."` for the repository root."""
+    return rel or "."

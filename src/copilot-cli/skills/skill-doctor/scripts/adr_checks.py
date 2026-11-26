@@ -38,8 +38,10 @@ from adr_text import (
     LINKS,
     NUMBERING,
     STATUS_HEADING,
+    display_rel,
     h1_number,
     prose_lines,
+    rel_join,
     status_word,
 )
 
@@ -151,7 +153,7 @@ def _unparseable(folder: AdrDir) -> list[Finding]:
             continue
         if parse_name(name) is not None:
             continue
-        rel = f"{folder.rel}/{name}"
+        rel = rel_join(folder.rel, name)
         fix = f"Rename {rel} to the folder convention, for example ADR-NNN-short-title.md."
         findings.append(
             _found(
@@ -177,7 +179,7 @@ def _gaps(folder: AdrDir) -> list[Finding]:
         islice((n for n in range(numbers[0], numbers[-1]) if n not in present), GAP_EVIDENCE_CAP)
     )
     evidence = {
-        "path": folder.rel,
+        "path": display_rel(folder.rel),
         "missing_count": missing_count,
         "missing": shown,
         "truncated": missing_count > GAP_EVIDENCE_CAP,

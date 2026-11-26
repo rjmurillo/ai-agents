@@ -29,11 +29,14 @@ from adr_text import (
     ADR_MAX_BYTES,
     BACKTICK,
     clean_path,
+    display_rel,
     doc_status,
+    folder_rel,
     h1_form,
     h1_number,
     parse_frontmatter,
     prose_lines,
+    rel_join,
 )
 
 KNOWN_DIRS = (
@@ -226,11 +229,11 @@ def load_dir(path: Path, rel: str, survey: Survey, explicit: bool = False) -> Ad
     try:
         entries = sorted(path.iterdir(), key=lambda p: p.name)
     except OSError as exc:
-        survey.read_errors.append({"path": rel, "error": str(exc)})
+        survey.read_errors.append({"path": display_rel(rel), "error": str(exc)})
         entries = []
     root = _resolve(path)
     for entry in entries:
-        name = f"{rel}/{entry.name}" if rel else entry.name
+        name = rel_join(rel, entry.name)
         if UNREAD_NAME.match(entry.name) and _is_file(entry, name, survey):
             survey.adrs_refused = True
             survey.rejected.append({"path": name, "reason": "a format this scan does not read"})
@@ -339,7 +342,7 @@ def find_adr_dirs(repo: Path) -> Survey:
     survey = Survey()
     marker = _read_marker(repo, survey)
     if marker is not None:
-        rel = "" if marker == repo else marker.relative_to(repo).as_posix()
+        rel = folder_rel(marker.relative_to(repo).as_posix())
         survey.dirs.append(load_dir(marker, rel, survey, explicit=True))
         survey.markers.append(".adr-dir")
         return survey
@@ -349,12 +352,12 @@ def find_adr_dirs(repo: Path) -> Survey:
         if path is None or path in seen:
             continue
         seen.add(path)
-        rel = path.relative_to(repo).as_posix()
+        rel = folder_rel(path.relative_to(repo).as_posix())
         loaded = load_dir(path, rel, survey)
         templates = [n for n in loaded.other_md if is_template_name(n)]
         if loaded.files or templates:
             survey.dirs.append(loaded)
-        survey.markers.extend(f"template:{rel}/{name}" for name in templates)
+        survey.markers.extend(f"template:{rel_join(rel, name)}" for name in templates)
     return survey
 
 
@@ -461,7 +464,7 @@ def locate(repo: Path, survey: Survey) -> dict[str, Any]:
         style = folder_style(folder, survey=survey)
         entries.append(
             {
-                "path": folder.rel,
+                "path": display_rel(folder.rel),
                 "convention": style.convention,
                 "prefix": style.prefix,
                 "width": style.width,

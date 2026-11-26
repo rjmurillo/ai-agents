@@ -44,6 +44,7 @@ from adr_corpus import (
     find_adr_dirs,
     locate,
     make_finding,
+    path_exists,
     path_is_dir,
     read_docs,
     within,
@@ -77,11 +78,16 @@ def repo_root(path_arg: str) -> Path:
             raise ExitError(3, f"git could not read {path_arg}: {exc}") from exc
         raise ExitError(2, f"{path_arg} is not a git repository ({exc})") from exc
     root = Path(top).resolve()
-    asked = path.resolve()
     # A `core.worktree` setting in the scanned repository's own config can point
-    # the top level at any folder. Every containment check anchors on this root,
-    # so a root that does not hold the folder the caller named is refused.
-    if asked != root and root not in asked.parents:
+    # the top level at any folder, a parent or `/` included. Every containment
+    # check anchors on this root. So walk up from the named folder to the nearest
+    # one that holds a `.git` entry (a folder, or a file in linked worktrees and
+    # submodules), and require git's top level to be exactly that folder.
+    start = path.resolve()
+    holder = next((p for p in (start, *start.parents) if path_exists(p / ".git")), None)
+    if holder is None:
+        raise ExitError(2, f"{path_arg} has no .git entry in it or any parent folder")
+    if holder != root:
         raise ExitError(2, f"{path_arg} reports a git top level outside itself ({root})")
     return root
 
