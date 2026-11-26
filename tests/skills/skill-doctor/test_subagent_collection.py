@@ -275,7 +275,7 @@ def test_copilot_folds_inline_child_events_only_when_asked(tmp_path, extra, fold
 
 
 def test_top_level_gap_notice_names_the_gap_and_stays_quiet_otherwise():
-    from session_sampling import top_level_gap_notice
+    from session_threads import top_level_gap_notice
 
     gap = {
         "top_level": {"scoreable": 3, "sampled": 0},

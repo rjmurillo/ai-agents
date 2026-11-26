@@ -15,6 +15,7 @@ from pathlib import Path, PureWindowsPath
 from typing import Any
 
 from session_common import _recent_files, record_collection_issue
+from session_threads import add_subagent_argument, resolve_subagent_flags
 
 CLAUDE_DIRECTORY = ".claude"
 PROJECT_HARNESS_DIRS = (CLAUDE_DIRECTORY, ".codex", ".github", ".factory")
@@ -388,30 +389,9 @@ def parse_collector_args(description: str | None) -> argparse.Namespace:
         default=[],
         help="extra skills directory to scan (repeatable)",
     )
-    parser.add_argument(
-        "--include-subagents",
-        action=argparse.BooleanOptionalAction,
-        default=None,
-        help="subagent/child sessions are included by default and tagged thread=subagent; "
-        "--no-include-subagents drops them. Passing --include-subagents explicitly also "
-        "folds Copilot's inline child events into the parent session, which pools child "
-        "work into the top-level grade",
-    )
+    add_subagent_argument(parser)
     parser.add_argument("--out", default="./skill-doctor-report")
     return resolve_subagent_flags(parser.parse_args())
-
-
-def resolve_subagent_flags(args: argparse.Namespace) -> argparse.Namespace:
-    """Resolve the tri-state ``--include-subagents`` once.
-
-    ``include_subagents`` is True unless ``--no-include-subagents`` was passed. Copilot
-    keeps child events inline in the parent file, so folding them in changes the parent's
-    grade; ``copilot_fold_child_events`` is True only when the flag was passed explicitly.
-    """
-    requested = args.include_subagents
-    args.copilot_fold_child_events = requested is True
-    args.include_subagents = requested is not False
-    return args
 
 
 def _add_source_arguments(parser: argparse.ArgumentParser) -> None:

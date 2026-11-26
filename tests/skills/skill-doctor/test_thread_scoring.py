@@ -23,7 +23,7 @@ def load(name: str) -> Any:
 
 def scored_with_threads() -> list[dict[str, Any]]:
     """The reproduction scores with the first two sessions marked as subagent work."""
-    sessions = copy.deepcopy(load("scores.json")["sessions"])
+    sessions: list[dict[str, Any]] = copy.deepcopy(load("scores.json")["sessions"])
     for index, record in enumerate(sessions):
         record["thread"] = "subagent" if index < 2 else "top_level"
     return sessions
@@ -134,7 +134,7 @@ def test_import_stamps_thread_from_the_assignment(tmp_path: Path) -> None:
     rows = [_row(batch, sid) for sid in batch["session_ids"]]
     path = tmp_path / "accepted.json"
     ab.import_scores(batch, path, rows)
-    stored = {r["session_id"]: r for r in json.loads(path.read_text())["sessions"]}
+    stored = {r["session_id"]: r for r in json.loads(path.read_text(encoding="utf-8"))["sessions"]}
     assert stored["copilot:s0"]["thread"] == "subagent"
     assert stored["copilot:s1"]["thread"] == "top_level"
     assert all("thread" not in row for row in rows)
@@ -164,5 +164,5 @@ def test_assignment_without_session_threads_still_imports(tmp_path: Path) -> Non
     del batch["session_threads"]
     rows = [_row(batch, sid) for sid in batch["session_ids"]]
     ab.import_scores(batch, tmp_path / "accepted.json", rows)
-    stored = json.loads((tmp_path / "accepted.json").read_text())["sessions"]
+    stored = json.loads((tmp_path / "accepted.json").read_text(encoding="utf-8"))["sessions"]
     assert all("thread" not in row for row in stored)

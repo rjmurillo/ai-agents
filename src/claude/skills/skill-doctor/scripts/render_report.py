@@ -37,6 +37,7 @@ import report_audit
 import report_evaluation
 import report_script
 import report_style
+import report_threads
 from report_format import format_generated_at, grade_for, pct
 
 DIFFS_BUNDLE_PATH = Path(__file__).resolve().parent.parent / "assets" / "pierre-diffs.js"
@@ -122,38 +123,10 @@ SECTION_NOTE = {
 }
 
 
-THREAD_LABELS = (("top_level", "Top-level"), ("subagent", "Subagent"))
-
-
-def _render_thread_table(per_thread: Any) -> str:
-    """Top-level versus subagent counts and grades. Empty when the report has no split."""
-    if not per_thread:
-        return ""
-    rows = "".join(
-        f"<tr><td>{esc(label)}</td><td>{esc(c.get('scoreable', 0))}</td>"
-        f"<td>{esc(c.get('sampled', 0))}</td>"
-        f"<td>{pct(c['overall']) if c.get('overall') is not None else '-'}</td></tr>"
-        for key, label in THREAD_LABELS
-        if isinstance(c := per_thread.get(key), dict)
-    )
-    if not rows:
-        return ""
-    return (
-        '<p class="muted">Subagent sessions are child work launched by a parent session. '
-        "Their grades are reported apart from top-level sessions, and the harness rows "
-        "above pool both.</p>"
-        '<div class="table-scroll" role="region" aria-label="Sampling by session type" '
-        'tabindex="0"><table><caption>Sampling by session type</caption>'
-        '<thead><tr><th scope="col">Session type</th><th scope="col">Scoreable</th>'
-        '<th scope="col">Sampled</th><th scope="col">Overall</th></tr></thead>'
-        f"<tbody>{rows}</tbody></table></div>"
-    )
-
-
 def render_sampling(sampling: Any) -> str:
     """Per-harness and per-session-type counts, and the cap notice when coverage was partial."""
     per_harness = (sampling or {}).get("per_harness") or {}
-    thread_table = _render_thread_table((sampling or {}).get("per_thread"))
+    thread_table = report_threads.thread_table_html(esc, pct, (sampling or {}).get("per_thread"))
     if not per_harness and not thread_table:
         return ""
     notice = sampling.get("notice")
