@@ -120,6 +120,11 @@ way. `scripts/eval/_cli_credentials.py` owns the order; each transport only
 names its variables, its on-disk login, and how to ask its CLI whether it is
 signed in. First hit wins:
 
+0. **A gateway** (Claude only). `ANTHROPIC_BASE_URL` plus
+   `ANTHROPIC_AUTH_TOKEN`, both set. Claude Code ranks that token above
+   `CLAUDE_CODE_OAUTH_TOKEN`, so when the pair is exported the gateway is what
+   authenticates, and it is resolved first. No OAuth token is injected next to
+   it. Recorded as `gateway`. See "Running an eval through a local hub" below.
 1. **Environment, then dotenv.** The matrix's Credential column lists the
    variables, in the CLI's own precedence. Codex takes `CODEX_ACCESS_TOKEN`.
    If none is exported, dotenv files are read. `EVAL_DOTENV_FILES` is a list
@@ -140,13 +145,29 @@ signed in. First hit wins:
    `codex login status` reports a ChatGPT login, or the Copilot config records
    a logged-in user. No config directory is relocated and no token is
    injected, so user config may load. Every other isolation flag stays.
+   A `claude auth status` of `oauth_token` is not taken. The CLI reports it
+   when a settings file sets `ANTHROPIC_AUTH_TOKEN`, and the cell drops
+   settings files, so that login fails in the child ("Not logged in").
 4. **A prompt**, only when stdin is a terminal. Otherwise the run exits with
    the transport's message naming what to set.
 
-Every step strips the metered variables (`ANTHROPIC_API_KEY`,
-`ANTHROPIC_AUTH_TOKEN`, `OPENAI_API_KEY`, `CODEX_API_KEY`, and the Copilot
-BYOK set), so no path bills a paid key. `report.json` records which steps ran
-as `credential_steps` (`env`, `dotenv`, `disk`, `disk-gh-fallback`, `existing-login`, `prompt`)
+The `codex-cli` and `copilot-cli` children get an allowlisted environment, and
+every step strips the metered variables (`OPENAI_API_KEY`, `CODEX_API_KEY`,
+and the Copilot BYOK set). The `claude-cli` child inherits the parent
+environment instead, so a proxy, CA bundle, or gateway the operator exported
+reaches it. It denies only what breaks the cell: every `CLAUDE*` name (the
+config directory, the parent session's plumbing, and the `CLAUDE_CODE_USE_*`
+cloud switches), `ANTHROPIC_API_KEY`, and `ANTHROPIC_BASE_URL`,
+`ANTHROPIC_AUTH_TOKEN`, and `ANTHROPIC_CUSTOM_HEADERS` on every step except
+`gateway`. Isolation does not
+come from the environment: the config directory is relocated, and settings,
+MCP, tools (`--tools ""`), and slash commands are off. The skill harness
+(`_claude_skill_harness.py`) is the exception: its child loads the skill under
+test with slash commands on, so it gets the allowlist, plus the gateway pair and
+`ANTHROPIC_CUSTOM_HEADERS` on the `gateway` step, and never inherits other
+parent secrets. Proxy variables such as `HTTPS_PROXY` do not reach it.
+`report.json` records which steps ran
+as `credential_steps` (`gateway`, `env`, `dotenv`, `disk`, `disk-gh-fallback`, `existing-login`, `prompt`)
 and `REPORT.md` prints a `Credential step` line. `existing-login` reads
 `existing login: user config may load`. A `settings.json` env block in that user config can also set `ANTHROPIC_API_KEY` or a base URL, which moves billing off the subscription. The value is never recorded.
 
@@ -155,6 +176,45 @@ plain-text file under `COPILOT_HOME` whose layout is undocumented). Step 3
 covers it, because the CLI reads that store itself. The runtime-parity harness
 (`_runtime_harness.py`) and its isolated profile keep their own environment
 checks.
+
+### Running an eval through a local hub
+
+A machine that reaches Claude through a gateway, such as a local CLIProxy hub,
+needs no key. A session on that machine already exports the pair:
+
+```bash
+# ANTHROPIC_BASE_URL and ANTHROPIC_AUTH_TOKEN: already exported by the hub session
+uv run python scripts/eval/eval-prompt-change.py \
+  --provider claude-subscription \
+  --before old.md --after new.md --scenarios tests/evals/<name>-scenarios.json --runs 3
+```
+
+Before and after both run on this one cell, and the judge does too (ADR-058).
+Leave `CLAUDE_CLI_BIN` unset and `EVAL_RUNTIME_REAL_HOME` off: the plain
+`claude` binary under the isolated profile is the measured transport. The
+default model is `claude-sonnet-5-5`. The hub rejects some ids with
+`400 unknown provider for model` (for example `claude-sonnet-5`).
+
+A gateway run is not a direct subscription run: the gateway decides which
+account pays. `result.json` says so in its `transport` block, for example
+`{"provider": "claude-cli", "payer": "gateway", "credential_steps": ["gateway"],
+"endpoint_host": "127.0.0.1:8319"}`, and stderr prints a `Transport:` line.
+The host is recorded without the token, the userinfo, or the URL path. Do not
+compare a gateway score with a direct OAuth score from another run.
+
+The base URL and the auth token reach the child only as a pair. A base URL
+exported without the token is stripped, so the OAuth token on any other step
+only ever goes to api.anthropic.com.
+`ANTHROPIC_CUSTOM_HEADERS` follows the auth token: it reaches only a gateway
+run, because a header can carry another credential. Only `eval-prompt-change.py`
+writes the `transport` block today (`_transport_record.py`). Other runners on
+the `claude-cli` cell still label the run by cell alone.
+
+The isolated runners (`eval_runtime_parity.py`, `eval_control_ablation.py`)
+build their own child environment and inject one token, so they skip the
+gateway step and use the stored login as before. The `claude-api` cell does
+not reach a gateway either. It posts to `https://api.anthropic.com` with
+`x-api-key` (`_anthropic_api.py`), so a hub token there gets HTTP 401.
 
 ### Do not compare across cells
 

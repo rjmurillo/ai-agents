@@ -340,6 +340,23 @@ def validate_memory_placement(repo_root: Path) -> bool:
     )
 
 
+def validate_agent_skill_doc_review(repo_root: Path) -> bool:
+    """Fail when a changed skill or agent has no page edit and no review trailer.
+
+    Runs the command the ``Check agent and skill doc review`` step runs, against
+    the same base. It diffs the working tree from the merge base and reads
+    ``Docs-Reviewed:`` trailers from the commits since the base. Rule
+    ``agent-skill-docs`` MUST 2.
+    """
+    base_ref = _require_base_ref(repo_root, "agent and skill doc review")
+    return _run_workflow_validator(
+        repo_root,
+        "scripts/validation/check_agent_skill_doc_review.py",
+        "--base-ref",
+        base_ref,
+    )
+
+
 def validate_route_scenario_coverage(repo_root: Path) -> bool:
     """Fail when a new or changed autoplan route has no edited scenario.
 

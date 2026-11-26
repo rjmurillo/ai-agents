@@ -135,8 +135,6 @@ EXEMPTIONS: dict[str, tuple[str, int, str]] = {
         2,
         "index rows key on the retired PRD file name and mark it superseded",
     ),
-    "scripts/consolidate_skills.py": (REGISTRY, 2, "archived actions stay memory work"),
-    "tests/test_consolidate_skills.py": (NEEDLE, 1, "archived action stays memory"),
 }
 
 

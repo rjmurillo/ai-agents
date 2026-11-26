@@ -89,6 +89,7 @@ from _eval_common import (
     is_billing_error_message,
 )
 from _providers import is_default_anthropic
+from _transport_record import transport_line, transport_record
 
 RATE_LIMIT_SLEEP_SEC = 1.0
 DEFAULT_RUNS = 3
@@ -1087,6 +1088,7 @@ def _run_and_report(
         max_tokens=args.max_tokens,
     )
     gate = acceptance_gate(comparison, security_critical=args.security_critical)
+    transport = transport_record()
 
     output = {
         "eval_type": "prompt-change",
@@ -1096,6 +1098,7 @@ def _run_and_report(
         "runs_per_scenario": args.runs,
         "max_tokens": args.max_tokens,
         "security_critical": args.security_critical,
+        "transport": transport,
         "comparison": {
             "before_score": comparison["before_score"],
             "after_score": comparison["after_score"],
@@ -1116,6 +1119,7 @@ def _run_and_report(
     else:
         print(json_output)
 
+    print(f"  Transport: {transport_line(transport)}", file=sys.stderr)
     _print_gate_summary(gate)
     sys.exit(0 if gate["passed"] else 1)
 
@@ -1237,9 +1241,12 @@ def _run_or_exit(
 ) -> None:
     try:
         _run_and_report(api_key, before_text, after_text, scenarios, args, source)
-    except MalformedProviderMetadataError:
-        raise
     except RuntimeError as error:
+        # Name the transport on a failed run too: a hub rejection and a direct
+        # API failure read alike otherwise.
+        print(f"  Transport: {transport_line(transport_record())}", file=sys.stderr)
+        if isinstance(error, MalformedProviderMetadataError):
+            raise
         if is_billing_error_message(str(error)):
             print(
                 "ERROR: eval blocked, the provider account has no credit. "
