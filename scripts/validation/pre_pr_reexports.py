@@ -43,6 +43,7 @@ from check_tmp_worktrees import validate_tmp_worktrees
 from check_unused_arguments import validate_unused_arguments
 from check_worktree_recipes import validate_worktree_recipes
 from checks_ci_parity import (
+    validate_agent_skill_doc_review,
     validate_closure_manifest,
     validate_memory_placement,
     validate_route_scenario_coverage,
@@ -126,6 +127,7 @@ __all__ = [
     "validate_skill_tree_layout",
     "validate_skill_trigger_resolution",
     "validate_agent_skill_docs",
+    "validate_agent_skill_doc_review",
     "validate_skill_page_freshness",
     "validate_template_repo_refs",
     "validate_tmp_worktrees",
