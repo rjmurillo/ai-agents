@@ -1,6 +1,6 @@
 ---
 name: chestertons-fence
-version: 1.1.0
+version: 1.2.0
 description: Investigate historical context of existing code, patterns, or constraints before proposing changes. Automates git archaeology, PR/ADR search, and dependency analysis to prevent removing structures without understanding their purpose. Use when you ask "why does this code/constraint exist", "is it safe to remove this". Do NOT use for forward-risk analysis (use pre-mortem).
 license: Apache-2.0
 user-invocable: true
@@ -37,15 +37,6 @@ Enforce epistemic humility before changing existing systems. Understand original
 | File path or ADR number | Investigation report | `.project-toolkit/analysis/NNN-chestertons-fence-TOPIC.md` |
 | Component description | Historical context summary | stdout (JSON) |
 
-## When to Use
-
-Use this skill BEFORE proposing changes to existing:
-
-- Code patterns or architectural decisions
-- ADRs, constraints, or protocol rules
-- Workflow configurations or CI pipelines
-- Skills, hooks, or agent prompts
-
 ## Process
 
 ```text
@@ -71,7 +62,9 @@ Use this skill BEFORE proposing changes to existing:
 
 **Step 1: Identify Structure.** Locate the exact file, function, pattern, or constraint under investigation. Record its current form.
 
-**Step 2: Git Archaeology.** Run `git log --follow` and `git blame` on the target. Identify the commit that introduced it, the author, and the date.
+**Step 2: Git Archaeology.** Pick the probe by target kind. For a whole file, run `git log --follow --diff-filter=A -- <path>`; the bundled investigate script does this, for files only. For a text span (a section, a rule line, a constant), run `git log -S '<literal>' --reverse` and read the oldest hits. Use `git blame` for the last touch, not the origin. Identify the commit that introduced the target, the author, and the date. Probe the repo's merge convention before you cite a PR: `git log --oneline -5` shows whether subjects carry `(#NNNN)`.
+
+**Checker.** Confirm the origin with a second probe that lacks the first one's blind spot, then run `git show <sha>` on the candidate. It passes when both probes name the same commit and its diff adds the target as new text, not as a rename, mirror copy, or template move. When they disagree, probe the older candidate. Stop after three rounds and report every candidate with its evidence.
 
 **Step 3: PR/ADR Search.** Search for the originating PR using `gh pr list --search`. Check `${AWESOME_AI_ARCHITECTURE_DIR:-.project-toolkit/architecture}` for related ADRs (default `.project-toolkit/architecture`). Look for comments explaining intent.
 
@@ -131,33 +124,18 @@ python3 scripts/investigate.py --target path/to/file.py --change "description" -
 |--------|---------|------------|
 | [`scripts/investigate.py`](scripts/investigate.py) | Git archaeology (origin commit, recent changes), related-ADR search, and dependent search for a target; emits a Markdown or JSON investigation report from the bundled template. | 0=success, 1=error |
 
-## Integration with Agent Workflows
+## Gotchas
 
-| Agent | How to Integrate |
-|-------|------------------|
-| **Analyst** | Run this skill first when investigating changes. The report is a prerequisite for any change proposal. |
-| **Architect** | ADRs that deprecate or replace existing patterns MUST include a "Prior Art Investigation" section. Use this skill to generate it. |
-| **Implementer** | Before implementing deletions or major refactoring, verify an investigation report exists. If missing, route to analyst. |
-| **Critic** | When validating plans that remove or replace existing systems, check for investigation evidence. Auto-reject proposals without historical context. |
-
-## Anti-Patterns
-
-| Avoid | Why | Instead |
-|-------|-----|---------|
-| Removing code you do not understand | May break hidden invariants | Investigate first, then decide |
-| Assuming dead code is unused | Hyrum's Law: someone depends on it | Run dependency analysis |
-| Skipping PR/ADR search | Loses original design rationale | Always check git history and PRs |
-| Proposing replacement without evidence | Cannot compare tradeoffs | Document original constraints first |
+- A file a build step mirrored or moved has a newer add commit at its current path. Without `--follow`, `--diff-filter=A` returns that copy.
+- `git log -S` searches every path, so the oldest hit can be a doc that quoted the text. Confirm with `git show` that it adds the target to this file or its earlier path.
+- Fetched PR refs hold pre-squash commits. Cite commits on the default branch unless asked about the PR branch.
 
 ## Verification
 
+- [ ] The Step 2 checker passed, or the report lists every unresolved candidate.
 - [ ] Investigation ran for the target before any change proposal was made.
 - [ ] Origin commit, recent changes, related ADRs, and dependents were gathered (or explicitly recorded as none found).
 - [ ] The resulting report (template-based or inline fallback) is attached to the change proposal or the ADR Prior Art Investigation section.
-
-## Template
-
-Investigation reports use the template at the bundled `templates/chestertons-fence-investigation.md` in this skill directory.
 
 ## References
 
