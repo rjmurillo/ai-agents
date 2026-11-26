@@ -375,12 +375,16 @@ def test_inherited_git_location_vars_are_ignored(
     ],
 )
 def test_inherited_git_config_injection_is_ignored(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str, value: str
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    name: str,
+    value: str,
 ) -> None:
-    """Injected git config must not hide a tracked payload.
+    """Injected git config does not hide a tracked payload or break the listing.
 
-    The property holds two ways: the variables are cleared, and if they were not,
-    git would error on the foreign worktree and the scan would fail closed.
+    ``ls-files`` reads the index, so a foreign ``core.worktree`` changes nothing
+    it reports. The variables are cleared anyway; this pins the outcome.
     """
     repo = make_repo(tmp_path / "repo")
     stanza = make_stanza()
@@ -398,6 +402,7 @@ def test_inherited_git_config_injection_is_ignored(
         monkeypatch.setenv("GIT_CONFIG_VALUE_0", str(other))
 
     assert hermes_packs.generate_hermes_packs(stanza, repo, check=True) == 1
+    assert "git ls-files failed" not in capsys.readouterr().err
 
 
 def test_generate_removes_a_retired_pack_directory(tmp_path: Path) -> None:
