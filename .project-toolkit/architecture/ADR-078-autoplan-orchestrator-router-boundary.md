@@ -190,9 +190,9 @@ responsibilities that do not fit it.
    `src/vs-code-agents`; `uv run python build/generate_agent_catalog.py` writes
    `docs/agent-catalog.md`. An earlier revision of this ADR named
    `generate_agents.py` for the catalog, which does not write it.
-   Hand-apply the same boundary clause to the copies no generator writes:
-   `src/claude/agents/orchestrator.md`, `.claude/agents/orchestrator.md`, and
-   `.github/agents/orchestrator.agent.md` (REQ-003-010). Verify with
+   Hand-apply the same boundary clause to the copies no generator wrote then (REQ-003-010).
+   ADR-119 now links `.claude/agents/orchestrator.md` and `.github/agents/orchestrator.agent.md`
+   to generated output, so edit the orchestrator agent template instead. Verify with
    `validate_install_parity.py` and `detect_agent_drift.py`.
 3. Consider a follow-up mechanical check that flags a routing surface claiming
    the other's responsibility, so the boundary does not drift. Track separately.

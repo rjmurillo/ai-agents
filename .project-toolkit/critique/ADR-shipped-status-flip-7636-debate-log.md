@@ -88,4 +88,14 @@ Merging `origin/main` brought in PR #7634, which added a partial
 `skillforge/scripts/_packs.py` path to ADR-115 Decision 6. Acceptance makes
 `cited-paths-exist` read it, so it now names the full tracked path.
 
+## PR #7691 review follow-up
+
+Devin Review found five records whose text a later decision had moved past.
+
+- ADR-067: PR #6414 scoped bold and bullet paths to change headings with no amendment. A dated note now records it.
+- ADR-049: the `pre_pr.py` line now names the checks ADR-099 and ADR-100 retired.
+- ADR-078: the orchestrator step no longer calls the ADR-119 links hand-maintained copies.
+- ADR-038: no edit. Its Related Decisions already say ADR-089 amends it by reference.
+- ADR-114: no edit. Its 2026-11-05 amendment already makes the smoke advisory. Retitling the record is out of scope here.
+
 **Verdict**: Consensus to accept, with no BLOCK.

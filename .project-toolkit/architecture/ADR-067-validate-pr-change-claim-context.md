@@ -221,6 +221,14 @@ Detection signal: any merged PR whose post-merge `gh pr view --json files` shows
 - `.claude/commands/push-pr.md` (autonomous PR-body author)
 - Regression simulator: `.project-toolkit/analysis/2252-pr-description-default-flip-regression-sim.py` (40-PR sample, seed 2252)
 
+## Amendment 2026-11-25: change headings scope every pattern
+
+PR #6414 (`294ce6aec`, 2026-10-12) went further than Option (c). When a body has a change heading,
+bold and bullet paths outside it no longer count as change claims either.
+`extract_mentioned_files` in `scripts/validation/pr_description.py` applies that rule.
+The hybrid split above still holds for a body with no change heading.
+This note records shipped behavior, found when this record was accepted (issue #7636).
+
 ---
 
 *Template Version: 1.1*
