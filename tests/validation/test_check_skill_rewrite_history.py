@@ -336,6 +336,24 @@ class TestScenarioFile:
         assert code == 1
         assert message in out
 
+    @pytest.mark.parametrize("scenario", [["S9"], {"id": "S9"}, 9, None])
+    def test_retired_row_with_a_non_string_scenario_id_is_a_finding(
+        self, repo: Path, capsys: pytest.CaptureFixture[str], scenario: object
+    ) -> None:
+        self._base_with_nine(repo)
+        write(repo, SCEN, scenario_doc(8))
+        test = "tests/skills/demo/test_demo.py::TestX::test_replaces"
+        write(
+            repo,
+            f"{EVID}/retired.json",
+            json.dumps({"retired": [{"scenario": scenario, "test": test}]}),
+        )
+        commit(repo, "drop S9")
+        code, out = run_gated(repo, capsys)
+        assert code == 1
+        assert "is not a string" in out
+        assert "dropped scenario S9 has no replacing test" in out
+
     def test_retired_with_real_test_passes(
         self, repo: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:

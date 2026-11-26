@@ -69,8 +69,13 @@ def _retired_findings(ctx: Context, name: str, dropped: list[str]) -> list[str]:
         rows = None
     if not isinstance(rows, list):
         return [f"{path} is not valid JSON with a 'retired' list"]
-    tests = {r.get("scenario"): r.get("test") for r in rows if isinstance(r, dict)}
-    problems = []
+    dict_rows = [r for r in rows if isinstance(r, dict)]
+    problems = [
+        f"{path} has a retired row whose scenario id {r.get('scenario')!r} is not a string"
+        for r in dict_rows
+        if not isinstance(r.get("scenario"), str)
+    ]
+    tests = {r["scenario"]: r.get("test") for r in dict_rows if isinstance(r.get("scenario"), str)}
     for sid in dropped:
         test = tests.get(sid)
         if not isinstance(test, str) or "::" not in test:
