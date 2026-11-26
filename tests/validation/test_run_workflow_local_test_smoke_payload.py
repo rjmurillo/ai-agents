@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -42,6 +43,17 @@ _UNKNOWN_SHA_FATAL = f"fatal: remote error: upload-pack: not our ref {_SHA}"
 _MISSING_REF_FATAL = "fatal: couldn't find remote ref refs/heads/no-such-branch"
 
 
+def _git_annotation(job: str) -> str:
+    return f"      {job}   \u2757  ::error::The process '/usr/bin/git' failed with exit code 128\n"
+
+
+def _decide_error(job: str) -> str:
+    return (
+        f"      {job}   | cli_smoke_paths.py: error: --base and --head are required "
+        "for pull_request\n"
+    )
+
+
 def _checkout_failure(job: str, step: str, fatal: str | None = _UNKNOWN_SHA_FATAL) -> str:
     """Lines copied from a real pre-push act log, parameterized.
 
@@ -51,7 +63,7 @@ def _checkout_failure(job: str, step: str, fatal: str | None = _UNKNOWN_SHA_FATA
     fatal_line = f"      {job}   | {fatal}\n" if fatal is not None else ""
     return (
         f"{fatal_line}"
-        f"      {job}   ❗  ::error::The process '/usr/bin/git' failed with exit code 128\n"
+        f"{_git_annotation(job)}"
         f"      {job}   ❌  Failure - Main {step} [28.261404279s]\n"
         f"      {job} exitcode '1': failure\n"
     )
@@ -59,23 +71,31 @@ def _checkout_failure(job: str, step: str, fatal: str | None = _UNKNOWN_SHA_FATA
 
 def _decide_failure(job: str = _FILTER_JOB, step: str = _DECIDE) -> str:
     return (
-        f"      {job}   | cli_smoke_paths.py: error: --base and --head are required "
-        "for pull_request\n"
+        f"{_decide_error(job)}"
         f"      {job}   ❌  Failure - Main {step} [130.202547ms]\n"
         f"      {job} exitcode '2': failure\n"
     )
 
 
+def _hint(text: str) -> str | None:
+    return w._act_limitation_hint(text, _EVENT)
+
+
+def _workflow() -> dict[str, Any]:
+    path = REPO_ROOT / ".github" / "workflows" / "plugin-cli-smoke.yml"
+    return yaml.safe_load(path.read_text(encoding="utf-8"))
+
+
 @pytest.mark.parametrize(("job", "step"), sorted(_CHECKOUT_BY_JOB.items()))
 def test_hint_matches_the_checkout_failure_of_each_job(job: str, step: str) -> None:
-    hint = w._act_limitation_hint(_checkout_failure(job, step), _EVENT)
+    hint = _hint(_checkout_failure(job, step))
 
     assert hint is not None
     assert "plugin-cli-smoke" in hint
 
 
 def test_hint_matches_the_path_filter_failure() -> None:
-    assert w._act_limitation_hint(_decide_failure(), _EVENT) is not None
+    assert _hint(_decide_failure()) is not None
 
 
 @pytest.mark.parametrize(
@@ -100,7 +120,7 @@ def test_hint_matches_the_path_filter_failure() -> None:
     ],
 )
 def test_hint_ignores_other_failures(text: str) -> None:
-    assert w._act_limitation_hint(text, _EVENT) is None
+    assert _hint(text) is None
 
 
 def test_hint_applies_to_pull_request_runs_only() -> None:
@@ -117,26 +137,24 @@ def test_hint_requires_the_two_lines_to_be_adjacent(text: str) -> None:
     *head, first, second, third = text.splitlines(keepends=True)
     interleaved = f"{''.join(head)}{first}      {_FILTER_JOB}   | other output\n{second}{third}"
 
-    assert w._act_limitation_hint(interleaved, _EVENT) is None
+    assert _hint(interleaved) is None
 
 
 def test_hint_rejects_a_failure_line_the_step_echoed() -> None:
     """Step output carries act's `| ` prefix, so it cannot stand in for act's line."""
     forged = (
-        f"      {_FILTER_JOB}   | cli_smoke_paths.py: error: --base and --head are required "
-        "for pull_request\n"
-        f"      {_FILTER_JOB}   | ❌  Failure - Main {_DECIDE} [1ms]\n"
+        f"{_decide_error(_FILTER_JOB)}      {_FILTER_JOB}   | ❌  Failure - Main {_DECIDE} [1ms]\n"
     )
 
-    assert w._act_limitation_hint(forged, _EVENT) is None
+    assert _hint(forged) is None
 
 
 def test_hint_blocks_when_another_step_also_failed() -> None:
     other = f"      {_FILTER_JOB}   ❌  Failure - Main Setup Python [3ms]\n"
     checkout = _checkout_failure(_FILTER_JOB, _CHECKOUT_BY_JOB[_FILTER_JOB])
 
-    assert w._act_limitation_hint(_decide_failure() + other, _EVENT) is None
-    assert w._act_limitation_hint(checkout + other, _EVENT) is None
+    assert _hint(_decide_failure() + other) is None
+    assert _hint(checkout + other) is None
 
 
 def test_a_git_annotation_from_another_workflow_still_blocks() -> None:
@@ -146,14 +164,12 @@ def test_a_git_annotation_from_another_workflow_still_blocks() -> None:
         "failed with exit code 128\n"
     )
 
-    assert w._act_limitation_hint(_decide_failure() + foreign, _EVENT) is None
+    assert _hint(_decide_failure() + foreign) is None
 
 
 def test_the_rule_names_match_plugin_cli_smoke_yml() -> None:
     """The rule quotes the workflow; a rename there must fail here."""
-    workflow = yaml.safe_load(
-        (REPO_ROOT / ".github" / "workflows" / "plugin-cli-smoke.yml").read_text(encoding="utf-8")
-    )
+    workflow = _workflow()
     checkout_steps: set[str] = set()
     for job in workflow["jobs"].values():
         for step in job["steps"]:
@@ -185,7 +201,7 @@ def test_a_same_named_step_from_another_workflow_still_blocks() -> None:
         "Checkout trusted scripts from the base commit [1ms]\n"
     )
 
-    assert w._act_limitation_hint(_decide_failure() + foreign, _EVENT) is None
+    assert _hint(_decide_failure() + foreign) is None
 
 
 def test_the_annotation_excuse_needs_the_smoke_rule_not_any_rule() -> None:
@@ -196,16 +212,13 @@ def test_the_annotation_excuse_needs_the_smoke_rule_not_any_rule() -> None:
         "      [Duplicate Code Detection/Python duplication ratchet]   \u274c  "
         "Failure - Main Check Python duplication against the baseline [2.3s]\n"
     )
-    stray = (
-        f"      {_FILTER_JOB}   \u2757  ::error::The process '/usr/bin/git' failed with exit "
-        "code 128\n"
-    )
-
-    assert w._act_limitation_hint(duplicate, _EVENT) is not None
-    assert w._act_limitation_hint(duplicate + stray, _EVENT) is None
+    assert _hint(duplicate) is not None
+    assert _hint(duplicate + _git_annotation(_FILTER_JOB)) is None
 
 
 _FILTER_CHECKOUT = _CHECKOUT_BY_JOB[_FILTER_JOB]
+_UNEXPLAINED = _checkout_failure(_FILTER_JOB, _FILTER_CHECKOUT, fatal=None)
+_FILTER_FATAL = f"      {_FILTER_JOB}   | {_UNKNOWN_SHA_FATAL}\n"
 _GATE_JOB = "[Plugin CLI Smoke/Trusted-context gate]"
 
 
@@ -213,36 +226,34 @@ def test_a_nonexistent_explicit_ref_still_blocks() -> None:
     """Only git's unknown-SHA fatal vouches for the fallback; a missing ref is a defect."""
     text = _checkout_failure(_FILTER_JOB, _FILTER_CHECKOUT, fatal=_MISSING_REF_FATAL)
 
-    assert w._act_limitation_hint(text, _EVENT) is None
+    assert _hint(text) is None
 
 
 def test_a_checkout_failure_without_a_fatal_line_still_blocks() -> None:
     text = _checkout_failure(_FILTER_JOB, _FILTER_CHECKOUT, fatal=None)
 
-    assert w._act_limitation_hint(text, _EVENT) is None
+    assert _hint(text) is None
 
 
 def test_one_nonexistent_ref_blocks_beside_missing_sha_failures() -> None:
     explained = _checkout_failure(_GATE_JOB, _SCRIPTS_STEP)
     broken = _checkout_failure(_FILTER_JOB, _FILTER_CHECKOUT, fatal=_MISSING_REF_FATAL)
 
-    assert w._act_limitation_hint(explained, _EVENT) is not None
-    assert w._act_limitation_hint(explained + broken, _EVENT) is None
+    assert _hint(explained) is not None
+    assert _hint(explained + broken) is None
 
 
 def test_the_unknown_sha_fatal_must_come_from_the_failing_job() -> None:
     """Another job's fatal line cannot vouch for this job's checkout failure."""
     other_job_fatal = _checkout_failure(_GATE_JOB, _SCRIPTS_STEP)
-    unexplained = _checkout_failure(_FILTER_JOB, _FILTER_CHECKOUT, fatal=None)
 
-    assert w._act_limitation_hint(other_job_fatal + unexplained, _EVENT) is None
+    assert _hint(other_job_fatal + _UNEXPLAINED) is None
 
 
 def test_an_unknown_sha_fatal_from_another_workflow_does_not_vouch() -> None:
     foreign = f"      {_OTHER_WORKFLOW_JOB}   | {_UNKNOWN_SHA_FATAL}\n"
-    unexplained = _checkout_failure(_FILTER_JOB, _FILTER_CHECKOUT, fatal=None)
 
-    assert w._act_limitation_hint(foreign + unexplained, _EVENT) is None
+    assert _hint(foreign + _UNEXPLAINED) is None
 
 
 @pytest.mark.parametrize(
@@ -259,7 +270,7 @@ def test_an_unknown_sha_fatal_from_another_workflow_does_not_vouch() -> None:
 def test_only_a_full_sha_unknown_ref_fatal_vouches(fatal: str) -> None:
     text = _checkout_failure(_FILTER_JOB, _FILTER_CHECKOUT, fatal=fatal)
 
-    assert w._act_limitation_hint(text, _EVENT) is None
+    assert _hint(text) is None
 
 
 def test_any_other_fatal_line_from_the_workflow_blocks() -> None:
@@ -267,7 +278,7 @@ def test_any_other_fatal_line_from_the_workflow_blocks() -> None:
     extra = f"      {_GATE_JOB}   | {_MISSING_REF_FATAL}\n"
     text = _checkout_failure(_FILTER_JOB, _FILTER_CHECKOUT) + extra
 
-    assert w._act_limitation_hint(text, _EVENT) is None
+    assert _hint(text) is None
 
 
 def test_hint_accepts_the_width_padding_act_adds_to_job_labels() -> None:
@@ -275,11 +286,11 @@ def test_hint_accepts_the_width_padding_act_adds_to_job_labels() -> None:
     padded_filter = "[Plugin CLI Smoke/Smoke path filter ]"
     padded_gate = "[Plugin CLI Smoke/Trusted-context gate   ]"
 
-    assert w._act_limitation_hint(_decide_failure(job=padded_filter), _EVENT) is not None
+    assert _hint(_decide_failure(job=padded_filter)) is not None
     checkout = _checkout_failure(padded_filter, _FILTER_CHECKOUT) + _checkout_failure(
         padded_gate, _SCRIPTS_STEP
     )
-    assert w._act_limitation_hint(checkout, _EVENT) is not None
+    assert _hint(checkout) is not None
 
 
 def test_the_reporter_job_is_skipped_by_the_full_act_stage_only() -> None:
@@ -320,30 +331,26 @@ def test_a_failure_line_with_extra_words_in_the_step_name_still_blocks() -> None
     """Step names match exactly; a step named like an allowed one plus text is another step."""
     text = _decide_failure(step=f"{_DECIDE} and then something else")
 
-    assert w._act_limitation_hint(text, _EVENT) is None
+    assert _hint(text) is None
 
 
 def test_a_unicode_line_break_cannot_forge_a_vouching_fatal_line() -> None:
     """Lines split on newline only, as the regexes do, so U+2028 cannot start a new line."""
-    unexplained = _checkout_failure(_FILTER_JOB, _FILTER_CHECKOUT, fatal=None)
-    forged = f"      {_GATE_JOB}   | echo\u2028      {_FILTER_JOB}   | {_UNKNOWN_SHA_FATAL}\n"
+    forged = f"      {_GATE_JOB}   | echo\u2028{_FILTER_FATAL}"
 
-    assert w._act_limitation_hint(unexplained + forged, _EVENT) is None
+    assert _hint(_UNEXPLAINED + forged) is None
 
 
 def test_hint_accepts_git_s_three_fold_fetch_retry() -> None:
     """actions/checkout retries the fetch, so a real log repeats the fatal line."""
-    fatal = f"      {_FILTER_JOB}   | {_UNKNOWN_SHA_FATAL}\n"
-    text = fatal * 2 + _checkout_failure(_FILTER_JOB, _FILTER_CHECKOUT)
+    text = _FILTER_FATAL * 2 + _checkout_failure(_FILTER_JOB, _FILTER_CHECKOUT)
 
-    assert w._act_limitation_hint(text, _EVENT) is not None
+    assert _hint(text) is not None
 
 
 def test_no_checkout_in_the_workflow_names_another_repository() -> None:
     """git prints the same unknown-SHA line for a foreign repository, so none may be set."""
-    workflow = yaml.safe_load(
-        (REPO_ROOT / ".github" / "workflows" / "plugin-cli-smoke.yml").read_text(encoding="utf-8")
-    )
+    workflow = _workflow()
     checkouts = [
         step
         for job in workflow["jobs"].values()
@@ -361,18 +368,14 @@ def test_the_path_filter_failure_needs_its_own_jobs_error_line() -> None:
     explained = _decide_failure()
     other_job_failure = f"      {_GATE_JOB}   ❌  Failure - Main {_DECIDE} [1ms]\n"
 
-    assert w._act_limitation_hint(explained, _EVENT) is not None
-    assert w._act_limitation_hint(explained + other_job_failure, _EVENT) is None
+    assert _hint(explained) is not None
+    assert _hint(explained + other_job_failure) is None
 
 
 def test_a_stray_git_annotation_beside_a_path_filter_failure_still_blocks() -> None:
     """The annotation excuse covers a job whose checkout failure is explained, no other."""
-    stray = (
-        f"      {_FILTER_JOB}   ❗  ::error::The process '/usr/bin/git' failed with exit code 128\n"
-    )
-
-    assert w._act_limitation_hint(_decide_failure(), _EVENT) is not None
-    assert w._act_limitation_hint(_decide_failure() + stray, _EVENT) is None
+    assert _hint(_decide_failure()) is not None
+    assert _hint(_decide_failure() + _git_annotation(_FILTER_JOB)) is None
 
 
 def test_the_annotation_excuse_applies_to_pull_request_runs_only() -> None:
@@ -385,9 +388,7 @@ def test_the_annotation_excuse_applies_to_pull_request_runs_only() -> None:
 
 def test_the_allowed_checkout_steps_are_actions_checkout_steps() -> None:
     """The allowance trusts log text, so the steps it names must be the checkout action."""
-    workflow = yaml.safe_load(
-        (REPO_ROOT / ".github" / "workflows" / "plugin-cli-smoke.yml").read_text(encoding="utf-8")
-    )
+    workflow = _workflow()
     steps = [
         step
         for job in workflow["jobs"].values()
@@ -405,28 +406,18 @@ def test_the_allowed_checkout_steps_are_actions_checkout_steps() -> None:
 def test_a_failure_line_carrying_extra_words_or_no_duration_blocks() -> None:
     padded = f"      {_FILTER_JOB}   \u274c  Failure - Main {_FILTER_CHECKOUT}"
     explained = _checkout_failure(_FILTER_JOB, _FILTER_CHECKOUT)
-    fatal = f"      {_FILTER_JOB}   | {_UNKNOWN_SHA_FATAL}\n"
-    annotation = (
-        f"      {_FILTER_JOB}   \u2757  ::error::The process '/usr/bin/git' failed with exit "
-        "code 128\n"
-    )
+    head = _FILTER_FATAL + _git_annotation(_FILTER_JOB)
 
-    assert w._act_limitation_hint(explained, _EVENT) is not None
-    extra_words = f"{fatal}{annotation}{padded} and more [1ms]\n"
-    no_duration = f"{fatal}{annotation}{padded}\n"
-    assert w._act_limitation_hint(extra_words, _EVENT) is None
-    assert w._act_limitation_hint(no_duration, _EVENT) is None
+    assert _hint(explained) is not None
+    extra_words = f"{head}{padded} and more [1ms]\n"
+    no_duration = f"{head}{padded}\n"
+    assert _hint(extra_words) is None
+    assert _hint(no_duration) is None
 
 
 def test_decide_error_evidence_does_not_vouch_for_a_checkout_failure() -> None:
     """The two kinds of evidence are separate: each failure needs its own."""
-    error_line = (
-        f"      {_FILTER_JOB}   | cli_smoke_paths.py: error: --base and --head are required "
-        "for pull_request\n"
-    )
-    checkout_without_fatal = _checkout_failure(_FILTER_JOB, _FILTER_CHECKOUT, fatal=None)
-
-    assert w._act_limitation_hint(error_line + checkout_without_fatal, _EVENT) is None
+    assert _hint(_decide_error(_FILTER_JOB) + _UNEXPLAINED) is None
 
 
 def test_the_full_act_stage_skips_reporters_and_the_dry_run_does_not(
@@ -454,7 +445,7 @@ def test_the_full_act_stage_skips_reporters_and_the_dry_run_does_not(
 def test_hint_accepts_every_go_duration_shape_act_prints(duration: str) -> None:
     text = _decide_failure().replace("[130.202547ms]", f"[{duration}]")
 
-    assert w._act_limitation_hint(text, _EVENT) is not None
+    assert _hint(text) is not None
 
 
 def test_a_long_adversarial_failure_line_is_rejected_quickly() -> None:
@@ -463,7 +454,7 @@ def test_a_long_adversarial_failure_line_is_rejected_quickly() -> None:
 
     hostile = f"      {_FILTER_JOB}   \u274c  Failure - Main {_DECIDE}" + " [" * 100_000 + "\n"
     start = time.perf_counter()
-    hint = w._act_limitation_hint(_decide_failure() + hostile, _EVENT)
+    hint = _hint(_decide_failure() + hostile)
 
     assert hint is None
     assert time.perf_counter() - start < 2.0
