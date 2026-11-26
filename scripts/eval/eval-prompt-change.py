@@ -984,7 +984,11 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--model", type=str, default=DEFAULT_MODEL, help="Model for evaluation")
     parser.add_argument("--dry-run", action="store_true", help="Validate inputs, no API calls")
-    parser.add_argument("--output", type=str, help="Write results to file")
+    parser.add_argument(
+        "--output",
+        type=str,
+        help="Write results to file; missing parent folders are created before any API call",
+    )
     parser.add_argument(
         "--provider",
         type=str,
@@ -1203,6 +1207,30 @@ def run_identity(
         "base_commit": pinned.base_commit,
         "model": args.model,
     }
+
+
+def prepare_output_path(output: str | None) -> None:
+    """Create the parent folder of `--output` and check the path can be written.
+
+    `main` calls this before the first model call, so a bad path costs nothing.
+    It never opens, creates, or truncates the results file: a `--dry-run` must
+    leave an existing results file as it was. Raises RuntimeError naming the
+    path when the folder cannot be made or the path cannot be written.
+    """
+    if not output:
+        return
+    target = Path(output)
+    parent = target.parent
+    try:
+        parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        reason = exc.strerror or exc.__class__.__name__
+        raise RuntimeError(f"--output {output}: cannot create folder {parent}: {reason}") from exc
+    if target.is_dir():
+        raise RuntimeError(f"--output {output}: is a folder, expected a file path")
+    probe = target if target.exists() else parent
+    if not os.access(probe, os.W_OK):
+        raise RuntimeError(f"--output {output}: {probe} is not writable")
 
 
 def _run_and_report(
@@ -1452,6 +1480,14 @@ def main() -> None:
 
     if before_text == after_text:
         print("  WARNING: before and after prompt text are identical", file=sys.stderr)
+
+    # Last input check, shared with --dry-run: every model call would be lost
+    # if the results file could not be written at the end of the run.
+    try:
+        prepare_output_path(args.output)
+    except RuntimeError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(2)
 
     if args.dry_run:
         print("\n  DRY RUN: inputs validated, no API calls made", file=sys.stderr)
