@@ -246,6 +246,8 @@ def test_checkout_without_the_named_skill_exits_2(tmp_path, checkout, monkeypatc
         {"allowed_tools": ["Bash(rm -rf .:*)"]},
         {"allowed_tools": ["Bash(cp:*)"]},
         {"allowed_tools": ["Bash(python3 *.py:*)"]},
+        {"allowed_tools": ["Bash(python3 src/claude/skills/skillforge/scripts/init_skill.py:*)"]},
+        {"allowed_tools": ["Bash(python3 scripts/x.py:*)"]},
     ],
 )
 def test_bad_skill_or_tool_grant_exits_2_before_any_run(tmp_path, checkout, monkeypatch, extra):
@@ -257,7 +259,8 @@ def test_bad_skill_or_tool_grant_exits_2_before_any_run(tmp_path, checkout, monk
 
 
 def test_read_only_git_and_script_grants_load(tmp_path):
-    tools = ["Bash(git blame:*)", "Bash(python3 scripts/x.py:*)", "Bash(scripts/y.py:*)"]
+    script = ".claude/skills/chestertons-fence/scripts/investigate.py"
+    tools = ["Bash(git blame:*)", f"Bash(python3 {script}:*)", f"Bash(./{script}:*)"]
 
     data = cap.load_tasks(_write_tasks(tmp_path, {**TASKS, "allowed_tools": tools}))
 

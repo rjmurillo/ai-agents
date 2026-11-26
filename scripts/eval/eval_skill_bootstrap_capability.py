@@ -120,22 +120,25 @@ def _check_task(path: Path, task: object, seen: set[str]) -> None:
 
 
 INTERPRETERS = frozenset({"python", "python3", "node", "perl", "ruby"})
-SCRIPT_SUFFIXES = (".py", ".js", ".mjs", ".pl", ".rb")
+# A script grant must name a script reviewed to only read the checkout and print.
+# No static check can prove a script is read-only, so add a script here after review.
+REVIEWED_SCRIPTS = frozenset({".claude/skills/chestertons-fence/scripts/investigate.py"})
 # A git grant must name one of these subcommands; reset, checkout, clean, and the
 # rest could move HEAD or change the tree that later repetitions share.
 GIT_READ_ONLY = frozenset({"log", "show", "ls-tree", "rev-parse", "rev-list", "diff-tree", "blame"})
 
 
 def _is_script(word: str) -> bool:
-    return "*" not in word and word.endswith(SCRIPT_SUFFIXES)
+    return word.removeprefix("./") in REVIEWED_SCRIPTS
 
 
 def _loose_bash_grant(tool: str) -> bool:
     """True for a Bash grant outside the read-only allowlist.
 
-    A Bash grant passes only as a git subcommand from GIT_READ_ONLY, a script path,
-    or an interpreter whose first argument is a script path. Anything else, such as
-    `rm`, `find`, or a shell, could change the checkout that later runs share.
+    A Bash grant passes only as a git subcommand from GIT_READ_ONLY, a script from
+    REVIEWED_SCRIPTS, or an interpreter whose first argument is such a script.
+    Anything else, such as `rm`, `find`, a shell, or a script that writes files,
+    could change the checkout that later runs share.
     """
     if tool == "Bash":
         return True
