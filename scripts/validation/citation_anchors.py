@@ -106,7 +106,7 @@ def _anchor_candidates(context_lines: list[str], citation_text: str) -> list[str
     """
     anchors: list[str] = []
     for line in context_lines:
-        masked = _URL.sub(" ", line)
+        masked = _URL.sub(" ", _mask_escaped_backticks(line))
         # Triple-quote delimiters would otherwise pair with the opening
         # quote of a real anchor and swallow it.
         masked = masked.replace('"""', " ").replace("'''", " ")
@@ -291,10 +291,44 @@ def _context_lines(
     return context
 
 
-def _snap_out_of_tokens(text: str, point: int) -> int:
-    """Move a split point out of any span, quote, or identifier it bisects."""
+def _mask_escaped_backticks(text: str) -> str:
+    """Blank each backslash-escaped backtick outside a code span, keeping length.
+
+    Outside a span it is a literal, not a delimiter. Inside a span the
+    backslash is literal, so the backtick still closes the span.
+    """
+    if "\\`" not in text:
+        return text
+    out = list(text)
+    in_span = False
+    i = 0
+    while i < len(text):
+        char = text[i]
+        if char == "\\" and not in_span:
+            if text[i + 1 : i + 2] == "`":
+                out[i] = out[i + 1] = " "
+            i += 2
+            continue
+        if char == "`":
+            while i < len(text) and text[i] == "`":
+                i += 1
+            in_span = not in_span
+            continue
+        i += 1
+    return "".join(out)
+
+
+def _snap_out_of_tokens(text: str, point: int, low: int, high: int) -> int:
+    """Move a split point out of any span, quote, or identifier it bisects.
+
+    A token that covers the whole gap ``[low, high]`` wraps both citations,
+    so it says nothing about where the gap splits and is skipped. A token
+    that wraps only one citation still counts: the split must not cut it.
+    """
     for pattern in (_BACKTICK_SPAN, _DQUOTE_SPAN, _IDENTIFIER):
         for match in pattern.finditer(text):
+            if match.start() <= low and match.end() >= high:
+                continue
             if match.start() < point < match.end():
                 left = point - match.start()
                 right = match.end() - point
@@ -303,15 +337,25 @@ def _snap_out_of_tokens(text: str, point: int) -> int:
 
 
 def _gap_split(line: str, prev_end: int, next_start: int) -> int:
-    """Split the gap between two citations near its midpoint, whole tokens only."""
-    gap = line[prev_end:next_start]
-    point = len(gap) // 2
+    """Split the gap between two citations near its midpoint, whole tokens only.
+
+    Tokens are paired on the whole line, not the gap alone. The gap starts
+    with the closing backtick of the first citation's span, so pairing inside
+    the gap is off by one and the snap would bisect a span (issue #7656).
+    Escaped backticks are blanked first so they do not shift that pairing.
+    A token that covers the whole gap is skipped: a quote that wraps both
+    citations would otherwise push every gap anchor to one side. The result
+    is clamped to the
+    gap so a segment never loses its own citation.
+    """
+    text = _mask_escaped_backticks(line)
+    point = prev_end + (next_start - prev_end) // 2
     for _ in range(3):
-        snapped = _snap_out_of_tokens(gap, point)
+        snapped = _snap_out_of_tokens(text, point, prev_end, next_start)
         if snapped == point:
             break
         point = snapped
-    return prev_end + point
+    return min(max(point, prev_end), next_start)
 
 
 def _same_line_segment(line: str, matches: list[re.Match[str]], index: int) -> str:
