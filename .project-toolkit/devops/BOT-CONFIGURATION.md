@@ -48,21 +48,22 @@ This repository uses multiple AI-powered bots for PR review. This document expla
 
 **Actionability**: 49% (163 comments analyzed)
 
-**Configuration File**: `.coderabbit.yaml`
+**Configuration File**: `.coderabbit.config.ts` (CodeRabbit reads it only when no `.coderabbit.yaml` exists)
 
 **Tuning Applied** (Issue #326):
 
 1. **Profile**: Set to `chill` (reduces nitpicky feedback)
 2. **Path Filters**: Exclude generated files and agent artifacts
 
-   ```yaml
-   path_filters:
-     - "!.project-toolkit/sessions/**"
-     - "!.project-toolkit/analysis/**"
-     - "!.serena/memories/**"
-     - "!**/*.generated.*"
-     - "!**/bin/**"
-     - "!**/obj/**"
+   ```ts
+   path_filters: [
+     "!.project-toolkit/sessions/**",
+     "!.project-toolkit/analysis/**",
+     "!.serena/memories/**",
+     "!**/*.generated.*",
+     "!**/bin/**",
+     "!**/obj/**",
+   ],
    ```
 
 3. **Noise Reduction**:
@@ -144,7 +145,7 @@ This repository uses multiple AI-powered bots for PR review. This document expla
 | Bot | Config File | Key Settings |
 |-----|-------------|--------------|
 | cursor[bot] | None (Marketplace app) | N/A |
-| CodeRabbit | `.coderabbit.yaml` | profile, path_filters, noise reduction flags |
+| CodeRabbit | `.coderabbit.config.ts` | profile, path_filters, noise reduction flags, path instructions |
 | Gemini | `.gemini/config.yaml` | severity threshold, max comments, ignore patterns |
 | Copilot | `.github/copilot-code-review.md` | Instruction-based guidelines |
 

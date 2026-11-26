@@ -11,6 +11,8 @@ Defines what counts as evidence for a change in this repository and how to produ
 - You ask what counts as evidence: `what counts as evidence`.
 - You need to test or run tests: `how do I test this change`, `run skill tests`.
 - You wonder whether QA can be skipped: `can I skip QA`.
+- You write or review Python or tests here and want the repo's conventions for subprocess text, paths, and test isolation.
+- You review a pull request here and want the list of findings maintainers dismiss.
 
 ## When not to use it
 
@@ -30,6 +32,8 @@ The agent applies the evidence bar to your change, names where the tests go, and
 ## What you get
 
 A test plan that meets the bar: a positive, negative, and edge test per changed function, 100% block coverage on changed files, and runtime-contract tests with negative controls. The skill also lists the QA skip verdicts defined by ADR-034 and the anti-pattern canon.
+
+Three reference files go deeper. `rule-ci-scripts.md` covers CI workflows and validation scripts. `python-and-test-conventions.md` covers Python and test patterns, each with a site to copy. `reviewer-guidance.md` lists review findings to skip, with the reason for each.
 
 ## Advanced use
 

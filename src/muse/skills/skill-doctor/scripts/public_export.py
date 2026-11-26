@@ -27,7 +27,7 @@ from typing import Any
 import report_audit
 import report_evaluation
 from audit_scores import write_atomic
-from render_report import GRADES, grade_for
+from report_format import GRADES, grade_for
 
 NON_PROBABILITY_NOTE = (
     "Non-probability sample. Results are descriptive for the conversations scored "
