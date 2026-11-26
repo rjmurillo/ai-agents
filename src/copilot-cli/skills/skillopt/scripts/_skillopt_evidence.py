@@ -11,14 +11,16 @@ after Weng, "Harness Engineering for Self-Improvement" (Lil'Log, 2026):
                       impact with expected fixes and at-risk regressions
                       (AHE, Lin et al., arXiv:2604.25850)
   - manifesto-verify: next-round check of those predictions on train results
-  - pin / pin-check : sha256 of the read-only surfaces (eval set, verifier,
-                      tracer, model configuration) taken at baseline
+  - pin / pin-check : sha256 of the read-only files (eval set, verifier,
+                      tracer, any model or budget config file) taken at
+                      baseline; the model name is recorded, not hashed
   - proposer tier   : warn on a lightweight-tier proposer (STOP, Zelikman et
                       al., COLM 2024)
 
-Every check reads train evidence only. A sel task id named in a weakness
-pattern or a manifesto entry exits 2, because the candidate author must not
-see sel tasks (SKILL.md Precondition 4).
+Every check reads train evidence only. A sel task id in a task list or a
+free-text field of a weakness pattern or a manifesto entry exits 2, because
+the candidate author must not see sel tasks (SKILL.md Precondition 4). Patch
+text is not scanned.
 """
 
 from __future__ import annotations
@@ -53,7 +55,8 @@ ENTRY_TEXT_FIELDS = ("root_cause", "fix")
 # Proposer tiers. STOP improved with GPT-4 and degraded with GPT-3.5 and
 # Mixtral, so a lightweight proposer can make the target worse.
 _LIGHTWEIGHT = re.compile(
-    r"(haiku|mini|nano|lite|tiny|small|gpt-3\.5|mixtral|\b[1-9]b\b)", re.IGNORECASE
+    r"((?<![a-z])(haiku|mini|nano|lite|tiny|small)(?![a-z])|gpt-3\.5|mixtral|\b[1-9]b\b)",
+    re.IGNORECASE,
 )
 _CAPABLE = re.compile(r"(opus|sonnet|fable|gpt-4|gpt-5|\bo3\b|-pro\b|ultra)", re.IGNORECASE)
 TIER_HINT = (
@@ -82,10 +85,16 @@ def _require_schema(doc: Any, schema: str, label: str) -> dict[str, Any]:
     return doc
 
 
-def _text(entry: dict[str, Any], field: str, where: str) -> str:
+def _text(entry: dict[str, Any], field: str, where: str, sel: set[str] | None = None) -> str:
     value = entry.get(field)
     if not isinstance(value, str) or not value.strip():
         raise SkillOptError(f"{where}: '{field}' must be a nonempty string")
+    for tid in sorted(sel or ()):
+        if re.search(rf"(?<![\w-]){re.escape(tid)}(?![\w-])", value):
+            raise SkillOptError(
+                f"{where}: '{field}' names sel task {tid!r}; "
+                "the candidate author must use train evidence only"
+            )
     return value
 
 
@@ -110,7 +119,8 @@ def _train_ids(
 
 def _splits(eval_set: dict[str, Any]) -> tuple[list[str], set[str]]:
     train = _split_task_ids(eval_set, "train")
-    sel = set(eval_set.get("splits", {}).get("sel", []) or [])
+    splits = eval_set["splits"]
+    sel = set(_split_task_ids(eval_set, "sel")) if "sel" in splits else set()
     return train, sel
 
 
@@ -144,7 +154,7 @@ def check_weakness(
             raise SkillOptError(f"duplicate pattern id {pid!r}")
         seen_ids.add(pid)
         for field in PATTERN_TEXT_FIELDS:
-            _text(pattern, field, f"pattern {pid!r}")
+            _text(pattern, field, f"pattern {pid!r}", sel)
         if not isinstance(pattern.get("addressable"), bool):
             raise SkillOptError(f"pattern {pid!r}: 'addressable' must be true or false")
         tasks = _train_ids(
@@ -177,6 +187,31 @@ def check_weakness(
 # --------------------------------------------------------------------------- #
 # Manifesto: one falsifiable prediction per patch
 # --------------------------------------------------------------------------- #
+def _check_predictions(
+    entry: dict[str, Any],
+    where: str,
+    train_set: set[str],
+    sel: set[str],
+    incumbent_results: dict[str, Any],
+) -> None:
+    """Predicted fixes must fail at baseline; at-risk tasks must pass at baseline."""
+    fixes = _train_ids(
+        entry.get("predicted_fixes"), "predicted_fixes", where, train_set, sel, allow_empty=False
+    )
+    passing = [t for t in fixes if incumbent_results.get(t) is True]
+    if passing:
+        raise SkillOptError(
+            f"{where}: predicted_fixes {', '.join(passing)} already pass at baseline"
+        )
+    risks = _train_ids(entry.get("at_risk"), "at_risk", where, train_set, sel, allow_empty=True)
+    failing = [t for t in risks if incumbent_results.get(t) is not True]
+    if failing:
+        raise SkillOptError(
+            f"{where}: at_risk {', '.join(failing)} do not pass at baseline; "
+            "list only tasks that pass now"
+        )
+
+
 def check_manifesto(
     eval_set: dict[str, Any],
     incumbent_results: dict[str, Any],
@@ -217,7 +252,7 @@ def check_manifesto(
             raise SkillOptError(f"{where}: pattern {pid!r} is not addressable; do not patch it")
         targeted.append(pid)
         for field in ENTRY_TEXT_FIELDS:
-            _text(entry, field, where)
+            _text(entry, field, where, sel)
         if entry.get("component") not in COMPONENTS:
             raise SkillOptError(f"{where}: 'component' must be one of {', '.join(COMPONENTS)}")
         evidence = _train_ids(
@@ -226,15 +261,7 @@ def check_manifesto(
         stray = [t for t in evidence if t not in patterns[pid]["tasks"]]
         if stray:
             raise SkillOptError(f"{where}: evidence {', '.join(stray)} is not in pattern {pid!r}")
-        _train_ids(
-            entry.get("predicted_fixes"),
-            "predicted_fixes",
-            where,
-            train_set,
-            sel,
-            allow_empty=False,
-        )
-        _train_ids(entry.get("at_risk"), "at_risk", where, train_set, sel, allow_empty=True)
+        _check_predictions(entry, where, train_set, sel, incumbent_results)
     missing = [i for i in range(len(patches)) if i not in covered]
     if missing:
         raise SkillOptError(f"patch(es) {', '.join(map(str, missing))} have no manifesto entry")
@@ -304,8 +331,16 @@ def verify_manifesto(
         report_entries.append(
             {
                 "patch": entry.get("patch"),
-                "confirmed_fixes": [t for t in fixes if candidate_results.get(t) is True],
-                "missed_fixes": [t for t in fixes if candidate_results.get(t) is not True],
+                "confirmed_fixes": [
+                    t
+                    for t in fixes
+                    if incumbent_results.get(t) is not True and candidate_results.get(t) is True
+                ],
+                "missed_fixes": [
+                    t
+                    for t in fixes
+                    if incumbent_results.get(t) is True or candidate_results.get(t) is not True
+                ],
                 "at_risk_regressed": [
                     t
                     for t in risks
@@ -382,7 +417,14 @@ def assert_declared_pins(eval_path: Path, eval_set: dict[str, Any]) -> None:
     pins_path = (eval_path.parent / declared).resolve()
     if not pins_path.is_file():
         raise SkillOptError(f"eval set names pins file {declared!r}, which does not exist")
-    report = check_pins(json.loads(pins_path.read_bytes().decode("utf-8")))
+    pins = json.loads(pins_path.read_bytes().decode("utf-8"))
+    report = check_pins(pins)
+    pinned_eval = Path(pins["surfaces"]["eval"]["path"]).resolve()
+    if pinned_eval != eval_path.resolve():
+        raise SkillOptError(
+            f"pins file pins eval set {pinned_eval}, not the one being gated "
+            f"({eval_path.resolve()}); pin this run's files again"
+        )
     if report["verdict"] != "MATCH":
         raise SkillOptError(
             "read-only surface changed since baseline: "

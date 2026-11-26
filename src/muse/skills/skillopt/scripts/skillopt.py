@@ -208,8 +208,10 @@ def _cmd_pair_gate(args: argparse.Namespace) -> int:
 
 
 def _cmd_efficiency_gate(args: argparse.Namespace) -> int:
+    eval_set = _load_object(args.eval, "efficiency-gate eval input")
+    assert_declared_pins(Path(args.eval), eval_set)
     report = efficiency_gate(
-        _load_object(args.eval, "efficiency-gate eval input"),
+        eval_set,
         _load_object(args.incumbent_results, "efficiency-gate incumbent results"),
         _load_object(args.candidate_results, "efficiency-gate candidate results"),
         _load_object(args.measurements, "efficiency-gate measurements"),

@@ -76,6 +76,7 @@ class TestWeaknessCheck:
             ({"tasks": ["zz"]}, "non-train"),
             ({"tasks": []}, "at least one"),
             ({"mechanism": ""}, "mechanism"),
+            ({"mechanism": "same cause as s2"}, "names sel task"),
             ({"addressable": "yes"}, "addressable"),
         ],
     )
@@ -84,6 +85,15 @@ class TestWeaknessCheck:
     ) -> None:
         assert run(tmp_path, self.ARGV, eval=EVAL, inc=INCUMBENT, w=weakness(**override)) == 2
         assert message in capsys.readouterr().err
+
+    def test_sel_id_inside_a_longer_token_is_not_a_leak(self, tmp_path: Path) -> None:
+        doc = weakness(mechanism="rule s10 and step-s1x are unrelated ids")
+        assert run(tmp_path, self.ARGV, eval=EVAL, inc=INCUMBENT, w=doc) == 0
+
+    def test_malformed_sel_split_exits_2(self, tmp_path: Path, capsys: Capture) -> None:
+        bad = {"splits": {"train": ["t1", "t2", "t3", "t4"], "sel": "s1"}}
+        assert run(tmp_path, self.ARGV, eval=bad, inc=INCUMBENT, w=weakness()) == 2
+        assert "'sel' split" in capsys.readouterr().err
 
     def test_task_in_two_patterns_exits_2(self, tmp_path: Path, capsys: Capture) -> None:
         doc = weakness()
@@ -151,6 +161,9 @@ class TestManifestoCheck:
             ({"predicted_fixes": []}, "at least one"),
             ({"at_risk": ["s2"]}, "sel task"),
             ({"root_cause": " "}, "root_cause"),
+            ({"fix": "copy what s1 expects"}, "names sel task"),
+            ({"predicted_fixes": ["t4"]}, "already pass at baseline"),
+            ({"at_risk": ["t3"]}, "do not pass at baseline"),
         ],
     )
     def test_invalid_exits_2(
@@ -222,6 +235,14 @@ class TestManifestoVerify:
     def test_unverified_exits_1(self, tmp_path: Path, capsys: Capture) -> None:
         assert self.call(tmp_path, manifesto(), {**CANDIDATE, "t3": "UNVERIFIED"}) == 1
         assert json.loads(capsys.readouterr().out)["verdict"] == "PREDICTION_UNVERIFIED"
+
+    def test_fix_already_passing_at_baseline_is_missed(
+        self, tmp_path: Path, capsys: Capture
+    ) -> None:
+        assert self.call(tmp_path, manifesto(predicted_fixes=["t1", "t4"]), CANDIDATE) == 1
+        entry = json.loads(capsys.readouterr().out)["entries"][0]
+        assert entry["confirmed_fixes"] == ["t1"]
+        assert entry["missed_fixes"] == ["t4"]
 
     def test_sel_prediction_exits_2(self, tmp_path: Path, capsys: Capture) -> None:
         assert self.call(tmp_path, manifesto(predicted_fixes=["s1"]), CANDIDATE) == 2
@@ -316,6 +337,43 @@ class TestPins:
         assert skillopt.main(argv) == 2
         assert "must not overwrite" in capsys.readouterr().err
 
+    def test_out_inside_pinned_directory_exits_2(self, tmp_path: Path, capsys: Capture) -> None:
+        eval_path, _ = self.setup_files(tmp_path)
+        graders = tmp_path / "graders"
+        graders.mkdir()
+        (graders / "grade.py").write_text("x\n", encoding="utf-8")
+        argv = ["pin", "--eval", str(eval_path), "--surface", f"tracer={graders}"]
+        argv += ["--model", "m", "--out", str(graders / "pins.json")]
+        assert skillopt.main(argv) == 2
+        assert "sit inside a pinned surface" in capsys.readouterr().err
+        assert not (graders / "pins.json").exists()
+
+    def test_duplicate_surface_name_exits_2(self, tmp_path: Path, capsys: Capture) -> None:
+        eval_path, verifier = self.setup_files(tmp_path)
+        other = tmp_path / "other.py"
+        other.write_text("y\n", encoding="utf-8")
+        argv = ["pin", "--eval", str(eval_path), "--surface", f"verifier={verifier}"]
+        argv += ["--surface", f"verifier={other}", "--model", "m"]
+        argv += ["--out", str(tmp_path / "pins.json")]
+        assert skillopt.main(argv) == 2
+        assert "given twice" in capsys.readouterr().err
+
+    @pytest.mark.parametrize(
+        ("content", "message"),
+        [
+            ('{"schema": "other/1", "surfaces": {}}', "schema"),
+            ('{"schema": "skillopt-pins/1", "model": "m", "surfaces": {}}', "'eval' entry"),
+            ("{not json", ""),
+        ],
+    )
+    def test_malformed_pins_file_exits_2(
+        self, tmp_path: Path, capsys: Capture, content: str, message: str
+    ) -> None:
+        pins = tmp_path / "pins.json"
+        pins.write_text(content, encoding="utf-8")
+        assert skillopt.main(["pin-check", "--pins", str(pins)]) == 2
+        assert message in capsys.readouterr().err
+
 
 class TestPairGateDeclaredPins:
     def gate_files(self, tmp_path: Path) -> list[str]:
@@ -367,6 +425,25 @@ class TestPairGateDeclaredPins:
         assert skillopt.main(argv) == 2
         assert "does not exist" in capsys.readouterr().err
 
+    def test_pins_for_another_eval_set_refuse_gate(self, tmp_path: Path, capsys: Capture) -> None:
+        argv = self.gate_files(tmp_path)
+        other = write_json(
+            tmp_path / "eval-copy.json", {"splits": {"sel": ["s1"]}, "pins": "pins.json"}
+        )
+        argv[argv.index("--eval") + 1] = str(other)
+        assert skillopt.main(argv) == 2
+        assert "not the one being gated" in capsys.readouterr().err
+
+    def test_changed_verifier_refuses_efficiency_gate(
+        self, tmp_path: Path, capsys: Capture
+    ) -> None:
+        argv = self.gate_files(tmp_path)
+        (tmp_path / "check.py").write_text("v2\n", encoding="utf-8")
+        measurements = write_json(tmp_path / "measurements.json", {})
+        argv = ["efficiency-gate", *argv[1:], "--measurements", str(measurements)]
+        assert skillopt.main(argv) == 2
+        assert "read-only surface changed" in capsys.readouterr().err
+
     def test_no_declaration_keeps_old_behavior(self, tmp_path: Path) -> None:
         eval_path = write_json(tmp_path / "eval.json", {"splits": {"sel": ["s1"]}})
         inc = write_json(tmp_path / "inc.json", {"s1": False})
@@ -394,6 +471,8 @@ class TestProposerCheck:
             ("claude-opus-5-5", 0, "CAPABLE"),
             ("claude-sonnet-5-5", 0, "CAPABLE"),
             ("gpt-5", 0, "CAPABLE"),
+            ("gemini-2.5-pro", 0, "CAPABLE"),
+            ("gemini-2.5-flash-lite", 1, "LIGHTWEIGHT"),
             ("claude-haiku-5-5", 1, "LIGHTWEIGHT"),
             ("gpt-3.5-turbo", 1, "LIGHTWEIGHT"),
             ("mixtral-8x7b", 1, "LIGHTWEIGHT"),

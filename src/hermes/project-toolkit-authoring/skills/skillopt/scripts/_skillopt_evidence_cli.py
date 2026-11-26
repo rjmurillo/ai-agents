@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from _skillopt_bundle import overlaps
 from _skillopt_evidence import (
     TIER_HINT,
     check_manifesto,
@@ -74,14 +75,19 @@ def _parse_surface(text: str) -> tuple[str, Path]:
 
 
 def _cmd_pin(args: argparse.Namespace) -> int:
-    surfaces = dict(_parse_surface(s) for s in args.surface or [])
+    surfaces: dict[str, Path] = {}
+    for text in args.surface or []:
+        name, path = _parse_surface(text)
+        if name in surfaces:
+            raise SkillOptError(f"--surface name {name!r} given twice; each name pins one path")
+        surfaces[name] = path
     if "eval" in surfaces:
         raise SkillOptError("pass the eval manifest with --eval, not --surface eval=...")
     surfaces["eval"] = Path(args.eval)
     pins = make_pins(surfaces, args.model)
     out = Path(args.out)
-    if out.resolve() in {p.resolve() for p in surfaces.values()}:
-        raise SkillOptError("--out must not overwrite a pinned surface")
+    if any(overlaps(out, p) for p in surfaces.values()):
+        raise SkillOptError("--out must not overwrite or sit inside a pinned surface")
     out.write_text(json.dumps(pins, indent=2) + "\n", encoding="utf-8")
     sys.stderr.write(f"pinned {len(pins['surfaces'])} read-only surface(s) -> {out}\n")
     return 0

@@ -8,8 +8,9 @@ Engineering for Self-Improvement" (Lil'Log, 2026,
 cites. The survey's reported gains are its claims; this skill does not
 reproduce them.
 
-Every file here names train task ids only. A `sel` id in any of them exits 2,
-because the candidate author must not see `sel` tasks (Precondition 4).
+Every file here names train task ids only. A `sel` id in a task list or a
+free-text field exits 2, because the candidate author must not see `sel`
+tasks (Precondition 4). Patch text in `patches.json` is not scanned.
 
 ## 1. Proposer tier
 
@@ -98,8 +99,10 @@ at-risk regressions.
 - `component`: one of AHE's seven editable components: `system-prompt`,
   `tool-description`, `tool-implementation`, `middleware`, `skill`,
   `sub-agent-configuration`, `long-term-memory`.
-- `predicted_fixes`: train tasks you expect to flip to pass. At least one.
-- `at_risk`: train tasks that pass now and might break. May be empty.
+- `predicted_fixes`: train tasks that fail now and you expect to flip to
+  pass. At least one. A task that passes at baseline exits 2.
+- `at_risk`: train tasks that pass now and might break. May be empty. A task
+  that fails at baseline exits 2.
 
 `skillopt.py manifesto-check --eval eval.json --incumbent-results
 incumbent_results.json --weakness weakness.json --manifesto manifesto.json
@@ -131,8 +134,9 @@ AHE keeps "the runs directory, tracer, verifier, and LLM configuration"
 read-only, which blocks reward hacking such as "disabling the verifier,
 swapping the model, or raising the reasoning budget." In skillopt the
 read-only surfaces are the eval set (`eval.json`), each verifier script, any
-tracer or grading script, and the model configuration. The optimizing run
-may edit only the target.
+tracer or grading script, and the model configuration. Pass an effort or
+budget config file as a surface to pin it. The optimizing run may edit only
+the target.
 
 At baseline, after `eval.json` is final:
 
@@ -142,7 +146,9 @@ python3 "${SKILLOPT_DIR:?}/skillopt.py" pin --eval eval.json --surface verifier=
 
 Then add `"pins": "pins.json"` to `eval.json` (a path relative to it) and pin
 again, so the pin covers the final manifest. With that field set, `pair-gate`
-exits 2 when any pinned file changed or the pins file is gone.
+and `efficiency-gate` exit 2 when any pinned file changed, the pins file is
+gone, or the pins file pins a different eval set. `--out` may not overwrite
+or sit inside a pinned surface, and each `--surface` name may appear once.
 
 `skillopt.py pin-check --pins pins.json --model <model in use>` exits 0
 `MATCH`, 1 `MISMATCH` (a changed surface or a different model), or 2.
@@ -153,6 +159,6 @@ What is enforced and what is only named:
   `pins`, and by `pin-check` at any time.
 - The model is enforced only when you pass `--model` to `pin-check`. Nothing
   reads the model your harness actually used.
-- A manifest without `pins` gates as before. Deleting the field and the file
-  together defeats the check. It defends against an honest mistake, not an
-  adversary.
+- A manifest without `pins` gates as before. Deleting the `pins` field alone
+  defeats the check, and so does running `pin` again after an edit. It
+  defends against an honest mistake, not an adversary.
