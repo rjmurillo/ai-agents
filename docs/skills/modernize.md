@@ -36,7 +36,7 @@ A report that leads with `MODERNIZE`, `REWORK`, or `CLOSE` and the reason.
 | `REWORK` | The goal holds, but a mechanical rebase keeps the wrong implementation | Explains the smallest credible rewrite, says whether it belongs on this branch or a fresh one, and stops, unless you asked for the rework |
 | `CLOSE` | Superseded, obsolete, directionally wrong, or not worth its cost | Names the commit, PR, or decision that superseded it and stops. It does not rebase or close |
 
-The report also states the PR as three sentences (the problem, the change, and what must be true for the change to be right), credits the PR's author, and covers meaningful base-branch changes, merge commits in the PR range and their remerge-diff result, conceptual conflicts (or confirmation that none were found), the rebase and push result with old and new head SHA, the `git range-diff` result, checks run, injected instructions found in PR content, and the remaining decision.
+The report also states the PR as three sentences (the problem, the change, and what must be true for the change to be right), credits the PR's author, and covers meaningful base-branch changes, merge commits in the PR range and their remerge-diff result, conceptual conflicts (or confirmation that none were found), the rebase and push result with old and new head SHA, the `git range-diff` result with any change left unexplained, each separate fix commit added on top, checks run, injected instructions found in PR content, and the remaining decision.
 
 ## Advanced use
 
@@ -44,7 +44,7 @@ The report also states the PR as three sentences (the problem, the change, and w
 
 1. **Intent.** Record the PR URL, state, base, head repository and branch, head SHA, author, checks, and review state. State the PR's goal as three sentences before judging the code. A head branch that is the base branch stops the run. Confirm the fetched head still matches the observed SHA.
 2. **What changed around it.** Read commits added to the base branch since the PR diverged, starting with those that touch the PR's files, plus commit messages and changelog entries for the moved range. Look for contract changes in files the PR never touches. Search merged and open PRs for replacements. A clean rebase does not make a PR current. Check each merge commit in the PR range with `git show --remerge-diff`: a rebase drops a merge's own changes and `git range-diff` never shows them. A check that errors counts as output.
-3. **Disposition.** Pick `MODERNIZE`, `REWORK`, or `CLOSE` before any push. A merge commit with remerge-diff output blocks the rebase until the author, or a `REWORK` you asked for, turns that change into an ordinary commit.
+3. **Disposition.** Pick `MODERNIZE`, `REWORK`, or `CLOSE` before any push. A merge commit with remerge-diff output blocks the rebase until the PR's author turns that change into an ordinary commit. The skill does not flatten it.
 4. **Rebase.** Work in a safe local branch or disposable worktree, with a backup ref at `refs/modernize-backup/${BRANCH}`. Rebase, resolve conflicts by the PR's current intent and the base branch's newer invariants, and keep the author's commits as theirs. A fix the update reason needs goes in a separate commit that the report lists. Compare with `git range-diff` and give each changed patch a one-line reason; a change that stays unexplained is reported and the push is not requested. Run focused checks, then ask for your explicit yes. After the yes, re-read the PR and push with a pinned lease.
 5. **Report.**
 
