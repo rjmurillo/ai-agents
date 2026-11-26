@@ -1,6 +1,6 @@
 # Ship as a script driver
 
-Status: Proposed. Owner: Richard Murillo. Scope: ai-agents `/ship` and `/push-pr`.
+Status: Proposed, with one decision open (the stub). Owner: Richard Murillo. Scope: ai-agents `/ship` and `/push-pr`.
 
 ## Decision of record
 
@@ -8,6 +8,16 @@ Richard ruled on 2026-11-25. `/push-pr` is retired. Its work folds into `/ship`.
 Landing (merge and after) becomes a separate skill, specified later.
 `/ship` takes the gstack shape. Scripts do the fixed steps.
 The skill file is a contract the model acts on and judges.
+
+Also decided:
+
+1. **Draft PRs before review.** Richard ruled on 2026-11-25, recorded on #7581.
+   `ship --draft` skips the review marker check only for a new draft PR, or an open PR the host reports as a draft.
+   An unknown draft state is refused, and an existing non-draft PR still needs the marker.
+   This narrows the earlier option A, which skipped the marker for any `--draft` run.
+2. **Branch.** Option A: build on a fresh branch from `origin/main` and drop the old branch.
+   The four commits on `refactor/ship-push-pr-pr-creation` moved creation into `/push-pr`, and this spec reverses that.
+   The work is on `feat/ship-driver-scripts`, a fresh branch.
 
 ## Problem
 
@@ -87,7 +97,7 @@ Runs the checks that have one right answer.
 - `PENDING` ends on `NEXT: rerun-pipeline` with a `PIPELINE_DEADLINE:` line. Past the 30-minute deadline it is `FAIL`.
   The first `PENDING` result stores that deadline in a scratch state file keyed by host, PR, and HEAD, so a rerun cannot extend it.
   A corrupt or linked state file is replaced. When the deadline cannot be stored, the run ends on `STOP: deadline-unstored`, exit 2.
-- On GitHub each call waits at most 300 seconds (`ship_preflight.py` clamps `--wait-seconds` to 300 seconds there).
+- On GitHub each call waits at most 300 seconds (`_ship_pipeline.py` clamps the wait to `CHECKS_TIMEOUT_SECONDS`).
   Required checks still running when the call returns are `PENDING`, unless a required check already failed.
   A failed required check is `FAIL` even while others still run, including on helper exit 7.
 - `reviewed` wraps the existing review-marker validator. It does not reimplement it.
@@ -154,6 +164,9 @@ A STOP detail is at most 500 characters.
 | `ship_preflight.py` | the detect keys, `CHECK`, `PIPELINE_DEADLINE` | `write-body`, `report`, `publish-then-discharge`, `rerun-pipeline` | `--check` (repeatable), `--base`, `--pr`, `--draft`, `--require-axis`, `--deadline`, `--wait-seconds` (0 to 540) |
 | `ship_pr.py` | `BRANCH`, `BODY_FILE`, `CHECK`, `FINDING`, `PUSH`, `PR`, and the detect keys with `PR_AT_PREFLIGHT` in place of `PR` | `commit-then-review`, `write-body`, `compare-paths-by-hand`, `publish`, `discharge` | per subcommand, in the table above |
 
+`--wait-seconds` defaults to 480 and takes at most 540.
+The host kills a tool call at 600 seconds (see `RUN_BUDGET_SECONDS` in `_ship_common.py`), so 540 keeps a margin and 480 leaves time for the other calls.
+A call never waits past the run budget less a 120-second reserve for the calls after the wait.
 `--deadline` can only shorten the stored 30-minute window. A value past 30 minutes from the call is refused, and an omitted value reuses the stored deadline.
 The base branch defaults to `origin/HEAD`, else `origin/main` or `origin/master`, else `main`.
 A failed paths check prints one `FINDING: <issue>: <file>` line per critical finding, at most 10. The Azure DevOps description check reads the helper's JSON `ErrorCount`.
@@ -226,15 +239,7 @@ It owns merge, auto-merge, and post-merge checks. It is out of scope here.
 
 ## Open decisions for Richard
 
-1. **Draft PRs before review.** Decided by Richard on 2026-11-25, recorded on #7581.
-   `ship --draft` skips the review marker check only for a new draft PR, or an open PR the host reports as a draft.
-   An unknown draft state is refused, and an existing non-draft PR still needs the marker.
-   This narrows the earlier option A, which skipped the marker for any `--draft` run.
-2. **Branch.** The four commits on `refactor/ship-push-pr-pr-creation` moved creation into `/push-pr`.
-   This spec reverses that. Options:
-   A) Build on a fresh branch from `origin/main` and drop this branch.
-   B) Build on this branch and keep the commits as history.
-3. **Stub.** Options:
+1. **Stub.** Options:
    A) Delete `/push-pr` outright.
    B) Keep a one-line stub for one release that points to `/ship`.
 
