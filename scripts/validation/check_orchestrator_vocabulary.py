@@ -99,7 +99,8 @@ def _paragraphs(lines: list[tuple[int, str]]) -> list[tuple[int, str]]:
     banned phrase such as ``notice when`` may wrap across two lines.
     """
     paragraphs: list[tuple[int, str]] = []
-    start, chunk, previous = 0, [], -1
+    start, previous = 0, -1
+    chunk: list[str] = []
     for number, line in lines:
         contiguous = chunk and number == previous + 1 and line.strip()
         if not contiguous:
