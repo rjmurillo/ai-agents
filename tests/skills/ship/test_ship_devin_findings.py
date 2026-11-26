@@ -7,11 +7,15 @@ push lock, and the Windows guard when PATHEXT omits ``.EXE``.
 
 from __future__ import annotations
 
+import contextlib
+import errno
 import importlib.util
 import json
 import os
+import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -251,6 +255,39 @@ def _lock_file() -> Path:
     )
 
 
+def _hook(repo: Path, script: str) -> None:
+    hook = repo / ".git" / "hooks" / "pre-push"
+    hook.write_text(f"#!/bin/sh\n{script}", encoding="utf-8")
+    hook.chmod(0o755)
+
+
+def _alive(pid: int) -> bool:
+    """True while ``pid`` runs; a zombie waiting for its reaper counts as gone."""
+    try:
+        stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+    except OSError:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        return True
+    return stat.rsplit(")", 1)[1].split()[0] != "Z"
+
+
+def _reap(pid_file: Path) -> None:
+    if pid_file.exists():
+        with contextlib.suppress(ProcessLookupError, ValueError):
+            os.kill(int(pid_file.read_text(encoding="utf-8")), signal.SIGKILL)
+
+
+def _assert_lock_free() -> None:
+    fd = os.open(_lock_file(), os.O_RDWR)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)  # raises BlockingIOError if held
+    finally:
+        os.close(fd)
+
+
 _PROBE_HOOK = """\
 import fcntl, os, sys
 fd = os.open(sys.argv[1], os.O_RDWR)
@@ -287,11 +324,7 @@ class TestPushLock:
         _repo, body = owner
         code, _lines = publish(scripts, capsys, body)
         assert code == 0
-        fd = os.open(_lock_file(), os.O_RDWR)
-        try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)  # raises if still held
-        finally:
-            os.close(fd)
+        _assert_lock_free()
 
     def test_a_push_already_in_flight_stops_without_pushing(self, owner, scripts, capsys, tmp_path):
         _repo, body = owner
@@ -340,21 +373,38 @@ class TestPushLock:
         assert not _lock_file().exists()
         assert _remote_has_branch(tmp_path)
 
-    def test_a_hook_still_running_after_the_push_keeps_the_lock(self, owner, scripts, capsys):
-        """A push timeout kills git, not its hook tree, so the hook must hold the lock."""
+    def test_a_daemon_a_hook_leaves_does_not_keep_the_lock(self, owner, scripts, capsys, tmp_path):
+        """A credential cache or build server the push starts must not hold the lock."""
         repo, body = owner
-        hook = repo / ".git" / "hooks" / "pre-push"
-        hook.write_text("#!/bin/sh\n(sleep 3) </dev/null >/dev/null 2>&1 &\n", encoding="utf-8")
-        hook.chmod(0o755)
-        code, lines = publish(scripts, capsys, body)
-        assert code == 0, lines
-        fd = os.open(_lock_file(), os.O_RDWR)
+        pid_file = tmp_path / "daemon.pid"
+        _hook(repo, f"(sleep 60) </dev/null >/dev/null 2>&1 &\necho $! > '{pid_file}'\n")
         try:
-            with pytest.raises(BlockingIOError):
-                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            fcntl.flock(fd, fcntl.LOCK_EX)  # the sleeper exits, then the lock frees
+            code, lines = publish(scripts, capsys, body)
+            assert code == 0, lines
+            assert _alive(int(pid_file.read_text(encoding="utf-8")))
+            _assert_lock_free()
         finally:
-            os.close(fd)
+            _reap(pid_file)
+
+    def test_a_push_timeout_kills_the_hook_tree_before_the_lock_frees(
+        self, owner, scripts, capsys, monkeypatch, tmp_path
+    ):
+        repo, body = owner
+        pid_file = tmp_path / "hook-child.pid"
+        _hook(repo, f"sleep 60 &\necho $! > '{pid_file}'\nwait\n")
+        monkeypatch.setattr(scripts[3], "PUSH_TIMEOUT_SECONDS", 2)
+        try:
+            code, lines = publish(scripts, capsys, body)
+            assert code == 3, lines
+            assert lines[-1].startswith("STOP: push-failed git: timed out after 2s"), lines
+            pid = int(pid_file.read_text(encoding="utf-8"))
+            deadline = time.monotonic() + 10
+            while _alive(pid) and time.monotonic() < deadline:
+                time.sleep(0.05)
+            assert not _alive(pid), "the hook's child outlived the push timeout"
+            _assert_lock_free()
+        finally:
+            _reap(pid_file)
 
     def test_a_failed_lock_call_pushes_without_the_lock(
         self, owner, scripts, capsys, monkeypatch, tmp_path
@@ -366,7 +416,7 @@ class TestPushLock:
 
             @staticmethod
             def flock(fd, op):
-                raise OSError(37, "No locks available")
+                raise OSError(errno.ENOLCK, "No locks available")
 
         monkeypatch.setattr(scripts[0]._paths, "_fcntl", NoLocks)
         code, lines = publish(scripts, capsys, body)

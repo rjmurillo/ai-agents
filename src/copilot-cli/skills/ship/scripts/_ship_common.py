@@ -20,10 +20,12 @@ loads this file by absolute path, leaving ``sys.path`` alone.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import importlib.util
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 import time
@@ -248,12 +250,8 @@ class Result:
 
 
 def _line_size(line: str) -> int:
-    """Bytes one result line costs in the larger of the two formats.
-
-    The JSON form escapes quotes and backslashes, so a line is charged its
-    JSON-encoded size. That keeps the byte cap true for both formats
-    (ADR-127 decision 4 items 9 and 12).
-    """
+    """Bytes one line costs in the larger format: its JSON-encoded size, since
+    JSON escapes quotes, so the byte cap holds for both (ADR-127 decision 4)."""
     return len(json.dumps(line, ensure_ascii=False).encode("utf-8")) + 1
 
 
@@ -267,8 +265,7 @@ def _capped_lines(result: Result, repo_root: Path | None) -> list[tuple[str, str
     kept: list[tuple[str, str]] = []
     used = 0
     budget = MAX_BYTES - _TAIL_RESERVE - _line_size(terminal)
-    # The check above guarantees a break: over the line cap, kept stops at
-    # MAX_LINES - 2; over the byte cap, the lines alone exceed the budget.
+    # The check above guarantees a break: the line cap or the byte budget.
     for (key, value), line in zip(result.lines, body, strict=True):  # pragma: no branch
         size = _line_size(line)
         if len(kept) >= MAX_LINES - 2 or used + size > budget:
@@ -336,8 +333,7 @@ def render(result: Result, output_format: str, repo_root: Path | None) -> str:
     lines = _capped_lines(result, repo_root)
     text = _format(result, lines, output_format)
     while len(text.encode("utf-8")) > MAX_BYTES:
-        # Defensive: _capped_lines charges each line its JSON size and reserves room for
-        # the doubled terminal line, so it has already spilled whenever this loop runs.
+        # Defensive: _capped_lines charges JSON size, so it has already spilled here.
         if not any(key == "DETAIL_FILE" for key, _value in lines):  # pragma: no cover
             body = [f"{key}: {value}" for key, value in result.lines]
             lines.append(("DETAIL_FILE", write_detail_file(body, repo_root)))
@@ -350,12 +346,9 @@ def render(result: Result, output_format: str, repo_root: Path | None) -> str:
 
 
 def emit(result: Result, output_format: str, repo_root: Path | None) -> int:
-    """Print ``result`` and return its exit code.
-
-    ``python3 -I`` ignores PYTHONIOENCODING, so a Windows pipe keeps its code
-    page. A character outside it is replaced, never raised, so the terminal
-    line always prints.
-    """
+    """Print ``result`` and return its exit code. ``python3 -I`` ignores
+    PYTHONIOENCODING, so a character outside a Windows pipe's code page is
+    replaced, never raised, and the terminal line always prints."""
     reconfigure = getattr(sys.stdout, "reconfigure", None)
     if reconfigure is not None:
         reconfigure(errors="replace")
@@ -426,48 +419,54 @@ def run(
     timeout: float = 120,
     stdin_text: str | None = None,
     env: dict[str, str] | None = None,
-    pass_fds: tuple[int, ...] = (),
+    group: bool = False,
 ) -> Completed:
     """Run ``argv`` without a shell. A missing binary is 127; a timeout is 124.
 
-    ``env`` adds variables on top of ``child_env()``; ``pass_fds`` stay open in the child.
-
-    On Windows, ``_ship_windows`` resolves a bare name, and an argument that
-    cmd.exe would rewrite for a ``.cmd`` target is refused as 126.
-
-    The timeout never exceeds the time left in the run's shared budget.
+    ``env`` adds variables on top of ``child_env()``. ``group`` (POSIX only)
+    starts a new session, and a timeout kills it whole, hooks included. On
+    Windows, ``_ship_windows`` resolves a bare name and refuses (126) an
+    argument cmd.exe would rewrite for a ``.cmd`` target. The timeout never
+    exceeds the time left in the run's shared budget.
     """
     timeout = min(timeout, remaining_seconds())
     try:
         command = _windows.command(argv)
         if command is None:
             return Completed(126, "", f"{argv[0]}: refused an argument cmd.exe would rewrite")
-        done = subprocess.run(
+        with subprocess.Popen(
             command,
             cwd=str(cwd) if cwd is not None else None,
-            input=stdin_text,
-            capture_output=True,
+            stdin=subprocess.PIPE if stdin_text is not None else None,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=timeout,
-            check=False,
             shell=False,
             env={**child_env(), **(env or {})},
-            pass_fds=pass_fds,
-        )
+            start_new_session=group,
+        ) as child:
+            try:
+                out, err = child.communicate(stdin_text, timeout=timeout)
+            except subprocess.TimeoutExpired:
+                if group:
+                    with contextlib.suppress(OSError):  # the session may be gone already
+                        os.killpg(child.pid, signal.SIGKILL)
+                child.kill()
+                return Completed(124, "", f"{argv[0]}: timed out after {timeout:g}s")
     except FileNotFoundError:
         return Completed(127, "", f"{argv[0]}: not found")
     except OSError as exc:
         # A binary that cannot run is a failed call, never a crash: still STOP.
         return Completed(126, "", f"{argv[0]}: cannot run: {exc.strerror or exc}")
-    except subprocess.TimeoutExpired:
-        return Completed(124, "", f"{argv[0]}: timed out after {timeout:g}s")
-    return Completed(done.returncode, done.stdout or "", done.stderr or "")
+    return Completed(child.returncode, out or "", err or "")
 
 
-def git(args: list[str], cwd: Path | None = None, timeout: float = 60, **kw: Any) -> Completed:
-    return run(["git", *args], cwd=cwd, timeout=timeout, **kw)
+def git(
+    args: list[str], cwd: Path | None = None, timeout: float = 60, group: bool = False
+) -> Completed:
+    return run(["git", *args], cwd=cwd, timeout=timeout, group=group)
 
 
 def repo_root(cwd: Path | None = None) -> Path | None:

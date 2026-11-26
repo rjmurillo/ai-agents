@@ -72,7 +72,7 @@ REASONS = preflight_mod.REASONS | frozenset(
     }
 )
 BODY_MARKER = checks_mod.BODY_MARKER
-# The run budget caps the push (a slow hook ends on STOP), less the PR create's reserve.
+# The run budget caps the push, less the PR create's reserve. A timeout kills the hook tree.
 PUSH_TIMEOUT_SECONDS = 540
 PR_RESERVE_SECONDS = 120
 _EXTERNAL_RETURN_CODES = (124, 126, 127)  # timeout, cannot run, not found
@@ -227,19 +227,19 @@ def cmd_check(args: argparse.Namespace, result: common.Result, _root: Path) -> c
 
 def _push(ctx: Context, result: common.Result) -> bool:
     """Push under the shared per-branch push lock, so the commit guard sees the push."""
-    with common.push_lock(ctx.branch) as (lock, keep):
+    with common.push_lock(ctx.branch) as lock:
         if lock == "busy":
             result.stop("push-locked", common.EXIT_EXTERNAL, _LOCK_BUSY)
             return False
         result.add("PUSH_LOCK", lock)
-        return _push_now(ctx, result, keep)
+        return _push_now(ctx, result, lock == "held")
 
 
-def _push_now(ctx: Context, result: common.Result, keep: tuple[int, ...]) -> bool:
+def _push_now(ctx: Context, result: common.Result, group: bool) -> bool:
     timeout = max(1, min(PUSH_TIMEOUT_SECONDS, common.remaining_seconds() - PR_RESERVE_SECONDS))
     ref = f"refs/heads/{ctx.branch}"
     push = ["push", "--set-upstream", "origin", f"{ref}:{ref}"]
-    done = common.git(push, cwd=ctx.root, timeout=timeout, pass_fds=keep)
+    done = common.git(push, cwd=ctx.root, timeout=timeout, group=group)
     if done.returncode == 0:
         result.add("PUSH", "pushed")
         return True

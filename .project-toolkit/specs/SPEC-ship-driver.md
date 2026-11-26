@@ -136,7 +136,11 @@ Owns everything `/push-pr` did after the body is written.
 - It reruns `check` and stops on any failure before the push.
 - It holds the shared push lock, `$HOME/src/scratch/locks/push-lock-<slug>.lock`, for the whole push. It prints `PUSH_LOCK: held`.
   The commit guard reads that lock, so a commit cannot land while the pre-push suite runs.
-  Git and its hooks inherit the lock, as with `flock <file> git push`, so a hook still running after a push timeout keeps it.
+  The lock stays in the script process; children never inherit it.
+  So a daemon that git or a hook starts, such as `git credential-cache`, cannot keep it after the push.
+  The push runs in its own session. A push timeout kills that whole session, hooks included, before the lock is released.
+  A hook child that starts its own session escapes that kill and runs on unlocked.
+  A new session has no terminal, so git cannot prompt on one for a password; that push ends `STOP: auth-failed`.
   A lock another push holds is `STOP: push-locked`, exit 3, and nothing is pushed.
   With no flock (Windows), no `HOME`, an unwritable lock directory, or a failed lock call, it pushes and prints `PUSH_LOCK: unavailable`.
   It pushes rather than stops there, because a stop would block every publish on that host. The cost is no serialization with the commit guard there.

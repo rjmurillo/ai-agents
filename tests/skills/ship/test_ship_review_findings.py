@@ -95,13 +95,13 @@ class TestFreshRoundFindings:
         common = scripts[0]
         monkeypatch.setattr(common, "_RUN_DEADLINE", common.time.monotonic() + 5)
         seen = []
-        real = common.subprocess.run
+        real = common.subprocess.Popen.communicate
 
-        def spy(argv, **kwargs):
-            seen.append(kwargs["timeout"])
-            return real(argv, **kwargs)
+        def spy(self, stdin_text=None, timeout=None):
+            seen.append(timeout)
+            return real(self, stdin_text, timeout)
 
-        monkeypatch.setattr(common.subprocess, "run", spy)
+        monkeypatch.setattr(common.subprocess.Popen, "communicate", spy)
         common.run([sys.executable, "-c", "pass"], timeout=600)
         assert seen and seen[0] <= 5
 
