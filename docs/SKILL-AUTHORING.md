@@ -2,8 +2,6 @@
 
 This guide covers how to create Claude Code skills with correct YAML frontmatter, model selection, and file structure. To choose between the skill-building tools (`skillforge`, `skillify`, `skillopt`, `skill-bootstrap`, `skill-doctor`), read [Pick a skill tool, then capture a workflow and tune it](training/build-and-improve-skills.md).
 
-Based on the analysis in `.project-toolkit/analysis/claude-code-skill-frontmatter-2026.md`.
-
 ## Frontmatter Schema
 
 Every skill lives in a `SKILL.md` file inside a directory under `.claude/skills/`. The file starts with YAML frontmatter. In this repository you do not edit that `SKILL.md`. It is rendered from `templates/skills/<name>.SKILL.md.tmpl`, and `.claude/skills/<name>` is a symlink to `src/claude/skills/<name>/`. Edit the template, then run `uv run python build/scripts/build_all.py`. Scripts, references, and tests in the skill directory are hand-edited in `src/claude/skills/<name>/`. For a worked example, see [Change a rule and a skill through templates](training/template-first-authoring.md).
@@ -14,6 +12,7 @@ Every skill lives in a `SKILL.md` file inside a directory under `.claude/skills/
 |-------|------|-------------|---------|
 | `name` | string | Lowercase, alphanumeric + hyphens, max 64 chars | Skill identifier. Must match directory name. |
 | `description` | string | Max 1024 characters | Primary trigger mechanism. Claude uses this to decide when to activate the skill. |
+| `version` | string | Semantic versioning (e.g., `1.0.0`) | Tracks skill evolution. Required by `.claude/rules/claude-agents.md` MUST 2. Claude Code does not read it. |
 
 ### Optional Fields
 
@@ -22,7 +21,6 @@ Every skill lives in a `SKILL.md` file inside a directory under `.claude/skills/
 | `model` | string | Bare rolling alias only (`haiku`), never a versioned id. Requires `model-rationale`. See [Model Selection](#model-selection). | Overrides the harness-inherited model. |
 | `model-rationale` | string | Required whenever `model` is set | One line justifying the cheaper tier ([ADR-080](../.project-toolkit/architecture/ADR-080-model-pin-justification-policy.md) rule 3). |
 | `allowed-tools` | string | Comma-separated tool names | Restricts which tools Claude can use during execution. |
-| `version` | string | Semantic versioning (e.g., `1.0.0`) | Tracks skill evolution. Not validated by Claude Code. |
 | `license` | string | SPDX identifier (e.g., `MIT`) | Legal licensing. Not validated by Claude Code. |
 | `metadata` | object | Custom key-value pairs | Domain-specific configuration. |
 
@@ -31,6 +29,7 @@ Every skill lives in a `SKILL.md` file inside a directory under `.claude/skills/
 ```yaml
 ---
 name: my-skill
+version: 1.0.0
 description: Does something useful when you need it
 ---
 ```
@@ -69,6 +68,7 @@ model, which is the correct default under
 
 - `name`: Only lowercase letters, numbers, hyphens. Regex: `^[a-z0-9-]{1,64}$`
 - `description`: Non-empty, max 1024 characters, no XML tags.
+- `version`: Semver string. `validate-skill.py` checks the format only, and accepts `metadata.version` too. No gate checks that it is present.
 - `model`: Omitted, or a bare rolling alias that prices below the harness default (see Model Selection below). A versioned id is rejected.
 - `model-rationale`: Required whenever `model` is present.
 - `allowed-tools`: Tool names must match available Claude Code tools.
@@ -431,7 +431,7 @@ this gate; issue #5389 owns it.
 Before committing a new skill, verify:
 
 - [ ] Frontmatter starts with `---` on line 1 (no blank lines before)
-- [ ] `name` field: lowercase, alphanumeric + hyphens, < 64 chars
+- [ ] `name` field: lowercase, alphanumeric + hyphens, < 64 chars; `version` field: semver (e.g., `1.0.0`)
 - [ ] `description` field: includes trigger keywords, < 1024 chars
 - [ ] `model` field: absent, or a bare cost alias (`haiku`) with `model-rationale`. Never a versioned id (ADR-080 rule 1)
 - [ ] `allowed-tools` (if present): comma-separated valid tool names
