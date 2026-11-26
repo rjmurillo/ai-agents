@@ -183,8 +183,7 @@ def _read_github_checks(ctx, pr: int, wait_seconds: int) -> tuple[int, dict] | C
     if not isinstance(data, dict) or done.returncode not in (0, 1):
         error = envelope.get("Error") if isinstance(envelope, dict) else None
         message = error.get("Message") if isinstance(error, dict) else None
-        stderr = [line for line in done.stderr.splitlines() if line.strip()][-1:]
-        reason = message or (stderr[0] if stderr else "")
+        reason = message or common.cause_line(done.stderr, "")
         detail = f"get_pr_checks exit {done.returncode}" + (f": {reason}" if reason else "")
         return Halt("checks-query-failed", common.EXIT_EXTERNAL, detail)
     return done.returncode, data
@@ -194,28 +193,22 @@ def _github_verdict(ctx, pr: int, code: int, data: dict) -> Check:
     """Turn one get_pr_checks.py result into PASS or FAIL. Exit 0 alone is not green."""
     if code == 0 and data.get("RequiredState") == "SUCCESS" and data.get("AllPassing") is True:
         return Check("pipeline", "PASS", f"pr={pr} head={ctx.head[:12]}")
-    still_running = code == 7 or data.get("RequiredState") == "PENDING"
-    if still_running and not data.get("FailedRequiredChecks"):
+    if (code == 7 or data.get("RequiredState") == "PENDING") and not data.get(
+        "FailedRequiredChecks"
+    ):
         # Read without waiting, or the wait ended early: still running, not failed.
-        pending = _check_names(data, ("PendingRequiredChecks",))
-        tail = " pending=" + ",".join(pending) if pending else ""
-        return Check("pipeline", "PENDING", f"pr={pr} required checks still running{tail}")
-    names = _check_names(
-        data, ("FailedRequiredChecks", "MissingRequiredChecks", "PendingRequiredChecks")
-    )
+        pending = _names(data, "pending", ("PendingRequiredChecks",))
+        return Check("pipeline", "PENDING", f"pr={pr} required checks still running{pending}")
+    keys = ("FailedRequiredChecks", "MissingRequiredChecks", "PendingRequiredChecks")
     detail = f"pr={pr} required={data.get('RequiredState')} all_passing={data.get('AllPassing')}"
-    if names:
-        detail += " failing=" + ",".join(names)
-    return Check("pipeline", "FAIL", detail)
+    return Check("pipeline", "FAIL", detail + _names(data, "failing", keys))
 
 
-def _check_names(data: dict, keys: tuple[str, ...]) -> list[str]:
-    """Return up to 10 check names from the listed Data keys."""
-    names = []
-    for key in keys:
-        for item in data.get(key) or []:
-            names.append(str(item.get("Name", item)) if isinstance(item, dict) else str(item))
-    return names[:10]
+def _names(data: dict, label: str, keys: tuple[str, ...]) -> str:
+    """Return `` label=a,b`` for up to 10 check names under the Data keys, or ''."""
+    items = [item for key in keys for item in data.get(key) or []][:10]
+    names = [str(i.get("Name", i)) if isinstance(i, dict) else str(i) for i in items]
+    return f" {label}=" + ",".join(names) if names else ""
 
 
 def _github_pipeline(ctx, pr: int, after_publish: bool, wait_seconds: int) -> Check | Halt:
@@ -388,18 +381,14 @@ def build_parser():
     parser = common.ResultParser(prog=SCRIPT, description="Run the fixed ship checks.")
     parser.add_argument("--check", action="append", choices=CHECKS, required=True)
     parser.add_argument("--base", default=None)
-    parser.add_argument(
-        "--pr", type=int, default=None, help="PR to check; marks the discharge phase"
-    )
+    parser.add_argument("--pr", type=int, default=None, help="PR to check (discharge phase)")
     parser.add_argument(
         "--draft",
         action="store_true",
         help="Skip the marker check for a new draft PR or a host-reported draft PR only",
     )
     parser.add_argument("--require-axis", action="append", default=[])
-    parser.add_argument(
-        "--deadline", type=int, default=None, help="Epoch second printed by a PENDING run"
-    )
+    parser.add_argument("--deadline", type=int, default=None, help="PENDING run's epoch second")
     parser.add_argument("--wait-seconds", type=int, default=DEFAULT_CALL_WAIT)
     common.add_output_format_arg(parser)
     return parser
@@ -495,11 +484,8 @@ def run(argv: list[str]):
     if any(check.name == "pipeline" and check.state == "PENDING" for check in checks):
         deadline = bound_deadline(ctx, pr, args.deadline, store=True)
     contributor = ctx.mode == "contributor"
-    return (
-        _terminal(result, checks, deadline, after_publish or contributor, contributor),
-        fmt,
-        ctx.root,
-    )
+    ends_on_report = after_publish or contributor
+    return _terminal(result, checks, deadline, ends_on_report, contributor), fmt, ctx.root
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -507,7 +493,6 @@ def main(argv: list[str] | None = None) -> int:
     return common.emit(result, fmt, root)
 
 
-if (
-    __name__ == "__main__"
-):  # pragma: no cover - runs only in a fresh interpreter; see test_ship_edges.py::test_script_runs_under_isolated_mode
+# Runs only in a fresh interpreter; see test_ship_edges.py::test_script_runs_under_isolated_mode
+if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())
