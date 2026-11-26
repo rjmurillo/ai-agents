@@ -29,16 +29,20 @@ the platform has POSIX process groups, a timed child starts in a new session and
 the wrapper stops the whole group, not only the leader. The stop sends SIGTERM
 to the group, gives every group member a 1 second grace period (the wrapper
 reaps the leader inside it, and the period ends early once the group is empty),
-then sends SIGKILL. Elsewhere the direct child is killed.
+then sends SIGKILL to any member still left. Elsewhere the direct child is
+killed.
 
 On POSIX no member of a timed child's group is left running when the wrapper
 returns. The group id is captured at spawn and the same stop runs on every exit
 path: the deadline, a leader that exits early (its exit code is still the
 result, and a background process it left behind is stopped), and a cancelled
 wrapper. Cancelling means Ctrl-C, SIGTERM (exits 143), or SIGHUP (exits 129),
-unless the caller installed its own SIGTERM or SIGHUP handler. SIGKILL of the
-wrapper cannot be caught by any handler, so it leaves a timed child tree
-running.
+unless the caller installed its own SIGTERM or SIGHUP handler. A cancel that
+arrives while the child is being spawned is held until the stop can run, then
+acts as it would have otherwise. Ctrl-C is held that way only while Python's
+default Ctrl-C handler is in place, and that handler is put back afterwards.
+SIGKILL of the wrapper cannot be caught by any handler, so it leaves a timed
+child tree running.
 
 The deadline bounds the child command. The wrapper stops the child and its group
 within the deadline plus 6 seconds in the worst case: 1 second of SIGTERM grace,
@@ -319,8 +323,55 @@ def _cancel_signals() -> list[int]:
     return [getattr(signal, name) for name in names if hasattr(signal, name)]
 
 
+class _SpawnWindow:
+    """Hold cancel signals while a timed child is being spawned.
+
+    ``Popen`` forks the child and then keeps running Python code before it
+    returns. A handler that raises in that stretch unwinds ``Popen`` after the
+    child exists but before this module holds a handle to it, and ``Popen`` does
+    not kill a child it fails to return. While the window is open, SIGTERM and
+    SIGHUP (and Ctrl-C, when Python's default handler owns it) are recorded here
+    instead, and ``raise_pending`` delivers the first one once the guard that
+    stops the child's group is in place. No signal mask is used: a blocked mask
+    would be inherited by the child across exec.
+    """
+
+    __slots__ = ("_sigint_held", "is_open", "pending")
+
+    def __init__(self) -> None:
+        self.is_open = False
+        self.pending: int | None = None
+        self._sigint_held = False
+
+    def record(self, signum: int, _frame: object = None) -> None:
+        if self.pending is None:
+            self.pending = signum
+
+    def open(self) -> None:
+        self.is_open = True
+        if signal.getsignal(signal.SIGINT) is signal.default_int_handler:
+            signal.signal(signal.SIGINT, self.record)
+            self._sigint_held = True
+
+    def close(self) -> None:
+        """Stop holding signals. Safe to call more than once, on any path."""
+        if self._sigint_held:
+            self._sigint_held = False
+            signal.signal(signal.SIGINT, signal.default_int_handler)
+        self.is_open = False
+
+    def raise_pending(self) -> None:
+        """Deliver a held signal the way its handler would have, if one is held."""
+        signum, self.pending = self.pending, None
+        if signum is None:
+            return
+        if signum == signal.SIGINT:
+            raise KeyboardInterrupt
+        raise SystemExit(128 + signum)
+
+
 @contextlib.contextmanager
-def _cancel_signals_raise() -> Iterator[None]:
+def _cancel_signals_raise() -> Iterator[_SpawnWindow | None]:
     """Turn SIGTERM and SIGHUP into ``SystemExit`` while a timed child runs.
 
     A timed child lives in its own session, so a SIGTERM or a terminal hangup
@@ -330,12 +381,21 @@ def _cancel_signals_raise() -> Iterator[None]:
     alone: only a default action is replaced, and it is restored to the default
     on every exit path. Nothing is replaced off the main thread, where
     ``signal.signal`` fails. SIGKILL cannot be handled, so it is not covered.
+
+    The yielded ``_SpawnWindow`` holds those signals, and Ctrl-C, while the child
+    is being spawned. It is None where no handler is installed. A handler the
+    caller installed is never replaced or held.
     """
     if not _SUPPORTS_PGROUP or threading.current_thread() is not threading.main_thread():
-        yield
+        yield None
         return
 
+    window = _SpawnWindow()
+
     def _stop(signum: int, _frame: object) -> None:
+        if window.is_open:
+            window.record(signum)
+            return
         raise SystemExit(128 + signum)
 
     installed: list[int] = []
@@ -344,8 +404,9 @@ def _cancel_signals_raise() -> Iterator[None]:
             if signal.getsignal(sig) is signal.SIG_DFL:
                 signal.signal(sig, _stop)
                 installed.append(sig)
-        yield
+        yield window
     finally:
+        window.close()
         for sig in installed:
             signal.signal(sig, signal.SIG_DFL)
 
@@ -354,11 +415,13 @@ def _run_child(argv: list[str], timeout_seconds: int | None = None) -> tuple[int
     """Run argv without a shell and return the exit code, output, and timeout state."""
     if timeout_seconds is None:
         return _spawn_and_collect(argv, None)
-    with _cancel_signals_raise():
-        return _spawn_and_collect(argv, timeout_seconds)
+    with _cancel_signals_raise() as window:
+        return _spawn_and_collect(argv, timeout_seconds, window)
 
 
-def _spawn_and_collect(argv: list[str], timeout_seconds: int | None) -> tuple[int, Capture, bool]:
+def _spawn_and_collect(
+    argv: list[str], timeout_seconds: int | None, window: _SpawnWindow | None = None
+) -> tuple[int, Capture, bool]:
     if timeout_seconds is None:
         proc = subprocess.Popen(
             argv,
@@ -368,14 +431,27 @@ def _spawn_and_collect(argv: list[str], timeout_seconds: int | None) -> tuple[in
             shell=False,
         )
     else:
-        proc = subprocess.Popen(
-            argv,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            shell=False,
-            start_new_session=_SUPPORTS_PGROUP,
-        )
+        # A cancel that lands inside Popen is held, not raised: Popen would unwind
+        # with the child already forked and no handle to stop it. The window closes
+        # at the top of the guarded try below, or here if the launch fails.
+        if window is not None:
+            window.open()
+        try:
+            proc = subprocess.Popen(
+                argv,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                shell=False,
+                start_new_session=_SUPPORTS_PGROUP,
+            )
+        except BaseException:
+            # No child exists. A held cancel replaces the launch error, as the
+            # handler would have raised in its place.
+            if window is not None:
+                window.close()
+                window.raise_pending()
+            raise
     # The guard opens right after Popen returns: a cancel that lands later in this
     # function must still stop a timed child that lives in its own session. Until
     # the group is captured, the unwind path looks the group up from the leader.
@@ -383,6 +459,11 @@ def _spawn_and_collect(argv: list[str], timeout_seconds: int | None) -> tuple[in
     group_stopped = False
     timed_out = False
     try:
+        if window is not None:
+            # Signals held since before the spawn are raised here, inside the
+            # guard, so the unwind below stops the child's group.
+            window.close()
+            window.raise_pending()
         try:
             # Capture the group once. After the leader is reaped its pid no longer
             # finds the group, so every later group stop uses this id.

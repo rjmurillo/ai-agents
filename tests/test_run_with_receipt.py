@@ -1358,14 +1358,18 @@ class TestPostSpawnWindowAndStoppedGroup:
 
     @POSIX_ONLY
     @pytest.mark.parametrize(
-        ("probes", "expected"),
-        [(0, []), (1, [signal.SIGTERM])],
-        ids=["group-found-empty", "group-stopped-by-sigterm"],
+        ("waits", "probes", "expected"),
+        [
+            ([0], 0, []),
+            ([0], 1, [signal.SIGTERM]),
+            ([subprocess.TimeoutExpired("fake", 30), -15], 1, [signal.SIGTERM]),
+        ],
+        ids=["group-found-empty", "group-stopped-by-sigterm", "group-stopped-at-the-deadline"],
     )
     def test_cancel_after_the_group_is_stopped_sends_no_further_signal(
-        self, monkeypatch, tmp_path, probes, expected
+        self, monkeypatch, tmp_path, waits, probes, expected
     ):
-        proc = _FakePopen(waits=[0])
+        proc = _FakePopen(waits=waits)
         signals = install_group_fakes(monkeypatch, proc, group_alive_probes=probes)
         install_fake_popen(monkeypatch, proc)
 
@@ -1379,6 +1383,29 @@ class TestPostSpawnWindowAndStoppedGroup:
             receipt_module.run_command(["fake"], 16384, tmp_path, timeout_seconds=30)
 
         assert signals == [(proc.pid, sig) for sig in expected]
+
+    @POSIX_ONLY
+    def test_cancel_during_the_early_exit_probe_still_stops_the_group(self, monkeypatch, tmp_path):
+        # The leader exited by itself. A cancel at the first probe of its group
+        # comes before any stop ran, so the unwind must still run the stop. If the
+        # stopped flag were set before the stop, the group would be left alive.
+        proc = _FakePopen(waits=[0])
+        signals = install_group_fakes(monkeypatch, proc)
+        install_fake_popen(monkeypatch, proc)
+        probes: list[int] = []
+
+        def group_alive(pgid: int) -> bool:
+            probes.append(pgid)
+            if len(probes) == 1:
+                raise KeyboardInterrupt
+            return False
+
+        monkeypatch.setattr(receipt_module, "_group_alive", group_alive)
+
+        with pytest.raises(KeyboardInterrupt):
+            receipt_module.run_command(["fake"], 16384, tmp_path, timeout_seconds=30)
+
+        assert signals == [(proc.pid, signal.SIGTERM)]
 
     @POSIX_ONLY
     def test_sigterm_during_the_pipe_drain_exits_promptly(self, tmp_path):
@@ -1403,6 +1430,222 @@ class TestPostSpawnWindowAndStoppedGroup:
                 wrapper.kill()
                 wrapper.wait()
             kill_tree(tmp_path)
+
+
+@pytest.fixture
+def default_cancel_signals():
+    """Run with the default SIGTERM, SIGHUP, and Ctrl-C actions, then put back what was there."""
+    defaults = {
+        signal.SIGTERM: signal.SIG_DFL,
+        signal.SIGHUP: signal.SIG_DFL,
+        signal.SIGINT: signal.default_int_handler,
+    }
+    previous = {sig: signal.signal(sig, handler) for sig, handler in defaults.items()}
+    try:
+        yield
+    finally:
+        for sig, handler in previous.items():
+            signal.signal(sig, handler)
+
+
+# What a cancel looks like to the caller of `run_command`, per signal. Ctrl-C raises
+# KeyboardInterrupt, which ends a real wrapper by SIGINT (returncode -2).
+CANCEL_SIGNALS = [signal.SIGTERM, signal.SIGHUP, signal.SIGINT]
+CANCEL_RESULT = {
+    signal.SIGTERM: f"exit {128 + signal.SIGTERM}",
+    signal.SIGHUP: f"exit {128 + signal.SIGHUP}",
+    signal.SIGINT: "interrupt",
+}
+
+
+def run_and_describe(argv: list[str], out_dir: Path) -> str:
+    """Run `argv` with a deadline and name how a cancel ended it."""
+    try:
+        code = receipt_module.run_command(argv, 16384, out_dir, timeout_seconds=30)
+    except SystemExit as exc:
+        return f"exit {exc.code}"
+    except KeyboardInterrupt:
+        return "interrupt"
+    return f"returned {code}"
+
+
+def install_cancelling_popen(
+    monkeypatch: pytest.MonkeyPatch, sig: int, point: str, spawned: list[int]
+) -> None:
+    """Replace Popen with one that delivers `sig` to this process at `point`.
+
+    before-exec  before the fork, inside Popen
+    after-fork   after the child exists, before Popen's own code finishes
+    init-return  after the whole of Popen ran, just before it returns
+    Every spawned pid is appended to `spawned`.
+    """
+    real_popen = subprocess.Popen
+
+    class CancellingPopen(real_popen):  # type: ignore[type-arg, misc]
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            if point == "init-return":
+                signal.raise_signal(sig)
+
+        def _execute_child(self, *args, **kwargs):
+            if point == "before-exec":
+                signal.raise_signal(sig)
+            super()._execute_child(*args, **kwargs)
+            spawned.append(self.pid)
+            if point == "after-fork":
+                signal.raise_signal(sig)
+
+    monkeypatch.setattr(receipt_module.subprocess, "Popen", CancellingPopen)
+
+
+def stop_spawned(spawned: list[int]) -> None:
+    """Test cleanup by pid: kill and reap what a failing test left running."""
+    for pid in spawned:
+        if not pid_reaped(pid):
+            with contextlib.suppress(OSError):
+                os.killpg(pid, signal.SIGKILL)
+            with contextlib.suppress(OSError):
+                os.waitpid(pid, 0)
+
+
+def assert_cancel_handlers_restored() -> None:
+    assert signal.getsignal(signal.SIGTERM) is signal.SIG_DFL
+    assert signal.getsignal(signal.SIGHUP) is signal.SIG_DFL
+    assert signal.getsignal(signal.SIGINT) is signal.default_int_handler
+
+
+@POSIX_ONLY
+@pytest.mark.usefixtures("default_cancel_signals")
+class TestCancelDuringSpawn:
+    """Round 4 finding: a cancel inside Popen, after the fork, must still stop the child."""
+
+    @pytest.mark.parametrize("point", ["before-exec", "after-fork", "init-return"])
+    @pytest.mark.parametrize("sig", CANCEL_SIGNALS, ids=["sigterm", "sighup", "sigint"])
+    def test_cancel_inside_popen_stops_the_child_group(self, monkeypatch, tmp_path, sig, point):
+        spawned: list[int] = []
+        install_cancelling_popen(monkeypatch, sig, point, spawned)
+        try:
+            result = run_and_describe(py("import time; time.sleep(20)"), tmp_path)
+
+            assert result == CANCEL_RESULT[sig]
+            assert len(spawned) == 1
+            assert pid_reaped(spawned[0]), "a cancel inside Popen left the timed child running"
+            with pytest.raises(ProcessLookupError):
+                os.killpg(spawned[0], 0)
+            assert_cancel_handlers_restored()
+        finally:
+            stop_spawned(spawned)
+
+    @pytest.mark.parametrize("sig", CANCEL_SIGNALS, ids=["sigterm", "sighup", "sigint"])
+    def test_launch_failure_with_a_held_cancel_delivers_the_cancel(
+        self, monkeypatch, tmp_path, sig
+    ):
+        spawned: list[int] = []
+        install_cancelling_popen(monkeypatch, sig, "before-exec", spawned)
+
+        result = run_and_describe(["/nonexistent/run-with-receipt-no-such-command"], tmp_path)
+
+        assert result == CANCEL_RESULT[sig]
+        assert spawned == []
+        assert_cancel_handlers_restored()
+
+    def test_launch_failure_without_a_cancel_reports_as_before(self, tmp_path, capsys):
+        code = receipt_module.run_command(
+            ["/nonexistent/run-with-receipt-no-such-command"], 16384, tmp_path, timeout_seconds=30
+        )
+
+        assert code == EXIT_EXTERNAL
+        assert "cannot launch" in capsys.readouterr().err
+        assert_cancel_handlers_restored()
+
+    @pytest.mark.parametrize("sig", CANCEL_SIGNALS, ids=["sigterm", "sighup", "sigint"])
+    def test_cancel_after_the_spawn_behaves_as_before(self, monkeypatch, tmp_path, sig):
+        # Control: a cancel outside the spawn window is not held. Its handler is
+        # the plain one, and it stops the child through the guard as it always did.
+        spawned: list[subprocess.Popen[bytes]] = []
+        real_popen = subprocess.Popen
+        seen: list[object] = []
+        real_capture = receipt_module.Capture
+
+        def popen(*args, **kwargs):
+            proc = real_popen(*args, **kwargs)
+            spawned.append(proc)
+            return proc
+
+        def capture(*args, **kwargs):
+            seen.append(signal.getsignal(signal.SIGINT))
+            signal.raise_signal(sig)
+            return real_capture(*args, **kwargs)
+
+        monkeypatch.setattr(receipt_module.subprocess, "Popen", popen)
+        monkeypatch.setattr(receipt_module, "Capture", capture)
+        try:
+            result = run_and_describe(py("import time; time.sleep(20)"), tmp_path)
+
+            assert result == CANCEL_RESULT[sig]
+            assert seen == [signal.default_int_handler]
+            assert len(spawned) == 1
+            assert spawned[0].poll() is not None
+            assert_cancel_handlers_restored()
+        finally:
+            for proc in spawned:
+                if proc.poll() is None:
+                    with contextlib.suppress(OSError):
+                        os.killpg(proc.pid, signal.SIGKILL)
+                    proc.wait()
+
+    def test_ctrl_c_is_held_only_while_the_child_is_spawned(self, monkeypatch, tmp_path):
+        inside: list[object] = []
+        outside: list[object] = []
+        real_popen = subprocess.Popen
+
+        class ProbePopen(real_popen):  # type: ignore[type-arg, misc]
+            def _execute_child(self, *args, **kwargs):
+                inside.append(signal.getsignal(signal.SIGINT))
+                super()._execute_child(*args, **kwargs)
+
+            def wait(self, timeout=None):
+                outside.append(signal.getsignal(signal.SIGINT))
+                return super().wait(timeout)
+
+        monkeypatch.setattr(receipt_module.subprocess, "Popen", ProbePopen)
+
+        assert receipt_module.run_command(py("pass"), 16384, tmp_path, timeout_seconds=30) == 0
+
+        assert inside and inside[0] is not signal.default_int_handler
+        assert callable(inside[0])
+        assert outside[0] is signal.default_int_handler
+        assert_cancel_handlers_restored()
+
+    def test_handlers_the_caller_installed_are_neither_replaced_nor_held(
+        self, monkeypatch, tmp_path
+    ):
+        calls: list[int] = []
+
+        def caller_handler(signum: int, _frame: object) -> None:
+            calls.append(signum)
+
+        for sig in CANCEL_SIGNALS:
+            signal.signal(sig, caller_handler)
+        spawned: list[int] = []
+        real_popen = subprocess.Popen
+
+        class NoisyPopen(real_popen):  # type: ignore[type-arg, misc]
+            def _execute_child(self, *args, **kwargs):
+                super()._execute_child(*args, **kwargs)
+                spawned.append(self.pid)
+                for sig in CANCEL_SIGNALS:
+                    signal.raise_signal(sig)
+
+        monkeypatch.setattr(receipt_module.subprocess, "Popen", NoisyPopen)
+        try:
+            code = receipt_module.run_command(py("pass"), 16384, tmp_path, timeout_seconds=30)
+
+            assert code == 0
+            assert sorted(calls) == sorted(CANCEL_SIGNALS)
+            assert all(signal.getsignal(sig) is caller_handler for sig in CANCEL_SIGNALS)
+        finally:
+            stop_spawned(spawned)
 
 
 class TestRedactionBypasses:
