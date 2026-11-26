@@ -330,6 +330,30 @@
    "path": ".github/workflows/pytest.yml",
    "text": "# No CVEs are ignored.",
    "id": "R58"
+  },
+  {
+   "kind": "contains",
+   "path": ".github/workflows/pr-validation.yml",
+   "text": "--marker \"PR-VALIDATION\" \\\n              --update-if-exists",
+   "id": "R59"
+  },
+  {
+   "kind": "contains",
+   "path": ".github/workflows/ai-spec-review.yml",
+   "text": "--marker \"AI-SPEC-VALIDATION\" \\\n            --update-if-exists",
+   "id": "R60"
+  },
+  {
+   "kind": "contains",
+   "path": ".github/workflows/investigation-claim-backstop.yml",
+   "text": "# Intentionally write-once (no --update-if-exists)",
+   "id": "R61"
+  },
+  {
+   "kind": "contains",
+   "path": ".github/workflows/pytest.yml",
+   "text": "- name: Run pip-audit",
+   "id": "R62"
   }
  ]
 }

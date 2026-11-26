@@ -1,6 +1,6 @@
 # Python and Test Conventions
 
-<!-- vendor-portability: contributor-facing reference for the rjmurillo/ai-agents repo itself. It names upstream-only paths under scripts, tests, src/claude, .claude/hooks, and .github because its audience is repo contributors, not plugin consumers. Declared paths: scripts/ai_review_outputs.py, scripts/ci/adr101_publisher_execute.py, scripts/github_core/not_found.py, scripts/validate_pr_review_config.py, scripts/validation/check_plugin_frontmatter_self_containment.py, scripts/validation/check_subprocess_encoding.py, src/claude/skills/github/scripts/issue/get_issue_comments.py -->
+<!-- vendor-portability: contributor-facing reference for the rjmurillo/ai-agents repo itself. It names upstream-only paths under scripts, tests, src/claude, .claude/hooks, and .github because its audience is repo contributors, not plugin consumers. Declared paths: scripts/AGENTS.md, scripts/ai_review_outputs.py, scripts/ci/adr101_publisher_execute.py, scripts/github_core/not_found.py, scripts/validate_pr_review_config.py, scripts/validation/check_plugin_frontmatter_self_containment.py, scripts/validation/check_subprocess_encoding.py, src/claude/skills/github/scripts/issue/get_issue_comments.py -->
 
 Read this before you write or review Python under `scripts/`, `build/`, `.github/scripts/`, or `tests/`.
 Each item names a site that does it right, so you can copy a working pattern.
@@ -14,6 +14,8 @@ The repo verified each item against the code on 2026-11-26.
    `scripts/validation/check_subprocess_encoding.py` enforces this only under `scripts/` (`_collect_sources`).
    Tests under `tests/` get no gate, so follow the pattern there by hand.
    A Windows runner decodes with a legacy code page otherwise.
+   Strict decoding is allowed only on purpose.
+   End that line with `# subprocess-encoding: strict-ok` and state the reason (`scripts/AGENTS.md`).
 2. **Catch `UnicodeDecodeError` next to `OSError` when you read text.**
    `UnicodeDecodeError` is a `ValueError`, not an `OSError`.
    A handler that wraps `read_text()` must catch `(OSError, UnicodeDecodeError)`.
