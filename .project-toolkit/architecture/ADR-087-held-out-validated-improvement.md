@@ -111,8 +111,7 @@ compliance step to an existing one. Two caveats a reader deserves. ADR-022 was
 `proposed` when this was written; it was accepted on 2026-11-26. And its own
 matrix calls for an ADR *plus* a governance document when a decision carries
 an enforcement obligation, which this one does. The governance half is not
-written; that gap is named under Open
-Requirements below rather than papered over.
+written; that gap is named under Open Requirements below rather than papered over.
 
 ### Why this is not solved by discipline
 

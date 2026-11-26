@@ -173,6 +173,10 @@ Verdict: WARN, two Low findings, both reachable only after the launcher rule fai
 
 The spec-compliance axis on `b00f6f838` returned WARN because the owner decisions were not on #7642. They are now recorded there in a comment.
 
+### Merge of main, 2026-11-26
+
+Main's #7692 accepted ADR-022 and edited two ADR-087 sentences to say so, which took the record to 1001 lines. One paragraph is reflowed to bring it back to 1000. No wording changed, so no new panel round.
+
 ## Dissent and residual risk
 
 - The boundary holds only under a launcher deny rule the controller cannot verify. The owner chose this in decision D2 over an OS user or a CI job.
