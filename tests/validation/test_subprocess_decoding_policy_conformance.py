@@ -53,7 +53,8 @@ _UTF8 = f'{_CAPTURE}, encoding="utf-8"'
         (f'subprocess.run(cmd, {_UTF8}, errors="replace")', ([], [], [])),
         (f'subprocess.run(cmd, {_UTF8}, errors="strict")', ([2], [], [])),
         (
-            f'subprocess.run(cmd, {_UTF8}, errors="strict")  # subprocess-encoding: strict-ok',
+            f'subprocess.run(cmd, {_UTF8}, errors="strict")  '
+            "# subprocess-encoding: strict-ok invalid bytes must fail",
             ([], [], []),
         ),
         (f'subprocess.run(cmd, {_CAPTURE}, encoding="UTF8", errors="replace")', ([], [], [])),
@@ -69,13 +70,27 @@ _UTF8 = f'{_CAPTURE}, encoding="utf-8"'
         ("functools.partial(subprocess.run, text=True)", ([], [2], [])),
         (f'run = getattr(subprocess, "run")\nrun(cmd, {_CAPTURE})', ([], [3], [])),
         ("subprocess.Popen(cmd, stdout=subprocess.PIPE, text=True)", ([], [2], [2])),
-        # Known gaps: the literal True checks miss text=1.
+        # Known union gap: the literal True checks miss the captured text=1 form.
         ('subprocess.run(cmd, capture_output=1, text=1, encoding="utf-8")', ([], [], [])),
+        # C-only text-mode gap: B intentionally accepts non-False truthy text values.
         ("subprocess.run(cmd, text=1)", ([], [], [])),
+        # Entry-point and text-flag differences, descriptive rather than prescriptive.
+        (
+            'subprocess.check_call(cmd, stdout=subprocess.PIPE, text=True, encoding="utf-8")',
+            ([2], [], []),
+        ),
+        (
+            'subprocess.call(cmd, stdout=subprocess.PIPE, text=True, encoding="utf-8")',
+            ([], [], []),
+        ),
+        ("subprocess.check_call(cmd, stdout=subprocess.PIPE, text=True)", ([], [], [2])),
+        ("subprocess.call(cmd, stdout=subprocess.PIPE, text=True)", ([], [], [2])),
+        ("subprocess.run(cmd, capture_output=True, universal_newlines=True)", ([], [2], [2])),
         # Known gaps: the union misses the absent errors handler through these aliases.
         (f"functools.partial(subprocess.run, {_UTF8})", ([], [], [])),
         (f'run = getattr(subprocess, "run")\nrun(cmd, {_UTF8})', ([], [], [])),
         (f'ops = {{"run": subprocess.run}}\nops["run"](cmd, {_UTF8})', ([], [], [])),
+        # Positive differential: A resolves the class-scope alias while B and C do not.
         (f"class Runner:\n    run = subprocess.run\n    run(cmd, {_UTF8})", ([4], [], [])),
         ('subprocess.run(cmd, text=True, encoding="utf-8")', ([2], [], [])),
         ("subprocess.run(cmd, text=True, encoding=None)", ([], [], [2])),
