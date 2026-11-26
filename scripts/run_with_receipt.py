@@ -6,7 +6,8 @@ ADR-097), so agents and skills call this explicitly for commands known to be
 large (full test runs, builds, log dumps, wide greps).
 
 Usage:
-    run_with_receipt.py run [--max-inline-bytes N] [--out-dir DIR] -- CMD [ARG...]
+    run_with_receipt.py run [--max-inline-bytes N] [--timeout-seconds N]
+                            [--out-dir DIR] -- CMD [ARG...]
     run_with_receipt.py read ARTIFACT [--offset N] [--length N] [--out-dir DIR]
 
 ``run`` executes CMD as an argv list (never through a shell), captures stdout
@@ -19,6 +20,17 @@ and stderr in arrival order, and redacts secrets in memory with
   (default ``.project-toolkit/temp/tool-output``, gitignored) and a bounded
   receipt is printed: command, exit code, duration, total bytes, exposed bytes,
   truncated flag, artifact path, and, on nonzero exit, a stderr tail.
+
+``--timeout-seconds`` accepts a positive integer. When it is present the child
+has at most that many seconds after launch. A wrapper-enforced timeout returns
+124, and a large-output receipt for one adds ``timeout: true``. A child that
+exits 124 on its own is indistinguishable without that receipt line. Where the
+platform has POSIX process groups, a timed child starts in a new session and a
+timeout sends SIGTERM to the group, allows a short grace period, then sends
+SIGKILL. Elsewhere the direct child is killed. The shared validation runner is
+not reused here because it decodes through text-mode ``communicate``; this
+wrapper needs byte streams so invalid UTF-8, redaction, and line assembly keep
+their existing behavior. The local cleanup is only the process-group part.
 
 ``read`` pages through a saved artifact by byte range. The artifact holds the
 redacted bytes. Unredacted bytes are never written, so a retrieval cannot
@@ -37,6 +49,7 @@ import argparse
 import os
 import re
 import shlex
+import signal
 import subprocess
 import sys
 import threading
@@ -45,12 +58,14 @@ import uuid
 from dataclasses import dataclass, field
 from io import BufferedReader
 from pathlib import Path
+from typing import Protocol
 
 from redact_secrets import redact_ci_sink
 
 EXIT_OK = 0
 EXIT_USAGE = 2
 EXIT_EXTERNAL = 3
+EXIT_TIMEOUT = 124
 
 DEFAULT_MAX_INLINE_BYTES = 16384
 HEAD_BYTES = 2048
@@ -70,6 +85,18 @@ _SECRET_FLAG = re.compile(r"^-{1,2}[\w-]+$")
 _MASK = "***"
 _ARTIFACT_NAME = re.compile(r"^\d{8}T\d{6}-[0-9a-f]{8}\.log$")
 _PIPE_DRAIN_GRACE_S = 2.0
+_TERM_GRACE_S = 1.0
+_REAP_GRACE_S = 1.0
+_SUPPORTS_PGROUP = sys.platform != "win32" and hasattr(os, "killpg")
+
+
+class _ChildProcess(Protocol):
+    @property
+    def pid(self) -> int: ...
+
+    def wait(self, timeout: float | None = None) -> int: ...
+
+    def kill(self) -> None: ...
 
 
 @dataclass(slots=True)
@@ -129,6 +156,7 @@ class Receipt:
     head: str
     tail: str
     failure_excerpt: str
+    timed_out: bool
 
 
 def _secret_values() -> list[str]:
@@ -186,15 +214,71 @@ def _pump(pipe: BufferedReader, stream: str, capture: Capture) -> None:
         capture.add(stream, data)
 
 
-def _run_child(argv: list[str]) -> tuple[int, Capture]:
-    """Run argv without a shell and return the exit code and captured output."""
-    proc = subprocess.Popen(
-        argv,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        shell=False,
-    )
+def _signal_group(pgid: int, sig: int) -> None:
+    """Signal a process group, ignoring a group that no longer exists."""
+    if sys.platform == "win32":
+        return
+    try:
+        os.killpg(pgid, sig)
+    except OSError:
+        pass
+
+
+def _own_group(pid: int) -> int | None:
+    """Return a safe child-led process group, or None when none is available."""
+    if sys.platform == "win32":
+        return None
+    try:
+        pgid = os.getpgid(pid)
+    except OSError:
+        return None
+    return None if pgid == os.getpgid(0) else pgid
+
+
+def _terminate_child(proc: _ChildProcess) -> None:
+    """Stop a timed-out child's process group, or the child where groups are absent."""
+    if sys.platform == "win32" or not _SUPPORTS_PGROUP:
+        proc.kill()
+        return
+    pgid = _own_group(proc.pid)
+    if pgid is None:
+        proc.kill()
+        return
+    _signal_group(pgid, signal.SIGTERM)
+    try:
+        proc.wait(timeout=_TERM_GRACE_S)
+    except subprocess.TimeoutExpired:
+        pass
+    finally:
+        _signal_group(pgid, signal.SIGKILL)
+
+
+def _reap_stopped_child(proc: _ChildProcess) -> None:
+    try:
+        proc.wait(timeout=_REAP_GRACE_S)
+    except subprocess.TimeoutExpired:
+        pass
+
+
+def _run_child(argv: list[str], timeout_seconds: int | None = None) -> tuple[int, Capture, bool]:
+    """Run argv without a shell and return the exit code, output, and timeout state."""
+    if timeout_seconds is None:
+        proc = subprocess.Popen(
+            argv,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            shell=False,
+        )
+    else:
+        proc = subprocess.Popen(
+            argv,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            shell=False,
+            start_new_session=_SUPPORTS_PGROUP,
+        )
     capture = Capture()
     threads = [
         threading.Thread(target=_pump, args=(proc.stdout, "out", capture), daemon=True),
@@ -202,12 +286,19 @@ def _run_child(argv: list[str]) -> tuple[int, Capture]:
     ]
     for thread in threads:
         thread.start()
-    code = proc.wait()
+    timed_out = False
+    try:
+        code = proc.wait(timeout=timeout_seconds)
+    except subprocess.TimeoutExpired:
+        timed_out = True
+        _terminate_child(proc)
+        _reap_stopped_child(proc)
+        code = EXIT_TIMEOUT
     # A grandchild can keep a pipe open after the child exits; do not wait on it.
     for thread in threads:
         thread.join(timeout=_PIPE_DRAIN_GRACE_S)
     capture.finish()
-    return (128 - code if code < 0 else code), capture
+    return (128 - code if code < 0 else code), capture, timed_out
 
 
 def _find_repo_root(start: Path) -> Path:
@@ -249,6 +340,7 @@ def build_receipt(
     capture: Capture,
     artifact: Path,
     redacted_merged: str,
+    timed_out: bool,
 ) -> Receipt:
     total = len(capture.merged_bytes())
     head = _clip_bytes(redacted_merged, HEAD_BYTES, keep="head")
@@ -275,6 +367,7 @@ def build_receipt(
         head=head,
         tail=tail,
         failure_excerpt=failure,
+        timed_out=timed_out,
     )
 
 
@@ -283,6 +376,10 @@ def format_receipt(receipt: Receipt) -> str:
         "[output contained: full output saved, excerpts below]",
         f"command: {receipt.command}",
         f"exit_code: {receipt.exit_code}",
+    ]
+    if receipt.timed_out:
+        lines.append("timeout: true")
+    lines += [
         f"duration_s: {receipt.duration_s:.2f}",
         f"total_bytes: {receipt.total_bytes}",
         f"exposed_bytes: {receipt.exposed_bytes}",
@@ -306,10 +403,15 @@ def _passthrough(capture: Capture) -> None:
     sys.stderr.flush()
 
 
-def run_command(argv: list[str], max_inline_bytes: int, out_dir: Path) -> int:
+def run_command(
+    argv: list[str],
+    max_inline_bytes: int,
+    out_dir: Path,
+    timeout_seconds: int | None = None,
+) -> int:
     started = time.monotonic()
     try:
-        exit_code, capture = _run_child(argv)
+        exit_code, capture, timed_out = _run_child(argv, timeout_seconds)
     except OSError as exc:
         print(_scrub(f"run_with_receipt: cannot launch {argv[0]!r}: {exc}"), file=sys.stderr)
         return EXIT_EXTERNAL
@@ -323,7 +425,7 @@ def run_command(argv: list[str], max_inline_bytes: int, out_dir: Path) -> int:
     except OSError as exc:
         print(f"run_with_receipt: cannot write artifact: {exc}", file=sys.stderr)
         return EXIT_EXTERNAL
-    receipt = build_receipt(argv, exit_code, duration, capture, artifact, redacted)
+    receipt = build_receipt(argv, exit_code, duration, capture, artifact, redacted, timed_out)
     sys.stdout.write(format_receipt(receipt))
     sys.stdout.flush()
     return exit_code
@@ -371,6 +473,13 @@ def _build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="mode", required=True)
     run = sub.add_parser("run", help="run CMD after `--`, contain large output")
     run.add_argument("--max-inline-bytes", type=int, default=DEFAULT_MAX_INLINE_BYTES)
+    run.add_argument(
+        "--timeout-seconds",
+        type=int,
+        default=None,
+        metavar="N",
+        help="stop CMD after N seconds and return 124",
+    )
     run.add_argument("--out-dir", default=None)
     read = sub.add_parser("read", help="page through a saved artifact by byte range")
     read.add_argument("artifact")
@@ -390,10 +499,13 @@ def main(argv: list[str] | None = None) -> int:
     out_dir = resolve_out_dir(args.out_dir)
     if args.mode == "read":
         return read_artifact(args.artifact, args.offset, args.length, out_dir)
+    if args.timeout_seconds is not None and args.timeout_seconds < 1:
+        print("run_with_receipt: --timeout-seconds must be a positive integer", file=sys.stderr)
+        return EXIT_USAGE
     if not command or args.max_inline_bytes < 0:
         print("usage: run_with_receipt.py run [options] -- CMD [ARG...]", file=sys.stderr)
         return EXIT_USAGE
-    return run_command(command, args.max_inline_bytes, out_dir)
+    return run_command(command, args.max_inline_bytes, out_dir, args.timeout_seconds)
 
 
 if __name__ == "__main__":

@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import io
+import os
+import runpy
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -10,6 +14,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
+import run_with_receipt as receipt_module
 from run_with_receipt import (
     EXIT_EXTERNAL,
     EXIT_USAGE,
@@ -20,14 +25,62 @@ from run_with_receipt import (
 GITHUB_TOKEN = "ghp_" + "A1b2C3d4E5" * 4  # 40 chars after prefix, matches github-token rule
 ARTIFACT_NAME = "20260101T000000-deadbeef.log"
 BEARER = "Bearer abcDEF123456xyz+/="
+POSIX_ONLY = pytest.mark.skipif(os.name != "posix", reason="process groups are POSIX-only")
 
 
 def py(code: str) -> list[str]:
     return [sys.executable, "-c", code]
 
 
-def run(args: list[str], out_dir: Path, *, inline: int = 16384) -> int:
-    return main(["run", "--max-inline-bytes", str(inline), "--out-dir", str(out_dir), "--", *args])
+def run(args: list[str], out_dir: Path, *, inline: int = 16384, timeout: int | None = None) -> int:
+    argv = ["run", "--max-inline-bytes", str(inline), "--out-dir", str(out_dir)]
+    if timeout is not None:
+        argv.extend(["--timeout-seconds", str(timeout)])
+    return main([*argv, "--", *args])
+
+
+class _FakePopen:
+    """Popen test double with byte pipes and scripted wait results."""
+
+    def __init__(
+        self,
+        *,
+        stdout: bytes = b"",
+        stderr: bytes = b"",
+        waits: list[int | BaseException] | None = None,
+    ) -> None:
+        self.pid = 4321
+        self.stdout = io.BytesIO(stdout)
+        self.stderr = io.BytesIO(stderr)
+        self.waits = list(waits or [0])
+        self.wait_timeouts: list[float | None] = []
+        self.kill_calls = 0
+        self.returncode: int | None = None
+
+    def wait(self, timeout: float | None = None) -> int:
+        self.wait_timeouts.append(timeout)
+        result = self.waits.pop(0) if self.waits else 0
+        if isinstance(result, BaseException):
+            raise result
+        self.returncode = int(result)
+        return self.returncode
+
+    def kill(self) -> None:
+        self.kill_calls += 1
+        self.returncode = -9
+
+
+def install_fake_popen(
+    monkeypatch: pytest.MonkeyPatch, proc: _FakePopen
+) -> list[tuple[tuple[object, ...], dict[str, object]]]:
+    calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+    def factory(*args: object, **kwargs: object) -> _FakePopen:
+        calls.append((args, kwargs))
+        return proc
+
+    monkeypatch.setattr(receipt_module.subprocess, "Popen", factory)
+    return calls
 
 
 def artifacts(out_dir: Path) -> list[Path]:
@@ -335,6 +388,194 @@ class TestFailureAndEntryPoint:
         )
         assert result.returncode == 5
         assert result.stdout == "hi\n"
+
+    def test_module_executes_as_script(self, tmp_path, monkeypatch):
+        script = Path(__file__).resolve().parents[1] / "scripts" / "run_with_receipt.py"
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [str(script), "run", "--out-dir", str(tmp_path), "--"] + py("pass"),
+        )
+        with pytest.raises(SystemExit) as exc:
+            runpy.run_path(str(script), run_name="__main__")
+        assert exc.value.code == 0
+
+
+class TestTimeoutDeadline:
+    def test_run_help_lists_timeout_option(self, capfd):
+        assert main(["run", "--help"]) == 0
+        assert "--timeout-seconds" in capfd.readouterr().out
+
+    @pytest.mark.parametrize("value", ["0", "-2", "1.5", "abc"])
+    def test_rejects_non_positive_or_non_integer_timeouts(self, tmp_path, value):
+        argv = [
+            "run",
+            "--timeout-seconds",
+            value,
+            "--out-dir",
+            str(tmp_path),
+            "--",
+            "true",
+        ]
+        assert main(argv) == EXIT_USAGE
+
+    def test_timeout_allows_fast_child_and_preserves_result(self, tmp_path, capfd):
+        code = run(py("print('fast')"), tmp_path, timeout=5)
+        assert code == 0
+        assert capfd.readouterr().out == "fast\n"
+        assert artifacts(tmp_path) == []
+
+    def test_absent_timeout_leaves_process_group_setup_unchanged(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(receipt_module, "_SUPPORTS_PGROUP", True, raising=False)
+        proc = _FakePopen(waits=[0])
+        calls = install_fake_popen(monkeypatch, proc)
+        assert receipt_module.run_command(["fake"], 16384, tmp_path) == 0
+        assert "start_new_session" not in calls[0][1]
+
+    @POSIX_ONLY
+    def test_timeout_kills_process_group_and_returns_124(self, monkeypatch, tmp_path, capfd):
+        proc = _FakePopen(
+            stdout=b"partial\n",
+            waits=[subprocess.TimeoutExpired(["fake"], 2), -15],
+        )
+        calls = install_fake_popen(monkeypatch, proc)
+        signals: list[tuple[int, int]] = []
+        monkeypatch.setattr(receipt_module, "_SUPPORTS_PGROUP", True, raising=False)
+        monkeypatch.setattr(
+            receipt_module.os,
+            "killpg",
+            lambda pgid, sig: signals.append((pgid, sig)),
+            raising=False,
+        )
+        monkeypatch.setattr(
+            receipt_module.os,
+            "getpgid",
+            lambda pid: proc.pid if pid == proc.pid else proc.pid + 1,
+            raising=False,
+        )
+
+        code = receipt_module.run_command(["fake"], 16384, tmp_path, timeout_seconds=2)
+
+        assert code == 124
+        assert calls[0][1]["start_new_session"] is True
+        assert proc.wait_timeouts[0] == 2
+        assert signals == [(proc.pid, signal.SIGTERM), (proc.pid, signal.SIGKILL)]
+        assert capfd.readouterr().out == "partial\n"
+
+    def test_timeout_without_process_group_support_kills_child_only(self, monkeypatch, tmp_path):
+        proc = _FakePopen(waits=[subprocess.TimeoutExpired(["fake"], 2), -9])
+        install_fake_popen(monkeypatch, proc)
+        monkeypatch.setattr(receipt_module, "_SUPPORTS_PGROUP", False, raising=False)
+
+        def forbidden_killpg(_pgid, _sig):
+            raise AssertionError("killpg must not run without process-group support")
+
+        monkeypatch.setattr(receipt_module.os, "killpg", forbidden_killpg, raising=False)
+        code = receipt_module.run_command(["fake"], 16384, tmp_path, timeout_seconds=2)
+        assert code == 124
+        assert proc.kill_calls == 1
+
+    @POSIX_ONLY
+    def test_timeout_falls_back_to_child_kill_when_group_is_gone(self, monkeypatch, tmp_path):
+        proc = _FakePopen(waits=[subprocess.TimeoutExpired(["fake"], 2), -9])
+        install_fake_popen(monkeypatch, proc)
+        monkeypatch.setattr(receipt_module, "_SUPPORTS_PGROUP", True, raising=False)
+
+        def missing_group(_pid):
+            raise OSError("gone")
+
+        def forbidden_killpg(_pgid, _sig):
+            raise AssertionError("killpg must not run when no group is available")
+
+        monkeypatch.setattr(receipt_module.os, "getpgid", missing_group, raising=False)
+        monkeypatch.setattr(receipt_module.os, "killpg", forbidden_killpg, raising=False)
+        code = receipt_module.run_command(["fake"], 16384, tmp_path, timeout_seconds=2)
+        assert code == 124
+        assert proc.kill_calls == 1
+
+    @POSIX_ONLY
+    def test_group_signal_ignores_a_group_that_is_already_gone(self, monkeypatch):
+        def missing_group(_pgid, _sig):
+            raise OSError("gone")
+
+        monkeypatch.setattr(receipt_module.os, "killpg", missing_group, raising=False)
+        receipt_module._signal_group(12345, signal.SIGTERM)
+
+    def test_process_group_helpers_are_noops_on_windows(self, monkeypatch):
+        monkeypatch.setattr(receipt_module.sys, "platform", "win32")
+
+        def forbidden_killpg(_pgid, _sig):
+            raise AssertionError("killpg must not run on Windows")
+
+        monkeypatch.setattr(receipt_module.os, "killpg", forbidden_killpg, raising=False)
+        receipt_module._signal_group(12345, signal.SIGTERM)
+        assert receipt_module._own_group(12345) is None
+
+    @POSIX_ONLY
+    def test_cleanup_waits_are_bounded_when_child_ignores_term(self, monkeypatch, tmp_path):
+        proc = _FakePopen(
+            waits=[
+                subprocess.TimeoutExpired(["fake"], 2),
+                subprocess.TimeoutExpired(["fake"], 1),
+                subprocess.TimeoutExpired(["fake"], 1),
+            ]
+        )
+        install_fake_popen(monkeypatch, proc)
+        signals: list[tuple[int, int]] = []
+        monkeypatch.setattr(receipt_module, "_SUPPORTS_PGROUP", True, raising=False)
+        monkeypatch.setattr(
+            receipt_module.os,
+            "killpg",
+            lambda pgid, sig: signals.append((pgid, sig)),
+            raising=False,
+        )
+        monkeypatch.setattr(
+            receipt_module.os,
+            "getpgid",
+            lambda pid: proc.pid if pid == proc.pid else proc.pid + 1,
+            raising=False,
+        )
+
+        code = receipt_module.run_command(["fake"], 16384, tmp_path, timeout_seconds=2)
+
+        assert code == 124
+        assert signals == [(proc.pid, signal.SIGTERM), (proc.pid, signal.SIGKILL)]
+        assert proc.wait_timeouts == [2, 1.0, 1.0]
+
+    @POSIX_ONLY
+    def test_timeout_receipt_marks_timeout_redacts_and_writes_artifact(
+        self, monkeypatch, tmp_path, capfd
+    ):
+        payload = (GITHUB_TOKEN + "\n").encode() + b"x" * 40000
+        proc = _FakePopen(
+            stdout=payload,
+            waits=[subprocess.TimeoutExpired(["fake"], 2), -15],
+        )
+        install_fake_popen(monkeypatch, proc)
+        monkeypatch.setattr(receipt_module, "_SUPPORTS_PGROUP", True, raising=False)
+        monkeypatch.setattr(
+            receipt_module.os,
+            "killpg",
+            lambda _pgid, _sig: None,
+            raising=False,
+        )
+        monkeypatch.setattr(
+            receipt_module.os,
+            "getpgid",
+            lambda pid: proc.pid if pid == proc.pid else proc.pid + 1,
+            raising=False,
+        )
+
+        code = receipt_module.run_command(["fake"], 100, tmp_path, timeout_seconds=2)
+
+        out = capfd.readouterr().out
+        assert code == 124
+        assert "exit_code: 124" in out
+        assert "timeout: true" in out
+        assert GITHUB_TOKEN not in out
+        saved = artifact_from(out).read_text(encoding="utf-8")
+        assert GITHUB_TOKEN not in saved
+        assert "x" * 100 in saved
 
 
 class TestRedactionBypasses:
