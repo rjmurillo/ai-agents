@@ -641,9 +641,9 @@ An agent writes output that breaks a rule already loaded in its context. It runs
 
 ### Evidence
 
-- **`.project-toolkit/retrospective/2026-08-21-pr-automerge-goal-session-2.md`, Finding 2**: a PR body held an em dash while `universal.md` was loaded all session. `pr_description.py:validate_no_dashes` failed the PR at its first validation run, a CI round. One body edit fixed it.
-- **`.project-toolkit/retrospective/2026-08-25-issue-5192-adr-052-036-reciprocity.md`, Finding 1**: the same rule broke again in another session. The `staged-dash-policy` pre-commit job failed the first commit attempt and named three files. A sweep found six more edited files that were not yet staged. A mechanical substitution fixed all nine. This is a local catch, so it is weaker evidence than the CI instance.
-- ADR-116 Decision item 6: the `voice.md` Quick Self-Review asks about em and en dashes, and the 08-25 session still broke the rule. The question alone did not prevent it. Whether the cause is the missing check or an un-persisted learning is inferred, not measured.
+- **[`2026-08-21-pr-automerge-goal-session-2.md`](../../.project-toolkit/retrospective/2026-08-21-pr-automerge-goal-session-2.md), Finding 2**: a PR body held an em dash while `universal.md` was loaded all session. `pr_description.py:validate_no_dashes` failed the PR at its first validation run, a CI round. One body edit fixed it.
+- **[`2026-08-25-issue-5192-adr-052-036-reciprocity.md`](../../.project-toolkit/retrospective/2026-08-25-issue-5192-adr-052-036-reciprocity.md), Finding 1**: the same rule broke again in another session. The `staged-dash-policy` pre-commit job failed the first commit attempt and named three files. A sweep found six more edited files that were not yet staged. A mechanical substitution fixed all nine. This is a local catch, so it is weaker evidence than the CI instance.
+- ADR-116 Decision item 6: PR #6398 closed the dash half of issue #5288 as "already persisted", saying the `voice.md` Quick Self-Review asks about em and en dashes. The 08-25 session still broke the rule while `voice.md` and `universal.md` MUST NOT 4 were in context, so a prompt-level reminder did not prevent it. Whether the cause is the missing check or an un-persisted learning is inferred, not measured.
 
 ### Detection
 
@@ -655,7 +655,7 @@ An agent writes output that breaks a rule already loaded in its context. It runs
 
 ### Enforcement Pattern
 
-None new (ADR-116 Decision item 6). The class is detection-only: the gates above catch the violation one round late. No pre-stage check that runs a tool exists. ADR-116 recorded that absence on 2026-10-13 after a tree search. PR #6398 closed issue #5288, the check's former owner, without building one. The retrospectives propose a pre-stage check as a learning. No gate backs that proposal. An open-issue search on 2026-11-25 found no owner.
+None new (ADR-116 Decision item 6). The class is detection-only: the gates above catch the violation one round late. A checker exists: the [`prose-self-check`](../../.claude/skills/prose-self-check/SKILL.md) skill runs `prose_lint.py`, which fails on any em or en dash, on a draft before it is submitted. Nothing runs it automatically before staging, so it helps only when the agent invokes it. The missing control is automatic pre-stage enforcement. ADR-116 recorded on 2026-10-13 that no pre-stage dash check exists. PR #6398 closed issue #5288, the check's former owner, without building one. The retrospectives propose a pre-stage check as a learning. No gate backs that proposal. An open-issue search on 2026-11-25 found no owner.
 
 ### Why this is FM-14, not FM-1, FM-3, or FM-9
 
@@ -666,10 +666,10 @@ None new (ADR-116 Decision item 6). The class is detection-only: the gates above
 
 ### References
 
-- `.project-toolkit/architecture/ADR-116-unchecked-in-context-rule-violation-failure-mode.md`
+- [ADR-116](../../.project-toolkit/architecture/ADR-116-unchecked-in-context-rule-violation-failure-mode.md)
 - Issue #7643 (owner acceptance), issue #5300 (the request for the ADR), issue #5307 finding 5
 - Issue #5288 and PR #6398, the closed owner of the pre-stage dash check
-- `.claude/rules/universal.md` MUST NOT 4, `.claude/rules/voice.md` Quick Self-Review
+- [`.claude/rules/universal.md`](../../.claude/rules/universal.md) MUST NOT 4, [`.claude/rules/voice.md`](../../.claude/rules/voice.md) "No Em Dashes Or En Dashes"
 
 ---
 

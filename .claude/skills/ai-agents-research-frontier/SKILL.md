@@ -117,7 +117,7 @@ durable competitive surface and everything else is plumbing.
   activation, citation, and behavior scores (1 to 5), with `--dry-run` as the
   zero-spend validation path and ADR-035 exit codes.
 - A measured failure baseline to beat: FM-1 (Context Reading Failure) recorded
-  95.8% session-start non-compliance in a sampled period
+  95.8% Session End protocol failure (23 of 24 sessions) in a sampled period
   (`.agents/governance/FAILURE-MODES.md:48`).
 
 ### First three steps
