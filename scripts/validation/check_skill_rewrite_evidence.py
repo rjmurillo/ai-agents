@@ -302,11 +302,11 @@ def verify_skill(ctx: Context, name: str, head: SkillSide) -> list[str]:
 def _adding_commit(ctx: Context, path: str, added: dict[str, int]) -> str | None:
     """The commit that added *path*: the base ref's log for a base file, else the branch scan.
 
-    A file at the base ref keeps the base add, so a byte-identical branch copy
-    cannot move an older failed run behind a later passing one. The branch
-    scan sees a merge's own add, which the log does not.
+    A path the base ref holds with head's blob keeps the base add, so a copy
+    cannot hide an older failed run; the branch scan sees a merge's own add.
     """
-    at_base = bool(ctx.git.tree_blobs(ctx.base_ref, path))
+    base_blob = ctx.git.tree_blobs(ctx.base_ref, path).get(path)
+    at_base = base_blob is not None and base_blob == ctx.git.tree_blobs(ctx.head, path).get(path)
     if not at_base and path in added:
         return ctx.commits[added[path]]
     found: str | None = ctx.git.adding_commit(ctx.base_ref if at_base else ctx.head, path)
@@ -409,7 +409,7 @@ def _examine(
 ) -> tuple[list[str], bool]:
     """Findings for one changed skill, and whether it is gated."""
     base, side = sides
-    errors = [e for e in (base.error, side.error, side.tools_error) if e]
+    errors = [e for e in (base.error, side.error, side.tools_error) if e and side.skill_md_path]
     if errors:
         return [f"{name}: {e}" for e in errors], False
     findings = []
@@ -429,8 +429,9 @@ def _examine(
 
 def run_check(git: Git, base_ref: str, head: str = "HEAD") -> tuple[list[str], int, int]:
     """Return (findings, skills examined, gated skills)."""
-    # Pin a symbolic head once, so every later read sees the same commit.
+    # Pin both symbolic refs once, so the diff and every later read see the same commits.
     head = git.text("rev-parse", "--verify", f"{head}^{{commit}}").strip()
+    base_ref = git.text("rev-parse", "--verify", f"{base_ref}^{{commit}}").strip()
     merge_base = git.text("merge-base", base_ref, head).strip()
     paths = changed_paths(git, merge_base, head)
     commits = git.text("rev-list", "--reverse", "--topo-order", f"{merge_base}..{head}").split()

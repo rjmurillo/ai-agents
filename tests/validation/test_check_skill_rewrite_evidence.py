@@ -18,6 +18,7 @@ from tests.validation.skill_rewrite_helpers import (
     SKILL,
     checker,
     commit,
+    commit_evidence,
     driver_change,
     git,
     on_main,
@@ -159,6 +160,26 @@ class TestTriggers:
         assert code == 0, out
         assert "demo is deleted; nothing to evaluate" in out
 
+    def test_deleting_a_skill_with_invalid_base_metadata_passes(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        on_main(repo, {SKILL: skill_md("drivr")}, "a typo on main")
+        git(repo, "rm", "-q", "-r", "src/claude/skills/demo")
+        commit(repo, "delete")
+        code, out = run(repo, capsys)
+        assert code == 0, out
+        assert "demo is deleted; nothing to evaluate" in out
+
+    def test_invalid_metadata_on_a_kept_skill_still_blocks(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        on_main(repo, {SKILL: skill_md("drivr")}, "a typo on main")
+        write(repo, REF, "Reference, edited.\n")
+        commit(repo, "edit the kept skill")
+        code, out = run(repo, capsys)
+        assert code == 1, out
+        assert "metadata.shape is 'drivr'" in out
+
     def test_new_driver_is_not_gated(self, repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
         write(repo, ".claude/skills/local/SKILL.md", skill_md("driver"))
         commit(repo, "new driver")
@@ -240,9 +261,10 @@ class TestEvidence:
         branch_sha = git(repo, "rev-parse", "HEAD")
         write(repo, f"{EVID}/run-1.json", results(repo, base_commit=branch_sha))
         commit(repo, "evidence")
+        main_sha = git(repo, "rev-parse", "main")
         code, out = run(repo, capsys)
         assert code == 1
-        assert f"identity.base_commit {branch_sha} is not an ancestor of main" in out
+        assert f"identity.base_commit {branch_sha} is not an ancestor of {main_sha}" in out
 
     def test_first_run_sets_the_verdict(
         self, repo: Path, capsys: pytest.CaptureFixture[str]
@@ -383,10 +405,31 @@ class TestEntryPoints:
     def test_bad_base_ref_is_a_config_error(
         self, repo: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
+        """The base is pinned to a commit before the diff, like the head."""
         code, out = run(repo, capsys, base="no-such-ref")
         assert code == 2
-        assert "git merge-base no-such-ref" in out
-        assert "exited 128" in out
+        assert "rev-parse --verify no-such-ref^{commit}" in out
+
+    def test_base_ref_is_read_once(
+        self, repo: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Every later git read gets the pinned base commit, never the symbolic name."""
+        pinned = git(repo, "rev-parse", "main")
+        seen: list[tuple[str, ...]] = []
+        real = checker.Git._run
+
+        def spy(self: checker.Git, *args: str, **kwargs: Any) -> Any:
+            seen.append(args)
+            return real(self, *args, **kwargs)
+
+        driver_change(repo)
+        commit_evidence(repo)
+        monkeypatch.setattr(checker.Git, "_run", spy)
+        code, out = run(repo, capsys)
+        assert code == 0, out
+        names_main = [a for a in seen if any(x.split(":")[0].startswith("main") for x in a)]
+        assert names_main == [("rev-parse", "--verify", "main^{commit}")], names_main
+        assert any(pinned in a for a in seen)
 
     def test_bad_head_ref_is_a_config_error(
         self, repo: Path, capsys: pytest.CaptureFixture[str]

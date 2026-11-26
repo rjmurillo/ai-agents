@@ -116,6 +116,24 @@ class TestInheritedRuns:
         assert code == 1, out
         assert "run-1.json" in out
 
+    def test_a_branch_run_that_differs_from_a_base_file_keeps_the_branch_add(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Main adds its own run-1.json; the branch's different run-1.json still decides."""
+        driver_change(repo)
+        passing = results(repo)
+        failed = _run_text(repo, failed=True)
+        git(repo, "checkout", "-q", "main")
+        write(repo, f"{EVID}/run-1.json", failed)
+        commit(repo, "another run-1.json on main")
+        git(repo, "checkout", "-q", "feature")
+        write(repo, f"{EVID}/run-1.json", passing)
+        commit(repo, "the first branch run passes")
+        write(repo, f"{EVID}/run-2.json", failed)
+        commit(repo, "a later branch run fails")
+        code, out = run(repo, capsys)
+        assert code == 0, out
+
     def test_two_later_runs_in_one_commit_do_not_hide_the_first(
         self, repo: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -133,10 +151,11 @@ class TestInheritedRuns:
 class TestAddingCommit:
     @pytest.mark.skipif(os.name == "nt", reason="NTFS rejects * in a file name")
     def test_a_file_named_as_a_glob_does_not_borrow_a_neighbour_s_commit(self, repo: Path) -> None:
-        write(repo, f"{EVID}/run-1.json", "{}")
-        commit(repo, "a neighbour")
+        """The neighbour lands last, so a glob match would return its newer commit."""
         write(repo, f"{EVID}/*.json", "{}")
         own = commit(repo, "a file named as a glob")
+        write(repo, f"{EVID}/run-1.json", "{}")
+        commit(repo, "a newer neighbour")
         assert checker.Git(repo).adding_commit("HEAD", f"{EVID}/*.json") == own
 
     def test_a_reused_path_reports_its_newest_add(self, repo: Path) -> None:
