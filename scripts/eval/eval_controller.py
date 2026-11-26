@@ -279,7 +279,13 @@ class Controller:
         self.incumbent_bytes = read_artifact(config.artifact)
         self.mode = config.artifact.stat().st_mode & 0o7777
         self.integrity = tree_digest(self._protected())
-        self.incumbent = self.score("incumbent-0", self.incumbent_bytes)
+        try:
+            self.incumbent = self.score("incumbent-0", self.incumbent_bytes)
+        except ControllerError:
+            # A scorer that runs the incumbent's code may have rewritten it.
+            # Put the launcher's file back before stopping.
+            self._restore()
+            raise
         document = json.loads(self.incumbent.read_text(encoding="utf-8"))
         tasks = self.state / "tasks.txt"
         tasks.write_text("\n".join(sorted(document["results"])) + "\n", encoding="utf-8")

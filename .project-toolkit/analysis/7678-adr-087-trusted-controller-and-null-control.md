@@ -59,7 +59,8 @@ stops early.
 - Every exit from a step restores the incumbent before the gate. That covers a
   failed proposer, a failed scorer, a timeout, and SIGTERM, which the
   controller turns into an exception so the restore still runs. A SIGTERM that
-  arrives during the restore waits until the incumbent is written.
+  arrives during the restore waits until the incumbent is written. A failed
+  baseline scoring run restores the incumbent too.
 - The gate log records each candidate's SHA-256.
 - Only an ACCEPT writes the candidate back.
 - The controller re-reads the artifact after scoring and refuses to gate if it
@@ -91,7 +92,9 @@ stops early.
   `..`, is refused before it fills `opt_task_files`. A task file that is a
   link, or two task files with the same name, stop the run.
 - A launcher may name a tracked symlink as the artifact. The controller
-  resolves it once, at config load, and works on the target file.
+  resolves it once, at config load, and works on the target file. It resolves
+  `state_dir`, `workspace_dir`, `deny_paths`, and `trusted_paths` the same
+  way, so a symlinked directory is digested by its contents.
 - Around each scoring run, it digests the whole state directory except the new
   run's output directory, and stops if anything else changed.
 - The gate cap is `max_consultations` from the config. The ledger root is

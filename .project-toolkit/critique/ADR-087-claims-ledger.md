@@ -11,7 +11,7 @@ Verified 2026-11-25 for issue #7642, covering the "Amendment 2026-11-25" text an
 | #3436 is closed. | Behavior | `gh issue view 3436 --json state` | `CLOSED`. VERIFIED |
 | `optimize-artifact.py report` exists and reads the test group. | Path | `optimize-artifact.py` lines 3252-3269 | `sub.add_parser("report", help="read the test group once, at the end")`. VERIFIED |
 | The controller runs scorer, `extract`, `split`, and `gate` itself. | Behavior | `scripts/eval/eval_controller.py`, `Controller.score` and `Controller.run` | Each is a subprocess the controller starts. VERIFIED |
-| The proposer workspace holds `feedback.json` (step, artifact path, opt results, opt score, consultations left, last decision) and opt task files. | Behavior | `test_proposer_never_sees_a_held_out_id`, `test_accept_keeps_the_candidate_and_reports_one_bit`, `test_opt_task_files_are_copied_and_nothing_else` | 76 of 76 tests pass after the PR #7699 review fixes. VERIFIED |
+| The proposer workspace holds `feedback.json` (step, artifact path, opt results, opt score, consultations left, last decision) and opt task files. | Behavior | `test_proposer_never_sees_a_held_out_id`, `test_accept_keeps_the_candidate_and_reports_one_bit`, `test_opt_task_files_are_copied_and_nothing_else` | 77 of 77 tests pass after the PR #7699 review fixes. VERIFIED |
 | Every step exit restores the incumbent before the gate. | Behavior | `test_reject_restores_the_incumbent`, `test_proposer_that_edits_then_fails_leaves_the_incumbent`, `test_artifact_changed_during_scoring_is_refused` | Pass. VERIFIED |
 | A planted workspace symlink does not redirect a controller write. | Behavior | `test_planted_feedback_symlink_is_not_followed` | Pass. VERIFIED |
 | `deny_paths` is required, and `policy` lists state, config, and `deny_paths`. | Behavior | `test_bad_config_is_refused[deny_paths-value9]`, `test_policy_lists_state_and_task_paths` | Pass. VERIFIED |
@@ -59,3 +59,5 @@ Verified 2026-11-25 for issue #7642, covering the "Amendment 2026-11-25" text an
 | SIGTERM during a restore waits for the write. | Behavior | `test_sigterm_during_a_restore_waits_for_the_write` (handler invoked mid-write; no live signal) | Pass. VERIFIED |
 | `proposer_env` is required. | Behavior | `test_bad_config_is_refused[proposer_env-None]` | Pass. VERIFIED |
 | An artifact inside `state_dir` is refused; a tamper refusal still collects the scorer report. | Behavior | `test_artifact_inside_state_is_refused`, `test_tamper_refusal_still_collects_the_scorer_report` | Pass. VERIFIED |
+| A failed baseline scoring run restores the incumbent. | Behavior | `test_baseline_scorer_that_edits_the_artifact_is_refused` | Artifact unchanged after exit 2. VERIFIED |
+| A symlinked deny directory resolves and is digested by content. | Behavior | `test_symlinked_deny_directory_is_digested_by_content` | Exit 2 on an edit inside it. VERIFIED |

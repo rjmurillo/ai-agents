@@ -140,8 +140,10 @@ def load_config(path: Path) -> Config:
         # links into src/claude/rules/). Every later read refuses a link, so
         # the controller works on the file the link names.
         artifact=resolve(data["artifact"]).resolve(),
-        state_dir=resolve(data["state_dir"]),
-        workspace_dir=resolve(data["workspace_dir"]),
+        # Canonical paths throughout: a symlinked directory would otherwise be
+        # digested as one link entry, and edits inside it would go unseen.
+        state_dir=resolve(data["state_dir"]).resolve(),
+        workspace_dir=resolve(data["workspace_dir"]).resolve(),
         scorer=_string_list(data, "scorer"),
         collect=_string_list(data, "collect", required=False),
         inputs=_string_list(data, "inputs"),
@@ -155,9 +157,9 @@ def load_config(path: Path) -> Config:
         opt_task_files=data.get("opt_task_files"),
         # Required: an empty list leaves the held-out task definitions readable
         # and undigested, which is the cooperating-optimizer design again.
-        deny_paths=[resolve(item) for item in _string_list(data, "deny_paths")],
+        deny_paths=[resolve(item).resolve() for item in _string_list(data, "deny_paths")],
         trusted_paths=[
-            resolve(item) for item in _string_list(data, "trusted_paths", required=False)
+            resolve(item).resolve() for item in _string_list(data, "trusted_paths", required=False)
         ],
         proposer_env=_string_list(data, "proposer_env", required=False),
         scorer_exit_codes=tuple(codes),

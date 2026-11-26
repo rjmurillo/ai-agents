@@ -755,7 +755,8 @@ def test_failed_scorer_output_is_moved_out_of_the_checkout(tmp_path: Path) -> No
 
 
 def test_baseline_scorer_that_edits_the_artifact_is_refused(tmp_path: Path) -> None:
-    config, _ = _setup(tmp_path, {}, steps=1)
+    config, artifact = _setup(tmp_path, {}, steps=1)
+    before = artifact.read_text(encoding="utf-8")
     scorer = tmp_path / "scripts" / "scorer.py"
     scorer.write_text(
         scorer.read_text(encoding="utf-8") + "\nopen(artifact, 'a').write(' ')\n",
@@ -763,6 +764,7 @@ def test_baseline_scorer_that_edits_the_artifact_is_refused(tmp_path: Path) -> N
     )
     assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
     assert not (tmp_path / "state" / "split.json").exists()
+    assert artifact.read_text(encoding="utf-8") == before
 
 
 def test_baseline_scorer_that_edits_a_task_file_is_refused(tmp_path: Path) -> None:
@@ -850,3 +852,19 @@ def test_tamper_refusal_still_collects_the_scorer_report(tmp_path: Path) -> None
     _edit_config(config, collect=[str(report)])
     assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
     assert not report.exists()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
+def test_symlinked_deny_directory_is_digested_by_content(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    link = tmp_path / "fixtures-link"
+    link.symlink_to(tmp_path / "fixtures", target_is_directory=True)
+    scorer = tmp_path / "scripts" / "scorer.py"
+    fixture = tmp_path / "fixtures" / "T01.json"
+    scorer.write_text(
+        scorer.read_text(encoding="utf-8") + f"\nopen({str(fixture)!r}, 'a').write(' ')\n",
+        encoding="utf-8",
+    )
+    _edit_config(config, deny_paths=[str(link)])
+    assert ec.load_config(config).deny_paths == [(tmp_path / "fixtures").resolve()]
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG

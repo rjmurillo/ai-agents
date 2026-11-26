@@ -201,6 +201,13 @@ Seventeen inline threads on `efba0ce6e`. Code fixes landed in one commit; each t
 | CodeQL | `chmod` with a world-readable mode. | By design: restores the artifact's original mode (round 3 fix R3-1). |
 | CodeQL | Clear-text logging of a secret in `cmd_policy`. | False positive: `policy` prints paths only. |
 
+Second Cursor pass on `f3f27f824`:
+
+| Finding | Disposition |
+| --- | --- |
+| A failed baseline scoring run left a scorer-rewritten artifact on disk. | Fixed. The baseline restores the incumbent on failure. |
+| `state_dir`, `workspace_dir`, `deny_paths`, and `trusted_paths` were not canonical, so a symlinked directory skipped the content digest. | Fixed. All resolve at config load. |
+
 ## Dissent and residual risk
 
 - The boundary holds only under a launcher deny rule the controller cannot verify. The owner chose this in decision D2 over an OS user or a CI job.
