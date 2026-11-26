@@ -398,6 +398,12 @@ class TestDefinesTest:
             ("for test_t in [None]:\n    pass", [], "test_t"),
             ("with open(__file__) as test_t:\n    pass", [], "test_t"),
             ("(test_t := None)", [], "test_t"),
+            ("print(test_t := None)", [], "test_t"),
+            ("x = (test_t := None)", [], "test_t"),
+            ("if (test_t := None):\n    pass", [], "test_t"),
+            ("[test_t := 1 for _ in range(1)]", [], "test_t"),
+            ("while (test_t := None):\n    pass", [], "test_t"),
+            ("match (test_t := 1):\n    case _:\n        pass", [], "test_t"),
             ("from os import *", [], "test_t"),
             ("test_t = staticmethod(test_t)", [], "test_t"),
             ("TestR = None", ["TestR"], "test_r"),
@@ -419,7 +425,16 @@ class TestDefinesTest:
 
     @pytest.mark.parametrize(
         "other",
-        ["test_t = None\n\ndef test_t():\n    pass\n", "d = {}\nd[test_t] = 1\n", "x: test_t\n"],
+        [
+            "test_t = None\n\ndef test_t():\n    pass\n",
+            "from os import *\n\ndef test_t():\n    pass\n",
+            "d = {}\nd[test_t] = 1\n",
+            "x: test_t\n",
+            "f = lambda: (test_t := None)\n",
+            "def helper():\n    test_t = None\n",
+            "try:\n    test_t = None\nexcept Exception:\n    pass\n",
+            "match 1:\n    case _:\n        test_t = None\n",
+        ],
     )
     def test_a_def_that_stays_the_final_binding_is_collected(self, other: str) -> None:
         source = f"def test_t():\n    pass\n\n{other}"

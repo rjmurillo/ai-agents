@@ -360,7 +360,8 @@ def _final_binding(body: list[ast.stmt], name: str) -> ast.stmt | None:
     """The last statement directly in *body* that binds *name*, or None.
 
     A def, a class, an import, ``del``, an assignment with a value, a ``type``
-    alias, a ``for`` or ``with`` target, or a walrus statement binds. A star
+    alias, a ``for`` or ``with`` target, or a walrus in a statement's own
+    expressions (a comprehension included) binds. A star
     import may bind any name, so it counts. A wrapper such as
     ``test_x = mark(test_x)`` counts too and fails closed: use decorator syntax.
     A binding nested in a block body (``if``, ``try``, ``for``) is not read:
@@ -392,8 +393,7 @@ def _bound_names(node: ast.stmt) -> set[str]:
         targets = [i.optional_vars for i in node.items if i.optional_vars is not None]
     elif isinstance(node, ast.TypeAlias):
         targets = [node.name]
-    elif isinstance(node, ast.Expr) and isinstance(node.value, ast.NamedExpr):
-        targets = [node.value.target]
+    targets = targets + _walrus_targets(node)
     stores = (ast.Store, ast.Del)
     return {
         n.id
@@ -401,6 +401,36 @@ def _bound_names(node: ast.stmt) -> set[str]:
         for n in ast.walk(t)
         if isinstance(n, ast.Name) and isinstance(n.ctx, stores)
     }
+
+
+def _walrus_targets(node: ast.stmt) -> list[ast.expr]:
+    """Walrus targets in the expressions *node* runs itself, not in a block body.
+
+    A walrus binds in the enclosing scope, even inside a comprehension, so a
+    comprehension is walked. A lambda opens its own scope, so it is not.
+    """
+    if isinstance(node, (ast.Try, ast.TryStar)):
+        return []
+    heads: list[ast.AST]
+    if isinstance(node, (ast.If, ast.While)):
+        heads = [node.test]
+    elif isinstance(node, (ast.For, ast.AsyncFor)):
+        heads = [node.iter]
+    elif isinstance(node, (ast.With, ast.AsyncWith)):
+        heads = [i.context_expr for i in node.items]
+    elif isinstance(node, ast.Match):
+        heads = [node.subject]
+    else:
+        heads = [node]
+    found: list[ast.expr] = []
+    while heads:
+        current = heads.pop()
+        if isinstance(current, ast.Lambda):
+            continue
+        if isinstance(current, ast.NamedExpr):
+            found.append(current.target)
+        heads.extend(ast.iter_child_nodes(current))
+    return found
 
 
 def _defines_constructor(body: list[ast.stmt]) -> bool:
