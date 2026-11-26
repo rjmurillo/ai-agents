@@ -314,11 +314,13 @@ class TestRelevanceFloor:
     @pytest.mark.unit
     def test_result_exactly_at_floor_is_injected(self, tmp_path: Path):
         repo = self._repo(tmp_path)
-        # 1 of 2 terms names the memory: relevance 0.5 == _MIN_RELEVANCE.
-        assert _MIN_RELEVANCE == 0.5
-        out = _search_and_format("worktree unrelated", repo / ".serena" / "memories", repo)
+        # 3 of 5 terms name the memory: relevance 0.6 == _MIN_RELEVANCE.
+        assert _MIN_RELEVANCE == 0.6
+        out = _search_and_format(
+            "worktree identity guard unrelated filler", repo / ".serena" / "memories", repo
+        )
         assert "decision-worktree-identity-guard-scope" in out
-        assert "relevance: 50%" in out
+        assert "relevance: 60%" in out
 
     @pytest.mark.unit
     def test_empty_query_injects_nothing(self, tmp_path: Path):
