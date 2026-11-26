@@ -253,9 +253,9 @@ and [references/script-patterns-catalog.md](references/script-patterns-catalog.m
 ### Placement Check
 
 Before a new skill lands, or an edit adds or moves standing knowledge,
-run `context-optimizer` placement analysis on the knowledge content (facts,
-rules, reference material). Follow a Passive Context or Hybrid result: a skill
-that never triggers fails silently.
+run `context-optimizer` placement analysis on the whole skill draft to place
+its knowledge content (facts, rules, reference material). Follow a Passive
+Context or Hybrid result.
 Mechanics-only edits (scripts, tests, wording) skip this.
 
 ---
