@@ -75,7 +75,7 @@ _FIELD_PREFIXES = ("i/", "w/", "attr/")
 # are not in `Cc`, and a renderer that honours them breaks the line just as a
 # newline does.
 #
-# Stricter/looser/different than canonical: `git_hook_policy.py` normalizes
+# Stricter/looser/different than canonical: `scripts/validation/adr_debate_evidence.py` normalizes
 # `Cf` away before matching, because its subject is whether two strings are the
 # same placeholder. This escapes instead, because the path has to stay
 # readable and the operator has to see that something invisible is there.
