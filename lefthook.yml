@@ -826,9 +826,9 @@ pre-push:
                       # than the standalone number (ci-scripts.md MUST-16).
                       #
                       # Copilot review round 8 (PR #5344): no `glob` here on purpose. This
-                      # is a whole-tree check, not a diff-scoped one, and `.claude/rules/
-                      # ci-scripts.md`'s "Path filters gate the diff, never the tree"
-                      # section's "whole tree MUST run" rule applies to local pre-push the
+                      # is a whole-tree check, not a diff-scoped one. "Path filters gate the diff, never
+                      # the tree" in .claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md
+                      # has a "whole tree MUST run" rule. It applies to local pre-push the
                       # same way it applies to the CI job this mirrors
                       # (`zero-collection-guard` in `.github/workflows/pytest.yml`). A
                       # non-Python push (`uv.lock`, `.python-version`) changes the pytest

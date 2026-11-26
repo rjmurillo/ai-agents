@@ -16,6 +16,7 @@ outside those roots on purpose: fixtures and dated records cite old paths.
 from __future__ import annotations
 
 import importlib.util
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -79,17 +80,37 @@ def find_missing_rule_citations(root: Path, paths: list[str]) -> tuple[list[str]
         if b"\0" in data:
             continue
         files += 1
-        text = data.decode("utf-8", errors="replace")
-        for lineno, line in enumerate(text.splitlines(), start=1):
+        lines = data.decode("utf-8", errors="replace").splitlines()
+        for lineno, line in enumerate(lines, start=1):
             if _patterns.IGNORE_DIRECTIVE_RE.search(line):
                 continue
-            for match in _patterns.RULE_REF_RE.finditer(line):
-                cited = match.group(1)
+            cited_paths = [m.group(1) for m in _patterns.RULE_REF_RE.finditer(line)]
+            wrapped = _wrapped_citation(line, lines[lineno] if lineno < len(lines) else "")
+            if wrapped:
+                cited_paths.append(wrapped)
+            for cited in cited_paths:
                 citations += 1
                 if cited in ALLOWED_MISSING or (root / cited).exists():
                     continue
                 findings.append(f"{rel}:{lineno}: {cited}")
     return findings, files, citations
+
+
+# A comment rewrap can split a citation after ``.claude/rules/``, leaving the
+# file name at the start of the next line. RULE_REF_RE reads one line, so it
+# sees neither half. lefthook.yml carried one such split (issue #7658 review).
+_WRAP_HEAD_RE = re.compile(r"(?<![\w/])\.claude/rules/$", re.IGNORECASE)
+_WRAP_TAIL_RE = re.compile(r"^\s*(?:#|//|\*|<!--)?\s*`?([a-zA-Z0-9_.-]+\.md)(?!\w)")
+
+
+def _wrapped_citation(line: str, next_line: str) -> str | None:
+    """Return the rule path split across ``line`` and ``next_line``, if any."""
+    if not _WRAP_HEAD_RE.search(line.rstrip()):
+        return None
+    if _patterns.IGNORE_DIRECTIVE_RE.search(next_line):
+        return None
+    tail = _WRAP_TAIL_RE.match(next_line)
+    return f".claude/rules/{tail.group(1)}" if tail else None
 
 
 def test_no_live_file_cites_a_missing_rule() -> None:
@@ -124,6 +145,21 @@ def test_ignore_directive_and_allowlist_suppress(tmp_path: Path) -> None:
     findings, _files, citations = find_missing_rule_citations(tmp_path, ["doc.md"])
     assert findings == []
     assert citations == 1
+
+
+def test_citation_wrapped_across_lines_is_flagged(tmp_path: Path) -> None:
+    (tmp_path / ".claude" / "rules").mkdir(parents=True)
+    (tmp_path / ".claude" / "rules" / "present.md").write_text("x\n", encoding="utf-8")
+    doc = tmp_path / "doc.yml"
+    doc.write_text(
+        "  # see `.claude/rules/\n  # gone.md`'s section\n"
+        "  # and .claude/rules/\n  # present.md for more\n"
+        "  # trailing .claude/rules/\n",
+        encoding="utf-8",
+    )
+    findings, _files, citations = find_missing_rule_citations(tmp_path, ["doc.yml"])
+    assert findings == ["doc.yml:1: .claude/rules/gone.md"]
+    assert citations == 2
 
 
 def test_binary_and_missing_paths_are_skipped(tmp_path: Path) -> None:
