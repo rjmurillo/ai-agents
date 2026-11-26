@@ -5,8 +5,8 @@ Retrieves issue information including title, body, labels, milestone, state.
 
 Exit codes follow ADR-035:
     0 - Success
-    1 - Invalid parameters / logic error
-    2 - Not found
+    1 - Logic error
+    2 - Not found, or invalid arguments
     3 - External error (API failure)
     4 - Auth error (not authenticated)
 """
@@ -36,6 +36,19 @@ from github_core import (
 )
 
 GH_TIMEOUT_SECONDS = _env_timeout_seconds()
+
+# gh words a missing issue two ways: REST reports "Not Found (HTTP 404)", and
+# GraphQL reports "Could not resolve to an issue or pull request with the
+# number of N". "Could not resolve host" is a transport fault and must not match.
+_ISSUE_NOT_FOUND_MARKERS = (
+    "not found",
+    "could not resolve to an issue",
+)
+
+
+def _is_issue_not_found(text: str) -> bool:
+    lowered = text.lower()
+    return any(marker in lowered for marker in _ISSUE_NOT_FOUND_MARKERS)
 
 
 _HELP_EPILOG = """\
@@ -102,14 +115,26 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit(3) from err
 
     if result.returncode != 0:
+        # Only a reported miss is exit 2. Any other gh failure (network,
+        # server, rate limit) is an external error, exit 3, per ADR-035.
+        detail = (result.stderr or result.stdout or "").strip()
+        if _is_issue_not_found(detail):
+            write_skill_error(
+                f"Issue #{args.issue} not found in {owner}/{repo}",
+                2,
+                error_type="NotFound",
+                output_format=fmt,
+                script_name="get_issue_context.py",
+            )
+            raise SystemExit(2)
         write_skill_error(
-            f"Issue #{args.issue} not found or API error (exit code {result.returncode})",
-            2,
-            error_type="NotFound",
+            f"Failed to get issue #{args.issue} (gh exit {result.returncode}): {detail}",
+            3,
+            error_type="ApiError",
             output_format=fmt,
             script_name="get_issue_context.py",
         )
-        raise SystemExit(2)
+        raise SystemExit(3)
 
     try:
         issue_data = json.loads(result.stdout)

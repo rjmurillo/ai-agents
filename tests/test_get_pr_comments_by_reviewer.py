@@ -277,6 +277,48 @@ class TestMain:
         assert exc.value.code == 3
         assert '"success": true' not in capsys.readouterr().out.lower()
 
+    @pytest.mark.parametrize(
+        "response",
+        [
+            {"repository": {"pullRequest": None}},
+            {"repository": None},
+            {},
+        ],
+    )
+    def test_pr_not_found_exits_2(self, response, capsys):
+        with (
+            patch(f"{_MODULE}.assert_gh_authenticated"),
+            patch(
+                f"{_MODULE}.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(f"{_MODULE}.gh_graphql", return_value=response),
+            patch(f"{_MODULE}.gh_api_paginated", return_value=[]) as paginated,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "42"])
+
+        assert exc.value.code == 2
+        paginated.assert_not_called()
+        assert '"success": true' not in capsys.readouterr().out.lower()
+
+    def test_pr_found_does_not_exit_2(self, capsys):
+        # Negative control for test_pr_not_found_exits_2: the same mocks with
+        # a present pullRequest must complete and return 0.
+        with (
+            patch(f"{_MODULE}.assert_gh_authenticated"),
+            patch(
+                f"{_MODULE}.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(f"{_MODULE}.gh_graphql", return_value=_author_response()),
+            patch(f"{_MODULE}.gh_api_paginated", return_value=[]),
+        ):
+            rc = main(["--pull-request", "42"])
+
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out)["success"] is True
+
     def test_no_comments(self, capsys):
         author_response = _author_response()
         with (

@@ -143,7 +143,7 @@ class TestGetIssueContext:
                 mod.main(["--issue", "99"])
         assert exc.value.code == 2
 
-    def test_api_other_error_exits_2(self):
+    def test_api_other_error_exits_3(self):
         mod = self._import()
         proc = make_proc(stderr="connection refused", returncode=1)
         with (
@@ -153,7 +153,7 @@ class TestGetIssueContext:
         ):
             with pytest.raises(SystemExit) as exc:
                 mod.main(["--issue", "99"])
-        assert exc.value.code == 2
+        assert exc.value.code == 3
 
     def test_empty_json_exits_3(self):
         mod = self._import()

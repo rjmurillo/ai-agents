@@ -119,7 +119,20 @@ class TestGetIssueContext:
                 mod.main(["--issue", "999"])
         assert exc.value.code == 2
 
-    def test_api_error_exits_2(self, _import_module):
+    @pytest.mark.parametrize(
+        ("stderr", "expected"),
+        [
+            # Positive: both gh wordings of a missing issue exit 2.
+            ("HTTP 404: Not Found", 2),
+            ("GraphQL: Could not resolve to an issue or pull request with the number of 999.", 2),
+            # Negative controls: other gh failures are external errors, exit 3.
+            ("some error", 3),
+            ("Could not resolve host: api.github.com", 3),
+            ("HTTP 502: Bad Gateway", 3),
+            ("", 3),
+        ],
+    )
+    def test_nonzero_gh_exit_classification(self, _import_module, capsys, stderr, expected):
         mod = _import_module
         with (
             patch("get_issue_context.assert_gh_authenticated"),
@@ -127,14 +140,17 @@ class TestGetIssueContext:
             patch(
                 "subprocess.run",
                 return_value=make_completed_process(
-                    stderr="some error",
+                    stderr=stderr,
                     returncode=1,
                 ),
             ),
         ):
             with pytest.raises(SystemExit) as exc:
-                mod.main(["--issue", "999"])
-        assert exc.value.code == 2
+                mod.main(["--issue", "999", "--output-format", "json"])
+        assert exc.value.code == expected
+        envelope = json.loads(capsys.readouterr().out)
+        assert envelope["Error"]["Code"] == expected
+        assert envelope["Error"]["Type"] == ("NotFound" if expected == 2 else "ApiError")
 
     def test_timeout_exits_3_with_timeout_error(self, _import_module, capsys):
         mod = _import_module
