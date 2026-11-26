@@ -80,12 +80,14 @@ def load_sibling(
 
 if TYPE_CHECKING:
     import _ship_paths as _paths
+    import _ship_push_lock as _push_lock
     import _ship_remote as _remote
     import _ship_signals as _signals
     import _ship_windows as _windows
 else:
     _remote = load_sibling("_ship_remote")
     _paths = load_sibling("_ship_paths")
+    _push_lock = load_sibling("_ship_push_lock")
     _signals = load_sibling("_ship_signals")
     _windows = load_sibling("_ship_windows")
 SCRATCH_REL = _paths.SCRATCH_REL
@@ -93,7 +95,7 @@ scratch_dir = _paths.scratch_dir
 write_private = _paths.write_private
 confine_body_file = _paths.confine_body_file
 stored_int = _paths.stored_int
-push_lock = _paths.push_lock
+push_lock = _push_lock.push_lock
 remote_host = _remote.remote_host
 classify_host = _remote.classify_host
 cmd_rewrites = _windows.cmd_rewrites
