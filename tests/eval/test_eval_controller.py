@@ -1304,17 +1304,17 @@ def test_second_controller_on_the_same_state_dir_is_refused(
 def test_finished_run_releases_the_state_lock(tmp_path: Path) -> None:
     config, _ = _setup(tmp_path, {}, steps=1)
     assert ec.main(["run", "--config", str(config)]) == 0
-    io = sys.modules["_controller_io"]
     # The lock is free: taking it again succeeds.
-    io.unlock_state(tmp_path / "state", io.lock_state(tmp_path / "state"))
+    with sys.modules["_controller_io"].state_lock(tmp_path / "state"):
+        pass
 
 
 def test_failed_run_releases_the_state_lock(tmp_path: Path) -> None:
     config, _ = _setup(tmp_path, {}, steps=1)
     _edit_config(config, collect=[str(tmp_path / "never-written.xml")])
     assert ec.main(["run", "--config", str(config)]) == ec.EXIT_EXTERNAL
-    io = sys.modules["_controller_io"]
-    io.unlock_state(tmp_path / "state", io.lock_state(tmp_path / "state"))
+    with sys.modules["_controller_io"].state_lock(tmp_path / "state"):
+        pass
 
 
 def test_reused_state_dir_still_names_the_old_session_not_the_lock(
@@ -1337,11 +1337,8 @@ def test_held_flock_refuses_without_writing_to_state(
     state = tmp_path / "state"
     state.mkdir()
     io = sys.modules["_controller_io"]
-    handle = io.lock_state(state)
-    try:
+    with io.state_lock(state):
         assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
-    finally:
-        io.unlock_state(state, handle)
     assert "another controller is running" in capsys.readouterr().err
     assert sorted(p.name for p in state.iterdir()) == [io.STATE_LOCK]
 

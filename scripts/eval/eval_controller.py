@@ -54,15 +54,15 @@ from _controller_config import (
 )
 from _controller_io import (
     clear_dir,
+    collect_into,
     fill,
-    lock_state,
     optimizer,
     proposer_env,
     read_artifact,
     run_child,
+    state_lock,
     task_file,
     tree_digest,
-    unlock_state,
     write_artifact,
 )
 
@@ -99,7 +99,6 @@ class Controller:
         self.started = False
         self.restoring = False
         self.term_pending = False
-        self.lock: int | None = None
 
     def _record(self, event: Mapping[str, Any]) -> None:
         stamp = dt.datetime.now(dt.UTC).isoformat(timespec="milliseconds")
@@ -141,9 +140,6 @@ class Controller:
 
         Each path is attempted on its own, so one missing or unmovable report
         never leaves a later one, with its held-out outcomes, in the checkout.
-        The scorer knows `run_dir`, so it can plant the destination. A link
-        there would carry the report out of state, so it is removed first and
-        the run fails; anything else there is left and the run fails.
         """
         problems: list[str] = []
         for index, template in enumerate(self.config.collect):
@@ -151,16 +147,8 @@ class Controller:
             if not (source.exists() or source.is_symlink()):
                 problems.append(f"scorer output {source} was not produced")
                 continue
-            destination = run_dir / str(index)
-            if os.path.lexists(destination):
-                problems.append(f"collect destination {destination} existed before collection")
-                if not destination.is_symlink():
-                    continue
-                destination.unlink()
-            try:
-                shutil.move(str(source), str(destination))
-            except OSError as exc:
-                problems.append(f"could not move scorer output {source}: {exc}")
+            # The scorer knows `run_dir`, so it may have planted the destination.
+            problems.extend(collect_into(source, run_dir / str(index)))
         return problems
 
     def _refuse_stale_reports(self, values: Mapping[str, str], label: str) -> None:
@@ -301,11 +289,6 @@ class Controller:
 
     def _baseline(self) -> None:
         config = self.config
-        # Locked before the fresh-session check, or two runs could both pass
-        # it. A refused run has not started, so it writes nothing to the log.
-        self.state.mkdir(parents=True, exist_ok=True)
-        os.chmod(self.state, 0o700)
-        self.lock = lock_state(self.state)
         if (self.state / "split.json").exists():
             raise ControllerError("state_dir already holds a session; use a fresh state_dir")
         workspace = config.workspace_dir
@@ -314,6 +297,8 @@ class Controller:
                 "workspace_dir must be absent or empty; the controller empties it every step"
             )
         self.started = True
+        self.state.mkdir(parents=True, exist_ok=True)
+        os.chmod(self.state, 0o700)
         self.incumbent_bytes = read_artifact(config.artifact)
         self.mode = config.artifact.stat().st_mode & 0o7777
         self.integrity = tree_digest(self._protected())
@@ -427,7 +412,9 @@ class Controller:
         previous = signal.signal(signal.SIGTERM, self.on_sigterm)
         previous_int = signal.signal(signal.SIGINT, self.on_sigterm)
         try:
-            return self._run()
+            # Held for the whole run; a refused second run has not started.
+            with state_lock(self.state):
+                return self._run()
         except ControllerError as exc:
             if self.started and self.log.parent.is_dir():
                 self._record(
@@ -435,9 +422,6 @@ class Controller:
                 )
             raise
         finally:
-            if self.lock is not None:
-                unlock_state(self.state, self.lock)
-                self.lock = None
             # A handler installed from C reads back as None; fall back to default.
             signal.signal(signal.SIGTERM, previous if previous is not None else signal.SIG_DFL)
             signal.signal(

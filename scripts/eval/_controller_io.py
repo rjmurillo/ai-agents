@@ -7,6 +7,7 @@ reads and writes the artifact without following planted links.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import importlib
 import json
@@ -18,7 +19,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
 from types import ModuleType
 from typing import IO, Any
@@ -99,16 +100,7 @@ def tree_digest(paths: Sequence[Path], exclude: Path | None = None) -> str:
     return sha.hexdigest()
 
 
-def lock_state(state: Path) -> int:
-    """Take the one-controller lock on `state`; return the fd that holds it.
-
-    Two controllers on one `state_dir` each see the other's writes as
-    tampering, and both can pass the fresh-session check before either
-    writes `split.json`. With `fcntl` the lock is `flock` on a file in state:
-    the kernel drops it when the holder dies, so a crash leaves nothing to
-    clear. Without `fcntl` an exclusive create is the lock, and a file left
-    by a killed run is reported rather than broken.
-    """
+def _acquire(state: Path) -> int:
     lock = state / STATE_LOCK
     busy = f"another controller is running against {state}; wait for it or use a fresh state_dir"
     flags = os.O_CREAT | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0)
@@ -126,11 +118,48 @@ def lock_state(state: Path) -> int:
     return handle
 
 
-def unlock_state(state: Path, handle: int) -> None:
-    """Release `lock_state`. The exclusive-create lock is the file itself."""
-    os.close(handle)
-    if _FCNTL is None:
-        (state / STATE_LOCK).unlink(missing_ok=True)
+@contextlib.contextmanager
+def state_lock(state: Path) -> Iterator[None]:
+    """Hold the one-controller lock on `state`, creating it private if absent.
+
+    Two controllers on one `state_dir` each see the other's writes as
+    tampering, and both can pass the fresh-session check before either
+    writes `split.json`. With `fcntl` the lock is `flock` on a file in state:
+    the kernel drops it when the holder dies, so a crash leaves nothing to
+    clear. Without `fcntl` an exclusive create is the lock, and a file left
+    by a killed run is reported rather than broken. The lock file's bytes
+    never change, so the state digest does not see it.
+    """
+    state.mkdir(parents=True, exist_ok=True)
+    os.chmod(state, 0o700)
+    handle = _acquire(state)
+    try:
+        yield
+    finally:
+        os.close(handle)
+        if _FCNTL is None:
+            (state / STATE_LOCK).unlink(missing_ok=True)
+
+
+def collect_into(source: Path, destination: Path) -> list[str]:
+    """Move one scorer output to `destination`; return what went wrong.
+
+    `shutil.move` follows a link at the destination and moves the report into
+    whatever directory it names, which can be outside state. A link there is
+    removed before the move, so the report still leaves the checkout; anything
+    else there is left alone. Either way the run fails.
+    """
+    problems: list[str] = []
+    if os.path.lexists(destination):
+        problems.append(f"collect destination {destination} existed before collection")
+        if not destination.is_symlink():
+            return problems
+        destination.unlink()
+    try:
+        shutil.move(str(source), str(destination))
+    except OSError as exc:
+        problems.append(f"could not move scorer output {source}: {exc}")
+    return problems
 
 
 def fill(template: str, values: Mapping[str, str]) -> str:

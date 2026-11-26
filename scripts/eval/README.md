@@ -2362,7 +2362,7 @@ nothing in `state_dir` outside the new run's directory.
 
 One controller runs per `state_dir`. The run locks `state_dir/controller.lock`
 before its fresh-session check, and a second run on the same `state_dir` exits
-2 with "another controller is running". On POSIX the lock is `fcntl.flock`,
+2 with "another controller is running". On POSIX it is an `fcntl` file lock,
 which the kernel drops when the holder dies. Without `fcntl` (Windows) the
 lock is an exclusive-create file, removed when the run ends. A killed run
 leaves it behind; the refusal names the file to remove.
