@@ -22,7 +22,7 @@
 
 Two citation repairs ride along, because rule 2b shifted line numbers:
 
-- `REQ-048-friction-triggered-retrospective-nudge.md` lines 70 and 471 now cite ADR-084 line 263.
+- `REQ-048-friction-triggered-retrospective-nudge.md` lines 70 and 473 now cite ADR-084 line 263. The second citation sits in its own paragraph, so the reverse pass reads only its own anchors.
 - A docstring in `tests/build_scripts/test_hook_contract_knowledge.py` now names the section "What this ADR does NOT do".
 
 ## Alternatives considered
