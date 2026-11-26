@@ -96,6 +96,13 @@ mechanism:
   train-split feedback may reach the author or the reflection prompt. Feedback
   on `sel` tasks stays with the `sel` runner.
 
+The judge reports each gap. The eval author makes the change, and only between
+runs. SkillOpt freezes the task lists and verifiers before any candidate
+exists. A rewritten verifier or a new task changes that frozen eval. So finish
+or stop the current run first. Then freeze the changed eval and measure a new
+baseline before the next candidate. Never score one candidate on an eval that
+changed after its baseline.
+
 Judge train-split outputs only. A finding that draws on a `sel` output stays
 with the `sel` runner in every form. That covers a verifier rewrite, a new
 task, and an eval critique.

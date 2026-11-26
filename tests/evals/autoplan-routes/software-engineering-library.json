@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "scenarios": [
+    {
+      "id": "lt-software-engineering-library-upgrade-java",
+      "family": "long-tail-single-domain",
+      "request": "Upgrade this service from Java 8 to Java 21.",
+      "expect": {
+        "kind": "specialist",
+        "route": "software-engineering-library",
+        "routes_absent": [
+          "orchestrator",
+          "modernize"
+        ]
+      },
+      "rationale": "A same-stack runtime upgrade routes to the library, which then opens its version-uplift reference."
+    },
+    {
+      "id": "lt-software-engineering-library-framework-upgrade",
+      "family": "long-tail-single-domain",
+      "request": "Plan the framework upgrade from Spring Boot 2 to 3.",
+      "expect": {
+        "kind": "specialist",
+        "route": "software-engineering-library",
+        "routes_absent": [
+          "orchestrator",
+          "modernize"
+        ]
+      },
+      "rationale": "A framework upgrade is a version uplift, so the framework upgrade intent must route to the library."
+    },
+    {
+      "id": "lt-software-engineering-library-version-uplift",
+      "family": "long-tail-single-domain",
+      "request": "Do a version uplift of the billing module.",
+      "expect": {
+        "kind": "specialist",
+        "route": "software-engineering-library",
+        "routes_absent": [
+          "orchestrator",
+          "modernize"
+        ]
+      },
+      "rationale": "The reference's own name must route to the skill that owns it."
+    },
+    {
+      "id": "lt-software-engineering-library-major-bump",
+      "family": "long-tail-single-domain",
+      "request": "Bump the Python major version from 3.9 to 3.13.",
+      "expect": {
+        "kind": "specialist",
+        "route": "software-engineering-library",
+        "routes_absent": [
+          "orchestrator",
+          "modernize"
+        ]
+      },
+      "rationale": "A major version bump of a runtime is a version uplift under another name."
+    },
+    {
+      "id": "lt-software-engineering-library-package-upgrade-negative",
+      "family": "negative-noise",
+      "request": "Upgrade the requests package to the latest release.",
+      "expect": {
+        "kind": "none",
+        "route": null,
+        "routes_absent": [
+          "software-engineering-library"
+        ]
+      },
+      "rationale": "Negative control: a single package upgrade is not a runtime or framework uplift."
+    },
+    {
+      "id": "lt-software-engineering-library-plugin-version-negative",
+      "family": "negative-noise",
+      "request": "Bump the plugin version in the changelog.",
+      "expect": {
+        "kind": "none",
+        "route": null,
+        "routes_absent": [
+          "software-engineering-library"
+        ]
+      },
+      "rationale": "Negative control: a release version edit that says bump must not route to the library."
+    },
+    {
+      "id": "lt-software-engineering-library-modernize-pr-negative",
+      "family": "long-tail-single-domain",
+      "request": "Modernize this PR.",
+      "expect": {
+        "kind": "specialist",
+        "route": "modernize",
+        "routes_absent": [
+          "software-engineering-library"
+        ]
+      },
+      "rationale": "Negative control: refreshing an old pull request belongs to modernize, not to the version-uplift reference."
+    }
+  ]
+}

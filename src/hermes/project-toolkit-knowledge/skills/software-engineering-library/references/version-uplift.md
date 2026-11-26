@@ -30,8 +30,8 @@ Settle these before you edit anything.
 
 1. **Pin both versions exactly.** ".NET" is not a version. If either number is missing, stop and ask.
 2. **Look up support for the target.** Check the vendor's support page today. Never recall it from memory. Apply the same rule to any version you offer as an option.
-3. **Prove the target toolchain on this code.** Run the target's build and one test. A version string proves nothing.
-4. **Check whether the source runtime also runs here.** It is your baseline oracle. If it does not (no .NET Framework on Linux, for example), the dual run degrades to target-only. Say so in the plan and in the notes.
+3. **Prove the target toolchain works here.** Run a smoke build and one test on the target. Use a new empty project, or a small unit that no delta touches. A version string proves nothing. Then build the unmodified code on the target once. Expect it to fail where the target removed something. Each failure is a delta candidate, so record it as catalog input. It does not fail preflight. The code first builds on the target in the pilot.
+4. **Check whether the source runtime also runs here.** It is your baseline oracle. If it does not (no .NET Framework on Linux, for example), the dual run degrades to target-only. Equivalence then falls back to recorded source outputs. Say so in the plan and in the notes.
 5. **Check that the existing test framework runs on the target.** NUnit 2 or MSTest v1 on modern .NET, JUnit 4 without the vintage engine, and `nose` on Python 3 all fail this check. If the framework cannot run, test migration becomes a prerequisite phase, not a leaf task. Nothing migrated can be validated until the tests run.
 6. **Read where the tests point.** Open the test configuration and list every database, queue, and service it connects to. If any target is not local or throwaway, stop and ask which environment to use. Both the baseline and the proof run old code against it.
 7. **Split big moves into hops.** A multi-major move, or two things at once (a JDK and a framework), becomes a sequence such as Java 8, 11, 17, then the target. Each hop builds and passes its tests before the next one starts. Treat each hop as its own pilot.
@@ -102,7 +102,7 @@ Run the existing suite on the source version before any edit. Use a scratch copy
 - Record every test, including the ones that already fail. The claim is "no behavior changed", not "all tests pass".
 - Keep the runner's own result files or raw log (JUnit XML, `.trx`, Maven `surefire-reports`, `pytest --junitxml`, a `dotnet test` log). Name them in the baseline file.
 - Measure the baseline. Do not type it. A typed table without result files is weaker evidence.
-- If the source runtime cannot run here, write one line: `target-only: <why>`.
+- If the source runtime cannot run here, write one line: `target-only: <why>`. Then name any recorded source outputs you hold, such as old CI result files. They are the only oracle a target-only run has.
 
 Do not start migrating until the baseline file exists. Add characterization tests at Behavioral-silent delta sites where coverage is thin. Do not add blanket coverage. Never turn a credential into a fixture.
 
@@ -127,16 +127,16 @@ The catalog is a hypothesis built by reading. The build system is where old code
 
 ## Proof
 
-Run the same suite on both versions, or on the target only when the source cannot run here.
+A dual run executes the same suite on both versions. A target-only run executes it on the target alone, when the source cannot run here. Steps 1 and 6 compare against source results, so they bind a dual run. Step 8 replaces them in a target-only run. Every other step binds both.
 
-1. Every test must reproduce its baseline result. A pass that now fails is a regression. A failure that now passes is a behavior change to adjudicate.
+1. In a dual run, every test must reproduce its baseline result. A pass that now fails is a regression. A failure that now passes is a behavior change to adjudicate.
 2. Triage every changed result. An unexplained change blocks the uplift.
 3. Report tests executed for each leg. A leg that executed zero tests proved nothing.
 4. Delete build output and runner caches, then rerun from a clean build.
 5. Plant a canary. Break one line that matters in a scratch copy (a rounding mode, a threshold off by one). Confirm the covering tests fail. Keep that run's log.
-6. Try at least 10 fresh inputs that development did not use. Save real outputs from both versions. Leave out inputs the old version refuses, and list them with the reason.
+6. In a dual run, try at least 10 fresh inputs that development did not use. Save real outputs from both versions and compare them. Leave out inputs the old version refuses, and list them with the reason.
 7. Mask only what legitimately varies, and say why. Never hand-edit an output.
-8. If the source runtime cannot run here, label the proof target-only. Do not call it proven.
+8. In a target-only run, compare target results with the recorded source outputs named in the baseline file. Triage every difference as step 2 says. Label the proof target-only. Do not call it proven. Where no record exists, state that behavior parity is not established.
 
 A test that pins old-version behavior and fails on the new one is a difference, not a test bug. A person decides: fix the code, update the test, or approve it with a stated reason.
 
@@ -150,18 +150,21 @@ A test that pins old-version behavior and fails on the new one is a difference, 
 ## Quick Self-Review
 
 - Did you pin both versions and look up target support instead of recalling it?
-- Did the target toolchain build and test this code before you edited?
+- Did a smoke build and test prove the target toolchain before you edited?
+- Did you record the unmodified code's target build failures as delta candidates?
 - Do the existing tests run on the target, or is test migration a prerequisite phase?
 - Does each catalog entry carry `file:line` and a category?
 - Did every migration tool you cite actually run, or did you record the lost coverage?
 - Does the baseline come from kept runner result files, including failing tests?
 - Did a pilot of a representative unit feed the catalog and a playbook before fan-out?
 - Did you re-run the full build yourself?
-- Does every test reproduce its baseline result, with tests executed reported per leg?
-- Did a canary fail where it should, and did 10 fresh inputs match?
+- Did you report tests executed for each leg?
+- Did a canary fail where it should?
+- Dual run only: does every test reproduce its baseline result, and did 10 fresh inputs match?
+- Target-only run only: did you compare target results with recorded source outputs, or state that parity is not established?
 - Is any source-runtime gap labeled target-only instead of proven?
 
-If any answer is "no" or "not sure," fix it before you call the uplift done.
+If any answer is "no" or "not sure," fix it before you call the uplift done. Skip a question marked for the other kind of run.
 
 ## Source
 
