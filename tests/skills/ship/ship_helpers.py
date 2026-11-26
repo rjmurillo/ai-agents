@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -194,3 +195,20 @@ def pending_github_pr(fakes, head: str, number: int = 9) -> None:
     }
     fakes.rule("gh", ["pr", "view", str(number)], {"stdout": json.dumps(binding)})
     fakes.rule("get_pr_checks", [], {"rc": 7, "stdout": "{}\n"})
+
+
+def remote_has_branch(tmp_path: Path) -> bool:
+    """True when the test's bare remote has the feature branch."""
+    done = subprocess.run(
+        [
+            "git",
+            f"--git-dir={tmp_path / 'remote.git'}",
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            "refs/heads/feat/ship-change",
+        ],
+        capture_output=True,
+        check=False,
+    )
+    return done.returncode == 0

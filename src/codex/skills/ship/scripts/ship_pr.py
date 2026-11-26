@@ -78,7 +78,7 @@ PUSH_TIMEOUT_SECONDS = 540
 PR_RESERVE_SECONDS = 120
 _EXTERNAL_RETURN_CODES = (124, 126, 127)  # timeout, cannot run, not found
 _RERUN_NOTE = "rerun publish; it detects an existing PR"
-_TIMEOUT_NOTE = "check the remote, then rerun publish"
+_UNSURE_PUSH_NOTE = "check the remote, then rerun publish"
 _LOCK_BUSY = "another push of this branch holds the shared push lock; rerun publish after it ends"
 _BRANCH_RE = re.compile(
     r"^(feat|fix|docs|refactor|test|chore|ci|build|perf|style|revert)/[a-z0-9][a-z0-9-]{1,60}$"
@@ -242,9 +242,9 @@ def _push_now(ctx: Context, result: common.Result) -> bool:
     push = ["push", "--set-upstream", "origin", f"{ref}:{ref}"]
     try:
         done = common.git(push, cwd=ctx.root, timeout=timeout, group=not common.on_windows())
-    except (KeyboardInterrupt, SystemExit) as exc:  # run killed the push's process group
+    except (KeyboardInterrupt, SystemExit) as exc:  # run killed it (process group off Windows)
         cause = "interrupted" if isinstance(exc, KeyboardInterrupt) else f"signal exit {exc.code}"
-        result.stop("push-interrupted", common.EXIT_EXTERNAL, f"{cause}; {_TIMEOUT_NOTE}")
+        result.stop("push-interrupted", common.EXIT_EXTERNAL, f"{cause}; {_UNSURE_PUSH_NOTE}")
         return False
     if done.returncode == 0:
         result.add("PUSH", "pushed")
@@ -260,7 +260,7 @@ def _push_now(ctx: Context, result: common.Result) -> bool:
         result.stop("auth-failed", common.EXIT_AUTH, "push was not authorized")
     elif done.returncode == 124:
         cause = common.cause_line(done.stderr, "push timed out")
-        result.stop("push-failed", common.EXIT_EXTERNAL, f"{cause}; {_TIMEOUT_NOTE}")
+        result.stop("push-failed", common.EXIT_EXTERNAL, f"{cause}; {_UNSURE_PUSH_NOTE}")
     else:
         cause = common.cause_line(done.stderr, f"exit {done.returncode}")
         result.stop("push-failed", common.EXIT_EXTERNAL, cause)
