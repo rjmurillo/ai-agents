@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import _ship_common as common
+    import _ship_refs as refs_mod
     import _ship_windows as windows_mod
 else:
     _HERE = Path(__file__).resolve(strict=True).parent  # the real entry, never a symlink's dir
@@ -33,6 +34,7 @@ else:
         )
     common = sys.modules["_ship_common"]
     windows_mod = common.load_sibling("_ship_windows")
+    refs_mod = common.load_sibling("_ship_refs")
 
 SCRIPT = "ship_detect.py"
 REASONS = frozenset(
@@ -164,7 +166,20 @@ def _github_user(root: Path, host_name: str) -> str | Halt:
     return login
 
 
-def _ado_pr(root: Path, branch: str) -> PrQuery | Halt:
+def _ado_row_for_base(rows: list[object], base: str | None) -> object:
+    """The active PR to use. Several can share a source branch, each with its own target.
+
+    With ``--base``, the first row that targets it; when none does, the first row,
+    so ``detect`` still stops with ``base-mismatch``. Without ``--base``, the first row.
+    """
+    if base is None:
+        return rows[0]
+    wanted = f"refs/heads/{base}"
+    matching = [row for row in rows if isinstance(row, dict) and row.get("targetRefName") == wanted]
+    return (matching or rows)[0]
+
+
+def _ado_pr(root: Path, branch: str, base: str | None = None) -> PrQuery | Halt:
     done = common.run(
         [
             "az",
@@ -187,7 +202,8 @@ def _ado_pr(root: Path, branch: str) -> PrQuery | Halt:
         return Halt("pr-query-failed", common.EXIT_EXTERNAL, "az returned no PR list")
     if not data:
         return _NO_OPEN_PR
-    first = data[0] if isinstance(data[0], dict) else {}
+    chosen = _ado_row_for_base(data, base)
+    first = chosen if isinstance(chosen, dict) else {}
     pr_id = first.get("pullRequestId")
     if not isinstance(pr_id, int):
         return Halt("pr-query-failed", common.EXIT_EXTERNAL, "az returned no pullRequestId")
@@ -281,6 +297,29 @@ def _mode(root: Path, host: str, pr: int | None, author: str, host_name: str) ->
     return "owner" if author.strip().lower() == me.strip().lower() else "contributor"
 
 
+def _pr_base(pr: int, pr_target: str, base: str | None) -> str | Halt:
+    """The base of open PR ``pr``: its target branch, which ``--base`` may only repeat.
+
+    The host named the target, so it need only be a branch git accepts, such as
+    ``release/2026+hotfix``. It reaches git as one argv element or a
+    ``refs/remotes/origin/<target>`` path, never as an option or a shell word.
+    """
+    if not pr_target or not refs_mod.valid_branch(pr_target):
+        return Halt("pr-query-failed", common.EXIT_EXTERNAL, f"PR {pr} has no target branch")
+    if base is not None and base != pr_target:
+        detail = f"--base {base} is not the target of open PR {pr}, {pr_target}"
+        return Halt("base-mismatch", common.EXIT_CONFIG, detail)
+    return pr_target
+
+
+def base_arg_ok(base: str) -> bool:
+    """Whether ``--base`` may reach ``detect``: a plain ref, or a valid branch an open PR may target.
+
+    ``detect`` then holds a branch outside the plain-ref rule to the open PR's own target.
+    """
+    return common.safe_ref(base) or refs_mod.valid_branch(base)
+
+
 def detect(cwd: Path | None = None, base: str | None = None) -> Context | Halt:
     """Return the ship context, or the Halt that stops the run."""
     checkout = _checkout(cwd)
@@ -289,7 +328,7 @@ def detect(cwd: Path | None = None, base: str | None = None) -> Context | Halt:
     root, host, host_name, branch, head = checkout
     origin_default = default_branch(root)
     target = base or origin_default
-    pr_query = _github_pr(root) if host == "github" else _ado_pr(root, branch)
+    pr_query = _github_pr(root) if host == "github" else _ado_pr(root, branch, base)
     if isinstance(pr_query, Halt):
         return pr_query
     pr, pr_url, author, pr_draft, pr_target = pr_query
@@ -298,12 +337,13 @@ def detect(cwd: Path | None = None, base: str | None = None) -> Context | Halt:
         return mode
     if pr is not None:
         # An open PR fixes the base: its diff is against its own target branch.
-        if not pr_target or not common.safe_ref(pr_target):
-            return Halt("pr-query-failed", common.EXIT_EXTERNAL, f"PR {pr} has no target branch")
-        if base is not None and base != pr_target:
-            detail = f"--base {base} is not the target of open PR {pr}, {pr_target}"
-            return Halt("base-mismatch", common.EXIT_CONFIG, detail)
-        target = pr_target
+        pr_base = _pr_base(pr, pr_target, base)
+        if isinstance(pr_base, Halt):
+            return pr_base
+        target = pr_base
+    elif base is not None and not common.safe_ref(base):
+        # A new PR sends --base to the host and, on Windows, through cmd.exe: the strict rule.
+        return Halt("bad-arguments", common.EXIT_CONFIG, "--base is not a plain ref")
     # The same set publish refuses, so the refusal comes in phase 1.
     if mode == "owner" and pr is None and branch in protected_branches(target, origin_default):
         return Halt("on-base-branch", common.EXIT_LOGIC, f"on {branch}; create a feature branch")
@@ -340,7 +380,7 @@ def run(argv: list[str]) -> tuple[common.Result, str, Path | None]:
     except common.UsageError as exc:
         return result.stop("bad-arguments", common.EXIT_CONFIG, exc), common.peek_format(argv), None
     fmt = common.resolve_format(args.output_format)
-    if args.base is not None and not common.safe_ref(args.base):
+    if args.base is not None and not base_arg_ok(args.base):
         return (
             result.stop("bad-arguments", common.EXIT_CONFIG, "--base is not a plain ref"),
             fmt,

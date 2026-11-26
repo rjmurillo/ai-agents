@@ -472,7 +472,9 @@ def run(argv: list[str]) -> tuple[common.Result, str, Path | None]:
         return result.stop("bad-arguments", common.EXIT_CONFIG, exc), common.peek_format(argv), None
     fmt = common.resolve_format(args.output_format)
     base = getattr(args, "base", None)
-    if base is not None and not common.safe_ref(base):
+    # prepare asks no host, so it keeps the plain-ref rule; the others let detect hold the rest.
+    accepts = common.safe_ref if args.command == "prepare" else detect_mod.base_arg_ok
+    if base is not None and not accepts(base):
         return (
             result.stop("bad-arguments", common.EXIT_CONFIG, "--base is not a plain ref"),
             fmt,

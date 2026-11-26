@@ -145,7 +145,7 @@ def build_parser() -> common.ResultParser:
 
 
 def _validate(args: argparse.Namespace) -> str | None:
-    if args.base is not None and not common.safe_ref(args.base):
+    if args.base is not None and not detect_mod.base_arg_ok(args.base):
         return "--base is not a plain ref"
     if args.pr is not None and args.pr <= 0:
         return "--pr must be a positive integer"
