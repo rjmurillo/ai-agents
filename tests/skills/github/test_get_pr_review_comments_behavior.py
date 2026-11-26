@@ -37,6 +37,28 @@ def test_comments_are_sorted_by_created_at_across_review_and_issue():
     assert result["IssueCommentCount"] == 1
 
 
+def test_equal_created_at_keeps_review_comments_before_issue_comments():
+    created = "2024-01-01T00:00:00Z"
+    review = [
+        _review_comment(1, created),
+        _review_comment(2, created),
+    ]
+    issue = [_issue_comment(3, created)]
+
+    with patch(
+        "grc_behavior_under_test.gh_api_paginated",
+        side_effect=[review, issue],
+    ):
+        result = grc.get_pr_review_comments(
+            "o",
+            "r",
+            42,
+            include_issue_comments=True,
+        )
+
+    assert [comment["Id"] for comment in result["Comments"]] == [1, 2, 3]
+
+
 def test_group_by_domain_keeps_sorted_order_inside_domain_buckets():
     review = [
         _review_comment(3, "2024-01-03T00:00:00Z", body="SQL injection risk"),

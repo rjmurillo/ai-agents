@@ -35,12 +35,17 @@ def test_standard_output_shape_counts_replies_domains_and_authors(capsys):
         author="alice",
         body="formatting cleanup",
     )
+    issue = _issue_comment(
+        4,
+        "2024-01-04T00:00:00Z",
+        author="carol",
+    )
 
     with patch(
         "grc_behavior_under_test.gh_api_paginated",
-        return_value=[third, reply, first],
+        side_effect=[[third, reply, first], [issue]],
     ):
-        result = grc.get_pr_review_comments("o", "r", 42)
+        result = grc.get_pr_review_comments("o", "r", 42, include_issue_comments=True)
 
     def expected_comment(comment, domain):
         return {
@@ -65,15 +70,37 @@ def test_standard_output_shape_counts_replies_domains_and_authors(capsys):
             "EyesCount": 0,
         }
 
+    expected_issue = {
+        "Id": issue["id"],
+        "CommentType": "Issue",
+        "Author": issue["user"]["login"],
+        "AuthorType": issue["user"]["type"],
+        "Path": None,
+        "Line": None,
+        "Side": None,
+        "Body": issue["body"],
+        "Domain": "general",
+        "CreatedAt": issue["created_at"],
+        "UpdatedAt": issue["updated_at"],
+        "InReplyToId": None,
+        "IsReply": False,
+        "DiffHunk": None,
+        "HtmlUrl": issue["html_url"],
+        "CommitId": None,
+        "Stale": None,
+        "StaleReason": None,
+        "EyesCount": 0,
+    }
+
     assert result == {
         "Success": True,
         "PullRequest": 42,
         "Owner": "o",
         "Repo": "r",
-        "TotalComments": 3,
+        "TotalComments": 4,
         "ReviewCommentCount": 3,
-        "IssueCommentCount": 0,
-        "TopLevelCount": 2,
+        "IssueCommentCount": 1,
+        "TopLevelCount": 3,
         "ReplyCount": 1,
         "StaleCount": 0,
         "DomainCounts": {
@@ -81,20 +108,23 @@ def test_standard_output_shape_counts_replies_domains_and_authors(capsys):
             "bug": 1,
             "style": 1,
             "summary": 0,
-            "general": 0,
+            "general": 1,
         },
         "AuthorSummary": [
             {"Author": "alice", "Count": 2},
             {"Author": "bob", "Count": 1},
+            {"Author": "carol", "Count": 1},
         ],
         "Comments": [
             expected_comment(first, "security"),
             expected_comment(reply, "bug"),
             expected_comment(third, "style"),
+            expected_issue,
         ],
     }
     assert capsys.readouterr().err == (
-        "PR #42: 3 review comments | Domains: Security(1), Bug(1), Style(1)\n"
+        "PR #42: 3 review comments + 1 issue comment | "
+        "Domains: Security(1), Bug(1), Style(1), General(1)\n"
     )
 
 

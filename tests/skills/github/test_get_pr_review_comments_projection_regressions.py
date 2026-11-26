@@ -25,6 +25,38 @@ def test_include_issue_comments_fetches_review_then_issue_endpoints():
     ]
 
 
+def test_stale_detection_reuses_content_cache_at_pr_head():
+    review = [
+        _review_comment(1, "2024-01-01T00:00:00Z"),
+        _review_comment(2, "2024-01-02T00:00:00Z"),
+    ]
+    content = "print('start')\nprint('ok')\nprint('end')\n"
+    endpoints = []
+    stale_subprocess = _stale_detection_subprocess(content)
+
+    def record_subprocess(cmd, *args, **kwargs):
+        endpoints.append(cmd[2])
+        return stale_subprocess(cmd, *args, **kwargs)
+
+    with (
+        patch(
+            "grc_behavior_under_test.gh_api_paginated",
+            return_value=review,
+        ),
+        patch(
+            "grc_behavior_under_test.subprocess.run",
+            side_effect=record_subprocess,
+        ),
+    ):
+        result = grc.get_pr_review_comments("o", "r", 42, detect_stale=True)
+
+    assert [comment["Stale"] for comment in result["Comments"]] == [False, False]
+    content_requests = [
+        endpoint for endpoint in endpoints if endpoint.startswith("repos/o/r/contents/")
+    ]
+    assert content_requests == ["repos/o/r/contents/src%2Fmain.py?ref=abc123"]
+
+
 def test_only_unaddressed_excludes_acknowledged_issue_comment():
     issue = [
         _issue_comment(1, "2024-01-01T00:00:00Z", eyes=1),
