@@ -88,9 +88,13 @@ a CLI entry point. Complexity stays at or under 10 per function.
 | `survey(repo_root)` | Read the trees once and return nodes, owners, and findings, so validate and report modes cannot diverge |
 | `render(nodes, graph, fmt)` | Emit the deterministic report as text or JSON, sorted by capability name |
 
-The copied-policy check compares contiguous line windows on both sides. An
+The copied-policy check compares contiguous runs of lines on both sides. An
 earlier form collapsed the owner's lines into a set, which discarded their
 order and failed a consumer whose lines merely appeared somewhere in the owner.
+The owner side is the owner file plus any partial that two or more of the
+capability's dependents include, found through their `{{> slug}}` includes
+(issue #7641). A `templates/agents/*.shared.md` body is compared with the owner
+file only, because the agent generator reads it without expansion.
 
 The cycle check is an iterative depth-first search over the adjacency list with
 an explicit stack, so a deep graph cannot exhaust the interpreter stack. Nodes
