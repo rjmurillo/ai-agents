@@ -179,7 +179,7 @@ One optimization step:
    scripts, pass the directory to `hash` and `apply`; it hashes as one bundle.
    When the manifest sets `"scorer": "nondeterministic"`, the `sel` runner
    also reruns the byte-identical incumbent into `null_results.json` now (see
-   Before promotion, step 2). The `sel` runner also runs `pin`.
+   Before promotion, step 2). It also runs `pin`.
 2. **Budget.** `skillopt.py budget --step T --total N` prints L_t, the
    cosine-decayed cap on atomic patches this step. T is 0-based, from 0 to
    N-1; `--step N` exits 2 with `out of range`.
@@ -370,13 +370,13 @@ class-level guidance; do not add an incident-named reference.
 ## References
 
 - `references/eval-set-format.md`: eval manifest, patch, and results schemas.
-- `references/eval-authoring.md`: read when you draft tasks and verifiers, lay
-  out a step's artifacts, or act on a report signal.
+- `references/eval-authoring.md`: tasks, verifiers, artifacts, report signals.
+- `references/judge-grading-discipline.md`: how a model judge grades.
 - `references/description-optimization.md`: trigger-rate eval for `description` edits.
 - `references/rollout-validity.md`: preflight, grading, and audit rules for rollouts.
 - `references/target-selection.md`: defect confirmation, split timing, anchors, cohorts.
 - `references/slow-section-convention.md`: protected-fence contract.
-- `references/mechanism.md`: the training analogy and paper citation.
-- `references/cross-machine-mining.md`: session sources and the handoff.
+- `references/mechanism.md`: training analogy, paper citation.
+- `references/cross-machine-mining.md`: session sources, the handoff.
 - `references/example-eval.json` with `example-incumbent-results.json` and
   `example-candidate-results.json`: a runnable `pair-gate` example.

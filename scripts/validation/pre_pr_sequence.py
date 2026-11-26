@@ -106,6 +106,7 @@ from checks_ci_parity import (
     validate_security_suppressions_diff,
     validate_sha_pinning,
     validate_skill_description_budget,
+    validate_skill_rewrite_evidence,
     validate_skillbook,
     validate_tracked_conflict_markers,
     validate_unused_dependencies,
@@ -561,6 +562,10 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Placeholder Identity", _root_only(validate_placeholder_identity)),
     _Gate("Tracked Conflict Markers", _root_only(validate_tracked_conflict_markers)),
     _Gate("Security Suppressions Diff", _root_only(validate_security_suppressions_diff)),
+    # ADR-127 decision 9: a gated skill rewrite needs eval results whose
+    # identities match HEAD and whose per-run labels recompute to PASS. Blocks
+    # only gated changes; every other prompt edit stays advisory (ADR-057).
+    _Gate("Skill Rewrite Evidence (ADR-127)", _root_only(validate_skill_rewrite_evidence)),
     _Gate("Memory Placement", _root_only(validate_memory_placement)),
     # The eight gates below are the eight validators the CI job
     # "Validate Vendor Portability" runs. They are kept together, and

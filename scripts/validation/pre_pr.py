@@ -84,6 +84,7 @@ from checks_ci_parity import (
     validate_python3_entrypoints,
     validate_security_suppressions_diff,
     validate_sha_pinning,
+    validate_skill_rewrite_evidence,
     validate_skillbook,
     validate_tracked_conflict_markers,
     validate_unused_dependencies,

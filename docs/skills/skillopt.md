@@ -100,4 +100,5 @@ The gate compares incumbent against candidate. It never measures skill against n
 - Eval set format: [`eval-set-format.md`](../../src/claude/skills/skillopt/references/eval-set-format.md)
 - Eval authoring: [`eval-authoring.md`](../../src/claude/skills/skillopt/references/eval-authoring.md)
 - Evidence files and read-only pins: [`evidence-manifesto.md`](../../src/claude/skills/skillopt/references/evidence-manifesto.md)
+- Judge grading discipline: [`judge-grading-discipline.md`](../../src/claude/skills/skillopt/references/judge-grading-discipline.md)
 - How to call skills on each host: [Call agents and skills](../call-agents-and-skills.md)
