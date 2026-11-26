@@ -11,6 +11,7 @@ import os
 import re
 import subprocess
 import sys
+from typing import Any
 
 import yaml
 
@@ -25,13 +26,16 @@ def main() -> None:
     ref = sys.argv[3] if len(sys.argv) > 3 else "origin/main"
     root = f"{tree}/.claude/skills"
     names = sorted(n for n in os.listdir(root) if os.path.exists(f"{root}/{n}/SKILL.md"))
-    arms: dict[str, dict[str, dict[str, object]]] = {"before": {}, "after": {}}
+    arms: dict[str, dict[str, dict[str, Any]]] = {"before": {}, "after": {}}
     missing = []
     for name in names:
         rel = os.path.relpath(os.path.realpath(f"{root}/{name}/SKILL.md"), tree)
-        after = open(f"{tree}/{rel}").read()
+        after = open(f"{tree}/{rel}", encoding="utf-8").read()
         shown = subprocess.run(
-            ["git", "-C", tree, "show", f"{ref}:{rel}"], capture_output=True, text=True
+            ["git", "-C", tree, "show", f"{ref}:{rel}"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
         )
         if shown.returncode != 0:
             missing.append(name)
@@ -44,7 +48,7 @@ def main() -> None:
                 "description": " ".join(str(data.get("description", "")).split()),
                 "other": {k: v for k, v in data.items() if k != "description"},
             }
-    json.dump(arms, open(f"{out_dir}/arms.json", "w"), indent=1, default=str)
+    json.dump(arms, open(f"{out_dir}/arms.json", "w", encoding="utf-8"), indent=1, default=str)
     before, after_arm = arms["before"], arms["after"]
     changed = [n for n in before if before[n]["description"] != after_arm[n]["description"]]
     odd = [n for n in before if before[n]["other"] != after_arm[n]["other"]]
@@ -56,10 +60,10 @@ def main() -> None:
         sum(len(str(v["description"])) for v in after_arm.values()),
     )
     print("non-description frontmatter diffs:", odd)
-    json.dump(changed, open(f"{out_dir}/changed.json", "w"), indent=1)
+    json.dump(changed, open(f"{out_dir}/changed.json", "w", encoding="utf-8"), indent=1)
     json.dump(
         {n: before[n]["description"] for n in before},
-        open(f"{out_dir}/before-descriptions.json", "w"),
+        open(f"{out_dir}/before-descriptions.json", "w", encoding="utf-8"),
         indent=1,
     )
     verbatim = {}
@@ -68,7 +72,7 @@ def main() -> None:
         hit = pattern.search(str(value["description"]))
         if hit:
             verbatim[name] = hit.group(1)
-    json.dump(verbatim, open(f"{out_dir}/verbatim.json", "w"), indent=1)
+    json.dump(verbatim, open(f"{out_dir}/verbatim.json", "w", encoding="utf-8"), indent=1)
     print("verbatim triggers", len(verbatim), "of", len(before))
     flags = collections.Counter(
         tuple(

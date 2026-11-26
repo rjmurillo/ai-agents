@@ -11,6 +11,7 @@ import collections
 import json
 import math
 import sys
+from typing import Any
 
 
 def sign_p(wins_a: int, wins_b: int) -> float:
@@ -19,14 +20,14 @@ def sign_p(wins_a: int, wins_b: int) -> float:
     if n == 0:
         return 1.0
     k = min(wins_a, wins_b)
-    tail = sum(math.comb(n, i) for i in range(k + 1)) / 2**n
+    tail: float = sum(math.comb(n, i) for i in range(k + 1)) / 2**n
     return min(1.0, 2 * tail)
 
 
-def load(paths: list[str]) -> dict[tuple[str, str, str], dict]:
-    rows: dict[tuple[str, str, str], dict] = {}
+def load(paths: list[str]) -> dict[tuple[str, str, str], dict[str, Any]]:
+    rows: dict[tuple[str, str, str], dict[str, Any]] = {}
     for path in paths:
-        for line in open(path):
+        for line in open(path, encoding="utf-8"):
             row = json.loads(line)
             key = (row["model"], row["arm"], row["id"])
             if key in rows and rows[key]["outcome"] != "error" and row["outcome"] == "error":
@@ -35,9 +36,9 @@ def load(paths: list[str]) -> dict[tuple[str, str, str], dict]:
     return rows
 
 
-def rates(pairs: list[tuple[dict, dict]]) -> dict[str, object]:
+def rates(pairs: list[tuple[dict[str, Any], dict[str, Any]]]) -> dict[str, Any]:
     n = len(pairs)
-    out: dict[str, object] = {"n": n}
+    out: dict[str, Any] = {"n": n}
     if not n:
         return out
     for arm, idx in (("before", 0), ("after", 1)):
@@ -66,10 +67,10 @@ def rates(pairs: list[tuple[dict, dict]]) -> dict[str, object]:
 def main() -> int:
     base = sys.argv[1]
     rows = load(sys.argv[2:])
-    queries = {q["id"]: q for q in json.load(open(f"{base}/queries.json"))}
-    changed = set(json.load(open(f"{base}/changed.json")))
+    queries = {q["id"]: q for q in json.load(open(f"{base}/queries.json", encoding="utf-8"))}
+    changed = set(json.load(open(f"{base}/changed.json", encoding="utf-8")))
     models = sorted({k[0] for k in rows})
-    report: dict[str, object] = {"models": {}}
+    report: dict[str, Any] = {"models": {}}
     per_skill: dict[str, list[int]] = collections.defaultdict(lambda: [0, 0, 0])
     for model in models:
         pairs, excluded = [], []

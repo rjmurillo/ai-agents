@@ -19,8 +19,10 @@ import sys
 import tempfile
 import threading
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path.cwd() / "scripts" / "eval"))
 
@@ -52,12 +54,14 @@ def argv(model: str) -> list[str]:
     ]
 
 
-def installer(catalog: dict[str, dict[str, str]]):
+def installer(catalog: dict[str, dict[str, str]]) -> Callable[[Path], None]:
     def _install(workspace: Path) -> None:
         for name, entry in catalog.items():
             target = workspace / ".claude" / "skills" / name
             target.mkdir(parents=True)
-            (target / "SKILL.md").write_text(f"---\n{entry['frontmatter']}\n---\n{STUB_BODY}")
+            (target / "SKILL.md").write_text(
+                f"---\n{entry['frontmatter']}\n---\n{STUB_BODY}", encoding="utf-8"
+            )
 
     return _install
 
@@ -70,8 +74,8 @@ USAGE_KEYS = (
 )
 
 
-def stream_events(stdout: str) -> list[dict]:
-    events = []
+def stream_events(stdout: str) -> list[dict[str, Any]]:
+    events: list[dict[str, Any]] = []
     for line in stdout.splitlines():
         try:
             event = json.loads(line)
@@ -82,7 +86,7 @@ def stream_events(stdout: str) -> list[dict]:
     return events
 
 
-def skill_calls(event: dict) -> list[str]:
+def skill_calls(event: dict[str, Any]) -> list[str]:
     """Return the skill named by each Skill tool call in one assistant event."""
     names = []
     for block in (event.get("message") or {}).get("content") or []:
@@ -94,7 +98,7 @@ def skill_calls(event: dict) -> list[str]:
     return names
 
 
-def result_usage(event: dict) -> dict[str, int]:
+def result_usage(event: dict[str, Any]) -> dict[str, int]:
     raw = event.get("usage") or {}
     usage = {key: raw[key] for key in USAGE_KEYS if isinstance(raw.get(key), int)}
     if isinstance(event.get("num_turns"), int):
@@ -102,7 +106,7 @@ def result_usage(event: dict) -> dict[str, int]:
     return usage
 
 
-def read_stream(stdout: str) -> dict[str, object]:
+def read_stream(stdout: str) -> dict[str, Any]:
     picked: list[str] = []
     listed = None
     usage: dict[str, int] = {}
@@ -175,7 +179,7 @@ def run_one(
         record["outcome"] = "error"
         record["error"] = f"{type(exc).__name__}: {str(exc)[:160]}"
     record["seconds"] = round(time.time() - started, 1)
-    with _LOCK, out.open("a") as handle:
+    with _LOCK, out.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(record) + "\n")
 
 
@@ -204,7 +208,7 @@ def finished_runs(out: Path) -> set[tuple[str, str, str]]:
     """Return the (model, arm, query id) of every row that did not error."""
     if not out.exists():
         return set()
-    rows = [json.loads(line) for line in out.read_text().splitlines()]
+    rows = [json.loads(line) for line in out.read_text(encoding="utf-8").splitlines()]
     return {(row["model"], row["arm"], row["id"]) for row in rows if row.get("outcome") != "error"}
 
 
@@ -214,8 +218,8 @@ def main() -> int:
     if ambient:
         print(f"sandbox sits under instruction files: {ambient}", file=sys.stderr)
         return 2
-    arms = json.load(open(args.arms))
-    queries = json.load(open(args.queries))
+    arms = json.load(open(args.arms, encoding="utf-8"))
+    queries = json.load(open(args.queries, encoding="utf-8"))
     if args.limit:
         queries = queries[: args.limit]
     out = Path(args.out)

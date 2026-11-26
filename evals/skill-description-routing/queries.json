@@ -162,7 +162,7 @@
 {"id": "memory-documentary:close", "skill": "memory-documentary", "kind": "close", "query": "Write an investigative evidence-based report on how the hook failures evolved, with full citation chains across notes, repo artifacts and issues."},
 {"id": "memory-documentary:paraphrase", "skill": "memory-documentary", "kind": "paraphrase", "query": "Trace the story of the retry-policy decision through every source we have and produce a journalism-style write-up with sources cited."},
 {"id": "memory-enhancement:verbatim", "skill": "memory-enhancement", "kind": "verbatim", "query": "add a citation"},
-{"id": "memory-enhancement:close", "skill": "memory-enhancement", "kind": "close", "query": "Add a citation pointing to src/auth.py:42 on this note and check that the code references still resolve."},
+{"id": "memory-enhancement:close", "skill": "memory-enhancement", "kind": "close", "query": "Add a citation pointing to src/auth.py:42 on this note and check that the code references still resolve.", "lint": "citation-freshness: ignore -- example path inside an eval query"},
 {"id": "memory-enhancement:paraphrase", "skill": "memory-enhancement", "kind": "paraphrase", "query": "Check how healthy the citations are across our notes and adjust confidence scores for stale ones."},
 {"id": "memory-gate:verbatim", "skill": "memory-gate", "kind": "verbatim", "query": "memory-first gate"},
 {"id": "memory-gate:close", "skill": "memory-gate", "kind": "close", "query": "Run the blocking gate that makes me check saved notes before I modify this existing protocol."},
