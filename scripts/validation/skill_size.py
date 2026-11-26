@@ -33,7 +33,6 @@ import importlib.util
 import os
 import re
 import subprocess
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -41,13 +40,6 @@ from pathlib import Path
 # the PyPI ``python-frontmatter`` package which also installs as ``frontmatter``.
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _SCRIPT_DIR.parents[1]
-# lefthook runs this file by path, so put the repository root on sys.path
-# before the package import below.
-if str(_PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PROJECT_ROOT))
-
-from scripts.validation import skill_corpus as _skill_corpus  # noqa: E402
-
 _FRONTMATTER_PATH = (
     _PROJECT_ROOT / ".claude" / "skills" / "skillforge" / "scripts" / "frontmatter.py"
 )
@@ -473,6 +465,19 @@ def read_staged_blob_bytes(path: Path) -> bytes:
     return result.stdout
 
 
+def _put_project_root_on_path() -> None:
+    """Make ``scripts.validation`` importable when this file runs by path.
+
+    lefthook runs this file by path, where only ``scripts/validation`` is on
+    ``sys.path``. Callers import lazily so the module-top lines stay where
+    other documents cite them.
+    """
+    import sys
+
+    if str(_PROJECT_ROOT) not in sys.path:
+        sys.path.insert(0, str(_PROJECT_ROOT))
+
+
 def default_corpus_files() -> list[Path]:
     """Return every SKILL.md under the trees named in ``_SKILL_TREE_PREFIXES``.
 
@@ -485,12 +490,18 @@ def default_corpus_files() -> list[Path]:
     Discovery lives in ``skill_corpus.corpus_files``. Module globals are read
     at call time so tests can repoint ``_PROJECT_ROOT``.
     """
-    return _skill_corpus.corpus_files(_PROJECT_ROOT, _SKILL_TREE_PREFIXES)
+    _put_project_root_on_path()
+    from scripts.validation.skill_corpus import corpus_files
+
+    return corpus_files(_PROJECT_ROOT, _SKILL_TREE_PREFIXES)
 
 
 def default_corpus_summary() -> str:
     """One line naming the trees a default full scan measures, and any absent."""
-    return _skill_corpus.corpus_summary(_PROJECT_ROOT, _SKILL_TREE_PREFIXES)
+    _put_project_root_on_path()
+    from scripts.validation.skill_corpus import corpus_summary
+
+    return corpus_summary(_PROJECT_ROOT, _SKILL_TREE_PREFIXES)
 
 
 def get_skill_files(
