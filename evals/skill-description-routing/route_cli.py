@@ -62,48 +62,64 @@ def installer(catalog: dict[str, dict[str, str]]):
     return _install
 
 
+USAGE_KEYS = (
+    "input_tokens",
+    "cache_read_input_tokens",
+    "cache_creation_input_tokens",
+    "output_tokens",
+)
+
+
+def stream_events(stdout: str) -> list[dict]:
+    events = []
+    for line in stdout.splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(event, dict):
+            events.append(event)
+    return events
+
+
+def skill_calls(event: dict) -> list[str]:
+    """Return the skill named by each Skill tool call in one assistant event."""
+    names = []
+    for block in (event.get("message") or {}).get("content") or []:
+        if not isinstance(block, dict):
+            continue
+        if block.get("type") == "tool_use" and block.get("name") == "Skill":
+            args = block.get("input") or {}
+            names.append(str(args.get("skill") or args.get("command") or ""))
+    return names
+
+
+def result_usage(event: dict) -> dict[str, int]:
+    raw = event.get("usage") or {}
+    usage = {key: raw[key] for key in USAGE_KEYS if isinstance(raw.get(key), int)}
+    if isinstance(event.get("num_turns"), int):
+        usage["num_turns"] = event["num_turns"]
+    return usage
+
+
 def read_stream(stdout: str) -> dict[str, object]:
     picked: list[str] = []
     listed = None
     usage: dict[str, int] = {}
     completed = False
     error = None
-    for line in stdout.splitlines():
-        try:
-            event = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if not isinstance(event, dict):
-            continue
+    for event in stream_events(stdout):
         kind = event.get("type")
         if kind == "system" and event.get("subtype") == "init":
             skills = event.get("skills")
             listed = len(skills) if isinstance(skills, list) else None
         elif kind == "assistant":
-            content = (event.get("message") or {}).get("content") or []
-            for block in content:
-                if (
-                    isinstance(block, dict)
-                    and block.get("type") == "tool_use"
-                    and block.get("name") == "Skill"
-                ):
-                    args = block.get("input") or {}
-                    picked.append(str(args.get("skill") or args.get("command") or ""))
+            picked.extend(skill_calls(event))
         elif kind == "result":
-            completed = not event.get("is_error", False)
-            if event.get("is_error"):
-                error = str(event.get("subtype") or "error")[:80]
-            raw = event.get("usage") or {}
-            for key in (
-                "input_tokens",
-                "cache_read_input_tokens",
-                "cache_creation_input_tokens",
-                "output_tokens",
-            ):
-                if isinstance(raw.get(key), int):
-                    usage[key] = raw[key]
-            if isinstance(event.get("num_turns"), int):
-                usage["num_turns"] = event["num_turns"]
+            failed = bool(event.get("is_error", False))
+            completed = not failed
+            error = str(event.get("subtype") or "error")[:80] if failed else error
+            usage.update(result_usage(event))
     return {
         "picked": picked,
         "listed": listed,
@@ -163,7 +179,7 @@ def run_one(
         handle.write(json.dumps(record) + "\n")
 
 
-def main() -> int:
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--arms", required=True)
     parser.add_argument("--queries", required=True)
@@ -181,6 +197,19 @@ def main() -> int:
     args = parser.parse_args()
     if args.workers > 2:
         parser.error("at most 2 workers: the hub cap for eval streams")
+    return args
+
+
+def finished_runs(out: Path) -> set[tuple[str, str, str]]:
+    """Return the (model, arm, query id) of every row that did not error."""
+    if not out.exists():
+        return set()
+    rows = [json.loads(line) for line in out.read_text().splitlines()]
+    return {(row["model"], row["arm"], row["id"]) for row in rows if row.get("outcome") != "error"}
+
+
+def main() -> int:
+    args = parse_args()
     ambient = ambient_instruction_paths(Path(tempfile.gettempdir()))
     if ambient:
         print(f"sandbox sits under instruction files: {ambient}", file=sys.stderr)
@@ -190,12 +219,7 @@ def main() -> int:
     if args.limit:
         queries = queries[: args.limit]
     out = Path(args.out)
-    seen = set()
-    if out.exists():
-        for line in out.read_text().splitlines():
-            row = json.loads(line)
-            if row.get("outcome") != "error":
-                seen.add((row["model"], row["arm"], row["id"]))
+    seen = finished_runs(out)
     jobs = [
         (model, arm, query)
         for model in args.models

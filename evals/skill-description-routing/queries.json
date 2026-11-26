@@ -1,2042 +1,342 @@
 [
- {
-  "id": "adr-generator:verbatim",
-  "skill": "adr-generator",
-  "kind": "verbatim",
-  "query": "draft ADR-NNN"
- },
- {
-  "id": "adr-generator:close",
-  "skill": "adr-generator",
-  "kind": "close",
-  "query": "Write up ADR-134 recording why we picked Postgres over Cosmos DB for the policy store, using the repo ADR template."
- },
- {
-  "id": "adr-generator:paraphrase",
-  "skill": "adr-generator",
-  "kind": "paraphrase",
-  "query": "We just settled on event-sourced config storage; draft the architectural decision record for it and mark ADR-089 as replaced."
- },
- {
-  "id": "adr-review:verbatim",
-  "skill": "adr-review",
-  "kind": "verbatim",
-  "query": "review this ADR"
- },
- {
-  "id": "adr-review:close",
-  "skill": "adr-review",
-  "kind": "close",
-  "query": "ADR-127 is drafted; get the architect, critic and security agents to debate it until they reach consensus."
- },
- {
-  "id": "adr-review:paraphrase",
-  "skill": "adr-review",
-  "kind": "paraphrase",
-  "query": "I edited the decision file under docs/architecture/decisions, so run it past the panel of agents over multiple rounds and tell me whether they all agree."
- },
- {
-  "id": "agent-harness-reference:verbatim",
-  "skill": "agent-harness-reference",
-  "kind": "verbatim",
-  "query": "harness contract"
- },
- {
-  "id": "agent-harness-reference:close",
-  "skill": "agent-harness-reference",
-  "kind": "close",
-  "query": "What JSON does Claude Code pass to a PreToolUse hook on stdin, and which exit code blocks the tool call?"
- },
- {
-  "id": "agent-harness-reference:paraphrase",
-  "skill": "agent-harness-reference",
-  "kind": "paraphrase",
-  "query": "Which events can I attach hooks to in Claude Code versus Copilot CLI, and what do the exit codes and timeouts mean in each?"
- },
- {
-  "id": "ai-agents-architecture-contract:verbatim",
-  "skill": "ai-agents-architecture-contract",
-  "kind": "verbatim",
-  "query": "which tree is canonical"
- },
- {
-  "id": "ai-agents-architecture-contract:close",
-  "skill": "ai-agents-architecture-contract",
-  "kind": "close",
-  "query": "Before I touch the hook runtime, what are the load-bearing design decisions and known weak points I must respect in this repo?"
- },
- {
-  "id": "ai-agents-architecture-contract:paraphrase",
-  "skill": "ai-agents-architecture-contract",
-  "kind": "paraphrase",
-  "query": "Where does the source of truth live for each generated tree, and what failure policy do hooks follow when they crash?"
- },
- {
-  "id": "ai-agents-build-and-env:verbatim",
-  "skill": "ai-agents-build-and-env",
-  "kind": "verbatim",
-  "query": "set up this repo"
- },
- {
-  "id": "ai-agents-build-and-env:close",
-  "skill": "ai-agents-build-and-env",
-  "kind": "close",
-  "query": "Fresh clone on a new Linux box: I need the uv-pinned Python, git hooks and MCP servers all installed from scratch for ai-agents."
- },
- {
-  "id": "ai-agents-build-and-env:paraphrase",
-  "skill": "ai-agents-build-and-env",
-  "kind": "paraphrase",
-  "query": "pip refuses to install packages with an externally-managed-environment error on my new machine; how do I stand up this repo's dev setup properly?"
- },
- {
-  "id": "ai-agents-change-control:verbatim",
-  "skill": "ai-agents-change-control",
-  "kind": "verbatim",
-  "query": "classify this change"
- },
- {
-  "id": "ai-agents-change-control:close",
-  "skill": "ai-agents-change-control",
-  "kind": "close",
-  "query": "I only edited docs/ and one hook script; which category of change is that and which gates fire on it?"
- },
- {
-  "id": "ai-agents-change-control:paraphrase",
-  "skill": "ai-agents-change-control",
-  "kind": "paraphrase",
-  "query": "Walk me through the non-negotiable rules for modifying workflows or hooks here, and the incident behind each one."
- },
- {
-  "id": "ai-agents-config-catalog:verbatim",
-  "skill": "ai-agents-config-catalog",
-  "kind": "verbatim",
-  "query": "what does a skip flag do"
- },
- {
-  "id": "ai-agents-config-catalog:close",
-  "skill": "ai-agents-config-catalog",
-  "kind": "close",
-  "query": "List every env var and commit marker that can bypass a gate in this repo, and where each one is enforced."
- },
- {
-  "id": "ai-agents-config-catalog:paraphrase",
-  "skill": "ai-agents-config-catalog",
-  "kind": "paraphrase",
-  "query": "I want to introduce a new opt-out flag for a check; what is the safe procedure and what abuse cases should I consider?"
- },
- {
-  "id": "ai-agents-debugging-playbook:verbatim",
-  "skill": "ai-agents-debugging-playbook",
-  "kind": "verbatim",
-  "query": "triage this failure"
- },
- {
-  "id": "ai-agents-debugging-playbook:close",
-  "skill": "ai-agents-debugging-playbook",
-  "kind": "close",
-  "query": "My push got blocked by the pre-push hook and the drift gate is red; what is the first command to run to find out why?"
- },
- {
-  "id": "ai-agents-debugging-playbook:paraphrase",
-  "skill": "ai-agents-debugging-playbook",
-  "kind": "paraphrase",
-  "query": "A hook exited 143 and the session got marked NON_COMPLIANT; what is the usual cause and fix in this repo?"
- },
- {
-  "id": "ai-agents-diagnostics-toolkit:verbatim",
-  "skill": "ai-agents-diagnostics-toolkit",
-  "kind": "verbatim",
-  "query": "measure this"
- },
- {
-  "id": "ai-agents-diagnostics-toolkit:close",
-  "skill": "ai-agents-diagnostics-toolkit",
-  "kind": "close",
-  "query": "How do I check the current description size budget for our agent capabilities and read the baseline for the orphan reference scan?"
- },
- {
-  "id": "ai-agents-diagnostics-toolkit:paraphrase",
-  "skill": "ai-agents-diagnostics-toolkit",
-  "kind": "paraphrase",
-  "query": "Which command gives me the size numbers for the agent capability files, and what is a normal reading for the eval harness and coverage pins?"
- },
- {
-  "id": "ai-agents-docs-of-record:verbatim",
-  "skill": "ai-agents-docs-of-record",
-  "kind": "verbatim",
-  "query": "write the session log"
- },
- {
-  "id": "ai-agents-docs-of-record:close",
-  "skill": "ai-agents-docs-of-record",
-  "kind": "close",
-  "query": "Which document do I use to record this decision, a session log, a handoff or a Serena note, and what naming rule applies?"
- },
- {
-  "id": "ai-agents-docs-of-record:paraphrase",
-  "skill": "ai-agents-docs-of-record",
-  "kind": "paraphrase",
-  "query": "I am wrapping up work on issue 7501; where do the per-issue handoff and the session narrative go, and which validator checks them?"
- },
- {
-  "id": "ai-agents-empirical-probe-toolkit:verbatim",
-  "skill": "ai-agents-empirical-probe-toolkit",
-  "kind": "verbatim",
-  "query": "probe the runtime contract"
- },
- {
-  "id": "ai-agents-empirical-probe-toolkit:close",
-  "skill": "ai-agents-empirical-probe-toolkit",
-  "kind": "close",
-  "query": "Run a negative-control experiment to show this guard actually fires, and calibrate its threshold against a real example."
- },
- {
-  "id": "ai-agents-empirical-probe-toolkit:paraphrase",
-  "skill": "ai-agents-empirical-probe-toolkit",
-  "kind": "paraphrase",
-  "query": "I do not trust the vendor doc about hook timeouts; devise an experiment that shows the real runtime behavior."
- },
- {
-  "id": "ai-agents-external-claims:verbatim",
-  "skill": "ai-agents-external-claims",
-  "kind": "verbatim",
-  "query": "verify an external claim"
- },
- {
-  "id": "ai-agents-external-claims:close",
-  "skill": "ai-agents-external-claims",
-  "kind": "close",
-  "query": "This brief cites a vendor saying 87 percent cost savings; check it against the primary source before it goes in our report."
- },
- {
-  "id": "ai-agents-external-claims:paraphrase",
-  "skill": "ai-agents-external-claims",
-  "kind": "paraphrase",
-  "query": "A blog quotes a number and attributes it to a Microsoft paper; trace the citation chain back to confirm it is really there before we copy it."
- },
- {
-  "id": "ai-agents-failure-archaeology:verbatim",
-  "skill": "ai-agents-failure-archaeology",
-  "kind": "verbatim",
-  "query": "has this failed before"
- },
- {
-  "id": "ai-agents-failure-archaeology:close",
-  "skill": "ai-agents-failure-archaeology",
-  "kind": "close",
-  "query": "Has this exact incident happened in this repo before, and what finally fixed it?"
- },
- {
-  "id": "ai-agents-failure-archaeology:paraphrase",
-  "skill": "ai-agents-failure-archaeology",
-  "kind": "paraphrase",
-  "query": "Someone wants to reopen the debate on the customer wedge; give me the history of what broke, the root cause, and what settled it."
- },
- {
-  "id": "ai-agents-generation-and-release:verbatim",
-  "skill": "ai-agents-generation-and-release",
-  "kind": "verbatim",
-  "query": "regenerate the mirrors"
- },
- {
-  "id": "ai-agents-generation-and-release:close",
-  "skill": "ai-agents-generation-and-release",
-  "kind": "close",
-  "query": "I changed a template under templates/; how do I regenerate the mirrors and make the drift gate go green before release?"
- },
- {
-  "id": "ai-agents-generation-and-release:paraphrase",
-  "skill": "ai-agents-generation-and-release",
-  "kind": "paraphrase",
-  "query": "Walk me through publishing the npm package for this repo, including the build_all.py generators and the version-free plugin manifests."
- },
- {
-  "id": "ai-agents-portability-campaign:verbatim",
-  "skill": "ai-agents-portability-campaign",
-  "kind": "verbatim",
-  "query": "run the portability campaign"
- },
- {
-  "id": "ai-agents-portability-campaign:close",
-  "skill": "ai-agents-portability-campaign",
-  "kind": "close",
-  "query": "Port our hooks so they behave the same on Copilot CLI as on Claude Code, with runtime tests proving it."
- },
- {
-  "id": "ai-agents-portability-campaign:paraphrase",
-  "skill": "ai-agents-portability-campaign",
-  "kind": "paraphrase",
-  "query": "A fresh Copilot CLI version landed and our hooks may behave differently; update the cross-harness hook changes using the settled contract."
- },
- {
-  "id": "ai-agents-research-frontier:verbatim",
-  "skill": "ai-agents-research-frontier",
-  "kind": "verbatim",
-  "query": "research frontier"
- },
- {
-  "id": "ai-agents-research-frontier:close",
-  "skill": "ai-agents-research-frontier",
-  "kind": "close",
-  "query": "What are the top open research programs for this repo and the first concrete step on each?"
- },
- {
-  "id": "ai-agents-research-frontier:paraphrase",
-  "skill": "ai-agents-research-frontier",
-  "kind": "paraphrase",
-  "query": "List the unsolved problems worth pursuing next, like verified governance or a self-improving loop, with a falsifiable milestone for each."
- },
- {
-  "id": "ai-agents-research-methodology:verbatim",
-  "skill": "ai-agents-research-methodology",
-  "kind": "verbatim",
-  "query": "how do I prove this idea"
- },
- {
-  "id": "ai-agents-research-methodology:close",
-  "skill": "ai-agents-research-methodology",
-  "kind": "close",
-  "query": "I have a hunch that shorter descriptions improve routing; what evidence do I need before it becomes an accepted change?"
- },
- {
-  "id": "ai-agents-research-methodology:paraphrase",
-  "skill": "ai-agents-research-methodology",
-  "kind": "paraphrase",
-  "query": "Take me through the stages from contradiction log to probe, eval baseline, ADR debate and post-ship monitoring."
- },
- {
-  "id": "ai-agents-validation-and-qa:verbatim",
-  "skill": "ai-agents-validation-and-qa",
-  "kind": "verbatim",
-  "query": "what counts as evidence"
- },
- {
-  "id": "ai-agents-validation-and-qa:close",
-  "skill": "ai-agents-validation-and-qa",
-  "kind": "close",
-  "query": "What counts as proof for a CI script change, and do I need positive, negative and edge cases?"
- },
- {
-  "id": "ai-agents-validation-and-qa:paraphrase",
-  "skill": "ai-agents-validation-and-qa",
-  "kind": "paraphrase",
-  "query": "I am authoring a new composite action and validation script with a ratchet baseline; what are the house rules, and which ADR-034 QA skips are allowed?"
- },
- {
-  "id": "analysis-provenance:close",
-  "skill": "analysis-provenance",
-  "kind": "close",
-  "query": "Before I edit scripts/validate_links.py, is it upstream, vendored or local code? Check the file header."
- },
- {
-  "id": "analysis-provenance:paraphrase",
-  "skill": "analysis-provenance",
-  "kind": "paraphrase",
-  "query": "I want to patch a linter in tools/ but do not know if we wrote it or copied it from elsewhere; work out its origin so I do not clobber upstream."
- },
- {
-  "id": "analyze:verbatim",
-  "skill": "analyze",
-  "kind": "verbatim",
-  "query": "analyze this codebase"
- },
- {
-  "id": "analyze:close",
-  "skill": "analyze",
-  "kind": "close",
-  "query": "Do a systematic walkthrough of this codebase and give me prioritized findings with file and line evidence."
- },
- {
-  "id": "analyze:paraphrase",
-  "skill": "analyze",
-  "kind": "paraphrase",
-  "query": "Dig through src/ for architectural and security problems and produce a ranked list of issues, each pointing to the exact lines."
- },
- {
-  "id": "api-doc-authoring:verbatim",
-  "skill": "api-doc-authoring",
-  "kind": "verbatim",
-  "query": "document this API"
- },
- {
-  "id": "api-doc-authoring:close",
-  "skill": "api-doc-authoring",
-  "kind": "close",
-  "query": "Write the guide for our POST /v2/policies endpoint organized around the developer's goal, with examples that actually run and what to do on a 409."
- },
- {
-  "id": "api-doc-authoring:paraphrase",
-  "skill": "api-doc-authoring",
-  "kind": "paraphrase",
-  "query": "Draft developer docs for the REST endpoints in openapi.yaml, with working request samples and recovery steps for each error response."
- },
- {
-  "id": "autoplan:verbatim",
-  "skill": "autoplan",
-  "kind": "verbatim",
-  "query": "/autoplan"
- },
- {
-  "id": "autoplan:close",
-  "skill": "autoplan",
-  "kind": "close",
-  "query": "I have a vague request and do not know which workflow or agent chain to use; pick the route and go."
- },
- {
-  "id": "autoplan:paraphrase",
-  "skill": "autoplan",
-  "kind": "paraphrase",
-  "query": "Add retry logic to the uploader, and you choose which process fits; I do not want to pick from the catalog."
- },
- {
-  "id": "avoiding-manufactured-work:close",
-  "skill": "avoiding-manufactured-work",
-  "kind": "close",
-  "query": "The PR is done, but the agent keeps spawning follow-up issues nobody asked for; check whether each one was actually demanded by a user."
- },
- {
-  "id": "avoiding-manufactured-work:paraphrase",
-  "skill": "avoiding-manufactured-work",
-  "kind": "paraphrase",
-  "query": "After finishing the feature, a worker filed a backlog item and a write-up on its own; classify this late finding as a blocker or an optional extra."
- },
- {
-  "id": "benchmark-models:verbatim",
-  "skill": "benchmark-models",
-  "kind": "verbatim",
-  "query": "benchmark models"
- },
- {
-  "id": "benchmark-models:close",
-  "skill": "benchmark-models",
-  "kind": "close",
-  "query": "Run the same prompt through Claude, Codex and Gemini and compare latency, token counts and cost."
- },
- {
-  "id": "benchmark-models:paraphrase",
-  "skill": "benchmark-models",
-  "kind": "paraphrase",
-  "query": "I want to see which vendor's model is fastest and cheapest for this prompt, side by side, with a judge scoring output quality."
- },
- {
-  "id": "build:verbatim",
-  "skill": "build",
-  "kind": "verbatim",
-  "query": "build this"
- },
- {
-  "id": "build:close",
-  "skill": "build",
-  "kind": "close",
-  "query": "Implement task 3 from the milestone file one thin slice at a time, writing the failing assertion first."
- },
- {
-  "id": "build:paraphrase",
-  "skill": "build",
-  "kind": "paraphrase",
-  "query": "The design is approved, so now write the actual Python for the uploader module, red-green style, committing in small pieces."
- },
- {
-  "id": "business-strategy:close",
-  "skill": "business-strategy",
-  "kind": "close",
-  "query": "I am a founder with a SaaS idea and need to validate demand and pick a pricing model; which business framework fits?"
- },
- {
-  "id": "business-strategy:paraphrase",
-  "skill": "business-strategy",
-  "kind": "paraphrase",
-  "query": "My startup has users but growth stalled; help me work out positioning, sales approach and pricing using established business books."
- },
- {
-  "id": "buy-vs-build-framework:verbatim",
-  "skill": "buy-vs-build-framework",
-  "kind": "verbatim",
-  "query": "is there an existing library for this"
- },
- {
-  "id": "buy-vs-build-framework:close",
-  "skill": "buy-vs-build-framework",
-  "kind": "close",
-  "query": "Should we build our own feature-flag service, buy LaunchDarkly, partner, or defer? Give me a three-year TCO comparison."
- },
- {
-  "id": "buy-vs-build-framework:paraphrase",
-  "skill": "buy-vs-build-framework",
-  "kind": "paraphrase",
-  "query": "Leadership wants a decision between licensing a vendor product, writing it ourselves, or postponing; evaluate total cost of ownership across those four options."
- },
- {
-  "id": "chaos-experiment:verbatim",
-  "skill": "chaos-experiment",
-  "kind": "verbatim",
-  "query": "design a chaos experiment"
- },
- {
-  "id": "chaos-experiment:close",
-  "skill": "chaos-experiment",
-  "kind": "close",
-  "query": "Write up an experiment that kills one pod of the ingestion service, with a steady-state baseline, hypothesis and abort criteria."
- },
- {
-  "id": "chaos-experiment:paraphrase",
-  "skill": "chaos-experiment",
-  "kind": "paraphrase",
-  "query": "How do we deliberately inject failures into the checkout service to see whether it recovers, and document what we expect to happen?"
- },
- {
-  "id": "checkpoint:verbatim",
-  "skill": "checkpoint",
-  "kind": "verbatim",
-  "query": "checkpoint this"
- },
- {
-  "id": "checkpoint:close",
-  "skill": "checkpoint",
-  "kind": "close",
-  "query": "Drop a timestamped note capturing our progress and next actions, secrets scrubbed, before I attempt the risky schema migration."
- },
- {
-  "id": "checkpoint:paraphrase",
-  "skill": "checkpoint",
-  "kind": "paraphrase",
-  "query": "End of my working block: record the current state and what is next in a file I can resume from, and link it in the session log."
- },
- {
-  "id": "chestertons-fence:verbatim",
-  "skill": "chestertons-fence",
-  "kind": "verbatim",
-  "query": "why does this code/constraint exist"
- },
- {
-  "id": "chestertons-fence:close",
-  "skill": "chestertons-fence",
-  "kind": "close",
-  "query": "There is a weird 30-second sleep in deploy.sh; before I delete it, find out why it was added."
- },
- {
-  "id": "chestertons-fence:paraphrase",
-  "skill": "chestertons-fence",
-  "kind": "paraphrase",
-  "query": "Can I safely rip out this odd retry wrapper? Dig through git blame, old PRs and ADRs to learn what problem it was solving."
- },
- {
-  "id": "code-qualities-assessment:verbatim",
-  "skill": "code-qualities-assessment",
-  "kind": "verbatim",
-  "query": "assess maintainability"
- },
- {
-  "id": "code-qualities-assessment:close",
-  "skill": "code-qualities-assessment",
-  "kind": "close",
-  "query": "Score src/policy/engine.py on cohesion, coupling, encapsulation and testability with numbers."
- },
- {
-  "id": "code-qualities-assessment:paraphrase",
-  "skill": "code-qualities-assessment",
-  "kind": "paraphrase",
-  "query": "Give me a maintainability grade for this class using a rubric, checking how entangled it is and whether it duplicates logic."
- },
- {
-  "id": "codebase-documenter:close",
-  "skill": "codebase-documenter",
-  "kind": "close",
-  "query": "This repo has no docs; generate a README, ARCHITECTURE and API doc scaffold from templates."
- },
- {
-  "id": "codebase-documenter:paraphrase",
-  "skill": "codebase-documenter",
-  "kind": "paraphrase",
-  "query": "Bootstrap the initial documentation set for our under-documented service: top-level readme, architecture overview, and code comment guidelines."
- },
- {
-  "id": "codeql-scan:close",
-  "skill": "codeql-scan",
-  "kind": "close",
-  "query": "Run CodeQL on the Python code and the GitHub Actions workflows and give me SARIF output."
- },
- {
-  "id": "codeql-scan:paraphrase",
-  "skill": "codeql-scan",
-  "kind": "paraphrase",
-  "query": "I need a static security analysis using a cached database for our workflows folder and scripts; produce a SARIF file."
- },
- {
-  "id": "context-gather:verbatim",
-  "skill": "context-gather",
-  "kind": "verbatim",
-  "query": "gather context before planning"
- },
- {
-  "id": "context-gather:close",
-  "skill": "context-gather",
-  "kind": "close",
-  "query": "Before redesigning the cache, pull everything relevant from Serena notes, Context7 docs and DeepWiki into one summary."
- },
- {
-  "id": "context-gather:paraphrase",
-  "skill": "context-gather",
-  "kind": "paraphrase",
-  "query": "Collect background from our stored notes, library docs and the web about OneBranch image migration so I can start with full knowledge."
- },
- {
-  "id": "context-hub-setup:verbatim",
-  "skill": "context-hub-setup",
-  "kind": "verbatim",
-  "query": "set up context hub"
- },
- {
-  "id": "context-hub-setup:close",
-  "skill": "context-hub-setup",
-  "kind": "close",
-  "query": "Check whether the Serena and Context7 plugins are installed and give me the install command for whatever is missing."
- },
- {
-  "id": "context-hub-setup:paraphrase",
-  "skill": "context-hub-setup",
-  "kind": "paraphrase",
-  "query": "My MCP servers will not connect; verify the prerequisites for the knowledge tooling and tell me what to install."
- },
- {
-  "id": "context-optimizer:verbatim",
-  "skill": "context-optimizer",
-  "kind": "verbatim",
-  "query": "analyze skill placement"
- },
- {
-  "id": "context-optimizer:close",
-  "skill": "context-optimizer",
-  "kind": "close",
-  "query": "Should this guidance live as an on-demand module or as always-loaded passive context? Also compress the markdown into pipe-delimited form."
- },
- {
-  "id": "context-optimizer:paraphrase",
-  "skill": "context-optimizer",
-  "kind": "paraphrase",
-  "query": "Decide where this content belongs between on-demand and always-on, and shrink the doc to a compact delimited format to save tokens."
- },
- {
-  "id": "curating-memories:verbatim",
-  "skill": "curating-memories",
-  "kind": "verbatim",
-  "query": "how do I mark a memory obsolete"
- },
- {
-  "id": "curating-memories:close",
-  "skill": "curating-memories",
-  "kind": "close",
-  "query": "Mark this Serena note as superseded by the newer one and keep the current truth visible inline."
- },
- {
-  "id": "curating-memories:paraphrase",
-  "skill": "curating-memories",
-  "kind": "paraphrase",
-  "query": "Run a sweep across the saved notes proposing what to do with each outdated file, without editing anything."
- },
- {
-  "id": "cva-analysis:close",
-  "skill": "cva-analysis",
-  "kind": "close",
-  "query": "We have five payment providers with similar requirements; build a commonality and variability matrix so the abstractions emerge."
- },
- {
-  "id": "cva-analysis:paraphrase",
-  "skill": "cva-analysis",
-  "kind": "paraphrase",
-  "query": "Find what is the same and what differs across these notification channels before picking any design pattern."
- },
- {
-  "id": "cynefin-classifier:close",
-  "skill": "cynefin-classifier",
-  "kind": "close",
-  "query": "Is this migration problem Clear, Complicated or Complex? Tell me whether to analyze with experts or run experiments."
- },
- {
-  "id": "cynefin-classifier:paraphrase",
-  "skill": "cynefin-classifier",
-  "kind": "paraphrase",
-  "query": "I am stuck in analysis paralysis on our flaky rollout; categorize the situation and tell me the right way to respond."
- },
- {
-  "id": "decision-critic:close",
-  "skill": "decision-critic",
-  "kind": "close",
-  "query": "I am about to commit to Kafka over SQS; stress-test my reasoning, surface hidden assumptions and argue against it."
- },
- {
-  "id": "decision-critic:paraphrase",
-  "skill": "decision-critic",
-  "kind": "paraphrase",
-  "query": "Poke at this choice of monorepo before I announce it: check my claims and generate adversarial counterpoints."
- },
- {
-  "id": "decision-question:verbatim",
-  "skill": "decision-question",
-  "kind": "verbatim",
-  "query": "ask the user to choose"
- },
- {
-  "id": "decision-question:close",
-  "skill": "decision-question",
-  "kind": "close",
-  "query": "I am blocked on whether to drop Python 3.12 support, which is the owner's call; write a short decision brief with options for them."
- },
- {
-  "id": "decision-question:paraphrase",
-  "skill": "decision-question",
-  "kind": "paraphrase",
-  "query": "Do I actually need to ask the user to choose here, and if so what is the minimal complete brief?"
- },
- {
-  "id": "destructive-change-safety:verbatim",
-  "skill": "destructive-change-safety",
-  "kind": "verbatim",
-  "query": "is this delete safe"
- },
- {
-  "id": "destructive-change-safety:close",
-  "skill": "destructive-change-safety",
-  "kind": "close",
-  "query": "Before I run this DELETE against the prod orders table, work out the blast radius and confirm there is a rollback."
- },
- {
-  "id": "destructive-change-safety:paraphrase",
-  "skill": "destructive-change-safety",
-  "kind": "paraphrase",
-  "query": "This script drops a database and revokes tokens; trace which callers are affected, preview scope without executing, and refuse if undoing it is impossible."
- },
- {
-  "id": "doc-accuracy:verbatim",
-  "skill": "doc-accuracy",
-  "kind": "verbatim",
-  "query": "check documentation accuracy"
- },
- {
-  "id": "doc-accuracy:close",
-  "skill": "doc-accuracy",
-  "kind": "close",
-  "query": "Verify that the code samples in docs/quickstart.md compile and match the real behavior of the code."
- },
- {
-  "id": "doc-accuracy:paraphrase",
-  "skill": "doc-accuracy",
-  "kind": "paraphrase",
-  "query": "Before release, compare every claim in our documentation to the source and flag where they have diverged."
- },
- {
-  "id": "domain-design:verbatim",
-  "skill": "domain-design",
-  "kind": "verbatim",
-  "query": "design this schema"
- },
- {
-  "id": "domain-design:close",
-  "skill": "domain-design",
-  "kind": "close",
-  "query": "Design the schema for subscriptions around the business behaviors, not plain CRUD; should cancellation be an explicit operation with history?"
- },
- {
-  "id": "domain-design:paraphrase",
-  "skill": "domain-design",
-  "kind": "paraphrase",
-  "query": "I am shaping a module boundary for an invoicing API; derive it from what the business needs rather than mirroring the upstream payload."
- },
- {
-  "id": "dx-review:verbatim",
-  "skill": "dx-review",
-  "kind": "verbatim",
-  "query": "run a DX audit"
- },
- {
-  "id": "dx-review:close",
-  "skill": "dx-review",
-  "kind": "close",
-  "query": "Audit the developer experience of our CLI: try the onboarding flow, evaluate error messages and score each area with evidence."
- },
- {
-  "id": "dx-review:paraphrase",
-  "skill": "dx-review",
-  "kind": "paraphrase",
-  "query": "How painful is it for a newcomer to get our SDK running? Walk through setup, upgrade paths and docs, grading what you actually tried versus guessed."
- },
- {
-  "id": "evidence-provenance:verbatim",
-  "skill": "evidence-provenance",
-  "kind": "verbatim",
-  "query": "is this independent evidence"
- },
- {
-  "id": "evidence-provenance:close",
-  "skill": "evidence-provenance",
-  "kind": "close",
-  "query": "The reviewer agent agrees with my analysis, but it was fed my summary; is that independent evidence or the same loop twice?"
- },
- {
-  "id": "evidence-provenance:paraphrase",
-  "skill": "evidence-provenance",
-  "kind": "paraphrase",
-  "query": "The report says the check passed, but did anyone actually execute it? Classify as verified, not run, unavailable or failed."
- },
- {
-  "id": "execution-plans:verbatim",
-  "skill": "execution-plans",
-  "kind": "verbatim",
-  "query": "create execution plan"
- },
- {
-  "id": "execution-plans:close",
-  "skill": "execution-plans",
-  "kind": "close",
-  "query": "Start a versioned plan document for the auth rewrite with progress tracking, and record that we decided to postpone MFA."
- },
- {
-  "id": "execution-plans:paraphrase",
-  "skill": "execution-plans",
-  "kind": "paraphrase",
-  "query": "Mark milestone 2 done in our plan artifact and note why we abandoned the caching approach."
- },
- {
-  "id": "fix-markdown-fences:verbatim",
-  "skill": "fix-markdown-fences",
-  "kind": "verbatim",
-  "query": "fix markdown fences"
- },
- {
-  "id": "fix-markdown-fences:close",
-  "skill": "fix-markdown-fences",
-  "kind": "close",
-  "query": "In docs/guide.md the code blocks are bleeding into the following text; repair the closing fences."
- },
- {
-  "id": "fix-markdown-fences:paraphrase",
-  "skill": "fix-markdown-fences",
-  "kind": "paraphrase",
-  "query": "The rendered page has a runaway code block because a triple-backtick is missing its closing; correct these in the markdown file."
- },
- {
-  "id": "git-advanced-workflows:verbatim",
-  "skill": "git-advanced-workflows",
-  "kind": "verbatim",
-  "query": "rebase my branch"
- },
- {
-  "id": "git-advanced-workflows:close",
-  "skill": "git-advanced-workflows",
-  "kind": "close",
-  "query": "Cherry-pick commit abc123 onto release/2.4 and then bisect to find which commit broke the build."
- },
- {
-  "id": "git-advanced-workflows:paraphrase",
-  "skill": "git-advanced-workflows",
-  "kind": "paraphrase",
-  "query": "I accidentally reset my branch and lost three commits; help me get them back via the reflog."
- },
- {
-  "id": "github:verbatim",
-  "skill": "github",
-  "kind": "verbatim",
-  "query": "create a PR"
- },
- {
-  "id": "github:close",
-  "skill": "github",
-  "kind": "close",
-  "query": "Add the needs-triage label to issue 412 and post a comment asking for repro steps, using the Python scripts."
- },
- {
-  "id": "github:paraphrase",
-  "skill": "github",
-  "kind": "paraphrase",
-  "query": "Merge PR 5521 once its checks pass and assign it to the 2.5 milestone through the structured tooling rather than raw CLI."
- },
- {
-  "id": "github-url-intercept:verbatim",
-  "skill": "github-url-intercept",
-  "kind": "verbatim",
-  "query": "analyze this PR"
- },
- {
-  "id": "github-url-intercept:close",
-  "skill": "github-url-intercept",
-  "kind": "close",
-  "query": "Look at https://github.com/acme/widgets/pull/1893 and tell me what it changes."
- },
- {
-  "id": "github-url-intercept:paraphrase",
-  "skill": "github-url-intercept",
-  "kind": "paraphrase",
-  "query": "Here is a gist link, https://gist.github.com/someone/abc123; explain what the script in it does."
- },
- {
-  "id": "golden-principles:close",
-  "skill": "golden-principles",
-  "kind": "close",
-  "query": "Scan the repo for violations of GP-001 through GP-008 and give remediation steps."
- },
- {
-  "id": "golden-principles:paraphrase",
-  "skill": "golden-principles",
-  "kind": "paraphrase",
-  "query": "Run the garbage-collection scan for our governance principles before I open the PR, and show agent-readable fixes."
- },
- {
-  "id": "llm-council:verbatim",
-  "skill": "llm-council",
-  "kind": "verbatim",
-  "query": "ask the council"
- },
- {
-  "id": "llm-council:close",
-  "skill": "llm-council",
-  "kind": "close",
-  "query": "Put this to the council: should we adopt a monorepo? Get parallel answers from several vendors and a chairman verdict."
- },
- {
-  "id": "llm-council:paraphrase",
-  "skill": "llm-council",
-  "kind": "paraphrase",
-  "query": "I need several different frontier models to weigh in on this hard call, rank their answers, and give me a final ruling."
- },
- {
-  "id": "maintainer-review:verbatim",
-  "skill": "maintainer-review",
-  "kind": "verbatim",
-  "query": "maintainer decision on this PR"
- },
- {
-  "id": "maintainer-review:close",
-  "skill": "maintainer-review",
-  "kind": "close",
-  "query": "As maintainer, decide whether to merge, request changes or close PR 318 and draft the comment, but do not post anything."
- },
- {
-  "id": "maintainer-review:paraphrase",
-  "skill": "maintainer-review",
-  "kind": "paraphrase",
-  "query": "Give me a verdict on this contributor's issue, supersede or close, with a drafted reply I can paste later."
- },
- {
-  "id": "memory:verbatim",
-  "skill": "memory",
-  "kind": "verbatim",
-  "query": "remember this"
- },
- {
-  "id": "memory:close",
-  "skill": "memory",
-  "kind": "close",
-  "query": "I want to store a durable fact about our deploy cadence and later look it up, but I do not know which tool does which."
- },
- {
-  "id": "memory:paraphrase",
-  "skill": "memory",
-  "kind": "paraphrase",
-  "query": "Point me to the right sub-tool: I need to write down a lesson from today and also read older notes on the same topic."
- },
- {
-  "id": "memory-consolidate:verbatim",
-  "skill": "memory-consolidate",
-  "kind": "verbatim",
-  "query": "consolidate memory"
- },
- {
-  "id": "memory-consolidate:close",
-  "skill": "memory-consolidate",
-  "kind": "close",
-  "query": "Do a reflective cleanup pass on Serena notes: merge duplicate topic files, convert relative dates like last Tuesday to absolute ones, and tidy the index."
- },
- {
-  "id": "memory-consolidate:paraphrase",
-  "skill": "memory-consolidate",
-  "kind": "paraphrase",
-  "query": "Separate lasting preferences from dated project notes in my saved context, fold duplicates into the richer file, and fix the index."
- },
- {
-  "id": "memory-documentary:verbatim",
-  "skill": "memory-documentary",
-  "kind": "verbatim",
-  "query": "evidence-based report"
- },
- {
-  "id": "memory-documentary:close",
-  "skill": "memory-documentary",
-  "kind": "close",
-  "query": "Write an investigative evidence-based report on how the hook failures evolved, with full citation chains across notes, repo artifacts and issues."
- },
- {
-  "id": "memory-documentary:paraphrase",
-  "skill": "memory-documentary",
-  "kind": "paraphrase",
-  "query": "Trace the story of the retry-policy decision through every source we have and produce a journalism-style write-up with sources cited."
- },
- {
-  "id": "memory-enhancement:verbatim",
-  "skill": "memory-enhancement",
-  "kind": "verbatim",
-  "query": "add a citation"
- },
- {
-  "id": "memory-enhancement:close",
-  "skill": "memory-enhancement",
-  "kind": "close",
-  "query": "Add a citation pointing to src/auth.py:42 on this note and check that the code references still resolve."
- },
- {
-  "id": "memory-enhancement:paraphrase",
-  "skill": "memory-enhancement",
-  "kind": "paraphrase",
-  "query": "Check how healthy the citations are across our notes and adjust confidence scores for stale ones."
- },
- {
-  "id": "memory-gate:verbatim",
-  "skill": "memory-gate",
-  "kind": "verbatim",
-  "query": "memory-first gate"
- },
- {
-  "id": "memory-gate:close",
-  "skill": "memory-gate",
-  "kind": "close",
-  "query": "Run the blocking gate that makes me check saved notes before I modify this existing protocol."
- },
- {
-  "id": "memory-gate:paraphrase",
-  "skill": "memory-gate",
-  "kind": "paraphrase",
-  "query": "Do not let me edit this protocol file until I have looked up what our past notes say about the reasoning behind it."
- },
- {
-  "id": "memory-maintenance:verbatim",
-  "skill": "memory-maintenance",
-  "kind": "verbatim",
-  "query": "check memory tier health"
- },
- {
-  "id": "memory-maintenance:close",
-  "skill": "memory-maintenance",
-  "kind": "close",
-  "query": "Run a health check on the tiered note store, count token cost and validate atomicity sizes."
- },
- {
-  "id": "memory-maintenance:paraphrase",
-  "skill": "memory-maintenance",
-  "kind": "paraphrase",
-  "query": "Measure graph density of our notes and time the retrieval scripts to see whether performance has slipped."
- },
- {
-  "id": "memory-reflexion:verbatim",
-  "skill": "memory-reflexion",
-  "kind": "verbatim",
-  "query": "extract episode from session"
- },
- {
-  "id": "memory-reflexion:close",
-  "skill": "memory-reflexion",
-  "kind": "close",
-  "query": "Pull an episode out of the finished session log so later sessions can see what was tried and what it cost."
- },
- {
-  "id": "memory-reflexion:paraphrase",
-  "skill": "memory-reflexion",
-  "kind": "paraphrase",
-  "query": "Re-extract the episode for yesterday's debugging session from its log file; the first extraction was incomplete."
- },
- {
-  "id": "memory-search:verbatim",
-  "skill": "memory-search",
-  "kind": "verbatim",
-  "query": "search memory"
- },
- {
-  "id": "memory-search:close",
-  "skill": "memory-search",
-  "kind": "close",
-  "query": "Find any saved notes on the hook timeout issue in the project, and warn me about the token budget."
- },
- {
-  "id": "memory-search:paraphrase",
-  "skill": "memory-search",
-  "kind": "paraphrase",
-  "query": "Pull up earlier context on the OneBranch migration from stored knowledge, disclosing details progressively."
- },
- {
-  "id": "merge-resolver:verbatim",
-  "skill": "merge-resolver",
-  "kind": "verbatim",
-  "query": "resolve merge conflicts"
- },
- {
-  "id": "merge-resolver:close",
-  "skill": "merge-resolver",
-  "kind": "close",
-  "query": "PR 902 has conflicts with main in three files; sort them out using the commit history to understand intent."
- },
- {
-  "id": "merge-resolver:paraphrase",
-  "skill": "merge-resolver",
-  "kind": "paraphrase",
-  "query": "My rebase stopped with conflict markers in session logs and a config file; fix them based on what each side was trying to do."
- },
- {
-  "id": "metrics:verbatim",
-  "skill": "metrics",
-  "kind": "verbatim",
-  "query": "collect agent metrics"
- },
- {
-  "id": "metrics:close",
-  "skill": "metrics",
-  "kind": "close",
-  "query": "Generate this week's dashboard of how often each agent was invoked and the coverage numbers from git history."
- },
- {
-  "id": "metrics:paraphrase",
-  "skill": "metrics",
-  "kind": "paraphrase",
-  "query": "Produce a health report on agent adoption: invocation rate, usage distribution and infrastructure review counts."
- },
- {
-  "id": "modernize:verbatim",
-  "skill": "modernize",
-  "kind": "verbatim",
-  "query": "modernize this PR"
- },
- {
-  "id": "modernize:close",
-  "skill": "modernize",
-  "kind": "close",
-  "query": "PR 1204 is eight months stale; before rebasing, decide whether the idea still belongs, should be reworked, or should be closed."
- },
- {
-  "id": "modernize:paraphrase",
-  "skill": "modernize",
-  "kind": "paraphrase",
-  "query": "This old branch has aged out against main. Check if the change is still wanted and end with a clear verdict to update, redo, or drop it."
- },
- {
-  "id": "negotiation:close",
-  "skill": "negotiation",
-  "kind": "close",
-  "query": "I got a job offer at 285k base plus equity; compare it against my current comp and draft a counter-proposal."
- },
- {
-  "id": "negotiation:paraphrase",
-  "skill": "negotiation",
-  "kind": "paraphrase",
-  "query": "The vendor quoted 40 percent above what we expected; figure out the value gap, whether to walk away, and write our reply."
- },
- {
-  "id": "observability:verbatim",
-  "skill": "observability",
-  "kind": "verbatim",
-  "query": "query agent logs"
- },
- {
-  "id": "observability:close",
-  "skill": "observability",
-  "kind": "close",
-  "query": "Search the agent event logs for errors from the last run and trace the decisions leading up to them."
- },
- {
-  "id": "observability:paraphrase",
-  "skill": "observability",
-  "kind": "paraphrase",
-  "query": "Our agent runs got slower; mine the structured JSONL traces to see where the time goes."
- },
- {
-  "id": "orphan-ref-validator:verbatim",
-  "skill": "orphan-ref-validator",
-  "kind": "verbatim",
-  "query": "scan for orphan refs"
- },
- {
-  "id": "orphan-ref-validator:close",
-  "skill": "orphan-ref-validator",
-  "kind": "close",
-  "query": "Scan specs and ADRs for references to agent capabilities and scripts that no longer exist in the working tree."
- },
- {
-  "id": "orphan-ref-validator:paraphrase",
-  "skill": "orphan-ref-validator",
-  "kind": "paraphrase",
-  "query": "Before committing, make sure no eval fixture or plugin manifest points at a file that has been deleted or renamed."
- },
- {
-  "id": "panning-for-gold:verbatim",
-  "skill": "panning-for-gold",
-  "kind": "verbatim",
-  "query": "pan for gold"
- },
- {
-  "id": "panning-for-gold:close",
-  "skill": "panning-for-gold",
-  "kind": "close",
-  "query": "Here is a rambling voice transcript from my 1:1; pull out the valuable threads and synthesize the good stuff."
- },
- {
-  "id": "panning-for-gold:paraphrase",
-  "skill": "panning-for-gold",
-  "kind": "paraphrase",
-  "query": "I brain-dumped 4,000 words of notes; triage them into evaluated threads and a distilled file of what is worth keeping."
- },
- {
-  "id": "pipeline-validator:close",
-  "skill": "pipeline-validator",
-  "kind": "close",
-  "query": "Trigger the Azure DevOps PR pipeline for my branch, watch it, and if it fails read the build logs, fix, push and retrigger."
- },
- {
-  "id": "pipeline-validator:paraphrase",
-  "skill": "pipeline-validator",
-  "kind": "paraphrase",
-  "query": "Keep running Buddy Build for this branch until it goes green, diagnosing each failure from logs and checking the PR description is complete."
- },
- {
-  "id": "plan:verbatim",
-  "skill": "plan",
-  "kind": "verbatim",
-  "query": "plan how to build this"
- },
- {
-  "id": "plan:close",
-  "skill": "plan",
-  "kind": "close",
-  "query": "Decompose the requirements doc into ordered milestones and small tasks with sizing and a risk list."
- },
- {
-  "id": "plan:paraphrase",
-  "skill": "plan",
-  "kind": "paraphrase",
-  "query": "We have agreed requirements for the import feature; sequence the work into phases, estimate each piece, and note what could go wrong."
- },
- {
-  "id": "planner:verbatim",
-  "skill": "planner",
-  "kind": "verbatim",
-  "query": "run the planner workflow"
- },
- {
-  "id": "planner:close",
-  "skill": "planner",
-  "kind": "close",
-  "query": "Draft a plan through forced reflection pauses, then execute each milestone of the approved file by delegating to specialist agents."
- },
- {
-  "id": "planner:paraphrase",
-  "skill": "planner",
-  "kind": "paraphrase",
-  "query": "Resume running the plan file: reconcile it against what is already done and hand the next milestone to the right agents."
- },
- {
-  "id": "pr-autofix:verbatim",
-  "skill": "pr-autofix",
-  "kind": "verbatim",
-  "query": "pr-autofix"
- },
- {
-  "id": "pr-autofix:close",
-  "skill": "pr-autofix",
-  "kind": "close",
-  "query": "Go through all my open PRs, address thread feedback, fix red CI, and turn on auto-merge when they are ready."
- },
- {
-  "id": "pr-autofix:paraphrase",
-  "skill": "pr-autofix",
-  "kind": "paraphrase",
-  "query": "Monitor every open pull request in the repo autonomously, triage by tier and repair failures without me watching."
- },
- {
-  "id": "pr-babysit:verbatim",
-  "skill": "pr-babysit",
-  "kind": "verbatim",
-  "query": "babysit this PR"
- },
- {
-  "id": "pr-babysit:close",
-  "skill": "pr-babysit",
-  "kind": "close",
-  "query": "Watch PR 7544 until CI is green and reviews are done, with an event-driven watcher instead of polling."
- },
- {
-  "id": "pr-babysit:paraphrase",
-  "skill": "pr-babysit",
-  "kind": "paraphrase",
-  "query": "Keep an eye on this one pull request through checks and approvals and ping me when it is ready to merge."
- },
- {
-  "id": "pr-comment-responder:verbatim",
-  "skill": "pr-comment-responder",
-  "kind": "verbatim",
-  "query": "respond to PR comments"
- },
- {
-  "id": "pr-comment-responder:close",
-  "skill": "pr-comment-responder",
-  "kind": "close",
-  "query": "Go through each comment thread on my PR, fix what is valid or reply in-thread, and record the status of every one."
- },
- {
-  "id": "pr-comment-responder:paraphrase",
-  "skill": "pr-comment-responder",
-  "kind": "paraphrase",
-  "query": "The Copilot bot left a pile of comments on PR 6890; acknowledge and resolve every one of them one at a time."
- },
- {
-  "id": "pr-quality:verbatim",
-  "skill": "pr-quality",
-  "kind": "verbatim",
-  "query": "/pr-quality"
- },
- {
-  "id": "pr-quality:close",
-  "skill": "pr-quality",
-  "kind": "close",
-  "query": "Run the six quality axes, security, QA, analyst, architect, DevOps and roadmap, on my working changes and merge the verdicts."
- },
- {
-  "id": "pr-quality:paraphrase",
-  "skill": "pr-quality",
-  "kind": "paraphrase",
-  "query": "Before I push, run just the security axis check against my local diff."
- },
- {
-  "id": "pr-review:verbatim",
-  "skill": "pr-review",
-  "kind": "verbatim",
-  "query": "/pr-review 1234"
- },
- {
-  "id": "pr-review:close",
-  "skill": "pr-review",
-  "kind": "close",
-  "query": "Respond to feedback on PRs 12 and 15 in parallel and then tell me whether each can merge."
- },
- {
-  "id": "pr-review:paraphrase",
-  "skill": "pr-review",
-  "kind": "paraphrase",
-  "query": "Address reviewer comments across these three pull requests and give a final merge verdict for each after the completion gate."
- },
- {
-  "id": "pre-mortem:verbatim",
-  "skill": "pre-mortem",
-  "kind": "verbatim",
-  "query": "run a pre-mortem on"
- },
- {
-  "id": "pre-mortem:close",
-  "skill": "pre-mortem",
-  "kind": "close",
-  "query": "Imagine our launch of the new config pipeline failed badly in six months; work backward to find what caused it."
- },
- {
-  "id": "pre-mortem:paraphrase",
-  "skill": "pre-mortem",
-  "kind": "paraphrase",
-  "query": "Before we start the migration, assume it collapsed, and list the likely reasons."
- },
- {
-  "id": "programming-advisor:verbatim",
-  "skill": "programming-advisor",
-  "kind": "verbatim",
-  "query": "should I build or use existing"
- },
- {
-  "id": "programming-advisor:close",
-  "skill": "programming-advisor",
-  "kind": "close",
-  "query": "Is there an existing library for parsing SARIF files, or something already in this repo, before I write my own?"
- },
- {
-  "id": "programming-advisor:paraphrase",
-  "skill": "programming-advisor",
-  "kind": "paraphrase",
-  "query": "We are about to hand-roll a rate limiter; check whether an off-the-shelf package or an internal implementation already covers it."
- },
- {
-  "id": "prompt-engineer:verbatim",
-  "skill": "prompt-engineer",
-  "kind": "verbatim",
-  "query": "optimize this prompt"
- },
- {
-  "id": "prompt-engineer:close",
-  "skill": "prompt-engineer",
-  "kind": "close",
-  "query": "Improve this system prompt for my Claude Code agent; it ignores tool instructions about half the time."
- },
- {
-  "id": "prompt-engineer:paraphrase",
-  "skill": "prompt-engineer",
-  "kind": "paraphrase",
-  "query": "Tighten the instructions in agents/critic.md so the agent follows its workflow more reliably, using established prompt patterns."
- },
- {
-  "id": "prose-self-check:verbatim",
-  "skill": "prose-self-check",
-  "kind": "verbatim",
-  "query": "prose self-check"
- },
- {
-  "id": "prose-self-check:close",
-  "skill": "prose-self-check",
-  "kind": "close",
-  "query": "Before I write the session-log narrative, run an AI-tell check on my draft paragraph."
- },
- {
-  "id": "prose-self-check:paraphrase",
-  "skill": "prose-self-check",
-  "kind": "paraphrase",
-  "query": "I am about to finalize a PR description I drafted with an LLM; make sure it does not read as machine-written, layer by layer."
- },
- {
-  "id": "push-pr:verbatim",
-  "skill": "push-pr",
-  "kind": "verbatim",
-  "query": "push and open a PR"
- },
- {
-  "id": "push-pr:close",
-  "skill": "push-pr",
-  "kind": "close",
-  "query": "Commit these changes, push the branch, and open a pull request with the template filled from the diff."
- },
- {
-  "id": "push-pr:paraphrase",
-  "skill": "push-pr",
-  "kind": "paraphrase",
-  "query": "Get my working tree committed, pushed, and a PR opened on ADO using the repo's template."
- },
- {
-  "id": "quality-grades:verbatim",
-  "skill": "quality-grades",
-  "kind": "verbatim",
-  "query": "grade quality"
- },
- {
-  "id": "quality-grades:close",
-  "skill": "quality-grades",
-  "kind": "close",
-  "query": "Grade each product domain A through F and show gaps and trends."
- },
- {
-  "id": "quality-grades:paraphrase",
-  "skill": "quality-grades",
-  "kind": "paraphrase",
-  "query": "Give me a repo-wide scorecard by architectural layer with file counts, in markdown or JSON, showing which areas are weakest."
- },
- {
-  "id": "reflect:close",
-  "skill": "reflect",
-  "kind": "close",
-  "query": "I just corrected the agent twice for the same mistake; capture the lesson with a confidence level so it does not repeat."
- },
- {
-  "id": "reflect:paraphrase",
-  "skill": "reflect",
-  "kind": "paraphrase",
-  "query": "That worked perfectly, so extract the pattern behind it and store it as a high, medium or low confidence learning."
- },
- {
-  "id": "repository-completion-proof:close",
-  "skill": "repository-completion-proof",
-  "kind": "close",
-  "query": "PR 7579 merged after review and recovery; prove ai-agents completion with evidence of what actually landed."
- },
- {
-  "id": "repository-completion-proof:paraphrase",
-  "skill": "repository-completion-proof",
-  "kind": "paraphrase",
-  "query": "Show that the finish line was truly reached for this ai-agents pull request, after trust verification, not just that the thread says done."
- },
- {
-  "id": "repository-consumer-proof:close",
-  "skill": "repository-consumer-proof",
-  "kind": "close",
-  "query": "The ai-agents build is green, but verify that the hooks installed in a consumer repo actually dispatch and behave correctly."
- },
- {
-  "id": "repository-consumer-proof:paraphrase",
-  "skill": "repository-consumer-proof",
-  "kind": "paraphrase",
-  "query": "Beyond passing CI, confirm what end users of ai-agents get when the installed dispatch runs."
- },
- {
-  "id": "repository-pr-recovery:close",
-  "skill": "repository-pr-recovery",
-  "kind": "close",
-  "query": "Why is this ai-agents PR blocked with a missing required check, and who is responsible for the cancelled baseline run?"
- },
- {
-  "id": "repository-pr-recovery:paraphrase",
-  "skill": "repository-pr-recovery",
-  "kind": "paraphrase",
-  "query": "Attribute the stall on the ai-agents pull request: absent checks and a cancelled main baseline, who or what caused them?"
- },
- {
-  "id": "requirements-interview:verbatim",
-  "skill": "requirements-interview",
-  "kind": "verbatim",
-  "query": "interview me on this"
- },
- {
-  "id": "requirements-interview:close",
-  "skill": "requirements-interview",
-  "kind": "close",
-  "query": "Interview me hard, adversarially, about the new export feature before any code, skipping questions the codebase can already answer."
- },
- {
-  "id": "requirements-interview:paraphrase",
-  "skill": "requirements-interview",
-  "kind": "paraphrase",
-  "query": "Here is our 12-section draft design doc; find ambiguities and ask pointed questions anchored in the text."
- },
- {
-  "id": "research:verbatim",
-  "skill": "research",
-  "kind": "verbatim",
-  "query": "research this topic"
- },
- {
-  "id": "research:close",
-  "skill": "research",
-  "kind": "close",
-  "query": "Write a 4,000-word analysis of trunk-based development practices, map it onto our project, and draft the follow-up issue."
- },
- {
-  "id": "research:paraphrase",
-  "skill": "research",
-  "kind": "paraphrase",
-  "query": "Study outside work on prompt caching economics and produce a long write-up applying it to our repo, plus an issue for the owner."
- },
- {
-  "id": "retrospective:verbatim",
-  "skill": "retrospective",
-  "kind": "verbatim",
-  "query": "run a retrospective"
- },
- {
-  "id": "retrospective:close",
-  "skill": "retrospective",
-  "kind": "close",
-  "query": "Extract lessons from this session using Five Whys and fishbone analysis and write the canonical artifact."
- },
- {
-  "id": "retrospective:paraphrase",
-  "skill": "retrospective",
-  "kind": "paraphrase",
-  "query": "Turn what happened in this sprint into institutional knowledge: gather evidence, diagnose root causes, score atomicity of learnings."
- },
- {
-  "id": "review:close",
-  "skill": "review",
-  "kind": "close",
-  "query": "Run the final merge-readiness gate on my branch: confirm it satisfies the requirements first, then run the risk-selected analysis axes."
- },
- {
-  "id": "review:paraphrase",
-  "skill": "review",
-  "kind": "paraphrase",
-  "query": "My implementation and checks are done; give the whole diff a thorough go-over before it can be merged, including a deep pass on everything."
- },
- {
-  "id": "reviewer-findings:verbatim",
-  "skill": "reviewer-findings",
-  "kind": "verbatim",
-  "query": "address this review comment"
- },
- {
-  "id": "reviewer-findings:close",
-  "skill": "reviewer-findings",
-  "kind": "close",
-  "query": "The bot flagged a possible SQL injection in query.py:88; verify the finding's verdict, diagnosis and proposed fix before I change anything."
- },
- {
-  "id": "reviewer-findings:paraphrase",
-  "skill": "reviewer-findings",
-  "kind": "paraphrase",
-  "query": "A reviewer says this loop leaks a handle and suggests a rewrite; check each part of that claim with evidence first."
- },
- {
-  "id": "security-detection:verbatim",
-  "skill": "security-detection",
-  "kind": "verbatim",
-  "query": "did I touch security-critical files"
- },
- {
-  "id": "security-detection:close",
-  "skill": "security-detection",
-  "kind": "close",
-  "query": "Did I touch any security-critical files in this diff, such as workflows or auth config, that need the security agent?"
- },
- {
-  "id": "security-detection:paraphrase",
-  "skill": "security-detection",
-  "kind": "paraphrase",
-  "query": "Just detect whether my changes include sensitive infrastructure paths that warrant security oversight; do not scan the code itself."
- },
- {
-  "id": "security-review:close",
-  "skill": "security-review",
-  "kind": "close",
-  "query": "Check this diff for vulnerabilities, score risk with CWE references, and give me a verdict inline."
- },
- {
-  "id": "security-review:paraphrase",
-  "skill": "security-review",
-  "kind": "paraphrase",
-  "query": "Is this snippet exploitable? Threat-model the change in my current context, no need to dispatch a separate agent."
- },
- {
-  "id": "security-scan:verbatim",
-  "skill": "security-scan",
-  "kind": "verbatim",
-  "query": "scan for command injection"
- },
- {
-  "id": "security-scan:close",
-  "skill": "security-scan",
-  "kind": "close",
-  "query": "Scan my PowerShell and Python scripts for command injection patterns before I submit the PR."
- },
- {
-  "id": "security-scan:paraphrase",
-  "skill": "security-scan",
-  "kind": "paraphrase",
-  "query": "Look for places where user input flows into shell commands in scripts/ with the regex-based detector."
- },
- {
-  "id": "ship:verbatim",
-  "skill": "ship",
-  "kind": "verbatim",
-  "query": "ship it"
- },
- {
-  "id": "ship:close",
-  "skill": "ship",
-  "kind": "close",
-  "query": "Run the four pre-flight checks and then hand over to open the PR."
- },
- {
-  "id": "ship:paraphrase",
-  "skill": "ship",
-  "kind": "paraphrase",
-  "query": "Approvals are finished; run the final gates and validate this contributor's branch without altering it."
- },
- {
-  "id": "skill-bootstrap:verbatim",
-  "skill": "skill-bootstrap",
-  "kind": "verbatim",
-  "query": "bootstrap skills"
- },
- {
-  "id": "skill-bootstrap:close",
-  "skill": "skill-bootstrap",
-  "kind": "close",
-  "query": "Mine this repo's git history, reviews and agent sessions to author a whole project library of reusable capabilities and evaluate it."
- },
- {
-  "id": "skill-bootstrap:paraphrase",
-  "skill": "skill-bootstrap",
-  "kind": "paraphrase",
-  "query": "Capture how this team actually works from its past PRs and sessions into a set of reusable agent capabilities."
- },
- {
-  "id": "skill-doctor:verbatim",
-  "skill": "skill-doctor",
-  "kind": "verbatim",
-  "query": "diagnose skill usage"
- },
- {
-  "id": "skill-doctor:close",
-  "skill": "skill-doctor",
-  "kind": "close",
-  "query": "Score how my installed capabilities did in recent local sessions and draft edits backed by evidence."
- },
- {
-  "id": "skill-doctor:paraphrase",
-  "skill": "skill-doctor",
-  "kind": "paraphrase",
-  "query": "Why did the deployment helper never trigger last week? Grade usage from the session transcripts."
- },
- {
-  "id": "skillforge:verbatim",
-  "skill": "skillforge",
-  "kind": "verbatim",
-  "query": "create a skill"
- },
- {
-  "id": "skillforge:close",
-  "skill": "skillforge",
-  "kind": "close",
-  "query": "I need a new reusable capability for generating release notes; check whether an existing one fits, else create it."
- },
- {
-  "id": "skillforge:paraphrase",
-  "skill": "skillforge",
-  "kind": "paraphrase",
-  "query": "Before I add a PostToolUse hook, recommend which existing capability fits this goal or help me author a new one."
- },
- {
-  "id": "skillify:verbatim",
-  "skill": "skillify",
-  "kind": "verbatim",
-  "query": "skillify this"
- },
- {
-  "id": "skillify:close",
-  "skill": "skillify",
-  "kind": "close",
-  "query": "Turn the steps I just completed into a reusable, saved capability for next time."
- },
- {
-  "id": "skillify:paraphrase",
-  "skill": "skillify",
-  "kind": "paraphrase",
-  "query": "Package the workflow we just ran into something I can invoke again later."
- },
- {
-  "id": "skillopt:verbatim",
-  "skill": "skillopt",
-  "kind": "verbatim",
-  "query": "optimize this skill"
- },
- {
-  "id": "skillopt:close",
-  "skill": "skillopt",
-  "kind": "close",
-  "query": "Tune this prompt against an eval with a held-out acceptance gate using bounded patches."
- },
- {
-  "id": "skillopt:paraphrase",
-  "skill": "skillopt",
-  "kind": "paraphrase",
-  "query": "One agent file keeps failing the same way; improve it with small patches, accepting a change only if held-out tasks still pass."
- },
- {
-  "id": "slo-designer:close",
-  "skill": "slo-designer",
-  "kind": "close",
-  "query": "Define SLOs for our API with SLIs, a 99.9 percent target, alert thresholds, and error budget math."
- },
- {
-  "id": "slo-designer:paraphrase",
-  "skill": "slo-designer",
-  "kind": "paraphrase",
-  "query": "How much downtime per month can we afford at 99.95 percent availability, and which indicators and burn-rate alerts should we set?"
- },
- {
-  "id": "software-engineering-library:close",
-  "skill": "software-engineering-library",
-  "kind": "close",
-  "query": "Which engineering references cover refactoring legacy code safely and writing characterization tests for it?"
- },
- {
-  "id": "software-engineering-library:paraphrase",
-  "skill": "software-engineering-library",
-  "kind": "paraphrase",
-  "query": "I am weighing module boundaries and data consistency trade-offs in a distributed service; route me to the right design guidance."
- },
- {
-  "id": "sol-loop:verbatim",
-  "skill": "sol-loop",
-  "kind": "verbatim",
-  "query": "sol loop"
- },
- {
-  "id": "sol-loop:close",
-  "skill": "sol-loop",
-  "kind": "close",
-  "query": "Run GPT Sol after the critic, cap it at two rounds, and log findings only Sol raised."
- },
- {
-  "id": "sol-loop:paraphrase",
-  "skill": "sol-loop",
-  "kind": "paraphrase",
-  "query": "Add a second-opinion pass from the GPT reviewer after the fresh critic is done, max two rounds, recording what only it caught."
- },
- {
-  "id": "spec:verbatim",
-  "skill": "spec",
-  "kind": "verbatim",
-  "query": "spec this out"
- },
- {
-  "id": "spec:close",
-  "skill": "spec",
-  "kind": "close",
-  "query": "Turn this vague idea for an offline mode into testable requirements with acceptance criteria."
- },
- {
-  "id": "spec:paraphrase",
-  "skill": "spec",
-  "kind": "paraphrase",
-  "query": "Help me define what the bulk import feature needs to do: gate it on first principles and prior art, then produce a product requirements document."
- },
- {
-  "id": "spec-generator:verbatim",
-  "skill": "spec-generator",
-  "kind": "verbatim",
-  "query": "generate spec"
- },
- {
-  "id": "spec-generator:close",
-  "skill": "spec-generator",
-  "kind": "close",
-  "query": "Generate Requirements, Design and Tasks files in EARS syntax for the notifications feature with schema-valid frontmatter."
- },
- {
-  "id": "spec-generator:paraphrase",
-  "skill": "spec-generator",
-  "kind": "paraphrase",
-  "query": "Convert this feature description into the REQ, DESIGN and TASK file set using the canonical schema."
- },
- {
-  "id": "steering-matcher:verbatim",
-  "skill": "steering-matcher",
-  "kind": "verbatim",
-  "query": "match steering for these files"
- },
- {
-  "id": "steering-matcher:close",
-  "skill": "steering-matcher",
-  "kind": "close",
-  "query": "Which steering files apply to src/api/handlers.py and tests/ changes? Match the paths against the glob patterns."
- },
- {
-  "id": "steering-matcher:paraphrase",
-  "skill": "steering-matcher",
-  "kind": "paraphrase",
-  "query": "I need context-aware guidance injected for the files I am about to modify; which steering documents' globs match them?"
- },
- {
-  "id": "stuck-detection:verbatim",
-  "skill": "stuck-detection",
-  "kind": "verbatim",
-  "query": "check stuck loop"
- },
- {
-  "id": "stuck-detection:close",
-  "skill": "stuck-detection",
-  "kind": "close",
-  "query": "The agent keeps retrying the same failing tool call; check whether it is in a loop and nudge it."
- },
- {
-  "id": "stuck-detection:paraphrase",
-  "skill": "stuck-detection",
-  "kind": "paraphrase",
-  "query": "Detect when a model is burning tokens repeating the same topic, and reset the tracked history after it recovers."
- },
- {
-  "id": "style-enforcement:verbatim",
-  "skill": "style-enforcement",
-  "kind": "verbatim",
-  "query": "check style compliance"
- },
- {
-  "id": "style-enforcement:close",
-  "skill": "style-enforcement",
-  "kind": "close",
-  "query": "Check my C# files against .editorconfig and StyleCop.json, including line endings and naming."
- },
- {
-  "id": "style-enforcement:paraphrase",
-  "skill": "style-enforcement",
-  "kind": "paraphrase",
-  "query": "Do the changes violate the indentation, naming or CRLF rules set in Directory.Build.props?"
- },
- {
-  "id": "sync:verbatim",
-  "skill": "sync",
-  "kind": "verbatim",
-  "query": "detect spec drift"
- },
- {
-  "id": "sync:close",
-  "skill": "sync",
-  "kind": "close",
-  "query": "I hand-edited and deleted a module; find which requirement, design and task docs now reference code that no longer exists."
- },
- {
-  "id": "sync:paraphrase",
-  "skill": "sync",
-  "kind": "paraphrase",
-  "query": "Did my refactor leave any stale references in our REQ, DESIGN and TASK documents pointing at removed functions? Report it for triage."
- },
- {
-  "id": "takeover:verbatim",
-  "skill": "takeover",
-  "kind": "verbatim",
-  "query": "take over this PR"
- },
- {
-  "id": "takeover:close",
-  "skill": "takeover",
-  "kind": "close",
-  "query": "Dana left the company mid-way through PR 2210; I am picking up the work and want her credit preserved."
- },
- {
-  "id": "takeover:paraphrase",
-  "skill": "takeover",
-  "kind": "paraphrase",
-  "query": "Pick up this half-done agent thread and branch from another contributor and carry it to completion, crediting the original author."
- },
- {
-  "id": "taste-lints:verbatim",
-  "skill": "taste-lints",
-  "kind": "verbatim",
-  "query": "run taste lints"
- },
- {
-  "id": "taste-lints:close",
-  "skill": "taste-lints",
-  "kind": "close",
-  "query": "Check file size, naming conventions and structured logging invariants with the custom lints."
- },
- {
-  "id": "taste-lints:paraphrase",
-  "skill": "taste-lints",
-  "kind": "paraphrase",
-  "query": "Which of my files are too long or too complex, with remediation instructions an agent can follow?"
- },
- {
-  "id": "technical-writing:close",
-  "skill": "technical-writing",
-  "kind": "close",
-  "query": "Edit docs/howto/auth.md to match our site's conventions and one chosen stylebook, preserving facts."
- },
- {
-  "id": "technical-writing:paraphrase",
-  "skill": "technical-writing",
-  "kind": "paraphrase",
-  "query": "Give this concept page a plain-prose tightening pass in the Hemingway style without changing any facts."
- },
- {
-  "id": "test:verbatim",
-  "skill": "test",
-  "kind": "verbatim",
-  "query": "prove this works"
- },
- {
-  "id": "test:close",
-  "skill": "test",
-  "kind": "close",
-  "query": "Prove this change works across the six quality gates: functional, non-functional, security, DevOps, developer experience, observability."
- },
- {
-  "id": "test:paraphrase",
-  "skill": "test",
-  "kind": "paraphrase",
-  "query": "The code is written; validate it end to end with the full gate set, including mutation checks on the Pester files."
- },
- {
-  "id": "threat-modeling:close",
-  "skill": "threat-modeling",
-  "kind": "close",
-  "query": "Do an attack surface analysis of our webhook receiver with STRIDE and a threat matrix with risk ratings."
- },
- {
-  "id": "threat-modeling:paraphrase",
-  "skill": "threat-modeling",
-  "kind": "paraphrase",
-  "query": "Using the OWASP four questions, what can go wrong in our token-exchange architecture, and how do we mitigate and prioritize?"
- },
- {
-  "id": "using-serena-symbols:verbatim",
-  "skill": "using-serena-symbols",
-  "kind": "verbatim",
-  "query": "how do I find a symbol"
- },
- {
-  "id": "using-serena-symbols:close",
-  "skill": "using-serena-symbols",
-  "kind": "close",
-  "query": "Trace all references to the method SaveCache and show the structure of storage.py via the LSP symbol tools."
- },
- {
-  "id": "using-serena-symbols:paraphrase",
-  "skill": "using-serena-symbols",
-  "kind": "paraphrase",
-  "query": "Text search is too imprecise here; find where this class is defined and who uses it using language-server navigation."
- },
- {
-  "id": "validate-pr-description:verbatim",
-  "skill": "validate-pr-description",
-  "kind": "verbatim",
-  "query": "validate my PR description"
- },
- {
-  "id": "validate-pr-description:close",
-  "skill": "validate-pr-description",
-  "kind": "close",
-  "query": "Is this PR title feat(auth) add token refresh valid, and does the body follow the template with a proper Fixes link?"
- },
- {
-  "id": "validate-pr-description:paraphrase",
-  "skill": "validate-pr-description",
-  "kind": "paraphrase",
-  "query": "Lint the description text I wrote for my pull request: does it link the issue correctly and match the required sections?"
- },
- {
-  "id": "validation-authority:close",
-  "skill": "validation-authority",
-  "kind": "close",
-  "query": "The upstream linter fails on our config; align our local settings to it rather than editing the tool."
- },
- {
-  "id": "validation-authority:paraphrase",
-  "skill": "validation-authority",
-  "kind": "paraphrase",
-  "query": "markdownlint keeps rejecting my file and I am tempted to patch the validator; instead treat its verdict as authoritative and adjust our side."
- },
- {
-  "id": "windows-image-updater:close",
-  "skill": "windows-image-updater",
-  "kind": "close",
-  "query": "Migrate our OneBranch pipelines from LTSC2019 to LTSC2022, bump the AdoPipelineGeneration package and regenerate with ConfigGen."
- },
- {
-  "id": "windows-image-updater:paraphrase",
-  "skill": "windows-image-updater",
-  "kind": "paraphrase",
-  "query": "Update the container image our Windows ADO pipelines use, and confirm the old image reference is gone."
- },
- {
-  "id": "work-operating-model:verbatim",
-  "skill": "work-operating-model",
-  "kind": "verbatim",
-  "query": "elicit operating model"
- },
- {
-  "id": "work-operating-model:close",
-  "skill": "work-operating-model",
-  "kind": "close",
-  "query": "Run the five-layer interview to capture how my team's rhythms, decisions, dependencies and friction really work."
- },
- {
-  "id": "work-operating-model:paraphrase",
-  "skill": "work-operating-model",
-  "kind": "paraphrase",
-  "query": "I want a structured picture of how this group actually operates day to day, including tribal knowledge, based on questions to the team."
- },
- {
-  "id": "world-model-diagnostic:verbatim",
-  "skill": "world-model-diagnostic",
-  "kind": "verbatim",
-  "query": "run the world model diagnostic"
- },
- {
-  "id": "world-model-diagnostic:close",
-  "skill": "world-model-diagnostic",
-  "kind": "close",
-  "query": "Do the twenty-minute diagnostic to see whether our team fits vector DB, structured ontology or signal-fidelity."
- },
- {
-  "id": "world-model-diagnostic:paraphrase",
-  "skill": "world-model-diagnostic",
-  "kind": "paraphrase",
-  "query": "Assess our AI readiness and where it is safe to automate judgment on the boundary layers."
- }
+{"id": "adr-generator:verbatim", "skill": "adr-generator", "kind": "verbatim", "query": "draft ADR-NNN"},
+{"id": "adr-generator:close", "skill": "adr-generator", "kind": "close", "query": "Write up ADR-134 recording why we picked Postgres over Cosmos DB for the policy store, using the repo ADR template."},
+{"id": "adr-generator:paraphrase", "skill": "adr-generator", "kind": "paraphrase", "query": "We just settled on event-sourced config storage; draft the architectural decision record for it and mark ADR-089 as replaced."},
+{"id": "adr-review:verbatim", "skill": "adr-review", "kind": "verbatim", "query": "review this ADR"},
+{"id": "adr-review:close", "skill": "adr-review", "kind": "close", "query": "ADR-127 is drafted; get the architect, critic and security agents to debate it until they reach consensus."},
+{"id": "adr-review:paraphrase", "skill": "adr-review", "kind": "paraphrase", "query": "I edited the decision file under docs/architecture/decisions, so run it past the panel of agents over multiple rounds and tell me whether they all agree."},
+{"id": "agent-harness-reference:verbatim", "skill": "agent-harness-reference", "kind": "verbatim", "query": "harness contract"},
+{"id": "agent-harness-reference:close", "skill": "agent-harness-reference", "kind": "close", "query": "What JSON does Claude Code pass to a PreToolUse hook on stdin, and which exit code blocks the tool call?"},
+{"id": "agent-harness-reference:paraphrase", "skill": "agent-harness-reference", "kind": "paraphrase", "query": "Which events can I attach hooks to in Claude Code versus Copilot CLI, and what do the exit codes and timeouts mean in each?"},
+{"id": "ai-agents-architecture-contract:verbatim", "skill": "ai-agents-architecture-contract", "kind": "verbatim", "query": "which tree is canonical"},
+{"id": "ai-agents-architecture-contract:close", "skill": "ai-agents-architecture-contract", "kind": "close", "query": "Before I touch the hook runtime, what are the load-bearing design decisions and known weak points I must respect in this repo?"},
+{"id": "ai-agents-architecture-contract:paraphrase", "skill": "ai-agents-architecture-contract", "kind": "paraphrase", "query": "Where does the source of truth live for each generated tree, and what failure policy do hooks follow when they crash?"},
+{"id": "ai-agents-build-and-env:verbatim", "skill": "ai-agents-build-and-env", "kind": "verbatim", "query": "set up this repo"},
+{"id": "ai-agents-build-and-env:close", "skill": "ai-agents-build-and-env", "kind": "close", "query": "Fresh clone on a new Linux box: I need the uv-pinned Python, git hooks and MCP servers all installed from scratch for ai-agents."},
+{"id": "ai-agents-build-and-env:paraphrase", "skill": "ai-agents-build-and-env", "kind": "paraphrase", "query": "pip refuses to install packages with an externally-managed-environment error on my new machine; how do I stand up this repo's dev setup properly?"},
+{"id": "ai-agents-change-control:verbatim", "skill": "ai-agents-change-control", "kind": "verbatim", "query": "classify this change"},
+{"id": "ai-agents-change-control:close", "skill": "ai-agents-change-control", "kind": "close", "query": "I only edited docs/ and one hook script; which category of change is that and which gates fire on it?"},
+{"id": "ai-agents-change-control:paraphrase", "skill": "ai-agents-change-control", "kind": "paraphrase", "query": "Walk me through the non-negotiable rules for modifying workflows or hooks here, and the incident behind each one."},
+{"id": "ai-agents-config-catalog:verbatim", "skill": "ai-agents-config-catalog", "kind": "verbatim", "query": "what does a skip flag do"},
+{"id": "ai-agents-config-catalog:close", "skill": "ai-agents-config-catalog", "kind": "close", "query": "List every env var and commit marker that can bypass a gate in this repo, and where each one is enforced."},
+{"id": "ai-agents-config-catalog:paraphrase", "skill": "ai-agents-config-catalog", "kind": "paraphrase", "query": "I want to introduce a new opt-out flag for a check; what is the safe procedure and what abuse cases should I consider?"},
+{"id": "ai-agents-debugging-playbook:verbatim", "skill": "ai-agents-debugging-playbook", "kind": "verbatim", "query": "triage this failure"},
+{"id": "ai-agents-debugging-playbook:close", "skill": "ai-agents-debugging-playbook", "kind": "close", "query": "My push got blocked by the pre-push hook and the drift gate is red; what is the first command to run to find out why?"},
+{"id": "ai-agents-debugging-playbook:paraphrase", "skill": "ai-agents-debugging-playbook", "kind": "paraphrase", "query": "A hook exited 143 and the session got marked NON_COMPLIANT; what is the usual cause and fix in this repo?"},
+{"id": "ai-agents-diagnostics-toolkit:verbatim", "skill": "ai-agents-diagnostics-toolkit", "kind": "verbatim", "query": "measure this"},
+{"id": "ai-agents-diagnostics-toolkit:close", "skill": "ai-agents-diagnostics-toolkit", "kind": "close", "query": "How do I check the current description size budget for our agent capabilities and read the baseline for the orphan reference scan?"},
+{"id": "ai-agents-diagnostics-toolkit:paraphrase", "skill": "ai-agents-diagnostics-toolkit", "kind": "paraphrase", "query": "Which command gives me the size numbers for the agent capability files, and what is a normal reading for the eval harness and coverage pins?"},
+{"id": "ai-agents-docs-of-record:verbatim", "skill": "ai-agents-docs-of-record", "kind": "verbatim", "query": "write the session log"},
+{"id": "ai-agents-docs-of-record:close", "skill": "ai-agents-docs-of-record", "kind": "close", "query": "Which document do I use to record this decision, a session log, a handoff or a Serena note, and what naming rule applies?"},
+{"id": "ai-agents-docs-of-record:paraphrase", "skill": "ai-agents-docs-of-record", "kind": "paraphrase", "query": "I am wrapping up work on issue 7501; where do the per-issue handoff and the session narrative go, and which validator checks them?"},
+{"id": "ai-agents-empirical-probe-toolkit:verbatim", "skill": "ai-agents-empirical-probe-toolkit", "kind": "verbatim", "query": "probe the runtime contract"},
+{"id": "ai-agents-empirical-probe-toolkit:close", "skill": "ai-agents-empirical-probe-toolkit", "kind": "close", "query": "Run a negative-control experiment to show this guard actually fires, and calibrate its threshold against a real example."},
+{"id": "ai-agents-empirical-probe-toolkit:paraphrase", "skill": "ai-agents-empirical-probe-toolkit", "kind": "paraphrase", "query": "I do not trust the vendor doc about hook timeouts; devise an experiment that shows the real runtime behavior."},
+{"id": "ai-agents-external-claims:verbatim", "skill": "ai-agents-external-claims", "kind": "verbatim", "query": "verify an external claim"},
+{"id": "ai-agents-external-claims:close", "skill": "ai-agents-external-claims", "kind": "close", "query": "This brief cites a vendor saying 87 percent cost savings; check it against the primary source before it goes in our report."},
+{"id": "ai-agents-external-claims:paraphrase", "skill": "ai-agents-external-claims", "kind": "paraphrase", "query": "A blog quotes a number and attributes it to a Microsoft paper; trace the citation chain back to confirm it is really there before we copy it."},
+{"id": "ai-agents-failure-archaeology:verbatim", "skill": "ai-agents-failure-archaeology", "kind": "verbatim", "query": "has this failed before"},
+{"id": "ai-agents-failure-archaeology:close", "skill": "ai-agents-failure-archaeology", "kind": "close", "query": "Has this exact incident happened in this repo before, and what finally fixed it?"},
+{"id": "ai-agents-failure-archaeology:paraphrase", "skill": "ai-agents-failure-archaeology", "kind": "paraphrase", "query": "Someone wants to reopen the debate on the customer wedge; give me the history of what broke, the root cause, and what settled it."},
+{"id": "ai-agents-generation-and-release:verbatim", "skill": "ai-agents-generation-and-release", "kind": "verbatim", "query": "regenerate the mirrors"},
+{"id": "ai-agents-generation-and-release:close", "skill": "ai-agents-generation-and-release", "kind": "close", "query": "I changed a template under templates/; how do I regenerate the mirrors and make the drift gate go green before release?"},
+{"id": "ai-agents-generation-and-release:paraphrase", "skill": "ai-agents-generation-and-release", "kind": "paraphrase", "query": "Walk me through publishing the npm package for this repo, including the build_all.py generators and the version-free plugin manifests."},
+{"id": "ai-agents-portability-campaign:verbatim", "skill": "ai-agents-portability-campaign", "kind": "verbatim", "query": "run the portability campaign"},
+{"id": "ai-agents-portability-campaign:close", "skill": "ai-agents-portability-campaign", "kind": "close", "query": "Port our hooks so they behave the same on Copilot CLI as on Claude Code, with runtime tests proving it."},
+{"id": "ai-agents-portability-campaign:paraphrase", "skill": "ai-agents-portability-campaign", "kind": "paraphrase", "query": "A fresh Copilot CLI version landed and our hooks may behave differently; update the cross-harness hook changes using the settled contract."},
+{"id": "ai-agents-research-frontier:verbatim", "skill": "ai-agents-research-frontier", "kind": "verbatim", "query": "research frontier"},
+{"id": "ai-agents-research-frontier:close", "skill": "ai-agents-research-frontier", "kind": "close", "query": "What are the top open research programs for this repo and the first concrete step on each?"},
+{"id": "ai-agents-research-frontier:paraphrase", "skill": "ai-agents-research-frontier", "kind": "paraphrase", "query": "List the unsolved problems worth pursuing next, like verified governance or a self-improving loop, with a falsifiable milestone for each."},
+{"id": "ai-agents-research-methodology:verbatim", "skill": "ai-agents-research-methodology", "kind": "verbatim", "query": "how do I prove this idea"},
+{"id": "ai-agents-research-methodology:close", "skill": "ai-agents-research-methodology", "kind": "close", "query": "I have a hunch that shorter descriptions improve routing; what evidence do I need before it becomes an accepted change?"},
+{"id": "ai-agents-research-methodology:paraphrase", "skill": "ai-agents-research-methodology", "kind": "paraphrase", "query": "Take me through the stages from contradiction log to probe, eval baseline, ADR debate and post-ship monitoring."},
+{"id": "ai-agents-validation-and-qa:verbatim", "skill": "ai-agents-validation-and-qa", "kind": "verbatim", "query": "what counts as evidence"},
+{"id": "ai-agents-validation-and-qa:close", "skill": "ai-agents-validation-and-qa", "kind": "close", "query": "What counts as proof for a CI script change, and do I need positive, negative and edge cases?"},
+{"id": "ai-agents-validation-and-qa:paraphrase", "skill": "ai-agents-validation-and-qa", "kind": "paraphrase", "query": "I am authoring a new composite action and validation script with a ratchet baseline; what are the house rules, and which ADR-034 QA skips are allowed?"},
+{"id": "analysis-provenance:close", "skill": "analysis-provenance", "kind": "close", "query": "Before I edit scripts/validate_links.py, is it upstream, vendored or local code? Check the file header."},
+{"id": "analysis-provenance:paraphrase", "skill": "analysis-provenance", "kind": "paraphrase", "query": "I want to patch a linter in tools/ but do not know if we wrote it or copied it from elsewhere; work out its origin so I do not clobber upstream."},
+{"id": "analyze:verbatim", "skill": "analyze", "kind": "verbatim", "query": "analyze this codebase"},
+{"id": "analyze:close", "skill": "analyze", "kind": "close", "query": "Do a systematic walkthrough of this codebase and give me prioritized findings with file and line evidence."},
+{"id": "analyze:paraphrase", "skill": "analyze", "kind": "paraphrase", "query": "Dig through src/ for architectural and security problems and produce a ranked list of issues, each pointing to the exact lines."},
+{"id": "api-doc-authoring:verbatim", "skill": "api-doc-authoring", "kind": "verbatim", "query": "document this API"},
+{"id": "api-doc-authoring:close", "skill": "api-doc-authoring", "kind": "close", "query": "Write the guide for our POST /v2/policies endpoint organized around the developer's goal, with examples that actually run and what to do on a 409."},
+{"id": "api-doc-authoring:paraphrase", "skill": "api-doc-authoring", "kind": "paraphrase", "query": "Draft developer docs for the REST endpoints in openapi.yaml, with working request samples and recovery steps for each error response."},
+{"id": "autoplan:verbatim", "skill": "autoplan", "kind": "verbatim", "query": "/autoplan"},
+{"id": "autoplan:close", "skill": "autoplan", "kind": "close", "query": "I have a vague request and do not know which workflow or agent chain to use; pick the route and go."},
+{"id": "autoplan:paraphrase", "skill": "autoplan", "kind": "paraphrase", "query": "Add retry logic to the uploader, and you choose which process fits; I do not want to pick from the catalog."},
+{"id": "avoiding-manufactured-work:close", "skill": "avoiding-manufactured-work", "kind": "close", "query": "The PR is done, but the agent keeps spawning follow-up issues nobody asked for; check whether each one was actually demanded by a user."},
+{"id": "avoiding-manufactured-work:paraphrase", "skill": "avoiding-manufactured-work", "kind": "paraphrase", "query": "After finishing the feature, a worker filed a backlog item and a write-up on its own; classify this late finding as a blocker or an optional extra."},
+{"id": "benchmark-models:verbatim", "skill": "benchmark-models", "kind": "verbatim", "query": "benchmark models"},
+{"id": "benchmark-models:close", "skill": "benchmark-models", "kind": "close", "query": "Run the same prompt through Claude, Codex and Gemini and compare latency, token counts and cost."},
+{"id": "benchmark-models:paraphrase", "skill": "benchmark-models", "kind": "paraphrase", "query": "I want to see which vendor's model is fastest and cheapest for this prompt, side by side, with a judge scoring output quality."},
+{"id": "build:verbatim", "skill": "build", "kind": "verbatim", "query": "build this"},
+{"id": "build:close", "skill": "build", "kind": "close", "query": "Implement task 3 from the milestone file one thin slice at a time, writing the failing assertion first."},
+{"id": "build:paraphrase", "skill": "build", "kind": "paraphrase", "query": "The design is approved, so now write the actual Python for the uploader module, red-green style, committing in small pieces."},
+{"id": "business-strategy:close", "skill": "business-strategy", "kind": "close", "query": "I am a founder with a SaaS idea and need to validate demand and pick a pricing model; which business framework fits?"},
+{"id": "business-strategy:paraphrase", "skill": "business-strategy", "kind": "paraphrase", "query": "My startup has users but growth stalled; help me work out positioning, sales approach and pricing using established business books."},
+{"id": "buy-vs-build-framework:verbatim", "skill": "buy-vs-build-framework", "kind": "verbatim", "query": "is there an existing library for this"},
+{"id": "buy-vs-build-framework:close", "skill": "buy-vs-build-framework", "kind": "close", "query": "Should we build our own feature-flag service, buy LaunchDarkly, partner, or defer? Give me a three-year TCO comparison."},
+{"id": "buy-vs-build-framework:paraphrase", "skill": "buy-vs-build-framework", "kind": "paraphrase", "query": "Leadership wants a decision between licensing a vendor product, writing it ourselves, or postponing; evaluate total cost of ownership across those four options."},
+{"id": "chaos-experiment:verbatim", "skill": "chaos-experiment", "kind": "verbatim", "query": "design a chaos experiment"},
+{"id": "chaos-experiment:close", "skill": "chaos-experiment", "kind": "close", "query": "Write up an experiment that kills one pod of the ingestion service, with a steady-state baseline, hypothesis and abort criteria."},
+{"id": "chaos-experiment:paraphrase", "skill": "chaos-experiment", "kind": "paraphrase", "query": "How do we deliberately inject failures into the checkout service to see whether it recovers, and document what we expect to happen?"},
+{"id": "checkpoint:verbatim", "skill": "checkpoint", "kind": "verbatim", "query": "checkpoint this"},
+{"id": "checkpoint:close", "skill": "checkpoint", "kind": "close", "query": "Drop a timestamped note capturing our progress and next actions, secrets scrubbed, before I attempt the risky schema migration."},
+{"id": "checkpoint:paraphrase", "skill": "checkpoint", "kind": "paraphrase", "query": "End of my working block: record the current state and what is next in a file I can resume from, and link it in the session log."},
+{"id": "chestertons-fence:verbatim", "skill": "chestertons-fence", "kind": "verbatim", "query": "why does this code/constraint exist"},
+{"id": "chestertons-fence:close", "skill": "chestertons-fence", "kind": "close", "query": "There is a weird 30-second sleep in deploy.sh; before I delete it, find out why it was added."},
+{"id": "chestertons-fence:paraphrase", "skill": "chestertons-fence", "kind": "paraphrase", "query": "Can I safely rip out this odd retry wrapper? Dig through git blame, old PRs and ADRs to learn what problem it was solving."},
+{"id": "code-qualities-assessment:verbatim", "skill": "code-qualities-assessment", "kind": "verbatim", "query": "assess maintainability"},
+{"id": "code-qualities-assessment:close", "skill": "code-qualities-assessment", "kind": "close", "query": "Score src/policy/engine.py on cohesion, coupling, encapsulation and testability with numbers."},
+{"id": "code-qualities-assessment:paraphrase", "skill": "code-qualities-assessment", "kind": "paraphrase", "query": "Give me a maintainability grade for this class using a rubric, checking how entangled it is and whether it duplicates logic."},
+{"id": "codebase-documenter:close", "skill": "codebase-documenter", "kind": "close", "query": "This repo has no docs; generate a README, ARCHITECTURE and API doc scaffold from templates."},
+{"id": "codebase-documenter:paraphrase", "skill": "codebase-documenter", "kind": "paraphrase", "query": "Bootstrap the initial documentation set for our under-documented service: top-level readme, architecture overview, and code comment guidelines."},
+{"id": "codeql-scan:close", "skill": "codeql-scan", "kind": "close", "query": "Run CodeQL on the Python code and the GitHub Actions workflows and give me SARIF output."},
+{"id": "codeql-scan:paraphrase", "skill": "codeql-scan", "kind": "paraphrase", "query": "I need a static security analysis using a cached database for our workflows folder and scripts; produce a SARIF file."},
+{"id": "context-gather:verbatim", "skill": "context-gather", "kind": "verbatim", "query": "gather context before planning"},
+{"id": "context-gather:close", "skill": "context-gather", "kind": "close", "query": "Before redesigning the cache, pull everything relevant from Serena notes, Context7 docs and DeepWiki into one summary."},
+{"id": "context-gather:paraphrase", "skill": "context-gather", "kind": "paraphrase", "query": "Collect background from our stored notes, library docs and the web about OneBranch image migration so I can start with full knowledge."},
+{"id": "context-hub-setup:verbatim", "skill": "context-hub-setup", "kind": "verbatim", "query": "set up context hub"},
+{"id": "context-hub-setup:close", "skill": "context-hub-setup", "kind": "close", "query": "Check whether the Serena and Context7 plugins are installed and give me the install command for whatever is missing."},
+{"id": "context-hub-setup:paraphrase", "skill": "context-hub-setup", "kind": "paraphrase", "query": "My MCP servers will not connect; verify the prerequisites for the knowledge tooling and tell me what to install."},
+{"id": "context-optimizer:verbatim", "skill": "context-optimizer", "kind": "verbatim", "query": "analyze skill placement"},
+{"id": "context-optimizer:close", "skill": "context-optimizer", "kind": "close", "query": "Should this guidance live as an on-demand module or as always-loaded passive context? Also compress the markdown into pipe-delimited form."},
+{"id": "context-optimizer:paraphrase", "skill": "context-optimizer", "kind": "paraphrase", "query": "Decide where this content belongs between on-demand and always-on, and shrink the doc to a compact delimited format to save tokens."},
+{"id": "curating-memories:verbatim", "skill": "curating-memories", "kind": "verbatim", "query": "how do I mark a memory obsolete"},
+{"id": "curating-memories:close", "skill": "curating-memories", "kind": "close", "query": "Mark this Serena note as superseded by the newer one and keep the current truth visible inline."},
+{"id": "curating-memories:paraphrase", "skill": "curating-memories", "kind": "paraphrase", "query": "Run a sweep across the saved notes proposing what to do with each outdated file, without editing anything."},
+{"id": "cva-analysis:close", "skill": "cva-analysis", "kind": "close", "query": "We have five payment providers with similar requirements; build a commonality and variability matrix so the abstractions emerge."},
+{"id": "cva-analysis:paraphrase", "skill": "cva-analysis", "kind": "paraphrase", "query": "Find what is the same and what differs across these notification channels before picking any design pattern."},
+{"id": "cynefin-classifier:close", "skill": "cynefin-classifier", "kind": "close", "query": "Is this migration problem Clear, Complicated or Complex? Tell me whether to analyze with experts or run experiments."},
+{"id": "cynefin-classifier:paraphrase", "skill": "cynefin-classifier", "kind": "paraphrase", "query": "I am stuck in analysis paralysis on our flaky rollout; categorize the situation and tell me the right way to respond."},
+{"id": "decision-critic:close", "skill": "decision-critic", "kind": "close", "query": "I am about to commit to Kafka over SQS; stress-test my reasoning, surface hidden assumptions and argue against it."},
+{"id": "decision-critic:paraphrase", "skill": "decision-critic", "kind": "paraphrase", "query": "Poke at this choice of monorepo before I announce it: check my claims and generate adversarial counterpoints."},
+{"id": "decision-question:verbatim", "skill": "decision-question", "kind": "verbatim", "query": "ask the user to choose"},
+{"id": "decision-question:close", "skill": "decision-question", "kind": "close", "query": "I am blocked on whether to drop Python 3.12 support, which is the owner's call; write a short decision brief with options for them."},
+{"id": "decision-question:paraphrase", "skill": "decision-question", "kind": "paraphrase", "query": "Do I actually need to ask the user to choose here, and if so what is the minimal complete brief?"},
+{"id": "destructive-change-safety:verbatim", "skill": "destructive-change-safety", "kind": "verbatim", "query": "is this delete safe"},
+{"id": "destructive-change-safety:close", "skill": "destructive-change-safety", "kind": "close", "query": "Before I run this DELETE against the prod orders table, work out the blast radius and confirm there is a rollback."},
+{"id": "destructive-change-safety:paraphrase", "skill": "destructive-change-safety", "kind": "paraphrase", "query": "This script drops a database and revokes tokens; trace which callers are affected, preview scope without executing, and refuse if undoing it is impossible."},
+{"id": "doc-accuracy:verbatim", "skill": "doc-accuracy", "kind": "verbatim", "query": "check documentation accuracy"},
+{"id": "doc-accuracy:close", "skill": "doc-accuracy", "kind": "close", "query": "Verify that the code samples in docs/quickstart.md compile and match the real behavior of the code."},
+{"id": "doc-accuracy:paraphrase", "skill": "doc-accuracy", "kind": "paraphrase", "query": "Before release, compare every claim in our documentation to the source and flag where they have diverged."},
+{"id": "domain-design:verbatim", "skill": "domain-design", "kind": "verbatim", "query": "design this schema"},
+{"id": "domain-design:close", "skill": "domain-design", "kind": "close", "query": "Design the schema for subscriptions around the business behaviors, not plain CRUD; should cancellation be an explicit operation with history?"},
+{"id": "domain-design:paraphrase", "skill": "domain-design", "kind": "paraphrase", "query": "I am shaping a module boundary for an invoicing API; derive it from what the business needs rather than mirroring the upstream payload."},
+{"id": "dx-review:verbatim", "skill": "dx-review", "kind": "verbatim", "query": "run a DX audit"},
+{"id": "dx-review:close", "skill": "dx-review", "kind": "close", "query": "Audit the developer experience of our CLI: try the onboarding flow, evaluate error messages and score each area with evidence."},
+{"id": "dx-review:paraphrase", "skill": "dx-review", "kind": "paraphrase", "query": "How painful is it for a newcomer to get our SDK running? Walk through setup, upgrade paths and docs, grading what you actually tried versus guessed."},
+{"id": "evidence-provenance:verbatim", "skill": "evidence-provenance", "kind": "verbatim", "query": "is this independent evidence"},
+{"id": "evidence-provenance:close", "skill": "evidence-provenance", "kind": "close", "query": "The reviewer agent agrees with my analysis, but it was fed my summary; is that independent evidence or the same loop twice?"},
+{"id": "evidence-provenance:paraphrase", "skill": "evidence-provenance", "kind": "paraphrase", "query": "The report says the check passed, but did anyone actually execute it? Classify as verified, not run, unavailable or failed."},
+{"id": "execution-plans:verbatim", "skill": "execution-plans", "kind": "verbatim", "query": "create execution plan"},
+{"id": "execution-plans:close", "skill": "execution-plans", "kind": "close", "query": "Start a versioned plan document for the auth rewrite with progress tracking, and record that we decided to postpone MFA."},
+{"id": "execution-plans:paraphrase", "skill": "execution-plans", "kind": "paraphrase", "query": "Mark milestone 2 done in our plan artifact and note why we abandoned the caching approach."},
+{"id": "fix-markdown-fences:verbatim", "skill": "fix-markdown-fences", "kind": "verbatim", "query": "fix markdown fences"},
+{"id": "fix-markdown-fences:close", "skill": "fix-markdown-fences", "kind": "close", "query": "In docs/guide.md the code blocks are bleeding into the following text; repair the closing fences."},
+{"id": "fix-markdown-fences:paraphrase", "skill": "fix-markdown-fences", "kind": "paraphrase", "query": "The rendered page has a runaway code block because a triple-backtick is missing its closing; correct these in the markdown file."},
+{"id": "git-advanced-workflows:verbatim", "skill": "git-advanced-workflows", "kind": "verbatim", "query": "rebase my branch"},
+{"id": "git-advanced-workflows:close", "skill": "git-advanced-workflows", "kind": "close", "query": "Cherry-pick commit abc123 onto release/2.4 and then bisect to find which commit broke the build."},
+{"id": "git-advanced-workflows:paraphrase", "skill": "git-advanced-workflows", "kind": "paraphrase", "query": "I accidentally reset my branch and lost three commits; help me get them back via the reflog."},
+{"id": "github:verbatim", "skill": "github", "kind": "verbatim", "query": "create a PR"},
+{"id": "github:close", "skill": "github", "kind": "close", "query": "Add the needs-triage label to issue 412 and post a comment asking for repro steps, using the Python scripts."},
+{"id": "github:paraphrase", "skill": "github", "kind": "paraphrase", "query": "Merge PR 5521 once its checks pass and assign it to the 2.5 milestone through the structured tooling rather than raw CLI."},
+{"id": "github-url-intercept:verbatim", "skill": "github-url-intercept", "kind": "verbatim", "query": "analyze this PR"},
+{"id": "github-url-intercept:close", "skill": "github-url-intercept", "kind": "close", "query": "Look at https://github.com/acme/widgets/pull/1893 and tell me what it changes."},
+{"id": "github-url-intercept:paraphrase", "skill": "github-url-intercept", "kind": "paraphrase", "query": "Here is a gist link, https://gist.github.com/someone/abc123; explain what the script in it does."},
+{"id": "golden-principles:close", "skill": "golden-principles", "kind": "close", "query": "Scan the repo for violations of GP-001 through GP-008 and give remediation steps."},
+{"id": "golden-principles:paraphrase", "skill": "golden-principles", "kind": "paraphrase", "query": "Run the garbage-collection scan for our governance principles before I open the PR, and show agent-readable fixes."},
+{"id": "llm-council:verbatim", "skill": "llm-council", "kind": "verbatim", "query": "ask the council"},
+{"id": "llm-council:close", "skill": "llm-council", "kind": "close", "query": "Put this to the council: should we adopt a monorepo? Get parallel answers from several vendors and a chairman verdict."},
+{"id": "llm-council:paraphrase", "skill": "llm-council", "kind": "paraphrase", "query": "I need several different frontier models to weigh in on this hard call, rank their answers, and give me a final ruling."},
+{"id": "maintainer-review:verbatim", "skill": "maintainer-review", "kind": "verbatim", "query": "maintainer decision on this PR"},
+{"id": "maintainer-review:close", "skill": "maintainer-review", "kind": "close", "query": "As maintainer, decide whether to merge, request changes or close PR 318 and draft the comment, but do not post anything."},
+{"id": "maintainer-review:paraphrase", "skill": "maintainer-review", "kind": "paraphrase", "query": "Give me a verdict on this contributor's issue, supersede or close, with a drafted reply I can paste later."},
+{"id": "memory:verbatim", "skill": "memory", "kind": "verbatim", "query": "remember this"},
+{"id": "memory:close", "skill": "memory", "kind": "close", "query": "I want to store a durable fact about our deploy cadence and later look it up, but I do not know which tool does which."},
+{"id": "memory:paraphrase", "skill": "memory", "kind": "paraphrase", "query": "Point me to the right sub-tool: I need to write down a lesson from today and also read older notes on the same topic."},
+{"id": "memory-consolidate:verbatim", "skill": "memory-consolidate", "kind": "verbatim", "query": "consolidate memory"},
+{"id": "memory-consolidate:close", "skill": "memory-consolidate", "kind": "close", "query": "Do a reflective cleanup pass on Serena notes: merge duplicate topic files, convert relative dates like last Tuesday to absolute ones, and tidy the index."},
+{"id": "memory-consolidate:paraphrase", "skill": "memory-consolidate", "kind": "paraphrase", "query": "Separate lasting preferences from dated project notes in my saved context, fold duplicates into the richer file, and fix the index."},
+{"id": "memory-documentary:verbatim", "skill": "memory-documentary", "kind": "verbatim", "query": "evidence-based report"},
+{"id": "memory-documentary:close", "skill": "memory-documentary", "kind": "close", "query": "Write an investigative evidence-based report on how the hook failures evolved, with full citation chains across notes, repo artifacts and issues."},
+{"id": "memory-documentary:paraphrase", "skill": "memory-documentary", "kind": "paraphrase", "query": "Trace the story of the retry-policy decision through every source we have and produce a journalism-style write-up with sources cited."},
+{"id": "memory-enhancement:verbatim", "skill": "memory-enhancement", "kind": "verbatim", "query": "add a citation"},
+{"id": "memory-enhancement:close", "skill": "memory-enhancement", "kind": "close", "query": "Add a citation pointing to src/auth.py:42 on this note and check that the code references still resolve."},
+{"id": "memory-enhancement:paraphrase", "skill": "memory-enhancement", "kind": "paraphrase", "query": "Check how healthy the citations are across our notes and adjust confidence scores for stale ones."},
+{"id": "memory-gate:verbatim", "skill": "memory-gate", "kind": "verbatim", "query": "memory-first gate"},
+{"id": "memory-gate:close", "skill": "memory-gate", "kind": "close", "query": "Run the blocking gate that makes me check saved notes before I modify this existing protocol."},
+{"id": "memory-gate:paraphrase", "skill": "memory-gate", "kind": "paraphrase", "query": "Do not let me edit this protocol file until I have looked up what our past notes say about the reasoning behind it."},
+{"id": "memory-maintenance:verbatim", "skill": "memory-maintenance", "kind": "verbatim", "query": "check memory tier health"},
+{"id": "memory-maintenance:close", "skill": "memory-maintenance", "kind": "close", "query": "Run a health check on the tiered note store, count token cost and validate atomicity sizes."},
+{"id": "memory-maintenance:paraphrase", "skill": "memory-maintenance", "kind": "paraphrase", "query": "Measure graph density of our notes and time the retrieval scripts to see whether performance has slipped."},
+{"id": "memory-reflexion:verbatim", "skill": "memory-reflexion", "kind": "verbatim", "query": "extract episode from session"},
+{"id": "memory-reflexion:close", "skill": "memory-reflexion", "kind": "close", "query": "Pull an episode out of the finished session log so later sessions can see what was tried and what it cost."},
+{"id": "memory-reflexion:paraphrase", "skill": "memory-reflexion", "kind": "paraphrase", "query": "Re-extract the episode for yesterday's debugging session from its log file; the first extraction was incomplete."},
+{"id": "memory-search:verbatim", "skill": "memory-search", "kind": "verbatim", "query": "search memory"},
+{"id": "memory-search:close", "skill": "memory-search", "kind": "close", "query": "Find any saved notes on the hook timeout issue in the project, and warn me about the token budget."},
+{"id": "memory-search:paraphrase", "skill": "memory-search", "kind": "paraphrase", "query": "Pull up earlier context on the OneBranch migration from stored knowledge, disclosing details progressively."},
+{"id": "merge-resolver:verbatim", "skill": "merge-resolver", "kind": "verbatim", "query": "resolve merge conflicts"},
+{"id": "merge-resolver:close", "skill": "merge-resolver", "kind": "close", "query": "PR 902 has conflicts with main in three files; sort them out using the commit history to understand intent."},
+{"id": "merge-resolver:paraphrase", "skill": "merge-resolver", "kind": "paraphrase", "query": "My rebase stopped with conflict markers in session logs and a config file; fix them based on what each side was trying to do."},
+{"id": "metrics:verbatim", "skill": "metrics", "kind": "verbatim", "query": "collect agent metrics"},
+{"id": "metrics:close", "skill": "metrics", "kind": "close", "query": "Generate this week's dashboard of how often each agent was invoked and the coverage numbers from git history."},
+{"id": "metrics:paraphrase", "skill": "metrics", "kind": "paraphrase", "query": "Produce a health report on agent adoption: invocation rate, usage distribution and infrastructure review counts."},
+{"id": "modernize:verbatim", "skill": "modernize", "kind": "verbatim", "query": "modernize this PR"},
+{"id": "modernize:close", "skill": "modernize", "kind": "close", "query": "PR 1204 is eight months stale; before rebasing, decide whether the idea still belongs, should be reworked, or should be closed."},
+{"id": "modernize:paraphrase", "skill": "modernize", "kind": "paraphrase", "query": "This old branch has aged out against main. Check if the change is still wanted and end with a clear verdict to update, redo, or drop it."},
+{"id": "negotiation:close", "skill": "negotiation", "kind": "close", "query": "I got a job offer at 285k base plus equity; compare it against my current comp and draft a counter-proposal."},
+{"id": "negotiation:paraphrase", "skill": "negotiation", "kind": "paraphrase", "query": "The vendor quoted 40 percent above what we expected; figure out the value gap, whether to walk away, and write our reply."},
+{"id": "observability:verbatim", "skill": "observability", "kind": "verbatim", "query": "query agent logs"},
+{"id": "observability:close", "skill": "observability", "kind": "close", "query": "Search the agent event logs for errors from the last run and trace the decisions leading up to them."},
+{"id": "observability:paraphrase", "skill": "observability", "kind": "paraphrase", "query": "Our agent runs got slower; mine the structured JSONL traces to see where the time goes."},
+{"id": "orphan-ref-validator:verbatim", "skill": "orphan-ref-validator", "kind": "verbatim", "query": "scan for orphan refs"},
+{"id": "orphan-ref-validator:close", "skill": "orphan-ref-validator", "kind": "close", "query": "Scan specs and ADRs for references to agent capabilities and scripts that no longer exist in the working tree."},
+{"id": "orphan-ref-validator:paraphrase", "skill": "orphan-ref-validator", "kind": "paraphrase", "query": "Before committing, make sure no eval fixture or plugin manifest points at a file that has been deleted or renamed."},
+{"id": "panning-for-gold:verbatim", "skill": "panning-for-gold", "kind": "verbatim", "query": "pan for gold"},
+{"id": "panning-for-gold:close", "skill": "panning-for-gold", "kind": "close", "query": "Here is a rambling voice transcript from my 1:1; pull out the valuable threads and synthesize the good stuff."},
+{"id": "panning-for-gold:paraphrase", "skill": "panning-for-gold", "kind": "paraphrase", "query": "I brain-dumped 4,000 words of notes; triage them into evaluated threads and a distilled file of what is worth keeping."},
+{"id": "pipeline-validator:close", "skill": "pipeline-validator", "kind": "close", "query": "Trigger the Azure DevOps PR pipeline for my branch, watch it, and if it fails read the build logs, fix, push and retrigger."},
+{"id": "pipeline-validator:paraphrase", "skill": "pipeline-validator", "kind": "paraphrase", "query": "Keep running Buddy Build for this branch until it goes green, diagnosing each failure from logs and checking the PR description is complete."},
+{"id": "plan:verbatim", "skill": "plan", "kind": "verbatim", "query": "plan how to build this"},
+{"id": "plan:close", "skill": "plan", "kind": "close", "query": "Decompose the requirements doc into ordered milestones and small tasks with sizing and a risk list."},
+{"id": "plan:paraphrase", "skill": "plan", "kind": "paraphrase", "query": "We have agreed requirements for the import feature; sequence the work into phases, estimate each piece, and note what could go wrong."},
+{"id": "planner:verbatim", "skill": "planner", "kind": "verbatim", "query": "run the planner workflow"},
+{"id": "planner:close", "skill": "planner", "kind": "close", "query": "Draft a plan through forced reflection pauses, then execute each milestone of the approved file by delegating to specialist agents."},
+{"id": "planner:paraphrase", "skill": "planner", "kind": "paraphrase", "query": "Resume running the plan file: reconcile it against what is already done and hand the next milestone to the right agents."},
+{"id": "pr-autofix:verbatim", "skill": "pr-autofix", "kind": "verbatim", "query": "pr-autofix"},
+{"id": "pr-autofix:close", "skill": "pr-autofix", "kind": "close", "query": "Go through all my open PRs, address thread feedback, fix red CI, and turn on auto-merge when they are ready."},
+{"id": "pr-autofix:paraphrase", "skill": "pr-autofix", "kind": "paraphrase", "query": "Monitor every open pull request in the repo autonomously, triage by tier and repair failures without me watching."},
+{"id": "pr-babysit:verbatim", "skill": "pr-babysit", "kind": "verbatim", "query": "babysit this PR"},
+{"id": "pr-babysit:close", "skill": "pr-babysit", "kind": "close", "query": "Watch PR 7544 until CI is green and reviews are done, with an event-driven watcher instead of polling."},
+{"id": "pr-babysit:paraphrase", "skill": "pr-babysit", "kind": "paraphrase", "query": "Keep an eye on this one pull request through checks and approvals and ping me when it is ready to merge."},
+{"id": "pr-comment-responder:verbatim", "skill": "pr-comment-responder", "kind": "verbatim", "query": "respond to PR comments"},
+{"id": "pr-comment-responder:close", "skill": "pr-comment-responder", "kind": "close", "query": "Go through each comment thread on my PR, fix what is valid or reply in-thread, and record the status of every one."},
+{"id": "pr-comment-responder:paraphrase", "skill": "pr-comment-responder", "kind": "paraphrase", "query": "The Copilot bot left a pile of comments on PR 6890; acknowledge and resolve every one of them one at a time."},
+{"id": "pr-quality:verbatim", "skill": "pr-quality", "kind": "verbatim", "query": "/pr-quality"},
+{"id": "pr-quality:close", "skill": "pr-quality", "kind": "close", "query": "Run the six quality axes, security, QA, analyst, architect, DevOps and roadmap, on my working changes and merge the verdicts."},
+{"id": "pr-quality:paraphrase", "skill": "pr-quality", "kind": "paraphrase", "query": "Before I push, run just the security axis check against my local diff."},
+{"id": "pr-review:verbatim", "skill": "pr-review", "kind": "verbatim", "query": "/pr-review 1234"},
+{"id": "pr-review:close", "skill": "pr-review", "kind": "close", "query": "Respond to feedback on PRs 12 and 15 in parallel and then tell me whether each can merge."},
+{"id": "pr-review:paraphrase", "skill": "pr-review", "kind": "paraphrase", "query": "Address reviewer comments across these three pull requests and give a final merge verdict for each after the completion gate."},
+{"id": "pre-mortem:verbatim", "skill": "pre-mortem", "kind": "verbatim", "query": "run a pre-mortem on"},
+{"id": "pre-mortem:close", "skill": "pre-mortem", "kind": "close", "query": "Imagine our launch of the new config pipeline failed badly in six months; work backward to find what caused it."},
+{"id": "pre-mortem:paraphrase", "skill": "pre-mortem", "kind": "paraphrase", "query": "Before we start the migration, assume it collapsed, and list the likely reasons."},
+{"id": "programming-advisor:verbatim", "skill": "programming-advisor", "kind": "verbatim", "query": "should I build or use existing"},
+{"id": "programming-advisor:close", "skill": "programming-advisor", "kind": "close", "query": "Is there an existing library for parsing SARIF files, or something already in this repo, before I write my own?"},
+{"id": "programming-advisor:paraphrase", "skill": "programming-advisor", "kind": "paraphrase", "query": "We are about to hand-roll a rate limiter; check whether an off-the-shelf package or an internal implementation already covers it."},
+{"id": "prompt-engineer:verbatim", "skill": "prompt-engineer", "kind": "verbatim", "query": "optimize this prompt"},
+{"id": "prompt-engineer:close", "skill": "prompt-engineer", "kind": "close", "query": "Improve this system prompt for my Claude Code agent; it ignores tool instructions about half the time."},
+{"id": "prompt-engineer:paraphrase", "skill": "prompt-engineer", "kind": "paraphrase", "query": "Tighten the instructions in agents/critic.md so the agent follows its workflow more reliably, using established prompt patterns."},
+{"id": "prose-self-check:verbatim", "skill": "prose-self-check", "kind": "verbatim", "query": "prose self-check"},
+{"id": "prose-self-check:close", "skill": "prose-self-check", "kind": "close", "query": "Before I write the session-log narrative, run an AI-tell check on my draft paragraph."},
+{"id": "prose-self-check:paraphrase", "skill": "prose-self-check", "kind": "paraphrase", "query": "I am about to finalize a PR description I drafted with an LLM; make sure it does not read as machine-written, layer by layer."},
+{"id": "push-pr:verbatim", "skill": "push-pr", "kind": "verbatim", "query": "push and open a PR"},
+{"id": "push-pr:close", "skill": "push-pr", "kind": "close", "query": "Commit these changes, push the branch, and open a pull request with the template filled from the diff."},
+{"id": "push-pr:paraphrase", "skill": "push-pr", "kind": "paraphrase", "query": "Get my working tree committed, pushed, and a PR opened on ADO using the repo's template."},
+{"id": "quality-grades:verbatim", "skill": "quality-grades", "kind": "verbatim", "query": "grade quality"},
+{"id": "quality-grades:close", "skill": "quality-grades", "kind": "close", "query": "Grade each product domain A through F and show gaps and trends."},
+{"id": "quality-grades:paraphrase", "skill": "quality-grades", "kind": "paraphrase", "query": "Give me a repo-wide scorecard by architectural layer with file counts, in markdown or JSON, showing which areas are weakest."},
+{"id": "reflect:close", "skill": "reflect", "kind": "close", "query": "I just corrected the agent twice for the same mistake; capture the lesson with a confidence level so it does not repeat."},
+{"id": "reflect:paraphrase", "skill": "reflect", "kind": "paraphrase", "query": "That worked perfectly, so extract the pattern behind it and store it as a high, medium or low confidence learning."},
+{"id": "repository-completion-proof:close", "skill": "repository-completion-proof", "kind": "close", "query": "PR 7579 merged after review and recovery; prove ai-agents completion with evidence of what actually landed."},
+{"id": "repository-completion-proof:paraphrase", "skill": "repository-completion-proof", "kind": "paraphrase", "query": "Show that the finish line was truly reached for this ai-agents pull request, after trust verification, not just that the thread says done."},
+{"id": "repository-consumer-proof:close", "skill": "repository-consumer-proof", "kind": "close", "query": "The ai-agents build is green, but verify that the hooks installed in a consumer repo actually dispatch and behave correctly."},
+{"id": "repository-consumer-proof:paraphrase", "skill": "repository-consumer-proof", "kind": "paraphrase", "query": "Beyond passing CI, confirm what end users of ai-agents get when the installed dispatch runs."},
+{"id": "repository-pr-recovery:close", "skill": "repository-pr-recovery", "kind": "close", "query": "Why is this ai-agents PR blocked with a missing required check, and who is responsible for the cancelled baseline run?"},
+{"id": "repository-pr-recovery:paraphrase", "skill": "repository-pr-recovery", "kind": "paraphrase", "query": "Attribute the stall on the ai-agents pull request: absent checks and a cancelled main baseline, who or what caused them?"},
+{"id": "requirements-interview:verbatim", "skill": "requirements-interview", "kind": "verbatim", "query": "interview me on this"},
+{"id": "requirements-interview:close", "skill": "requirements-interview", "kind": "close", "query": "Interview me hard, adversarially, about the new export feature before any code, skipping questions the codebase can already answer."},
+{"id": "requirements-interview:paraphrase", "skill": "requirements-interview", "kind": "paraphrase", "query": "Here is our 12-section draft design doc; find ambiguities and ask pointed questions anchored in the text."},
+{"id": "research:verbatim", "skill": "research", "kind": "verbatim", "query": "research this topic"},
+{"id": "research:close", "skill": "research", "kind": "close", "query": "Write a 4,000-word analysis of trunk-based development practices, map it onto our project, and draft the follow-up issue."},
+{"id": "research:paraphrase", "skill": "research", "kind": "paraphrase", "query": "Study outside work on prompt caching economics and produce a long write-up applying it to our repo, plus an issue for the owner."},
+{"id": "retrospective:verbatim", "skill": "retrospective", "kind": "verbatim", "query": "run a retrospective"},
+{"id": "retrospective:close", "skill": "retrospective", "kind": "close", "query": "Extract lessons from this session using Five Whys and fishbone analysis and write the canonical artifact."},
+{"id": "retrospective:paraphrase", "skill": "retrospective", "kind": "paraphrase", "query": "Turn what happened in this sprint into institutional knowledge: gather evidence, diagnose root causes, score atomicity of learnings."},
+{"id": "review:close", "skill": "review", "kind": "close", "query": "Run the final merge-readiness gate on my branch: confirm it satisfies the requirements first, then run the risk-selected analysis axes."},
+{"id": "review:paraphrase", "skill": "review", "kind": "paraphrase", "query": "My implementation and checks are done; give the whole diff a thorough go-over before it can be merged, including a deep pass on everything."},
+{"id": "reviewer-findings:verbatim", "skill": "reviewer-findings", "kind": "verbatim", "query": "address this review comment"},
+{"id": "reviewer-findings:close", "skill": "reviewer-findings", "kind": "close", "query": "The bot flagged a possible SQL injection in query.py:88; verify the finding's verdict, diagnosis and proposed fix before I change anything."},
+{"id": "reviewer-findings:paraphrase", "skill": "reviewer-findings", "kind": "paraphrase", "query": "A reviewer says this loop leaks a handle and suggests a rewrite; check each part of that claim with evidence first."},
+{"id": "security-detection:verbatim", "skill": "security-detection", "kind": "verbatim", "query": "did I touch security-critical files"},
+{"id": "security-detection:close", "skill": "security-detection", "kind": "close", "query": "Did I touch any security-critical files in this diff, such as workflows or auth config, that need the security agent?"},
+{"id": "security-detection:paraphrase", "skill": "security-detection", "kind": "paraphrase", "query": "Just detect whether my changes include sensitive infrastructure paths that warrant security oversight; do not scan the code itself."},
+{"id": "security-review:close", "skill": "security-review", "kind": "close", "query": "Check this diff for vulnerabilities, score risk with CWE references, and give me a verdict inline."},
+{"id": "security-review:paraphrase", "skill": "security-review", "kind": "paraphrase", "query": "Is this snippet exploitable? Threat-model the change in my current context, no need to dispatch a separate agent."},
+{"id": "security-scan:verbatim", "skill": "security-scan", "kind": "verbatim", "query": "scan for command injection"},
+{"id": "security-scan:close", "skill": "security-scan", "kind": "close", "query": "Scan my PowerShell and Python scripts for command injection patterns before I submit the PR."},
+{"id": "security-scan:paraphrase", "skill": "security-scan", "kind": "paraphrase", "query": "Look for places where user input flows into shell commands in scripts/ with the regex-based detector."},
+{"id": "ship:verbatim", "skill": "ship", "kind": "verbatim", "query": "ship it"},
+{"id": "ship:close", "skill": "ship", "kind": "close", "query": "Run the four pre-flight checks and then hand over to open the PR."},
+{"id": "ship:paraphrase", "skill": "ship", "kind": "paraphrase", "query": "Approvals are finished; run the final gates and validate this contributor's branch without altering it."},
+{"id": "skill-bootstrap:verbatim", "skill": "skill-bootstrap", "kind": "verbatim", "query": "bootstrap skills"},
+{"id": "skill-bootstrap:close", "skill": "skill-bootstrap", "kind": "close", "query": "Mine this repo's git history, reviews and agent sessions to author a whole project library of reusable capabilities and evaluate it."},
+{"id": "skill-bootstrap:paraphrase", "skill": "skill-bootstrap", "kind": "paraphrase", "query": "Capture how this team actually works from its past PRs and sessions into a set of reusable agent capabilities."},
+{"id": "skill-doctor:verbatim", "skill": "skill-doctor", "kind": "verbatim", "query": "diagnose skill usage"},
+{"id": "skill-doctor:close", "skill": "skill-doctor", "kind": "close", "query": "Score how my installed capabilities did in recent local sessions and draft edits backed by evidence."},
+{"id": "skill-doctor:paraphrase", "skill": "skill-doctor", "kind": "paraphrase", "query": "Why did the deployment helper never trigger last week? Grade usage from the session transcripts."},
+{"id": "skillforge:verbatim", "skill": "skillforge", "kind": "verbatim", "query": "create a skill"},
+{"id": "skillforge:close", "skill": "skillforge", "kind": "close", "query": "I need a new reusable capability for generating release notes; check whether an existing one fits, else create it."},
+{"id": "skillforge:paraphrase", "skill": "skillforge", "kind": "paraphrase", "query": "Before I add a PostToolUse hook, recommend which existing capability fits this goal or help me author a new one."},
+{"id": "skillify:verbatim", "skill": "skillify", "kind": "verbatim", "query": "skillify this"},
+{"id": "skillify:close", "skill": "skillify", "kind": "close", "query": "Turn the steps I just completed into a reusable, saved capability for next time."},
+{"id": "skillify:paraphrase", "skill": "skillify", "kind": "paraphrase", "query": "Package the workflow we just ran into something I can invoke again later."},
+{"id": "skillopt:verbatim", "skill": "skillopt", "kind": "verbatim", "query": "optimize this skill"},
+{"id": "skillopt:close", "skill": "skillopt", "kind": "close", "query": "Tune this prompt against an eval with a held-out acceptance gate using bounded patches."},
+{"id": "skillopt:paraphrase", "skill": "skillopt", "kind": "paraphrase", "query": "One agent file keeps failing the same way; improve it with small patches, accepting a change only if held-out tasks still pass."},
+{"id": "slo-designer:close", "skill": "slo-designer", "kind": "close", "query": "Define SLOs for our API with SLIs, a 99.9 percent target, alert thresholds, and error budget math."},
+{"id": "slo-designer:paraphrase", "skill": "slo-designer", "kind": "paraphrase", "query": "How much downtime per month can we afford at 99.95 percent availability, and which indicators and burn-rate alerts should we set?"},
+{"id": "software-engineering-library:close", "skill": "software-engineering-library", "kind": "close", "query": "Which engineering references cover refactoring legacy code safely and writing characterization tests for it?"},
+{"id": "software-engineering-library:paraphrase", "skill": "software-engineering-library", "kind": "paraphrase", "query": "I am weighing module boundaries and data consistency trade-offs in a distributed service; route me to the right design guidance."},
+{"id": "sol-loop:verbatim", "skill": "sol-loop", "kind": "verbatim", "query": "sol loop"},
+{"id": "sol-loop:close", "skill": "sol-loop", "kind": "close", "query": "Run GPT Sol after the critic, cap it at two rounds, and log findings only Sol raised."},
+{"id": "sol-loop:paraphrase", "skill": "sol-loop", "kind": "paraphrase", "query": "Add a second-opinion pass from the GPT reviewer after the fresh critic is done, max two rounds, recording what only it caught."},
+{"id": "spec:verbatim", "skill": "spec", "kind": "verbatim", "query": "spec this out"},
+{"id": "spec:close", "skill": "spec", "kind": "close", "query": "Turn this vague idea for an offline mode into testable requirements with acceptance criteria."},
+{"id": "spec:paraphrase", "skill": "spec", "kind": "paraphrase", "query": "Help me define what the bulk import feature needs to do: gate it on first principles and prior art, then produce a product requirements document."},
+{"id": "spec-generator:verbatim", "skill": "spec-generator", "kind": "verbatim", "query": "generate spec"},
+{"id": "spec-generator:close", "skill": "spec-generator", "kind": "close", "query": "Generate Requirements, Design and Tasks files in EARS syntax for the notifications feature with schema-valid frontmatter."},
+{"id": "spec-generator:paraphrase", "skill": "spec-generator", "kind": "paraphrase", "query": "Convert this feature description into the REQ, DESIGN and TASK file set using the canonical schema."},
+{"id": "steering-matcher:verbatim", "skill": "steering-matcher", "kind": "verbatim", "query": "match steering for these files"},
+{"id": "steering-matcher:close", "skill": "steering-matcher", "kind": "close", "query": "Which steering files apply to src/api/handlers.py and tests/ changes? Match the paths against the glob patterns."},
+{"id": "steering-matcher:paraphrase", "skill": "steering-matcher", "kind": "paraphrase", "query": "I need context-aware guidance injected for the files I am about to modify; which steering documents' globs match them?"},
+{"id": "stuck-detection:verbatim", "skill": "stuck-detection", "kind": "verbatim", "query": "check stuck loop"},
+{"id": "stuck-detection:close", "skill": "stuck-detection", "kind": "close", "query": "The agent keeps retrying the same failing tool call; check whether it is in a loop and nudge it."},
+{"id": "stuck-detection:paraphrase", "skill": "stuck-detection", "kind": "paraphrase", "query": "Detect when a model is burning tokens repeating the same topic, and reset the tracked history after it recovers."},
+{"id": "style-enforcement:verbatim", "skill": "style-enforcement", "kind": "verbatim", "query": "check style compliance"},
+{"id": "style-enforcement:close", "skill": "style-enforcement", "kind": "close", "query": "Check my C# files against .editorconfig and StyleCop.json, including line endings and naming."},
+{"id": "style-enforcement:paraphrase", "skill": "style-enforcement", "kind": "paraphrase", "query": "Do the changes violate the indentation, naming or CRLF rules set in Directory.Build.props?"},
+{"id": "sync:verbatim", "skill": "sync", "kind": "verbatim", "query": "detect spec drift"},
+{"id": "sync:close", "skill": "sync", "kind": "close", "query": "I hand-edited and deleted a module; find which requirement, design and task docs now reference code that no longer exists."},
+{"id": "sync:paraphrase", "skill": "sync", "kind": "paraphrase", "query": "Did my refactor leave any stale references in our REQ, DESIGN and TASK documents pointing at removed functions? Report it for triage."},
+{"id": "takeover:verbatim", "skill": "takeover", "kind": "verbatim", "query": "take over this PR"},
+{"id": "takeover:close", "skill": "takeover", "kind": "close", "query": "Dana left the company mid-way through PR 2210; I am picking up the work and want her credit preserved."},
+{"id": "takeover:paraphrase", "skill": "takeover", "kind": "paraphrase", "query": "Pick up this half-done agent thread and branch from another contributor and carry it to completion, crediting the original author."},
+{"id": "taste-lints:verbatim", "skill": "taste-lints", "kind": "verbatim", "query": "run taste lints"},
+{"id": "taste-lints:close", "skill": "taste-lints", "kind": "close", "query": "Check file size, naming conventions and structured logging invariants with the custom lints."},
+{"id": "taste-lints:paraphrase", "skill": "taste-lints", "kind": "paraphrase", "query": "Which of my files are too long or too complex, with remediation instructions an agent can follow?"},
+{"id": "technical-writing:close", "skill": "technical-writing", "kind": "close", "query": "Edit docs/howto/auth.md to match our site's conventions and one chosen stylebook, preserving facts."},
+{"id": "technical-writing:paraphrase", "skill": "technical-writing", "kind": "paraphrase", "query": "Give this concept page a plain-prose tightening pass in the Hemingway style without changing any facts."},
+{"id": "test:verbatim", "skill": "test", "kind": "verbatim", "query": "prove this works"},
+{"id": "test:close", "skill": "test", "kind": "close", "query": "Prove this change works across the six quality gates: functional, non-functional, security, DevOps, developer experience, observability."},
+{"id": "test:paraphrase", "skill": "test", "kind": "paraphrase", "query": "The code is written; validate it end to end with the full gate set, including mutation checks on the Pester files."},
+{"id": "threat-modeling:close", "skill": "threat-modeling", "kind": "close", "query": "Do an attack surface analysis of our webhook receiver with STRIDE and a threat matrix with risk ratings."},
+{"id": "threat-modeling:paraphrase", "skill": "threat-modeling", "kind": "paraphrase", "query": "Using the OWASP four questions, what can go wrong in our token-exchange architecture, and how do we mitigate and prioritize?"},
+{"id": "using-serena-symbols:verbatim", "skill": "using-serena-symbols", "kind": "verbatim", "query": "how do I find a symbol"},
+{"id": "using-serena-symbols:close", "skill": "using-serena-symbols", "kind": "close", "query": "Trace all references to the method SaveCache and show the structure of storage.py via the LSP symbol tools."},
+{"id": "using-serena-symbols:paraphrase", "skill": "using-serena-symbols", "kind": "paraphrase", "query": "Text search is too imprecise here; find where this class is defined and who uses it using language-server navigation."},
+{"id": "validate-pr-description:verbatim", "skill": "validate-pr-description", "kind": "verbatim", "query": "validate my PR description"},
+{"id": "validate-pr-description:close", "skill": "validate-pr-description", "kind": "close", "query": "Is this PR title feat(auth) add token refresh valid, and does the body follow the template with a proper Fixes link?"},
+{"id": "validate-pr-description:paraphrase", "skill": "validate-pr-description", "kind": "paraphrase", "query": "Lint the description text I wrote for my pull request: does it link the issue correctly and match the required sections?"},
+{"id": "validation-authority:close", "skill": "validation-authority", "kind": "close", "query": "The upstream linter fails on our config; align our local settings to it rather than editing the tool."},
+{"id": "validation-authority:paraphrase", "skill": "validation-authority", "kind": "paraphrase", "query": "markdownlint keeps rejecting my file and I am tempted to patch the validator; instead treat its verdict as authoritative and adjust our side."},
+{"id": "windows-image-updater:close", "skill": "windows-image-updater", "kind": "close", "query": "Migrate our OneBranch pipelines from LTSC2019 to LTSC2022, bump the AdoPipelineGeneration package and regenerate with ConfigGen."},
+{"id": "windows-image-updater:paraphrase", "skill": "windows-image-updater", "kind": "paraphrase", "query": "Update the container image our Windows ADO pipelines use, and confirm the old image reference is gone."},
+{"id": "work-operating-model:verbatim", "skill": "work-operating-model", "kind": "verbatim", "query": "elicit operating model"},
+{"id": "work-operating-model:close", "skill": "work-operating-model", "kind": "close", "query": "Run the five-layer interview to capture how my team's rhythms, decisions, dependencies and friction really work."},
+{"id": "work-operating-model:paraphrase", "skill": "work-operating-model", "kind": "paraphrase", "query": "I want a structured picture of how this group actually operates day to day, including tribal knowledge, based on questions to the team."},
+{"id": "world-model-diagnostic:verbatim", "skill": "world-model-diagnostic", "kind": "verbatim", "query": "run the world model diagnostic"},
+{"id": "world-model-diagnostic:close", "skill": "world-model-diagnostic", "kind": "close", "query": "Do the twenty-minute diagnostic to see whether our team fits vector DB, structured ontology or signal-fidelity."},
+{"id": "world-model-diagnostic:paraphrase", "skill": "world-model-diagnostic", "kind": "paraphrase", "query": "Assess our AI readiness and where it is safe to automate judgment on the boundary layers."}
 ]
