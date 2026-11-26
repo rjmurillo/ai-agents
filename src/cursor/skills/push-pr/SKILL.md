@@ -293,8 +293,6 @@ stdin, never as a command-line argument to `gh`.
    - Do not add `--skip-validation`. The fallback changes how the body arrives,
      not which checks it must pass.
 
-You have the capability to call multiple tools in a single response. You MUST do all of the above in a single message. Do not use any other tools or do anything else. Do not send any other text or messages besides these tool calls.
-
 ## Verification
 
 - [ ] Branch created off main when the working branch was main, never a push to main
