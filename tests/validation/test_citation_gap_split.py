@@ -110,20 +110,20 @@ def test_adjacent_citations_split_inside_their_empty_gap() -> None:
     assert matches[0].end() <= point <= matches[1].start()
 
 
-def test_split_is_clamped_when_one_span_holds_both_citations() -> None:
-    """The snap jumps to the span start, before the first citation.
+def test_split_is_clamped_when_the_snap_leaves_the_gap() -> None:
+    """A quote around the first citation can snap the point before the gap.
 
-    The clamp pulls it back into the gap, so each segment keeps its citation.
+    The clamp pulls it back to the gap edge, so each segment keeps its citation.
     """
-    line = f"`{HOOK}:1 then {TARGET}:3`"
+    line = '"a.py:1    `echo lorem ipsum "hello` b.py:2'
     matches = list(_CITATION.finditer(line))
     prev_end, next_start = matches[0].end(), matches[1].start()
 
     point = _gap_split(line, prev_end, next_start)
 
-    assert prev_end <= point <= next_start
-    assert f"{HOOK}:1" in _same_line_segment(line, matches, 0)
-    assert f"{TARGET}:3" in _same_line_segment(line, matches, 1)
+    assert point == prev_end
+    assert "a.py:1" in _same_line_segment(line, matches, 0)
+    assert "b.py:2" in _same_line_segment(line, matches, 1)
 
 
 def _hook_repo(tmp_path: Path) -> Path:
@@ -164,6 +164,53 @@ def test_gate_fails_a_row_123_shape_whose_second_anchors_are_wrong(
     assert code == 1
     assert f"{TARGET}:3-4" in out
     assert "no_such_token" in out
+
+
+def test_a_span_exactly_filling_the_gap_stays_with_the_second_citation() -> None:
+    """A token bounded by the citations is gap text, not an enclosing token."""
+    line = "| a.py:1`return 0`b.py:2 |"
+
+    (first, first_anchors), (second, second_anchors) = _segments(line)
+
+    assert first == "a.py:1"
+    assert first_anchors == []
+    assert second == "b.py:2"
+    assert second_anchors == ["return 0"]
+
+
+def test_gate_fails_when_a_gap_filling_span_proves_the_second_citation_stale(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _repo(tmp_path)
+    (root / "a.py").write_text("return 0\n", encoding="utf-8")
+    (root / "b.py").write_text("return 0\nreturn 1\n", encoding="utf-8")
+    row = "| a.py:1`return 0`b.py:2 |"
+    _add_doc(root, "docs/inventory.md", f"| A |\n|---|\n{row}\n")
+
+    code, out = _run(root, capsys)
+
+    assert code == 1, out
+    assert "b.py:2" in out
+    assert "return 0" in out
+
+
+def test_an_escaped_backtick_inside_a_double_quoted_anchor_is_preserved() -> None:
+    line = 'b.py:2 gives the raw string "Type \\` to open"'
+
+    assert _anchor_candidates([line], "b.py:2") == ["Type \\` to open"]
+
+
+def test_gate_accepts_an_escaped_backtick_inside_a_double_quoted_anchor(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _repo(tmp_path)
+    (root / "b.py").write_text('x = 0\nPROMPT = r"Type \\` to open"\n', encoding="utf-8")
+    row = '| b.py:2 gives the raw string "Type \\` to open" |'
+    _add_doc(root, "docs/inventory.md", f"| A |\n|---|\n{row}\n")
+
+    code, out = _run(root, capsys)
+
+    assert code == 0, out
 
 
 # A token that wraps a citation never sets the split. A double-quoted phrase
