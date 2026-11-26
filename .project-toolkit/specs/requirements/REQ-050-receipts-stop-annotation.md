@@ -29,7 +29,7 @@ REQ-048 and REQ-049 return H3 for the same single-owner answer. Q1 is left as wr
 
 ### Q1
 
-Richard Murillo (repository owner) requested it. On 2026-11-23 he asked for a spike on whether a receipt checker earns a Phase 1 port. On 2026-11-25 he accepted the verdict and asked for our own design: "take the idea, customize it. They built a chair. I want a better chair." Single requester, so Q1 passes on the evidence path: specific Q3 plus evidenced Q5.
+Richard Murillo (repository owner) requested it. On 2026-11-23 he asked for a spike on whether a receipt checker earns a Phase 1 port. On 2026-11-25 he accepted the verdict and asked for our own design: "take the idea, customize it. They built a chair. I want a better chair." Single requester, so the evidence path applies: specific Q3 plus evidenced Q5. The owner decides whether Q1 passes.
 
 ### Q2
 
@@ -223,7 +223,7 @@ The spike found where the upstream design fails on this repo's sessions. Each go
 
 ## Open questions
 
-None. The owner settled these on 2026-11-25:
+The owner settled these on 2026-11-25:
 
 - D3: adapt the idea only; copy no upstream code.
 - D4: ship to Copilot CLI as well as Claude Code.
@@ -235,6 +235,24 @@ None. The owner settled these on 2026-11-25:
 - D10: amend ADR-084 with rule 2b in the same change as ADR-128.
 - D11: draw the Copilot gate stamps by offline replay of the owner's logs; review again if unmet on 2027-02-25.
 - D12: replace the capped-scan log figures with the full count in every artifact.
+
+These stay open. The ADR-128 review raised them and the owner has not decided them.
+`.project-toolkit/critique/ADR-128-debate-log.md` lists each one under "Deferred P1 and P2 items".
+
+Owner decisions:
+
+- A hard cap on blocks per session. It changes D9.
+- The replay pool, the stamp draw, and a live Copilot probe. Each changes D11.
+- A separate sunset date for each registration.
+- A per-kind floor of 10 or 30 stamps.
+- Removal of the hook after one confirmed false block.
+- Two alternatives the ADR does not weigh: a stateless transcript guard and a prompt notice.
+
+Spec work that must land here before the build slice starts:
+
+- A definition of normalized claim values, with a digest rule for kinds that carry no value.
+- Acceptance criteria for ADR-128 Decisions 4 and 6.
+- The block reason text, and a count of blocks that change the reply.
 
 ## CVA summary
 
