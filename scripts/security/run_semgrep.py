@@ -5,15 +5,20 @@
 # resolution helpers were added in issue #4190. File size is monitored but
 # splitting is not warranted until the scan logic itself becomes multi-concern.
 """
-Semgrep Security Scanner for Local Pre-Push Validation
+Semgrep Security Scanner (manual run)
 
 Runs semgrep security rules on Python, PowerShell, JavaScript, and YAML files.
-Blocks push on HIGH/CRITICAL findings. Integrates with pre-push hook.
+Exits 1 on ERROR-severity findings unless --dry-run is set.
+
+This is a manual scanner. lefthook does not call it. The pre-push
+``security-scan`` job runs ``scripts/validation/git_hook_policy.py semgrep-push``.
+The ``semgrep`` subcommand of that module still runs this script with
+``--config auto --severity error``, but no lefthook job invokes it.
 
 Usage:
     python3 scripts/security/run_semgrep.py
     python3 scripts/security/run_semgrep.py --config auto  # Use semgrep registry rules
-    python3 scripts/security/run_semgrep.py --severity high  # Only high/critical
+    python3 scripts/security/run_semgrep.py --severity error  # Only ERROR findings
     python3 scripts/security/run_semgrep.py --dry-run  # Show findings without blocking
 
 Exit Codes:
@@ -259,7 +264,8 @@ class SemgrepScanner:
     }
 
     # Wall-clock ceiling for a single semgrep invocation. A wedged scan must not
-    # hang the pre-push hook indefinitely; on timeout the scan fails closed
+    # hang a manual run or the ``git_hook_policy.py semgrep`` subcommand
+    # indefinitely; on timeout the scan fails closed
     # (exit 3) rather than reporting a clean pass.
     SCAN_TIMEOUT_SECONDS = 300
 
