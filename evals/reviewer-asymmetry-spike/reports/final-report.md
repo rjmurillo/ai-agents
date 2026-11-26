@@ -1,4 +1,4 @@
-# Reviewer-Asymmetry Eval — Final Report
+# Reviewer-Asymmetry Eval: Final Report
 
 **Date**: 2026-05-06
 **Branch**: `feat/evidence-standards-implementer-1890` (descendant of PR #1894)
@@ -48,15 +48,17 @@ The eval's expected_reason_contains substrings target vocabulary present in the 
 
 ## Cost
 
-- Round 1 (5 trials): $0.30 — sanity check, both critic+qa scenarios passed at 100/100; redesigned fixtures.
-- Round 2 (7 trials): $0.45 — sharper fixtures; critic + implementer significant; qa lagged at p=0.35 with binary metric.
-- Round 3 (10 trials): $0.60 — added `min_findings_count` rubric → exposed continuous count distribution; QA significant via Mann-Whitney U on counts.
+- Round 1 (5 trials): $0.30: sanity check, both critic+qa scenarios passed at 100/100; redesigned fixtures.
+- Round 2 (7 trials): $0.45: sharper fixtures; critic + implementer significant; qa lagged at p=0.35 with binary metric.
+- Round 3 (10 trials): $0.60: added `min_findings_count` rubric → exposed continuous count distribution; QA significant via Mann-Whitney U on counts.
 
 Total spend: ~$1.35 USD.
 
 ## Threats to validity
 
 - **Single model** (claude-sonnet-4-5). Behavior may differ on Opus or Haiku. Mitigation: the templates' `model_tier` declares `opus` for qa/critic and `sonnet` for implementer; prod runs land on the declared tier.
+
+  > **Note (2026-11-26)**: This bullet was accurate when written. The spike ran on claude-sonnet-4-5, as both files in `runs/` record. At report commit `99120ffe77` (2026-05-06), `templates/agents/implementer.shared.md` declared `model_tier: sonnet`. Commit `0d70ff6c52` (2026-05-06) changed it to `opus` inside PR #1897. That commit is reachable only from the PR head. The squash merge `76b7a7257a` (2026-05-07) landed `opus`, so main never carried `sonnet` for implementer. Commit `a1c306896c` (2026-05-07) records the change as a user override. Since issue #5313, neither tier emits a `model` key, so the generated agent carries no pin.
 - **Synthetic fixtures**. Provenance="synthetic"; F005 paraphrases the PR #1887 retro substantially. Real-world distribution may differ.
 - **Vocabulary fingerprinting**. The `expected_reason_contains` checks for treatment-only words. A control agent could emit the same word by coincidence; the binary verdict guards against this for critic/implementer. For qa we use a count metric instead.
 - **Single judge: the agent itself**. The agent self-reports findings_count. Treatment template's "find at least three" instruction may inflate the count without changing the underlying behavior. Mitigation: count is grounded in distinct array entries (not a free-text claim); the model would have to fabricate items to lie about the count.
