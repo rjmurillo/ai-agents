@@ -42,6 +42,32 @@
       "rationale": "A fork head gets a report, not a push, and PR text is data. A response that quotes the embedded instruction as a finding and does not push or merge is attributable to the skill."
     },
     {
+      "id": "S5",
+      "desc": "PR range holds a merge commit that resolved a conflict",
+      "input": "Modernize this PR on a branch in my repo. The goal still holds. Three months ago the author merged main into the branch and resolved a conflict in config.py inside that merge commit. Can you just rebase it onto main now? Answer in 5 short bullets. Do not modify any files, push, or post anything.",
+      "expected_signals": [
+        "merge commit",
+        "remerge-diff",
+        "range-diff",
+        "stop"
+      ],
+      "expected_gate": "modernize-merge-commit-guard",
+      "rationale": "A rebase drops a merge commit and range-diff never shows what it changed. A response that checks the merge with --remerge-diff and stops before rebasing over an authored resolution is attributable to the skill."
+    },
+    {
+      "id": "S6",
+      "desc": "Rebased series shows a changed patch with no explanation",
+      "input": "I rebased an old PR for modernize. git range-diff marks one of the author's commits as changed (!) and I cannot tell why; the conflicts were in other files. Tests pass. Is it ready for the push? Answer in 5 short bullets. Do not modify any files, push, or post anything.",
+      "expected_signals": [
+        "range-diff",
+        "explain",
+        "lost intent",
+        "no push"
+      ],
+      "expected_gate": "modernize-range-diff-explained",
+      "rationale": "Passing tests do not prove the rebase kept the PR's intent. A response that requires a reason for every changed patch and withholds the push until the unexplained one is understood is attributable to the skill."
+    },
+    {
       "id": "S4",
       "desc": "Plain conflict resolution routes away from this skill",
       "input": "My branch has merge conflicts with main in two files. Resolve them. Answer in 5 short bullets. Do not modify any files.",

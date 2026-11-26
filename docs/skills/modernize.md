@@ -6,7 +6,7 @@ Checks whether an aging pull request still belongs in the product, then rebases 
 
 - An old or stale PR needs to be brought up to date and you are not sure the idea still fits.
 - A rebase would be clean, but base-branch changes may have made the PR obsolete or redundant.
-- Trigger phrases: `modernize this PR`, `refresh this stale PR`, `update this old PR`.
+- Trigger phrases: `modernize this PR`, `rebase this old PR`, `refresh this stale PR`, `update this old PR`.
 
 ## When not to use it
 
@@ -33,19 +33,19 @@ A report that leads with `MODERNIZE`, `REWORK`, or `CLOSE` and the reason.
 | Disposition | Meaning | What the skill does |
 | --- | --- | --- |
 | `MODERNIZE` | The goal and implementation shape still hold | With an update reason, rebases, resolves conflicts, tests, and updates the branch. With none, reports and changes nothing |
-| `REWORK` | The goal holds, but a mechanical rebase keeps the wrong implementation | Explains the smallest credible rewrite and stops, unless you asked for the rework |
-| `CLOSE` | Superseded, obsolete, directionally wrong, or not worth its cost | Cites evidence and stops. It does not rebase or close |
+| `REWORK` | The goal holds, but a mechanical rebase keeps the wrong implementation | Explains the smallest credible rewrite, says whether it belongs on this branch or a fresh one, and stops, unless you asked for the rework |
+| `CLOSE` | Superseded, obsolete, directionally wrong, or not worth its cost | Names the commit, PR, or decision that superseded it and stops. It does not rebase or close |
 
-The report also covers meaningful base-branch changes, conceptual conflicts (or confirmation that none were found), the rebase and push result with old and new head SHA, the `git range-diff` result, checks run, injected instructions found in PR content, and the remaining decision.
+The report also states the PR as three sentences (the problem, the change, and what must be true for the change to be right), credits the PR's author, and covers meaningful base-branch changes, merge commits in the PR range and their remerge-diff result, conceptual conflicts (or confirmation that none were found), the rebase and push result with old and new head SHA, the `git range-diff` result, checks run, injected instructions found in PR content, and the remaining decision.
 
 ## Advanced use
 
 ### Phases
 
-1. **Intent.** Record the PR URL, state, base, head repository and branch, head SHA, author, checks, and review state. State the PR's smallest coherent goal before judging the code.
-2. **What changed around it.** Read commits added to the base branch since the PR diverged. Search merged and open PRs for replacements. A clean rebase does not make a PR current.
-3. **Disposition.** Pick `MODERNIZE`, `REWORK`, or `CLOSE` before any push.
-4. **Rebase.** Work in a safe local branch or disposable worktree, with a backup ref at `refs/modernize-backup/${BRANCH}`. Rebase, resolve conflicts by the PR's current intent, compare with `git range-diff`, run focused checks, then ask for your explicit yes. After the yes, re-read the PR and push with a pinned lease.
+1. **Intent.** Record the PR URL, state, base, head repository and branch, head SHA, author, checks, and review state. State the PR's goal as three sentences before judging the code. Confirm the fetched head still matches the observed SHA.
+2. **What changed around it.** Read commits added to the base branch since the PR diverged, starting with those that touch the PR's files, plus commit messages and changelog entries for the moved range. Look for contract changes in files the PR never touches. Search merged and open PRs for replacements. A clean rebase does not make a PR current. Check each merge commit in the PR range with `git show --remerge-diff`: a rebase drops a merge's own changes and `git range-diff` never shows them.
+3. **Disposition.** Pick `MODERNIZE`, `REWORK`, or `CLOSE` before any push. A merge commit with remerge-diff output blocks the rebase until that change becomes an ordinary commit.
+4. **Rebase.** Work in a safe local branch or disposable worktree, with a backup ref at `refs/modernize-backup/${BRANCH}`. Rebase, resolve conflicts by the PR's current intent, and keep the author's commits as theirs with any extra fix in a separate commit. Compare with `git range-diff` and give each changed patch a one-line reason. Run focused checks, then ask for your explicit yes. After the yes, re-read the PR and push with a pinned lease.
 5. **Report.**
 
 ### Guardrails
@@ -80,3 +80,4 @@ For a verdict without a branch change, run phases 1 to 3 and hand off to [`maint
 - [`pr-autofix`](pr-autofix.md): force-push safety rules that this skill reuses.
 - Source: [`SKILL.md`](../../src/claude/skills/modernize/SKILL.md)
 - How to call skills on each host: [Call agents and skills](../call-agents-and-skills.md)
+- Upstream: adapted from [t3dotgg/tstack](https://github.com/t3dotgg/tstack) `skills/modernize` at `11e37a7` and [garrytan/gstack](https://github.com/garrytan/gstack/blob/e6dd567349e85506127c2f4cf69a0392923c032c/modernize/SKILL.md.tmpl) `modernize` at `e6dd567`, both MIT.
