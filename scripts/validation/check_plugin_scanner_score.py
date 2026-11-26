@@ -16,9 +16,9 @@ throwaway index and written out with ``git checkout-index``, which produces the
 files and symlinks a fresh clone has. A directory walk of the checkout would
 also score untracked files, caches, and virtualenvs that a clone never has, so
 the same commit could pass here and fail in the catalog
-(.claude/rules/ci-scripts.md item 9). ``git archive`` is not used: it drops
-``export-ignore`` paths such as ``.gitignore`` and ``.gitattributes``, which
-the catalog's clone keeps.
+(.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md
+item 9). ``git archive`` is not used: it drops ``export-ignore`` paths such
+as ``.gitignore`` and ``.gitattributes``, which the catalog's clone keeps.
 
 Which scanner: ``build/plugin-scanner/uv.lock`` pins ``plugin-scanner`` by hash
 to the version the CI action verifies, and ``uv run --frozen`` installs exactly
@@ -69,7 +69,8 @@ DEFAULT_MIN_SCORE = 80
 # Only the failure message reads it; the gate uses DEFAULT_MIN_SCORE.
 CATALOG_MIN_SCORE = 75
 # One deadline covers every step, so the script reports its own exit 3 before
-# the 3m lefthook cap kills it (.claude/rules/ci-scripts.md item 19). A timed-out
+# the 3m lefthook cap kills it
+# (.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md item 19). A timed-out
 # step can overrun it by DRAIN_SECONDS; the budget test checks the sum.
 TOTAL_BUDGET_SECONDS = 165
 GIT_TIMEOUT_SECONDS = 30

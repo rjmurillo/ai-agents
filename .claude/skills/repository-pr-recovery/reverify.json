@@ -97,12 +97,12 @@
     {
       "id": "R18",
       "kind": "path_exists",
-      "path": "templates/rules/ci-scripts.md"
+      "path": ".claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md"
     },
     {
       "id": "R19",
       "kind": "contains",
-      "path": "templates/rules/ci-scripts.md",
+      "path": ".claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md",
       "text": "22. **A job `name:` is a branch-protection identifier."
     },
     {

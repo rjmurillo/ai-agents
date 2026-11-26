@@ -194,9 +194,9 @@ def _find_dash_violations(
     than routine. The caller narrows scope rather than failing the whole
     scan, because a `git diff`-listed path that cannot be read is not
     actionable for the dash check, but the narrowing itself MUST be
-    visible (`.claude/rules/ci-scripts.md` MUST 12): a blocking gate that
-    silently examines fewer files than it claims can pass a branch that
-    still carries a violation in the file it dropped.
+    visible (`.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`
+    MUST 12): a blocking gate that silently examines fewer files than it claims can
+    pass a branch that still carries a violation in the file it dropped.
     """
     violations: list[tuple[str, int]] = []
     skipped: list[str] = []

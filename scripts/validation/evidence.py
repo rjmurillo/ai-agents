@@ -36,8 +36,9 @@ Five states replace the two:
 reader should go install or authenticate something. ``UNKNOWN`` means an
 observation was attempted and what came back could not be trusted, so the
 reader should go look at the output. Collapsing them costs the reader the first
-diagnostic step, the same defect ``.claude/rules/ci-scripts.md`` MUST 14
-records for the count ratchets.
+diagnostic step, the same defect
+``.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`` MUST 14 records for
+the count ratchets.
 
 Prior art this mirrors rather than reinvents:
 

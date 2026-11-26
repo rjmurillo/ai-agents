@@ -10,15 +10,15 @@ above the recorded value; a new agent absent from the baseline still uses the
 ordinary score>=2 threshold.
 
 Split out of the discriminator module itself to hold this file under the
-project's 500-line ceiling (`.claude/rules/code-quality.md`) and to keep the
-ratchet's own logic separately testable. It does not put the discriminator
-module under that ceiling: `check_agent_skill_discriminator.py` was already
-past it on `main` and remains an open taste-lint error there, counted in the
-existing baseline rather than introduced here. The two modules
-still share one contract (`AgentScore`), imported here only under
-`TYPE_CHECKING` to avoid a runtime circular import; `full_corpus_agent_paths`
-takes its agent-path predicate as a parameter for the same reason, rather than
-importing `is_agent_path` back from the discriminator module.
+project's 500-line ceiling
+(`src/claude/skills/build/references/rule-code-quality.md`) and to keep the ratchet's
+own logic separately testable. It does not put the discriminator module under that
+ceiling: `check_agent_skill_discriminator.py` was already past it on `main` and
+remains an open taste-lint error there, counted in the existing baseline rather than
+introduced here. The two modules still share one contract (`AgentScore`), imported
+here only under `TYPE_CHECKING` to avoid a runtime circular import;
+`full_corpus_agent_paths` takes its agent-path predicate as a parameter for the same
+reason, rather than importing `is_agent_path` back from the discriminator module.
 """
 
 from __future__ import annotations
@@ -184,15 +184,15 @@ def full_corpus_agent_paths(
     free of a runtime dependency back on the discriminator module.
 
     Read from a named ref rather than walked on disk, per
-    ``.claude/rules/ci-scripts.md`` MUST-9: "A ratchet baseline is a claim
-    about a ref, so the measurement behind it MUST NOT read untracked state".
-    A directory walk answered a different question in three ways that all
-    produce a wrong baseline from a correct-looking run. It counted untracked
-    agent files a contributor happened to have on disk and CI never will. It
-    returned an empty corpus for a partial or sparse checkout, which reads
-    identically to a repository with no agents. And it made two checkouts of
-    the same commit disagree, which is exactly the property a baseline has to
-    have to be worth committing.
+    ``.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md``
+    MUST-9: "A ratchet baseline is a claim about a ref, so the measurement
+    behind it MUST NOT read untracked state". A directory walk answered a
+    different question in three ways that all produce a wrong baseline from a
+    correct-looking run. It counted untracked agent files a contributor
+    happened to have on disk and CI never will. It returned an empty corpus for
+    a partial or sparse checkout, which reads identically to a repository with
+    no agents. And it made two checkouts of the same commit disagree, which is
+    exactly the property a baseline has to have to be worth committing.
 
     ``None`` means git could not answer and the corpus is unknown. The caller
     must fail closed on it; falling back to a walk restores the defect.

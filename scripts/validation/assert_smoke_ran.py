@@ -5,7 +5,8 @@ The smoke tests in ``tests/e2e/`` carry ``@pytest.mark.skipif`` guards: without
 ``RUN_CLI_E2E=1`` and the CLIs on PATH they SKIP, and a skip reads as a pass in
 a green pytest summary. This gate parses the JUnit XML pytest emits and exits
 non-zero when a smoke test was skipped, failed, or was never collected
-(``.claude/rules/generated-artifacts.md``: a skipped smoke MUST be loud).
+(``.claude/skills/ai-agents-generation-and-release/references/rule-generated-artifacts.md``: a
+skipped smoke MUST be loud).
 
 JUnit XML (pytest ``--junitxml``) carries no markers, so smoke cases are
 selected by name substring (``--smoke-substr``, default ``test_cli_hook_e2e``).

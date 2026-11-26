@@ -190,10 +190,10 @@ def require_attr_source(repo_root: Path) -> None:
     involved. A git that does not know `GIT_ATTR_SOURCE` ignores it: no error,
     no warning, no exit code, just the working tree's `.gitattributes` silently
     answering for the committed tree it does not describe. That is the failure
-    `.claude/rules/ci-scripts.md` MUST-12 names, a run that did nothing
-    reporting the same way as a run that succeeded, so
-    this raises and reaches the exit-2 path in `main` and the False verdict in
-    `validate_index_line_endings`.
+    `.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`
+    MUST-12 names, a run that did nothing reporting the same way as a run that
+    succeeded, so this raises and reaches the exit-2 path in `main` and the
+    False verdict in `validate_index_line_endings`.
 
     The floor is 2.41, read out of the tagged sources rather than recalled.
     `Documentation/git.txt` at `v2.40.0` contains neither `GIT_ATTR_SOURCE`

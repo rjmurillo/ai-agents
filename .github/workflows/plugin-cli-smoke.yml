@@ -62,7 +62,9 @@
 #     only, never written to the repo. Only the Copilot legs read the Copilot
 #     token (REQ-047 AC3). The Claude legs use the subscription OAuth token.
 #
-# Loud, not silent (.claude/rules/generated-artifacts.md, issue #2231 item 4):
+# Loud, not silent
+# (.claude/skills/ai-agents-generation-and-release/references/rule-generated-artifacts.md, issue
+# #2231 item 4):
 #   The smoke tests skip without RUN_CLI_E2E=1 and the CLIs, and a skip reads as
 #   a pass in a green summary. scripts/validation/assert_smoke_ran.py parses the
 #   JUnit report and fails the job if the smoke was skipped or not collected, so

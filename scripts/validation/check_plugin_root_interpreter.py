@@ -26,11 +26,11 @@ for either form to be portable:
 2. **The target script imports nothing beyond the standard library.** A step
    that runs ``python3 <script>`` (not ``uv run python <script>``) resolves the
    caller's ambient interpreter, which has installed nothing project-specific.
-   ``.claude/rules/ci-scripts.md`` MUST-18 states this for CI steps in the same
-   words: "A step that invokes a script with bare ``python3`` may import only
-   the standard library." The same physics applies to a skill script launched
-   this way from inside a vendored install, which has no ``pyproject.toml`` to
-   install dependencies from even if it wanted to.
+   ``.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md``
+   MUST-18 states this for CI steps in the same words: "A step that invokes a script
+   with bare ``python3`` may import only the standard library." The same physics
+   applies to a skill script launched this way from inside a vendored install, which
+   has no ``pyproject.toml`` to install dependencies from even if it wanted to.
 
 This validator enforces both, plus a bare-path rule for shipped YAML (Rule 3,
 below). Markdown and code carry no offense baseline: every invocation there moved

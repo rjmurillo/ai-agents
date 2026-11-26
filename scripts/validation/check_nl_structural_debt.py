@@ -288,10 +288,10 @@ def validate_nl_structural_debt(repo_root: Path) -> bool:
 def _refuses_write_from_outside(repo_root: Path) -> bool:
     """True when the process is not standing inside ``repo_root``.
 
-    ``.claude/rules/ci-scripts.md`` MUST-7: a script that resolves the repository
-    root and then writes to it confirms the current directory is inside that root
-    before the first write. Without it, running this script by absolute path from
-    another worktree rewrites the baseline of the checkout that holds the script.
+    ``.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`` MUST-7: a script
+    that resolves the repository root and then writes to it confirms the current directory is
+    inside that root before the first write. Without it, running this script by absolute path
+    from another worktree rewrites the baseline of the checkout that holds the script.
     """
     cwd = Path.cwd().resolve()
     if cwd.is_relative_to(repo_root.resolve()):

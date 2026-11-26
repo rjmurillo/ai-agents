@@ -1612,10 +1612,10 @@ def run(
     examined = len(collect_records(adr_dir, repo_root)[0])
 
     if args.write_baseline:
-        # .claude/rules/ci-scripts.md MUST 7: a script that resolves the
-        # repository root and then writes to it must confirm the caller's cwd
-        # sits inside that root before the first write. Follows the cwd check in
-        # scripts/generate_third_party_notices.py.
+        # .claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md
+        # MUST 7: a script that resolves the repository root and then writes to it
+        # must confirm the caller's cwd sits inside that root before the first
+        # write. Follows the cwd check in scripts/generate_third_party_notices.py.
         #
         # Stricter/looser/different than canonical: the canonical script's
         # PROJECT_ROOT has no CLI override, so every invocation is the risky
@@ -1638,15 +1638,15 @@ def run(
         # baseline" as the cross-worktree write MUST 7 exists to prevent.
         # It is not: MUST 7's own stated threat is a script's *implicit*
         # resolution being silently redirected by state the caller cannot
-        # see, as `.claude/rules/ci-scripts.md` MUST 7 explains: a redirection set
-        # by `core.worktree` or `GIT_WORK_TREE` is invisible to a script that
-        # inherits it. A caller-typed `--repo-root` is the opposite of
-        # that: nothing is inherited or hidden, the target is exactly what
-        # was written on the command line. Worktree A/B is a possible
-        # *user* mistake, not an undetectable one, and no mechanism here
-        # could tell a mistaken B from an intentional one without breaking
-        # every test above that intentionally points --repo-root at an
-        # unrelated tmp_path fixture.
+        # see, as
+        # `.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`
+        # MUST 7 explains: a redirection set by `core.worktree` or `GIT_WORK_TREE`
+        # is invisible to a script that inherits it. A caller-typed `--repo-root`
+        # is the opposite of that: nothing is inherited or hidden, the target is
+        # exactly what was written on the command line. Worktree A/B is a possible
+        # *user* mistake, not an undetectable one, and no mechanism here could tell
+        # a mistaken B from an intentional one without breaking every test above
+        # that intentionally points --repo-root at an unrelated tmp_path fixture.
         if repo_root_is_default and not Path.cwd().resolve().is_relative_to(repo_root.resolve()):
             print(
                 f"[CONFIG] current directory is outside repo root {repo_root}: {Path.cwd()}",
@@ -1801,7 +1801,8 @@ def validate_adr_lifecycle(repo_root: Path) -> bool:
 
     A config error (exit 2) returns False. A gate that cannot read its own
     baseline has not run, and reporting that as a pass is the silent-pass failure
-    `.claude/rules/ci-scripts.md` MUST 11 and 12 exist to stop.
+    `.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md` MUST 11 and 12 exist
+    to stop.
     """
     return main(["--repo-root", str(repo_root)]) == EXIT_OK
 

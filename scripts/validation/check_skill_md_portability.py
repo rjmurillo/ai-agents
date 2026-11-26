@@ -1227,8 +1227,8 @@ def _scan_current_counts(
         current, marker_current, scanned_by_root, drift = scan_all(root, check_drift=check_drift)
     except GitQueryError:
         # An external failure, not a scan result. Exit code 3 per
-        # .claude/rules/ci-scripts.md; returning None here would report it as
-        # a configuration error and hide that git itself failed.
+        # .claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md; returning
+        # None here would report it as a configuration error and hide that git itself failed.
         raise
     except (OSError, MarkdownNestingError) as exc:
         print(f"Could not scan skills dirs under {root}: {exc}", file=sys.stderr)

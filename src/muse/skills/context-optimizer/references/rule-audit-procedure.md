@@ -78,7 +78,7 @@ vocabulary. The one found in this corpus:
 |--------|-------|------|
 | `AGENTS.md` | entrypoint, read first | `Use bash` under **Never**, removed by #4169 |
 | `.claude/rules/universal.md` | applyTo `**` | MUST NOT **create** new bash scripts |
-| `.claude/rules/ci-scripts.md` | scripts and build paths | MUST NOT **create** new `*.sh` scripts <!-- orphan-ref-ignore --> |
+| `.claude/rules/ci-scripts.md` (moved 2026-11-25 into the repo-local `ai-agents-validation-and-qa` skill's `references/rule-ci-scripts.md`) | scripts and build paths | MUST NOT **create** new `*.sh` scripts <!-- orphan-ref-ignore --> |
 | `.claude/rules/claude-model-patches.md` (retired 2026-09-12 into `templates/skills/partials/claude-model-patches.mustache`) | applyTo `**` at the time | publishes an **allowed** bash list <!-- orphan-ref-ignore --> |
 
 Both rules that state the prohibition say *create*. The compressed index said

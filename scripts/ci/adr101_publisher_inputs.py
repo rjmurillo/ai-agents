@@ -10,7 +10,8 @@ publisher is told, so the published label never says "verified".
 This module holds what every stage reads: the environment contract, the typed
 reason codes, the input validators, and the credential gate. Standard library
 plus ``scripts.validation.evidence`` only, so a step invoking ``python3`` with
-no environment installed can use it (``.claude/rules/ci-scripts.md`` MUST 18).
+no environment installed can use it
+(``.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`` MUST 18).
 
 Canonical source mirrored: ``scripts/validation/evidence.py`` defines
 ``CheckOutcome`` and the five states. Its reason pattern is quoted verbatim:

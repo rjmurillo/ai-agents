@@ -98,7 +98,7 @@
   {
    "id": "R20",
    "kind": "path_exists",
-   "path": ".claude/rules/generated-artifacts.md"
+   "path": ".claude/skills/ai-agents-generation-and-release/references/rule-generated-artifacts.md"
   },
   {
    "id": "R21",

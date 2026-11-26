@@ -86,7 +86,7 @@
   },
   {
    "kind": "contains",
-   "path": ".claude/rules/generated-artifacts.md",
+   "path": ".claude/skills/ai-agents-generation-and-release/references/rule-generated-artifacts.md",
    "text": "**Ship a runtime-contract test.**",
    "id": "R15"
   },

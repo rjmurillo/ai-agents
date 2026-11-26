@@ -266,7 +266,7 @@ failure_handling:
   - type: "AI reviewer fails (code quality)"
     action: "Address findings or document acknowledgment"
   - type: "Security finding (CWE, OWASP, CVE)"
-    action: "BLOCKING. Fix the underlying code vulnerability before resolving the thread. Do NOT resolve security threads without a code fix. Log a tracking issue. Security threads with tracking issues are exempt from completion_criteria thread-resolution requirements. Ref: .claude/rules/security.md (canonical security file rule), AGENTS.md NEVER list."
+    action: "BLOCKING. Fix the underlying code vulnerability before resolving the thread. Do NOT resolve security threads without a code fix. Log a tracking issue. Security threads with tracking issues are exempt from completion_criteria thread-resolution requirements. Ref: the security-review skill's references/rule-security.md (canonical security file rule), AGENTS.md NEVER list."
   - type: "Merge conflicts"
     action: "Resolve conflicts or merge base branch"
   - type: "Behind base branch"

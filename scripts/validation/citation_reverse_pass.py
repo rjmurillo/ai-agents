@@ -11,18 +11,18 @@ citations that target the file and judges each one twice, once against
 the cited file at the merge base and once at HEAD, with the forward
 gate's own existence, range, and anchor checks.
 
-Base-derived blocking, the model ``.claude/rules/ci-scripts.md`` MUST 14
-describes for the taste and ruff ratchets: a citation blocks only when it
-held at the merge base and fails at HEAD, so a branch is red only for
-drift it caused. A citation already stale at the base is counted and
-printed, never blocking, and no baseline file exists. An anchorless
-citation is also judged by its content: when the base text of the cited
-range is distinctive, unique at the merge base, and sits verbatim at one
-other place at HEAD, the content moved and the citation is stale.
-Unique boundary lines also reveal ranges that shifted while growing.
-Text edited in place is not flagged when its boundaries stay fixed.
-A finding names the corrected citation when it can compute one,
-keeping the anchor's offset inside the cited range.
+Base-derived blocking, the model
+``.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md``
+MUST 14 describes for the taste and ruff ratchets: a citation blocks only
+when it held at the merge base and fails at HEAD, so a branch is red only for
+drift it caused. A citation already stale at the base is counted and printed,
+never blocking, and no baseline file exists. An anchorless citation is also
+judged by its content: when the base text of the cited range is distinctive,
+unique at the merge base, and sits verbatim at one other place at HEAD, the
+content moved and the citation is stale. Unique boundary lines also reveal
+ranges that shifted while growing. Text edited in place is not flagged when
+its boundaries stay fixed. A finding names the corrected citation when it can
+compute one, keeping the anchor's offset inside the cited range.
 
 A slashless name (``name.py:3``) counts here when exactly one file
 tracked at the merge base or at HEAD has that basename and that file

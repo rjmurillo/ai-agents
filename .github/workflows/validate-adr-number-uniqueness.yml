@@ -9,9 +9,9 @@
 # uniqueness is a property of the whole tree, so the diff cannot decide it:
 # two PRs that each pass against their own base can merge into a colliding
 # union, and a skipped job reporting success would hide it (issue #5114,
-# .claude/rules/ci-scripts.md "Path filters gate the diff, never the tree").
-# No required status check names a job here, so no skip-announcer is needed.
-# The validator globs one directory and finishes in well under a second.
+# .claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md "Path filters gate
+# the diff, never the tree"). No required status check names a job here, so no skip-announcer
+# is needed. The validator globs one directory and finishes in well under a second.
 
 name: Validate ADR Number Uniqueness
 

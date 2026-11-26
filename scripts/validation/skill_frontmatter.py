@@ -529,8 +529,9 @@ def default_corpus_files() -> list[Path]:
 
     Roots are anchored on ``_PROJECT_ROOT`` rather than the working directory so
     the audit reports the same corpus from any subdirectory
-    (``.claude/rules/ci-scripts.md`` MUST-8). An absent tree is skipped, not an
-    error: a vendored install legitimately ships one tree and not the other.
+    (``.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`` MUST-8). An
+    absent tree is skipped, not an error: a vendored install legitimately ships one tree and not
+    the other.
     """
     files: list[Path] = []
     for prefix in _SKILL_TREE_PREFIXES:

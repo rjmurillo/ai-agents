@@ -43,7 +43,7 @@
     {
       "id": "R9",
       "kind": "path_exists",
-      "path": ".claude/rules/generated-artifacts.md"
+      "path": ".claude/skills/ai-agents-generation-and-release/references/rule-generated-artifacts.md"
     },
     {
       "id": "R10",
@@ -158,8 +158,8 @@
     {
       "id": "R31",
       "kind": "contains",
-      "path": ".claude/rules/generated-artifacts.md",
-      "text": "(in the ai-agents repository only)"
+      "path": ".claude/skills/ai-agents-generation-and-release/references/rule-generated-artifacts.md",
+      "text": "`.claude/skills/ai-agents-portability-campaign/SKILL.md` (in the ai-agents"
     },
     {
       "id": "R32",

@@ -1,12 +1,12 @@
 """JSON and markdown writers for ``gate_latency.py`` (REQ-027 T5).
 
 Split out so ``scripts/metrics/gate_latency.py`` stays under the project's
-500-line taste-lint ceiling (``.claude/rules/code-quality.md``); several
-sibling validators document the same split for the same reason (see
+500-line taste-lint ceiling
+(``src/claude/skills/build/references/rule-code-quality.md``); several sibling
+validators document the same split for the same reason (see
 ``scripts/validation/check_repo_health_report.py`` and
-``scripts/validation/index_line_endings_record.py``). Only the I/O boundary
-lives here: parsing and sampling stay in ``gate_latency.py`` and
-``lefthook_summary.py``.
+``scripts/validation/index_line_endings_record.py``). Only the I/O boundary lives
+here: parsing and sampling stay in ``gate_latency.py`` and ``lefthook_summary.py``.
 
 The symlink-refusing writer mirrors
 ``scripts/metrics/control_plane_baseline.py``'s ``_safe_open`` (read this

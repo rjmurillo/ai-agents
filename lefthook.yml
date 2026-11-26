@@ -471,9 +471,10 @@ pre-commit:
 #   3. Fast stage, parallel half: policy gates that each finish
 #      in seconds (measured 0.1s-17s standalone on 2026-08-15).
 #   4. security-scan (semgrep): expensive stdin consumer. Kept serial as a
-#      top-level job because `.claude/rules/ci-scripts.md` MUST-21 forbids
-#      `use_stdin: true` inside a `parallel: true` group; the top level of a
-#      piped hook delivers the same serialized stdin a piped group does.
+#      top-level job because
+#      `.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md` MUST-21 forbids
+#      `use_stdin: true` inside a `parallel: true` group; the top level of a piped hook delivers
+#      the same serialized stdin a piped group does.
 #   5. Expensive stage: python-tests, mypy, workflow-local-run,
 #      build-all-check, the e2e smokes, pre-pr-validation, count-ratchets
 #      (issue #7070), plus the advisory

@@ -7,8 +7,8 @@ Detects what changed via git diff, classifies changes, and routes to the
 appropriate evaluator. Single entry point for all eval types.
 
 Routing is table-driven (`ROUTING_RULES`), ordered narrowest first, first match
-wins. See `.claude/rules/code-quality.md`, section "Table-Driven Logic": "When
-branching grows past three or four cases, replace conditional code with a table."
+wins. See `src/claude/skills/build/references/rule-code-quality.md`, section "Table-Driven
+Logic": "When branching grows past three or four cases, replace conditional code with a table."
 
 Evaluator routing:
     - Prompt structural changes  -> Pester tests (ADR-023)

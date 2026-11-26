@@ -275,12 +275,12 @@ def declaration_kind(text: str) -> str:
     """Return the declaration kind a file carries, or ``"none"``.
 
     The marker needs a reason after it. A bare marker is an undocumented
-    suppression, which `.claude/rules/code-quality.md` rejects, so it does not
-    count as a declaration. Conditional declarations are distinct from
-    permanent non-suite declarations: they are valid only when pytest actually
-    skipped the module during collection. If a file carries both, the
-    permanent declaration wins so a later collection cannot hide the stale
-    non-suite declaration.
+    suppression, which `src/claude/skills/build/references/rule-code-quality.md`
+    rejects, so it does not count as a declaration. Conditional declarations are
+    distinct from permanent non-suite declarations: they are valid only when
+    pytest actually skipped the module during collection. If a file carries
+    both, the permanent declaration wins so a later collection cannot hide the
+    stale non-suite declaration.
     """
     try:
         module = ast.parse(text)

@@ -6,7 +6,7 @@ Absorbs `scripts/sync_plugin_lib.py`'s copy logic (its `SYNC_PAIRS`,
 `SYNC_FILE_PAIRS`, and `IMPORT_CONVERSIONS`, unchanged) so `build_all.py`
 performs the whole scripts/ -> plugin tree -> install tree chain in one
 run, instead of a separately invoked script whose order relative to
-`build_all.py` mattered (issue #2613, `.claude/rules/generated-artifacts.md`
+`build_all.py` mattered (issue #2613, the generated-artifacts rule's
 "Generator order: sync before build", removed by this change).
 
 Three destinations per source, per `templates/platforms/binplace.yaml`'s
