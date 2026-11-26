@@ -192,6 +192,7 @@ def test_method_signature_claims_ignore_declared_names(tmp_path: Path) -> None:
 # neither: issue 7662 saw 2.097 s against a 2.0 s limit with no regression.
 _GROWTH_FACTOR = 4
 _GROWTH_RATIO_LIMIT = 8.0
+_TRIES = 3
 
 
 def _cpu_seconds(run: Callable[[str], object], argument: str) -> float:
@@ -208,15 +209,15 @@ def _cpu_seconds(run: Callable[[str], object], argument: str) -> float:
             gc.enable()
 
 
-def _cpu_growth(run: Callable[[str], object], small: str, large: str, tries: int = 3) -> float:
-    """CPU time of ``run(large)`` over ``run(small)``, best of ``tries`` each.
+def _cpu_growth(run: Callable[[str], object], small: str, large: str) -> float:
+    """CPU time of ``run(large)`` over ``run(small)``, best of ``_TRIES`` each.
 
     The minimum drops scheduler noise, which only ever adds time. The two
     sides alternate so a slow stretch of the host hits both. A small run of
     zero CPU time fails instead of making any workload pass or fail vacuously.
     """
     small_best = large_best = float("inf")
-    for _ in range(tries):
+    for _ in range(_TRIES):
         small_best = min(small_best, _cpu_seconds(run, small))
         large_best = min(large_best, _cpu_seconds(run, large))
     assert small_best > 0.0, "the small input ran in zero CPU time; enlarge it"
@@ -282,12 +283,23 @@ def test_assert_linear_fails_a_quadratic_workload() -> None:
         _assert_linear(_quadratic, "ab" * 1000, "ab" * 1000 * _GROWTH_FACTOR)
 
 
+def test_assert_linear_fails_at_exactly_the_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setitem(globals(), "_cpu_growth", lambda *_: _GROWTH_RATIO_LIMIT)
+    with pytest.raises(AssertionError, match="CPU time grew 8.0x"):
+        _assert_linear(len, "a", "aaaa")
+
+
+def test_assert_linear_passes_just_under_the_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setitem(globals(), "_cpu_growth", lambda *_: _GROWTH_RATIO_LIMIT - 0.01)
+    _assert_linear(len, "a", "aaaa")
+
+
 def test_cpu_growth_refuses_a_small_run_too_fast_to_measure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(time, "process_time", lambda: 1.0)
     with pytest.raises(AssertionError, match="zero CPU time"):
-        _cpu_growth(len, "a", "aaaa", tries=1)
+        _cpu_growth(len, "a", "aaaa")
 
 
 def test_cpu_seconds_leaves_the_collector_as_it_found_it() -> None:
