@@ -134,7 +134,9 @@ After the candidate re-roll, run `skillopt.py manifesto-verify --eval eval.json
 
 A listed at-risk regression is reported in `at_risk_regressed`, not
 falsified. A falsified prediction means the root cause was wrong; mine
-again. When `pair-gate` rejects, put the verdict in the `buffer-add` note.
+again. When `pair-gate` returns `REJECT`, `REJECT_UNVERIFIED`, or
+`REJECT_NULL_CONTROL`, put the verdict in the `buffer-add` note.
+`REJECT_CEILING` is not buffered.
 When it accepts, keep the report with the run's evidence and do not call
 `buffer-add`, because the buffer marks a patch set as known bad.
 `manifesto-verify` never replaces `pair-gate`; the `sel` runner still
@@ -150,8 +152,8 @@ tracer or grading script, and the model configuration. Pass an effort or
 budget config file as a surface to pin it. The optimizing run may edit only
 the target.
 
-At baseline, add `"pins": "pins.json"` to `eval.json` (a path relative to
-it) and finish every other edit to it. Then pin once:
+At baseline, before any rollout, add `"pins": "pins.json"` to `eval.json`
+(a path relative to it) and finish every other edit to it. Then pin once:
 
 ```bash
 python3 "${SKILLOPT_DIR:?}/skillopt.py" pin --eval eval.json --surface verifier=check.py --surface tracer=grade.py --model claude-sonnet-5-5 --out pins.json

@@ -6,6 +6,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 import skillopt
@@ -170,6 +171,43 @@ class TestPins:
         (graders / "extra.py").symlink_to(graders / "grade.py")
         assert skillopt.main(["pin-check", "--pins", str(out)]) == 1
         assert json.loads(capsys.readouterr().out)["changed_surfaces"] == ["tracer"]
+
+    @pytest.mark.parametrize("digest", [None, "", "abc"])
+    def test_pins_entry_without_valid_digest_exits_2(self, tmp_path: Path, digest: Any) -> None:
+        pins = self.pin(tmp_path)
+        doc = json.loads(pins.read_text(encoding="utf-8"))
+        doc["surfaces"]["verifier"]["sha256"] = digest
+        write_json(pins, doc)
+        assert skillopt.main(["pin-check", "--pins", str(pins)]) == 2
+
+    def test_empty_dir_replaced_by_empty_file_is_a_mismatch(
+        self, tmp_path: Path, capsys: Capture
+    ) -> None:
+        eval_path, _ = self.setup_files(tmp_path)
+        graders = tmp_path / "graders"
+        graders.mkdir()
+        out = tmp_path / "pins.json"
+        argv = ["pin", "--eval", str(eval_path), "--surface", f"tracer={graders}"]
+        assert skillopt.main([*argv, "--model", "m", "--out", str(out)]) == 0
+        capsys.readouterr()
+        graders.rmdir()
+        graders.write_bytes(b"")
+        assert skillopt.main(["pin-check", "--pins", str(out)]) == 1
+        assert json.loads(capsys.readouterr().out)["changed_surfaces"] == ["tracer"]
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="trailing spaces are invalid on Windows")
+    def test_surface_path_keeps_its_whitespace(self, tmp_path: Path, capsys: Capture) -> None:
+        eval_path, verifier = self.setup_files(tmp_path)
+        spaced = tmp_path / "check.py "
+        spaced.write_text("v1\n", encoding="utf-8")
+        out = tmp_path / "pins.json"
+        argv = ["pin", "--eval", str(eval_path), "--surface", f"verifier={spaced}"]
+        assert skillopt.main([*argv, "--model", "m", "--out", str(out)]) == 0
+        pinned = json.loads(out.read_text(encoding="utf-8"))["surfaces"]["verifier"]["path"]
+        assert pinned.endswith("check.py ")
+        capsys.readouterr()
+        spaced.write_text("v2\n", encoding="utf-8")
+        assert skillopt.main(["pin-check", "--pins", str(out)]) == 1
 
     @pytest.mark.skipif(sys.platform == "win32", reason="named pipes are POSIX only")
     def test_named_pipe_surface_is_refused_not_read(self, tmp_path: Path, capsys: Capture) -> None:

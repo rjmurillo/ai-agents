@@ -34,6 +34,8 @@ from _skillopt_bundle import path_sha256
 from _skillopt_gates import _split_task_ids
 from _skillopt_patching import SkillOptError
 
+SHA256_RE = re.compile(r"[0-9a-f]{64}")
+
 WEAKNESS_SCHEMA = "skillopt-weakness/1"
 MANIFESTO_SCHEMA = "skillopt-manifesto/1"
 PINS_SCHEMA = "skillopt-pins/1"
@@ -100,7 +102,7 @@ def _text(
     train_spans = [
         m.span()
         for tid in train or ()
-        for m in re.finditer(rf"(?<![\w-]){re.escape(tid)}(?![\w-])", value)
+        for m in re.finditer(rf"(?<!\w){re.escape(tid)}(?!\w)", value)
     ]
     for tid in sorted(sel or ()):
         for m in re.finditer(rf"(?<!\w){re.escape(tid)}(?!\w)", value):
@@ -168,6 +170,8 @@ def check_weakness(
         if not isinstance(pattern, dict):
             raise SkillOptError(f"{where} must be an object")
         pid = _text(pattern, "id", where)
+        if pid in sel:
+            raise SkillOptError(f"{where}: pattern id {pid!r} is a sel task id")
         if pid in seen_ids:
             raise SkillOptError(f"duplicate pattern id {pid!r}")
         seen_ids.add(pid)
@@ -412,6 +416,10 @@ def _hashable(path: Path) -> bool:
     return path.is_file() or path.is_dir()
 
 
+def _kind(path: Path) -> str:
+    return "dir" if path.is_dir() else "file"
+
+
 def _digest(path: Path) -> str | None:
     """Digest of a pinned surface, or None when it now holds a link or special file."""
     try:
@@ -436,6 +444,7 @@ def make_pins(surfaces: dict[str, Path], model: str) -> dict[str, Any]:
             "path": str(path.absolute()),
             "target": str(path.resolve()),
             "sha256": path_sha256(path.resolve()),
+            "kind": _kind(path),
         }
     return {"schema": PINS_SCHEMA, "model": model.strip(), "surfaces": pinned}
 
@@ -450,9 +459,13 @@ def check_pins(pins: Any, model: str | None = None) -> dict[str, Any]:
     for name, entry in sorted(surfaces.items()):
         if not isinstance(entry, dict) or not isinstance(entry.get("path"), str):
             raise SkillOptError(f"pins surface {name!r} must have a 'path' string")
+        if not isinstance(entry.get("sha256"), str) or not SHA256_RE.fullmatch(entry["sha256"]):
+            raise SkillOptError(f"pins surface {name!r} must have a 64-hex 'sha256'")
         path = Path(entry["path"])
         retargeted = "target" in entry and str(path.resolve()) != entry["target"]
-        if retargeted or not _hashable(path) or _digest(path) != entry.get("sha256"):
+        rekinded = "kind" in entry and _kind(path) != entry["kind"]
+        # The stored digest is a hex string, so a failed recompute (None) never matches.
+        if retargeted or rekinded or not _hashable(path) or _digest(path) != entry["sha256"]:
             changed.append(name)
     model_changed = model is not None and model.strip() != doc.get("model")
     return {

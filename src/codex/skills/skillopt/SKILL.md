@@ -164,7 +164,8 @@ One optimization step:
    subagent or another session (Precondition 4), holds the `sel` prompts,
    verifiers, and results in every step, and reports only the verdict back.
    Each runner preflights its own tasks: prompt, verifier, inputs, fixtures,
-   and permitted scope. Run the rollout under exactly the scope the task grants.
+   and permitted scope, then rolls out under exactly that scope. The `sel`
+   runner runs `pin` before any rollout.
    A rollout with the wrong artifact or a scope change is invalid, not a pass
    or a fail; mark the task `"status": "invalid"` and replace it. Grade the
    complete persisted output against every clause of the verifier. A runner's
@@ -178,9 +179,9 @@ One optimization step:
    Read the security note in `references/eval-set-format.md` first:
    `eval.json` commands run any binary on `PATH`. For a skill directory with
    scripts, pass the directory to `hash` and `apply`; it hashes as one bundle.
-   The `sel` runner runs `pin`. For `"scorer": "nondeterministic"` it also
-   reruns the byte-identical incumbent into `null_results.json` now (see
-   Before promotion, step 2).
+   For `"scorer": "nondeterministic"` the `sel` runner also reruns the
+   byte-identical incumbent into `null_results.json` (see Before promotion,
+   step 2).
 2. **Budget.** `skillopt.py budget --step T --total N` prints L_t, the
    cosine-decayed cap on atomic patches this step. T is 0-based, from 0 to
    N-1; `--step N` exits 2 with `out of range`.

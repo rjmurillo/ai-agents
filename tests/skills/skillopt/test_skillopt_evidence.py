@@ -80,6 +80,7 @@ class TestWeaknessCheck:
             ({"mechanism": "mirror the s1-style output"}, "names sel task"),
             ({"mechanism": "see s1."}, "names sel task"),
             ({"addressable": "yes"}, "addressable"),
+            ({"id": "s1"}, "is a sel task id"),
         ],
     )
     def test_invalid_exits_2(
@@ -99,6 +100,8 @@ class TestWeaknessCheck:
         assert run(tmp_path, self.ARGV, eval=eval_set, inc=inc, w=doc) == 0
         leak = weakness(tasks=["s1-b"], mechanism="s1-b fails like s1 does")
         assert run(tmp_path, self.ARGV, eval=eval_set, inc=inc, w=leak) == 2
+        styled = weakness(tasks=["s1-b"], mechanism="mirror the s1-b-style output")
+        assert run(tmp_path, self.ARGV, eval=eval_set, inc=inc, w=styled) == 0
 
     def test_sel_id_that_extends_a_train_id_is_a_leak(self, tmp_path: Path) -> None:
         eval_set = {"splits": {"train": ["suite", "t2"], "sel": ["suite.case"]}}

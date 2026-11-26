@@ -73,7 +73,7 @@ def _parse_surface(text: str) -> tuple[str, Path]:
     name, sep, path = text.partition("=")
     if not sep or not name.strip() or not path.strip():
         raise SkillOptError(f"--surface must be NAME=PATH, got {text!r}")
-    return name.strip(), Path(path.strip())
+    return name.strip(), Path(path)
 
 
 def _file_identity(path: Path) -> set[tuple[int, int]]:
