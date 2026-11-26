@@ -20,7 +20,7 @@ This file is durable. It lands in git history. It holds counts and paths only, n
 
 ## Step 0 First Principles
 
-Answers come from the owner's decisions D1 to D7 on 2026-11-25, plus the spike measurements in draft PR #7631.
+Answers come from the owner's decisions D1 to D9 on 2026-11-25, plus the spike measurements in draft PR #7631.
 
 Gate result on 2026-11-25: `tests/commands/step0_parser.py` returns H3 on Q1. Q3 passes the specificity test and Q5 passes the speculative test.
 H3 fires because the parser counts a requester only in the form `<Name> on the <Team> team`. The gate policy accepts one named requester on the evidence path (issue #6990).
@@ -40,7 +40,7 @@ Today the owner reads each final reply and checks its claims by hand. Step by st
 
 The `evidence-provenance` skill and the voice rule's "Clear the gate or drop the claim" section tell the agent not to overclaim. Nothing checks the reply after it is written.
 
-Reframing: capability invention, check: on a fresh blind sample, proven precision is at least 0.93 and the miss rate is at most 0.20, the spike's round 4 numbers.
+Reframing: capability invention, check: on a fresh blind sample, at least 180 of 200 proven stamps are correct and at most 21 of 100 sampled replies are misses (AC-24, AC-25).
 
 ### Q3
 
@@ -135,24 +135,27 @@ The spike found where the upstream design fails on this repo's sessions. Each go
 - `ToolCall(call_id, name, args, output, exit_code, success)`: identity is the harness tool-call id. Invariant: a call with no completion record is not evidence.
 - `Claim(kind, text, span, values)`: identity is `(turn, span)`. `values` holds the parsed counts, SHAs, URLs, paths, or refs.
 - `Stamp(claim, verdict, receipt, why)`: `verdict` is one of the three labels. Invariant: `proven` and `contradicted` always carry a receipt.
-- Lifecycle: built in memory per Stop event, emitted, and discarded. Nothing persists.
+- Lifecycle: built in memory per Stop event, emitted, and discarded. On Claude Code nothing persists.
+- `BlockMarker(session_id, claim_digest)`: Copilot only. `claim_digest` is the SHA-256 of the session id, claim kind, and normalized claim values. The marker file holds digests only, one per line, and lives outside the repository.
 
 ## Integrations
 
 - **Claude Code Stop event**: payload `session_id`, `transcript_path`, and `cwd`. Output: one `systemMessage`. Failure: a missing or unreadable path prints nothing and exits 0.
-- **Copilot CLI agentStop event**: payload `sessionId`, `transcriptPath`, `stop_hook_active`, and `cwd`. Output: `{"decision": "block", "reason": ...}` only when a claim is contradicted and `stop_hook_active` is false. Failure: an empty path, a missing file, or a parse error prints nothing and exits 0.
+- **Copilot CLI agentStop event**: payload `sessionId`, `transcriptPath`, `stop_hook_active`, and `cwd`. Output: `{"decision": "block", "reason": ...}` only when a claim is contradicted and its digest is not in the session's block marker. `stop_hook_active` true also passes, but it is not the loop guard: logs show it false on 25 of 49 stops that followed a block (measured 2026-11-25). Failure: an empty path, a missing file, or a parse error prints nothing and exits 0.
 - **Transcript files**: read once, bounded by bytes and lines. Malformed lines are skipped.
 - **Hook dispatcher** (`invoke_dispatch_claude.py`): runs the Claude shim in an advisory Stop group. The Copilot hook is a direct registration.
-- Idempotent: the same transcript gives the same stamps.
+- Idempotent: the same transcript gives the same stamps. The Copilot block is not idempotent by design: a claim blocks once per session.
 
 ## Failure modes
 
 - Budget overrun on a large transcript: stop at the byte or time cap, emit nothing, and log one stderr line.
 - Regex backtracking on adversarial input: every pattern has a ReDoS test at 100 KB input.
-- A false contradicted stamp on Copilot costs one wasted turn. `stop_hook_active` caps it at one per stop. The release gate requires zero false contradictions on the eval corpus.
-- A false proven stamp misleads the owner. The release gate requires proven precision of at least 0.93.
+- A false contradicted stamp on Copilot costs one wasted turn. The block marker caps it at one per claim per session. The release gate requires at least 30 judged contradicted stamps with none false.
+- A false proven stamp misleads the owner. The release gate requires a lower 95% Wilson bound of at least 0.85 on 200 stamps.
 - Transcript schema change: unknown record types are ignored. A changed result shape yields no stamps, which fails safe.
-- Copilot block loop: a second stop in the same chain sees `stop_hook_active` true and passes.
+- Copilot block loop: `stop_hook_active` is unreliable, so the hook records each blocked claim's digest. A second stop with the same claim finds the digest and passes.
+- Marker file unwritable: the hook does not block, because it cannot guarantee one block per claim. It logs one stderr line.
+- Unmeasured kinds: `build`, `deployed`, and `url` did not appear in the spike tally. A kind with fewer than 10 judged stamps in the release sample ships as `no receipt` only on Copilot and is listed as unmeasured in the skill page.
 - Overlapping Stop events: the hook is stateless, so both emit the same stamps.
 
 ## Security
@@ -160,7 +163,7 @@ The spike found where the upstream design fails on this repo's sessions. Each go
 - No authentication, secrets, or network. Input is the local transcript the harness wrote.
 - Trust boundary: transcript text is untrusted data. It is parsed with bounded patterns and never executed.
 - Prompt injection: on Copilot, the block reason is model-visible. The reason holds only fixed template text, the claim kind, the call index, and the tool name. It never echoes reply or tool-output text.
-- PII: the Claude message repeats at most 80 characters of claim text per stamp, to the session only. Nothing is written to disk.
+- PII: the Claude message repeats at most 80 characters of claim text per stamp, to the session only. The only disk write is the Copilot block marker, which holds SHA-256 digests and no text.
 - Abuse case: a crafted reply causes catastrophic backtracking. Mitigation: bounded patterns, ReDoS tests, and the hook deadline.
 
 ## Observability
@@ -173,8 +176,8 @@ The spike found where the upstream design fails on this repo's sessions. Each go
 
 - [ ] AC-1: WHEN a Claude Code Stop event fires with a readable `transcript_path` and the final reply holds a `proven` or `contradicted` stamp, the receipts hook SHALL print one `systemMessage` that lists each such stamp with its receipt.
 - [ ] AC-2: On Claude Code, the receipts hook SHALL NOT emit `decision: "block"` and SHALL exit 0 on every path.
-- [ ] AC-3: WHEN a Copilot CLI `agentStop` event fires with `stop_hook_active` false and the final reply holds a `contradicted` stamp, the hook SHALL print one `{"decision": "block", "reason": ...}` object naming each contradicted claim's kind, call index, and tool name.
-- [ ] AC-4: WHILE `stop_hook_active` is true, or WHEN no stamp is `contradicted`, the Copilot hook SHALL print nothing to stdout.
+- [ ] AC-3: WHEN a Copilot CLI `agentStop` event fires with `stop_hook_active` false and the final reply holds a `contradicted` stamp whose digest is not in the session's block marker, the hook SHALL print one `{"decision": "block", "reason": ...}` object naming each contradicted claim's kind, call index, and tool name.
+- [ ] AC-4: WHILE `stop_hook_active` is true, or WHEN no `contradicted` stamp is new to the block marker, the Copilot hook SHALL print nothing to stdout.
 - [ ] AC-5: The Copilot block reason SHALL contain no text copied from the reply or from tool output.
 - [ ] AC-6: IF the transcript path is empty, missing, unreadable, or over the byte cap, THEN the hook SHALL print nothing to stdout, write one stderr line naming the reason, and exit 0.
 - [ ] AC-7: The hook SHALL stop work at an internal deadline of 5 s, so the shared 15 s Stop group keeps at least 10 s for the reflect nudge.
@@ -192,11 +195,17 @@ The spike found where the upstream design fails on this repo's sessions. Each go
 - [ ] AC-19: Every module the hooks and the skill script import SHALL be the standard library or this plugin's own modules.
 - [ ] AC-20: A ReDoS test SHALL run every claim and evidence pattern against 100 KB adversarial input and finish each in under 1 s.
 - [ ] AC-21: A timing test SHALL show the hook finishing a 4 MB transcript in under 2 s.
-- [ ] AC-22: The hook SHALL NOT write transcript text, claim text, or stamps to any file.
-- [ ] AC-23: A labeled eval set built from the spike's hand-checked replies SHALL run in tests and report proven precision, contradicted precision, and miss rate.
-- [ ] AC-24: Before release, a fresh blind sample using the spike's `sample_blind.py` method SHALL show proven precision of at least 0.93, a miss rate of at most 0.20, and zero false contradicted stamps.
-- [ ] AC-25: `docs/skills/receipts.md` SHALL exist with the sibling section order, and `docs/skills/README.md` SHALL list it.
-- [ ] AC-26: The `agent-harness-reference` sidecar SHALL record the probed `agentStop` payload keys with tool versions and the DOCS SILENT display field.
+- [ ] AC-22: The hook SHALL NOT write transcript text, claim text, or stamps to any file. The Copilot block marker SHALL hold SHA-256 digests only.
+- [ ] AC-23: A committed eval set of synthetic transcripts SHALL run in tests and reproduce its expected stamps exactly. No committed fixture SHALL hold text from a real session. Labeled real-session sets SHALL stay outside the repository, and only their aggregate counts are published.
+- [ ] AC-24: Before release, a fresh blind sample of 200 `proven` stamps SHALL show a lower 95% Wilson bound of proven precision of at least 0.85. That needs at least 180 of 200 judged correct.
+- [ ] AC-25: Before release, a fresh blind sample of 100 replies SHALL show an upper 95% Wilson bound of the miss rate of at most 0.30. That allows at most 21 misses of 100. The sample is one reply per run that has a completion word, a turn with at least one tool call, and no `proven` or `contradicted` stamp. A miss is such a reply with an unsupported or contradicted claim of one of the 12 kinds.
+- [ ] AC-26: The sample sizes, the sampling rules, and the pass rules in AC-24, AC-25, and AC-27 SHALL be fixed in a committed file before any draw. A threshold or pattern change after a draw SHALL require a new draw.
+- [ ] AC-27: Before the Copilot hook ships, at least 30 `contradicted` stamps mined from the real-session pool SHALL be judged by hand, and none SHALL be false. Until then the Copilot hook SHALL NOT be registered.
+- [ ] AC-28: After the Copilot hook blocks on a claim, it SHALL NOT block on the same claim digest again in that session, whatever `stop_hook_active` says. A test SHALL replay a second stop with `stop_hook_active` false and show no block.
+- [ ] AC-29: IF the block marker cannot be read or written, THEN the Copilot hook SHALL print nothing to stdout and write one stderr line.
+- [ ] AC-30: The release report SHALL list the judged stamp count per kind. A kind with fewer than 10 judged stamps SHALL be named unmeasured in `docs/skills/receipts.md` and SHALL NOT cause a Copilot block.
+- [ ] AC-31: `docs/skills/receipts.md` SHALL exist with the sibling section order, and `docs/skills/README.md` SHALL list it.
+- [ ] AC-32: The `agent-harness-reference` sidecar SHALL record the probed `agentStop` payload keys with tool versions and the DOCS SILENT display field.
 
 ## Out of scope
 
@@ -213,7 +222,7 @@ The spike found where the upstream design fails on this repo's sessions. Each go
 
 ## Open questions
 
-None. D3 to D7 settled vendoring, Copilot behavior, the tracking issue (#7633), and the kind set on 2026-11-25.
+None. D3 to D9 settled vendoring, Copilot behavior, the tracking issue (#7633), the kind set, the release gate, and the Copilot block gate on 2026-11-25.
 
 ## CVA summary
 
@@ -226,7 +235,7 @@ None. D3 to D7 settled vendoring, Copilot behavior, the tracking issue (#7633), 
 - Classification: core. Checking claims against tool output is a capability the owner wants to shape beyond upstream.
 - Alternatives: (a) depend on the upstream package; (b) vendor the pinned upstream core; (c) build our own from the idea and the spike's findings.
 - Recommendation: build (c). The owner ruled out (b): "I don't want to effectively fork" it. Option (a) breaks the stdlib-only plugin contract and keeps every defect the spike found.
-- Rationale: the spike showed the idea works on this repo's sessions, at 0.93 proven precision after fixes. It also named five design defects that a fresh design fixes from the start. Credit for the idea goes to the upstream project in the skill page.
+- Rationale: the spike showed the idea works on this repo's sessions, at 0.93 proven precision after fixes (round 4, 2026-11-25). It also named five design defects that a fresh design fixes from the start. Credit for the idea goes to the upstream project in the skill page.
 
 ## Complexity classification
 
@@ -236,4 +245,4 @@ None. D3 to D7 settled vendoring, Copilot behavior, the tracking issue (#7633), 
 
 ## ADR cross-reference
 
-No ADR. Shipping to Copilot reverses no ADR-084 exclusion, because receipts never had one. The build records the probed contract in the harness reference instead. Whether a hook that blocks on Copilot needs an ADR is left to the owner at review.
+An ADR is required before the Copilot slice is built. The owner decided this on 2026-11-25 (D9). The ADR covers a Stop hook that blocks a Copilot turn, the block marker, and the 30-contradiction gate. It is drafted with `adr-generator` and reviewed with `adr-review`. Slices 1 to 3 (engine, kinds, Claude hook) do not wait for it, because the Claude hook is advisory.
