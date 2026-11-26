@@ -134,6 +134,25 @@ class TestCheckFileSize:
         assert len(result) == 1
         assert result[0].severity == "error"
 
+    def test_skill_rewrite_eval_results_exempt_despite_size(self) -> None:
+        # ADR-127 results files are runner-written and append-only.
+        lines = ["{}\n"] * 900
+        result = check_file_size("evals/skill-rewrites/skill-doctor/results.json", lines)
+        assert result == []
+
+    def test_other_evals_json_still_fails(self) -> None:
+        lines = ["{}\n"] * 900
+        result = check_file_size("evals/analyst-spike/results.json", lines)
+        assert len(result) == 1
+        assert result[0].severity == "error"
+
+    def test_skill_rewrite_non_json_still_fails(self) -> None:
+        # The exemption covers JSON data only, never code or prose beside it.
+        lines = ["line\n"] * 900
+        result = check_file_size("evals/skill-rewrites/skill-doctor/notes.py", lines)
+        assert len(result) == 1
+        assert result[0].severity == "error"
+
     def test_json_error_remediation_mentions_sharding_not_helper_functions(self) -> None:
         # JSON data files cannot have helper functions. Remediation must name
         # sharding or path exemption instead of module extraction. Issue #3970.

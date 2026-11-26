@@ -113,6 +113,11 @@ FILE_SIZE_EXEMPT_SEGMENTS: tuple[tuple[str, ...], ...] = (
     # .github/cli-smoke/*/package-lock.json: npm-generated lockfiles. `npm ci`
     # needs them byte-exact, so they cannot be sharded or edited by hand.
     (".github", "cli-smoke"),
+    # evals/skill-rewrites/<name>/*.json: ADR-127 eval results, written whole
+    # by scripts/eval/eval-prompt-change.py with one record per run. The
+    # evidence check requires them append-only, so they cannot be sharded or
+    # trimmed by hand.
+    ("evals", "skill-rewrites"),
 )
 
 _GENERATED_PATH_SEGMENTS: tuple[tuple[str, ...], ...] = (
