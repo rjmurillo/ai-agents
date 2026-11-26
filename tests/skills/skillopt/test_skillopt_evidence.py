@@ -77,6 +77,7 @@ class TestWeaknessCheck:
             ({"tasks": []}, "at least one"),
             ({"mechanism": ""}, "mechanism"),
             ({"mechanism": "same cause as s2"}, "names sel task"),
+            ({"mechanism": "mirror the s1-style output"}, "names sel task"),
             ({"addressable": "yes"}, "addressable"),
         ],
     )
@@ -87,7 +88,7 @@ class TestWeaknessCheck:
         assert message in capsys.readouterr().err
 
     def test_sel_id_inside_a_longer_token_is_not_a_leak(self, tmp_path: Path) -> None:
-        doc = weakness(mechanism="rule s10 and step-s1x are unrelated ids")
+        doc = weakness(mechanism="rule s10 and step s1x are unrelated ids")
         assert run(tmp_path, self.ARGV, eval=EVAL, inc=INCUMBENT, w=doc) == 0
 
     def test_malformed_sel_split_exits_2(self, tmp_path: Path, capsys: Capture) -> None:

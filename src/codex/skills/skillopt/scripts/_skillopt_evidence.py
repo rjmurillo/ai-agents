@@ -90,7 +90,7 @@ def _text(entry: dict[str, Any], field: str, where: str, sel: set[str] | None = 
     if not isinstance(value, str) or not value.strip():
         raise SkillOptError(f"{where}: '{field}' must be a nonempty string")
     for tid in sorted(sel or ()):
-        if re.search(rf"(?<![\w-]){re.escape(tid)}(?![\w-])", value):
+        if re.search(rf"(?<!\w){re.escape(tid)}(?!\w)", value):
             raise SkillOptError(
                 f"{where}: '{field}' names sel task {tid!r}; "
                 "the candidate author must use train evidence only"

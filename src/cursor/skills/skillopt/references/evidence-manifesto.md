@@ -120,7 +120,7 @@ After the candidate re-roll, run `skillopt.py manifesto-verify --eval eval.json
 | 0 | `PREDICTIONS_HELD` | every predicted fix passed, no unlisted train regression |
 | 1 | `PREDICTION_FALSIFIED` | a predicted fix still fails, or a train task regressed that no entry listed as at risk |
 | 1 | `PREDICTION_UNVERIFIED` | a train task has no boolean result |
-| 2 | none | invalid input, or a `sel` id in an entry |
+| 2 | none | invalid input, or a `sel` id in an entry's task lists |
 
 A listed at-risk regression is reported in `at_risk_regressed`, not
 falsified. A falsified prediction means the root cause was wrong. Record it
@@ -138,14 +138,14 @@ tracer or grading script, and the model configuration. Pass an effort or
 budget config file as a surface to pin it. The optimizing run may edit only
 the target.
 
-At baseline, after `eval.json` is final:
+At baseline, add `"pins": "pins.json"` to `eval.json` (a path relative to
+it) and finish every other edit to it. Then pin once:
 
 ```bash
 python3 "${SKILLOPT_DIR:?}/skillopt.py" pin --eval eval.json --surface verifier=check.py --surface tracer=grade.py --model claude-sonnet-5-5 --out pins.json
 ```
 
-Then add `"pins": "pins.json"` to `eval.json` (a path relative to it) and pin
-again, so the pin covers the final manifest. With that field set, `pair-gate`
+With that field set, `pair-gate`
 and `efficiency-gate` exit 2 when any pinned file changed, the pins file is
 gone, or the pins file pins a different eval set. `--out` may not overwrite
 or sit inside a pinned surface, and each `--surface` name may appear once.
@@ -155,8 +155,10 @@ or sit inside a pinned surface, and each `--surface` name may appear once.
 
 What is enforced and what is only named:
 
-- Files are enforced by digest at `pair-gate` when `eval.json` declares
-  `pins`, and by `pin-check` at any time.
+- Files are enforced by digest at `pair-gate` and `efficiency-gate` when
+  `eval.json` declares `pins`, and by `pin-check` at any time.
+- Pins store absolute paths. Moving the checkout, or gating from another
+  worktree, exits 2 until you pin again.
 - The model is enforced only when you pass `--model` to `pin-check`. Nothing
   reads the model your harness actually used.
 - A manifest without `pins` gates as before. Deleting the `pins` field alone
