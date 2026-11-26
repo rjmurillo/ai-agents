@@ -1,4 +1,7 @@
-# ADR-114 Debate Log: Smoke Advisory Retitle (2026-11-26)
+# ADR-114 Debate Log 3: Smoke Advisory Retitle (2026-11-26)
+
+- **Prior debate log**: [ADR-114-debate-log-2.md](ADR-114-debate-log-2.md), the 2026-11-05 review that made the smoke advisory. Later topic logs: [ADR-114-ADR-026-ADR-101-bot-pat-retirement-debate-log.md](ADR-114-ADR-026-ADR-101-bot-pat-retirement-debate-log.md) and [ADR-114-item-4-secrets-done-debate-log.md](ADR-114-item-4-secrets-done-debate-log.md).
+- **Round**: this log restarts at round 1.
 
 ## Context
 
@@ -12,7 +15,7 @@ workflow, and no list another gate reads, so the reduced panel (architect and
 critic) ran under the AGENTS.md trigger. Each seat received the diff, the ADR, and
 the claims ledger, not the author's reasoning.
 
-Claims ledger: `.project-toolkit/critique/ADR-114-smoke-advisory-retitle-claims-ledger.md`.
+Claims ledger: [ADR-114-claims-ledger.md](ADR-114-claims-ledger.md).
 
 Evidence on 2026-11-26: `advisory_agent_workflows` lists `plugin-cli-smoke.yml` as
 entry 7 of 7. The readiness check loader returns those 7 paths. The `main` ruleset
@@ -42,6 +45,16 @@ requires 9 contexts, and `CLI Smoke Result` is not one.
 - Not changed: line 217 references issue #6069 as it was scoped. It is history.
 - Not changed: the stale review diff was a scratch artifact. Both seats also read the
   live ADR file.
+
+## PR review (round 2, PR #7702)
+
+| Reviewer | Finding | Resolution |
+|---|---|---|
+| rjmurillo | The Notes bullet said the 2026-11-05 amendment superseded items 3 and 6. That amendment calls them unchanged. | Adopted the suggested rewrite. |
+| Devin | The item 6 note retired the missed-path trigger, which still applies. | Note now says the triggers are unchanged. |
+| Devin | Ledger row 5 said every smoke leg waits for approval. Only Claude and Copilot legs do. | Row 5 narrowed and cites lines 195-208. |
+| Devin | The log used a topic name and named no prior log. | Renamed to `ADR-114-debate-log-3.md` with the prior log linked. The ledger is renamed `ADR-114-claims-ledger.md`. |
+| Devin | The ledger was cited as plain text. | The amendment and this log now use relative links. |
 
 ## Outcome
 
