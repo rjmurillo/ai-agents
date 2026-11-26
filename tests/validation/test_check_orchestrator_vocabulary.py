@@ -111,6 +111,10 @@ class TestScanFails:
         text = _text("If you notice\nwhen a worker is stuck, interrupt it.")
         assert gate.scan_text(text) == [f"line {_line_of(text, 'If you notice')}: 'notice when'"]
 
+    def test_hit_on_a_later_paragraph_line_reports_that_line(self) -> None:
+        text = _text("Route the task.\nThen coach the worker.")
+        assert gate.scan_text(text) == [f"line {_line_of(text, 'Then coach')}: 'coach'"]
+
     def test_code_span_wrapped_across_lines_is_not_prose(self) -> None:
         assert gate.scan_text(_text("Call `cloudmcp-\nmanager/search` for memory.")) == []
 
