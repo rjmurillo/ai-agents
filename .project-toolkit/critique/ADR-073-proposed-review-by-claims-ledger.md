@@ -1,6 +1,6 @@
 # Claims Ledger: ADR-073 Amendment 2026-11-26
 
-Each factual claim in the amendment, with the check that grounds it. Tree: branch `feat/7638-adr-review-by-ratchet` on `origin/main` at `ffc759356` (2026-11-26).
+Each factual claim in the amendment, with the check that grounds it. Tree: branch `feat/7638-adr-review-by-ratchet` on `origin/main` at `ffc759356` (2026-11-26), re-run for the last two rows after the rebase onto `8f4f1b981` (2026-11-26).
 
 | Claim | Kind | Command | Result |
 |---|---|---|---|
@@ -13,4 +13,6 @@ Each factual claim in the amendment, with the check that grounds it. Tree: branc
 | A live baseline listing past-due is a config error | behavior | `test_a_past_due_record_fails_the_gate_and_the_baseline_cannot_hold_it` | VERIFIED: exit 2. |
 | `review-by` optional except for `proposed` | behavior | `test_a_non_proposed_record_needs_no_review_by` | VERIFIED: passes for accepted, rejected, deprecated. |
 | Templates default to a `YYYY-MM-DD` placeholder | path | `grep -n "review-by" .project-toolkit/architecture/ADR-TEMPLATE.md src/claude/skills/adr-generator/references/adr-template.md` | VERIFIED: both read `review-by: YYYY-MM-DD`. |
-| `implemented-implies-decided` joins the set after #7636 | behavior | read `ZERO_TOLERANCE_CHECKS` after the rebase onto #7636 | Lands in the same PR after #7636 merges; this row is re-run then. |
+| `implemented-implies-decided` is zero-tolerance | behavior | read `ZERO_TOLERANCE_CHECKS`; `test_a_baseline_cannot_grandfather_a_proposed_implemented_record` | VERIFIED after rebase onto `8f4f1b981` (2026-11-26): in the set; a held baseline exits 2. |
+| Three undated records remain, ADR-065, ADR-087, ADR-124 | count | `uv run python scripts/validation/check_adr_lifecycle.py` on `8f4f1b981` (2026-11-26) | VERIFIED: `proposed-needs-review-by 3 / 3`; the baseline lists those three paths. |
+| 18 of the 21 undated records were decided or retired | count | read `status:` of each path listed under `proposed-needs-review-by` in the pre-rebase baseline, on `8f4f1b981` (2026-11-26) | VERIFIED: 12 accepted, 5 rejected, 1 deprecated, 3 still proposed. |

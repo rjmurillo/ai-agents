@@ -2,14 +2,14 @@
 
 ## Summary
 
-- **Rounds**: 1 of 10 (Phase 1 independent review; votes are on the pre-revision text)
-- **Outcome**: Six of six roles voted Disagree-and-Commit in Phase 1. No P0. No seat has voted on the revised text yet.
+- **Rounds**: 1 of 10 (Phase 1 independent review, then one convergence vote on the revised text)
+- **Outcome**: Consensus. Convergence vote on the revised text: four Accept, two Disagree-and-Commit. No P0 in either round.
 - **Final Status**: accepted. ADR-073 frontmatter stays `status: accepted`. The amendment stands with the Phase 3 edits below.
 - **Panel**: full six-role panel. The amendment changes executable enforcement in `scripts/validation/check_adr_lifecycle.py`: a new check and a zero-tolerance set.
 - **Review independence**: six separate subagent passes, one model family (Sonnet). Each seat got the artifact and the diff, not the author's reasoning. Treat the votes as six lenses of one family, not six independent reviewers.
 - **Artifact reviewed**: `.project-toolkit/architecture/ADR-073-adr-lifecycle-frontmatter.md`, section "Amendment 2026-11-26: proposed records need a review-by date", the schema comment for `review-by`, and the last sentence of the 2026-10-13 amendment.
 - **Claims ledger**: `.project-toolkit/critique/ADR-073-proposed-review-by-claims-ledger.md`.
-- **Ground truth**: working tree of branch `feat/7638-adr-review-by-ratchet` against `origin/main` at `ffc759356` (2026-11-26).
+- **Ground truth**: Phase 1 ran on branch `feat/7638-adr-review-by-ratchet` against `origin/main` at `ffc759356` (2026-11-26). The convergence vote ran after the rebase onto `8f4f1b981` (2026-11-26), which holds #7636 and #7637.
 - **Owner decision under review**: issue #7638. Require `review-by` on every `proposed` record, ratcheted. Make `review-by-past-due` block or open a follow-up. The owner allowed either; the amendment chose block.
 
 ## Phase 0: Related Work
@@ -17,7 +17,8 @@
 | Item | State | Relevance |
 |---|---|---|
 | #7638 | open | The work item. |
-| #7636 | open | Flips 17 shipped ADRs out of `proposed`, including ADR-077 with `review-by: null`. Its branch empties the `implemented-implies-decided` and `review-by-past-due` baselines. |
+| #7636 | merged in PR #7691 | Flipped 17 shipped ADRs out of `proposed`, including ADR-077 with `review-by: null`. Emptied the `implemented-implies-decided` and `review-by-past-due` baselines. |
+| #7637 | merged in PR #7692 | Retired six dead `proposed` ADRs and accepted ADR-022. |
 | #5193 | closed | Added the three `review-by` checks this amendment extends. |
 | #5273 | closed | `(check, path)` ratchet keys, which let a new check enter with its records baselined. |
 
@@ -67,13 +68,24 @@ Edits made to the amendment after Phase 1: the `implemented-implies-decided` sen
 
 ## Phase 4: Convergence
 
-Phase 1 votes: six of six Disagree-and-Commit, no P0. Five seats asked for the limits to be recorded. The high-level-advisor seat also advised waiting on zero-tolerance past-due; the owner's request names block as an allowed outcome, so the amendment keeps it and records the dissent. The revised text has not been voted on.
+Phase 1 votes: six of six Disagree-and-Commit, no P0. Five seats asked for the limits to be recorded. The high-level-advisor seat also advised waiting on zero-tolerance past-due; the owner's request names block as an allowed outcome, so the amendment keeps it and records the dissent.
+
+After #7636 and #7637 merged, the branch was rebased. `implemented-implies-decided` joined `ZERO_TOLERANCE_CHECKS`, and the undated set fell from 21 to 3. Each seat then voted on the revised text and the post-rebase diff.
+
+| Agent | Position | Note |
+|-------|----------|------|
+| architect | Accept | Both Phase 1 P1s closed. P2: the issue cites a different gate SHA; counts match. |
+| critic | Accept | Ran the gate and the test file; all passed. |
+| independent-thinker | Disagree-and-Commit | Still prefers a follow-up issue to a hard block. |
+| security | Accept | No bypass of the new zero-tolerance member. Asked for a test pinning membership; `test_implemented_implies_decided_is_zero_tolerance` does. |
+| analyst | Accept | Verified the set membership and the three remaining records. |
+| high-level-advisor | Disagree-and-Commit | Phase 1 P1 met. Still prefers a follow-up issue. |
 
 ### Dissent recorded
 
 - independent-thinker, high-level-advisor: a scheduled follow-up issue would cost unrelated authors less than a block. The owner's choice stands.
 - independent-thinker, high-level-advisor: no guard stops a date being moved without a review.
-- architect, critic: the ratchet does not drain the 21 grandfathered records.
+- architect, critic: the ratchet does not drain the grandfathered records. Three remain: ADR-065, ADR-087, ADR-124.
 
 ## Strategic Review
 

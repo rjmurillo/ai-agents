@@ -77,27 +77,9 @@
       ".project-toolkit/architecture/ADR-118-widen-fm-11-to-hand-authored-cross-harness-instructions.md": 1
     },
     "proposed-needs-review-by": {
-      ".project-toolkit/architecture/ADR-011-session-state-mcp.md": 1,
-      ".project-toolkit/architecture/ADR-012-skill-catalog-mcp.md": 1,
-      ".project-toolkit/architecture/ADR-013-agent-orchestration-mcp.md": 1,
-      ".project-toolkit/architecture/ADR-020-feature-request-review-step.md": 1,
-      ".project-toolkit/architecture/ADR-022-architecture-governance-split-criteria.md": 1,
-      ".project-toolkit/architecture/ADR-027-github-mcp-agent-isolation.md": 1,
-      ".project-toolkit/architecture/ADR-038-reflexion-memory-schema.md": 1,
-      ".project-toolkit/architecture/ADR-048-mcp-tool-ecosystem-expansion.md": 1,
-      ".project-toolkit/architecture/ADR-049-pre-pr-validation-gates.md": 1,
       ".project-toolkit/architecture/ADR-065-orchestrator-as-router.md": 1,
-      ".project-toolkit/architecture/ADR-067-validate-pr-change-claim-context.md": 1,
-      ".project-toolkit/architecture/ADR-070-memory-first-gate-spec-pipeline.md": 1,
-      ".project-toolkit/architecture/ADR-075-form-factor-eval-methodology.md": 1,
-      ".project-toolkit/architecture/ADR-078-autoplan-orchestrator-router-boundary.md": 1,
       ".project-toolkit/architecture/ADR-087-held-out-validated-improvement.md": 1,
-      ".project-toolkit/architecture/ADR-088-progressive-disclosure-book-rules.md": 1,
-      ".project-toolkit/architecture/ADR-089-remove-causal-memory-tier.md": 1,
-      ".project-toolkit/architecture/ADR-098-agent-role-metadata-replaces-tier-hierarchy.md": 1,
-      ".project-toolkit/architecture/ADR-104-gate-tier-placement-and-budgets.md": 1,
-      ".project-toolkit/architecture/ADR-124-verify-documentation-sdk-symbols.md": 1,
-      ".project-toolkit/architecture/ADR-126-repository-resolved-memory-store.md": 1
+      ".project-toolkit/architecture/ADR-124-verify-documentation-sdk-symbols.md": 1
     }
   }
 }

@@ -208,13 +208,15 @@ Two rules change, both in `check_adr_lifecycle.py`:
 
 The clock, not a branch, creates a past-due violation. That is why it blocks every branch instead of only the one that caused it. The cost is that a missed date stops unrelated pull requests. The fix is one frontmatter and prose edit to the overdue record.
 
-`implemented-implies-decided` joins `ZERO_TOLERANCE_CHECKS` in the same change, after issue #7636 moves the 11 shipped records out of `proposed` and empties its baseline. A shipped record that reads `proposed` then fails every run.
+`implemented-implies-decided` is zero-tolerance too. Issue #7636 moved the 11 shipped records out of `proposed` and emptied its baseline, so no record needs grandfathering. A shipped record that reads `proposed` fails every run.
+
+Issues #7636 and #7637 decided or retired 18 of the 21 undated records. Three stay in the baseline (gate run at 8f4f1b981, 2026-11-26): ADR-065, ADR-087, and ADR-124.
 
 This narrows the 2026-10-13 amendment, which called the field optional for every status. For a `proposed` record the date is the day the decision is due, set by the author when the record opens. It is not a revisit deadline read from the prose, so it does not invent one. Phase 3 to 4 enforcement already runs in this gate, so the Phase 1 scope limit above does not apply to it.
 
 Known limits, recorded for the owner's decision:
 
-- The 21 grandfathered records stay in the baseline until someone dates or decides each one. The ratchet stops growth; it does not drain them.
+- The three grandfathered records stay in the baseline until someone dates or decides each one. The ratchet stops growth; it does not drain them.
 - An author can clear a past-due record by moving the date without holding the review. No horizon cap or reason field stops that. Review of the record's diff is the only guard.
 - Anyone who adds a `proposed` record with a near date chooses the day it starts blocking every branch.
 

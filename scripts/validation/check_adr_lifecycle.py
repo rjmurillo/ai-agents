@@ -88,9 +88,11 @@ Checks, each named so the baseline tracks them separately:
                                   undecided record expires instead of staying open forever
                                   (issue #7638)
 
-`review-by-past-due` is zero-tolerance (`ZERO_TOLERANCE_CHECKS`): the baseline cannot
-hold it, so an overdue review fails every run until the review is held, the date is
-moved, or the status changes (issue #7638). The other checks are ratcheted.
+`review-by-past-due` and `implemented-implies-decided` are zero-tolerance
+(`ZERO_TOLERANCE_CHECKS`): the baseline cannot hold them (issue #7638). An overdue
+review fails every run until the review is held, the date is moved, or the status
+changes. A shipped record that still reads `proposed` fails until its status moves.
+The other checks are ratcheted.
 
 `status-edge-consistency` closes a gap `supersession-reciprocal` leaves open
 (Copilot, PR #5209): reciprocity validates edges against each other, never
@@ -126,10 +128,9 @@ first merged change, independent of decision state, and ADR-098 called the pairi
 deliberate. The repository owner reversed that on 2026-11-01: sixteen records sat in
 that state, so `proposed` no longer said whether the decision was in force. The check
 is back. `implemented` still flips at first merged change; what the gate now refuses is
-a record that is shipped and still reads `proposed`. Records that cannot move to
-`accepted` without a prose or citation edit (for example a `## Status` section that
-still opens with `Proposed`) stay in the baseline until that edit is made. See
-`_check_implemented_implies_decided`.
+a record that is shipped and still reads `proposed`. Issue #7636 moved the last such
+records out of `proposed`, so the check is zero-tolerance and no record can be
+grandfathered (issue #7638). See `_check_implemented_implies_decided`.
 
 Checks 2 to 10 need parseable frontmatter, so a record failing `frontmatter-parses`
 contributes one violation, not ten. The same containment runs downstream:
@@ -219,10 +220,14 @@ CHECKS: tuple[str, ...] = (
 
 # Checks the baseline may not grandfather (issue #7638). A violation of one of
 # these fails the run even when the baseline lists its record, and
-# `--write-baseline` records an empty mapping for it. `review-by-past-due` is
-# here because the clock, not a branch, creates its violations: a baseline entry
-# for it only lets a missed review stay missed forever, as ADR-077 did.
-ZERO_TOLERANCE_CHECKS: frozenset[str] = frozenset({"review-by-past-due"})
+# `--write-baseline` records an empty mapping for it.
+# - `review-by-past-due`: the clock, not a branch, creates its violations. A
+#   baseline entry for it only lets a missed review stay missed, as ADR-077 did.
+# - `implemented-implies-decided`: its debt reached zero in issue #7636. An entry
+#   would let shipped work read `proposed`, so readers cannot tell what binds.
+ZERO_TOLERANCE_CHECKS: frozenset[str] = frozenset(
+    {"review-by-past-due", "implemented-implies-decided"}
+)
 
 # The ADR-073 status enum. `test_lifecycle_statuses_conform_to_adr_073` fails when
 # the ADR and this set disagree.
@@ -1770,7 +1775,12 @@ def run(
             f"across {examined} ADR record(s):"
         )
         for name in CHECKS:
-            note = " (zero-tolerance, never recorded)" if name in ZERO_TOLERANCE_CHECKS else ""
+            if name in ZERO_TOLERANCE_CHECKS:
+                live = _total(found[name])
+                state = f", {live} live and FAILING" if live else ""
+                note = f" (zero-tolerance, never recorded{state})"
+            else:
+                note = ""
             print(f"  {name}: {_total(recorded[name])}{note}")
         return EXIT_OK
 

@@ -30,7 +30,7 @@ Pins the ratcheted ADR lifecycle gate. Coverage per check name:
 - implemented-implies-decided: pos (`proposed` with `implemented: false`, and every
   other status with `implemented: true`, pass), neg (`proposed` with `implemented: true`),
   edge (mixed-case `Proposed` is still proposed; a quoted "true" or an absent field is
-  not a boolean true; a hit is a (check, path) identity the baseline can hold). The check
+  not a boolean true; the check is zero-tolerance, so no baseline can hold a hit). The check
   was removed after Copilot review on PR #5209 and restored by the repository owner on
   2026-11-01.
 
@@ -944,9 +944,13 @@ def test_a_new_proposed_implemented_record_fails_the_gate(tmp_path):
     assert "implemented-implies-decided" in result.stdout
 
 
-def test_a_grandfathered_proposed_implemented_record_passes_the_gate(tmp_path):
+def test_implemented_implies_decided_is_zero_tolerance():
+    assert "implemented-implies-decided" in ZERO_TOLERANCE_CHECKS
+
+
+def test_a_baseline_cannot_grandfather_a_proposed_implemented_record(tmp_path):
     _write_implemented(tmp_path, "proposed", "true")
-    baseline = _baseline(
+    held = _baseline(
         tmp_path,
         **{
             "implemented-implies-decided": {_rel(1): 1},
@@ -954,9 +958,20 @@ def test_a_grandfathered_proposed_implemented_record_passes_the_gate(tmp_path):
         },
     )
 
+    result = _run(tmp_path, "--baseline", str(held))
+
+    assert result.returncode == EXIT_CONFIG, result.stdout + result.stderr
+    assert "implemented-implies-decided" in result.stdout + result.stderr
+
+
+def test_a_proposed_implemented_record_fails_even_when_only_its_other_debt_is_held(tmp_path):
+    _write_implemented(tmp_path, "proposed", "true")
+    baseline = _baseline(tmp_path, **{"proposed-needs-review-by": {_rel(1): 1}})
+
     result = _run(tmp_path, "--baseline", str(baseline))
 
-    assert result.returncode == EXIT_OK, result.stdout + result.stderr
+    assert result.returncode == EXIT_REGRESSION, result.stdout + result.stderr
+    assert "implemented-implies-decided" in result.stdout
 
 
 # --- size-cap ----------------------------------------------------------------
@@ -1483,7 +1498,7 @@ def test_write_baseline_round_trips_and_then_passes(tmp_path):
     _write(
         adr_dir,
         2,
-        _valid(2, status="proposed", supersedes="[ADR-001]"),
+        _valid(2, status="proposed", supersedes="[ADR-001]", implemented="false"),
         "\n## Status\n\nProposed\n",
     )
     baseline = tmp_path / "baseline.json"
@@ -1497,6 +1512,20 @@ def test_write_baseline_round_trips_and_then_passes(tmp_path):
     assert payload["violations"]["proposed-cannot-supersede"] == {_rel(2): 1}
     assert list(payload["violations"]) == list(CHECKS)
     assert _run(tmp_path, "--baseline", str(baseline)).returncode == EXIT_OK
+
+
+def test_write_baseline_names_a_live_zero_tolerance_violation(tmp_path):
+    _write_implemented(tmp_path, "proposed", "true")
+    baseline = tmp_path / "baseline.json"
+
+    written = _run(tmp_path, "--baseline", str(baseline), "--write-baseline")
+
+    assert written.returncode == EXIT_OK, written.stdout + written.stderr
+    assert (
+        "implemented-implies-decided: 0 (zero-tolerance, never recorded, 1 live and FAILING)"
+        in written.stdout
+    )
+    assert _run(tmp_path, "--baseline", str(baseline)).returncode == EXIT_REGRESSION
 
 
 def test_write_baseline_leaves_no_temp_file_behind(tmp_path):
