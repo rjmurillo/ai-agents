@@ -22,7 +22,8 @@ Decide by effect, not by path. It applies when the diff can change any of these:
 - which workflows or jobs run, and on which events
 - which tests or projects a job selects
 - what an artifact contains, or what it is named
-- a script, composite action, reusable workflow, or data file that a workflow reads
+- a script a workflow runs, a composite action, a reusable workflow, or a data
+  file a job loads as input to its logic
 
 It does not apply to a docs-only diff, unless a job loads a changed file as
 input to its logic. A prompt a workflow runs and a data file it parses are CI

@@ -101,6 +101,10 @@ commits:
 
 - 8 skills had no file change, 15 had modified files, and 3 were new, at `91f866a` (2026-11-26).
 - 10 of the 18 rows marked "Carried" had modified files, at `91f866a` (2026-11-26).
+  They are backport-pr, cli-channel-debugging, cli-e2e-testing,
+  dashboard-testing, dependency-update, fix-flaky-test,
+  hosting-integration-authoring, startup-perf, test-management, and
+  vscode-extension.
 - Their changed lines were read. Each edit touches a product version file, a
   build output path, or a product command.
 - This record gives one decision per skill. It does not list each section of

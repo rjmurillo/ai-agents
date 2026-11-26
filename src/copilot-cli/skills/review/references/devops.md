@@ -110,12 +110,13 @@ diff (Issue #2480); when context is limited, describe the missing evidence inste
   shellcheck, or dash-prohibition checks?
 
 A pull request that changes CI is checked by the CI it changes. When the diff
-touches a workflow, a composite action, or a script or data file a workflow
-reads, a green run on that pull request is not evidence the change works. This
-holds whatever category the scope table above gives the file. A Markdown or
-data file that a job loads as input to its logic is a CI input, not a docs-only
-change. A prompt a workflow runs and a data file it parses are examples. A file
-that a workflow only lints, link-checks, or path-filters is not one. Check:
+touches a workflow, a composite action, a script a workflow runs, or a file a
+job loads as input to its logic, a green run on that pull request is not
+evidence the change works. This holds whatever category the scope table above
+gives the file. A Markdown or data file that a job loads as input to its logic
+is a CI input, not a docs-only change. A prompt a workflow runs and a data file
+it parses are examples. A file that a workflow only lints, link-checks, or
+path-filters is not one. Check:
 
 - **Coverage loss.** Does the diff remove or narrow a trigger, a path filter, or
   a branch filter, delete a workflow, add `continue-on-error` to a step or a
