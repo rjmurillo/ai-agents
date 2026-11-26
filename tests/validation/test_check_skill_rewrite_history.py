@@ -67,24 +67,38 @@ class TestAppendOnly:
     def test_merge_resolution_edit_blocks(
         self, repo: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
+        """Only the merge commit edits run-1.json, so only merge handling can name it."""
         driver_change(repo)
         write(repo, f"{EVID}/run-1.json", results(repo, {"S1": ("PPP", "FFF")}, verdict="FAIL"))
         commit(repo, "failed run")
-        git(repo, "checkout", "-q", "-b", "side", "HEAD~1")
-        write(repo, f"{EVID}/run-1.json", results(repo))
-        commit(repo, "side run")
+        git(repo, "checkout", "-q", "-b", "side")
+        write(repo, "side.txt", "side\n")
+        commit(repo, "side work")
         git(repo, "checkout", "-q", "feature")
+        write(repo, "feature.txt", "feature\n")
+        commit(repo, "feature work")
         subprocess.run(
-            ["git", "-C", str(repo), "-c", "commit.gpgsign=false", "merge", "-q", "side"],
+            [
+                "git",
+                "-C",
+                str(repo),
+                "-c",
+                "commit.gpgsign=false",
+                "merge",
+                "-q",
+                "--no-commit",
+                "side",
+            ],
             capture_output=True,
             check=False,
             timeout=60,
         )
         write(repo, f"{EVID}/run-1.json", results(repo))
-        commit(repo, "resolve")
+        merge = commit(repo, "merge side, rewriting the failed run")
+        assert len(git(repo, "rev-list", "--parents", "-n1", "HEAD").split()) == 3
         code, out = run(repo, capsys)
         assert code == 1
-        assert "run-1.json is added again in" in out
+        assert f"run-1.json is edited or deleted in {merge[:10]}" in out
 
     def test_results_added_by_a_merge_commit_counts_as_added(
         self, repo: Path, capsys: pytest.CaptureFixture[str]
