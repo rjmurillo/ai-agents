@@ -1448,12 +1448,11 @@ def _is_act_duplicate_base_limitation(text: str) -> bool:
     return all(expected in line for line in failures)
 
 
-# plugin-cli-smoke.yml decides its scope in the "Smoke path filter" job from the
-# pull_request payload: it checks the filter script out of
-# github.event.pull_request.base.sha (falling back to github.sha) and passes the
-# payload's base and head SHAs to cli_smoke_paths.py. act's synthetic
-# pull_request payload carries neither SHA. Two failures follow, and only one
-# shows per run:
+# plugin-cli-smoke.yml checks its gate scripts out of
+# github.event.pull_request.base.sha, falling back to github.sha, in every job,
+# and its "Smoke path filter" job passes the payload's base and head SHAs to
+# cli_smoke_paths.py. act's synthetic pull_request payload carries neither SHA.
+# Two failures follow, and only one shows per job:
 #   1. The checkout falls back to github.sha. A commit that is not on the
 #      remote yet (every pre-push run) cannot be fetched, and git exits 128.
 #   2. With a pushed commit the checkout works, and cli_smoke_paths.py exits 2
@@ -1462,38 +1461,43 @@ def _is_act_duplicate_base_limitation(text: str) -> bool:
 # workflow while it referenced provider secrets; it runs under act since the
 # Claude and Copilot smoke legs were deleted (2026-11-25).
 #
-# Pinned like the rules above: this job's label on both act lines, the two
-# adjacent, and every ``Failure - Main`` line in the log naming one of the two
-# steps, so another failing step or job keeps blocking.
-_ACT_SMOKE_FILTER_JOB_LABEL = r"\[Plugin CLI Smoke/Smoke path filter\]"
-_ACT_SMOKE_FILTER_CHECKOUT_STEP = "Checkout the path filter from the base commit"
-_ACT_SMOKE_FILTER_DECIDE_STEP = "Decide whether the smoke must run"
-_ACT_SMOKE_FILTER_GIT_ANNOTATION = re.compile(
-    rf"^[ \t]*{_ACT_SMOKE_FILTER_JOB_LABEL}[ \t]+\S+[ \t]+"
-    r"::error::The process '(?:[^']*/)?git' failed with exit code 128[ \t]*$",
+# Pinned like the rules above: a job of this workflow, the two act lines
+# adjacent and carrying the same label, and every ``Failure - Main`` line in the
+# log naming one of the four steps, so another failing step or job keeps
+# blocking. The matrix legs put the OS in the job label, hence the bracket class.
+_ACT_SMOKE_WORKFLOW_LABEL = r"\[Plugin CLI Smoke/[^\]]+\]"
+_ACT_SMOKE_CHECKOUT_STEPS = (
+    "Checkout the path filter from the base commit",
+    "Checkout trusted scripts from the base commit",
+    "Checkout reporter script from the base commit",
+)
+_ACT_SMOKE_DECIDE_STEP = "Decide whether the smoke must run"
+_ACT_SMOKE_GIT_ANNOTATION = r"::error::The process '(?:[^']*/)?git' failed with exit code 128[ \t]*"
+_ACT_SMOKE_CHECKOUT_ALTERNATION = "|".join(re.escape(step) for step in _ACT_SMOKE_CHECKOUT_STEPS)
+_ACT_SMOKE_GIT_ANNOTATION_LINE = re.compile(
+    rf"^[ \t]*{_ACT_SMOKE_WORKFLOW_LABEL}[ \t]+\S+[ \t]+{_ACT_SMOKE_GIT_ANNOTATION}$",
     re.MULTILINE,
 )
-_ACT_SMOKE_FILTER_PATTERN = re.compile(
-    rf"^[ \t]*(?P<job>{_ACT_SMOKE_FILTER_JOB_LABEL})[ \t]+\S+[ \t]+"
-    r"::error::The process '(?:[^']*/)?git' failed with exit code 128[ \t]*\n"
-    rf"[ \t]*(?P=job)[ \t]+\S+[ \t]+Failure - Main {_ACT_SMOKE_FILTER_CHECKOUT_STEP}\b"
+_ACT_SMOKE_PAYLOAD_PATTERN = re.compile(
+    rf"^[ \t]*(?P<job>{_ACT_SMOKE_WORKFLOW_LABEL})[ \t]+\S+[ \t]+{_ACT_SMOKE_GIT_ANNOTATION}\n"
+    rf"[ \t]*(?P=job)[ \t]+\S+[ \t]+Failure - Main (?:{_ACT_SMOKE_CHECKOUT_ALTERNATION})\b"
     r"|"
-    rf"^[ \t]*(?P<job2>{_ACT_SMOKE_FILTER_JOB_LABEL})[ \t]+\| "
+    r"^[ \t]*(?P<filter>\[Plugin CLI Smoke/Smoke path filter\])[ \t]+\| "
     r"cli_smoke_paths\.py: error: --base and --head are required for pull_request[ \t]*\n"
-    rf"[ \t]*(?P=job2)[ \t]+\S+[ \t]+Failure - Main {_ACT_SMOKE_FILTER_DECIDE_STEP}\b",
+    rf"[ \t]*(?P=filter)[ \t]+\S+[ \t]+Failure - Main {_ACT_SMOKE_DECIDE_STEP}\b",
     re.MULTILINE,
 )
 
 
-def _is_act_smoke_filter_limitation(text: str) -> bool:
-    """True when the smoke path filter's act-payload failure is the only failure."""
-    if not _ACT_SMOKE_FILTER_PATTERN.search(text):
+def _is_act_smoke_payload_limitation(text: str) -> bool:
+    """True when the smoke workflow's act-payload failures are the only failures."""
+    if not _ACT_SMOKE_PAYLOAD_PATTERN.search(text):
         return False
-    failures = [line for line in text.splitlines() if _ACT_MAIN_FAILURE_MARKER in line]
-    allowed = (
-        f"{_ACT_MAIN_FAILURE_MARKER}{_ACT_SMOKE_FILTER_CHECKOUT_STEP}",
-        f"{_ACT_MAIN_FAILURE_MARKER}{_ACT_SMOKE_FILTER_DECIDE_STEP}",
+    allowed = tuple(
+        f"{_ACT_MAIN_FAILURE_MARKER}{step}"
+        for step in (*_ACT_SMOKE_CHECKOUT_STEPS, _ACT_SMOKE_DECIDE_STEP)
     )
+    failures = [line for line in text.splitlines() if _ACT_MAIN_FAILURE_MARKER in line]
     return all(any(name in line for name in allowed) for line in failures)
 
 
@@ -1630,11 +1634,11 @@ _ACT_LIMITATION_RULES: tuple[tuple[str | None, Callable[[str], bool], str], ...]
     ),
     (
         "pull_request",
-        _is_act_smoke_filter_limitation,
-        "act's synthetic pull_request payload has no base or head SHA, so the "
-        "plugin-cli-smoke path filter cannot check out the base commit or run "
-        "cli_smoke_paths.py. GitHub populates both, so this fails only in local "
-        "act, not in CI.",
+        _is_act_smoke_payload_limitation,
+        "act's synthetic pull_request payload has no base or head SHA, so "
+        "plugin-cli-smoke cannot check out its base commit (an unpushed "
+        "github.sha) or run cli_smoke_paths.py. GitHub populates both, so this "
+        "fails only in local act, not in CI.",
     ),
     (
         None,
@@ -1853,7 +1857,7 @@ def _unexplained_error_annotations(
             for scope, matches, _ in _ACT_LIMITATION_RULES
         ):
             continue
-        if run_is_attributed and _ACT_SMOKE_FILTER_GIT_ANNOTATION.match(line.rstrip()):
+        if run_is_attributed and _ACT_SMOKE_GIT_ANNOTATION_LINE.match(line.rstrip()):
             continue
         if run_is_attributed and _ACT_WRAPPER_ANNOTATION_PATTERN.search(line):
             continue
