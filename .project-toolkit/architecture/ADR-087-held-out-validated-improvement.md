@@ -928,7 +928,7 @@ on two, one of which was not measuring what it said.
 - ADR-058: Agent Eval Discipline. Between-subjects; complementary rather than
   overlapping. Status `proposed`, cited as existing practice not as authority.
 - ADR-022: Architecture vs Governance Decision Split Criteria. Basis for filing
-  this as an ADR. Status `proposed`, and its matrix also asks for a governance
+  this as an ADR. Status `accepted` (2026-11-26), and its matrix also asks for a governance
   document here; see Open Requirements.
 - Dwork, Feldman, Hardt, Pitassi, Reingold, and Roth, "The reusable holdout:
   Preserving validity in adaptive data analysis," Science 348(6248):636-638,
