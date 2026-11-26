@@ -64,7 +64,7 @@ _FIELD_PREFIXES = ("i/", "w/", "attr/")
 # soft hyphen, the BOM. Every one renders as nothing or reorders what follows,
 # so `handoff<U+202E>dm.txt` reads as a different filename than it is (CWE-451).
 # The class framing is deliberate, not a list of the variants reported so far:
-# `scripts/validation/git_hook_policy.py` reaches the same conclusion for
+# `scripts/validation/adr_debate_evidence.py` reaches the same conclusion for
 # placeholder text and states it verbatim as
 # `DEBATE_LOG_PLACEHOLDER_FORMAT_CATEGORY = "Cf"`, with the reasoning that its
 # own check "was defeated four times on this PR, by invalid bytes, ASCII
