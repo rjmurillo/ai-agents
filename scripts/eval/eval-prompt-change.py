@@ -1219,13 +1219,19 @@ def prepare_output_path(output: str | None) -> None:
     """
     if not output:
         return
-    target = Path(output)
+    # The write follows symlinks, so check where the bytes will land: a link
+    # may point into a folder that does not exist yet.
+    target = Path(os.path.realpath(output))
     parent = target.parent
     try:
         parent.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
         reason = exc.strerror or exc.__class__.__name__
         raise RuntimeError(f"--output {output}: cannot create folder {parent}: {reason}") from exc
+    # Without search permission on the folder the file cannot be reached, and
+    # `exists()` would report an existing file as absent. Test this first.
+    if not os.access(parent, os.X_OK):
+        raise RuntimeError(f"--output {output}: folder {parent} is not writable (no search access)")
     if target.is_dir():
         raise RuntimeError(f"--output {output}: is a folder, expected a file path")
     probe = target if target.exists() else parent

@@ -32,11 +32,15 @@ finally:
 
 
 class _Calls:
-    """Counts the stubbed model and credential calls."""
+    """Counts the stubbed model, credential, and model-availability calls."""
 
     def __init__(self) -> None:
         self.api = 0
         self.key = 0
+        self.verify = 0
+
+    def spent(self) -> tuple[int, int, int]:
+        return (self.api, self.key, self.verify)
 
 
 @pytest.fixture
@@ -52,7 +56,11 @@ def calls(monkeypatch: pytest.MonkeyPatch) -> _Calls:
         counter.api += 1
         return '{"verdict": "ROUTE", "reason": "ok"}'
 
+    def fake_verify(*_a: Any, **_kw: Any) -> None:
+        counter.verify += 1
+
     monkeypatch.setattr(ev, "load_api_key_for_selected_provider", fake_key)
+    monkeypatch.setattr(ev, "verify_model_available", fake_verify)
     monkeypatch.setattr(ev, "call_api", fake_call)
     monkeypatch.setattr(ev.time, "sleep", lambda _s: None)
     return counter
@@ -100,6 +108,7 @@ class TestMissingParentIsCreated:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, calls: _Calls, inputs: list[str]
     ) -> None:
         out = tmp_path / "evals" / "skill-rewrites" / "new-skill" / "results.json"
+        assert not (tmp_path / "evals").exists()
 
         assert _run(monkeypatch, [*inputs, "--output", str(out)]) == 0
 
@@ -110,6 +119,8 @@ class TestMissingParentIsCreated:
     def test_relative_nested_output_is_created_under_cwd(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, calls: _Calls, inputs: list[str]
     ) -> None:
+        assert not (tmp_path / "nested").exists()
+
         assert _run(monkeypatch, [*inputs, "--output", "nested/deep/results.json"]) == 0
 
         assert (tmp_path / "nested" / "deep" / "results.json").is_file()
@@ -118,18 +129,20 @@ class TestMissingParentIsCreated:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, calls: _Calls, inputs: list[str]
     ) -> None:
         out = tmp_path / "evals" / "new-skill" / "results.json"
+        assert not (tmp_path / "evals").exists()
 
         assert _run(monkeypatch, [*inputs, "--dry-run", "--output", str(out)]) == 0
 
         assert out.parent.is_dir()
         assert not out.exists()
-        assert calls.api == 0
+        assert calls.spent() == (0, 0, 0)
 
     def test_results_shape_matches_a_run_into_an_existing_folder(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, calls: _Calls, inputs: list[str]
     ) -> None:
         existing = tmp_path / "existing.json"
         created = tmp_path / "made" / "here" / "results.json"
+        assert not (tmp_path / "made").exists()
 
         assert _run(monkeypatch, [*inputs, "--output", str(existing)]) == 0
         assert _run(monkeypatch, [*inputs, "--output", str(created)]) == 0
@@ -168,7 +181,7 @@ class TestUnwritableOutputFailsBeforeAnyCall:
         assert str(out) in captured.err
         assert "Traceback" not in captured.err
         assert captured.out == ""
-        assert (calls.api, calls.key) == (0, 0)
+        assert calls.spent() == (0, 0, 0)
         assert blocker.read_text(encoding="utf-8") == "not a folder"
 
     @pytest.mark.parametrize("dry_run", [False, True], ids=["full-run", "dry-run"])
@@ -188,7 +201,7 @@ class TestUnwritableOutputFailsBeforeAnyCall:
         assert _run(monkeypatch, argv) == 2
 
         assert "is a folder" in capsys.readouterr().err
-        assert (calls.api, calls.key) == (0, 0)
+        assert calls.spent() == (0, 0, 0)
 
     @pytest.mark.parametrize("dry_run", [False, True], ids=["full-run", "dry-run"])
     @pytest.mark.parametrize("target_exists", [False, True], ids=["new-file", "existing-file"])
@@ -222,7 +235,60 @@ class TestUnwritableOutputFailsBeforeAnyCall:
         assert _run(monkeypatch, argv) == 2
 
         assert "not writable" in capsys.readouterr().err
-        assert (calls.api, calls.key) == (0, 0)
+        assert calls.spent() == (0, 0, 0)
+
+    @pytest.mark.parametrize("dry_run", [False, True], ids=["full-run", "dry-run"])
+    @pytest.mark.parametrize("target_exists", [False, True], ids=["new-file", "existing-file"])
+    def test_folder_without_search_permission_exits_two(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+        calls: _Calls,
+        inputs: list[str],
+        dry_run: bool,
+        target_exists: bool,
+    ) -> None:
+        out = tmp_path / "nosearch" / "results.json"
+        out.parent.mkdir()
+        if target_exists:
+            out.write_text("{}", encoding="utf-8")
+        real_access = os.access
+
+        # Mode 0666 on the folder: writable, but no entry in it can be reached.
+        def fake_access(path: Any, mode: int, **kw: Any) -> bool:
+            if Path(path) == out.parent and mode & os.X_OK:
+                return False
+            return real_access(path, mode, **kw)
+
+        monkeypatch.setattr(ev.os, "access", fake_access)
+        argv = [*inputs, "--output", str(out), *(["--dry-run"] if dry_run else [])]
+
+        assert _run(monkeypatch, argv) == 2
+
+        assert "no search access" in capsys.readouterr().err
+        assert calls.spent() == (0, 0, 0)
+
+    @pytest.mark.parametrize("dry_run", [False, True], ids=["full-run", "dry-run"])
+    def test_dangling_symlink_into_a_blocked_folder_exits_two(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+        calls: _Calls,
+        inputs: list[str],
+        dry_run: bool,
+    ) -> None:
+        blocker = tmp_path / "blocker"
+        blocker.write_text("not a folder", encoding="utf-8")
+        link = tmp_path / "results.json"
+        link.symlink_to(blocker / "real.json")
+        argv = [*inputs, "--output", str(link), *(["--dry-run"] if dry_run else [])]
+
+        assert _run(monkeypatch, argv) == 2
+
+        assert "cannot create folder" in capsys.readouterr().err
+        assert calls.spent() == (0, 0, 0)
 
     def test_bad_scenarios_file_leaves_no_output_folder(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, calls: _Calls, inputs: list[str]
@@ -233,6 +299,34 @@ class TestUnwritableOutputFailsBeforeAnyCall:
         assert _run(monkeypatch, argv) == 2
 
         assert not out.parent.exists()
+
+
+class TestSymlinkedOutput:
+    def test_dangling_symlink_gets_its_destination_folder_and_results(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, calls: _Calls, inputs: list[str]
+    ) -> None:
+        destination = tmp_path / "elsewhere" / "deep" / "real.json"
+        link = tmp_path / "results.json"
+        link.symlink_to(destination)
+        assert not (tmp_path / "elsewhere").exists()
+
+        assert _run(monkeypatch, [*inputs, "--output", str(link)]) == 0
+
+        assert link.is_symlink()
+        assert json.loads(destination.read_text(encoding="utf-8"))["gate"]["verdict"] == "PASS"
+
+    def test_symlink_to_an_existing_file_is_written_through(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, calls: _Calls, inputs: list[str]
+    ) -> None:
+        destination = tmp_path / "real.json"
+        destination.write_text("stale", encoding="utf-8")
+        link = tmp_path / "results.json"
+        link.symlink_to(destination)
+
+        assert _run(monkeypatch, [*inputs, "--output", str(link)]) == 0
+
+        assert link.is_symlink()
+        assert json.loads(destination.read_text(encoding="utf-8"))["eval_type"] == "prompt-change"
 
 
 class TestExistingBehaviorUnchanged:
