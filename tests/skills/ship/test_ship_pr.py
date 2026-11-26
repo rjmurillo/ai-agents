@@ -173,6 +173,24 @@ class TestWindowsPrepare:
         assert code == 3
         assert lines[-1] == "STOP: prepare-failed cannot run git to read the PR template: gone"
 
+    @pytest.mark.parametrize("child_code", [124, 126, 127])
+    def test_a_seed_child_timeout_or_launch_failure_is_external(
+        self, make_repo, fakes, scripts, capsys, windows, monkeypatch, child_code
+    ):
+        make_repo(GITHUB)
+        common = scripts[0]
+        real_run = common.run
+
+        def failing(argv, cwd=None, timeout=120):
+            if "-c" in argv:
+                return common.Completed(child_code, "", "python: timed out after 120s")
+            return real_run(argv, cwd=cwd, timeout=timeout)
+
+        monkeypatch.setattr(common, "run", failing)
+        code, lines = run_pr(scripts, capsys, "prepare")
+        assert code == 3
+        assert lines[-1] == "STOP: prepare-failed python: timed out after 120s"
+
     def test_the_seed_child_does_not_see_a_target_changing_git_variable(
         self, make_repo, fakes, scripts, capsys, windows, monkeypatch, tmp_path
     ):

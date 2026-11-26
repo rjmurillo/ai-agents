@@ -74,6 +74,7 @@ Replaces both host-detection blocks and the PR ownership prose.
 - In owner mode with no open PR, a base branch (`main`, `master`, the origin default, or `--base`) is `STOP: on-base-branch`, exit 1.
 - On Windows, a checkout root or current directory that holds a file named `git`, `gh`, or `az` with a `PATHEXT` suffix, such as `git.exe`, is `STOP: unsafe-checkout`, exit 2.
   CreateProcess searches the current directory before `PATH`, so that file would run in place of the installed program (CWE-427).
+  Helpers run in the checkout root and may spawn a bare `git` themselves. The current-directory check is defense in depth for a helper run without a working directory.
 - Host rule: match the parsed URL host, not a substring.
   This fixes finding LOW-1 from the 2026-11-25 security review.
 

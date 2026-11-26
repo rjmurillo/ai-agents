@@ -12,8 +12,9 @@ a quote, a line break, or a trailing backslash is refused rather than
 rewritten. ``cmd_rewrites`` lets a caller refuse it before any push.
 
 CreateProcess also searches the current directory before ``PATH`` for a bare
-name, so a ``git.exe`` committed at the checkout root would run in place of
-git when a helper runs there. ``planted_programs`` finds those files so the
+name. ``command`` refuses a name it cannot find, but a helper that spawns a
+bare git itself still gets that search, so a ``git.exe`` committed at the
+checkout root would run in place of git when a helper runs there. ``planted_programs`` finds those files so the
 caller can refuse the checkout (CWE-427).
 """
 

@@ -206,9 +206,11 @@ def unsafe_checkout(root: Path) -> Halt | None:
     """On Windows, a Halt when ``root`` holds a file CreateProcess would run for git, gh, or az.
 
     CreateProcess searches the current directory before ``PATH``. Helpers run
-    with the checkout root as their directory, and an in-process spawn uses this
-    process's directory, so both are checked: a committed ``git.exe`` there would
-    run in place of git (CWE-427). Elsewhere the check does not apply.
+    with the checkout root as their directory, and a bare git they spawn
+    themselves is searched there first, so a committed ``git.exe`` would run in
+    place of git (CWE-427). ``common.run`` resolves its own names on ``PATH``,
+    so the check of this process's directory is defense in depth: it holds if a
+    helper is ever run without ``cwd``. Elsewhere the check does not apply.
     """
     if not common.on_windows():
         return None

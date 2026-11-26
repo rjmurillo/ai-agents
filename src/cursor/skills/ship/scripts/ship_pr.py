@@ -107,7 +107,7 @@ def cmd_branch(args: argparse.Namespace, result: common.Result, root: Path) -> c
 
 # Prints the base-ref seed from prepare_pr_body (argv: helper, root, base ref or "").
 # It runs as a child through common.run, so child_env, the run budget, and the
-# exit-code mapping apply, as they do to new_pr.py on other hosts.
+# exit-code mapping apply, as they do to new_pr.py off Windows.
 _SEED_CHILD = (
     "import importlib.util as u, pathlib, sys\n"
     "sys.stdout.reconfigure(encoding='utf-8')\n"
