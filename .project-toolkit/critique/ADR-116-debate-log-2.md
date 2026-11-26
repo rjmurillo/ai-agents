@@ -49,7 +49,7 @@ Run on the final branch content, 2026-11-25.
 | --- | --- | --- |
 | adr-review policy | `scripts/validation/git_hook_policy.py adr-review` on the staged branch diff | exit 0 |
 | Staged dash policy | `scripts/validation/git_hook_policy.py staged-dashes` on the staged branch diff | exit 0 |
-| Citation reverse pass | `scripts/validation/citation_reverse_pass.py` | 0 blocking. 4 citations were already stale at the merge base. |
+| Citation reverse pass | `scripts/validation/citation_reverse_pass.py` | 0 blocking. Citations already stale at the merge base do not block. |
 | Pre-PR | `scripts/validation/pre_pr.py` | exit 0. 126 PASS, 0 FAIL, 2 BLOCKED. |
 
 The two BLOCKED gates are `actionlint` and `yamllint`, which are not installed locally. This change edits no workflow or YAML file. CI runs both.
