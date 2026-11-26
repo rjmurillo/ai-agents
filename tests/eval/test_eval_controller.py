@@ -1075,3 +1075,10 @@ def test_run_installs_and_restores_a_sigint_handler(tmp_path: Path) -> None:
     controller.run()
     assert seen == [controller.on_sigterm]
     assert signal.getsignal(signal.SIGINT) is before
+
+
+@pytest.mark.parametrize("template", ["{run_dir}/../escape.xml", "{run_dir}sibling/x.xml"])
+def test_input_that_escapes_the_run_directory_is_refused(tmp_path: Path, template: str) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    _edit_config(config, inputs=[template])
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG

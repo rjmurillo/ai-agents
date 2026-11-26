@@ -1,38 +1,23 @@
 #!/usr/bin/env python3
 """Trusted controller for the held-out-gated optimization loop (ADR-087 OR1).
 
-`optimize-artifact.py` assumes a cooperating optimizer: the agent that edits
-the artifact also runs `extract`, `split`, and `gate`, so held-out outcomes and
-task definitions sit in files it can read. This controller inverts that. The
-launcher runs the controller, and the controller runs the optimizing agent as
-a child "proposer". The proposer never calls the optimizer rails. Each step its
-workspace is emptied and then holds:
+`optimize-artifact.py` assumes a cooperating optimizer that runs `extract`,
+`split`, and `gate` itself. This controller inverts that: the launcher runs
+the controller, and the controller runs the optimizing agent as a child
+"proposer". Each step the proposer's workspace is emptied and then holds
+`feedback.json` (step, artifact path, optimize-group results and pass
+fraction, consultations left, `last_decision`) and, optionally, copies of the
+optimize-group task files. Everything else stays in the state directory.
 
-- `feedback.json`: the step, the artifact path, the optimize-group results of
-  the current incumbent and their pass fraction, the consultations left, and
-  `last_decision` (ACCEPT or REJECT after a gate, NO_CHANGE otherwise),
-- copies of the optimize-group task files, when the config names them.
+The boundary holds only when the launcher applies the rule `policy` prints.
+Python cannot stop a same-user process from opening a file, so the controller
+digests the denied and trusted paths around each scoring run and step, and the
+state directory around each scoring run, and stops on a change it did not make.
+For the `hook` kind, candidate code runs inside the scorer; the controller
+detects it tampering with earlier state, not it forging its own results.
 
-Everything else stays under the controller's state directory: the scorer's raw
-output, every results file, the split with held-out membership, the
-consultation ledger, the full gate payloads, and child output.
-
-The boundary is real only when the launcher applies the rule `policy` prints:
-deny the proposer read and write on `deny_read_write`, and deny it write on
-`deny_write`. Python cannot stop a same-user process from opening a file. The
-controller digests the denied and trusted paths before each scoring run and
-after each step, and digests the state directory around each scoring run. It
-stops on a change it did not make, so a write that slips past the sandbox in
-those windows is caught, not scored.
-
-When the scorer executes the artifact (the `hook` kind), the candidate's code
-runs inside the scorer with the scorer's access. The controller detects it
-tampering with earlier state; it cannot stop it forging its own results.
-
-Subcommands:
-
-- `policy --config C`: print the access rule the launcher must apply.
-- `run --config C`: baseline the incumbent, then run the proposer loop.
+Subcommands: `policy --config C` prints the access rule; `run --config C`
+baselines the incumbent, then runs the proposer loop.
 
 Exit codes (ADR-035): 0 loop finished, 2 config or integrity refusal,
 3 scorer, proposer, optimizer, or I/O failure.
@@ -56,23 +41,26 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from _controller_io import (
+from _controller_config import (
     EXIT_CONFIG,
     EXIT_EXTERNAL,
     EXIT_OK,
     Config,
     ControllerError,
+    access_rule,
+    load_config,
+    resolve,
+    trusted_code,
+)
+from _controller_io import (
     clear_dir,
     fill,
-    load_config,
     optimizer,
     proposer_env,
     read_artifact,
-    resolve,
     run_child,
     task_file,
     tree_digest,
-    trusted_code,
     write_artifact,
 )
 
@@ -90,21 +78,6 @@ __all__ = [
 ]
 
 _DECISIONS = {0: "ACCEPT", 1: "REJECT"}
-
-
-def access_rule(config: Config) -> dict[str, Any]:
-    """The rule the launcher must apply to the proposer, as `policy` prints it."""
-    return {
-        "deny_read_write": [str(p) for p in (config.state_dir, config.config_path)]
-        + [str(p) for p in config.deny_paths],
-        "deny_write": [str(p) for p in trusted_code(config)],
-        # Scorer reports sit here until the controller moves them. They can
-        # hold held-out outcomes, so the proposer must not read them either.
-        # Templates are printed as given; deny the directory each one names.
-        "deny_read_write_collect": list(config.collect),
-        "proposer_workspace": str(config.workspace_dir),
-        "proposer_may_write": [str(config.artifact)],
-    }
 
 
 class Controller:
@@ -178,6 +151,25 @@ class Controller:
                 problems.append(f"could not move scorer output {source}: {exc}")
         return problems
 
+    def _refuse_stale_reports(self, values: Mapping[str, str], label: str) -> None:
+        # A report already sitting at a collect path belongs to some earlier
+        # run. Collecting it would gate on the wrong results.
+        for template in self.config.collect:
+            stale = resolve(fill(template, values))
+            if stale.exists() or stale.is_symlink():
+                raise ControllerError(
+                    f"scorer output {stale} exists before {label} was scored; "
+                    "use a collect path that names the run (`{run_id}`) or clear it"
+                )
+
+    def _contained_inputs(self, values: Mapping[str, str], run_dir: Path) -> list[str]:
+        inputs = [fill(item, values) for item in self.config.inputs]
+        for item in inputs:
+            # The template check at load is lexical; `{run_dir}/../x` passes it.
+            if run_dir.resolve() not in Path(item).resolve().parents:
+                raise ControllerError(f"extract input {item} is outside the run directory")
+        return inputs
+
     def score(self, label: str, expected: bytes) -> Path:
         """Run the scorer, move its output into state, extract all results.
 
@@ -194,15 +186,7 @@ class Controller:
         # The candidate's code may run inside the scorer. Everything already in
         # state must be exactly as the controller left it when the scorer ends.
         before = tree_digest([self.state], exclude=run_dir)
-        # A report already sitting at a collect path belongs to some earlier
-        # run. Collecting it would gate on the wrong results.
-        for template in self.config.collect:
-            stale = resolve(fill(template, values))
-            if stale.exists() or stale.is_symlink():
-                raise ControllerError(
-                    f"scorer output {stale} exists before {label} was scored; "
-                    "use a collect path that names the run (`{run_id}`) or clear it"
-                )
+        self._refuse_stale_reports(values, label)
         # The scorer's bytecode cache goes inside its own run directory, so a
         # cache planted beside the scorer's code is never read and the state
         # digest above still excludes everything the scorer may write.
@@ -237,7 +221,7 @@ class Controller:
                 "refusing to use results for bytes that were not the ones scored"
             )
         self._record({"event": "call", "label": f"scorer {label}", "duration_s": duration})
-        inputs = [fill(item, values) for item in self.config.inputs]
+        inputs = self._contained_inputs(values, run_dir)
         code, payload = self._optimizer(
             ["extract", "--kind", self.config.kind, "--input", *inputs, *self.config.extract_args]
         )
@@ -436,8 +420,11 @@ class Controller:
                 )
             raise
         finally:
-            signal.signal(signal.SIGTERM, previous)
-            signal.signal(signal.SIGINT, previous_int)
+            # A handler installed from C reads back as None; fall back to default.
+            signal.signal(signal.SIGTERM, previous if previous is not None else signal.SIG_DFL)
+            signal.signal(
+                signal.SIGINT, previous_int if previous_int is not None else signal.SIG_DFL
+            )
 
     def _run(self) -> dict[str, Any]:
         config = self.config

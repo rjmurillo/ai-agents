@@ -27,7 +27,9 @@ Each Open Requirement now has a sub-issue of #7642:
 `scripts/eval/eval_controller.py` inverts the loop. The launcher runs the controller.
 The controller runs the scorer, `extract`, `split`, and `gate` itself.
 It runs the optimizing agent as a child proposer, once per step.
-`scripts/eval/_controller_io.py` holds config loading, digests, child processes, and artifact I/O.
+`scripts/eval/_controller_config.py` holds config loading, layout checks, and
+the access rule. `scripts/eval/_controller_io.py` holds digests, child
+processes, and artifact I/O.
 
 ### What the proposer sees
 
