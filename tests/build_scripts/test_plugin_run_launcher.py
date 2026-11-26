@@ -330,3 +330,96 @@ def test_a_committed_locator_with_an_unknown_interpreter_is_reported() -> None:
     assert match.script_rel is None
     assert match.problem is not None and "python3.11" in match.problem
     assert plugin_run_launcher.split_locator(text) is None
+
+
+# --- text after the closing parenthesis: arguments there never reach the script ---
+
+_STRAY_ARGUMENTS = [
+    " -x",
+    ' --head "$BRANCH"',
+    " --flag value",
+    " somefile.txt",
+    " skills/x/y.txt",
+    ' "$VAR"',
+    " $VAR",
+    "  \t--flag",
+    ' "quoted"',
+    " 'quoted'",
+    " 5",
+]
+
+_NOT_ARGUMENTS = [
+    "",
+    " ",
+    ")",
+    " )",
+    '"',
+    "'",
+    "`",
+    "` and then prose after the code span",
+    " |",
+    "|",
+    " && echo ok",
+    " || true",
+    " ; echo ok",
+    ";",
+    " | head -n 5",
+    " > out.txt",
+    " >> out.txt",
+    " 2>&1",
+    " 2> err.log",
+    " < in.txt",
+    " # a comment",
+    " -->",
+    ".",
+    ", then more",
+]
+
+
+@pytest.mark.parametrize("after", _STRAY_ARGUMENTS)
+def test_find_locators_flags_arguments_after_the_closing_parenthesis(after: str) -> None:
+    text = render_locator(SCRIPT)
+    [match] = plugin_run_launcher.find_locators(f"run {text}{after} end")
+    assert match.trailing is not None
+    assert match.trailing == after.lstrip(" \t") + " end"
+
+
+@pytest.mark.parametrize("after", _NOT_ARGUMENTS)
+def test_find_locators_accepts_text_that_is_not_arguments_after_the_tail(after: str) -> None:
+    [match] = plugin_run_launcher.find_locators(render_locator(SCRIPT) + after)
+    assert match.trailing is None
+
+
+def test_find_locators_flags_the_whole_rest_of_the_line_with_a_limit() -> None:
+    long_rest = " --flag " + "x" * 200
+    [match] = plugin_run_launcher.find_locators(render_locator(SCRIPT) + long_rest)
+    assert match.trailing is not None
+    assert match.trailing.startswith("--flag x")
+    assert len(match.trailing) <= 60
+
+
+def test_stray_arguments_leave_the_drift_scan_fields_unchanged() -> None:
+    plain = render_locator(SCRIPT, "--a")
+    [clean] = plugin_run_launcher.find_locators(plain)
+    [stray] = plugin_run_launcher.find_locators(plain + " --b")
+    assert (stray.start, stray.end, stray.script_rel, stray.args, stray.problem) == (
+        clean.start,
+        clean.end,
+        clean.script_rel,
+        clean.args,
+        None,
+    )
+
+
+def test_stray_arguments_after_the_first_of_two_locators_are_found_per_locator() -> None:
+    first = render_locator("skills/a/scripts/one.py")
+    second = render_locator("skills/b/two.py")
+    found = list(plugin_run_launcher.find_locators(f"{first} --x then {second}"))
+    assert [m.trailing is None for m in found] == [False, True]
+
+
+def test_stray_arguments_after_a_locator_with_a_problem_are_not_added() -> None:
+    bad = render_locator(SCRIPT).replace(SCRIPT, "tools/y.py")
+    [match] = plugin_run_launcher.find_locators(bad + " --x")
+    assert match.problem is not None
+    assert match.trailing is None

@@ -127,6 +127,32 @@ class LocatorMatch:
     args: str
     problem: str | None
     interpreter: str = DEFAULT_INTERPRETER
+    trailing: str | None = None
+
+
+# Text right after the closing `)` that reads as an argument: a word, a path, a
+# `$VAR`, or a flag, or a quote that follows whitespace. Operators, redirects,
+# comments, a closing `)`, a backtick, `|`, and punctuation are not arguments.
+_ARGUMENT_START_RE = re.compile(r"[A-Za-z0-9_$~/-]|\./")
+_NOT_ARGUMENT_RE = re.compile(r"\d+[<>]|-->")
+_QUOTES = "\"'"
+_TRAILING_LIMIT = 60
+
+
+def _stray_arguments(rest: str) -> str | None:
+    """Return the argument-like text at the start of ``rest``, else ``None``.
+
+    ``rest`` is the line after the locator's closing ``)``. Arguments belong inside
+    the subshell, right after the script path. Placed here they are a shell syntax
+    error, or they never reach the script.
+    """
+    body = rest.lstrip(" \t")
+    if not body or _NOT_ARGUMENT_RE.match(body):
+        return None
+    spaced = len(body) != len(rest)
+    if _ARGUMENT_START_RE.match(body) or (spaced and body[0] in _QUOTES):
+        return body[:_TRAILING_LIMIT]
+    return None
 
 
 def find_locators(line: str) -> Iterator[LocatorMatch]:
@@ -161,5 +187,6 @@ def find_locators(line: str) -> Iterator[LocatorMatch]:
         except LauncherError as exc:
             yield LocatorMatch(start, end, None, "", str(exc), interpreter)
         else:
-            yield LocatorMatch(start, end, script_rel, args, None, interpreter)
+            trailing = _stray_arguments(line[end:])
+            yield LocatorMatch(start, end, script_rel, args, None, interpreter, trailing)
         pos = end
