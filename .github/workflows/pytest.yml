@@ -509,16 +509,26 @@ jobs:
 
       # Rewritten test bytecode, a performance cache only. Every leg restores it.
       # The prefix sits under runner.temp, outside the checkout, and the Run pytest
-      # step sets PYTHONPYCACHEPREFIX to the same path (the runner context is not
-      # available at job-level env). The key leaves out tests/ on purpose: pytest
-      # compares each .pyc header with the source hash and the interpreter magic
-      # number and recompiles any mismatch, so a stale restore costs time and
-      # never changes a test result. uv.lock carries the pytest version. The
-      # setup step output carries the Python version.
+      # step sets PYTHONPYCACHEPREFIX to it (the runner context is not available
+      # at job-level env). Python stores each pyc at the prefix followed by the
+      # absolute path of its source, so the checkout's pycs live under the prefix
+      # plus github.workspace. The cache path is that subtree only. The rest of
+      # the prefix holds pycs that no later run can read, such as the mutation
+      # worktrees at <workspace>.mutation-worktrees/<uuid> and random temp dirs,
+      # and saving them made each entry a superset of the last. The plain
+      # concatenation needs a POSIX workspace path. This job runs only on
+      # ubuntu-latest, and the wiring test pins that. The standard library's pycs
+      # sit outside the subtree and are left out: a local measurement put the
+      # cost at about 0.5 s for one pytest process.
+      # The key leaves out tests/ on purpose: pytest compares each .pyc header
+      # with the source hash and the interpreter magic number and recompiles any
+      # mismatch, so a stale restore costs time and never changes a test result.
+      # uv.lock carries the pytest version. The setup step output carries the
+      # Python version.
       - name: Restore pytest bytecode cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
-          path: ${{ runner.temp }}/pytest-bytecode-cache
+          path: ${{ runner.temp }}/pytest-bytecode-cache${{ github.workspace }}
           key: pytest-bytecode-${{ runner.os }}-${{ runner.arch }}-${{ steps.setup-code-env.outputs.python-version }}-${{ hashFiles('uv.lock') }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: pytest-bytecode-${{ runner.os }}-${{ runner.arch }}-${{ steps.setup-code-env.outputs.python-version }}-
 
@@ -583,6 +593,8 @@ jobs:
       # rerun must follow Run pytest directly. This is the only step that writes
       # this key. Its if: allows a write only from the primary leg of a push to
       # refs/heads/main after Run pytest succeeds. Later legs run what it saved.
+      # The path is the checkout subtree of the prefix, the same path the restore
+      # step reads, so the entry holds only pycs a later run can use.
       - name: Save pytest bytecode cache
         if: >-
           matrix.primary
@@ -590,7 +602,7 @@ jobs:
           && steps.run-pytest.outcome == 'success'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
-          path: ${{ runner.temp }}/pytest-bytecode-cache
+          path: ${{ runner.temp }}/pytest-bytecode-cache${{ github.workspace }}
           key: pytest-bytecode-${{ runner.os }}-${{ runner.arch }}-${{ steps.setup-code-env.outputs.python-version }}-${{ hashFiles('uv.lock') }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       # Issue #5610. The count-ratchet registry deadline is calibrated against

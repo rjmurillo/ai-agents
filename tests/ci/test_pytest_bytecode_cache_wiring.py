@@ -10,7 +10,9 @@ outside the checkout that the pytest child really inherits.
 
 from __future__ import annotations
 
+import importlib.util
 import re
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -27,6 +29,7 @@ KEY_PREFIX = "pytest-bytecode-"
 CACHE_SHA = "55cc8345863c7cc4c66a329aec7e433d2d1c52a9"
 RUNNER_TEMP = "${{ runner.temp }}"
 PREFIX = f"{RUNNER_TEMP}/pytest-bytecode-cache"
+WORKSPACE = "${{ github.workspace }}"
 PYTHON_VERSION_OUTPUT = "steps.setup-code-env.outputs.python-version"
 UNIQUE_SUFFIX = "${{ github.run_id }}-${{ github.run_attempt }}"
 HASH_FILES = re.compile(r"hashFiles\(([^)]*)\)")
@@ -83,13 +86,33 @@ class TestPrefixOutsideTheCheckout:
         """Job-level env cannot read `runner`; actionlint rejects it and the workflow fails."""
         assert "PYTHONPYCACHEPREFIX" not in workflow_jobs()["test"].get("env", {})
 
-    def test_restore_save_and_pytest_share_one_path(self) -> None:
-        paths = {
-            _restore()["with"]["path"],
-            _save()["with"]["path"],
-            _step("Run pytest")["env"]["PYTHONPYCACHEPREFIX"],
-        }
-        assert paths == {PREFIX}
+    def test_restore_and_save_share_one_path(self) -> None:
+        """Both steps must name one path, or a save would never reach a later restore."""
+        assert _restore()["with"]["path"] == _save()["with"]["path"]
+
+    def test_the_cached_path_is_the_checkout_subtree_of_the_prefix(self) -> None:
+        """Python stores a pyc at the prefix plus the absolute source path.
+
+        The prefix root also holds pycs for mutation worktrees and temp dirs that
+        no later run can read, so the cache path stops at the checkout subtree.
+        """
+        prefix = _step("Run pytest")["env"]["PYTHONPYCACHEPREFIX"]
+        assert prefix == PREFIX
+        assert _restore()["with"]["path"] == f"{prefix}{WORKSPACE}"
+        assert _save()["with"]["path"] == f"{prefix}{WORKSPACE}"
+
+    def test_the_test_job_runs_on_a_posix_runner(self) -> None:
+        """Plain concatenation of prefix and workspace is only valid for a POSIX path."""
+        assert str(workflow_jobs()["test"]["runs-on"]).startswith("ubuntu-")
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="the workflow job is POSIX only")
+    def test_python_places_checkout_bytecode_under_prefix_plus_workspace(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        monkeypatch.setattr(sys, "pycache_prefix", str(tmp_path))
+        source = REPO_ROOT / "scripts" / "ci" / "probe.py"
+        pyc = Path(importlib.util.cache_from_source(str(source)))
+        assert pyc.is_relative_to(Path(f"{tmp_path}{REPO_ROOT}"))
 
     def test_the_prefix_never_references_the_workspace(self) -> None:
         assert "github.workspace" not in PREFIX
