@@ -325,7 +325,7 @@ different owners and states.
   `lefthook.yml:728` sets `AI_AGENTS_PRE_PR_FAST_STAGE_RAN: "1"`.
   `tests/validation/test_pre_pr_sequence_registry.py:195-203` defines `FAST_STAGE_DUPLICATES`.
   The set names Count Ratchets, Unreachable Code Detection, Path Normalization, Planning Artifacts, and Em/en-dash Prohibition.
-  `tests/validation/test_pre_pr_sequence_registry.py:297-321` defines `TestFastStageDeferral`.
+  `tests/validation/test_pre_pr_sequence_registry.py:298-322` defines `TestFastStageDeferral`.
 - **Current outcome protected**: the five fast-stage lefthook jobs
   (`count-ratchets`, `unreachable-code-detection`, `path-normalization`,
   `planning-artifacts`, `em/en-dash-prohibition`) do not re-run a second

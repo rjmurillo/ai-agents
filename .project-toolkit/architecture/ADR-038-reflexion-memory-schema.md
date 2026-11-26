@@ -1,6 +1,6 @@
 ---
 id: ADR-038
-status: proposed
+status: accepted
 date: 2026-01-01
 decision-makers: [rjmurillo]
 supersedes: []
@@ -128,7 +128,7 @@ Episodes are structured extracts from session logs, optimized for replay and ana
 
 Causal graphs track cause-effect relationships across episodes.
 
-**Storage**: `.project-toolkit/memory/causality/causal-graph.json`
+**Storage**: .project-toolkit/memory/causality/causal-graph.json (removed by ADR-089)
 
 ```json
 {
@@ -169,7 +169,7 @@ Causal graphs track cause-effect relationships across episodes.
 
 ### Query Interface
 
-New module: `scripts/ReflexionMemory.psm1`
+New module: scripts/ReflexionMemory.psm1 (PowerShell, retired under ADR-042; the episode code now lives in `src/claude/skills/memory/scripts/extract_session_episode.py`)
 
 ```powershell
 # Episode queries
@@ -275,7 +275,7 @@ Causal Graph (.project-toolkit/memory/causality/causal-graph.json)
 
 ### Phase 2: M-005 Implementation
 
-1. Create `scripts/ReflexionMemory.psm1` module
+1. Create the scripts/ReflexionMemory.psm1 module (since ported to Python)
 2. Implement `Extract-SessionEpisode.ps1`
 3. Implement `Update-CausalGraph.ps1`
 4. Create Pester test suite

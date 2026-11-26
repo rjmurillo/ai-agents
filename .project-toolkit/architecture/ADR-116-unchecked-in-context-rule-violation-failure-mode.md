@@ -1,12 +1,12 @@
 ---
 id: ADR-116
-status: proposed
-date: 2026-10-13
+status: accepted
+date: 2026-11-25
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
 explainer: null
-implemented: false
+implemented: true
 review-by: 2027-04-13
 ---
 
@@ -14,7 +14,7 @@ review-by: 2027-04-13
 
 ## Status
 
-Proposed. The owner has not accepted the class, and `FAILURE-MODES.md` is unchanged until then.
+Accepted. The owner accepted the class on 2026-11-25 in issue #7643. It is FM #14 in `.agents/governance/FAILURE-MODES.md`, the next free number at acceptance.
 
 ## Context
 
@@ -37,7 +37,7 @@ The 08-25 retro cites issue #5300 as the proposal. Issue #5300 is a request to w
 
 ## Decision
 
-Propose a class named **Unchecked In-Context Rule Violation**, numbered with the next free FM number at acceptance (FM #14 on 2026-10-13, because ADR-117 took FM #13), for `.agents/governance/FAILURE-MODES.md`. This record only proposes it. The taxonomy file is not edited until the owner accepts this record.
+Propose a class named **Unchecked In-Context Rule Violation**, numbered with the next free FM number at acceptance (FM #14 on 2026-10-13, because ADR-117 took FM #13), for `.agents/governance/FAILURE-MODES.md`. The owner accepted it on 2026-11-25 (issue #7643), and the entry landed as FM #14 in the same change.
 
 Proposed class entry, in the file's existing shape:
 
@@ -54,7 +54,7 @@ Proposed class entry, in the file's existing shape:
 
 Severity: Medium, the lowest tier in the FAILURE-MODES index. The 08-25 retro rates it "Low-medium". Each instance cost one extra gate round (CI in one case, a local commit retry in the other) and had no external consequence.
 
-On acceptance, one follow-up PR adds the entry and an index row to `FAILURE-MODES.md`.
+On acceptance, the entry and an index row were added to `FAILURE-MODES.md` in the change that set this record to accepted.
 
 ## Alternatives Considered
 
@@ -78,7 +78,7 @@ No existing gate measures this class, so it has no observed rate beyond the two 
 
 ## Rationale
 
-MUST 2 offers one path for a class that does not fit: a linked ADR. Writing that ADR is the smallest change that makes both retros compliant. It changes no rule, gate, or taxonomy entry until the owner accepts it.
+MUST 2 offers one path for a class that does not fit: a linked ADR. Writing that ADR is the smallest change that makes both retros compliant. It changed no rule, gate, or taxonomy entry until the owner accepted it on 2026-11-25.
 
 ## Consequences
 
@@ -90,20 +90,20 @@ MUST 2 offers one path for a class that does not fit: a linked ADR. Writing that
 ### Negative
 
 - The class has two instances, both for one rule, and one is a local near-miss. The dash rule may stay the only member. Trigger to revisit: the `review-by` date. A retro that finds a third instance of any rule should link this ADR.
-- The existing gates already catch the violation, so the class adds naming and no control. An index row and an entry may cost more than the failures they name. The owner can decline on that basis.
+- The existing gates already catch the violation, so the class adds naming and no control. An index row and an entry may cost more than the failures they name. The owner weighed that cost and accepted the class on 2026-11-25.
 - The enforcement pattern is empty until someone builds the pre-stage check.
 
 ## Impact on Dependent Components
 
 | Component | Change |
 |-----------|--------|
-| `.agents/governance/FAILURE-MODES.md` | None until acceptance. Then one entry and one index row. |
+| `.agents/governance/FAILURE-MODES.md` | One entry (FM #14) and one index row, added at acceptance. |
 | The former `retros` rule (now at `.claude/skills/retrospective/references/rule-retros.md`) | None. |
 | The two retrospectives | Each gains an appended dated correction that links this ADR. Landed retros are not edited in place (`retros.md` MUST NOT 1). |
 
 ## Reversibility Assessment
 
-Fully reversible. A `proposed` record can move to `rejected` by a frontmatter edit. No code, gate, or rule depends on it.
+Fully reversible. A later ADR can supersede this record and retire FM #14. No code or gate depends on the class.
 
 ## Related Decisions
 

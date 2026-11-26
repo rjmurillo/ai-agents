@@ -57,8 +57,8 @@ from typing import Any
 
 # `pr-maintenance.yml` invokes this file as `python3 scripts/report_pr_supersession.py`,
 # so sys.path[0] is `scripts/` and the `scripts` package is unreachable without this
-# (.claude/rules/ci-scripts.md MUST 16). Everything reached from here must stay stdlib:
-# that job runs `actions/checkout` and nothing else.
+# (.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md MUST 18). Everything
+# reached from here must stay stdlib: that job runs `actions/checkout` and nothing else.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.github_core.api import resolve_repo_params
@@ -189,7 +189,7 @@ def render_human(report: dict[str, Any]) -> str:
 
     The examined count is printed whether or not anything was flagged, so a
     run that saw nothing is distinguishable from a run that saw nothing
-    wrong (`.claude/rules/ci-scripts.md` MUST 12).
+    wrong (`.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md` MUST 12).
     """
     lines = [
         f"PR supersession report: {report['flagged']} flagged of "
