@@ -106,3 +106,14 @@ Scope: a prose-only edit after PR #7709 review. The edit names where the past-du
 The critic's P1 is resolved. The lifecycle row at `pre_pr_sequence.py:416` sets no quick-skip or fast-stage deferral. So `pre_pr.py --compact` at pre-push runs it.
 
 The prose-date pairing and the narrowing to `accepted` are applied. No P0 was raised.
+
+## Round 3 (2026-11-26, reduced panel)
+
+Scope: one prose sentence on how an overdue `review-by` clears, after a CodeRabbit finding. No executable enforcement changed.
+
+| Agent | Vote | Note |
+|---|---|---|
+| architect | Accept | Checked `_LIVE_STATUSES`, the `null` path, and the strict `due < today` test. |
+| critic | Accept | First voted Block. The sentence left out the prose date and the `proposed` plus `null` trap. Both are fixed. |
+
+The revised text names three exits. A date of today or later that the prose also states, `accepted` with `null`, or a closed status.

@@ -204,7 +204,7 @@ This amends ADR-073 again rather than filing a new record, for the same reason a
 Two rules change, both in `check_adr_lifecycle.py`:
 
 - `proposed-needs-review-by`: a `proposed` record whose `review-by` is absent or `null`. The date is the day the decision must be made. The check is ratcheted: records present when it shipped enter the baseline and can only fall. A malformed value stays a `review-by-format` finding, not this one.
-- `review-by-past-due` is zero-tolerance. It is listed in `ZERO_TOLERANCE_CHECKS`. The baseline cannot hold it: `--write-baseline` records it empty and exits 1 while one is live, and a live baseline that lists it is a config error. An overdue record fails every run until the review is held, the date is moved, or the status changes.
+- `review-by-past-due` is zero-tolerance. It is listed in `ZERO_TOLERANCE_CHECKS`. The baseline cannot hold it: `--write-baseline` records it empty and exits 1 while one is live, and a live baseline that lists it is a config error. An overdue record fails every run until one of three edits lands. Set `review-by` to today or later and state that date in the prose. Accept the record and set `review-by` to `null`. Or move the status to `rejected`, `deprecated`, or `superseded`. Holding the review alone does not clear it. A `proposed` record set to `null` fails `proposed-needs-review-by` instead.
 
 The clock, not a branch, creates a past-due violation. That is why it blocks every branch instead of only the one that caused it. The cost is that a missed date stops unrelated pull requests. The fix is one frontmatter and prose edit to the overdue record.
 

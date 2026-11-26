@@ -173,8 +173,11 @@ not a real `YYYY-MM-DD` date, `review-by-prose-date` for a `proposed` or
 `accepted` record whose prose does not state the date, and `review-by-past-due`
 for a `proposed` or `accepted` record whose date has passed. `review-by-past-due`
 is zero-tolerance: the baseline cannot hold it, so an overdue record fails every
-run. It stops failing when you hold the review, record its outcome in the prose,
-and set a new date, set `null` (once decided), or change the status. A
+run. Holding the review alone does not clear it, and `accepted` is still
+checked. It stops failing on one of three edits: a `review-by` of today or later
+that the prose also states; `accepted` with `review-by: null`; or a move to
+`rejected`, `deprecated`, or `superseded`. A `proposed` record set to `null`
+fails `proposed-needs-review-by` instead. Record the review outcome in the prose. A
 `superseded`, `deprecated`, or `rejected` record is history, and only the format
 check reads it.
 

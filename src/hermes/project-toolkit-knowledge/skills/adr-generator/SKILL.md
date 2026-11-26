@@ -194,7 +194,7 @@ Write the file to the destination directory determined in Phase G2:
 | Lowercase kebab-case slug (3-5 words) | `database-selection`, `event-sourcing-pattern` |
 | Status always set to `Proposed` | Changed only after `adr-review` debate |
 | Frontmatter `status: proposed`, `implemented: false`, `explainer: null` | Phase 1 defaults (ADR-073); `explainer` never auto-fetched (CWE-918) |
-| Frontmatter `review-by: YYYY-MM-DD`, also stated in the prose | Required while `proposed` (ADR-073); the lifecycle gate fails a `proposed` record without it. Ask the owner for the date: once it passes, the gate blocks every branch |
+| Frontmatter `review-by: YYYY-MM-DD`, also stated in the prose | When the destination uses this repository's ADR template: required while `proposed` (ADR-073), and the lifecycle gate fails a new `proposed` record without it. Ask the owner for the date: once it passes, the gate blocks every branch. Other templates keep their own fields |
 
 ### Amend Mode
 

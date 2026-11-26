@@ -765,7 +765,7 @@ def _has_adr_corpus(scanned: list[str]) -> bool:
     reason unrelated to what they test.
 
     Kin to ``check_adr_lifecycle.py``'s own corpus sentinel (quoted verbatim
-    from ``scripts/validation/check_adr_lifecycle.py:1867-1873``): "An
+    from ``scripts/validation/check_adr_lifecycle.py:1881-1887``): "An
     emptied or misrouted corpus (wrong --repo-root, or every record moved
     out) still passes the `is_dir()` check above. `scan()` would then walk
     zero records, `identities()` would report every check empty, and `run()` would
