@@ -768,7 +768,7 @@ def _has_adr_corpus(scanned: list[str]) -> bool:
     from ``scripts/validation/check_adr_lifecycle.py:1867-1873``): "An
     emptied or misrouted corpus (wrong --repo-root, or every record moved
     out) still passes the `is_dir()` check above. `scan()` would then walk
-    zero records, `tally()` would report every check at 0, and `run()` would
+    zero records, `identities()` would report every check empty, and `run()` would
     print "[PASS] 0 violation(s)": a missing corpus reads as a clean corpus
     instead of failing loudly. `ADR_FILENAME_RE` excludes ADR-TEMPLATE.md, so
     a template sitting alone does not count as evidence records were
