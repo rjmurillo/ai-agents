@@ -316,8 +316,10 @@ _PTK_RUN_SUBPROCESS_RULE = (
     "dangerous-subprocess-use-tainted-env-args"
 )
 _PTK_RUN_REASON = (
-    "_launch passes an argv list with no shell, and resolve_target confines the "
-    "path to the plugin root first. Owner ruling: issue #7591 comment 7175038778."
+    "_launch passes an argv list with no shell. resolve_target admits only a "
+    "skills/<path>.py target with no dot-only part, under a root that holds "
+    "lib/ptk_run.py. ptk_run is not an authentication boundary (ADR-121 "
+    "decision 10). Owner ruling: issue #7591 comment 7175038778."
 )
 # The source and every generated or hand-pinned copy, one exact path each.
 # A new copy fails closed until it is listed here.
@@ -339,11 +341,12 @@ ALLOWED_SEMGREP_SUPPRESSIONS: tuple[AllowedSemgrepSuppression, ...] = tuple(
     for rule_id in (_PTK_RUN_EXEC_RULE, _PTK_RUN_SUBPROCESS_RULE)
 )
 # The only allowed form: a whole-line Python comment that names one rule id,
-# with an optional trailing comment. Case, spacing, and the hash marker are
-# exact, so a bare directive, the short form, a rule list, or a `//` marker
-# never matches. The pattern is split so this file does not trip its own gate.
+# optionally followed by the exact line-length waiver. Case, spacing, and the
+# hash marker are exact, so a bare directive, the short form, a rule list, a
+# `//` marker, or any other trailing text never matches. The pattern is split
+# so this file does not trip its own gate.
 _ALLOWED_SEMGREP_LINE_RE = re.compile(
-    r"[ \t]*#" + r" nosem" + r"grep: (?P<rule_id>[A-Za-z0-9_.\-]+)(?P<rest>(?:[ \t]+#.*)?)"
+    r"[ \t]*#" + r" nosem" + r"grep: (?P<rule_id>[A-Za-z0-9_.\-]+)(?:  # noqa: E501)?"
 )
 
 
@@ -351,8 +354,8 @@ def is_blocked_suppression_line(path: str, line: str) -> bool:
     """Return True when ``line`` carries a security suppression the gate blocks.
 
     A line passes only when it is a whole-line Semgrep directive that names one
-    rule id listed against this exact path. Any other suppression on the same
-    line, including in a trailing comment, still blocks.
+    rule id listed against this exact path. Any other text on the line, except
+    the exact line-length waiver, blocks.
     """
     if SECURITY_SUPPRESSION_RE.search(line) is None:
         return False
@@ -360,9 +363,7 @@ def is_blocked_suppression_line(path: str, line: str) -> bool:
     if match is None:
         return True
     key = (PurePosixPath(path).as_posix(), match["rule_id"])
-    if not any((entry.path, entry.rule_id) == key for entry in ALLOWED_SEMGREP_SUPPRESSIONS):
-        return True
-    return SECURITY_SUPPRESSION_RE.search(match["rest"]) is not None
+    return not any((entry.path, entry.rule_id) == key for entry in ALLOWED_SEMGREP_SUPPRESSIONS)
 
 
 SEMGREP_SUFFIXES = frozenset({".js", ".ps1", ".psm1", ".py", ".ts", ".yaml", ".yml"})
@@ -4219,7 +4220,9 @@ def _suppression_violations_in_diff(
         if operation != "-":
             continue
         match = SECURITY_SUPPRESSION_RE.search(text)
-        if match is None:
+        # An allowed line needs no credit, so removing one earns none. Otherwise
+        # it would pay for a blocked form of the same directive.
+        if match is None or not is_blocked_suppression_line(path, text):
             continue
         removed.setdefault(path, Counter())[suppression_identity(text, match)] += 1
 

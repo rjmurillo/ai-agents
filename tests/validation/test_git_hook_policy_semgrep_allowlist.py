@@ -56,7 +56,6 @@ def test_listed_rule_on_listed_path_passes(path: str, rule: str) -> None:
         _allowed(EXEC_RULE, indent=""),
         _allowed(EXEC_RULE, indent="\t"),
         _allowed(EXEC_RULE) + f"  {NOQA}: E501",
-        _allowed(EXEC_RULE) + "  # owner ruling, issue 7591",
     ],
 )
 def test_allowed_forms_pass(line: str) -> None:
@@ -104,6 +103,15 @@ def test_line_without_suppression_never_blocks() -> None:
         pytest.param(SOURCE, _allowed(EXEC_RULE) + f"  {NOQA}", id="bare-noqa-after"),
         pytest.param(SOURCE, _allowed(EXEC_RULE) + f"  {DIRECTIVE}", id="second-bare-directive"),
         pytest.param(SOURCE, _allowed(EXEC_RULE) + " trailing", id="trailing-text"),
+        pytest.param(SOURCE, _allowed(EXEC_RULE) + "  # reason", id="trailing-comment"),
+        pytest.param(
+            SOURCE,
+            _allowed(EXEC_RULE) + "  # see, python.lang.security.audit.other.other",
+            id="trailing-extra-rule-id",
+        ),
+        pytest.param(SOURCE, _allowed(EXEC_RULE) + f" {NOQA}: E501", id="waiver-one-space"),
+        pytest.param(SOURCE, _allowed(EXEC_RULE) + f"  {NOQA}: E501,S603", id="waiver-plus-s"),
+        pytest.param(SOURCE, _allowed(EXEC_RULE) + f"  {NOQA}: E501 ", id="waiver-trailing-space"),
         pytest.param("src/claude/lib/paths.py", _allowed(EXEC_RULE), id="unlisted-file"),
         pytest.param(".claude/lib/ptk_run.py", _allowed(EXEC_RULE), id="symlink-path"),
         pytest.param("ptk_run.py", _allowed(EXEC_RULE), id="basename-only"),
@@ -298,12 +306,59 @@ def test_full_content_scan_applies_the_same_rule() -> None:
     ]
 
 
-def test_notebook_scan_never_allows_a_listed_line() -> None:
+def test_notebook_scan_applies_the_same_exact_entry_rule(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Notebook cells are decoded, so only an exact notebook entry would pass."""
+
     def notebook(source: list[str]) -> str:
         return json.dumps({"cells": [{"cell_type": "code", "source": source}]})
 
     base = notebook(["x = 1\n"])
     head = notebook(["x = 1\n", _allowed(EXEC_RULE, indent="") + "\n"])
-    assert policy._notebook_suppression_violations_for_text("HEAD", "n.ipynb", base, head) == [
-        "HEAD:n.ipynb:2"
-    ]
+    check = policy._notebook_suppression_violations_for_text
+    assert check("HEAD", "n.ipynb", base, head) == ["HEAD:n.ipynb:2"]
+    entry = policy.AllowedSemgrepSuppression("n.ipynb", EXEC_RULE, "test")
+    monkeypatch.setattr(policy, "ALLOWED_SEMGREP_SUPPRESSIONS", (entry,))
+    assert check("HEAD", "n.ipynb", base, head) == []
+
+
+# --- removal credit after merge, when the base already holds the directive ---
+
+
+def _repo_with_directive_base(tmp_path: Path, head_line: str) -> tuple[Path, str]:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    _git(repo, "config", "user.email", "test@example.com")
+    _git(repo, "config", "user.name", "Test User")
+    target = repo / SOURCE
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(_body(_allowed(EXEC_RULE)), encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "base")
+    base = _git(repo, "rev-parse", "HEAD")
+    target.write_text(
+        BASE_BODY.replace("    os.execv", head_line + "\n    os.execv"), encoding="utf-8"
+    )
+    _git(repo, "add", "-A")
+    return repo, base
+
+
+@pytest.mark.parametrize("entry_point", ENTRY_POINTS, ids=ENTRY_IDS)
+@pytest.mark.parametrize(
+    ("head_line", "expected"),
+    [
+        pytest.param("    x = 1", 0, id="directive-removed"),
+        pytest.param("    " + _allowed(EXEC_RULE), 0, id="directive-reindented"),
+        pytest.param(f"    os.getpid()  {DIRECTIVE}: {EXEC_RULE}", 1, id="moved-onto-code"),
+        pytest.param(f"    #{DIRECTIVE[2:]}:{EXEC_RULE}", 1, id="rewritten-without-spaces"),
+        pytest.param(f"    {DIRECTIVE}", 1, id="swapped-for-bare"),
+    ],
+)
+def test_removing_an_allowed_line_earns_no_credit(
+    tmp_path: Path,
+    entry_point: Callable[[Path, str], int],
+    head_line: str,
+    expected: int,
+) -> None:
+    repo, base = _repo_with_directive_base(tmp_path, head_line)
+    assert entry_point(repo, base) == expected
