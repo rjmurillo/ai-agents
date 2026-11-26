@@ -92,7 +92,7 @@ _STOP_WORDS = frozenset(
     }
 )
 
-_MAX_RECALL_RESULTS = 3
+_MAX_RECALL_RESULTS = 1
 
 # Wall-clock budget for one recall, from the start of recall_block. The host
 # kills the hook at the 15 s timeout in hooks.json. The 10 s timeout in
@@ -104,7 +104,7 @@ RECALL_DEADLINE_SECONDS = 8.0
 
 # The whole injected block, sentinels included, never exceeds this many
 # characters, whatever the memories hold.
-MAX_BLOCK_CHARS = 8000
+MAX_BLOCK_CHARS = 1600
 _CLOSING = "</memory-context>"
 _TRUNCATED = "[truncated]"
 
@@ -119,13 +119,13 @@ _MIN_QUERY_TERMS = 1
 # Minimum fraction of query terms that must name a memory (id or title) for it
 # to be injected. The file search matches any one term anywhere in a file, so
 # without this floor every prompt recalls its three highest-confidence
-# candidates. The floor is inclusive: a score of exactly 0.50 is injected, so
-# a two term prompt needs only one term to name the memory. In a sample on
-# .serena/memories, 5 of 5 prompts that named a memory were recalled, and 3 of
-# 8 unrelated prompts still injected one weak match. Short unrelated prompts
-# reach 0.50 on a single stem hit. Those figures come from that sample, not a
-# bound.
-_MIN_RELEVANCE = 0.5
+# candidates. The floor is inclusive: a score of exactly 0.60 is injected.
+# In a sample on .serena/memories, 5 of 5 prompts that named a memory were
+# recalled, and 3 of 8 unrelated prompts still injected one weak match at 0.50.
+# The 0.60 floor rejects that single-stem noise class while keeping prompts
+# whose first five terms mostly name the memory. Those figures come from that
+# sample, not a bound.
+_MIN_RELEVANCE = 0.6
 
 
 def main() -> int:
