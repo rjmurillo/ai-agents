@@ -19,6 +19,7 @@ from tests.skills.ship.ship_helpers import (
     VALIDATOR_BRANCH_EDIT,
     VALIDATOR_PASS,
     invoke,
+    pending_github_pr,
     publish,
     run_pr,
     symlink_or_skip,
@@ -99,29 +100,7 @@ class TestValidatorRefCannotBeShadowed:
 class TestDeadlineIsBound:
     def _pending(self, make_repo, fakes):
         repo = make_repo(GITHUB)
-        fakes.rule(
-            "gh",
-            ["pr", "view"],
-            {
-                "stdout": json.dumps(
-                    {"number": 9, "state": "OPEN", "author": {"login": "me"}, "url": "u"}
-                )
-            },
-        )
-        fakes.rule("gh", ["api", "user"], {"stdout": "me\n"})
-        fakes.rule(
-            "gh",
-            ["pr", "view", "9"],
-            {
-                "stdout": json.dumps(
-                    {
-                        "headRefName": "feat/ship-change",
-                        "headRefOid": git(repo, "rev-parse", "HEAD"),
-                    }
-                )
-            },
-        )
-        fakes.rule("get_pr_checks", [], {"rc": 7, "stdout": "{}\n"})
+        pending_github_pr(fakes, git(repo, "rev-parse", "HEAD"))
         return repo
 
     def test_a_rerun_cannot_extend_the_window(self, make_repo, fakes, scripts, capsys):

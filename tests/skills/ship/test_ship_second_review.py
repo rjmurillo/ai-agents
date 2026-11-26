@@ -17,6 +17,7 @@ from tests.skills.ship.ship_helpers import (
     SCRIPTS,
     VALIDATOR_PASS,
     invoke,
+    pending_github_pr,
     publish,
     run_pr,
     symlink_or_skip,
@@ -75,29 +76,7 @@ class TestTreeIgnoresScratch:
 class TestDeadlineFailsClosed:
     def _pending(self, make_repo, fakes):
         repo = make_repo(GITHUB)
-        fakes.rule(
-            "gh",
-            ["pr", "view"],
-            {
-                "stdout": json.dumps(
-                    {"number": 9, "state": "OPEN", "author": {"login": "me"}, "url": "u"}
-                )
-            },
-        )
-        fakes.rule("gh", ["api", "user"], {"stdout": "me\n"})
-        fakes.rule(
-            "gh",
-            ["pr", "view", "9"],
-            {
-                "stdout": json.dumps(
-                    {
-                        "headRefName": "feat/ship-change",
-                        "headRefOid": git(repo, "rev-parse", "HEAD"),
-                    }
-                )
-            },
-        )
-        fakes.rule("get_pr_checks", [], {"rc": 7, "stdout": "{}\n"})
+        pending_github_pr(fakes, git(repo, "rev-parse", "HEAD"))
         return repo
 
     def test_an_unsafe_scratch_dir_stops_instead_of_restarting_the_window(

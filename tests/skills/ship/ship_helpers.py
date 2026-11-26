@@ -174,3 +174,13 @@ def approved_ado_build(fakes, merge: str) -> None:
         ["pipelines", "build", "show"],
         {"stdout": json.dumps({"result": "succeeded", "sourceVersion": merge})},
     )
+
+
+def pending_github_pr(fakes, head: str, number: int = 9) -> None:
+    """Fake an owned open GitHub PR at ``head`` whose required checks are still running."""
+    pr = {"number": number, "state": "OPEN", "author": {"login": "me"}, "url": "u"}
+    fakes.rule("gh", ["pr", "view"], {"stdout": json.dumps(pr)})
+    fakes.rule("gh", ["api", "user"], {"stdout": "me\n"})
+    binding = {"headRefName": "feat/ship-change", "headRefOid": head}
+    fakes.rule("gh", ["pr", "view", str(number)], {"stdout": json.dumps(binding)})
+    fakes.rule("get_pr_checks", [], {"rc": 7, "stdout": "{}\n"})
