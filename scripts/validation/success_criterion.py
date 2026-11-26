@@ -44,10 +44,6 @@ MAX_EXIT_CODE = 255
 _PLACEHOLDER = re.compile(r"\b(tbd|todo|fixme|n/a|placeholder|lorem|xxx)\b", re.IGNORECASE)
 
 
-def _is_int(value: object) -> bool:
-    return isinstance(value, int) and not isinstance(value, bool)
-
-
 def normalize_rationale(text: str) -> str:
     """Return the rationale with case and whitespace folded, for duplicate checks."""
     return " ".join(text.lower().split())
@@ -63,7 +59,7 @@ def _check_value(kind: str, criterion: Mapping[str, object]) -> list[str]:
     if not has_value:
         return [f"kind '{kind}' requires a 'value'"]
     if kind == "exit-code":
-        if not _is_int(value) or not 0 <= value <= MAX_EXIT_CODE:  # type: ignore[operator]
+        if not isinstance(value, int) or isinstance(value, bool) or not 0 <= value <= MAX_EXIT_CODE:
             return [f"kind 'exit-code' needs an integer from 0 to {MAX_EXIT_CODE}, got {value!r}"]
         return []
     if not isinstance(value, str) or not value.strip():

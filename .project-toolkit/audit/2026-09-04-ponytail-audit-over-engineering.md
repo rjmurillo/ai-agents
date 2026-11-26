@@ -144,7 +144,7 @@ extra (`mypy`, `semgrep`, `bandit`, `pip-audit`, `ruff`, `pytest*`, `lefthook`,
    the "Session End" PR validation;
    `git_hook_policy.py session` is a validate-if-present pre-commit gate that
    `lefthook.yml` runs as `session-policy`; and
-   `scripts/validation/pre_pr_sequence.py:387` registers it as the
+   `scripts/validation/pre_pr_sequence.py:389` registers it as the
    "Session End Validation" gate.
    All three fire
    whenever a legacy log is staged or cherry-picked, so the validator stays.

@@ -125,8 +125,8 @@ def validate_agent_success_criterion(repo_root: Path) -> bool:
         print(f"  {name}: {text}", file=sys.stderr)
     print(
         "\nFix the Claude template under templates/agents/, then run "
-        "'uv run python build/scripts/build_all.py'. Contract: MUST 10 in "
-        "templates/rules/claude-agents.md. Refs issue #7639.",
+        "'uv run python build/scripts/build_all.py'. Contract: the Success "
+        "Criterion section of templates/rules/claude-agents.md. Refs issue #7639.",
         file=sys.stderr,
     )
     return False

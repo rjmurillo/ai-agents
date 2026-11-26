@@ -715,8 +715,8 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # Issue #5184; contract is MUST 9 in templates/rules/claude-agents.md.
     _Gate("Agent Delegation (src/claude/agents)", _root_only(validate_agent_delegation)),
     # ADR-065: every agent declares the signal a router retries on, and the
-    # router agents carry no supervisor vocabulary. Issue #7639; contract is
-    # MUST 10 in templates/rules/claude-agents.md.
+    # router agents carry no supervisor vocabulary. Issue #7639; contract is the
+    # Success Criterion section of templates/rules/claude-agents.md.
     _Gate(
         "Agent Success Criterion (src/claude/agents)",
         _root_only(validate_agent_success_criterion),
