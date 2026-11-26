@@ -65,11 +65,9 @@ def test_committed_hermes_tree_equals_the_render(real_config: cfg.HermesConfig) 
     tree = hermes_packs.plan_tree(_REPO_ROOT, real_config)
     out = _REPO_ROOT / real_config.output_dir
 
-    on_disk = {
-        p.relative_to(out).as_posix()
-        for p in out.rglob("*")
-        if p.is_file() and "__pycache__" not in p.parts
-    }
+    # The generator's own listing, so this test and ``--check`` skip the same
+    # bytecode (``binplace_manifest.is_bytecode_artifact``), a bare ``.pyc`` too.
+    on_disk = hermes_packs._existing_files(out)
 
     assert on_disk == set(tree)
     for rel, packed in tree.items():

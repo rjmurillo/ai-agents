@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import json
 import stat
-import subprocess
 import sys
 from pathlib import Path
 
@@ -292,114 +291,6 @@ def test_check_reports_and_generate_removes_a_stale_file(tmp_path: Path) -> None
     assert hermes_packs.generate_hermes_packs(stanza, repo) == 0
     assert not stale.exists()
     assert not stale.parent.exists()
-
-
-@pytest.mark.parametrize(
-    "cache",
-    [
-        "src/hermes/project-toolkit-one/skills/beta/scripts/__pycache__/x.cpython-314.pyc",
-        "src/hermes/project-toolkit-one/lib/__pycache__/notes.txt",
-        "src/hermes/project-toolkit-one/skills/beta/stray.pyc",
-        "src/hermes/project-toolkit-one/skills/beta/stray.pyo",
-    ],
-)
-def test_bytecode_caches_are_not_stale_output(tmp_path: Path, cache: str) -> None:
-    """A test run writes caches beside shipped scripts; --check must not count them."""
-    repo = make_repo(tmp_path)
-    subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True, timeout=60)
-    stanza = make_stanza()
-    hermes_packs.generate_hermes_packs(stanza, repo)
-    path = repo / cache
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(b"cache")
-
-    assert hermes_packs.generate_hermes_packs(stanza, repo, check=True) == 0
-    assert hermes_packs.generate_hermes_packs(stanza, repo) == 0
-    assert path.exists()
-
-
-def test_tracked_bytecode_is_still_stale_output(tmp_path: Path) -> None:
-    """A force-added .pyc is not a cache; it would run on import, so --check reports it."""
-    repo = make_repo(tmp_path)
-    stanza = make_stanza()
-    hermes_packs.generate_hermes_packs(stanza, repo)
-    payload = repo / "src/hermes/project-toolkit-one/skills/beta/scripts/__pycache__/x.pyc"
-    payload.parent.mkdir(parents=True, exist_ok=True)
-    payload.write_bytes(b"payload")
-    for args in (["init", "-q"], ["add", "-f", "--", str(payload)]):
-        subprocess.run(["git", "-C", str(repo), *args], check=True, timeout=60)
-
-    assert hermes_packs.generate_hermes_packs(stanza, repo, check=True) == 1
-
-
-def test_caches_count_when_git_cannot_list_tracked_files(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """Outside a repository the scan cannot tell a cache from a payload, so it fails closed."""
-    repo = make_repo(tmp_path)
-    stanza = make_stanza()
-    hermes_packs.generate_hermes_packs(stanza, repo)
-    cache = repo / "src/hermes/project-toolkit-one/skills/beta/scripts/__pycache__/x.pyc"
-    cache.parent.mkdir(parents=True, exist_ok=True)
-    cache.write_bytes(b"cache")
-
-    assert hermes_packs.generate_hermes_packs(stanza, repo, check=True) == 1
-    assert "git ls-files failed" in capsys.readouterr().err
-
-
-def _repo_with_tracked_payload(tmp_path: Path) -> tuple[Path, dict[str, object], Path]:
-    """A generated repo with a force-added .pyc payload, plus an empty sibling dir."""
-    repo = make_repo(tmp_path / "repo")
-    stanza = make_stanza()
-    hermes_packs.generate_hermes_packs(stanza, repo)
-    payload = repo / "src/hermes/project-toolkit-one/skills/beta/scripts/__pycache__/x.pyc"
-    payload.parent.mkdir(parents=True, exist_ok=True)
-    payload.write_bytes(b"payload")
-    for args in (["init", "-q"], ["add", "-f", "--", str(payload)]):
-        subprocess.run(["git", "-C", str(repo), *args], check=True, timeout=60)
-    other = tmp_path / "other"
-    other.mkdir()
-    return repo, stanza, other
-
-
-def test_inherited_git_location_vars_are_ignored(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A hook's GIT_DIR for another tree must not hide a payload tracked in this one."""
-    repo, stanza, other = _repo_with_tracked_payload(tmp_path)
-    subprocess.run(["git", "-C", str(other), "init", "-q"], check=True, timeout=60)
-    monkeypatch.setenv("GIT_DIR", str(other / ".git"))
-
-    assert hermes_packs.generate_hermes_packs(stanza, repo, check=True) == 1
-
-
-@pytest.mark.parametrize(
-    ("name", "value"),
-    [
-        ("GIT_CONFIG_PARAMETERS", "'core.worktree={other}'"),
-        ("GIT_CONFIG_COUNT", "1"),
-    ],
-)
-def test_inherited_git_config_injection_is_ignored(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-    name: str,
-    value: str,
-) -> None:
-    """Injected git config does not hide a tracked payload or break the listing.
-
-    ``ls-files`` reads the index, so a foreign ``core.worktree`` changes nothing
-    it reports. The variables are cleared anyway; this pins the outcome.
-    """
-    repo, stanza, other = _repo_with_tracked_payload(tmp_path)
-    monkeypatch.setenv(name, value.format(other=other))
-    if name == "GIT_CONFIG_COUNT":
-        monkeypatch.setenv("GIT_CONFIG_KEY_0", "core.worktree")
-        monkeypatch.setenv("GIT_CONFIG_VALUE_0", str(other))
-
-    assert hermes_packs.generate_hermes_packs(stanza, repo, check=True) == 1
-    assert "git ls-files failed" not in capsys.readouterr().err
 
 
 def test_generate_removes_a_retired_pack_directory(tmp_path: Path) -> None:

@@ -30,9 +30,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from binplace_manifest import is_bytecode_artifact
-
-# Re-exported so hermes_packs reaches the cache filter through its existing import.
-from hermes_git_tracked import drop_untracked_caches as drop_untracked_caches
 from hermes_pack_config import (
     HERMES_MAX_FILE_BYTES,
     HERMES_MAX_PACK_BYTES,

@@ -1,6 +1,6 @@
 ---
 id: ADR-089
-status: proposed
+status: accepted
 date: 2026-07-27
 decision-makers: [rjmurillo]
 supersedes: []
@@ -13,7 +13,7 @@ implemented: true
 
 ## Status
 
-Proposed. The removal is implemented in the same change that files this ADR, so
+Accepted 2026-11-25 by owner direction (issue #7636). The removal was implemented in the same change that filed this ADR, so
 the document records a decision already carried out rather than one awaiting
 execution. On reversal, see the Consequences section: the historical artifact is
 readable in git history, and the integration is restorable with rework rather
@@ -156,18 +156,18 @@ the removal. Issue 3631.
 ## Decision
 
 Delete the Tier 3 causal graph and all machinery that exists only to maintain
-it:
+it. Paths of deleted files below are plain text, since they no longer exist:
 
-- `.project-toolkit/memory/causality/causal-graph.json`
+- .project-toolkit/memory/causality/causal-graph.json
 - `update_causal_graph.py`, `backfill_episode_provenance.py`, and the
   `causal-graph.schema.json` resource, in both the Claude and Copilot CLI skill
   trees
-- `scripts/validation/merge_causal_graph.py`,
-  `scripts/maintenance/repair_causal_graph_ids.py`, and
-  `scripts/maintenance/install_merge_drivers.py`
+- scripts/validation/merge_causal_graph.py,
+  scripts/maintenance/repair_causal_graph_ids.py, and
+  scripts/maintenance/install_merge_drivers.py
 - the `update-causal-graph` and `install-merge-drivers` lefthook jobs
 - the `.gitattributes` merge-driver registration block
-- the causal and pattern functions in `memory_core/reflexion_memory.py`
+- the causal and pattern functions in `src/claude/skills/memory/memory_core/reflexion_memory.py`
   (`add_causal_node`, `add_causal_edge`, `get_causal_path`, `add_pattern`,
   `get_patterns`, `get_anti_patterns`) and their re-exports
 - the tests that exercised only the above
