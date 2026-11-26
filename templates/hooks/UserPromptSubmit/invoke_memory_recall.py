@@ -10,7 +10,7 @@ install copy (``.claude/hooks/UserPromptSubmit/``, whose ``.claude/lib`` links
 to the shipped tree).
 
 Customer value: a prompt that names a Serena memory in the user's own
-repository gets up to three matching memories injected, so the model starts
+repository gets the best matching memory injected, so the model starts
 the turn with decisions the team already recorded instead of re-deriving them.
 Off: AI_AGENTS_MEMORY_RECALL=0|off|false (read before anything is imported).
 

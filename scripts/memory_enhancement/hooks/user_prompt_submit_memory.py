@@ -3,7 +3,7 @@
 
 Searches the repository memory store (ADR-126) for content matching the prompt,
 keeps only results whose relevance to the prompt reaches
-``_MIN_RELEVANCE``, and injects the top ones via stdout. A prompt with no
+``_MIN_RELEVANCE``, and injects the top one via stdout. A prompt with no
 relevant memory injects nothing.
 
 Hook Type: UserPromptSubmit (Claude Code). Copilot CLI drops config-file
@@ -118,8 +118,8 @@ _MIN_QUERY_TERMS = 1
 
 # Minimum fraction of query terms that must name a memory (id or title) for it
 # to be injected. The file search matches any one term anywhere in a file, so
-# without this floor every prompt recalls its three highest-confidence
-# candidates. The floor is inclusive: a score of exactly 0.60 is injected.
+# without this floor every prompt recalls its highest-confidence candidate.
+# The floor is inclusive: a score of exactly 0.60 is injected.
 # In a sample on .serena/memories, 5 of 5 prompts that named a memory were
 # recalled, and 3 of 8 unrelated prompts still injected one weak match at 0.50.
 # The 0.60 floor rejects that single-stem noise class while keeping prompts
