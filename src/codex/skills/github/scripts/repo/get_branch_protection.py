@@ -165,6 +165,12 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
+def _branch_missing(owner: str, repo: str, branch: str) -> bool:
+    """True when the branch itself does not exist, so a protection 404 means something."""
+    branch_obj, branch_error = gh_api_get(f"repos/{owner}/{repo}/branches/{branch}")
+    return branch_obj is None and ("404" in branch_error or "Not Found" in branch_error)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     fmt = get_output_format(args.output_format)
@@ -183,8 +189,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
-    branch_obj, branch_error = gh_api_get(f"repos/{owner}/{repo}/branches/{args.branch}")
-    if branch_obj is None and ("404" in branch_error or "Not Found" in branch_error):
+    missing = _branch_missing(owner, repo, args.branch)
+    if missing:
         write_skill_error(
             f"Branch '{args.branch}' not found in {owner}/{repo}; a mistyped branch is not an unprotected one",
             2,
