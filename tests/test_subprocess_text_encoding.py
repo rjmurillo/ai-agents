@@ -16,7 +16,9 @@ reformatted call site cannot slip past.
 
 This guard checks only the UTF-8 encoding. ``check_subprocess_encoding.py``
 checks for the exact literal ``errors="replace"``. Together they require UTF-8
-with replacement. Mark intentional strict decoding with ``# subprocess-encoding: strict-ok``.
+with replacement for the call shapes both model; the known gaps are pinned in
+``tests/validation/test_subprocess_decoding_policy_conformance.py``. Mark
+intentional strict decoding with ``# subprocess-encoding: strict-ok``.
 
 The checks below are deliberately conservative, because a guard meant to hold
 forever is worth more than any single call site it protects. Four rounds of
