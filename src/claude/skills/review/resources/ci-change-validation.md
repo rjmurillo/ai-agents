@@ -24,7 +24,8 @@ Decide by effect, not by path. It applies when the diff can change any of these:
 - what an artifact contains, or what it is named
 - a script, composite action, reusable workflow, or data file that a workflow reads
 
-It does not apply to a docs-only diff.
+It does not apply to a docs-only diff, unless a workflow reads a changed file.
+A prompt or data file that a workflow loads and grades is a CI input.
 
 ## Seven questions
 
@@ -32,9 +33,12 @@ Answer each one from the diff and from the evidence the pull request shows. The
 author or a maintainer supplies any run. "Nothing proves this" is a finding.
 
 1. **Consumers.** Each changed script, action, reusable workflow, data file, job
-   output, or artifact may have readers. Search readable workflows for the file
-   name, local `uses:` path, output name, or artifact name as literal text.
-   If you cannot search, ask the author to list the readers. Mark the list
+   output, or artifact may have readers. Search readable workflows and local
+   action definitions for the file name, local `uses:` path, output name, or
+   artifact name as literal text. A hit inside a composite action or a reusable
+   workflow is not the end. Search for that definition's own callers, and
+   repeat until you reach workflows. If you cannot search, or a definition in
+   the chain is unreadable, ask the author to list the readers. Mark the list
    unknown until you have evidence.
 2. **Proof split.** Put each reader in one of three groups: it runs on this pull
    request, a unit test covers its logic, or nothing covers it. The third group
@@ -80,7 +84,7 @@ pull request to mislead a reviewer.
 
 | Documented behavior | Consequence for the review |
 |---|---|
-| `schedule` runs on the latest commit of the default branch. `workflow_run` runs with the default branch as its ref. | An edit to such a workflow has not run on the pull request. It first runs once it reaches the default branch. |
+| `schedule` runs on the latest commit of the default branch. `workflow_run` runs with the default branch as its ref. | The `schedule` or `workflow_run` path of an edited workflow has not run on the pull request. It first runs once the edit reaches the default branch. A step that also ran under a pull request trigger is evidence only for what that run exercised. |
 | `workflow_dispatch` takes the dispatched branch or tag as its ref, and that ref's last commit as its SHA. It triggers only when the workflow file exists on the default branch. | A dispatch on the pull request branch runs that branch's commit. A brand-new workflow cannot be dispatched before it reaches the default branch. |
 | `pull_request_target` runs in the context of the default branch of the base repository, not the merge commit that `pull_request` uses. | The run does not prove the pull request's workflow edit ran. |
 | A skipped job reports its status as "Success". It does not block a merge, even as a required check. | A job whose new `if:` is always false looks the same as a pass. |
@@ -109,7 +113,7 @@ Check what a run produced, not its status.
 |---|---|
 | A new or changed check step | The step's own output in the job log. A step that never ran has no output. Then one run on bad input that fails for the stated reason. |
 | Something meant to skip | The intended job shows as skipped, for the intended reason, and unrelated jobs still ran. |
-| Matrix, shard, or selection logic | The sorted job-name list of a recent base-branch run, compared with this run. Every job missing from this run needs a reason. |
+| Matrix, shard, or selection logic | The sorted job-name list of a recent base-branch run, compared with this run on the same event inputs. Then the shards, projects, or test IDs each job selected, before and after. A job can keep its name and run fewer tests. Every missing job or test group needs a reason. |
 | An artifact's name, layout, or contents | The downloaded artifact, inspected. Then the download step of each consumer, including consumers in other workflows. |
 | Logic that no pull request event runs | One invariant, named and checked without a live run: a lint, a dry run, or a fixture test. |
 

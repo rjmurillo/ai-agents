@@ -57,8 +57,9 @@ technique that owner lacks? A technique passed only with all three of these:
   new. No product command was carried over.
 - Effect check, run 2026-11-26. Fresh reviewers got the axis prompt as text and
   one real diff from this repository. Each prompt ran once per case, on one
-  model. One run per case shows a difference, not a rate. The check ran on the
-  first draft of the axis text. Later wording edits were not re-run.
+  model. One run per case shows a difference, not a rate. The first three
+  cases below ran on the first draft of the axis text. The last case reran two
+  of them on the final text.
   - Commit `af9a4d392` (2026-11-03) edits a workflow that only `schedule` and
     `workflow_dispatch` start. The old prompt returned PASS with no findings.
     The new prompt returned WARN and named the path the pull request never ran.
@@ -70,7 +71,12 @@ technique that owner lacks? A technique passed only with all three of these:
   - The first draft linked the resource by relative path only. No reviewer
     opened it. The axis now names two paths to try, and all three later
     reviewers opened it. That was tested in this checkout only. An install
-    where neither path opens gets the four inline checks alone.
+    where no path opens gets the four inline checks alone.
+  - Rerun on the final axis text, 2026-11-26, after review feedback on the
+    pull request. One fresh reviewer per case, same model, new prompt only.
+    Commit `af9a4d392` (2026-11-03) returned WARN and named the scheduled path
+    as not run. Commit `740c858f6` (2026-11-25) returned PASS with a note that
+    the bump first runs after merge. Both reviewers opened the resource.
 - Routing is unchanged. By path, `select_axes.py` picks the devops axis for
   CI and deploy files, such as workflow and action files. A script-only CI change reaches it through a diff
   effect, a pin, or a deep review.
