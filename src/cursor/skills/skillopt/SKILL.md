@@ -163,7 +163,8 @@ One optimization step:
    subagent or another session (Precondition 4), holds the `sel` prompts,
    verifiers, and results in every step, and reports only the verdict back.
    Each runner preflights its own tasks: prompt, verifier, inputs, fixtures,
-   and permitted scope. Run the rollout under exactly the scope the task grants.
+   and permitted scope, then rolls out under exactly that scope. The `sel`
+   runner runs `pin` before any rollout.
    A rollout with the wrong artifact or a scope change is invalid, not a pass
    or a fail; mark the task `"status": "invalid"` and replace it. Grade the
    complete persisted output against every clause of the verifier. A runner's
@@ -173,21 +174,19 @@ One optimization step:
    incumbent: `skillopt.py hash target.md`. For tasks with an argv `command`,
    `skillopt.py run --eval eval.json --bundle DIR --role incumbent --out-dir
    results/` runs them and writes `results/incumbent_results.json`. It
-   replaces the whole file, so run it first and add your grades for tasks with
-   no `command` after it finishes. Read the security note in
-   `references/eval-set-format.md` first, because `eval.json` commands run any
-   binary on `PATH`. When the target is a skill directory with scripts, pass
-   the directory to `hash` and `apply`; it hashes as one whole bundle. When the
-   manifest sets
-   `"scorer": "nondeterministic"`, the `sel` runner also reruns the
-   byte-identical incumbent into `null_results.json` now (see Before
-   promotion, step 2).
+   replaces the whole file; run it first, then grade tasks with no `command`.
+   Read the security note in `references/eval-set-format.md` first:
+   `eval.json` commands run any binary on `PATH`. For a skill directory with
+   scripts, pass the directory to `hash` and `apply`; it hashes as one bundle.
+   For `"scorer": "nondeterministic"` the `sel` runner also reruns the
+   byte-identical incumbent into `null_results.json` (see Before promotion,
+   step 2).
 2. **Budget.** `skillopt.py budget --step T --total N` prints L_t, the
    cosine-decayed cap on atomic patches this step. T is 0-based, from 0 to
    N-1; `--step N` exits 2 with `out of range`.
-3. **Reflect.** Failures become corrective rules; successes become behaviors
-   to preserve. Write at most L_t patches to `patches.json`. Use only `train`
-   evidence.
+3. **Reflect.** Follow `references/evidence-manifesto.md`. Failures become
+   corrective rules; successes become behaviors to preserve. Write at most
+   L_t patches to `patches.json`. Use only `train` evidence.
    Read train traces and train-split reviewer notes, not only outputs. Propose
    `delete` patches for instructions that cause wasted work or when the gate
    plateaus. Helper code every rollout rewrites becomes a bundled script; hash
@@ -205,11 +204,12 @@ One optimization step:
 6. **Re-roll** every task on `candidate.md` into `candidate_results.json`.
    For a bundle, `apply` writes a new directory. Finish every edit to its
    scripts first, then run the command tasks, then `hash` the final
-   `CANDIDATE_DIR`. That digest is the candidate's identity, so results from
-   an earlier state of the bundle would gate a different candidate. The `sel`
-   runner does the `sel` half. For command tasks, run
+   `CANDIDATE_DIR`. That digest is the candidate's identity; results from an
+   earlier bundle state gate a different candidate. The `sel` runner does the
+   `sel` half. For command tasks, run
    `skillopt.py run --eval eval.json --bundle CANDIDATE_DIR --role candidate
-   --out-dir results/`, then add your grades for tasks with no `command`.
+   --out-dir results/`, then grade tasks with no `command`.
+   For an accuracy edit, run `manifesto-verify`.
 7. **Gate.** `skillopt.py pair-gate --eval eval.json --incumbent-results
    incumbent_results.json --candidate-results candidate_results.json`. If you
    used `run --out-dir results/`, pass the files under `results/`. For a
