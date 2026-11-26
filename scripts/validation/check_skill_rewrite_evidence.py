@@ -47,7 +47,8 @@ For a gated skill the check requires, and fails closed without:
   whose adding commit is an ancestor of every other's (one on the base ref
   counts by its own commit, so it precedes a branch run). Two added on
   parallel branches, or in one commit, have no first: the check fails closed
-  and never picks the passing one. When none record the head scenario sha256,
+  and never picks the passing one. Only a skill fix, which starts a new first
+  run, clears it. When none record the head scenario sha256,
   the same rule runs over the prompt-surface matches and fails on that
   identity. The deciding file must match the other identities: prompt path,
   scenario path and sha256, a base commit that is an ancestor of the base
@@ -299,10 +300,15 @@ def verify_skill(ctx: Context, name: str, head: SkillSide) -> list[str]:
 
 
 def _adding_commit(ctx: Context, path: str, added: dict[str, int]) -> str | None:
-    """The commit that added *path*: from the log, else the branch scan (a merge's own add)."""
+    """The commit that added *path*: the branch scan first, else the log for a base file.
+
+    The branch scan sees a merge's own add, which the log does not. It also
+    keeps a branch file on its branch commit when an older base commit once
+    added and deleted the same path.
+    """
+    if path in added:
+        return ctx.commits[added[path]]
     found: str | None = ctx.git.adding_commit(ctx.head, path)
-    if found is None and path in added:
-        found = ctx.commits[added[path]]
     return found
 
 
@@ -342,7 +348,7 @@ def _deciding_run(
 def _ambiguous(one: str, other: str, where: str) -> str:
     return (
         f"results files {one} and {other} were added {where}, so the first run is "
-        "ambiguous; remove one or rerun"
+        "ambiguous; results files are append-only, so fix the skill to start a new first run"
     )
 
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -26,7 +27,7 @@ from tests.validation.skill_rewrite_helpers import (
 
 __all__ = ["repo"]
 
-AMBIGUOUS = "so the first run is ambiguous; remove one or rerun"
+AMBIGUOUS = "so the first run is ambiguous; results files are append-only, so fix the skill"
 FAILED = {"S1": ("PPP", "FFF")}
 
 
@@ -73,6 +74,45 @@ class TestInheritedRuns:
         code, out = run(repo, capsys)
         assert code == 1
         assert "run-9.json: recomputed gate is FAIL" in out
+
+    def test_a_branch_run_on_a_path_the_base_once_held_keeps_its_branch_order(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        on_main(repo, {f"{EVID}/run-1.json": "{}"}, "an old run")
+        git(repo, "checkout", "-q", "main")
+        git(repo, "rm", "-q", f"{EVID}/run-1.json")
+        commit(repo, "drop the old run")
+        git(repo, "checkout", "-q", "-B", "feature")
+        driver_change(repo)
+        write(repo, f"{EVID}/run-2.json", _run_text(repo, failed=True))
+        commit(repo, "first run fails")
+        write(repo, f"{EVID}/run-1.json", results(repo))
+        commit(repo, "a passing run on the reused path")
+        code, out = run(repo, capsys)
+        assert code == 1
+        assert "run-2.json: recomputed gate is FAIL" in out
+
+
+class TestAddingCommit:
+    @pytest.mark.skipif(os.name == "nt", reason="NTFS rejects * in a file name")
+    def test_a_file_named_as_a_glob_does_not_borrow_a_neighbour_s_commit(self, repo: Path) -> None:
+        write(repo, f"{EVID}/run-1.json", "{}")
+        commit(repo, "a neighbour")
+        write(repo, f"{EVID}/*.json", "{}")
+        own = commit(repo, "a file named as a glob")
+        assert checker.Git(repo).adding_commit("HEAD", f"{EVID}/*.json") == own
+
+    def test_a_reused_path_reports_its_newest_add(self, repo: Path) -> None:
+        write(repo, f"{EVID}/run-1.json", "{}")
+        commit(repo, "old add")
+        git(repo, "rm", "-q", f"{EVID}/run-1.json")
+        commit(repo, "delete")
+        write(repo, f"{EVID}/run-1.json", "{}")
+        newest = commit(repo, "new add")
+        assert checker.Git(repo).adding_commit("HEAD", f"{EVID}/run-1.json") == newest
+
+    def test_a_path_no_commit_added_is_none(self, repo: Path) -> None:
+        assert checker.Git(repo).adding_commit("HEAD", f"{EVID}/never.json") is None
 
 
 class TestAmbiguousRuns:

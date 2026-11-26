@@ -115,13 +115,17 @@ class Git:
         return {path: meta.split()[2] for meta, _, path in (e.partition("\t") for e in entries)}
 
     def adding_commit(self, ref: str, path: str) -> str | None:
-        """The oldest commit reachable from *ref* that added *path*, or None when none shows it.
+        """The newest commit reachable from *ref* that added *path*, or None when none shows it.
 
         A merge shows no diff without ``-m``, so a file that only a merge
         commit introduced has no entry here. ``--topo-order`` puts every
-        parent after its children, so the last line is the oldest.
+        child before its parents, so the first line is the newest add: the
+        one that put the file at *ref*, not an older add of a path that was
+        deleted and reused. ``--literal-pathspecs`` stops a file named
+        ``*.json`` from matching its neighbours.
         """
         out = self.text(
+            "--literal-pathspecs",
             "log",
             "--full-history",
             "--topo-order",
@@ -132,7 +136,7 @@ class Git:
             path,
         )
         shas = out.split()
-        return shas[-1] if shas else None
+        return shas[0] if shas else None
 
     def blob(self, ref: str, path: str) -> bytes:
         return self._run("cat-file", "blob", f"{ref}:{path}").stdout
