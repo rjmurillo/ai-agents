@@ -1169,8 +1169,8 @@ def _skipped_dependents(bodies: dict[str, object], skipped: Iterable[str]) -> di
 
 
 # Jobs that only report the result of other jobs, from inputs act's synthetic
-# payload cannot produce. plugin-cli-smoke.yml's smoke-result job runs on every
-# outcome, so under act it reports the path filter's missing-SHA failure as its
+# payload cannot produce. plugin-cli-smoke.yml's smoke-result job runs unless the
+# run is cancelled, so under act it reports the path filter's missing-SHA failure as its
 # own failure. Its script is unit tested, and the dry run still checks its wiring.
 _ACT_REPORTER_JOBS: dict[str, dict[str, str]] = {
     ".github/workflows/plugin-cli-smoke.yml": {
@@ -1476,8 +1476,10 @@ def _is_act_duplicate_base_limitation(text: str) -> bool:
 #      remote yet (every pre-push run) cannot be fetched, and git exits 128
 #      after ``fatal: remote error: upload-pack: not our ref <40 hex>``. That
 #      fatal line is the evidence: a nonexistent explicit ref fails with
-#      ``couldn't find remote ref`` instead, and keeps blocking. The workflow
-#      pins no explicit ref (a test reads every checkout's ``ref:``).
+#      ``couldn't find remote ref`` instead, and keeps blocking. git prints the
+#      same line for any unknown 40-hex SHA, so a test pins what the workflow
+#      can feed it: every trusted checkout takes the base.sha expression with a
+#      github.sha fallback and sets no ``repository:``.
 #   2. With a pushed commit the checkout works, and cli_smoke_paths.py exits 2
 #      with "--base and --head are required for pull_request".
 # GitHub populates both SHAs, so CI never hits either. The hook skipped this
@@ -1525,9 +1527,18 @@ _ACT_SMOKE_PAYLOAD_PATTERN = re.compile(
 )
 
 
+_ACT_SMOKE_FAILURE_LINE = re.compile(
+    rf"^[ \t]*(?P<label>{_ACT_SMOKE_WORKFLOW_LABEL})[ \t]+\S+[ \t]+"
+    r"Failure - Main (?P<step>.+?) \[[^\]]*\][ \t]*$"
+)
+
+
 def _smoke_job_name(label: str) -> str:
-    """Job name inside ``[Plugin CLI Smoke/<job>]``, without act's width padding."""
-    return label.strip("[]").split("/", 1)[1].strip()
+    """Job name inside ``[Plugin CLI Smoke/<job>]``, without act's width padding.
+
+    ``label`` may carry leading whitespace from the log line it was cut from.
+    """
+    return label.strip().strip("[]").split("/", 1)[1].strip()
 
 
 def _is_act_smoke_payload_limitation(text: str) -> bool:
@@ -1539,30 +1550,26 @@ def _is_act_smoke_payload_limitation(text: str) -> bool:
     """
     if not _ACT_SMOKE_PAYLOAD_PATTERN.search(text):
         return False
-    allowed = tuple(
-        f"{_ACT_MAIN_FAILURE_MARKER}{step}"
-        for step in (*_ACT_SMOKE_CHECKOUT_STEPS, _ACT_SMOKE_DECIDE_STEP)
-    )
-    lines = text.splitlines()
+    allowed_steps = {*_ACT_SMOKE_CHECKOUT_STEPS, _ACT_SMOKE_DECIDE_STEP}
+    # Split on \n only, as the line regexes do: str.splitlines() also breaks on
+    # U+2028 and U+0085, which a step could print to forge a labelled line.
+    lines = re.split(r"\r?\n", text)
     unknown_sha_jobs: set[str] = set()
     for line in lines:
         if _ACT_SMOKE_FATAL_LINE.match(line) is None:
             continue
-        unknown_sha = _ACT_SMOKE_UNKNOWN_SHA_LINE.match(line.rstrip())
+        unknown_sha = _ACT_SMOKE_UNKNOWN_SHA_LINE.match(line)
         if unknown_sha is None:
             return False
         unknown_sha_jobs.add(_smoke_job_name(unknown_sha.group("label")))
-    checkout_failures = tuple(
-        f"{_ACT_MAIN_FAILURE_MARKER}{step}" for step in _ACT_SMOKE_CHECKOUT_STEPS
-    )
     for line in lines:
         if _ACT_MAIN_FAILURE_MARKER not in line:
             continue
-        prefix = _ACT_SMOKE_LABEL_PREFIX.match(line)
-        if prefix is None or not any(name in line for name in allowed):
+        failure = _ACT_SMOKE_FAILURE_LINE.match(line)
+        if failure is None or failure.group("step") not in allowed_steps:
             return False
-        if any(name in line for name in checkout_failures) and (
-            _smoke_job_name(prefix.group(0)) not in unknown_sha_jobs
+        if failure.group("step") in _ACT_SMOKE_CHECKOUT_STEPS and (
+            _smoke_job_name(failure.group("label")) not in unknown_sha_jobs
         ):
             return False
     return True

@@ -314,3 +314,43 @@ def test_the_reporter_table_names_jobs_that_exist() -> None:
     for wf, reporters in w._ACT_REPORTER_JOBS.items():
         jobs = yaml.safe_load((REPO_ROOT / wf).read_text(encoding="utf-8"))["jobs"]
         assert set(reporters) <= set(jobs), wf
+
+
+def test_a_failure_line_with_extra_words_in_the_step_name_still_blocks() -> None:
+    """Step names match exactly; a step named like an allowed one plus text is another step."""
+    text = _decide_failure(step=f"{_DECIDE} and then something else")
+
+    assert w._act_limitation_hint(text, _EVENT) is None
+
+
+def test_a_unicode_line_break_cannot_forge_a_vouching_fatal_line() -> None:
+    """Lines split on newline only, as the regexes do, so U+2028 cannot start a new line."""
+    unexplained = _checkout_failure(_FILTER_JOB, _FILTER_CHECKOUT, fatal=None)
+    forged = f"      {_GATE_JOB}   | echo       {_FILTER_JOB}   | {_UNKNOWN_SHA_FATAL}\n"
+
+    assert w._act_limitation_hint(unexplained + forged, _EVENT) is None
+
+
+def test_hint_accepts_git_s_three_fold_fetch_retry() -> None:
+    """actions/checkout retries the fetch, so a real log repeats the fatal line."""
+    fatal = f"      {_FILTER_JOB}   | {_UNKNOWN_SHA_FATAL}\n"
+    text = fatal * 2 + _checkout_failure(_FILTER_JOB, _FILTER_CHECKOUT)
+
+    assert w._act_limitation_hint(text, _EVENT) is not None
+
+
+def test_no_checkout_in_the_workflow_names_another_repository() -> None:
+    """git prints the same unknown-SHA line for a foreign repository, so none may be set."""
+    workflow = yaml.safe_load(
+        (REPO_ROOT / ".github" / "workflows" / "plugin-cli-smoke.yml").read_text(encoding="utf-8")
+    )
+    checkouts = [
+        step
+        for job in workflow["jobs"].values()
+        for step in job["steps"]
+        if str(step.get("uses", "")).startswith("actions/checkout@")
+    ]
+
+    assert checkouts
+    for step in checkouts:
+        assert "repository" not in (step.get("with") or {}), step.get("name")
