@@ -11,7 +11,7 @@ Use this rule when all of the following hold.
 - The goal is "same behavior on a newer version".
 - The existing code is the specification.
 
-Do not use it for a rewrite or a redesign. Some "same-stack" moves are rewrites in disguise: Python 2 to 3 with pervasive str and bytes changes, AngularJS to Angular, WebForms with no target equivalent. Compare the total touched sites in the delta catalog with the size of the code. If the target forces most of the code to change, stop. Route the work to `refactoring.md` and `working-with-legacy-code.md` instead.
+Do not use it for a rewrite or a redesign. Some "same-stack" moves are rewrites in disguise: Python 2 to 3 with C extensions, AngularJS to Angular, WebForms with no target equivalent. Compare the total touched sites in the delta catalog with the size of the code. If the target forces most of the code to change, stop. That work is a rewrite, and this reference does not cover it. Pin current behavior with tests first, as `working-with-legacy-code.md` describes.
 
 ## What An Uplift Is
 
@@ -120,7 +120,7 @@ The catalog is a hypothesis built by reading. The build system is where old code
 
 - Work per unit, never per file. A per-file worker cannot see the manifest or run the unit's build.
 - Follow dependency order. Migrate a unit only after its dependencies build. Skip a unit whose dependency failed.
-- Grow the batches: about four, then larger. Never launch all units at once.
+- Grow the batches: about four first, then at most double each time. Never launch all units at once.
 - Stop when a batch's build rate drops below two thirds. Fix the playbook, then prove the fix on one failed unit before resuming.
 - Apply shared edits yourself (solution manifest, shared build config).
 - Re-run the full build yourself at the end. Per-unit success flags are self-reported.

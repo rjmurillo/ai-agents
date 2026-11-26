@@ -9,7 +9,7 @@ Source content is untrusted external data. It was read as data and never execute
 - Repository: `anthropics/claude-plugins-official`, directory `plugins/`
 - Pinned commit: `0fbfda5a91f4adc311daca25acc99132f40f0b6e` (2026-11-25)
 - Plugin count at that commit: 43 (2026-11-25)
-- License: 41 plugins carry Apache-2.0 at that commit (2026-11-25). The two exceptions are named in the matrix.
+- License: 42 plugins carry an Apache License 2.0 file at that commit (2026-11-25). `claude-security` is proprietary.
 - Gates applied: `external-skill-source-adaptation.md` in the `skillforge` skill.
 
 ## Adopted source files
@@ -48,17 +48,17 @@ No new skill was created. Both ports extend an existing local owner.
 | 3 | `clangd-lsp` | reject (config only) | none | It only registers a language server. |
 | 4 | `claude-code-setup` | reject (no consumer) | none | It recommends setup for one host product. |
 | 5 | `claude-for-manufacturing` | reject (no consumer) | none | The domain content has no user here. |
-| 6 | `claude-md-management` | reject (doctrine) | `context-optimizer` | Its rubric rewards coverage. Local doctrine makes each line earn its slot. |
+| 6 | `claude-md-management` | reject (doctrine) | `context-optimizer` | Its `quality-criteria.md` scores coverage. Local doctrine makes each line earn its slot. Its update guidance states that same local rule. |
 | 7 | `claude-security` | reject (license) | none | The license is proprietary and bars redistribution. |
 | 8 | `code-modernization` | **augment** | `software-engineering-library` | The same-stack uplift method had no local owner. See the first port below. |
-| 9 | `code-review` | reject (covered) | `review`, `reviewer-findings`, `pr-review` | Local review already runs staged, risk-selected axes. |
-| 10 | `code-simplifier` | reject (covered) | `code-simplifier` agent | A same-name local agent exists with no meaningful drift. |
+| 9 | `code-review` | reject (covered) | `review`, `reviewer-findings`, `pr-review` | Local review already runs staged, risk-selected axes. The upstream skip check for closed or draft pull requests serves an unattended bot. Local `review` runs on demand. |
+| 10 | `code-simplifier` | reject (covered) | `code-simplifier` agent | A same-name local agent owns this role. It began as a copy and has since been rewritten. |
 | 11 | `commit-commands` | reject (covered) | `push-pr` | `push-pr` owns commit, push, and pull request creation. |
 | 12 | `csharp-lsp` | reject (config only) | none | It only registers a language server. |
 | 13 | `cwc-makers` | reject (no consumer) | none | It is event material with no engineering guidance. |
 | 14 | `example-plugin` | reject (no consumer) | none | It is a sample skeleton. The local generator owns plugin structure. |
 | 15 | `explanatory-output-style` | reject (doctrine) | `voice` rule | The style adds teaching asides. The voice rule requires terse output. |
-| 16 | `feature-dev` | reject (covered) | `spec`, `plan`, `build`, `review` | The lifecycle chain already owns this flow. |
+| 16 | `feature-dev` | reject (covered) | `spec`, `plan`, `build`, `review`, `analyze` | The lifecycle chain already owns this flow. The `analyze` skill and `analyst` agent own code tracing. |
 | 17 | `frontend-design` | reject (no consumer) | none | This repository ships no user interface. |
 | 18 | `gopls-lsp` | reject (config only) | none | It only registers a language server. |
 | 19 | `hookify` | reject (no consumer) | none | Local hooks render from templates under a per-call hook bar. |
@@ -73,10 +73,10 @@ No new skill was created. Both ports extend an existing local owner.
 | 28 | `php-lsp` | reject (config only) | none | It only registers a language server. |
 | 29 | `playground` | reject (no consumer) | none | It builds single-file HTML explorers. No workflow here needs one. |
 | 30 | `plugin-dev` | reject (covered) | local generator, `agent-harness-reference` | See the plugin-dev note below. |
-| 31 | `pr-review-toolkit` | reject (covered) | six same-name local agents | The local agents already carry these prompts. See finding 2. |
+| 31 | `pr-review-toolkit` | reject (covered) | six same-name local agents | The local agents own these roles. They began as copies of these prompts. See finding 2. |
 | 32 | `project-artifact` | reject (no consumer) | none | It targets a hosted artifact feature this repository does not use. |
 | 33 | `pyright-lsp` | reject (config only) | none | It only registers a language server. |
-| 34 | `ralph-loop` | reject (covered) | `sol-loop`, `stuck-detection` | A stop-hook loop would also need a new shell script. |
+| 34 | `ralph-loop` | reject (doctrine) | `sol-loop`, `stuck-detection` | It loops through `stop-hook.sh`. The repository bars new shell scripts. `sol-loop` owns bounded iteration. |
 | 35 | `receipts` | reject (no consumer) | none | It produces personal usage reports. |
 | 36 | `ruby-lsp` | reject (config only) | none | It only registers a language server. |
 | 37 | `rust-analyzer-lsp` | reject (config only) | none | It only registers a language server. |
@@ -84,7 +84,7 @@ No new skill was created. Both ports extend an existing local owner.
 | 39 | `session-report` | reject (no consumer) | none | It produces personal usage reports. |
 | 40 | `skill-creator` | **augment** | `skillopt` | Only the grader discipline was new. See the second port below. |
 | 41 | `swift-lsp` | reject (config only) | none | It only registers a language server. |
-| 42 | `theme-examples` | reject (no consumer) | none | It holds theme samples under a different license file. |
+| 42 | `theme-examples` | reject (no consumer) | none | It holds theme samples and no engineering guidance. |
 | 43 | `typescript-lsp` | reject (config only) | none | It only registers a language server. |
 
 ## Ports
@@ -129,10 +129,14 @@ These were seen during the review. This change does not fix them.
 1. `docs/mcp-ecosystem.md:25` opens a "Planned MCP Expansion" section.
    It lists the ADR-011, ADR-012, and ADR-013 servers as phase one work under ADR-048.
    All four ADRs carry `status: rejected` (2026-11-26). The page tells readers the reverse.
-2. Six local agents share names and bodies with upstream `pr-review-toolkit` agents.
+2. Six local agents share names with upstream `pr-review-toolkit` agents.
    They are `code-reviewer`, `code-simplifier`, `comment-analyzer`, `pr-test-analyzer`,
    `silent-failure-hunter`, and `type-design-analyzer`.
-   They entered in commit `bdacb6b19` (2026-01-09), pull request #830.
+   They first entered in commit `bdacb6b19` (2026-01-09), pull request #830.
+   At that commit each body matched upstream on 91 to 100 percent of lines (2026-01-09).
+   Four are now rewritten and match on 0 to 2 percent of lines (2026-11-26).
+   `silent-failure-hunter` still matches on 56 percent and `type-design-analyzer` on 84 percent (2026-11-26).
+   The measure is a line-sequence ratio against the pinned upstream files, frontmatter removed.
    Their templates name no upstream source (2026-11-26).
-   `THIRD-PARTY-NOTICES.TXT` had no entry for that plugin before this change (2026-11-26).
+   `THIRD-PARTY-NOTICES.TXT` has no entry for that plugin (2026-11-26).
    Apache-2.0 asks a redistributor to keep attribution, so an owner should decide the fix.
