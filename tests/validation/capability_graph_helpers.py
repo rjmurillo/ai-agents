@@ -19,6 +19,8 @@ if str(_VALIDATION) not in sys.path:
 
 import check_capability_graph as gate
 
+__all__ = ["_REPO_ROOT", "_block", "_projection", "_skill", "_tree", "gate", "tree"]
+
 
 def _block(**fields: object) -> str:
     """Render one capability block as frontmatter lines."""
