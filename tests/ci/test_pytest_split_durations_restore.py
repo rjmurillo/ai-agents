@@ -10,7 +10,11 @@ from tests.ci.pytest_split_workflow_helpers import KEY_PREFIX, steps_using, work
 
 
 def _restore() -> dict:
-    (step,) = steps_using("test", "actions/cache/restore")
+    (step,) = [
+        step
+        for step in steps_using("test", "actions/cache/restore")
+        if step["with"]["key"].startswith(KEY_PREFIX)
+    ]
     return step
 
 
@@ -32,5 +36,10 @@ class TestRestoreOnEverySplitLeg:
         names = [s.get("name") for s in workflow_jobs()["test"]["steps"]]
         assert names.index("Restore pytest-split durations") < names.index("Run pytest")
 
-    def test_no_split_leg_job_saves_any_cache(self) -> None:
-        assert steps_using("test", "actions/cache/save") == []
+    def test_no_split_leg_job_saves_the_durations_cache(self) -> None:
+        saves = [
+            step
+            for step in steps_using("test", "actions/cache/save")
+            if step["with"]["key"].startswith(KEY_PREFIX)
+        ]
+        assert saves == []

@@ -389,6 +389,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup code environment
+        id: setup-code-env
         uses: ./.github/actions/setup-code-env
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
@@ -506,10 +507,26 @@ jobs:
           key: pytest-split-durations-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: pytest-split-durations-
 
+      # Rewritten test bytecode, a performance cache only. Every leg restores it.
+      # The prefix sits under runner.temp, outside the checkout, and the Run pytest
+      # step sets PYTHONPYCACHEPREFIX to the same path (the runner context is not
+      # available at job-level env). The key leaves out tests/ on purpose: pytest
+      # compares each .pyc header with the source hash and the interpreter magic
+      # number and recompiles any mismatch, so a stale restore costs time and
+      # never changes a test result. uv.lock carries the pytest version. The
+      # setup step output carries the Python version.
+      - name: Restore pytest bytecode cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ${{ runner.temp }}/pytest-bytecode-cache
+          key: pytest-bytecode-${{ runner.os }}-${{ runner.arch }}-${{ steps.setup-code-env.outputs.python-version }}-${{ hashFiles('uv.lock') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: pytest-bytecode-${{ runner.os }}-${{ runner.arch }}-${{ steps.setup-code-env.outputs.python-version }}-
+
       - name: Run pytest
         id: run-pytest
         env:
           PYTEST_NON_TMP_ROOT: ${{ runner.temp }}/ai-agents-pytest
+          PYTHONPYCACHEPREFIX: ${{ runner.temp }}/pytest-bytecode-cache
           COVERAGE_FILE: ${{ matrix.coverage_file }}
         run: >-
           uv run --frozen python scripts/ci/run_pytest_partition.py
@@ -557,6 +574,22 @@ jobs:
           if-no-files-found: ignore
           overwrite: true
           retention-days: 7
+
+      # Only the primary leg (split-1) writes. It collects the whole pool, so one
+      # save covers every test module, and eight parallel writers would race the
+      # same logical cache. Pull requests never save, so a fork cannot seed bytecode
+      # that later runs restore. The unique run key lets the restore prefix select
+      # the newest main save. The step sits below the flaky-rerun steps because the
+      # rerun must follow Run pytest directly.
+      - name: Save pytest bytecode cache
+        if: >-
+          matrix.primary
+          && github.event_name == 'push' && github.ref == 'refs/heads/main'
+          && steps.run-pytest.outcome == 'success'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ${{ runner.temp }}/pytest-bytecode-cache
+          key: pytest-bytecode-${{ runner.os }}-${{ runner.arch }}-${{ steps.setup-code-env.outputs.python-version }}-${{ hashFiles('uv.lock') }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       # Issue #5610. The count-ratchet registry deadline is calibrated against
       # a wall-clock measurement, and a wall clock taken inside the `-n auto

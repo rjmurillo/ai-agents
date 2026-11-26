@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from scripts.ci import run_pytest_partition as runner
 from tests.ci.pytest_split_workflow_helpers import (
+    KEY_PREFIX,
     WORKFLOW,
     durations_saves,
     steps_using,
@@ -48,7 +49,11 @@ class TestSaveAndRestoreShareOnePath:
 
     def test_save_path_is_byte_identical_to_the_restore_path(self) -> None:
         ((_, save),) = durations_saves()
-        (restore,) = steps_using("test", "actions/cache/restore")
+        (restore,) = [
+            step
+            for step in steps_using("test", "actions/cache/restore")
+            if step["with"]["key"].startswith(KEY_PREFIX)
+        ]
         assert save["with"]["path"] == restore["with"]["path"]
 
     def test_save_path_is_the_path_the_runner_reads(self) -> None:
