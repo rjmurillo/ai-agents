@@ -120,7 +120,7 @@ def test_warp_cli_collects_valid_session_and_transcript(tmp_path):
 def test_warp_cli_child_exclusion_is_not_failure(tmp_path, parent_key, include):
     path = make_database(tmp_path)
     add_conversation(path, metadata=json.dumps({parent_key: "parent"}))
-    extra = ("--include-subagents",) if include else ()
+    extra = () if include else ("--no-include-subagents",)
     _, inventory = run_warp(tmp_path, path, extra=extra)
     assert inventory["collection_issues"] == {}
     assert inventory["stats"]["sessions_considered"] == int(include)

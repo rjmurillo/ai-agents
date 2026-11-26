@@ -122,10 +122,39 @@ SECTION_NOTE = {
 }
 
 
+THREAD_LABELS = (("top_level", "Top-level"), ("subagent", "Subagent"))
+
+
+def _render_thread_table(per_thread: Any) -> str:
+    """Top-level versus subagent counts and grades. Empty when the report has no split."""
+    if not per_thread:
+        return ""
+    rows = "".join(
+        f"<tr><td>{esc(label)}</td><td>{esc(c.get('scoreable', 0))}</td>"
+        f"<td>{esc(c.get('sampled', 0))}</td>"
+        f"<td>{pct(c['overall']) if c.get('overall') is not None else '-'}</td></tr>"
+        for key, label in THREAD_LABELS
+        if isinstance(c := per_thread.get(key), dict)
+    )
+    if not rows:
+        return ""
+    return (
+        '<p class="muted">Subagent sessions are child work launched by a parent session. '
+        "Their grades are reported apart from top-level sessions, and the harness rows "
+        "above pool both.</p>"
+        '<div class="table-scroll" role="region" aria-label="Sampling by session type" '
+        'tabindex="0"><table><caption>Sampling by session type</caption>'
+        '<thead><tr><th scope="col">Session type</th><th scope="col">Scoreable</th>'
+        '<th scope="col">Sampled</th><th scope="col">Overall</th></tr></thead>'
+        f"<tbody>{rows}</tbody></table></div>"
+    )
+
+
 def render_sampling(sampling: Any) -> str:
-    """Per-harness candidate and sampled counts, and the cap notice when coverage was partial."""
+    """Per-harness and per-session-type counts, and the cap notice when coverage was partial."""
     per_harness = (sampling or {}).get("per_harness") or {}
-    if not per_harness:
+    thread_table = _render_thread_table((sampling or {}).get("per_thread"))
+    if not per_harness and not thread_table:
         return ""
     notice = sampling.get("notice")
     rows = "".join(
@@ -134,16 +163,18 @@ def render_sampling(sampling: Any) -> str:
         f"<td>{pct(c['overall']) if c.get('overall') is not None else '-'}</td></tr>"
         for harness, c in per_harness.items()
     )
-    body = (
-        (f'<p class="notice">{esc(notice)}</p>' if notice else "")
-        + '<p class="muted">Selection is skill-first within each harness, so each row grades '
+    harness_table = (
+        '<p class="muted">Selection is skill-first within each harness, so each row grades '
         "sessions that exercise skills first, not the whole harness.</p>"
         '<div class="table-scroll" role="region" aria-label="Sampling by harness" tabindex="0">'
         "<table><caption>Sampling by harness</caption>"
         '<thead><tr><th scope="col">Harness</th><th scope="col">Scoreable</th>'
         '<th scope="col">Used a skill</th><th scope="col">Sampled</th>'
         f'<th scope="col">Overall</th></tr></thead><tbody>{rows}</tbody></table></div>'
+        if per_harness
+        else ""
     )
+    body = (f'<p class="notice">{esc(notice)}</p>' if notice else "") + harness_table + thread_table
     return report_audit.details_html(esc, "Sampling", body, open_=bool(notice))
 
 

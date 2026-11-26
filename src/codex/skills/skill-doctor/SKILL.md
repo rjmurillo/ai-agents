@@ -255,7 +255,8 @@ Write `$REPORT_DIR/report.json` in the shape in `references/report-schema.md`. `
 Read `$SKILL_ROOT/references/report-schema.md` for the full field list before you write the file.
 
 Copy `harness_coverage_complete`, `notice`, and each harness's `scoreable`, `skill_candidates`, and `sampled` from `inventory.json`.
-Write it without numbers, then run `assemble_report.py` per `$SKILL_ROOT/references/audit-workflow.md` to fill `scores`, `sessions_analyzed`, per-harness `overall`, and `audit`. That reference covers the shareable export too.
+Copy `stats.per_thread` into `sampling.per_thread` so the report grades top-level and subagent sessions apart.
+Write it without numbers, then run `assemble_report.py` per `$SKILL_ROOT/references/audit-workflow.md` to fill `scores`, `sessions_analyzed`, per-harness and per-session-type `overall`, and `audit`. That reference covers the shareable export too.
 Keep `evaluation.optimization` at `not_run` for every skill-doctor run.
 Only a later skillopt result may set `evaluation.optimization` to `run` and a suggestion `status` of `accepted`, `rejected`, or `inconclusive`; that suggestion then needs its own `"evaluation": {"baseline": "<ref>", "candidate": "<ref>"}` object with non-empty references.
 The renderer exits 1 on a measured status without that evidence, a drafted diff for unresolved variants, or a "no beneficial change" verdict without scored evaluation.
@@ -293,6 +294,7 @@ The report carries no vendor branding. The fork's MIT attribution remains in `LI
 
 - [ ] `inventory.json` reflects the chosen projects, sources, and skill scope.
 - [ ] The report states per-harness candidate and sampled counts, and says when the cap prevented full harness coverage.
+- [ ] The report grades top-level and subagent sessions apart, and quotes `sampling.top_level_notice` when it is set.
 - [ ] Each proposed edit cites a failed conversation and its scorer evidence; a `Cut:` candidate cites the passing conversation instead.
 - [ ] Every candidate is `unevaluated` and carries both handoff prompts; nothing started skillopt or skillforge.
 - [ ] The spoken summary repeats the renderer's `evaluation:` line.

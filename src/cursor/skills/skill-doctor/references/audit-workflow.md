@@ -14,6 +14,7 @@ One record per scored session:
 ```
 
 Set `session_id` to `<harness>:<id>`, the harness name and the session's `meta.id` from `inventory.json`, for example `copilot:3f2a9c`. Batched reviews assign the same form, and the report lists records by it.
+Set `thread` to the session's `thread` from `inventory.json`: `top_level` or `subagent`. A batch assignment carries it in `session_threads`, and the import fills it in for rows that leave it out. A row that names a different thread fails the import.
 
 ```bash
 python3 "$SKILL_ROOT/scripts/audit_scores.py" "$REPORT_DIR/scores.json" --out "$REPORT_DIR/score_artifact.json"
@@ -39,6 +40,7 @@ Step 3 of `SKILL.md` runs `audit_scores.py`. These formulas define what it compu
 - `overall = 0.25 * efficiency + 0.25 * code_quality + 0.2 * procedure_compliance + 0.15 * verbosity + 0.15 * skill_coverage.`
 
 For each harness in `stats.per_harness` that has scored sessions, the script also computes that harness's `overall` by applying the formulas above to its sessions only. Report these next to the combined `overall`; they are never averaged back into it.
+When records carry `thread`, the artifact also holds `per_thread` with each type's own `overall`, computed the same way.
 
 ## Assemble report.json
 
@@ -50,7 +52,7 @@ python3 "$SKILL_ROOT/scripts/assemble_report.py" "$REPORT_DIR/report.json" \
   --manifest "$REPORT_DIR/audit_manifest.json" --out "$REPORT_DIR/report.json"
 ```
 
-It recomputes the score artifact from `scores.json` and sets `scores`, `stats.sessions_analyzed`, each `sampling.per_harness.<harness>.overall`, and the `audit` object (`scores` and `records`, plus `catalog` from the manifest). Leave out `--manifest` when the collector ran without `--audit-manifest`. It drops `grade` so the renderer derives it. It exits 1 and writes nothing when the scores are invalid, a harness's `sampled` count differs from its scored sessions (import every batch first), `--artifact` does not match the recomputation, or the result fails the renderer's checks; it exits 2 on an unreadable file. Writing over the draft is safe: a failed run leaves it unchanged.
+It recomputes the score artifact from `scores.json` and sets `scores`, `stats.sessions_analyzed`, each `sampling.per_harness.<harness>.overall`, each `sampling.per_thread.<thread>.overall` when records carry `thread`, and the `audit` object (`scores` and `records`, plus `catalog` from the manifest). Leave out `--manifest` when the collector ran without `--audit-manifest`. It drops `grade` so the renderer derives it. It exits 1 and writes nothing when the scores are invalid, a harness's `sampled` count differs from its scored sessions (import every batch first), `--artifact` does not match the recomputation, or the result fails the renderer's checks; it exits 2 on an unreadable file. Writing over the draft is safe: a failed run leaves it unchanged.
 
 ## Batched reviews
 

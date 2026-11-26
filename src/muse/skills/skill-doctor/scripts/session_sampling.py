@@ -10,6 +10,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any
 
+from session_common import THREAD_SUBAGENT, THREAD_TOP_LEVEL, THREADS
+
 SAMPLING_RULE = (
     "Harnesses with scoreable sessions are ranked by scoreable count (descending), "
     "then by harness name (ascending). The --max-sessions cap is dealt one slot at a time "
@@ -222,3 +224,38 @@ def apply_strata(sessions: Any, sampling: dict[str, Any]) -> None:
         stratum = stratum_of.get(session["_key"])
         if stratum:
             session["stratum"] = stratum
+
+
+def thread_split(sessions: Any, sampled: set[str]) -> dict[str, dict[str, int]]:
+    """Scoreable and sampled counts per session type, top-level and subagent."""
+    split = {thread: {"scoreable": 0, "sampled": 0} for thread in THREADS}
+    for session in sessions:
+        entry = split[session["thread"]]
+        entry["scoreable"] += 1
+        entry["sampled"] += session["_key"] in sampled
+    return split
+
+
+def add_subagent_counts(
+    sessions: Any, sampled: set[str], per_harness: dict[str, dict[str, int]]
+) -> None:
+    """Add ``scoreable_subagent`` and ``sampled_subagent`` to every per-harness entry."""
+    for harness, entry in per_harness.items():
+        children = [
+            s for s in sessions if s["harness"] == harness and s["thread"] == THREAD_SUBAGENT
+        ]
+        entry["scoreable_subagent"] = len(children)
+        entry["sampled_subagent"] = sum(1 for s in children if s["_key"] in sampled)
+
+
+def top_level_gap_notice(split: dict[str, dict[str, int]]) -> str | None:
+    """Warn when top-level sessions exist but the sample holds only subagent sessions."""
+    top = split[THREAD_TOP_LEVEL]
+    if top["scoreable"] and not top["sampled"]:
+        return (
+            f"the sample holds no top-level sessions although {top['scoreable']} top-level "
+            f"sessions are scoreable; {split[THREAD_SUBAGENT]['sampled']} sampled sessions are "
+            "subagent sessions. Pass --no-include-subagents or raise --max-sessions to cover "
+            "top-level work."
+        )
+    return None

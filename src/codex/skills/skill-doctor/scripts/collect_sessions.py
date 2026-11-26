@@ -104,7 +104,13 @@ from session_json import (
     parse_zcode_session,
 )
 from session_muse import find_muse_session_files, parse_muse_session
-from session_sampling import apply_strata, sample_sessions
+from session_sampling import (
+    add_subagent_counts,
+    apply_strata,
+    sample_sessions,
+    thread_split,
+    top_level_gap_notice,
+)
 
 __all__ = [
     "CLAUDE_CODE_EDIT_TOOLS",
@@ -203,6 +209,12 @@ class Collection:
             return
         self.sessions.append(session_record(harness, parsed, file, modified_at))
 
+    def child_flag(self, harness: str) -> bool:
+        """Copilot folds inline child events only on an explicit request, others include them."""
+        if harness == "copilot":
+            return bool(self.args.copilot_fold_child_events)
+        return bool(self.args.include_subagents)
+
     def matches(self, harness: str, meta: Any) -> bool:
         return self.scope.matches(harness, meta)
 
@@ -229,7 +241,7 @@ class Collection:
         self.sources[name] = {"home": str(home), "records_in_window": len(paths)}
         self.scanned += len(paths)
         for mtime, path in paths:
-            parsed = parser(path, self.skills.keys(), self.args.include_subagents)
+            parsed = parser(path, self.skills.keys(), self.child_flag(name))
             self.add(name, parsed, str(path), mtime.isoformat())
 
     def warp(self, cutoff: datetime) -> None:
@@ -248,9 +260,7 @@ class Collection:
         }
         self.scanned += scanned
         for record in records:
-            parsed = parse_warp_conversation(
-                record, self.skills.keys(), self.args.include_subagents
-            )
+            parsed = parse_warp_conversation(record, self.skills.keys(), self.child_flag("warp"))
             file = f"{record['database']}#agent_conversations/{record['conversation_id']}"
             self.add("warp", parsed, file, record["modified_at"].isoformat())
 
@@ -273,7 +283,7 @@ class Collection:
                 connection = open_warp_database(database)
                 try:
                     parsed = parse_hermes_session(
-                        connection, row, self.skills.keys(), self.args.include_subagents
+                        connection, row, self.skills.keys(), self.child_flag("hermes")
                     )
                 finally:
                     connection.close()
@@ -367,7 +377,12 @@ def _write_transcripts(sessions: Any, sampled: set[str], directory: Path) -> Non
 
 
 def _inventory(
-    collection: Collection, homes: Any, sampled: set[str], per_harness: Any, sampling: Any
+    collection: Collection,
+    homes: Any,
+    sampled: set[str],
+    per_harness: Any,
+    per_thread: Any,
+    sampling: Any,
 ) -> Any:
     args, repos, skills = collection.args, collection.repos, collection.skills
     usage = dict.fromkeys(skills, 0)
@@ -404,6 +419,7 @@ def _inventory(
             "sessions_skipped_idle": collection.skipped_idle,
             "sessions_sampled": len(sampled),
             "per_harness": per_harness,
+            "per_thread": per_thread,
             "skills_found": len(skills),
             "ambiguous_skills": len(variants),
             "skills_used": sum(1 for count in usage.values() if count > 0),
@@ -439,11 +455,19 @@ def _print_summary(inventory: Any, args: Any, repos: Any, out: Path) -> None:
         f"{stats['sessions_in_scope']} in scope, {stats['sessions_considered']} scoreable"
     )
     print(f"sessions sampled:  {stats['sessions_sampled']} -> {out / 'transcripts'}")
+    for thread, counts in stats["per_thread"].items():
+        print(
+            f"  {thread}: {counts['sampled']} sampled of {counts['scoreable']} scoreable "
+            "(session type)"
+        )
     for harness, counts in stats["per_harness"].items():
         print(
             f"  {harness}: {counts['sampled']} sampled of {counts['scoreable']} scoreable "
-            f"({counts['skill_candidates']} used a skill)"
+            f"({counts['skill_candidates']} used a skill; "
+            f"{counts['sampled_subagent']} of {counts['scoreable_subagent']} subagent)"
         )
+    if inventory["sampling"].get("top_level_notice"):
+        print(f"warning: {inventory['sampling']['top_level_notice']}", file=sys.stderr)
     if inventory["sampling"]["notice"]:
         print(f"warning: {inventory['sampling']['notice']}", file=sys.stderr)
     print(f"inventory:         {out / 'inventory.json'}")
@@ -480,8 +504,11 @@ def _run() -> None:
     collection.sessions.sort(key=lambda session: session["modified_at"], reverse=True)
     sampled, per_harness, sampling = sample_sessions(collection.sessions, collection.skills, args)
     apply_strata(collection.sessions, sampling)
+    add_subagent_counts(collection.sessions, sampled, per_harness)
+    per_thread = thread_split(collection.sessions, sampled)
+    sampling["top_level_notice"] = top_level_gap_notice(per_thread)
     _write_transcripts(collection.sessions, sampled, out / "transcripts")
-    inventory = _inventory(collection, homes, sampled, per_harness, sampling)
+    inventory = _inventory(collection, homes, sampled, per_harness, per_thread, sampling)
     (out / "inventory.json").write_text(json.dumps(inventory, indent=2), encoding="utf-8")
     _print_summary(inventory, args, collection.repos, out)
     if args.audit_manifest:

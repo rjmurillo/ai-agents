@@ -9,6 +9,8 @@ Writes:
   - ``stats.sessions_analyzed``: the number of scored sessions
   - ``sampling.per_harness.<harness>.overall``: each harness scored on its own records;
     a harness with no scored session loses any ``overall`` the draft carried
+  - ``sampling.per_thread.<thread>.overall``: the same per session type (top_level or
+    subagent), written only when the scored records carry a ``thread``
   - ``audit``: ``scores`` (the artifact), ``records`` (the scored sessions), and
     ``catalog`` from the audit manifest when one is given
 
@@ -106,6 +108,18 @@ def _set_harness_overall(report: dict[str, Any], artifact: Mapping[str, Any]) ->
         per_harness.setdefault(harness, {})["overall"] = summary["overall"]
 
 
+def _set_thread_overall(report: dict[str, Any], artifact: Mapping[str, Any]) -> None:
+    """Write ``sampling.per_thread.<thread>.overall``; no-op when records carry no thread."""
+    if "per_thread" not in artifact:
+        return
+    per_thread = report.setdefault("sampling", {}).setdefault("per_thread", {})
+    for thread, entry in per_thread.items():
+        if thread not in artifact["per_thread"] and isinstance(entry, dict):
+            entry.pop("overall", None)
+    for thread, summary in artifact["per_thread"].items():
+        per_thread.setdefault(thread, {})["overall"] = summary["overall"]
+
+
 def assemble(
     draft: Mapping[str, Any],
     scores: Any,
@@ -127,6 +141,7 @@ def assemble(
     report["scores"]["overall"] = rebuilt["overall"]
     report.setdefault("stats", {})["sessions_analyzed"] = rebuilt["sessions_scored"]
     _set_harness_overall(report, rebuilt)
+    _set_thread_overall(report, rebuilt)
     audit: dict[str, Any] = {"scores": rebuilt, "records": list(_sessions_of(scores))}
     if manifest is not None:
         audit["catalog"] = _catalog_of(manifest)
