@@ -1045,8 +1045,8 @@ ADR-088 moved these eight book-derived references behind `software-engineering-l
 
 Owner: `agent-qa`.
 
-Cadence: manual. The CI workflow that ran this weekly was removed because its
-`agent-claude` approval was never given. Run `software_engineering_library_activation_ci.py`
+Cadence: manual. The CI workflow that ran this weekly was removed on 2026-11-25
+with every other job gated by an `agent-*` environment. Run `software_engineering_library_activation_ci.py`
 and the gate script by hand when the skill, fixtures, or eval script change.
 
 Persistent state lives in a local file at

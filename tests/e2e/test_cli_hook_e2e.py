@@ -82,10 +82,10 @@ _copilot_run_blocked = copilot_hook_probe.copilot_run_blocked
 def _skip_on_copilot_block(result: subprocess.CompletedProcess[str]) -> None:
     """Apply the D26 block policy to a Copilot run.
 
-    A spent monthly quota skips with QUOTA_SKIP:, which plugin-cli-smoke.yml
-    allows through ``assert_smoke_ran.py --allow-skip-marker``. Auth, rate
-    limit, and transport blocks fail in CI and skip unmarked locally, so the
-    smoke still turns red on them (issues #4504, #4483, #3275).
+    A spent monthly quota skips with QUOTA_SKIP:. No CI leg runs this smoke
+    now, so no workflow passes ``assert_smoke_ran.py --allow-skip-marker``.
+    Auth, rate limit, and transport blocks fail in CI and skip unmarked
+    locally, so the smoke still turns red on them (issues #4504, #4483, #3275).
     """
     smoke_skip_policy.skip_or_fail_on_copilot_block(result)
 

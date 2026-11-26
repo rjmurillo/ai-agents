@@ -40,7 +40,7 @@ _WORKFLOW_DIRS = (
 )
 
 # Scripts whose only workflow caller was a job gated by an agent-* environment.
-# Those jobs were deleted because the reviewer approval was never given, and the
+# The owner deleted those jobs on 2026-11-25, and the
 # scripts stay (with their unit tests) until the owner decides whether to delete
 # or rewire them. Remove an entry when its script is deleted or wired again.
 _ORPHANED_BY_AGENT_JOB_REMOVAL: tuple[str, ...] = (

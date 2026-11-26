@@ -3,10 +3,9 @@
 This guide explains how to configure GitHub Copilot CLI authentication for a
 Copilot leg of the CLI smoke (`.github/workflows/plugin-cli-smoke.yml`).
 
-> **Status, 2026-11-25:** the Copilot smoke legs and every job gated by an
-> `agent-*` environment were deleted, because the required-reviewer approval was
-> never given. No workflow reads `COPILOT_GITHUB_TOKEN` now. The steps below apply
-> only if the owner restores a Copilot leg.
+> **Status, 2026-11-25:** the owner deleted the Copilot smoke legs and every job
+> gated by an `agent-*` environment. No workflow reads `COPILOT_GITHUB_TOKEN` now.
+> The steps below apply only if the owner restores a Copilot leg.
 
 ## Prerequisites
 

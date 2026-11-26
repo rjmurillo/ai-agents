@@ -414,7 +414,8 @@ def _triggers(doc: dict) -> set[str]:
 # requires a reviewer. agent-approval is deleted (ADR-114 Decision 11 item 6).
 PROVIDER_ENVIRONMENTS = frozenset({"agent-claude", "agent-codex", "agent-droid", "agent-copilot"})
 RETIRED_ENVIRONMENT = "agent-approval"
-# The CLI smoke picks its environment from the matrix leg, one per CLI.
+# A matrix job picks its environment per leg with this expression. No workflow
+# uses it now. It stays here so a matrix job that declares it again counts as gated.
 MATRIX_ENVIRONMENT = "agent-${{ matrix.cli }}"
 # Stored secret each provider's model calls read, derived from the workflows.
 PROVIDER_SECRETS = {
@@ -423,9 +424,9 @@ PROVIDER_SECRETS = {
     "droid": ("FACTORY_API_KEY",),
     "copilot": ("COPILOT_GITHUB_TOKEN",),
 }
-# Every gated job and the provider environment it must declare. Empty: every job that
-# ran in an agent-* environment was deleted because its approval was never given. A
-# job that declares one again must be added here on purpose.
+# Every gated job and the provider environment it must declare. Empty: the owner
+# deleted every job that ran in an agent-* environment on 2026-11-25 (ADR-057
+# amendment of that date). A job that declares one again must be added here on purpose.
 EXPECTED_JOB_ENVIRONMENTS: dict[tuple[str, str], str] = {}
 
 
@@ -452,15 +453,15 @@ def _provider_of_secret(text: str) -> set[str]:
 def _provider_environment_violations(docs: dict[str, dict]) -> tuple[list[str], int]:
     """Return (violations, jobs checked) for jobs that read a provider secret.
 
-    The matrix job reads one secret per leg; test_cli_smoke_security.py
-    pins each leg's credential, so it is skipped here.
+    A matrix job gets no pass: its per-leg environment expression matches no
+    single provider environment, so it is reported.
     """
     violations: list[str] = []
     checked = 0
     for path, doc in docs.items():
         for job_id, job in (doc.get("jobs") or {}).items():
             providers = _provider_of_secret(yaml.safe_dump(job))
-            if not providers or job.get("environment") == MATRIX_ENVIRONMENT:
+            if not providers:
                 continue
             checked += 1
             environment = job.get("environment")
@@ -560,9 +561,16 @@ def test_each_gated_job_declares_the_environment_matching_its_provider() -> None
 
 
 def test_jobs_reading_a_provider_secret_declare_that_provider_environment() -> None:
-    """Drift: a job that reads a provider secret must sit in that provider's environment."""
-    violations, _ = _provider_environment_violations(_workflow_docs())
+    """Drift: a job that reads a provider secret must sit in that provider's environment.
+
+    No job reads a provider secret now, so the checked count is zero and cannot
+    carry a floor. The floor moves to the scan: it must load workflows and jobs.
+    """
+    docs = _workflow_docs()
+    violations, _ = _provider_environment_violations(docs)
     assert violations == []
+    assert docs
+    assert sum(len(doc.get("jobs") or {}) for doc in docs.values()) > 0
 
 
 @pytest.mark.parametrize(
@@ -605,9 +613,24 @@ def test_a_job_with_no_provider_secret_is_not_checked() -> None:
 
 
 def test_no_workflow_runs_a_job_in_a_provider_environment() -> None:
-    """The agent-* approvals were never given, so their jobs were deleted (ADR-114)."""
+    """The owner deleted every job in an agent-* environment on 2026-11-25 (ADR-057)."""
     gated = {path for path, doc in _workflow_docs().items() if _gated_jobs(doc)}
     assert gated == set()
+
+
+def test_a_matrix_job_in_a_provider_environment_is_gated_and_reported() -> None:
+    """Negative: a matrix job that picks an agent-* environment per leg cannot slip by."""
+    job = {
+        "environment": MATRIX_ENVIRONMENT,
+        "strategy": {"matrix": {"cli": ["claude", "copilot"]}},
+        "steps": [{"env": {"KEY": "${{ secrets.ANTHROPIC_API_KEY }}"}}],
+    }
+    doc = {"jobs": {"smoke": job}}
+    assert _gated_jobs(doc) == ["smoke"]
+    violations, checked = _provider_environment_violations({"fake.yml": doc})
+    assert checked == 1
+    assert len(violations) == 1
+    assert "fake.yml:smoke" in violations[0]
 
 
 # ---------------------------------------------------------------------------

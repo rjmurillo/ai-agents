@@ -13,7 +13,7 @@
 # environment or a secret (ADR-114 decision 1: an environment is for a job that
 # calls a model and reads a provider secret). The Claude and Copilot real-CLI
 # smoke legs, which ran behind the agent-claude and agent-copilot approvals, were
-# removed because those approvals were never given.
+# removed on 2026-11-25 with every other job gated by an agent-* environment.
 #
 # Legs:
 #   - smoke-pi: one Ubuntu leg. The Pi package smoke makes no model call and

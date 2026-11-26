@@ -26,7 +26,7 @@ Do not skip hooks with `--no-verify` and do not force-push. The [runbook convent
 
 ### Part 1: Agent workflows wait for you and never block a merge (historical since 2026-11-25)
 
-> **Status, 2026-11-25:** the owner deleted every job gated by an `agent-*` environment, because the approval was never given. No job waits for your click now. The rules below apply again if a model job returns.
+> **Status, 2026-11-25:** the owner deleted every job gated by an `agent-*` environment. No job waits for your click now. The rules below apply again if a model job returns.
 
 [ADR-114](../../.project-toolkit/architecture/ADR-114-agent-workflows-approval-and-non-blocking.md) sets two rules for every workflow that calls a model:
 

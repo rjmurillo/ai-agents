@@ -16,8 +16,9 @@ the shipped plugin directory, and assert the plugin loads.
     ``source: plugin`` record whose path is under ``src/copilot-cli``. It never
     skips on quota. The prompt-based checks (the fired-hook probe of issue #3148,
     its negative control, and the agent runtime probes) are best-effort: a spent
-    quota skips with ``QUOTA_SKIP:`` (D26), which the Copilot and Claude CI legs
-    allow through ``assert_smoke_ran.py --allow-skip-marker``. Auth, rate limit,
+    quota skips with ``QUOTA_SKIP:`` (D26). The Copilot and Claude CI legs that
+    allowed it through ``assert_smoke_ran.py --allow-skip-marker`` were deleted
+    on 2026-11-25, so no workflow passes that flag now. Auth, rate limit,
     and transport blocks fail in CI. The shared probe lives
     in ``tests/e2e/copilot_hook_probe.py``.
   - Claude: ``claude --plugin-dir <repo>/.claude plugin list`` and
@@ -135,10 +136,10 @@ from smoke_skip_policy import (  # noqa: E402
 def _skip_on_copilot_block(result: subprocess.CompletedProcess[str]) -> None:
     """Apply the D26 block policy to a Copilot run.
 
-    Spent quota skips with QUOTA_SKIP:, which plugin-cli-smoke.yml allows through
-    ``assert_smoke_ran.py --allow-skip-marker``. Auth, rate limit, and transport
-    blocks fail in CI and skip unmarked locally, so the gate stays red on them
-    (issues #4504, #4483, #3275).
+    Spent quota skips with QUOTA_SKIP:. No CI leg runs a Copilot smoke now, so no
+    workflow passes ``assert_smoke_ran.py --allow-skip-marker``. Auth, rate limit,
+    and transport blocks fail in CI and skip unmarked locally, so the gate stays
+    red on them (issues #4504, #4483, #3275).
     """
     skip_or_fail_on_copilot_block(result)
 

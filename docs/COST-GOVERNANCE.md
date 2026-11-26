@@ -173,7 +173,7 @@ If monthly costs exceed $100:
 
 ### Advisory pull-request workflows
 
-These workflows run on pull requests and stay advisory. The jobs that ran a model behind a provider environment (`agent-claude`, `agent-copilot`) were deleted on 2026-11-25 because the reviewer approval was never given. The four environments below gate no job now and can be deleted in GitHub settings (ADR-114). Checks from workflows listed as advisory never block merge unless the branch ruleset requires them (ADR-114 Decisions 5 and 7).
+These workflows run on pull requests and stay advisory. The jobs that ran a model behind a provider environment (`agent-claude`, `agent-copilot`) were deleted on 2026-11-25 by owner decision. The four environments below gate no job now and can be deleted in GitHub settings (ADR-114). Checks from workflows listed as advisory never block merge unless the branch ruleset requires them (ADR-114 Decisions 5 and 7).
 
 | Environment | Provider | Secrets |
 |-------------|----------|---------|

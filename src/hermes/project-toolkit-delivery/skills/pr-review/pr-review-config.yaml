@@ -81,8 +81,8 @@ scripts:
 # (origin/main), never the PR branch, so a PR cannot exempt its own failing check
 # (CWE-829). A check the branch ruleset requires stays blocking even when listed,
 # and a status context (no workflow run) always stays blocking. The agent-claude,
-# agent-copilot, agent-codex, and agent-droid environments gate no job now: every
-# job that ran in one was removed because its approval was never given. A workflow
+# agent-copilot, agent-codex, and agent-droid environments gate no job now: the
+# owner removed every job that ran in one on 2026-11-25. A workflow
 # joins this list only if it runs on pull_request and its check must never block.
 # plugin-cli-smoke.yml is listed (owner decision 2026-11-05): the whole CLI Smoke
 # Result stays visible but never holds a merge. See ADR-114.
