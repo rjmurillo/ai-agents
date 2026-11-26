@@ -1,6 +1,6 @@
 ---
 name: avoiding-manufactured-work
-version: 1.1.0
+version: 1.2.0
 description: Detect and stop manufactured work after a deliverable appears done, and classify a post-completion finding into the four contract classes builder-ethos.md delegates here. Use when a worker has produced a plan, issue, PR, backlog item, research artifact, or follow-up task and you need to verify it was demanded by a real user, acceptance criterion, or blocked decision instead of reward-seeking activity.
 license: Apache-2.0
 metadata:
@@ -68,6 +68,21 @@ Test the Blocker class first. A finding that falsifies mandatory safety or repos
 
 A defer or a delete is a disposition, not a silent drop. Name the finding and its class in the report, then stop. Naming it is not a reason to reopen the task; only the Reactivation section below can do that.
 
+## Friction Report
+
+Report concrete workarounds. Skip style preferences and steps that ran as intended.
+Record each gap once in the existing final report, PR body, or hand-back:
+
+```text
+Hit: <which process, script, skill, or tool failed or lacked a needed step>
+Did instead: <the workaround, with the script path if available>
+Permanent fix: <the smallest change that would remove the workaround>
+```
+
+Classify the finding with the table above. Reporting a deferred finding does not reopen the task or authorize a fix.
+Keep a script for a recurring job when the task permits it. Use the host's script location and link to it from the workflow that needs it.
+If retaining the script would exceed scope, report the proposed location and let the user decide.
+
 ## Forming The Contract
 
 Before non-trivial execution, derive the smallest task contract, in order: current user goal and deliverables; explicit constraints and acceptance criteria; mandatory system/safety/repository policy; minimum inferred success criteria a bounded request needs to be observable. Routine, low-risk work skips user confirmation of obvious inferred criteria. Record the contract before broad execution (TODO list, stated plan, or per-issue handoff); once started, criteria stay fixed unless the user changes them or a mandatory policy was omitted.
@@ -83,3 +98,4 @@ A terminal task reopens only when evidence falsifies a named frozen criterion, a
 - [ ] The proposed action is the smallest one that unblocks that consumer.
 - [ ] Any post-completion finding was tested against Blocker first.
 - [ ] Every finding reached a stated disposition; none was dropped silently.
+- [ ] Every workaround has a report. Omit the section when there were none.

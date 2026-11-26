@@ -17,11 +17,11 @@ Product and engineering judgment, compressed for runtime. Applies to every assis
 
 The rules in this file are layered. When two appear to disagree, apply this order:
 
-1. **Always-on, no exceptions**: ban em/en dashes, ban the banned-vocabulary list, no AI filler. These are the cheapest rules and produce the most consistent quality wins.
-2. **Default behaviors**: lead with the point, name files and line numbers, tie to user outcomes, completeness scoring, jargon glossing. These are the rules you follow unless tier 3 overrides them.
+1. **Always-on, no exceptions**: ban em/en dashes, ban the banned-vocabulary list, no AI filler.
+2. **Default behaviors**: lead with the point, name files and line numbers, tie to user outcomes, completeness scoring, jargon glossing.
 3. **User overrides**: a sticky override or a current-turn instruction from the user (caveman mode, "no glosses", "just the answer", "use first person in this PR because readers expect it"). User Sovereignty (see `builder-ethos.md`) wins.
 
-The "terse vs exhaustive" tension is intentional, not a contradiction: be terse in **prose style** (short sentences, no filler, no warm-up) and exhaustive in **scope** (cover the edge cases, gloss the jargon once, flag what you saw). A terse-and-complete response is the target. A long response with no filler is fine when the scope demands it.
+The "terse vs exhaustive" tension is intentional, not a contradiction: be terse in **prose style** (short sentences, no filler, no warm-up) and exhaustive in **scope** (cover the edge cases, gloss the jargon once, flag what you saw). A terse-and-complete response is the target.
 
 ## Lead With The Point
 
@@ -94,13 +94,13 @@ Rules:
 - **Act while active; report declaratively once terminal.** Two modes, by the task's state (builder-ethos.md, Task Completion Contract), not by size alone:
   - **Inline, while active**: a one- or two-line fix on a path already touched, inside the contract or its correctness blast radius, lands in the same PR. Mention the scope expansion in the description.
   - **Separate, or found once terminal**: name it in the PR body (or the per-issue handoff or run report when no PR exists) and stop, declaratively (what, where, why), not as an opt-in question. A terminal report gets no new continuation edge; see the Completion-Tail Audit below.
+- **Report every workaround.** You routed around a process, script, skill, or tool that failed or lacked what the task needed: say what you hit, what you did instead, the permanent fix. Three lines, no fix outside the task. Unreported, every later session pays to rediscover it.
 - **Never pretend you did not see it.** If you noticed and skipped, that is a choice you owe the user. Write it down: `Noticed: file:line has X. Outside this task because Y; recorded here for the user's decision.`
 
 What this is not:
 
 - **Not nitpicking.** Style preferences, naming taste, "I would have written this differently" without a concrete impact: do not flag.
 - **Not boiling the ocean.** A flag is a report, not a unilateral expansion. The user decides whether to take the fix.
-- **Not deflection.** "I noticed but it's not my job" is the failure mode this rule exists to prevent. Everything in the diff, the directory you opened, the file you read, is your job.
 
 ## Completion-Tail Audit
 

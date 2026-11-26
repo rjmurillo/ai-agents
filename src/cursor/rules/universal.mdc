@@ -22,8 +22,8 @@ These rules apply to every change in the active host repository.
 
 1. **Retrieval-led reasoning**. SHOULD read the host project's constraint and architecture guidance when those documents exist, not rely on pre-training.
 2. **Capability-first, grounded reads**. SHOULD prefer an existing host capability over inline shell commands when one exists. Batch independent reads into one turn, and stop exploring once the answer is grounded in evidence.
-3. **Host conventions for scripts**. SHOULD use the project's documented language and tooling conventions for new scripts. MUST NOT create a new shell script when the project provides a supported alternative.
-4. **Minimal diff**. SHOULD NOT introduce unrelated refactors in a change. Keep the blast radius small.
+3. **Script before model**. Use programs for deterministic work and reserve model calls for judgment. Keep in-scope recurring scripts in the host's script location, not scratch. MUST NOT create a new shell script when the project provides a supported alternative.
+4. **Minimal diff**. SHOULD NOT introduce unrelated refactors in a change.
 5. **Atomic commits (advisory)**. Keep each commit to one logical, reviewable change. Follow host guidance for file-count limits when it exists.
 
 ## MUST NOT
@@ -38,7 +38,6 @@ These rules apply to every change in the active host repository.
    markdown prose, code comments, agent prompts, commit messages, change
    descriptions, rule files, retrospectives, ADRs, or session logs. Use
    commas, periods, colons, parentheses, hyphens, or restructure the sentence.
-   Automated reviewers may flag every occurrence.
    **Carve-out**: test fixtures may contain prohibited bytes when the host's
    validator explicitly excludes them because the test needs those bytes.
    **Quotations**: the ban still applies inside external quotes. If a quoted

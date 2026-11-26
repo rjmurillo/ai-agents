@@ -34,6 +34,16 @@ Reason: <one sentence>
 Next action: <smallest action, or none>
 ```
 
+It also defines the friction report. When an agent works around a gap in a process, script, skill, or tool, its final report carries three lines per item:
+
+```text
+Hit: <process, script, skill, or tool, and what failed or was missing>
+Did instead: <the workaround, with the script path if one was written>
+Permanent fix: <the smallest change that removes the workaround, and where it lives>
+```
+
+The agent reports the item and does not fix it or file an issue. You decide whether to integrate it. Style opinions are not friction. With no workaround, omit the section.
+
 | Disposition | Meaning |
 | --- | --- |
 | `keep` | The work satisfies an acceptance criterion, fixes a failing required check, resolves a reviewer thread, or unblocks a named decision. |
