@@ -82,8 +82,10 @@ __all__ = [
     "EXIT_OK",
     "Controller",
     "ControllerError",
+    "load_config",
     "main",
     "task_file",
+    "write_artifact",
 ]
 
 _DECISIONS = {0: "ACCEPT", 1: "REJECT"}
@@ -115,6 +117,8 @@ class Controller:
         self.accepts = 0
         self.last: str | None = None
         self.started = False
+        self.restoring = False
+        self.term_pending = False
 
     def _record(self, event: Mapping[str, Any]) -> None:
         stamp = dt.datetime.now(dt.UTC).isoformat(timespec="milliseconds")
@@ -151,8 +155,22 @@ class Controller:
         )
         return duration
 
-    def score(self, label: str) -> Path:
-        """Run the scorer, move its output into state, extract all results."""
+    def _collect(self, values: Mapping[str, str], run_dir: Path, required: bool) -> None:
+        for index, template in enumerate(self.config.collect):
+            source = resolve(fill(template, values))
+            if source.exists() or source.is_symlink():
+                shutil.move(str(source), str(run_dir / str(index)))
+            elif required:
+                raise ControllerError(f"scorer output {source} was not produced", EXIT_EXTERNAL)
+
+    def score(self, label: str, expected: bytes) -> Path:
+        """Run the scorer, move its output into state, extract all results.
+
+        `expected` is the artifact the scorer must have seen. A scorer that
+        runs the artifact's code (the `hook` kind) could rewrite it, a denied
+        task file, or controller state; each is checked before the results
+        are used.
+        """
         self._check_integrity()
         run_id = f"{label}-{uuid.uuid4().hex[:8]}"
         run_dir = self.state / "runs" / run_id
@@ -165,17 +183,30 @@ class Controller:
         # cache planted beside the scorer's code is never read and the state
         # digest above still excludes everything the scorer may write.
         scorer_env = {**os.environ, "PYTHONPYCACHEPREFIX": str(run_dir / "pycache")}
-        duration = self._call(
-            [fill(part, values) for part in self.config.scorer], f"scorer {label}", scorer_env
-        )
+        argv = [fill(part, values) for part in self.config.scorer]
+        try:
+            duration = run_child(
+                [fill(part, {"artifact": str(self.config.artifact)}) for part in argv],
+                f"scorer {label}",
+                self.config.timeout_seconds,
+                scorer_env,
+                self.config.scorer_exit_codes,
+            )
+        except ControllerError:
+            # A failed scorer may still have written a report outside state,
+            # with held-out outcomes in it. Move what exists before stopping.
+            self._collect(values, run_dir, required=False)
+            raise
         if tree_digest([self.state], exclude=run_dir) != before:
             raise ControllerError(f"controller state changed while {label} was scored")
+        self._check_integrity()
+        if read_artifact(self.config.artifact) != expected:
+            raise ControllerError(
+                f"the artifact changed while {label} was being scored; "
+                "refusing to use results for bytes that were not the ones scored"
+            )
         self._record({"event": "call", "label": f"scorer {label}", "duration_s": duration})
-        for index, template in enumerate(self.config.collect):
-            source = resolve(fill(template, values))
-            if not source.exists():
-                raise ControllerError(f"scorer output {source} was not produced", EXIT_EXTERNAL)
-            shutil.move(str(source), str(run_dir / str(index)))
+        self._collect(values, run_dir, required=True)
         inputs = [fill(item, values) for item in self.config.inputs]
         code, payload = self._optimizer(
             ["extract", "--kind", self.config.kind, "--input", *inputs, *self.config.extract_args]
@@ -203,9 +234,17 @@ class Controller:
             tasks_dir.mkdir()
             for task in opt:
                 source = resolve(task_file(self.config.opt_task_files, task))
-                if not source.is_file():
-                    raise ControllerError(f"optimize-group task file {source} is missing")
-                shutil.copy2(source, tasks_dir / source.name)
+                # A link could point at a held-out definition and hand it over
+                # under an optimize-group name, so links are refused.
+                if source.is_symlink() or not source.is_file():
+                    raise ControllerError(f"optimize-group task file {source} is missing or a link")
+                target = tasks_dir / source.name
+                if target.exists():
+                    raise ControllerError(
+                        f"two optimize-group task files share the name {source.name}; "
+                        "use a template whose file names are unique per task"
+                    )
+                shutil.copyfile(source, target)
         passed = sum(1 for value in opt.values() if value)
         document = {
             "step": step,
@@ -235,7 +274,7 @@ class Controller:
         self.incumbent_bytes = read_artifact(config.artifact)
         self.mode = config.artifact.stat().st_mode & 0o7777
         self.integrity = tree_digest(self._protected())
-        self.incumbent = self.score("incumbent-0")
+        self.incumbent = self.score("incumbent-0", self.incumbent_bytes)
         document = json.loads(self.incumbent.read_text(encoding="utf-8"))
         tasks = self.state / "tasks.txt"
         tasks.write_text("\n".join(sorted(document["results"])) + "\n", encoding="utf-8")
@@ -249,7 +288,7 @@ class Controller:
         self.fingerprint = split_doc["fingerprint"]
         self._record({"event": "baseline", "results": str(self.incumbent), "split": split_doc})
 
-    def _gate(self, step: int, candidate: Path) -> str:
+    def _gate(self, step: int, candidate: Path, candidate_sha: str) -> str:
         args = ["gate", "--incumbent", str(self.incumbent), "--candidate", str(candidate)]
         args += ["--split", str(self.state / "split.json")]
         args += ["--max-consultations", str(self.config.max_consultations)]
@@ -257,7 +296,15 @@ class Controller:
         if self.config.max_p is not None:
             args += ["--max-p", str(self.config.max_p)]
         code, verdict = self._optimizer(args, {"EVAL_LEDGER_DIR": str(self.state / "ledger")})
-        self._record({"event": "gate", "step": step, "exit": code, "verdict": verdict})
+        self._record(
+            {
+                "event": "gate",
+                "step": step,
+                "exit": code,
+                "verdict": verdict,
+                "candidate_sha256": candidate_sha,
+            }
+        )
         # Exit 1 is also how the gate refuses without comparing (split drift,
         # corpus mismatch, guard). Only a comparison is a decision; a refusal
         # spends nothing and teaches the proposer nothing, so the run stops.
@@ -285,28 +332,45 @@ class Controller:
                 self.last = "NO_CHANGE"
                 self._record({"event": "no_change", "step": step})
                 return
-            candidate = self.score(f"candidate-{step}")
-            if read_artifact(config.artifact) != candidate_bytes:
-                raise ControllerError(
-                    f"the artifact changed while step {step} was being scored; "
-                    "refusing to gate bytes that were not the ones scored"
-                )
+            candidate = self.score(f"candidate-{step}", candidate_bytes)
         finally:
             # Every exit from the step restores the incumbent before the gate:
             # a failed proposer, a failed scorer, and a normal step. Only an
             # ACCEPT below writes the candidate back. The integrity check runs
             # here too, so a NO_CHANGE step that edited a denied file stops.
-            write_artifact(config.artifact, self.incumbent_bytes, self.mode)
+            self._restore()
             self._check_integrity()
-        self.last = self._gate(step, candidate)
+        self.last = self._gate(step, candidate, hashlib.sha256(candidate_bytes).hexdigest())
         if self.last == "ACCEPT":
             self.accepts += 1
             self.incumbent = candidate
             self.incumbent_bytes = candidate_bytes
             write_artifact(config.artifact, self.incumbent_bytes, self.mode)
 
+    def _restore(self) -> None:
+        """Write the incumbent back, holding SIGTERM until the write lands.
+
+        A SIGTERM raised mid-write would stop before `os.replace` and leave
+        the ungated candidate on disk. The signal is recorded, and honored
+        once the incumbent is in place.
+        """
+        self.restoring = True
+        try:
+            write_artifact(self.config.artifact, self.incumbent_bytes, self.mode)
+        finally:
+            self.restoring = False
+        if self.term_pending:
+            raise ControllerError("controller received SIGTERM", EXIT_EXTERNAL)
+
+    def on_sigterm(self, _signum: int, _frame: FrameType | None) -> None:
+        # Raised, so the step's `finally` restores the incumbent and kills the
+        # child's group before the process exits. Deferred during a restore.
+        self.term_pending = True
+        if not self.restoring:
+            raise ControllerError("controller received SIGTERM", EXIT_EXTERNAL)
+
     def run(self) -> dict[str, Any]:
-        previous = signal.signal(signal.SIGTERM, _terminated)
+        previous = signal.signal(signal.SIGTERM, self.on_sigterm)
         try:
             return self._run()
         except ControllerError as exc:
@@ -346,12 +410,6 @@ class Controller:
         }
         self._record({"event": "done", **summary})
         return summary
-
-
-def _terminated(_signum: int, _frame: FrameType | None) -> None:
-    # Raised, so the step's `finally` restores the incumbent and kills the
-    # child's group before the process exits.
-    raise ControllerError("controller received SIGTERM", EXIT_EXTERNAL)
 
 
 def cmd_policy(args: argparse.Namespace) -> int:

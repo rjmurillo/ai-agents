@@ -177,6 +177,30 @@ The spec-compliance axis on `b00f6f838` returned WARN because the owner decision
 
 Main's #7692 accepted ADR-022 and edited two ADR-087 sentences to say so, which took the record to 1001 lines. One paragraph is reflowed to bring it back to 1000. No wording changed, so no new panel round.
 
+## PR #7699 review threads
+
+Seventeen inline threads on `efba0ce6e`. Code fixes landed in one commit; each thread carries its own reply.
+
+| Source | Finding | Disposition |
+| --- | --- | --- |
+| rjmurillo | The digest sentence sat in the task-id bullet of the analysis file. | Fixed. Moved. |
+| Devin | A scorer that exits 1 on failing tests (pytest, rule scorer) aborted the run. | Fixed. `scorer_exit_codes` (default `[0]`). |
+| Devin | SIGTERM during the restore could leave the candidate. | Fixed. Deferred until the write lands. |
+| Devin | A launcher artifact that is a tracked symlink was refused. | Fixed. Resolved once at config load. |
+| Devin | Same-named task files overwrote each other. | Fixed. Refused. |
+| Devin | State or workspace under trusted code tripped the digest. | Fixed. Refused at load. |
+| Devin | Gate events lacked the candidate digest. | Fixed. `candidate_sha256` recorded. |
+| Devin | The proposer inherited scorer credentials by default. | Fixed. `proposer_env` is required. |
+| Devin | A failed scorer left its report in the checkout. | Fixed. Collected before stopping. |
+| Devin | Hook scoring runs candidate code with scorer access. | Kept as stated residual risk (decision D2). |
+| Devin | The split inventory comes from the baseline results. | Deferred to Open Requirement 12 (#7689). |
+| Cursor | Baseline scoring skipped the integrity and artifact checks. | Fixed. Every score checks both. |
+| Cursor | Task copies followed symlinks. | Fixed. Links refused; `copyfile` used. |
+| Cursor | Symlink tests lacked a Windows skip. | Fixed. |
+| Semgrep | `0o700` called too permissive. | False positive: owner-only is stricter than the `0o644` it suggests. |
+| CodeQL | `chmod` with a world-readable mode. | By design: restores the artifact's original mode (round 3 fix R3-1). |
+| CodeQL | Clear-text logging of a secret in `cmd_policy`. | False positive: `policy` prints paths only. |
+
 ## Dissent and residual risk
 
 - The boundary holds only under a launcher deny rule the controller cannot verify. The owner chose this in decision D2 over an OS user or a CI job.

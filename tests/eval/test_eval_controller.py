@@ -117,6 +117,7 @@ def _setup(
         "steps": steps,
         "opt_task_files": str(fixtures / "{task_name}.json"),
         "deny_paths": [str(fixtures)],
+        "proposer_env": ["TAMPER_TARGET"],
     }
     path = tmp_path / "config.json"
     path.write_text(json.dumps(config), encoding="utf-8")
@@ -287,6 +288,9 @@ def test_proposer_failure_is_external_and_restores_nothing_ungated(tmp_path: Pat
         ("sel_ratio", 0.4),
         ("deny_paths", []),
         ("timeout_seconds", 0),
+        ("proposer_env", None),
+        ("scorer_exit_codes", []),
+        ("scorer_exit_codes", [True]),
     ],
 )
 def test_bad_config_is_refused(tmp_path: Path, key: str, value: object) -> None:
@@ -345,6 +349,7 @@ def test_artifact_changed_during_scoring_is_refused(tmp_path: Path) -> None:
     assert artifact.read_text(encoding="utf-8") == before
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
 def test_planted_feedback_symlink_is_not_followed(tmp_path: Path) -> None:
     config, _ = _setup(tmp_path, {}, steps=2)
     outside = tmp_path / "outside.txt"
@@ -413,6 +418,7 @@ def test_config_inside_workspace_is_refused(tmp_path: Path) -> None:
     assert ec.main(["run", "--config", str(moved)]) == ec.EXIT_CONFIG
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
 def test_artifact_swapped_for_symlink_cannot_redirect_the_restore(tmp_path: Path) -> None:
     config, artifact = _setup(tmp_path, {}, steps=1)
     denied = tmp_path / "fixtures" / "T01.json"
@@ -604,10 +610,33 @@ def test_deny_path_containing_state_is_refused(tmp_path: Path) -> None:
     assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
 
 
-def test_sigterm_handler_raises_a_controller_error() -> None:
+def test_sigterm_raises_outside_a_restore(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    controller = ec.Controller(ec.load_config(config))
     with pytest.raises(ec.ControllerError) as caught:
-        ec._terminated(15, None)
+        controller.on_sigterm(15, None)
     assert caught.value.code == ec.EXIT_EXTERNAL
+
+
+def test_sigterm_during_a_restore_waits_for_the_write(tmp_path: Path) -> None:
+    config, artifact = _setup(tmp_path, {}, steps=1)
+    controller = ec.Controller(ec.load_config(config))
+    controller.incumbent_bytes = b"incumbent"
+    controller.mode = 0o644
+    real = ec.write_artifact
+
+    def interrupted(path: Path, data: bytes, mode: int) -> None:
+        controller.on_sigterm(15, None)  # arrives mid-restore: must not raise
+        real(path, data, mode)
+
+    original = ec.write_artifact
+    ec.write_artifact = interrupted
+    try:
+        with pytest.raises(ec.ControllerError):
+            controller._restore()
+    finally:
+        ec.write_artifact = original
+    assert artifact.read_bytes() == b"incumbent"
 
 
 def test_failure_detail_goes_to_the_log_not_stderr(
@@ -691,3 +720,110 @@ def test_scorer_runs_with_its_bytecode_cache_in_its_run_dir(tmp_path: Path) -> N
     assert ec.main(["run", "--config", str(config)]) == 0
     recorded = next((tmp_path / "state" / "runs").glob("incumbent-0-*/junit.xml.env"))
     assert recorded.read_text(encoding="utf-8") == str(recorded.parent / "pycache")
+
+
+def test_scorer_exit_one_is_refused_by_default(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    scorer = tmp_path / "scripts" / "scorer.py"
+    scorer.write_text(
+        scorer.read_text(encoding="utf-8") + "\nraise SystemExit(1)\n", encoding="utf-8"
+    )
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_EXTERNAL
+
+
+def test_scorer_exit_codes_accept_a_run_with_failing_tests(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {"1": _all_true()}, steps=1)
+    scorer = tmp_path / "scripts" / "scorer.py"
+    # pytest exits 1 when any test failed; the JUnit report is still complete.
+    scorer.write_text(
+        scorer.read_text(encoding="utf-8")
+        + "\nraise SystemExit(0 if all(state.values()) else 1)\n",
+        encoding="utf-8",
+    )
+    _edit_config(config, scorer_exit_codes=[0, 1])
+    assert ec.main(["run", "--config", str(config)]) == 0
+    assert any(e["event"] == "gate" for e in _events(tmp_path))
+
+
+def test_failed_scorer_output_is_moved_out_of_the_checkout(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    loose = tmp_path / "loose" / "report.xml"
+    loose.parent.mkdir()
+    write = f"open({str(loose)!r}, 'w').write('held-out'); raise SystemExit(4)"
+    _edit_config(config, scorer=[sys.executable, "-c", write], collect=[str(loose)])
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_EXTERNAL
+    assert not loose.exists()
+    assert list((tmp_path / "state" / "runs").glob("incumbent-0-*/0"))
+
+
+def test_baseline_scorer_that_edits_the_artifact_is_refused(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    scorer = tmp_path / "scripts" / "scorer.py"
+    scorer.write_text(
+        scorer.read_text(encoding="utf-8") + "\nopen(artifact, 'a').write(' ')\n",
+        encoding="utf-8",
+    )
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+    assert not (tmp_path / "state" / "split.json").exists()
+
+
+def test_baseline_scorer_that_edits_a_task_file_is_refused(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    scorer = tmp_path / "scripts" / "scorer.py"
+    fixture = tmp_path / "fixtures" / "T01.json"
+    scorer.write_text(
+        scorer.read_text(encoding="utf-8") + f"\nopen({str(fixture)!r}, 'a').write(' ')\n",
+        encoding="utf-8",
+    )
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+    assert not (tmp_path / "state" / "split.json").exists()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
+def test_task_file_that_is_a_link_is_refused(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    fixtures = tmp_path / "fixtures"
+    for task in TASKS:
+        path = fixtures / f"{task}.json"
+        path.unlink()
+        path.symlink_to(tmp_path / "artifact.json")
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+
+
+def test_task_files_sharing_a_name_are_refused(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    fixtures = tmp_path / "fixtures"
+    for task in TASKS:
+        (fixtures / task).mkdir()
+        (fixtures / task / "fixture.json").write_text("{}", encoding="utf-8")
+    _edit_config(config, opt_task_files=str(fixtures / "{task_name}" / "fixture.json"))
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
+def test_launcher_artifact_symlink_resolves_to_its_target(tmp_path: Path) -> None:
+    config, artifact = _setup(tmp_path, {"1": _all_true()}, steps=1)
+    link = tmp_path / "artifact-link.json"
+    link.symlink_to(artifact)
+    _edit_config(config, artifact=str(link))
+    assert ec.main(["run", "--config", str(config)]) == 0
+    assert link.is_symlink()
+    assert json.loads(artifact.read_text(encoding="utf-8")) == _all_true()
+
+
+def test_state_dir_inside_trusted_code_is_refused(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    trusted = tmp_path / "trusted"
+    trusted.mkdir()
+    _edit_config(config, trusted_paths=[str(trusted)], state_dir=str(trusted / "state"))
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+
+
+def test_gate_event_records_the_candidate_digest(tmp_path: Path) -> None:
+    import hashlib
+
+    config, _ = _setup(tmp_path, {"1": _all_true()}, steps=1)
+    assert ec.main(["run", "--config", str(config)]) == 0
+    gate = next(e for e in _events(tmp_path) if e["event"] == "gate")
+    expected = hashlib.sha256(json.dumps(_all_true()).encode()).hexdigest()
+    assert gate["candidate_sha256"] == expected

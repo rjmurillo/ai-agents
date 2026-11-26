@@ -2324,11 +2324,12 @@ The config is launcher-owned JSON:
 | `state_dir` | Controller-only. Holds scorer output, results, split, ledger, log, and bytecode caches. Must not hold an earlier session (`split.json`). |
 | `workspace_dir` | The proposer's only input. Must be absent or empty at start, and must not contain the artifact. Emptied each step, then given `feedback.json` and optional `tasks/`. |
 | `scorer` | argv. `{run_id}`, `{run_dir}`, and `{artifact}` are filled in. |
+| `scorer_exit_codes` | Exit codes that count as a completed scoring run (default `[0]`). pytest and the rule scorer exit 1 on failures, so use `[0, 1]` there. |
 | `collect` | Paths the scorer writes outside `{run_dir}`. Each is moved to `{run_dir}/<index>`. |
 | `inputs` | `extract --input` paths, usually under `{run_dir}`. |
 | `extract_args` | Extra `extract` flags, such as `--variant agent`. |
 | `proposer` | argv. `{feedback}`, `{artifact}`, `{workspace}`, and `{step}` are filled in. |
-| `proposer_env` | Optional allowlist of environment variable names for the proposer, plus `PATH`. `EVAL_LEDGER_DIR` never passes. |
+| `proposer_env` | Required allowlist of environment variable names for the proposer (`[]` for none), plus `PATH`. Scorer credentials never pass unless named. `EVAL_LEDGER_DIR` never passes. |
 | `seed`, `sel_ratio` | Passed to `split`. |
 | `max_consultations` | The gate cap. It comes from the launcher, not from the proposer. |
 | `max_p` | Optional `gate --max-p`. |

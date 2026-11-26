@@ -62,7 +62,8 @@ class Config:
     opt_task_files: str | None
     deny_paths: list[Path]
     trusted_paths: list[Path]
-    proposer_env: list[str] | None
+    proposer_env: list[str]
+    scorer_exit_codes: tuple[int, ...]
     config_path: Path
     timeout_seconds: int
 
@@ -121,11 +122,24 @@ def load_config(path: Path) -> Config:
     if not isinstance(data, dict):
         raise ControllerError("config must be a JSON object")
     _checked_strings(data)
-    env = data.get("proposer_env")
     max_p = data.get("max_p")
+    codes = data.get("scorer_exit_codes", [0])
+    if (
+        not isinstance(codes, list)
+        or not codes
+        or not all(isinstance(c, int) and not isinstance(c, bool) and 0 <= c < 256 for c in codes)
+    ):
+        raise ControllerError("config `scorer_exit_codes` must be a non-empty list of exit codes")
+    if not isinstance(data.get("proposer_env"), list):
+        raise ControllerError(
+            "config `proposer_env` must list the variables the proposer may see ([] for none)"
+        )
     config = Config(
         kind=data["kind"],
-        artifact=resolve(data["artifact"]),
+        # Canonical path: a launcher may name a tracked symlink (rules are
+        # links into src/claude/rules/). Every later read refuses a link, so
+        # the controller works on the file the link names.
+        artifact=resolve(data["artifact"]).resolve(),
         state_dir=resolve(data["state_dir"]),
         workspace_dir=resolve(data["workspace_dir"]),
         scorer=_string_list(data, "scorer"),
@@ -145,7 +159,8 @@ def load_config(path: Path) -> Config:
         trusted_paths=[
             resolve(item) for item in _string_list(data, "trusted_paths", required=False)
         ],
-        proposer_env=None if env is None else _string_list(data, "proposer_env"),
+        proposer_env=_string_list(data, "proposer_env", required=False),
+        scorer_exit_codes=tuple(codes),
         config_path=path.resolve(),
         timeout_seconds=_positive_int(data.get("timeout_seconds", 3600), "timeout_seconds"),
     )
@@ -181,6 +196,12 @@ def check_layout(config: Config) -> None:
             raise ControllerError(
                 "a deny or trusted path overlaps the proposer workspace or the artifact; "
                 "the proposer would need it to do its job"
+            )
+    for path in trusted_code(config):
+        if overlaps(path, config.state_dir) or overlaps(path, config.workspace_dir):
+            raise ControllerError(
+                "state_dir and workspace_dir must sit outside trusted code; the controller's "
+                "own writes there would read as tampering"
             )
     for path in config.deny_paths:
         if overlaps(path, config.state_dir) or overlaps(path, config.config_path):
@@ -254,7 +275,11 @@ def kill_group(proc: subprocess.Popen[bytes]) -> None:
 
 
 def run_child(
-    argv: list[str], what: str, timeout: int, env: Mapping[str, str] | None = None
+    argv: list[str],
+    what: str,
+    timeout: int,
+    env: Mapping[str, str] | None = None,
+    ok_codes: Sequence[int] = (0,),
 ) -> float:
     """Run one scorer or proposer call; return its duration in seconds."""
     # Output goes to temporary files, not pipes. A descendant that escapes the
@@ -281,7 +306,7 @@ def run_child(
             raise ControllerError(f"{what} timed out after {timeout}s", EXIT_EXTERNAL) from exc
         finally:
             kill_group(proc)
-        if proc.returncode != 0:
+        if proc.returncode not in ok_codes:
             err.seek(0)
             out.seek(0)
             tail = (err.read() or out.read()).decode("utf-8", errors="replace").strip()[-_TAIL:]
@@ -381,14 +406,12 @@ def clear_dir(directory: Path) -> None:
 
 
 def proposer_env(config: Config) -> dict[str, str]:
-    """The proposer's environment: an allowlist when the config names one.
+    """The proposer's environment: `PATH` plus the config's allowlist.
 
+    The allowlist is required, so scorer credentials in the launcher's
+    environment never reach the proposer unless the launcher names them.
     `EVAL_LEDGER_DIR` never passes, so a proposer that shells out to
     `optimize-artifact.py` cannot find the controller's ledger by it.
     """
-    source = dict(os.environ)
-    if config.proposer_env is not None:
-        keep = {"PATH", *config.proposer_env}
-        source = {key: value for key, value in source.items() if key in keep}
-    source.pop("EVAL_LEDGER_DIR", None)
-    return source
+    keep = {"PATH", *config.proposer_env} - {"EVAL_LEDGER_DIR"}
+    return {key: value for key, value in os.environ.items() if key in keep}

@@ -58,7 +58,9 @@ stops early.
 
 - Every exit from a step restores the incumbent before the gate. That covers a
   failed proposer, a failed scorer, a timeout, and SIGTERM, which the
-  controller turns into an exception so the restore still runs.
+  controller turns into an exception so the restore still runs. A SIGTERM that
+  arrives during the restore waits until the incumbent is written.
+- The gate log records each candidate's SHA-256.
 - Only an ACCEPT writes the candidate back.
 - The controller re-reads the artifact after scoring and refuses to gate if it
   changed.
@@ -76,23 +78,38 @@ stops early.
 - The controller digests `deny_paths`, every entry under `scripts/eval/`
   (its own code and the gate's, directories included, so a planted package is
   caught), and any `trusted_paths` the config names, such as the scorer's own
-  files. The optimizer runs with `PYTHONPYCACHEPREFIX` under the state
-  directory, and each scorer run with it inside that run's own directory, so a
-  planted cache beside trusted code is never read.
+  files. It checks those digests before and after each scoring run and after
+  each step, and stops on any change. The optimizer runs with
+  `PYTHONPYCACHEPREFIX` under the state directory, and each scorer run with it
+  inside that run's own directory, so a planted cache beside trusted code is
+  never read.
+- After each scoring run, including the baseline, the artifact must still be
+  the bytes that were scored.
+- The state directory and the workspace may not sit inside trusted code, where
+  the controller's own writes would read as tampering.
 - Task ids come from scorer output. An id with a path separator, or `.` or
-  `..`, is refused before it fills `opt_task_files`. It checks them before each scoring run and after each
-  step, and stops on any change.
+  `..`, is refused before it fills `opt_task_files`. A task file that is a
+  link, or two task files with the same name, stop the run.
+- A launcher may name a tracked symlink as the artifact. The controller
+  resolves it once, at config load, and works on the target file.
 - Around each scoring run, it digests the whole state directory except the new
   run's output directory, and stops if anything else changed.
 - The gate cap is `max_consultations` from the config. The ledger root is
   `state_dir/ledger`, set through `EVAL_LEDGER_DIR` for the gate only. The
-  proposer's environment never carries `EVAL_LEDGER_DIR`, and the config can
-  restrict the proposer to an allowlist of variables (`proposer_env`).
+  proposer gets `PATH` plus the variables the required `proposer_env` names,
+  so scorer credentials never reach it by default. `EVAL_LEDGER_DIR` never
+  passes.
 - A gate exit of 1 counts as a decision only when the gate actually compared.
   The gate also exits 1 to refuse without comparing (split drift, corpus
   mismatch, a guard). A refusal spends no consultation and stops the run.
 
 ### Child processes
+
+A scorer call succeeds on the exit codes `scorer_exit_codes` names (default
+`[0]`). pytest exits 1 when any test fails, and the rule scorer exits 1 on a
+negative verdict, so those launchers name `[0, 1]`. A failed scorer's
+`collect` outputs are still moved into state, since they may hold held-out
+outcomes.
 
 Scorer, proposer, and optimizer calls each have a timeout (`timeout_seconds`,
 default 3600). Child output goes to files, not pipes, so a lingering
