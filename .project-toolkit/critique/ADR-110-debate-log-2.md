@@ -78,3 +78,15 @@ proof. The deterministic checks carry the weight: the real-tree test fails on
 the `origin/main` gate and passes on this branch, and the residue pin failed on
 a planted fifth copy. Reverting the gate change is a one-commit revert of
 `scripts/validation/check_capability_graph.py` and its tests.
+
+## Changes after the round 2 vote
+
+The panel voted on `bcccf3c16`. Two later commits touched this change.
+
+- `69e0f5aad` set `status: accepted`, rewrote the Status opening, and rewrapped
+  two paragraphs. No decision text changed.
+- `54fd51038` came from the `/review` pass, not the panel. It adds `compares`
+  lines to the text report, drops the unused agent partial directory, and adds
+  three tests. ADR-110's text is unchanged by it. Deterministic re-check at that
+  commit: 57 capability tests pass, and the real-tree gate exits 0 with one
+  `compares untrusted-content-handling` line.
