@@ -186,7 +186,9 @@ def test_named_skill_is_required_and_its_tools_reach_run_one(tmp_path, monkeypat
     _head(monkeypatch, "h")
     root = tmp_path / "co"
     (root / ".claude" / "skills" / "chestertons-fence").mkdir(parents=True)
-    (root / ".claude" / "skills" / "chestertons-fence" / "SKILL.md").write_text("x")
+    (root / ".claude" / "skills" / "chestertons-fence" / "SKILL.md").write_text(
+        "x", encoding="utf-8"
+    )
     tool = "Bash(git blame:*)"
     data = {**TASKS, "skill": "chestertons-fence", "allowed_tools": [tool]}
     seen: list[tuple[str, ...]] = []
