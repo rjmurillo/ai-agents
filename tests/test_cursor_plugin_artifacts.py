@@ -205,7 +205,7 @@ def test_rules_are_mdc_only_and_none_is_all_internal() -> None:
 
 
 def test_the_always_on_rules_are_always_applied() -> None:
-    for name in ("universal", "builder-ethos", "voice"):
+    for name in ("universal", "core"):
         path = CURSOR_TREE / "rules" / f"{name}.mdc"
         if path.exists():
             assert "alwaysApply: true" in path.read_text(encoding="utf-8").split("---")[1]

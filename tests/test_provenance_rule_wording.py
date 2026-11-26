@@ -7,6 +7,9 @@ SPEC-agent-backlog-provenance.md AC-12, verbatim:
   at least one occurrence of "PR body" inside its Ownership section.
 
 Checks both rendered trees: .claude/rules and .github/instructions.
+
+"may only flag, never file" moved to core.md with the Task Completion Contract,
+so that phrase is checked there.
 """
 
 from __future__ import annotations
@@ -25,10 +28,12 @@ _VOICE = (
     _ROOT / ".claude" / "rules" / "voice.md",
     _ROOT / ".github" / "instructions" / "voice.instructions.md",
 )
-_ETHOS_PHRASES = (
-    "task selection is not the agent's to compress",
-    "may only flag, never file",
+_CORE = (
+    _ROOT / ".claude" / "rules" / "core.md",
+    _ROOT / ".github" / "instructions" / "core.instructions.md",
 )
+_ETHOS_PHRASE = "task selection is not the agent's to compress"
+_CORE_PHRASE = "may only flag, never file"
 
 
 def ownership_section(text: str) -> str:
@@ -40,9 +45,13 @@ def ownership_section(text: str) -> str:
 
 
 @pytest.mark.parametrize("path", _ETHOS, ids=lambda p: p.parent.name)
-@pytest.mark.parametrize("phrase", _ETHOS_PHRASES)
-def test_builder_ethos_contains_phrase(path: Path, phrase: str) -> None:
-    assert phrase in path.read_text(encoding="utf-8")
+def test_builder_ethos_contains_phrase(path: Path) -> None:
+    assert _ETHOS_PHRASE in path.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("path", _CORE, ids=lambda p: p.parent.name)
+def test_core_contains_the_flag_never_file_phrase(path: Path) -> None:
+    assert _CORE_PHRASE in path.read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize("path", _VOICE, ids=lambda p: p.parent.name)
