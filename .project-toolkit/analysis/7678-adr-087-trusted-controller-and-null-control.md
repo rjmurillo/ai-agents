@@ -88,6 +88,11 @@ stops early.
   the bytes that were scored.
 - The state directory and the workspace may not sit inside trusted code, where
   the controller's own writes would read as tampering.
+- `inputs` must sit under the run directory, a report already at a `collect`
+  path stops the run, and a task-file path through a linked directory is
+  refused. An unreadable protected root is refused, not read as missing.
+  Bytecode caches are skipped only under `scripts/eval/`.
+- SIGINT is handled like SIGTERM, so Ctrl+C cannot unwind a restore.
 - Task ids come from scorer output. An id with a path separator, or `.` or
   `..`, is refused before it fills `opt_task_files`. A task file that is a
   link, or two task files with the same name, stop the run.
@@ -151,6 +156,10 @@ directories, because those hold per-task outcomes for the held-out group.
   group emptied and its id was reused.
 - `os.replace` keeps the mode bits but not extended attributes, ACLs, or
   ownership.
+- Two controller runs on one artifact are not locked against each other; the
+  launcher must run one at a time per artifact.
+- Child output files are not size-capped while the child runs; only what the
+  controller reads back is bounded.
 
 ## The first valid agent-path null control
 

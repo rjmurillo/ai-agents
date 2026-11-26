@@ -12,6 +12,7 @@ import json
 import os
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import tempfile
@@ -92,6 +93,21 @@ def _string_list(data: Mapping[str, Any], key: str, required: bool = True) -> li
     return list(value)
 
 
+def _run_dir_inputs(inputs: list[str]) -> list[str]:
+    """`extract` reads only the private run directory, after collection.
+
+    An input outside it would be a report the launcher's rule never names,
+    readable by the proposer while it waits there.
+    """
+    for item in inputs:
+        if not item.startswith("{run_dir}"):
+            raise ControllerError(
+                f"config `inputs` entry {item!r} must start with `{{run_dir}}`; "
+                "name reports written elsewhere in `collect`"
+            )
+    return inputs
+
+
 def _positive_int(value: object, key: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         raise ControllerError(f"config `{key}` must be a positive integer")
@@ -105,8 +121,11 @@ def _checked_strings(data: Mapping[str, Any]) -> None:
         if not isinstance(data.get(key), str) or not data[key]:
             raise ControllerError(f"config `{key}` must be a non-empty string")
     max_p = data.get("max_p")
-    if max_p is not None and (isinstance(max_p, bool) or not isinstance(max_p, (int, float))):
-        raise ControllerError("config `max_p` must be a number or null")
+    if max_p is not None and (
+        isinstance(max_p, bool) or not isinstance(max_p, (int, float)) or not 0 <= max_p <= 1
+    ):
+        # Checked here, not first at the gate, so a bad bar never pays for scoring.
+        raise ControllerError("config `max_p` must be a number in [0, 1] or null")
     template = data.get("opt_task_files")
     if template is not None and (
         not isinstance(template, str)
@@ -151,7 +170,7 @@ def load_config(path: Path) -> Config:
         workspace_dir=resolve(data["workspace_dir"]).resolve(),
         scorer=_string_list(data, "scorer"),
         collect=_string_list(data, "collect", required=False),
-        inputs=_string_list(data, "inputs"),
+        inputs=_run_dir_inputs(_string_list(data, "inputs")),
         extract_args=_string_list(data, "extract_args", required=False),
         proposer=_string_list(data, "proposer"),
         seed=data["seed"],
@@ -235,6 +254,8 @@ def _walk(root: Path) -> list[Path]:
 
     `Path.rglob` skips unreadable directories silently, so two scans of a
     subtree nobody can read would digest equal without checking a file.
+    Bytecode caches are skipped only under the eval directory, where the
+    controller sends Python's caches elsewhere and nothing reads them.
     """
 
     def refuse(error: OSError) -> None:
@@ -242,7 +263,8 @@ def _walk(root: Path) -> list[Path]:
 
     entries: list[Path] = []
     for current, dirs, files in os.walk(root, onerror=refuse):
-        dirs[:] = [name for name in dirs if name != "__pycache__"]
+        if root == EVAL_DIR:
+            dirs[:] = [name for name in dirs if name != "__pycache__"]
         base = Path(current)
         entries.extend(base / name for name in (*dirs, *files))
     return sorted(entries)
@@ -252,7 +274,16 @@ def tree_digest(paths: Sequence[Path], exclude: Path | None = None) -> str:
     """One digest over the names and bytes of every file under `paths`."""
     sha = hashlib.sha256()
     for root in paths:
-        entries = _walk(root) if root.is_dir() and not root.is_symlink() else [root]
+        try:
+            info = root.lstat()
+        except FileNotFoundError:
+            info = None
+        except OSError as exc:
+            # A root under a directory nobody can traverse reads as "missing"
+            # to the path predicates, so two scans would agree unseen.
+            raise ControllerError(f"cannot inspect protected path {root}: {exc.strerror}") from exc
+        is_tree = info is not None and stat.S_ISDIR(info.st_mode)
+        entries = _walk(root) if is_tree else [root]
         for entry in entries:
             if exclude is not None and (entry == exclude or exclude in entry.parents):
                 continue

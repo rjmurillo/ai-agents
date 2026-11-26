@@ -194,6 +194,15 @@ class Controller:
         # The candidate's code may run inside the scorer. Everything already in
         # state must be exactly as the controller left it when the scorer ends.
         before = tree_digest([self.state], exclude=run_dir)
+        # A report already sitting at a collect path belongs to some earlier
+        # run. Collecting it would gate on the wrong results.
+        for template in self.config.collect:
+            stale = resolve(fill(template, values))
+            if stale.exists() or stale.is_symlink():
+                raise ControllerError(
+                    f"scorer output {stale} exists before {label} was scored; "
+                    "use a collect path that names the run (`{run_id}`) or clear it"
+                )
         # The scorer's bytecode cache goes inside its own run directory, so a
         # cache planted beside the scorer's code is never read and the state
         # digest above still excludes everything the scorer may write.
@@ -263,6 +272,12 @@ class Controller:
             tasks_dir.mkdir()
             for task in opt:
                 source = resolve(task_file(self.config.opt_task_files, task))
+                # Every component, not only the leaf: a linked directory in
+                # the path would copy bytes from outside the task tree.
+                if os.path.realpath(source) != os.path.abspath(source):
+                    raise ControllerError(
+                        f"optimize-group task path {source} passes through a link"
+                    )
                 # A link could point at a held-out definition and hand it over
                 # under an optimize-group name, so links are refused.
                 if source.is_symlink() or not source.is_file():
@@ -399,17 +414,19 @@ class Controller:
         finally:
             self.restoring = False
         if self.term_pending:
-            raise ControllerError("controller received SIGTERM", EXIT_EXTERNAL)
+            raise ControllerError("controller received a stop signal", EXIT_EXTERNAL)
 
     def on_sigterm(self, _signum: int, _frame: FrameType | None) -> None:
         # Raised, so the step's `finally` restores the incumbent and kills the
         # child's group before the process exits. Deferred during a restore.
+        # SIGINT (Ctrl+C) takes the same path, so it cannot unwind a restore.
         self.term_pending = True
         if not self.restoring:
-            raise ControllerError("controller received SIGTERM", EXIT_EXTERNAL)
+            raise ControllerError("controller received a stop signal", EXIT_EXTERNAL)
 
     def run(self) -> dict[str, Any]:
         previous = signal.signal(signal.SIGTERM, self.on_sigterm)
+        previous_int = signal.signal(signal.SIGINT, self.on_sigterm)
         try:
             return self._run()
         except ControllerError as exc:
@@ -420,6 +437,7 @@ class Controller:
             raise
         finally:
             signal.signal(signal.SIGTERM, previous)
+            signal.signal(signal.SIGINT, previous_int)
 
     def _run(self) -> dict[str, Any]:
         config = self.config

@@ -978,9 +978,9 @@ this over a separate OS user or a protected CI job (#7642, decision D2).
 **The boundary is conditional.** Python cannot stop a same-user process from
 reading a file. The held-out group is withheld only under the rule
 `eval_controller.py policy` prints: no proposer read or write on the state
-directory, the config, or `deny_paths`, and no write on the eval code. And
-`deny_paths` must cover the whole task directory and earlier report
-directories, or the held-out group is the complement of the optimize ids.
+directory, the config, `deny_paths`, or `collect` paths, and no write on the
+eval code or `trusted_paths`. `deny_paths` must cover the whole task directory
+and earlier reports, or the held-out group is the complement of the opt ids.
 Under that rule the three surfaces this requirement names are closed. The
 controller cannot check the rule. For `hook`, candidate code runs in the scorer
 and can forge its own results. The stronger Decision form holds only for a

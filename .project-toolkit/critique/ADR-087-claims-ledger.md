@@ -11,7 +11,7 @@ Verified 2026-11-25 for issue #7642, covering the "Amendment 2026-11-25" text an
 | #3436 is closed. | Behavior | `gh issue view 3436 --json state` | `CLOSED`. VERIFIED |
 | `optimize-artifact.py report` exists and reads the test group. | Path | `optimize-artifact.py` lines 3252-3269 | `sub.add_parser("report", help="read the test group once, at the end")`. VERIFIED |
 | The controller runs scorer, `extract`, `split`, and `gate` itself. | Behavior | `scripts/eval/eval_controller.py`, `Controller.score` and `Controller.run` | Each is a subprocess the controller starts. VERIFIED |
-| The proposer workspace holds `feedback.json` (step, artifact path, opt results, opt score, consultations left, last decision) and opt task files. | Behavior | `test_proposer_never_sees_a_held_out_id`, `test_accept_keeps_the_candidate_and_reports_one_bit`, `test_opt_task_files_are_copied_and_nothing_else` | 87 of 87 tests pass after the PR #7699 review fixes. VERIFIED |
+| The proposer workspace holds `feedback.json` (step, artifact path, opt results, opt score, consultations left, last decision) and opt task files. | Behavior | `test_proposer_never_sees_a_held_out_id`, `test_accept_keeps_the_candidate_and_reports_one_bit`, `test_opt_task_files_are_copied_and_nothing_else` | 95 of 95 tests pass after the PR #7699 review fixes. VERIFIED |
 | Every step exit restores the incumbent before the gate. | Behavior | `test_reject_restores_the_incumbent`, `test_proposer_that_edits_then_fails_leaves_the_incumbent`, `test_artifact_changed_during_scoring_is_refused` | Pass. VERIFIED |
 | A planted workspace symlink does not redirect a controller write. | Behavior | `test_planted_feedback_symlink_is_not_followed` | Pass. VERIFIED |
 | `deny_paths` is required, and `policy` lists state, config, and `deny_paths`. | Behavior | `test_bad_config_is_refused[deny_paths-value9]`, `test_policy_lists_state_and_task_paths` | Pass. VERIFIED |
@@ -69,3 +69,7 @@ Verified 2026-11-25 for issue #7642, covering the "Amendment 2026-11-25" text an
 | An unreadable protected directory is refused. | Behavior | `test_unreadable_protected_directory_is_refused` | Pass (non-root POSIX). VERIFIED |
 | On Windows the proposer keeps startup variables, matched case-insensitively. | Behavior | `test_windows_proposer_env_keeps_startup_variables` (`os.name` patched; not run on Windows) | Pass. VERIFIED (logic), NOT RUN (Windows) |
 | An oversized optimizer reply is refused; `policy` names `collect` paths. | Behavior | `test_oversized_optimizer_reply_is_refused`, `test_policy_names_collect_paths` | Pass. VERIFIED |
+| `max_p` outside `[0, 1]` and `inputs` outside `{run_dir}` are refused at load. | Behavior | `test_bad_config_is_refused` (`max_p` 1.1 and -0.1, external `inputs`) | Pass. VERIFIED |
+| A stale report at a `collect` path, or a task path through a linked directory, is refused. | Behavior | `test_stale_report_at_a_collect_path_is_refused`, `test_task_path_through_a_linked_directory_is_refused` | Pass. VERIFIED |
+| A protected root that cannot be inspected is refused; caches in deny paths are digested. | Behavior | `test_protected_root_that_cannot_be_inspected_is_refused`, `test_cache_directory_in_a_deny_path_is_digested` | Pass. VERIFIED |
+| `run` installs and restores a SIGINT handler. | Behavior | `test_run_installs_and_restores_a_sigint_handler` | Pass. VERIFIED |

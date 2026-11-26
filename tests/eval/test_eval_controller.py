@@ -19,9 +19,11 @@ these tests spend no eval budget.
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 import json
 import os
+import signal
 import sys
 import textwrap
 from pathlib import Path
@@ -286,6 +288,9 @@ def test_proposer_failure_is_external_and_restores_nothing_ungated(tmp_path: Pat
         ("proposer", "not-a-list"),
         ("opt_task_files", "no-placeholder.json"),
         ("max_p", "0.05"),
+        ("max_p", 1.1),
+        ("max_p", -0.1),
+        ("inputs", ["/elsewhere/report.xml"]),
         ("sel_ratio", 0.4),
         ("deny_paths", []),
         ("timeout_seconds", 0),
@@ -449,8 +454,8 @@ def test_escaped_grandchild_cannot_stretch_the_timeout(tmp_path: Path) -> None:
     started_marker = tmp_path / "grandchild-started"
     escape = (
         "import os, subprocess, sys, time; "
-        "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(20)'], "
-        "start_new_session=True); open(sys.argv[1], 'w').write('x'); time.sleep(20)"
+        "p = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(20)'], "
+        "start_new_session=True); open(sys.argv[1], 'w').write(str(p.pid)); time.sleep(20)"
     )
     _edit_config(
         config,
@@ -458,10 +463,17 @@ def test_escaped_grandchild_cannot_stretch_the_timeout(tmp_path: Path) -> None:
         proposer=[sys.executable, "-c", escape, str(started_marker)],
     )
     started = time.monotonic()
-    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_EXTERNAL
-    assert time.monotonic() - started < 10
-    assert started_marker.exists()
-    assert "proposer step 1 timed out" in _events(tmp_path)[-1]["error"]
+    try:
+        assert ec.main(["run", "--config", str(config)]) == ec.EXIT_EXTERNAL
+        assert time.monotonic() - started < 10
+        assert started_marker.exists()
+        assert "proposer step 1 timed out" in _events(tmp_path)[-1]["error"]
+    finally:
+        # The grandchild left the group on purpose; stop it so the test
+        # does not leave a sleeper behind.
+        if started_marker.exists():
+            with contextlib.suppress(ProcessLookupError, ValueError):
+                os.kill(int(started_marker.read_text(encoding="utf-8")), signal.SIGKILL)
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX mode bits")
@@ -995,3 +1007,71 @@ def test_policy_names_collect_paths(tmp_path: Path, capsys: pytest.CaptureFixtur
     assert json.loads(capsys.readouterr().out)["deny_read_write_collect"] == [
         "evals/x/reports/{run_id}"
     ]
+
+
+def test_stale_report_at_a_collect_path_is_refused(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    stale = tmp_path / "loose" / "report.xml"
+    stale.parent.mkdir()
+    stale.write_text("from an earlier run", encoding="utf-8")
+    _edit_config(config, collect=[str(stale)])
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+    assert stale.read_text(encoding="utf-8") == "from an earlier run"
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
+def test_task_path_through_a_linked_directory_is_refused(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    real = tmp_path / "real-tasks"
+    real.mkdir()
+    for task in TASKS:
+        (real / f"{task}.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "linked").symlink_to(real, target_is_directory=True)
+    _edit_config(config, opt_task_files=str(tmp_path / "linked" / "{task_name}.json"))
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32" or getattr(os, "geteuid", lambda: 1)() == 0,
+    reason="needs POSIX permissions and a non-root user",
+)
+def test_protected_root_that_cannot_be_inspected_is_refused(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    locked = tmp_path / "locked"
+    (locked / "inner").mkdir(parents=True)
+    _edit_config(config, trusted_paths=[str(locked / "inner")])
+    locked.chmod(0)
+    try:
+        assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+    finally:
+        locked.chmod(0o700)
+
+
+def test_cache_directory_in_a_deny_path_is_digested(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    cache = tmp_path / "fixtures" / "__pycache__"
+    cache.mkdir()
+    (cache / "x.pyc").write_text("a", encoding="utf-8")
+    scorer = tmp_path / "scripts" / "scorer.py"
+    scorer.write_text(
+        scorer.read_text(encoding="utf-8") + f"\nopen({str(cache / 'x.pyc')!r}, 'a').write('b')\n",
+        encoding="utf-8",
+    )
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+
+
+def test_run_installs_and_restores_a_sigint_handler(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    before = signal.getsignal(signal.SIGINT)
+    seen: list[object] = []
+    controller = ec.Controller(ec.load_config(config))
+    original = controller._run
+
+    def spy() -> dict[str, Any]:
+        seen.append(signal.getsignal(signal.SIGINT))
+        return original()
+
+    controller._run = spy
+    controller.run()
+    assert seen == [controller.on_sigterm]
+    assert signal.getsignal(signal.SIGINT) is before

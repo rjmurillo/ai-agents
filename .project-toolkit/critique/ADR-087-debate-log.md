@@ -233,6 +233,22 @@ CodeRabbit and fourth Cursor pass on `c65d91240`:
 | README overstated logged child output. | Fixed. |
 | Timeout tests did not prove the proposer timed out. | Fixed. |
 
+CodeRabbit pass on `71555828f` (12 threads):
+
+| Finding | Disposition |
+| --- | --- |
+| The ADR condition omitted `collect` paths and `trusted_paths`. | Fixed. Reworded at the same length. |
+| `max_p` out of range was found only at the gate. | Fixed. Checked at load. |
+| `__pycache__` was skipped in every protected tree. | Fixed. Only under `scripts/eval/`. |
+| A protected root that cannot be inspected read as missing. | Fixed. `lstat` classifies it, and inspection errors refuse. |
+| `inputs` outside the run directory were not in the policy. | Fixed. `inputs` must start with `{run_dir}`. |
+| A stale report at a fixed `collect` path could be gated. | Fixed. Refused before scoring. |
+| A task path through a linked directory passed the leaf check. | Fixed. `realpath` must equal `abspath`. |
+| Ctrl+C could unwind a restore. | Fixed. SIGINT is deferred like SIGTERM. |
+| The detached test grandchild was left running. | Fixed. Killed in `finally`. |
+| The split comes from baseline results, not a launcher inventory. | Deferred to Open Requirement 12, #7689, as before. |
+| Two runs on one artifact can restore over each other. | Not fixed. Documented: one controller per artifact; a cross-process lock is new scope. |
+
 ## Dissent and residual risk
 
 - The boundary holds only under a launcher deny rule the controller cannot verify. The owner chose this in decision D2 over an OS user or a CI job.
@@ -242,3 +258,4 @@ CodeRabbit and fourth Cursor pass on `c65d91240`:
 - `killpg` after a normal exit carries a pid-reuse risk that needs an empty group first.
 - For the `hook` kind, candidate code run by the scorer can forge its own results.
 - A candidate that breaks the scorer stops the run rather than counting as a REJECT.
+- Two controller runs on one artifact are not locked against each other.

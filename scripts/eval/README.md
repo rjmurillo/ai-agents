@@ -2325,14 +2325,14 @@ The config is launcher-owned JSON:
 | `workspace_dir` | The proposer's only input. Must be absent or empty at start, and must not contain the artifact. Emptied each step, then given `feedback.json` and optional `tasks/`. |
 | `scorer` | argv. `{run_id}`, `{run_dir}`, and `{artifact}` are filled in. |
 | `scorer_exit_codes` | Exit codes that count as a completed scoring run (default `[0]`). pytest and the rule scorer exit 1 on failures, so use `[0, 1]` there. |
-| `collect` | Paths the scorer writes outside `{run_dir}`. Each is moved to `{run_dir}/<index>`, every one attempted even if another is missing. The proposer must not read them meanwhile: `policy` prints them as `deny_read_write_collect`; deny the directory each names. |
-| `inputs` | `extract --input` paths, usually under `{run_dir}`. |
+| `collect` | Paths the scorer writes outside `{run_dir}`. Each is moved to `{run_dir}/<index>`, every one attempted even if another is missing. A report already at a `collect` path before scoring stops the run, so include `{run_id}` in fixed paths. The proposer must not read them meanwhile: `policy` prints them as `deny_read_write_collect`; deny the directory each names. |
+| `inputs` | `extract --input` paths. Each must start with `{run_dir}`; a report written elsewhere is named in `collect` and read from `{run_dir}/<index>`. |
 | `extract_args` | Extra `extract` flags, such as `--variant agent`. |
 | `proposer` | argv. `{feedback}`, `{artifact}`, `{workspace}`, and `{step}` are filled in. |
 | `proposer_env` | Required allowlist of environment variable names for the proposer (`[]` for none), plus `PATH`. Scorer credentials never pass unless named. `EVAL_LEDGER_DIR` never passes. |
 | `seed`, `sel_ratio` | Passed to `split`. |
 | `max_consultations` | The gate cap. It comes from the launcher, not from the proposer. |
-| `max_p` | Optional `gate --max-p`. |
+| `max_p` | Optional `gate --max-p`, a number in `[0, 1]`, checked at load. |
 | `steps` | Proposer calls at most. The loop also stops when the cap is spent. |
 | `opt_task_files` | Optional path template with `{task_id}` or `{task_name}`. Optimize-group files are copied into `tasks/`; a missing one stops the run. |
 | `deny_paths` | Required. Paths the proposer must not reach. Name the whole task directory, or the held-out group is the complement of the optimize ids. Name earlier report directories for the same tasks too, since they hold held-out outcomes. |
@@ -2359,6 +2359,10 @@ loop and again around every scoring run and step. The optimizer runs with
 `PYTHONPYCACHEPREFIX` under `state_dir`, so a planted bytecode cache in
 `scripts/eval/__pycache__` is never read. It also checks that scoring changed
 nothing in `state_dir` outside the new run's directory.
+
+Run one controller per artifact at a time. Two runs with different
+`state_dir`s on the same artifact can restore over each other's accepted bytes;
+the controller does not lock the artifact across processes.
 
 **The boundary is conditional.** Python cannot stop a same-user process from
 reading a file. The held-out group is withheld only when the launcher applies
