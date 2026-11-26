@@ -78,7 +78,7 @@ No existing gate measures this class, so it has no observed rate beyond the two 
 
 ## Rationale
 
-MUST 2 offers one path for a class that does not fit: a linked ADR. Writing that ADR is the smallest change that makes both retros compliant. It changes no rule, gate, or taxonomy entry until the owner accepts it.
+MUST 2 offers one path for a class that does not fit: a linked ADR. Writing that ADR is the smallest change that makes both retros compliant. It changed no rule, gate, or taxonomy entry until the owner accepted it on 2026-11-25.
 
 ## Consequences
 
@@ -90,7 +90,7 @@ MUST 2 offers one path for a class that does not fit: a linked ADR. Writing that
 ### Negative
 
 - The class has two instances, both for one rule, and one is a local near-miss. The dash rule may stay the only member. Trigger to revisit: the `review-by` date. A retro that finds a third instance of any rule should link this ADR.
-- The existing gates already catch the violation, so the class adds naming and no control. An index row and an entry may cost more than the failures they name. The owner can decline on that basis.
+- The existing gates already catch the violation, so the class adds naming and no control. An index row and an entry may cost more than the failures they name. The owner weighed that cost and accepted the class on 2026-11-25.
 - The enforcement pattern is empty until someone builds the pre-stage check.
 
 ## Impact on Dependent Components

@@ -655,7 +655,7 @@ An agent writes output that breaks a rule already loaded in its context. It runs
 
 ### Enforcement Pattern
 
-None new (ADR-116 Decision item 6). The class is detection-only: the gates above catch the violation one round late. No pre-stage check that runs a tool exists. ADR-116 recorded that absence on 2026-10-13 after a tree search. PR #6398 closed issue #5288, the check's former owner, without building one. The retrospectives propose a pre-stage check as a learning. No gate backs that proposal, and no open issue owns it.
+None new (ADR-116 Decision item 6). The class is detection-only: the gates above catch the violation one round late. No pre-stage check that runs a tool exists. ADR-116 recorded that absence on 2026-10-13 after a tree search. PR #6398 closed issue #5288, the check's former owner, without building one. The retrospectives propose a pre-stage check as a learning. No gate backs that proposal. An open-issue search on 2026-11-25 found no owner.
 
 ### Why this is FM-14, not FM-1, FM-3, or FM-9
 
