@@ -292,12 +292,10 @@ def _context_lines(
 
 
 def _mask_escaped_backticks(text: str) -> str:
-    """Blank each backslash-escaped backtick that sits outside a code span.
+    """Blank each backslash-escaped backtick outside a code span, keeping length.
 
-    In Markdown, a backslash before a backtick outside a code span makes a
-    literal backtick, not a span delimiter. Inside a code span the backslash
-    is literal, so the backtick still closes the span. The result keeps the
-    input's length so offsets into it are offsets into ``text``.
+    Outside a span it is a literal, not a delimiter. Inside a span the
+    backslash is literal, so the backtick still closes the span.
     """
     if "\\`" not in text:
         return text
