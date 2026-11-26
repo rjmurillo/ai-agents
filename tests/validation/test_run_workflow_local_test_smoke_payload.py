@@ -32,6 +32,7 @@ _CHECKOUT_BY_JOB = {
     "[Plugin CLI Smoke/Trusted-context gate]": _SCRIPTS_STEP,
     "[Plugin CLI Smoke/Smoke (codex, ubuntu-latest)]": _SCRIPTS_STEP,
     "[Plugin CLI Smoke/Smoke (pi, ubuntu-latest)]": _SCRIPTS_STEP,
+    "[Plugin CLI Smoke/Smoke (claude hook discovery, ubuntu)]": _SCRIPTS_STEP,
     "[Plugin CLI Smoke/CLI Smoke Result]": "Checkout reporter script from the base commit",
 }
 
@@ -164,3 +165,30 @@ def test_the_rule_quotes_the_checker_error() -> None:
     )
 
     assert "--base and --head are required for pull_request" in source
+
+
+def test_a_same_named_step_from_another_workflow_still_blocks() -> None:
+    """Allowed failure lines must carry this workflow's label, not just a step name."""
+    foreign = (
+        f"      {_OTHER_WORKFLOW_JOB}   \u274c  Failure - Main "
+        "Checkout trusted scripts from the base commit [1ms]\n"
+    )
+
+    assert w._act_limitation_hint(_decide_failure() + foreign, _EVENT) is None
+
+
+def test_the_annotation_excuse_needs_the_smoke_rule_not_any_rule() -> None:
+    """Another rule matching the run must not excuse a stray smoke git 128 annotation."""
+    duplicate = (
+        "      [Duplicate Code Detection/Python duplication ratchet]   "
+        "| ERROR: git cannot name a fork point with 'origin/master'\n"
+        "      [Duplicate Code Detection/Python duplication ratchet]   \u274c  "
+        "Failure - Main Check Python duplication against the baseline [2.3s]\n"
+    )
+    stray = (
+        f"      {_FILTER_JOB}   \u2757  ::error::The process '/usr/bin/git' failed with exit "
+        "code 128\n"
+    )
+
+    assert w._act_limitation_hint(duplicate, _EVENT) is not None
+    assert w._act_limitation_hint(duplicate + stray, _EVENT) is None

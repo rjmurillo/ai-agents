@@ -1,4 +1,4 @@
-"""The no-loadable report for `ai-spec-review.yml` (issue #6506 fail-open-27).
+"""The no-loadable report for `ai-spec-review.yml` (deleted 2026-11-25; issue #6506 fail-open-27).
 
 - pos: Azure-only references produce a "No requirements were loadable" report
        that keeps the AI-SPEC-VALIDATION marker and publishes `report_file`

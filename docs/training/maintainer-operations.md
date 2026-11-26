@@ -24,7 +24,7 @@ Do not skip hooks with `--no-verify` and do not force-push. The [runbook convent
 
 ## Steps
 
-### Part 1: Agent workflows wait for you and never block a merge
+### Part 1: Agent workflows wait for you and never block a merge (historical since 2026-11-25)
 
 > **Status, 2026-11-25:** the owner deleted every job gated by an `agent-*` environment, because the approval was never given. No job waits for your click now. The rules below apply again if a model job returns.
 

@@ -1,6 +1,6 @@
 """Tests for scripts/ci/run_copilot_synthesis.py.
 
-Covers the PowerShell block extracted from copilot-context-synthesis.yml
+Covers the PowerShell block extracted from copilot-context-synthesis.yml (deleted 2026-11-25)
 (ADR-006 extraction). Tests: happy path (synthesis succeeds), failure
 propagation (synthesis exits nonzero), configuration errors (missing or
 invalid ISSUE_NUMBER), and the correct subprocess command is built.

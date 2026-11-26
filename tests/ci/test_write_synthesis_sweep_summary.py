@@ -1,6 +1,6 @@
 """Tests for scripts/ci/write_synthesis_sweep_summary.py.
 
-Covers the bash block extracted from copilot-context-synthesis.yml
+Covers the bash block extracted from copilot-context-synthesis.yml (deleted 2026-11-25)
 (ADR-006 extraction). Tests: zero-count path, nonzero-count path,
 GITHUB_STEP_SUMMARY write, invalid count falls back to zero, and
 missing GITHUB_STEP_SUMMARY returns EXIT_CONFIG.

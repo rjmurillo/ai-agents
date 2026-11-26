@@ -2,7 +2,7 @@
 """Write artifact insight scanner results to GITHUB_STEP_SUMMARY.
 
 Replaces the bash 'Generate summary' block in
-artifact-insight-scanner.yml (ADR-006).
+artifact-insight-scanner.yml (deleted 2026-11-25) (ADR-006).
 
 ENV:
   ARTIFACT_COUNT      - number of artifacts scanned

@@ -353,7 +353,7 @@ class TestCopilotBinaryInstall:
     def copilot_binary(self) -> str:
         binary = shutil.which("copilot")
         if binary is None:
-            pytest.skip("copilot CLI not on PATH; nightly-only smoke test")
+            pytest.skip("copilot CLI not on PATH; local-only smoke test, no CI leg")
         return binary
 
     def test_copilot_plugin_install_succeeds(

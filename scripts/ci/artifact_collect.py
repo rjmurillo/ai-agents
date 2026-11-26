@@ -2,7 +2,7 @@
 """Collect recently modified artifacts from agent directories.
 
 Replaces the bash 'Collect recent artifacts' block in
-artifact-insight-scanner.yml (ADR-006).
+artifact-insight-scanner.yml (deleted 2026-11-25) (ADR-006).
 
 ENV:
   SCAN_DEPTH_DAYS - number of days to look back (default: 7)

@@ -54,17 +54,10 @@ _SCHEDULE = frozenset({"schedule", "workflow_dispatch"})
 WATCHED: Mapping[str, frozenset[str]] = {
     "Agent Metrics": _SCHEDULE,
     "Agent-Skill Discriminator Check": _SCHEDULE,
-    "AI Metrics Analysis": _SCHEDULE,
-    "Artifact Insight Scanner": _SCHEDULE,
-    "Autoplan Route Eval": _SCHEDULE,
     "CodeQL Analysis": frozenset({"schedule"}),
-    "Copilot Context Synthesis": _SCHEDULE,
     "Enforcement Closure": _SCHEDULE,
     "npm Publish": frozenset({"workflow_dispatch"}),
     "PR Maintenance": _SCHEDULE,
-    "Skill Overlap Eval": _SCHEDULE,
-    "Software Engineering Library Activation": _SCHEDULE,
-    "Update Reviewer Signal Stats": _SCHEDULE,
     "Workflow Coalescing Metrics": _SCHEDULE,
 }
 

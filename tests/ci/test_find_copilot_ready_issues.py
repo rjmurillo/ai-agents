@@ -1,6 +1,6 @@
 """Tests for scripts/ci/find_copilot_ready_issues.py.
 
-Covers the bash block extracted from copilot-context-synthesis.yml
+Covers the bash block extracted from copilot-context-synthesis.yml (deleted 2026-11-25)
 (ADR-006 extraction). Tests: zero-issue result, multi-issue result,
 GITHUB_OUTPUT writes, gh CLI failure, and missing env var.
 """

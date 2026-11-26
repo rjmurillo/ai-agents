@@ -1465,6 +1465,8 @@ def _is_act_duplicate_base_limitation(text: str) -> bool:
 # adjacent and carrying the same label, and every ``Failure - Main`` line in the
 # log naming one of the four steps, so another failing step or job keeps
 # blocking. The matrix legs put the OS in the job label, hence the bracket class.
+# Residual gap, as for every rule here: a step that exits nonzero without a
+# ``Failure - Main`` line or an ``::error::`` annotation is invisible to the check.
 _ACT_SMOKE_WORKFLOW_LABEL = r"\[Plugin CLI Smoke/[^\]]+\]"
 _ACT_SMOKE_CHECKOUT_STEPS = (
     "Checkout the path filter from the base commit",
@@ -1478,6 +1480,7 @@ _ACT_SMOKE_GIT_ANNOTATION_LINE = re.compile(
     rf"^[ \t]*{_ACT_SMOKE_WORKFLOW_LABEL}[ \t]+\S+[ \t]+{_ACT_SMOKE_GIT_ANNOTATION}$",
     re.MULTILINE,
 )
+_ACT_SMOKE_LABEL_PREFIX = re.compile(rf"^[ \t]*{_ACT_SMOKE_WORKFLOW_LABEL}")
 _ACT_SMOKE_PAYLOAD_PATTERN = re.compile(
     rf"^[ \t]*(?P<job>{_ACT_SMOKE_WORKFLOW_LABEL})[ \t]+\S+[ \t]+{_ACT_SMOKE_GIT_ANNOTATION}\n"
     rf"[ \t]*(?P=job)[ \t]+\S+[ \t]+Failure - Main (?:{_ACT_SMOKE_CHECKOUT_ALTERNATION})\b"
@@ -1498,7 +1501,10 @@ def _is_act_smoke_payload_limitation(text: str) -> bool:
         for step in (*_ACT_SMOKE_CHECKOUT_STEPS, _ACT_SMOKE_DECIDE_STEP)
     )
     failures = [line for line in text.splitlines() if _ACT_MAIN_FAILURE_MARKER in line]
-    return all(any(name in line for name in allowed) for line in failures)
+    return all(
+        _ACT_SMOKE_LABEL_PREFIX.match(line) is not None and any(name in line for name in allowed)
+        for line in failures
+    )
 
 
 # act stages a cached action into the container at /var/run/act/actions/<ref>/
@@ -1847,6 +1853,9 @@ def _unexplained_error_annotations(
         (scope is None or scope == event) and matches(combined)
         for scope, matches, _ in _ACT_LIMITATION_RULES
     )
+    smoke_payload_attributed = (event is None or event == "pull_request") and (
+        _is_act_smoke_payload_limitation(combined)
+    )
     for line in combined.splitlines():
         if _ACT_ERROR_ANNOTATION not in line:
             continue
@@ -1857,7 +1866,7 @@ def _unexplained_error_annotations(
             for scope, matches, _ in _ACT_LIMITATION_RULES
         ):
             continue
-        if run_is_attributed and _ACT_SMOKE_GIT_ANNOTATION_LINE.match(line.rstrip()):
+        if smoke_payload_attributed and _ACT_SMOKE_GIT_ANNOTATION_LINE.match(line.rstrip()):
             continue
         if run_is_attributed and _ACT_WRAPPER_ANNOTATION_PATTERN.search(line):
             continue

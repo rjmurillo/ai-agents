@@ -1,6 +1,6 @@
 """Tests for scripts/ci/sweep_copilot_synthesis.py.
 
-Covers the PowerShell block extracted from copilot-context-synthesis.yml
+Covers the PowerShell block extracted from copilot-context-synthesis.yml (deleted 2026-11-25)
 (ADR-006 extraction). Tests: empty ISSUES is a no-op, multiple issues
 processed in order, failed synthesis logged without failing the job,
 gh label removal called on success, and label removal failure logged.

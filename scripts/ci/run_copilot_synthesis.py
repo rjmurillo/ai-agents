@@ -1,6 +1,6 @@
 """Run Copilot context synthesis for a single issue.
 
-Replaces the inline PowerShell block in copilot-context-synthesis.yml
+Replaces the inline PowerShell block in copilot-context-synthesis.yml (deleted 2026-11-25)
 (ADR-006: no logic in YAML). Calls invoke_copilot_assignment.py with
 the issue number from ISSUE_NUMBER and maps its exit code to step status.
 
