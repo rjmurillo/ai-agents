@@ -39,6 +39,8 @@ Use this skill when the user says:
 - `memory-first gate` to apply the BLOCKING pre-change check
 - `search memory before changing` to recover historical context first
 - `chesterton fence check` to investigate why a system exists before removing it
+- `log this contradiction` when evidence disproves a memory, ADR, skill, or
+  common guidance (see the contradiction log in References)
 
 ## Memory-First Gate (BLOCKING)
 

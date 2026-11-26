@@ -41,6 +41,9 @@ Use this skill when:
 - User corrects your output ("no", "wrong", "not like that")
 - User praises specific output ("perfect", "exactly")
 - Edge cases are discovered during work
+- A measured result contradicts a memory, ADR, skill, or common guidance. Log
+  it with the `memory-gate` skill's contradiction log, even when the task
+  ends at "do not ship"
 - Session end after skill-heavy work
 - Want to capture learnings before they are lost
 

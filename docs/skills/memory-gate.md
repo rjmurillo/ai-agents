@@ -6,7 +6,7 @@ Forces a memory search before you change something that already exists. You reco
 
 - You are about to change existing code, a constraint, or a protocol.
 - You want the "why" behind a system before you remove it.
-- Trigger phrases: `memory-first gate`, `search memory before changing`, `chesterton fence check`.
+- Trigger phrases: `memory-first gate`, `search memory before changing`, `chesterton fence check`, `log this contradiction`.
 
 ## When not to use it
 
@@ -56,7 +56,7 @@ uv run python .claude/skills/memory/scripts/search_memory.py "validation logic e
 
 The script belongs to the [`memory`](memory.md) router. This skill delegates to it and does not reimplement search. Start at Tier 1 (facts, patterns, constraints, ADR rationale). Escalate to Tier 2 (past session episodes) only when Tier 1 is not enough. Most checks resolve at Tier 1.
 
-The skill applies the Chesterton's Fence idea: do not remove a fence until you know why it was put up. For the full four-phase investigation and decision matrix, use [`chestertons-fence`](chestertons-fence.md). Two references go deeper: [`agent-integration.md`](../../src/claude/skills/memory-gate/references/agent-integration.md) covers multi-agent patterns, and [`contradiction-log.md`](../../src/claude/skills/memory-gate/references/contradiction-log.md) covers logging a finding that contradicts conventional wisdom.
+The skill applies the Chesterton's Fence idea: do not remove a fence until you know why it was put up. For the full four-phase investigation and decision matrix, use [`chestertons-fence`](chestertons-fence.md). Two references go deeper: [`agent-integration.md`](../../src/claude/skills/memory-gate/references/agent-integration.md) covers multi-agent patterns, and [`contradiction-log.md`](../../src/claude/skills/memory-gate/references/contradiction-log.md) covers logging a finding that contradicts conventional wisdom, including a measured result that disproves a memory or ADR. It writes a `decision-<slug>` entry to the repository memory store, Serena or not (ADR-126), and to a host-configured memory service when one exists.
 
 ## Where it runs
 
