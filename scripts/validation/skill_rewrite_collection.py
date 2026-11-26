@@ -37,35 +37,97 @@ def defines_test(source: str, classes: list[str], func: str) -> bool:
     """True when pytest would collect *func*, defined directly in nested *classes* of *source*.
 
     *classes* and *func* are the segments of a pytest node id after the path.
-    Every class must start with ``Test`` and *func* with ``test_``. A
-    ``[param]`` id is False: a parameter id exists only at run time, so no
-    static read of *source* can confirm it. An empty segment, or a file that
-    does not parse, is False. So is a test that ``__test__ = False`` turns
-    off in its module or class chain, which pytest skips. So is a class in
-    the chain that defines ``__init__`` or ``__new__``: pytest 9 skips it
-    with a warning (``_pytest/python.py``). So is a name a later statement
-    rebinds, such as ``test_x = None``, even inside a ``try`` or ``if`` body:
-    pytest reads the final binding. Whether
+    Every class must start with ``Test`` and *func* with ``test_``. False means
+    pytest skips the test, or no static read can prove it does not. So False for:
+
+    - a ``[param]`` id, an empty segment, or a file that does not parse
+    - any ``__test__`` store but a truthy constant, for the module, a class in
+      the chain, or the test (pytest skips on a falsy one)
+    - a class in the chain that binds ``__init__`` or ``__new__`` (pytest 9
+      skips it, ``_pytest/python.py``), has a base, or has a decorator that is
+      not a ``pytest.mark``: either can switch collection off unseen
+    - a test with a decorator that is not a ``pytest.mark`` (``@pytest.fixture``)
+    - a name a later statement rebinds, such as ``test_x = None``, even inside a
+      ``try`` or ``if`` body: pytest reads the final binding
+    - a ``global`` or ``nonlocal`` of a name in the id, or an attribute store such
+      as ``TestA.test_a = None``
+
+    ``setattr``, ``globals()`` and other dynamic rebinds are not read. Whether
     the file itself is collected is ``is_collected_file``'s question, not this one's.
     """
     named_like_tests = func.startswith(PYTEST_FUNC_PREFIX) and "[" not in func
     if not named_like_tests or not all(c.startswith(PYTEST_CLASS_PREFIX) for c in classes):
         return False
     try:
-        body = ast.parse(source).body
+        tree = ast.parse(source)
     except SyntaxError:
         return False
-    if _turns_off_collection(body, {classes[0] if classes else func}):
+    if _rebound_elsewhere(tree, {*classes, func}):
         return False
+    body = tree.body
     for name in classes:
         found = _final_binding(body, name)
-        if not isinstance(found, ast.ClassDef) or found.name != name:
-            return False
-        if _turns_off_collection(found.body, {func}) or _defines_constructor(found.body):
+        if not (isinstance(found, ast.ClassDef) and found.name == name and _plain_class(found)):
             return False
         body = found.body
     last = _final_binding(body, func)
-    return isinstance(last, (ast.FunctionDef, ast.AsyncFunctionDef)) and last.name == func
+    funcs = (ast.FunctionDef, ast.AsyncFunctionDef)
+    return isinstance(last, funcs) and last.name == func and _marks_only(last.decorator_list)
+
+
+def _plain_class(node: ast.ClassDef) -> bool:
+    """No base, no decorator but a mark, and no constructor binding."""
+    if node.bases or node.keywords or not _marks_only(node.decorator_list):
+        return False
+    return not any(_bound_names(n) & _CONSTRUCTORS for n in node.body)
+
+
+def _marks_only(decorators: list[ast.expr]) -> bool:
+    """True when every decorator is ``pytest.mark.<x>`` or ``mark.<x>``, called or not."""
+    for decorator in decorators:
+        node = decorator.func if isinstance(decorator, ast.Call) else decorator
+        parts: list[str] = []
+        while isinstance(node, ast.Attribute):
+            parts.insert(0, node.attr)
+            node = node.value
+        chain = ([node.id] if isinstance(node, ast.Name) else []) + parts
+        start = 2 if chain[:2] == ["pytest", "mark"] else 1 if chain[:1] == ["mark"] else 0
+        if not start or len(chain) <= start:
+            return False
+    return True
+
+
+def _rebound_elsewhere(tree: ast.Module, names: set[str]) -> bool:
+    """True for a ``__test__`` store, a ``global``, or an attribute store that may hide the test.
+
+    A ``__test__`` store counts unless it is a plain assignment of a truthy
+    constant. An attribute ``__test__`` store counts when its root is a name in
+    *names*. Any store to an attribute named like a name in *names* counts.
+    """
+    safe: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Assign, ast.AnnAssign)) and isinstance(node.value, ast.Constant):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            safe |= {id(t) for t in targets} if node.value.value else set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Global, ast.Nonlocal)) and names & set(node.names):
+            return True
+        if id(node) in safe or not isinstance(getattr(node, "ctx", None), (ast.Store, ast.Del)):
+            continue
+        if isinstance(node, ast.Name) and node.id == "__test__":
+            return True
+        if isinstance(node, ast.Attribute) and (
+            node.attr in names or (node.attr == "__test__" and _root_name(node) in names)
+        ):
+            return True
+    return False
+
+
+def _root_name(node: ast.expr) -> str | None:
+    """The name an attribute chain such as ``TestA.test_a.x`` starts from."""
+    while isinstance(node, ast.Attribute):
+        node = node.value
+    return node.id if isinstance(node, ast.Name) else None
 
 
 def _final_binding(body: list[ast.stmt], name: str) -> ast.stmt | None:
@@ -172,7 +234,7 @@ def _statement_heads(node: ast.stmt) -> list[ast.AST]:
     if isinstance(node, ast.ClassDef):
         return [*node.decorator_list, *node.bases, *(k.value for k in node.keywords)]
     if isinstance(node, (ast.Try, ast.TryStar)):
-        return []
+        return [h.type for h in node.handlers if h.type]
     if isinstance(node, (ast.If, ast.While)):
         return [node.test]
     if isinstance(node, (ast.For, ast.AsyncFor)):
@@ -187,34 +249,3 @@ def _statement_heads(node: ast.stmt) -> list[ast.AST]:
 def _argument_defaults(args: ast.arguments) -> list[ast.AST]:
     """Default values, which run where the def or lambda is evaluated."""
     return [*args.defaults, *(d for d in args.kw_defaults if d is not None)]
-
-
-def _defines_constructor(body: list[ast.stmt]) -> bool:
-    """True when a class *body* defines ``__init__`` or ``__new__``; pytest 9 skips that class."""
-    funcs = (ast.FunctionDef, ast.AsyncFunctionDef)
-    return any(isinstance(n, funcs) and n.name in _CONSTRUCTORS for n in body)
-
-
-def _turns_off_collection(body: list[ast.stmt], names: set[str]) -> bool:
-    """True when *body* sets ``__test__`` falsy, directly or as ``<name>.__test__`` for a name."""
-    for node in body:
-        if isinstance(node, ast.Assign):
-            targets, value = node.targets, node.value
-        elif isinstance(node, ast.AnnAssign) and node.value is not None:
-            targets, value = [node.target], node.value
-        else:
-            continue
-        # pytest skips on any falsy __test__, not only False.
-        if not (isinstance(value, ast.Constant) and not value.value):
-            continue
-        for target in targets:
-            if isinstance(target, ast.Name) and target.id == "__test__":
-                return True
-            if (
-                isinstance(target, ast.Attribute)
-                and target.attr == "__test__"
-                and isinstance(target.value, ast.Name)
-                and target.value.id in names
-            ):
-                return True
-    return False

@@ -337,6 +337,89 @@ class TestCollectionSwitchedOff:
         assert collection.defines_test(source, ["TestA"], "test_a")
 
 
+# Full sources pytest does not collect, beyond rebinds of the name itself.
+HIDDEN = [
+    ("import pytest\n@pytest.fixture\ndef test_t():\n    pass\n", [], "test_t"),
+    ("@(lambda f: None)\ndef test_t():\n    pass\n", [], "test_t"),
+    ("def drop(f):\n    return None\n@drop\ndef test_t():\n    pass\n", [], "test_t"),
+    ("class TestR:\n    @property\n    def test_r(self):\n        pass\n", ["TestR"], "test_r"),
+    (
+        "from dataclasses import dataclass\n@dataclass\nclass TestR:\n"
+        "    def test_r(self):\n        pass\n",
+        ["TestR"],
+        "test_r",
+    ),
+    (
+        "class Base:\n    __test__ = False\nclass TestR(Base):\n"
+        "    def test_r(self):\n        pass\n",
+        ["TestR"],
+        "test_r",
+    ),
+    (
+        "class Base:\n    def __init__(self):\n        pass\nclass TestR(Base):\n"
+        "    def test_r(self):\n        pass\n",
+        ["TestR"],
+        "test_r",
+    ),
+    ("def test_t():\n    pass\nif True:\n    __test__ = False\n", [], "test_t"),
+    ("def test_t():\n    pass\n__test__ = ()\n", [], "test_t"),
+    ("def test_t():\n    pass\n(__test__ := False)\n", [], "test_t"),
+    ("def test_t():\n    pass\n__test__, x = False, 1\n", [], "test_t"),
+    (
+        "class TestR:\n    def test_r(self):\n        pass\nTestR.test_r.__test__ = False\n",
+        ["TestR"],
+        "test_r",
+    ),
+    (
+        "class TestR:\n    __init__ = lambda self: None\n    def test_r(self):\n        pass\n",
+        ["TestR"],
+        "test_r",
+    ),
+    (
+        "class TestR:\n    if True:\n        def __init__(self):\n"
+        "            pass\n    def test_r(self):\n        pass\n",
+        ["TestR"],
+        "test_r",
+    ),
+    (
+        "def test_t():\n    pass\nclass Helper:\n    global test_t\n    test_t = None\n",
+        [],
+        "test_t",
+    ),
+    (
+        "class TestR:\n    def test_r(self):\n        pass\nTestR.test_r = None\n",
+        ["TestR"],
+        "test_r",
+    ),
+    ("class TestR:\n    def test_r(self):\n        pass\ndel TestR.test_r\n", ["TestR"], "test_r"),
+    (
+        "def test_t():\n    pass\ntry:\n    raise ValueError\n"
+        "except (test_t := ValueError):\n    pass\n",
+        [],
+        "test_t",
+    ),
+]
+# Full sources pytest collects, with decorators and switches the checker allows.
+COLLECTED = [
+    ("import pytest\n@pytest.mark.parametrize('a', [1])\ndef test_t(a):\n    pass\n", [], "test_t"),
+    ("from pytest import mark\n@mark.slow\ndef test_t():\n    pass\n", [], "test_t"),
+    (
+        "import pytest\n@pytest.mark.slow\nclass TestR:\n    def test_r(self):\n        pass\n",
+        ["TestR"],
+        "test_r",
+    ),
+    (
+        "other = type('O', (), {})\nother.__test__ = False\n"
+        "flag = False\ndef test_t():\n    pass\n",
+        [],
+        "test_t",
+    ),
+    (
+        "class TestR:\n    __test__ = True\n    def test_r(self):\n        pass\n",
+        ["TestR"],
+        "test_r",
+    ),
+]
 REBINDS = [
     ("test_t = None", [], "test_t"),
     ("del test_t", [], "test_t"),
@@ -497,6 +580,18 @@ class TestDefinesTest:
         source = f"class TestR:\n    def test_r(self):\n        pass\n{rebind}\n"
         assert not collection.defines_test(source, ["TestR"], "test_r")
 
+    @pytest.mark.parametrize(("source", "classes", "func"), HIDDEN)
+    def test_a_test_pytest_skips_is_not_collected(
+        self, source: str, classes: list[str], func: str
+    ) -> None:
+        assert not collection.defines_test(source, classes, func)
+
+    @pytest.mark.parametrize(("source", "classes", "func"), COLLECTED)
+    def test_a_marked_or_switched_on_test_is_collected(
+        self, source: str, classes: list[str], func: str
+    ) -> None:
+        assert collection.defines_test(source, classes, func)
+
     @pytest.mark.parametrize("other", KEPT)
     def test_a_def_that_stays_the_final_binding_is_collected(self, other: str) -> None:
         assert collection.defines_test(_kept_source(other), [], "test_t")
@@ -507,7 +602,7 @@ class TestDefinesTest:
         assert not collection.defines_test(source, [], "test_t")
 
     def test_the_checker_agrees_with_pytest_collection(self, tmp_path: Path) -> None:
-        """Every REBINDS and KEPT case, against a real ``pytest --collect-only`` run.
+        """Every corpus case, against a real ``pytest --collect-only`` run.
 
         The checker may fail closed, never open. Each fail-closed case is listed
         in FAIL_CLOSED, so a new disagreement in either direction fails here.
@@ -516,6 +611,7 @@ class TestDefinesTest:
         closed: set[str] = set()
         cases = [(r, _rebound_source(r), c, f) for r, c, f in REBINDS]
         cases += [(o, _kept_source(o), [], "test_t") for o in KEPT]
+        cases += [(src, src, c, f) for src, c, f in [*HIDDEN, *COLLECTED]]
         for index, (case, source, classes, func) in enumerate(cases):
             name = f"test_case_{index}.py"
             (tmp_path / name).write_text(source, encoding="utf-8")
@@ -528,6 +624,7 @@ class TestDefinesTest:
             encoding="utf-8",
         )
         env = {k: v for k, v in os.environ.items() if not k.startswith("PYTEST_")}
+        env["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
         result = subprocess.run(
             [sys.executable, "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider"],
             cwd=tmp_path,
@@ -538,7 +635,8 @@ class TestDefinesTest:
             timeout=120,
             check=False,
         )
-        collected = set(result.stdout.split())
+        lines = result.stdout.splitlines()
+        collected = {line.split("[")[0] for line in lines if line.startswith("test_case_")}
         actual = {node: node in collected for node in expected}
         assert any(actual.values()), result.stdout + result.stderr
         fail_open = {n for n in expected if expected[n] and not actual[n]}
