@@ -14,7 +14,7 @@
 
 ## Background
 
-ADR-128 round 1 ended 3 Block, 3 Disagree-and-Commit. Five of six seats found that ADR-128 broke rule 2a while claiming not to amend ADR-084. Rule 2a says the nudge "MUST stay out of the Copilot tree" and that any other advisory hook needs its own amendment. Rule 2b is that amendment.
+ADR-128 round 1 ended 3 Block, 3 Disagree-and-Commit. All six seats found that ADR-128 broke rule 2a while claiming not to amend ADR-084. Four rated it P0, and two rated it P1. Rule 2a says the nudge "MUST stay out of the Copilot tree" and that any other advisory hook needs its own amendment. Rule 2b is that amendment.
 
 ## Round 1 Summary
 
@@ -45,10 +45,10 @@ ADR-128 round 1 ended 3 Block, 3 Disagree-and-Commit. Five of six seats found th
 
 | Lens | Assessment |
 |------|------------|
-| Chesterton's Fence | PASS. Rule 2a's reasons are quoted, and the amendment says which no longer hold for this hook. |
-| Path Dependence | PASS. Rule 2b is not binding, and removing it is one edit. |
-| Core vs Context | PASS, with a caveat: no evidence of consumer demand. |
-| Second-System Effect | PASS. The rule covers one hook only. |
+| Chesterton's Fence | PASS. The amendment gives both reasons for the Copilot exclusion and says which still holds. Both documents separate receipts from the PR #3372 hook. |
+| Path Dependence | PASS. Rollback is stated in both documents, and both have a sunset condition. The marker is inert without the hook. |
+| Core vs Context | PASS, with a caveat: the amendment admits there is no consumer demand evidence, so value is asserted. |
+| Second-System Effect | PASS. The scope is one hook, one gate, and one amendment. Twelve decisions surround a stamp with 0 observed occurrences, but the work has a sunset. |
 
 ## Round 2 Summary
 

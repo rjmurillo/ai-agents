@@ -37,7 +37,7 @@ Rows marked "local logs" come from a full count of all 11,160 `~/.copilot/sessio
 | 29 | The flag was false after 9.7% of blocks | count | 378 / 3,889 | VERIFIED. Computed 0.0972. Rests on row 5. |
 | 30 | ADR-084 gains rule 2b in the same change | behavior | Read ADR-084 lines 177 to 228 | VERIFIED. Rule 2b is marked proposed and not yet binding. |
 | 31 | The Claude message repeats at most 80 characters of claim text | quote | REQ-050 line 167 | VERIFIED against REQ-050. |
-| 32 | Each receipt names the tool, on both harnesses | behavior | REQ-050 lines 129 and 166 | VERIFIED against REQ-050. Line 129 defines a receipt "by index, tool name, and a short reason". |
+| 32 | Each receipt names the tool, on both harnesses | behavior | REQ-050 lines 129, 166, 178, and 180 | VERIFIED against REQ-050. Line 129 defines a receipt "by index, tool name, and a short reason". Line 178 (AC-1) puts each receipt in the Claude message. Lines 166 and 180 put the tool name in the Copilot reason. |
 | 33 | 10,977 of the 19,518 runs carry a `transcriptPath`, and the hook is silent on the other 8,541 | count | Row 8; 10,977 + 8,541 | VERIFIED as arithmetic. Computed 19,518. Rests on row 8. |
 | 34 | Receipts stops at a 5 s internal deadline | behavior | REQ-050 line 184, AC-7 | VERIFIED against REQ-050. No code exists yet. |
 | 35 | The ADR-084 rule 5 tests live in `tests/hooks/test_dispatch_groups_parity.py` | path | Read the file, lines 264 and 289 | VERIFIED. `test_every_vendored_hook_states_its_customer_value` and `test_the_customer_value_check_examines_a_nonempty_surface`. |
