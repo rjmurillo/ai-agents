@@ -10,7 +10,11 @@
 |pr comment navigation response templates review threads: [pr-comment-index](pr-comment-index.md) (258)
 
 [Decision Records]
-|decision records rationale evidence implementation choices review findings: [skills-decision-index](skills-decision-index.md) (4790)
+|decision records CI checks ratchet pytest timing release gate: [skills-decision-ci-index](skills-decision-ci-index.md) (501)
+|decision records eval design ablation rule skill eval grader noise: [skills-decision-eval-index](skills-decision-eval-index.md) (790)
+|decision records gate guard validator linter static analysis: [skills-decision-gate-index](skills-decision-gate-index.md) (1093)
+|decision records hook contract git hooks push recipe git parsing worktree: [skills-decision-hook-index](skills-decision-hook-index.md) (1186)
+|decision records review claims ADR security triage skills agents: [skills-decision-review-index](skills-decision-review-index.md) (1260)
 |declared hook timeout sum overstates real gate latency 26x 600x eureka: [decision-a-declared-hook-timeout-sum-is-not-gate-latency](decision-a-declared-hook-timeout-sum-is-not-gate-latency.md) (480)
 |detached push survives deletion log directory mid run missing launch stops eureka: [decision-a-detached-push-dies-only-if-its-log-dir-is-missing-at-launch](decision-a-detached-push-dies-only-if-its-log-dir-is-missing-at-launch.md) (604)
 |documented pre pr quick flag saving 50 90 seconds false measured eureka: [decision-a-documented-quick-flag-saving-was-never-measured-and-was-false](decision-a-documented-quick-flag-saving-was-never-measured-and-was-false.md) (501)
