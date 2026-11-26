@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import audit_batches as ab
 import pytest
 from audit_batch_helpers import _inventory, _rows
 
 
-def _sized_inventory(tmp_path: Path, sizes: list[int]) -> dict:
+def _sized_inventory(tmp_path: Path, sizes: list[int]) -> dict[str, Any]:
     inventory = _inventory(len(sizes))
     for session, size in zip(inventory["sessions"], sizes, strict=False):
         path = tmp_path / f"{session['meta']['id']}.md"
@@ -19,7 +20,7 @@ def _sized_inventory(tmp_path: Path, sizes: list[int]) -> dict:
     return inventory
 
 
-def _sizes(assignment: dict) -> list[int]:
+def _sizes(assignment: dict[str, Any]) -> list[int]:
     return [batch["transcript_bytes"] for batch in assignment["batches"]]
 
 
