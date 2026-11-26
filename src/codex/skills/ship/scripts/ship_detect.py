@@ -239,7 +239,7 @@ def _pr_base(pr: int, pr_target: str, base: str | None) -> str | Halt:
 
     The host named the target, so it need only be a branch git accepts, such as
     ``release/2026+hotfix``. It reaches git as one argv element or a
-    ``refs/remotes/origin/<target>`` path, never as an option or a shell word.
+    ``refs/remotes/<remote>/<target>`` path, never as an option or a shell word.
     """
     if not pr_target or not refs_mod.valid_branch(pr_target):
         return Halt("pr-query-failed", common.EXIT_EXTERNAL, f"PR {pr} has no target branch")

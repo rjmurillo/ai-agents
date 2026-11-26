@@ -1,10 +1,12 @@
-"""Check a branch name a host returned, such as the target of an open PR (ADR-127).
+"""Check a branch name git accepts, such as the target of an open PR (ADR-127).
 
 ``safe_ref`` in ``_ship_common`` is the reviewed allowlist for a name the user
 types: it admits letters, digits, ``.``, ``_``, ``/``, and ``-`` only. A host
 may hold a valid branch outside it, such as ``release/2026+hotfix``. This
 module accepts those, by the rules of ``git check-ref-format`` for
 ``refs/heads/<name>``, so a valid target is never refused for its spelling.
+A typed ``--base`` passes this check too; ``ship_detect`` then holds it to
+the open PR's target, and to ``safe_ref`` when no PR is open.
 
 Stricter than git, on purpose: a name over 255 characters, the name ``HEAD``,
 and any control character git would admit (C1 controls and Unicode line
