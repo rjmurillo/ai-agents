@@ -1,7 +1,7 @@
 ---
 id: ADR-084
 status: accepted
-date: 2026-11-04
+date: 2026-11-25
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -40,9 +40,16 @@ The debate record is
 `.project-toolkit/critique/ADR-084-debate-log-2.md`. Rules 1, 3, 4, and 6 and
 the security carve-out are unchanged.
 
+Amendment proposed 2026-11-25 (requested by repo-owner @rjmurillo for
+REQ-050, owner decision D10). It adds rule 2b, which covers the two `receipts`
+Stop hook registrations and names the rule 2a conditions each one departs
+from. Rule 2b does not bind until the owner accepts it. The debate record is
+`.project-toolkit/critique/ADR-084-debate-log-3.md`. Rules 1, 2, 2a, 3, 4, 5,
+and 6 and the security carve-out are unchanged.
+
 ## Date
 
-2026-07-20; amended 2026-08-18; amendment proposed 2026-10-31, accepted 2026-11-04
+2026-07-20; amended 2026-08-18; amendment proposed 2026-10-31, accepted 2026-11-04; rule 2b proposed 2026-11-25
 
 ## Context
 
@@ -166,6 +173,59 @@ hooks. Concretely, the bar is six rules:
    The hook also records a fresh runtime contract in ADR-071. ADR-071's
    recorded contracts describe deleted code, and `tool-use-hook-bar.md` "What
    a first re-add owes" names that duty.
+
+   **2b. The receipts Stop hook (proposed 2026-11-25, not yet binding).**
+   Rule 2b covers one capability only: the REQ-050 `receipts` hook. It checks
+   claims in the agent's final reply against that session's own tool results.
+   It reads no rule of this repository and demands no artifact, so it is not
+   protocol enforcement under rule 2. It has two registrations. Each meets
+   every rule 2a condition except the ones named below. Rule 2a's sentence "A
+   hook that fails any of a to g is enforcement under rule 2" does not reach
+   these named departures. Any other departure is enforcement. Any further
+   hook still needs its own amendment.
+
+   Claude Code registration. It is advisory and meets conditions a, b, d, e,
+   f, and g. It departs from condition c in two ways. Its message repeats at
+   most 80 characters of claim text per stamp, taken from the agent's own
+   final reply. Each receipt also names the tool, and that name must match
+   `^[A-Za-z0-9_.-]{1,48}$` or it prints as `tool`. It echoes no tool output
+   and reads no repository file. Its dispatch group sets
+   `copilotExclude: true`, because the Claude hook's advisory output has no
+   documented Copilot channel. ADR-128 owns that exclusion.
+
+   Copilot CLI registration. It meets conditions b, d, and e, reading
+   `transcriptPath` where condition e says `transcript_path`. It meets
+   condition g's off switch. Its firing bound under g is one block per claim
+   per session; rule 2b sets no cap on blocks per session. It departs from
+   conditions a, c, and f: it emits `{"decision": "block", "reason": ...}`,
+   the reason enters model context, and the reason names a tool from the
+   transcript. The departure holds only inside these bounds, which ADR-128
+   decides:
+
+   - It blocks only when a tool result contradicts a claim in the final
+     reply.
+   - It blocks at most once per claim per session. Its own digest-only marker
+     enforces that, in per-user storage under condition b. When the marker
+     cannot be read or written, the hook does not block.
+   - The reason is a fixed template plus the claim kind, the call index, and
+     a tool name that matches `^[A-Za-z0-9_.-]{1,48}$`. It never echoes
+     reply or tool-output text.
+   - It registers only after ADR-128's measured gate passes. Until then a
+     generator test MUST show that `src/copilot-cli/hooks/hooks.json` carries
+     no entry for it.
+
+   The PR that adds either registration MUST update the pinned tests it
+   trips in `tests/hooks/test_plugin_stop_registration.py` in the same
+   change, and rule 5's customer-value tests MUST cover the new hook.
+
+   Rule 2a is unchanged. The reflect nudge stays out of the Copilot tree.
+   Rule 2b does not reopen the hook PR #3372 deleted: that hook blocked until
+   an artifact existed, and receipts blocks once on a contradicted statement.
+
+   Sunset: rule 2b lapses when ADR-128 is rejected or superseded, or when
+   both registrations leave the vendored surface. If ADR-128's gate is unmet
+   on 2027-02-25, the Copilot half is reviewed again with ADR-128. The
+   removing PR records the lapse in this ADR.
 3. **Prefer zero-spawn host-native surfaces.** When the host provides a
    declarative surface that achieves the same effect without spawning a process,
    use it. `permissions.allow` and `permissions.deny` in settings and static
@@ -473,6 +533,57 @@ What this amendment does not change: rules 1, 3, 4, 5's presence
 requirement, and 6;
 the security carve-out; ADR-097's retirement of the tool-use surface; and the
 deletion in PR #3372.
+
+**2026-11-25, rule 2b (proposed, owner decision D10).** REQ-050 adds
+`receipts`, a Stop hook that checks claims in the agent's final reply against
+tool results. Rule 2a covers one hook and says any other advisory hook needs
+its own amendment. It also calls a hook that fails any of conditions a to g
+enforcement. The Claude receipts hook echoes up to 80 characters of claim
+text and a tool name, which condition c bars. The Copilot receipts hook emits
+a block decision whose reason enters model context and names a tool, which
+conditions a, c, and f bar. The first
+ADR-128 review round blocked on that conflict (3 Block, 3
+Disagree-and-Commit). The owner chose to amend this record over a silent
+exception in ADR-128.
+
+Why a block can sit outside rule 2. Rule 2 bars enforcing this repository's
+protocol on a consumer. The deleted hook wrote files and held the turn open
+until a retro existed (#3140, PR #3372). Receipts enforces no protocol. It
+tells the agent once that its own tool output contradicts its own statement.
+The once-per-claim marker bounds the cost at one turn per claim per session.
+It does not cap blocks per session: each distinct contradicted claim can
+block once.
+
+Why the marker and not `stop_hook_active`. Measured 2026-11-25 over all
+11,160 `~/.copilot/session-state/*/events.jsonl` files on the owner's
+machine: 3,897 logged `agentStop` blocks, and the next stop in the same file
+had the flag false 378 times of 3,889. Scope: one operator, Copilot 1.0.37 to
+1.0.105, and the next-stop pairing is an inference. No block was logged on
+1.0.87 or later.
+
+What rule 2a's Copilot exclusion rested on, and what changed. Its two reasons
+were no documented advisory field and no `transcript_path`. The first still
+holds, so the reflect nudge stays excluded. The second changed: the same logs
+show `transcriptPath` set in 10,977 of 19,518 runs, and in all 436 runs on
+1.0.87 and later.
+
+Evidence limits. The spike behind REQ-050 found zero contradicted stamps in
+678 runs (draft PR #7631, 2026-11-25), so the false-block rate is unmeasured.
+ADR-128 Decision 7 gates registration on 30 hand-judged contradictions with
+none false, drawn by offline replay of the owner's logs. The figures show no
+consumer demand, and this amendment claims none.
+
+Alternatives considered. Stretching rule 2a to cover receipts was rejected:
+rule 2a names one hook and its conditions bar a block. Deciding the exception
+in ADR-128 alone was rejected: the rule and its pinned tests would then
+contradict a later record. Shipping Claude-only was rejected by the owner
+(REQ-050 Open questions, decisions D4 and D6).
+
+Rollback: remove both dispatch entries and cut a release. The Copilot marker
+directory stays in per-user storage until the user deletes it.
+
+What this amendment does not change: rules 1, 2, 2a, 3, 4, 5, and 6; the
+security carve-out; and the reflect nudge's Copilot exclusion.
 
 ## References
 

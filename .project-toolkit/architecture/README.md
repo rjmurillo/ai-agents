@@ -133,7 +133,7 @@ These bind today.
 | [ADR-081](ADR-081-confidence-elicitation-experiment.md) | Confidence Elicitation Is a Shadow Study, Not a Shipped Gate | 2026-07-11 | Do not ship confidence elicitation as a blocking PreToolUse hook. |
 | [ADR-082](ADR-082-claude-hook-group-dispatch.md) | Claude-Side Consolidated Hook Group Dispatch | 2026-07-16 | One process per (event, matcher) group on the Claude side. |
 | [ADR-083](ADR-083-copilot-dogfood-surface-separation.md) | Dogfood the Shipped Copilot Base and Separate Ship-vs-Internal Surface | 2026-10-19 | Dogfood the shipped Copilot base by installing it the way a customer installs it, and prove in CI that the base alone loads. |
-| [ADR-084](ADR-084-vendored-hook-roi-bar.md) | Vendored-Hook ROI Bar | 2026-11-04 | A hook may ship in a vendored plugin surface only if it delivers value in a consumer's own repository. |
+| [ADR-084](ADR-084-vendored-hook-roi-bar.md) | Vendored-Hook ROI Bar | 2026-11-25 | A hook may ship in a vendored plugin surface only if it delivers value in a consumer's own repository. |
 | [ADR-085](ADR-085-cross-harness-permission-surface-asymmetry.md) | Cross-Harness Permission-Surface Asymmetry and Hook Survivor Disposition | 2026-11-04 | A vendored guard hook may be replaced by host-native permissions only when all three hold: |
 | [ADR-086](ADR-086-lefthook-local-hook-orchestration.md) | Lefthook for Local Git Hook Orchestration | 2026-07-20 | Use Lefthook 2.1.10 as the only local Git hook orchestrator. |
 | [ADR-092](ADR-092-omit-plugin-manifest-version.md) | Omit `version` From Plugin Manifests and Resolve Freshness From the Commit SHA | 2026-08-01 | Delete `version` from all three packaged plugin manifests and keep it deleted. |
@@ -196,6 +196,7 @@ Recorded, not yet binding. The last column is what each record says is holding i
 | [ADR-121](ADR-121-one-resolver-for-plugin-root-commands.md) | One Resolver Launches Every Shipped Plugin-Root Shell Command | 2026-11-14 | Three classes of site. | review by 2027-02-11 |
 | [ADR-124](ADR-124-verify-documentation-sdk-symbols.md) | Verify Documentation SDK Symbols | 2026-11-20 | Prove framework symbols from pinned declarations bound to each occurrence. | Round 1 blocked, and the owner then narrowed the scope. Panel round 2 and owner acceptance are required before implementation. The debate appears in `.project-toolkit/critique/ADR-124-debate-log.md`.... |
 | [ADR-126](ADR-126-repository-resolved-memory-store.md) | Repository-Resolved Memory Store | 2026-11-25 | Each repository has exactly one memory store, resolved by folder. | - |
+| [ADR-128](ADR-128-receipts-copilot-block-once.md) | The Receipts Stop Hook Blocks Once on Copilot CLI and Advises on Claude Code | 2026-11-25 | Claude Code stays advisory. | review by 2027-02-25; The Copilot hook stays unregistered until the Decision 7 gate passes and the owner accepts ADR-084 rule 2b. The debate record is... |
 
 ## Retired
 

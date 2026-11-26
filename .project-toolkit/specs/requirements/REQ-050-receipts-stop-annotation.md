@@ -9,6 +9,7 @@ created: 2026-11-25
 related:
   - REQ-048
   - ADR-084
+  - ADR-128
   - "#5817"
   - "#7631"
   - "#7633"
@@ -20,7 +21,7 @@ This file is durable. It lands in git history. It holds counts and paths only, n
 
 ## Step 0 First Principles
 
-Answers come from the owner's decisions D1 to D9 on 2026-11-25, plus the spike measurements in draft PR #7631.
+Answers come from the owner's decisions D1 to D12 on 2026-11-25, plus the spike measurements in draft PR #7631.
 
 Gate result on 2026-11-25: `tests/commands/step0_parser.py` returns H3 on Q1. Q3 passes the specificity test and Q5 passes the speculative test.
 H3 fires because the parser counts a requester only in the form `<Name> on the <Team> team`. The gate policy accepts one named requester on the evidence path (issue #6990).
@@ -64,7 +65,7 @@ At 10x more sessions, the per-reply cost is fixed: the spike measured p95 0.40 s
 
 - Draft PR #7631, the spike: an upstream Apache-2.0 checker measured on this repo's sessions. Relevance: it sets the claim kinds, the verdict model, and the eval method. Decision: adapt the idea only. No upstream code is copied (owner decision D3).
 - REQ-048 and issue #5817 (`src/claude/hooks/Stop/invoke_reflect_nudge.py`): an advisory, fail-open Stop hook. It reads `transcript_path`, prints a `systemMessage`, and exits 0 on every path. Relevance: the same event, output channel, and failure policy on Claude Code. Decision: honor. Receipts copies its registration shape, `--advisory` flag, and off switch.
-- `dispatch_groups.json` group `plugin-stop-1-reflect_nudge`: Copilot-excluded under ADR-084 rule 2a, because Copilot had no documented advisory Stop output or `transcript_path`. Relevance: receipts ships to Copilot, so it does not take that exclusion. Decision: adapt. The probe below covers `transcript_path`, and the Copilot output is a block decision (owner decision D6).
+- `dispatch_groups.json` group `plugin-stop-1-reflect_nudge`: Copilot-excluded under ADR-084 rule 2a, because Copilot had no documented advisory Stop output or `transcript_path`. Relevance: receipts ships to Copilot, so it does not take that exclusion. ADR-084 rule 2b (proposed 2026-11-25) covers both receipts registrations. Decision: adapt. The probe below covers `transcript_path`, and the Copilot output is a block decision (owner decision D6).
 - `.serena/memories/decision-claude-hook-group-dispatch.md`: Copilot Stop hooks cannot share a plain observe dispatcher, because two decision objects concatenate into invalid JSON. Decision: honor. The Copilot receipts hook is its own direct registration.
 - `src/claude/lib/failure_classifier/transcript.py`: a shipped mapper from Claude Code records to tool events. Decision: adapt. Receipts reuses its record-shape knowledge and the reflect nudge's bounded read.
 - chestertons-fence: not run as a separate skill. The change only adds files and one registration per harness. Recommendation: PRESERVE every existing Stop hook unchanged.
@@ -73,10 +74,10 @@ At 10x more sessions, the per-reply cost is fixed: the spike measured p95 0.40 s
 
 - Tool: GitHub Copilot CLI 1.0.116 installed. A live probe in a scratch repo fired `sessionEnd` only, because the account returned "exceeded your monthly quota" before any model turn.
 - The `sessionEnd` payload keys were `cwd`, `reason`, `sessionId`, and `timestamp`.
-- Logged `hook.start` inputs in `~/.copilot/session-state/*/events.jsonl` held 2,115 `agentStop` runs, from Copilot 1.0.79 to 1.0.105. Keys: `cwd`, `sessionId`, `stopReason`, `stop_hook_active`, `timestamp`, and `transcriptPath`.
-- `transcriptPath` pointed at that session's own `events.jsonl` in 1,258 runs and was empty in 857. Every empty one came from a 1.0.79 build. From 1.0.87 to 1.0.105, all 404 runs carried it.
+- Logged `hook.start` inputs in all 11,160 `~/.copilot/session-state/*/events.jsonl` files held 19,518 `agentStop` runs, from Copilot 1.0.37 to 1.0.105 (full count, 2026-11-25). Keys in every run: `cwd`, `sessionId`, `stopReason`, `timestamp`, and `transcriptPath`. `stop_hook_active` was present in 17,632 runs.
+- `transcriptPath` pointed at that session's own `events.jsonl` in 10,977 runs and was empty in 8,541. Builds before 1.0.79 had 5,711 set and 5,424 empty. The 1.0.79 builds had 4,830 set and 3,117 empty. On 1.0.87 and later, all 436 runs carried it.
 - `events.jsonl` records the receipts inputs: `assistant.message` (content, `toolRequests`), `tool.execution_start` (`toolName`, `arguments`), and `tool.execution_complete` (`success`, `shellExecution.exitCode`, `result.content`).
-- Logged `agentStop` outputs were empty (2,066) or `decision` plus `reason` (49). No logged output used any other field. The official sidecar documents only `decision` and `reason`. An advisory display field is DOCS SILENT and untested.
+- Logged `agentStop` outputs were empty (13,922), `decision` plus `reason` (3,897, every `decision` value `block`), or `reason` alone (1,699). No logged output used any other field. No block was logged on 1.0.87 or later. The official sidecar documents only `decision` and `reason`. An advisory display field is DOCS SILENT and untested. An earlier draft cited 2,115 runs and 49 blocks; that scan was capped at the 3,000 most recently modified files.
 
 ### Connected context from prior-art search
 
@@ -141,7 +142,7 @@ The spike found where the upstream design fails on this repo's sessions. Each go
 ## Integrations
 
 - **Claude Code Stop event**: payload `session_id`, `transcript_path`, and `cwd`. Output: one `systemMessage`. Failure: a missing or unreadable path prints nothing and exits 0.
-- **Copilot CLI agentStop event**: payload `sessionId`, `transcriptPath`, `stop_hook_active`, and `cwd`. Output: `{"decision": "block", "reason": ...}` only when a claim is contradicted and its digest is not in the session's block marker. `stop_hook_active` true also passes, but it is not the loop guard: logs show it false on 25 of 49 stops that followed a block (measured 2026-11-25). Failure: an empty path, a missing file, or a parse error prints nothing and exits 0.
+- **Copilot CLI agentStop event**: payload `sessionId`, `transcriptPath`, `stop_hook_active`, and `cwd`. Output: `{"decision": "block", "reason": ...}` only when a claim is contradicted and its digest is not in the session's block marker. `stop_hook_active` true also passes, but it is not the loop guard: logs show it false on 378 of 3,889 next stops after a block, and on 279 of 1,586 blocks on 1.0.79 builds (full count, 2026-11-25). Failure: an empty path, a missing file, or a parse error prints nothing and exits 0.
 - **Transcript files**: read once, bounded by bytes and lines. Malformed lines are skipped.
 - **Hook dispatcher** (`invoke_dispatch_claude.py`): runs the Claude shim in an advisory Stop group. The Copilot hook is a direct registration.
 - Idempotent: the same transcript gives the same stamps. The Copilot block is not idempotent by design: a claim blocks once per session.
@@ -200,7 +201,7 @@ The spike found where the upstream design fails on this repo's sessions. Each go
 - [ ] AC-24: Before release, a fresh blind sample of 200 `proven` stamps SHALL show a lower 95% Wilson bound of proven precision of at least 0.85. That needs at least 180 of 200 judged correct.
 - [ ] AC-25: Before release, a fresh blind sample of 100 replies SHALL show an upper 95% Wilson bound of the miss rate of at most 0.30. That allows at most 21 misses of 100. The sample is one reply per run that has a completion word, a turn with at least one tool call, and no `proven` or `contradicted` stamp. A miss is such a reply with an unsupported or contradicted claim of one of the 12 kinds.
 - [ ] AC-26: The sample sizes, the sampling rules, and the pass rules in AC-24, AC-25, and AC-27 SHALL be fixed in a committed file before any draw. A threshold or pattern change after a draw SHALL require a new draw.
-- [ ] AC-27: Before the Copilot hook ships, at least 30 `contradicted` stamps mined from the real-session pool SHALL be judged by hand, and none SHALL be false. Until then the Copilot hook SHALL NOT be registered.
+- [ ] AC-27: Before the Copilot hook ships, at least 30 `contradicted` stamps mined from the real-session pool SHALL be judged by hand, and none SHALL be false. The stamps SHALL come from an offline replay of the owner's Copilot `events.jsonl` logs, so no hook registers first. Until then the Copilot hook SHALL NOT be registered. If the gate is unmet on 2027-02-25, the hook stays unregistered and ADR-128 is reviewed again.
 - [ ] AC-28: After the Copilot hook blocks on a claim, it SHALL NOT block on the same claim digest again in that session, whatever `stop_hook_active` says. A test SHALL replay a second stop with `stop_hook_active` false and show no block.
 - [ ] AC-29: IF the block marker cannot be read or written, THEN the Copilot hook SHALL print nothing to stdout and write one stderr line.
 - [ ] AC-30: The release report SHALL list the judged stamp count per kind. A kind with fewer than 10 judged stamps SHALL be named unmeasured in `docs/skills/receipts.md` and SHALL NOT cause a Copilot block.
@@ -222,7 +223,18 @@ The spike found where the upstream design fails on this repo's sessions. Each go
 
 ## Open questions
 
-None. D3 to D9 settled vendoring, Copilot behavior, the tracking issue (#7633), the kind set, the release gate, and the Copilot block gate on 2026-11-25.
+None. The owner settled these on 2026-11-25:
+
+- D3: adapt the idea only; copy no upstream code.
+- D4: ship to Copilot CLI as well as Claude Code.
+- D5: file the tracking issue (#7633).
+- D6: block on a contradicted claim on Copilot CLI.
+- D7: ship the full kind set.
+- D8: the release gate uses the lower bound 0.85.
+- D9: keep the Copilot block, gate it, and write an ADR first.
+- D10: amend ADR-084 with rule 2b in the same change as ADR-128.
+- D11: draw the Copilot gate stamps by offline replay of the owner's logs; review again if unmet on 2027-02-25.
+- D12: replace the capped-scan log figures with the full count in every artifact.
 
 ## CVA summary
 
@@ -245,4 +257,4 @@ None. D3 to D9 settled vendoring, Copilot behavior, the tracking issue (#7633), 
 
 ## ADR cross-reference
 
-An ADR is required before the Copilot slice is built. The owner decided this on 2026-11-25 (D9). The ADR covers a Stop hook that blocks a Copilot turn, the block marker, and the 30-contradiction gate. It is drafted with `adr-generator` and reviewed with `adr-review`. Slices 1 to 3 (engine, kinds, Claude hook) do not wait for it, because the Claude hook is advisory.
+ADR-128 (proposed) is required before the Copilot slice is built. The owner decided this on 2026-11-25 (D9). The ADR covers a Stop hook that blocks a Copilot turn, the block marker, and the 30-contradiction gate. It is drafted with `adr-generator` and reviewed with `adr-review`. Slices 1 and 2 (engine, kinds) do not wait for it. Slice 3 (the Claude hook) waits for the owner to accept ADR-084 rule 2b, because rule 2a says any other advisory hook needs its own amendment.
