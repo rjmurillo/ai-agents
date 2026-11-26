@@ -8,8 +8,12 @@ Coverage:
 - negative: each ADR-065 token family fails in the body and in the
   description, including verb forms, ``manager``, ``supervisor``, and
   ``notice when`` across a space run.
-- edge: a long fence is not closed by a short one; a missing router file and
-  unreadable frontmatter fail; the scope is the ``DELEGATORS`` set from
+- edge: a long fence is not closed by a short one; a fence line with an info
+  string or U+00A0 after the marker does not close a fence, and a tab does; a
+  marker indented 4 spaces is not a fence; an unclosed fence is a finding; a
+  phrase or code span that wraps a line is read per paragraph; a double-backtick
+  span, with or without inner backticks, is masked whole; a missing router file
+  and unreadable frontmatter fail; the scope is the ``DELEGATORS`` set from
   ``check_agent_delegation.py``; CLI exit codes 0, 1, and 2.
 """
 
@@ -141,7 +145,7 @@ class TestScanFails:
         assert gate.scan_text(_text("Call ``cloudmcp-manager/search`` for memory.")) == []
 
     def test_code_span_with_inner_backtick_is_not_prose(self) -> None:
-        assert gate.scan_text(_text("Run ``a `manager` b`` here.")) == []
+        assert gate.scan_text(_text("Run ``x` y` manager`` here.")) == []
 
     def test_unclosed_fence_is_a_finding(self) -> None:
         findings = gate.scan_text(_text("Route it.\n```text\nYou supervise the worker."))
