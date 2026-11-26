@@ -35,7 +35,7 @@ Prose guidance, not files. The skill covers the source-of-truth map, the ADR dec
 
 The generation seam is asymmetric: agents and the rule, skill, and hook trees have different canonical sources. A drift check shows a difference, not a direction, so answer "which side is canonical" before you edit either side. Dispatch is name-based, so "no caller found" does not mean dead code.
 
-Hermes ships separate delivery, knowledge, quality, and authoring pack manifests.
+Hermes ships separate delivery, knowledge, quality, authoring, and azure-devops pack manifests.
 These sit outside the Claude Code manifest contract.
 
 The `instruments.py` dispatcher runs these ids:
