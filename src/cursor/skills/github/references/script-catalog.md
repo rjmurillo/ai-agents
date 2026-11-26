@@ -99,3 +99,76 @@ adds the marker. Read the action to learn whether a change would happen.
 
 `unresolve_pr_review_thread.py --pull-request N` now requires `--all`, as the
 `SKILL.md` row already says. Without it the script exits 2.
+
+## dismiss_pr_review.py
+
+Dismiss a stale `CHANGES_REQUESTED` review. Verifies the review exists and is
+in `CHANGES_REQUESTED` state, counts unresolved review threads through one
+GraphQL query and refuses while any remain, requires `--message`, and reports
+whether the review is on the current head. `--skip-thread-check` is the
+audit-recorded escape for GraphQL-refused sessions, and using it means the
+human verified thread resolution another way (the GitHub UI) first; the
+escape records that bypass in the audit output, it does not replace the
+check. The execution path the
+`detect_stale_bot_review.py` handoff points a human at; detection never
+dismisses, this script never detects.
+
+Parameters: `--pull-request`, `--review-id`, `--message` (all required),
+`--skip-thread-check`, `--dry-run`, `--owner`, `--repo`.
+
+Exit 0 dismissed or no-op (already dismissed); 1 wrong state or unresolved
+threads; 2 not found or blank message; 3 API failure, including a thread
+check that could not run; 4 auth.
+
+## edit_pr_title.py
+
+Edit a PR title with a stale-write guard. A squash merge uses the title as
+the commit subject, so the edit is a merge-message fix. Warns when the title
+does not parse as a conventional commit. `--expected-title` aborts when
+the title read before the write differs from it. The check narrows the
+concurrent-edit race but cannot close it: the PATCH itself is unconditional
+because the REST API offers no conditional write for pull requests.
+
+Parameters: `--pull-request`, `--title` (required), `--expected-title`,
+`--dry-run`, `--owner`, `--repo`.
+
+Exit 0 updated or no-op; 1 stale write; 2 not found or blank title; 3 API
+failure; 4 auth.
+
+## get_branch_protection.py
+
+Read-only. Combines classic branch protection
+(`branches/{branch}/protection`) with ruleset-derived rules
+(`rules/branches/{branch}`), because required status checks can live in
+either. Reports required check contexts split by source, required approving
+review count, stale-review dismissal, code-owner requirement, signatures,
+admin enforcement, force-push and deletion permission. When the ruleset read
+is refused (403), output carries `ruleset_rules_read: false` and a coverage
+warning instead of a false clean bill.
+
+Parameters: `--branch` (default main), `--owner`, `--repo`.
+
+Exit 0 success; 2 usage error; 3 API failure; 4 auth.
+
+## get_workflow_runs.py (actions/)
+
+Read-only. List workflow runs with filters. Covers run-level investigation
+that `get_pr_checks.py` cannot: runs not tied to a PR (push, schedule,
+workflow_dispatch), approval-waiting runs, failure archaeology.
+
+Parameters: `--workflow` (ID or filename), `--branch`, `--event`, `--status`,
+`--pull-request` (client-side filter), `--limit` (cap 100), `--owner`, `--repo`.
+
+Exit 0 success; 2 invalid status or limit; 3 API failure; 4 auth.
+
+## get_workflow_run.py (actions/)
+
+Read-only. One run in detail: status, jobs with conclusions and failed steps,
+and pending environment deployments (`pending_deployments` endpoint), which
+surfaces the environment-approval wait that otherwise only the Actions UI
+shows. `waiting_on_environment_approval` is the boolean agents branch on.
+Approving stays a human action in the GitHub UI.
+
+Parameters: `--run-id` (required), `--owner`, `--repo`.
+
+Exit 0 success; 2 run not found; 3 API failure; 4 auth.

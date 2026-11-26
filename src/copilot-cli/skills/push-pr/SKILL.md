@@ -141,7 +141,8 @@ Based on the above changes:
    - A checkout without `scripts/validation/pr_description.py`, such as a plugin
      install, cannot run this step. Say it was not run, and compare every
      path under the change heading (inline code, bold, list item, or link) to
-     `git diff --name-only origin/main...HEAD` by hand.
+     `git diff --name-only origin/<target>...HEAD` by hand. `<target>` is the
+     branch the PR targets, `main` unless the PR targets another branch.
 6. Push the branch to origin.
 7. Create the pull request. `host=ado` skips the rest of this step and follows
    Azure DevOps PR Creation. `host=github` uses the new_pr skill script:
@@ -217,8 +218,10 @@ az repos pr create --output json --title "<conventional commit title>" --descrip
   `--repository`, `--reviewers`, `--required-reviewers`, `--work-items`,
   `--transition-work-items`, `--open`, or `--source-branch`. The one exception:
   add `--target-branch <branch>` only when the PR must not target the
-  repository default branch. Then step 5 MUST have run with
-  `--base origin/<branch>`, so the path check reads the same diff the PR shows.
+  repository default branch. Then step 5 MUST have checked the paths against
+  `origin/<branch>`, so the check read the same diff the PR shows. Run the
+  validator with `--base origin/<branch>`, or, when the validator is absent,
+  do the manual comparison against that branch.
 - A non-zero exit means no PR was created. Report FAIL with the `az` stderr and
   stop. Never retry with a different command shape.
 - On exit 0, check the `description` field of the JSON output. If it starts
@@ -291,8 +294,6 @@ stdin, never as a command-line argument to `gh`.
      the body and keep every required template section.
    - Do not add `--skip-validation`. The fallback changes how the body arrives,
      not which checks it must pass.
-
-You have the capability to call multiple tools in a single response. You MUST do all of the above in a single message. Do not use any other tools or do anything else. Do not send any other text or messages besides these tool calls.
 
 ## Verification
 
