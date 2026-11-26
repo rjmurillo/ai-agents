@@ -204,9 +204,13 @@ This amends ADR-073 again rather than filing a new record, for the same reason a
 Two rules change, both in `check_adr_lifecycle.py`:
 
 - `proposed-needs-review-by`: a `proposed` record whose `review-by` is absent or `null`. The date is the day the decision must be made. The check is ratcheted: records present when it shipped enter the baseline and can only fall. A malformed value stays a `review-by-format` finding, not this one.
-- `review-by-past-due` is zero-tolerance. It is listed in `ZERO_TOLERANCE_CHECKS`. The baseline cannot hold it: `--write-baseline` records it empty, and a live baseline that lists it is a config error. An overdue record fails every run until the review is held, the date is moved, or the status changes.
+- `review-by-past-due` is zero-tolerance. It is listed in `ZERO_TOLERANCE_CHECKS`. The baseline cannot hold it: `--write-baseline` records it empty and exits 1 while one is live, and a live baseline that lists it is a config error. An overdue record fails every run until the review is held, the date is moved, or the status changes.
 
 The clock, not a branch, creates a past-due violation. That is why it blocks every branch instead of only the one that caused it. The cost is that a missed date stops unrelated pull requests. The fix is one frontmatter and prose edit to the overdue record.
+
+The gate runs in the pre-push hook and in `pre_pr.py`. No hosted workflow runs it, the same as every other lifecycle check. So a branch pushed green the day before a date can still merge after it. The next push from any branch then fails until the record is fixed.
+
+When a record moves from `proposed` to `accepted`, its decision date is spent. Set `review-by` to `null`, or to a revisit date that the prose also states (`review-by-prose-date`). An `accepted` record that keeps the old date fails `review-by-past-due` once the date passes.
 
 Alternative rejected: open a follow-up issue when a date passes, and keep the gate green. Issue #7638 allowed it. It was rejected because the issue asks that a missed review not sit at baseline, and an issue can sit unread the same way. Two panel seats preferred it; the debate log records their dissent. Reversal is one line: remove the name from `ZERO_TOLERANCE_CHECKS` and regenerate the baseline.
 

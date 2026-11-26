@@ -93,3 +93,16 @@ After #7636 and #7637 merged, the branch was rebased. `implemented-implies-decid
 - Path Dependence: PASS. Reversal is one line: remove the name from `ZERO_TOLERANCE_CHECKS` and regenerate the baseline.
 - Core vs Context: N/A.
 - Second-System Effect: PASS. One check and one set; no new schema field.
+
+## Round 2 (2026-11-26, reduced panel)
+
+Scope: a prose-only edit after PR #7709 review. The edit names where the past-due block fires. It also says to reset `review-by` when a record is accepted. No executable enforcement changed, so the panel is architect and critic.
+
+| Agent | Vote | Note |
+|---|---|---|
+| architect | Disagree-and-Commit | Claims hold. "Exits 1" and "every other check" were loose. Both are fixed. |
+| critic | Disagree-and-Commit | Reset guidance matches the checker. It asked to name the prose date and to trace pre-push. |
+
+The critic's P1 is resolved. The lifecycle row at `pre_pr_sequence.py:416` sets no quick-skip or fast-stage deferral. So `pre_pr.py --compact` at pre-push runs it.
+
+The prose-date pairing and the narrowing to `accepted` are applied. No P0 was raised.

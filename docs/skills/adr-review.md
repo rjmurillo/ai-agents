@@ -29,6 +29,7 @@ The agents review the ADR in rounds. At the end you get a debate log and an upda
 - A debate log at `.project-toolkit/critique/ADR-NNN-debate-log.md`.
 - After a closed debate, a revised ADR gets a new log (`ADR-NNN-debate-log-2.md`, then `-3`). The new log restarts at round 1 and names the closed log. The skill never overwrites a closed log.
 - An ADR `status` set to one of `proposed`, `accepted`, `rejected`, `deprecated`, or `superseded`. A missing or out-of-enum value is a P1 blocker.
+- A reset `review-by` when the review accepts a `proposed` record: `null`, or a revisit date the prose also states. A kept decision date fails the lifecycle gate once it passes.
 - Recommendations for the orchestrator, and recorded dissent for any Disagree-and-Commit vote.
 
 Consensus means all six agents vote Accept or Disagree-and-Commit. A debate has at most 10 rounds. Revising the ADR text does not reset the cap.
