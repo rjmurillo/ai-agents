@@ -120,7 +120,7 @@ resolve_pr_scripts_dir() {
       return 0
     fi
   done
-  # Default remains ${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr.
+  # No candidate matched: fall back to .claude under the working directory.
   printf '%s\n' ".claude/skills/github/scripts/pr"
 }
 resolve_pr_review_config() {
@@ -227,7 +227,7 @@ Report per-PR status in `output_constraints.summary_format` from config. Require
 
 ## Reply Conduct
 
-Wording, pushback, deferral, and escalation of review comments follow the review-conversation protocol (capability `review-conversation`), loaded from `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/pr-comment-responder/references/review-conversation.md`. Its frozen finding contract applies: after round 1 a new thread counts only if the diff introduced it or a claimed acceptance criterion is unmet. Otherwise reply `[WONTFIX]`, list it under "Flagged notes" in the Step 6 summary, start no new round.
+Wording, pushback, deferral, and escalation of review comments follow the review-conversation protocol (capability `review-conversation`), loaded from the `pr-comment-responder` skill's `references/review-conversation.md`. Its frozen finding contract applies: after round 1 a new thread counts only if the diff introduced it or a claimed acceptance criterion is unmet. Otherwise reply `[WONTFIX]`, list it under "Flagged notes" in the Step 6 summary, start no new round.
 
 ## Thread Resolution
 
@@ -254,7 +254,7 @@ resolve_pr_scripts_dir() {
       return 0
     fi
   done
-  # Default remains ${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr.
+  # No candidate matched: fall back to .claude under the working directory.
   printf '%s\n' ".claude/skills/github/scripts/pr"
 }
 resolve_pr_review_config() {

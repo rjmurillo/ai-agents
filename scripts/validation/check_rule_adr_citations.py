@@ -11,10 +11,10 @@ reading.
 
 ## What is scanned
 
-Git-tracked files only, read from disk, per `.claude/rules/ci-scripts.md`
-MUST 9. The canonical sources and every shipped mirror of them, because a
-check that passes the source while a stale mirror ships the violation to
-plugin consumers has not protected the consumer:
+Git-tracked files only, read from disk, per
+`.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md` MUST 9. The
+canonical sources and every shipped mirror of them, because a check that passes the source
+while a stale mirror ships the violation to plugin consumers has not protected the consumer:
 
 - `AGENTS.md` and `CLAUDE.md` at the repository root
 - `templates/rules/*.md` (the source, per ADR-109)

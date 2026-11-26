@@ -41,6 +41,7 @@ from atomic_write import (  # noqa: E402
     read_bytes_no_redirect,
     reject_symlinked_ancestors,
 )
+from binplace_manifest import is_bytecode_artifact  # noqa: E402
 from frontmatter_key_drop import (  # noqa: E402
     drop_keys_from_skill_md,
     split_fenced_frontmatter,
@@ -226,13 +227,28 @@ def _matches(dst: Path, packed: PackFile) -> bool:
 
 
 def _existing_files(root: Path) -> set[str]:
+    """Return every file under ``root`` that stale pruning may consider.
+
+    Bytecode is left out (issue #7659). Pytest imports a pack's ``lib/`` and
+    skill scripts and writes ``__pycache__`` there; the tree never names those
+    files, so without the skip ``--check`` reports them as stale. The rule is
+    :func:`binplace_manifest.is_bytecode_artifact`, the one binplace and the
+    skill mirrors use, applied to the path relative to ``root``.
+
+    A symlink is never bytecode, whatever its name: CPython writes regular
+    files. Skipping a ``__pycache__`` link would leave it on disk, and
+    ``_prune_empty_dirs`` would then call ``rmdir`` on it.
+    """
     if not root.is_dir():
         return set()
-    return {
-        path.relative_to(root).as_posix()
-        for path in root.rglob("*")
-        if path.is_symlink() or path.is_file()
-    }
+    files: set[str] = set()
+    for path in root.rglob("*"):
+        if not (path.is_symlink() or path.is_file()):
+            continue
+        rel = path.relative_to(root)
+        if path.is_symlink() or not is_bytecode_artifact(rel):
+            files.add(rel.as_posix())
+    return files
 
 
 def _prune_empty_dirs(root: Path) -> None:
@@ -255,13 +271,21 @@ def _refuse_symlinked_ancestors(output_root: Path, rels: list[str]) -> None:
 
 
 def apply_tree(
-    output_root: Path, tree: dict[str, PackFile], *, check: bool, what_if: bool
+    output_root: Path,
+    tree: dict[str, PackFile],
+    *,
+    check: bool,
+    what_if: bool,
+    report_root: str,
 ) -> tuple[int, int]:
     """Write ``tree`` under ``output_root``; return ``(written, removed)``.
 
     A file is written when its bytes or permission bits differ. A file under
-    ``output_root`` that ``tree`` does not name is removed. With ``check`` or
-    ``what_if`` nothing changes on disk and the counts say what would change.
+    ``output_root`` that ``tree`` does not name is removed, except bytecode,
+    which ``_existing_files`` leaves out, so it is neither reported nor removed.
+    With ``check`` or ``what_if`` nothing changes on disk and the counts say
+    what would change. ``report_root`` is the repo-relative ``outputDir`` that
+    ``check`` prefixes to each ``STALENESS DETECTED`` path.
     """
     changed = [
         rel for rel, packed in sorted(tree.items()) if not _matches(output_root / rel, packed)
@@ -272,6 +296,21 @@ def apply_tree(
         print(f"  {'DRIFT' if check else 'Copy'}: {output_root / rel}")
     for rel in stale:
         print(f"  {'DRIFT' if check else 'Remove'} (stale): {output_root / rel}")
+    if check:
+        # The pre-PR gate reads build_all.py's git-diff list, which never names a
+        # gitignored stale file, and ``STALENESS DETECTED: <kind>: <path>`` lines
+        # (``_STALE_ITEM`` in ``scripts/validation/generated_staleness_report.py``).
+        # Paths are repo-relative, so a file both lists name counts once (issue
+        # #7659). ``tests/build_scripts/test_hermes_packs_bytecode.py`` feeds this
+        # output to that parser.
+        for kind, rels in (
+            ("differs from its sources", changed),
+            ("holds a file no pack names", stale),
+        ):
+            for rel in rels:
+                print(
+                    f"STALENESS DETECTED: Hermes pack {kind}: {report_root}/{rel}", file=sys.stderr
+                )
     if check or what_if:
         return len(changed), len(stale)
     for rel in changed:
@@ -319,7 +358,13 @@ def generate_hermes_packs(
             print(f"Error: {problem}", file=sys.stderr)
         return 2
     try:
-        written, removed = apply_tree(output_root, tree, check=check, what_if=what_if)
+        written, removed = apply_tree(
+            output_root,
+            tree,
+            check=check,
+            what_if=what_if,
+            report_root=Path(config.output_dir).as_posix(),
+        )
     except HermesPackError as exc:
         for problem in exc.problems:
             print(f"Error: {problem}", file=sys.stderr)

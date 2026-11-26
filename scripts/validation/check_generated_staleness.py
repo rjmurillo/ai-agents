@@ -24,8 +24,8 @@ would have merged as a silent no-op. Issue #5079.
 One check, not an ordered pair (ADR-109 B5)
 --------------------------------------------
 
-Before B5, ``.claude/rules/generated-artifacts.md`` ("Generator order: sync
-before build") required ``scripts/sync_plugin_lib.py`` to run before
+Before B5, the generated-artifacts rule's "Generator order: sync before
+build" section required ``scripts/sync_plugin_lib.py`` to run before
 ``build/scripts/build_all.py``: ``build_all.py`` read ``.claude/lib/`` and
 never populated it, so a change under ``scripts/github_core/`` reached
 ``src/copilot-cli/lib/`` only once the sync had run first, and running them in
@@ -362,7 +362,8 @@ def _evaluate(repo_root: Path) -> _Verdict:
 
     Prints the examined count next to the failure count so a caller can tell
     "no drift across two checks" from "nothing was checked"
-    (.claude/rules/ci-scripts.md MUST 11 and MUST 12).
+    (.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md
+    MUST 11 and MUST 12).
     """
     examined = 0
     start = time.monotonic()
