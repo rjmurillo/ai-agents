@@ -1,7 +1,7 @@
 ---
 id: ADR-071
 status: accepted
-date: 2026-11-22
+date: 2026-11-26
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -622,26 +622,26 @@ the runtime contract above. Owner decisions D20 to D26 are recorded in
 `.project-toolkit/critique/ADR-114-debate-log.md` round 5, and ADR-114
 Decision 13 holds the gate policy.
 
-- `.github/workflows/nightly-cli-smoke.yml` is deleted. It was replaced by
-  `.github/workflows/plugin-cli-smoke.yml`, which runs on pull requests that
-  change a path in `scripts/validation/cli_smoke_paths.py`. Its result check,
-  `CLI Smoke Result`, blocks merge. Wherever this ADR names the nightly
-  workflow below, read `plugin-cli-smoke.yml`. The tests it runs are the same
-  files, so the coverage named in Decision items 3 and 6 is unchanged.
+- `.github/workflows/nightly-cli-smoke.yml` is deleted. It was replaced by `.github/workflows/plugin-cli-smoke.yml`, which runs on pull requests that change a path in `scripts/validation/cli_smoke_paths.py`. Its result check, `CLI Smoke Result`, blocks merge. Wherever this ADR names the nightly workflow below, read `plugin-cli-smoke.yml`. The tests it runs are the same files, so the coverage named in Decision items 3 and 6 is unchanged.
 - There are now three pinned CLIs: Claude Code, Copilot CLI, and Codex CLI.
   The Codex leg installs the Claude plugin and reads no credential.
 - Credentials reach only the execution steps, as Decision item 6 requires. The
   Claude leg now reads `CLAUDE_CODE_OAUTH_TOKEN`, not `ANTHROPIC_API_KEY`.
-- Decision item 6 and the 2026-07-22 note say Renovate cannot auto-merge the
-  pins. That was already false before this amendment: `renovate.json` sets
-  `automerge: true` for all three CLI packages, and `tests/test_renovate_config.py`
-  pins it. Each bump edits `plugin-cli-smoke.yml`, which is a smoke path, so the
-  smoke runs on it. GitHub auto-merge waits for that result only after the owner
-  adds `CLI Smoke Result` to the branch ruleset (ADR-114 Decision 11 item 8).
-  Until then, a pin bump can merge before its smoke is approved.
+- Decision item 6 and the 2026-07-22 note say Renovate cannot auto-merge the pins. That was already false before this amendment: `renovate.json` sets `automerge: true` for all three CLI packages, and `tests/test_renovate_config.py` pins it. Each bump edits `plugin-cli-smoke.yml`, which is a smoke path, so the smoke runs on it. GitHub auto-merge waits for that result only after the owner adds `CLI Smoke Result` to the branch ruleset (ADR-114 Decision 11 item 8). Until then, a pin bump can merge before its smoke is approved.
 - Budget exhaustion is an accepted gap (D26). Each leg must pass a zero-token
   load check. Prompt-based checks that hit an exhausted quota or credit balance
   skip with a marker and do not fail the leg. Auth failures still fail.
+
+### 2026-11-25 amendment: the Claude and Copilot real-CLI legs are deleted
+
+Commit `3f145f26fd` (2026-11-25) deleted the `smoke` job from `.github/workflows/plugin-cli-smoke.yml`, with every other job gated by an `agent-*` environment. ADR-057, amendment of 2026-11-25, holds the reason. The runtime contract above is unchanged. What changed is which of its checks a workflow still runs. The 2026-10-08 amendment stays as dated history; where it and this one differ, this one states the present. Review record: `.project-toolkit/critique/agent-env-adr-amendments-2026-11-25-debate-log-2.md`.
+
+- The deleted job was defined to run `tests/e2e/test_cli_hook_e2e.py` and `tests/e2e/test_plugin_load_smoke.py` against Claude Code and Copilot CLI on Linux, macOS, and Windows, behind the `agent-claude` and `agent-copilot` approvals. It was the only job in the workflow that read `CLAUDE_CODE_OAUTH_TOKEN` or `COPILOT_GITHUB_TOKEN`. No workflow runs the real-CLI cases of `tests/e2e/test_cli_hook_e2e.py` now. CI runs `tests/e2e/test_plugin_load_smoke.py` only in `smoke-codex`, with `-m "smoke and codex"`. The pre-push job `plugin-load-e2e` selects `-m "not copilot"`, so the Claude plugin-load cases run only there, and only when `claude` is on PATH (the job also runs with `codex` alone). The Copilot ones run nowhere.
+- Six jobs remain: `changes`, `authorize`, `smoke-codex`, `smoke-claude-hooks`, `smoke-pi`, and `smoke-result`, which reports `CLI Smoke Result`. None reads a secret. `smoke-claude-hooks` runs `tests/e2e/test_claude_hook_discovery_smoke.py`, which checks that Claude Code discovers the plugin's hooks. It executes no hook and makes no model call.
+- The 2026-10-08 instruction to read `plugin-cli-smoke.yml` where this ADR names the nightly workflow no longer holds for the Claude and Copilot legs. That covers Decision items 5 and 6, the 2026-07-22 supply-chain note, the Negative consequences about the trusted nightly smoke and the lagging nightly signal, the Delivered follow-ups paragraph, the exit-trigger detection under Reversibility, and the References entry for the nightly workflow. Its sentence that the workflow runs the same test files is no longer true for those legs.
+- Decision item 5: no CI job executes a hook through a real CLI. The pre-push job `hook-anchoring-e2e` in `lefthook.yml` runs the Claude cases of `tests/e2e/test_cli_hook_e2e.py` when a pushed file matches `HOOK_E2E_GLOBS` in `scripts/validation/cli_smoke_paths.py`. It fails the push when `claude` is not on PATH. It selects `-m "not copilot"`, so the Copilot hook cases run nowhere. For a Copilot CLI change, the Reversibility exit trigger keeps only Decision item 4's re-verification as detection. A push from a clone without the local hooks gets no real-CLI hook check. `installed-plugin-hook-guard.yml` still runs on pull requests, but it installs only `src/copilot-cli`, whose `hooks/hooks.json` registers no hook event, so it has no registered hook to execute.
+- Decision item 6: its credential scoping has no CI subject, because the workflow reads no secret. The workflow no longer installs Copilot CLI. The pin under `.github/cli-smoke/copilot/` remains, and `scripts/validation/check_copilot_version_pin.py` still reads it. Renovate automerges a Copilot pin bump (`renovate.json`), and no job installs the new version before it merges.
+- The D26 budget-exhaustion gap applied to the deleted job's prompt-based checks. `smoke-claude-hooks` runs with no skip marker allowed, so its two tests must pass.
 
 ### 2026-11-04 amendment: advisory plugin Stop group (REQ-048 TASK-006)
 

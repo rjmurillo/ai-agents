@@ -1,7 +1,7 @@
 ---
 id: ADR-088
 status: proposed
-date: 2026-07-27
+date: 2026-11-26
 decision-makers: []
 supersedes: []
 superseded-by: null
@@ -260,6 +260,40 @@ scenarios in `tests/evals/rule-scenarios/*.json`; wiring those eight
 non-`software-engineering-library` references into a scheduled activation
 monitor with an owner, cadence, and consecutive-run rollback state remains
 follow-up work under the same criterion as issue #3589.
+
+## Amendment 2026-11-25: the weekly activation workflow is deleted
+
+Decision-maker: rjmurillo. Panel: reduced (architect, critic); see
+`.project-toolkit/critique/agent-env-adr-amendments-2026-11-25-debate-log-2.md`.
+
+The owner deleted `software-engineering-library-activation.yml` on 2026-11-25,
+with every other job gated by an `agent-*` environment (ADR-057, amendment of
+that date). That workflow ran the live activation eval on a weekly schedule,
+kept the rollback streak in the Actions cache, and opened or updated the
+rollback alert issue.
+
+The issue #5951 amendment says a reference that stops activating "raises the
+existing rollback alert". That sentence describes the state before 2026-11-25.
+No GitHub Actions job in this repository runs the eval now, so nothing raises
+the alert unattended. Detection is manual. `scripts/eval/README.md` ("Cadence:
+manual") says to run
+`scripts/eval/software_engineering_library_activation_ci.py` and the gate
+script by hand when the skill, fixtures, or eval script change. A model or CLI
+change with no repository change prompts no run. The rollback streak lives in
+a local state file, so separate checkouts do not share it. Between manual runs
+the late-retrieval risk named in the original decision has no monitor.
+
+The Negative consequence above says a wired rollback trigger needs "an owner,
+cadence, persisted consecutive-run state, and CI or scheduled invocation". The
+deleted workflow supplied the scheduled invocation and the shared persisted
+state. Neither exists now.
+
+The 2026-11-24 amendment left wiring the eight context-diet references into "a
+scheduled activation monitor" as follow-up work. No workflow in this
+repository runs a scheduled activation monitor for any reference now. That
+follow-up is not done.
+
+The decision text above is otherwise unchanged.
 
 ## Related Decisions
 

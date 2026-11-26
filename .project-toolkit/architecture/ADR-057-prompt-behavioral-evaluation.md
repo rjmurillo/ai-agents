@@ -1,7 +1,7 @@
 ---
 id: ADR-057
 status: accepted
-date: 2026-11-25
+date: 2026-11-26
 decision-makers: [architect, user]
 supersedes: []
 superseded-by: null
@@ -309,7 +309,9 @@ A billing error (`error=billing`) is checked first and exits 4. Any other execut
 
 ## Amendment 2026-11-25: the /spec CI leg is deleted
 
-The owner deleted every GitHub Actions job gated by an `agent-*` environment, because, per the owner, the required-reviewer approval was never given. The latest 100 deployments of `agent-claude` and `agent-copilot` show none approved or run (owner statement, 2026-11-25). The slash-command-quality workflow went with them, and `advisory_agent_workflows` no longer lists it. No CI job runs `eval-prompt-change.py` now.
+Decision-maker: rjmurillo. Panels: reduced (architect, critic); see `.project-toolkit/critique/agent-env-adr-amendments-2026-11-25-debate-log.md` and `.project-toolkit/critique/agent-env-adr-amendments-2026-11-25-debate-log-2.md`.
+
+The owner deleted every GitHub Actions job gated by an `agent-*` environment on 2026-11-25. The owner's stated reason: the latest 100 deployments of `agent-claude` and `agent-copilot` show none approved or run (owner statement, 2026-11-25). That statement covers that window only. It is not a claim about all history: bot commit `637b60d749` (2026-11-13) publishes a report generated 2026-11-12 by the reviewer-stats workflow. That workflow built the report in its `update-stats` job, which declared `agent-claude` from commit `d73c0cf0fe` (2026-11-05). Its `publish-stats` job had no environment and published what `update-stats` uploaded. Git history indicates the gated job produced output. It does not show why the job was allowed to run. The deletion removed the slash-command-quality workflow, and `advisory_agent_workflows` no longer lists it. No CI job runs `eval-prompt-change.py` now.
 
 Every statement above that describes the `/spec` CI leg in the present tense describes the state before 2026-11-25. The acceptance gate in the script is unchanged and still returns FAIL on a regression when someone runs it. A prompt-file diff gets the eval only when a reviewer or contributor runs it by hand. The decision text above is otherwise unchanged.
 

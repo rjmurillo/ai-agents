@@ -15,3 +15,12 @@ Claims in the 2026-11-25 amendment or edited sentences of ADR-101. The amendment
 | pull_request_target workflows are unchanged at three | count | `grep -lE 'pull_request_target' .github/workflows/*.yml \| wc -l` | VERIFIED: 3 |
 | adr101-publisher.yml requests `checks: write` for an app token | path | `grep -n 'permission-checks' .github/workflows/adr101-publisher.yml` | VERIFIED: 151:          permission-checks: write |
 | `BOT_PAT` is not referenced under .github | absence | `grep -rn 'BOT_PAT' .github \| wc -l` | VERIFIED: 0 |
+
+## Second pass, 2026-11-25
+
+Rows for the reworded clause at ADR-101 line 478, which now points to ADR-057. Commands ran on 2026-11-25 in the working tree of branch `ci/delete-agent-env-jobs` at head `879dff55b3` with the ADR amendments uncommitted. The deletion commit is `3f145f26fd` (2026-11-25).
+
+| Claim | Kind | Command | Result |
+|---|---|---|---|
+| ADR-057 carries the amendment the pointer names | path | `grep -n '^## Amendment 2026-11-25' .project-toolkit/architecture/ADR-057-prompt-behavioral-evaluation.md` | VERIFIED: 310:## Amendment 2026-11-25: the /spec CI leg is deleted |
+| ADR-101 stays at 500 lines | count | `wc -l < .project-toolkit/architecture/ADR-101-enforcement-planes.md` | VERIFIED: 500 |
