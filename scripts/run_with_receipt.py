@@ -22,19 +22,35 @@ and stderr in arrival order, and redacts secrets in memory with
   truncated flag, artifact path, and, on nonzero exit, a stderr tail.
 
 ``--timeout-seconds`` accepts a positive integer. When it is present the child
-has at most that many seconds after launch. A wrapper-enforced timeout returns
-124, and a large-output receipt for one adds ``timeout: true``. A child that
-exits 124 on its own is indistinguishable without that receipt line. Where the
-platform has POSIX process groups, a timed child starts in a new session and a
-timeout sends SIGTERM to the group, gives every group member a 1 second grace
-period (the wrapper reaps the leader inside it, and the period ends early once
-the group is empty), then sends SIGKILL. Elsewhere the direct child is killed.
-The same stop runs when the wrapper itself is cancelled while a deadline is
-armed: Ctrl-C, or SIGTERM (which exits 143 once the child is stopped, unless the
-caller installed its own SIGTERM handler). The shared validation runner is not
-reused here because it decodes through text-mode ``communicate``; this wrapper
-needs byte streams so invalid UTF-8, redaction, and line assembly keep their
-existing behavior. The local cleanup is only the process-group part.
+command gets at most that many seconds after launch. A wrapper-enforced timeout
+returns 124, and a large-output receipt for one adds ``timeout: true``. A child
+that exits 124 on its own is indistinguishable without that receipt line. Where
+the platform has POSIX process groups, a timed child starts in a new session and
+the wrapper stops the whole group, not only the leader. The stop sends SIGTERM
+to the group, gives every group member a 1 second grace period (the wrapper
+reaps the leader inside it, and the period ends early once the group is empty),
+then sends SIGKILL. Elsewhere the direct child is killed.
+
+On POSIX no member of a timed child's group is left running when the wrapper
+returns. The group id is captured at spawn and the same stop runs on every exit
+path: the deadline, a leader that exits early (its exit code is still the
+result, and a background process it left behind is stopped), and a cancelled
+wrapper. Cancelling means Ctrl-C, SIGTERM (exits 143), or SIGHUP (exits 129),
+unless the caller installed its own SIGTERM or SIGHUP handler. SIGKILL of the
+wrapper cannot be caught by any handler, so it leaves a timed child tree
+running.
+
+The deadline bounds the child command. The wrapper itself returns within the
+deadline plus 6 seconds in the worst case: 1 second of SIGTERM grace, 1 second
+to reap the leader, and up to 2 seconds for each of the two output pipe drains
+when a process outside the group holds a pipe open.
+
+The shared validation runner is not reused here because it decodes through
+text-mode ``communicate``; this wrapper needs byte streams so invalid UTF-8,
+redaction, and line assembly keep their existing behavior. Its signal handler
+is not imported from that runner either: ``scripts.validation`` is importable
+only inside the project environment, and this script also runs under a plain
+``python3``. The local copy is a separate function, not a mirror.
 
 ``read`` pages through a saved artifact by byte range. The artifact holds the
 redacted bytes. Unredacted bytes are never written, so a retrieval cannot
@@ -242,12 +258,18 @@ def _own_group(pid: int) -> int | None:
     return None if pgid == os.getpgid(0) else pgid
 
 
-def _terminate_child(proc: _ChildProcess) -> None:
-    """Stop a timed-out child's process group, or the child where groups are absent."""
+def _terminate_child(proc: _ChildProcess, pgid: int | None = None) -> None:
+    """Stop a timed child's process group, or the child where groups are absent.
+
+    `pgid` is the group id captured at spawn. The leader's pid cannot find the
+    group once the leader is reaped, so a caller that may stop the group after
+    that passes the captured id. Without one, the group is looked up here.
+    """
     if sys.platform == "win32" or not _SUPPORTS_PGROUP:
         proc.kill()
         return
-    pgid = _own_group(proc.pid)
+    if pgid is None:
+        pgid = _own_group(proc.pid)
     if pgid is None:
         proc.kill()
         return
@@ -285,39 +307,48 @@ def _reap_stopped_child(proc: _ChildProcess) -> None:
         pass
 
 
-@contextlib.contextmanager
-def _sigterm_raises() -> Iterator[None]:
-    """Turn SIGTERM into ``SystemExit`` while a timed child runs, then restore the default.
+def _cancel_signals() -> list[int]:
+    """Signals that cancel a timed run: SIGTERM, plus SIGHUP where it exists."""
+    names = ("SIGTERM", "SIGHUP")
+    return [getattr(signal, name) for name in names if hasattr(signal, name)]
 
-    A timed child lives in its own session, so a SIGTERM to this process never
-    reaches it, and the default action would end this process with the child
-    still running. ``SystemExit`` instead unwinds through ``_spawn_and_collect``,
-    which stops the child's group. Only the default action is replaced, and only
-    on the main thread, where ``signal.signal`` works.
+
+@contextlib.contextmanager
+def _cancel_signals_raise() -> Iterator[None]:
+    """Turn SIGTERM and SIGHUP into ``SystemExit`` while a timed child runs.
+
+    A timed child lives in its own session, so a SIGTERM or a terminal hangup
+    sent to this process never reaches it, and the default action would end this
+    process with the child still running. ``SystemExit`` instead unwinds through
+    ``_spawn_and_collect``, which stops the child's group. Each signal is judged
+    alone: only a default action is replaced, and it is restored to the default
+    on every exit path. Nothing is replaced off the main thread, where
+    ``signal.signal`` fails. SIGKILL cannot be handled, so it is not covered.
     """
-    if (
-        not _SUPPORTS_PGROUP
-        or threading.current_thread() is not threading.main_thread()
-        or signal.getsignal(signal.SIGTERM) is not signal.SIG_DFL
-    ):
+    if not _SUPPORTS_PGROUP or threading.current_thread() is not threading.main_thread():
         yield
         return
 
-    def _stop(_signum: int, _frame: object) -> None:
-        raise SystemExit(128 + signal.SIGTERM)
+    def _stop(signum: int, _frame: object) -> None:
+        raise SystemExit(128 + signum)
 
-    signal.signal(signal.SIGTERM, _stop)
+    installed: list[int] = []
     try:
+        for sig in _cancel_signals():
+            if signal.getsignal(sig) is signal.SIG_DFL:
+                signal.signal(sig, _stop)
+                installed.append(sig)
         yield
     finally:
-        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+        for sig in installed:
+            signal.signal(sig, signal.SIG_DFL)
 
 
 def _run_child(argv: list[str], timeout_seconds: int | None = None) -> tuple[int, Capture, bool]:
     """Run argv without a shell and return the exit code, output, and timeout state."""
     if timeout_seconds is None:
         return _spawn_and_collect(argv, None)
-    with _sigterm_raises():
+    with _cancel_signals_raise():
         return _spawn_and_collect(argv, timeout_seconds)
 
 
@@ -339,6 +370,9 @@ def _spawn_and_collect(argv: list[str], timeout_seconds: int | None) -> tuple[in
             shell=False,
             start_new_session=_SUPPORTS_PGROUP,
         )
+    # Capture the group once. After the leader is reaped its pid no longer finds
+    # the group, so every later group stop uses this id.
+    pgid = _own_group(proc.pid) if timeout_seconds is not None and _SUPPORTS_PGROUP else None
     capture = Capture()
     threads = [
         threading.Thread(target=_pump, args=(proc.stdout, "out", capture), daemon=True),
@@ -346,25 +380,31 @@ def _spawn_and_collect(argv: list[str], timeout_seconds: int | None) -> tuple[in
     ]
     timed_out = False
     try:
+        try:
+            for thread in threads:
+                thread.start()
+            code = proc.wait(timeout=timeout_seconds)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            _terminate_child(proc, pgid)
+            _reap_stopped_child(proc)
+            code = EXIT_TIMEOUT
+        else:
+            # The leader exited by itself. Its group can still hold members that
+            # outlive it, and the deadline must bound those too.
+            if pgid is not None and _group_alive(pgid):
+                _terminate_child(proc, pgid)
+        # A grandchild can keep a pipe open after the child exits; do not wait on it.
         for thread in threads:
-            thread.start()
-        code = proc.wait(timeout=timeout_seconds)
-    except subprocess.TimeoutExpired:
-        timed_out = True
-        _terminate_child(proc)
-        _reap_stopped_child(proc)
-        code = EXIT_TIMEOUT
+            thread.join(timeout=_PIPE_DRAIN_GRACE_S)
     except BaseException:
-        # Ctrl-C, a forwarded SIGTERM, or any other unwind must not leave a
-        # timed child running in its own session. An untimed child keeps the
-        # caller's process group, so the caller's signal already reaches it.
+        # Ctrl-C, a forwarded SIGTERM or SIGHUP, or any other unwind must not
+        # leave a timed child running in its own session. An untimed child keeps
+        # the caller's process group, so the caller's signal already reaches it.
         if timeout_seconds is not None:
-            _terminate_child(proc)
+            _terminate_child(proc, pgid)
             _reap_stopped_child(proc)
         raise
-    # A grandchild can keep a pipe open after the child exits; do not wait on it.
-    for thread in threads:
-        thread.join(timeout=_PIPE_DRAIN_GRACE_S)
     capture.finish()
     return (128 - code if code < 0 else code), capture, timed_out
 
@@ -546,7 +586,11 @@ def _build_parser() -> argparse.ArgumentParser:
         type=int,
         default=None,
         metavar="N",
-        help="stop CMD after N seconds and return 124",
+        help=(
+            "stop CMD after N seconds and return 124. On POSIX the whole process group "
+            "is stopped on every exit, including SIGTERM and SIGHUP to this wrapper; "
+            "SIGKILL of this wrapper cannot be caught and leaves the group running"
+        ),
     )
     run.add_argument("--out-dir", default=None)
     read = sub.add_parser("read", help="page through a saved artifact by byte range")

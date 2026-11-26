@@ -155,6 +155,57 @@ sys.path.insert(0, os.path.dirname(sys.argv[0]))
 runpy.run_path(sys.argv[0], run_name="__main__")
 """
 
+# A leader that exits by itself while its grandchild keeps running.
+#   argv: ROOT MODE LEADER_EXIT_CODE   (the grandchild gets "grand" instead of the code)
+#   MODE "plain"  the grandchild keeps the default SIGTERM action and the output pipes
+#   MODE "ignore" the grandchild ignores SIGTERM and keeps the output pipes
+#   MODE "quiet"  the grandchild keeps the default action but closes its output pipes
+# The leader writes child.pid and exits only once the grandchild is ready. The
+# grandchild sleeps at most 30 s so a leaked one expires by itself.
+EARLY_EXIT_SCRIPT = """
+import os, signal, subprocess, sys, time
+from pathlib import Path
+
+root, mode = Path(sys.argv[1]), sys.argv[2]
+if sys.argv[3] == "grand":
+    if mode == "ignore":
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    if mode == "quiet":
+        devnull = os.open(os.devnull, os.O_RDWR)
+        os.dup2(devnull, 1)
+        os.dup2(devnull, 2)
+    (root / "grand.pid").write_text(str(os.getpid()))
+    time.sleep(30)
+    sys.exit(0)
+subprocess.Popen([sys.executable, __file__, str(root), mode, "grand"])
+while not (root / "grand.pid").exists():
+    time.sleep(0.01)
+(root / "child.pid").write_text(str(os.getpid()))
+sys.exit(int(sys.argv[3]))
+"""
+
+
+def start_wrapper(
+    tmp_path: Path, script: str, *args: str, timeout: str | None = "30"
+) -> subprocess.Popen[bytes]:
+    """Start the wrapper on `script ROOT ARGS...`, with a deadline unless `timeout` is None."""
+    (tmp_path / "script.py").write_text(script, encoding="utf-8")
+    command = [sys.executable, "-c", WRAPPER_LAUNCHER, receipt_module.__file__, "run"]
+    if timeout is not None:
+        command += ["--timeout-seconds", timeout]
+    command += [
+        "--out-dir",
+        str(tmp_path / "out"),
+        "--",
+        sys.executable,
+        str(tmp_path / "script.py"),
+        str(tmp_path),
+        *args,
+    ]
+    return subprocess.Popen(
+        command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    )
+
 
 def read_pid(path: Path) -> int | None:
     try:
@@ -176,6 +227,17 @@ def pid_alive(pid: int) -> bool:
     except OSError:
         return True
     return stat.rpartition(")")[2].split()[0] != "Z"
+
+
+def pid_reaped(pid: int) -> bool:
+    """True once the pid is gone. Unlike `pid_alive`, a zombie awaiting its parent is not gone."""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return True
+    except PermissionError:
+        return False
+    return False
 
 
 def wait_until(predicate: Callable[[], bool], timeout: float = 10.0) -> bool:
@@ -670,6 +732,16 @@ def default_sigterm():
         signal.signal(signal.SIGTERM, previous)
 
 
+@pytest.fixture
+def default_sighup():
+    """Run with the default SIGHUP action, then put back whatever was there."""
+    previous = signal.signal(signal.SIGHUP, signal.SIG_DFL)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGHUP, previous)
+
+
 class TestTimedChildLifetime:
     """Blockers from the round 1 critic: cancellation and the SIGTERM grace window."""
 
@@ -894,7 +966,9 @@ class TestTimedChildLifetime:
                 seen.append(signal.getsignal(signal.SIGTERM))
                 return super().wait(timeout)
 
-        install_fake_popen(monkeypatch, Probe(waits=[0]))
+        proc = Probe(waits=[0])
+        install_group_fakes(monkeypatch, proc)
+        install_fake_popen(monkeypatch, proc)
         assert receipt_module.run_command(["fake"], 16384, tmp_path, timeout_seconds=30) == 0
 
         handler = seen[0]
@@ -924,14 +998,18 @@ class TestTimedChildLifetime:
 
         previous = signal.signal(signal.SIGTERM, custom)
         try:
-            install_fake_popen(monkeypatch, _FakePopen(waits=[0]))
+            proc = _FakePopen(waits=[0])
+            install_group_fakes(monkeypatch, proc)
+            install_fake_popen(monkeypatch, proc)
             assert receipt_module.run_command(["fake"], 16384, tmp_path, timeout_seconds=30) == 0
             assert signal.getsignal(signal.SIGTERM) is custom
         finally:
             signal.signal(signal.SIGTERM, previous)
 
     def test_timed_run_off_the_main_thread_skips_the_sigterm_handler(self, monkeypatch, tmp_path):
-        install_fake_popen(monkeypatch, _FakePopen(waits=[0]))
+        proc = _FakePopen(waits=[0])
+        install_group_fakes(monkeypatch, proc)
+        install_fake_popen(monkeypatch, proc)
         outcome: dict[str, object] = {}
 
         def work() -> None:
@@ -961,6 +1039,230 @@ class TestTimedChildLifetime:
         install_fake_popen(monkeypatch, Probe(waits=[0]))
         assert receipt_module.run_command(["fake"], 16384, tmp_path, timeout_seconds=30) == 0
         assert seen == [signal.SIG_DFL]
+
+
+class TestTimedGroupStopOnEveryExit:
+    """Round 2 findings: a timed run leaves no group member running, on any exit path."""
+
+    @POSIX_ONLY
+    @pytest.mark.parametrize("leader_code", [0, 5])
+    def test_leader_exit_before_the_deadline_stops_the_grandchild(self, tmp_path, leader_code):
+        wrapper = start_wrapper(tmp_path, EARLY_EXIT_SCRIPT, "plain", str(leader_code))
+        try:
+            started = time.monotonic()
+            assert wrapper.wait(timeout=20) == leader_code
+            assert time.monotonic() - started < 20
+            assert tree_ready(tmp_path)
+            _, grand = tree_pids(tmp_path)
+            assert wait_until(lambda: not pid_alive(grand), timeout=5), (
+                "a grandchild outlived the timed wrapper after the leader exited early"
+            )
+        finally:
+            if wrapper.poll() is None:
+                wrapper.kill()
+                wrapper.wait()
+            kill_tree(tmp_path)
+
+    @POSIX_ONLY
+    def test_grandchild_that_ignores_sigterm_is_killed_after_an_early_leader_exit(self, tmp_path):
+        started = time.monotonic()
+        wrapper = start_wrapper(tmp_path, EARLY_EXIT_SCRIPT, "ignore", "0")
+        try:
+            assert wrapper.wait(timeout=20) == 0
+            elapsed = time.monotonic() - started
+            _, grand = tree_pids(tmp_path)
+            assert grand is not None
+            assert wait_until(lambda: not pid_alive(grand), timeout=5), (
+                "a grandchild that ignores SIGTERM survived the grace window"
+            )
+            # SIGTERM was ignored, so the whole grace window was spent before SIGKILL,
+            # and the 30 s deadline was never reached.
+            assert receipt_module._TERM_GRACE_S * 0.9 <= elapsed < 20
+        finally:
+            if wrapper.poll() is None:
+                wrapper.kill()
+                wrapper.wait()
+            kill_tree(tmp_path)
+
+    @POSIX_ONLY
+    def test_sigterm_while_the_group_is_being_stopped_still_kills_the_grandchild(self, tmp_path):
+        wrapper = start_wrapper(tmp_path, EARLY_EXIT_SCRIPT, "ignore", "0")
+        try:
+            assert wait_until(lambda: tree_ready(tmp_path)), "child tree never became ready"
+            child, grand = tree_pids(tmp_path)
+            # The leader is reaped by the wrapper, so its wait is over. The grandchild
+            # ignores SIGTERM and holds the output pipes, so the wrapper is now inside
+            # its grace window or its pipe drain.
+            assert wait_until(lambda: pid_reaped(child))
+            wrapper.send_signal(signal.SIGTERM)
+            assert wrapper.wait(timeout=20) == 128 + signal.SIGTERM
+            assert wait_until(lambda: not pid_alive(grand), timeout=5), (
+                "SIGTERM during the early-exit stop left the grandchild running"
+            )
+        finally:
+            if wrapper.poll() is None:
+                wrapper.kill()
+                wrapper.wait()
+            kill_tree(tmp_path)
+
+    @POSIX_ONLY
+    def test_sighup_to_a_timed_wrapper_stops_the_tree_and_exits_129(self, tmp_path):
+        wrapper = start_wrapper(tmp_path, TREE_SCRIPT, "plain")
+        try:
+            assert wait_until(lambda: tree_ready(tmp_path)), "child tree never became ready"
+            child, grand = tree_pids(tmp_path)
+            wrapper.send_signal(signal.SIGHUP)
+            assert wrapper.wait(timeout=20) == 128 + signal.SIGHUP == 129
+            assert wait_until(lambda: not pid_alive(child) and not pid_alive(grand)), (
+                "timed child tree survived SIGHUP to the wrapper"
+            )
+        finally:
+            if wrapper.poll() is None:
+                wrapper.kill()
+                wrapper.wait()
+            kill_tree(tmp_path)
+
+    @POSIX_ONLY
+    def test_untimed_run_leaves_a_surviving_grandchild_alone(self, tmp_path):
+        wrapper = start_wrapper(tmp_path, EARLY_EXIT_SCRIPT, "quiet", "0", timeout=None)
+        try:
+            assert wrapper.wait(timeout=20) == 0
+            _, grand = tree_pids(tmp_path)
+            assert grand is not None
+            assert pid_alive(grand), "an untimed run stopped a grandchild"
+        finally:
+            if wrapper.poll() is None:
+                wrapper.kill()
+                wrapper.wait()
+            kill_tree(tmp_path)
+
+    @POSIX_ONLY
+    def test_empty_group_at_exit_is_neither_signalled_nor_waited_on(self, monkeypatch, tmp_path):
+        signals: list[tuple[int, int]] = []
+        stops: list[int | None] = []
+        real_killpg = os.killpg
+        real_terminate = receipt_module._terminate_child
+
+        def killpg(pgid: int, sig: int) -> None:
+            if sig != 0:
+                signals.append((pgid, sig))
+            real_killpg(pgid, sig)
+
+        def terminate(proc, pgid=None) -> None:
+            stops.append(pgid)
+            real_terminate(proc, pgid)
+
+        monkeypatch.setattr(receipt_module.os, "killpg", killpg)
+        monkeypatch.setattr(receipt_module, "_terminate_child", terminate)
+
+        started = time.monotonic()
+        assert receipt_module.run_command(py("pass"), 16384, tmp_path, timeout_seconds=30) == 0
+        elapsed = time.monotonic() - started
+
+        # An empty group costs one existence probe: no stop sequence, so no signal
+        # and no grace window. The time bound is loose and only catches a stalled
+        # return; the stop count is the exact check.
+        assert stops == []
+        assert signals == []
+        assert elapsed < 20
+
+    @POSIX_ONLY
+    def test_group_stop_after_the_leader_exits_uses_the_group_captured_at_spawn(
+        self, monkeypatch, tmp_path
+    ):
+        proc = _FakePopen(waits=[0])
+        signals = install_group_fakes(monkeypatch, proc, group_alive_probes=2)
+        install_fake_popen(monkeypatch, proc)
+        lookups: list[int] = []
+
+        def getpgid(pid: int) -> int:
+            if pid != proc.pid:
+                return proc.pid + 1
+            lookups.append(pid)
+            if len(lookups) > 1:
+                raise ProcessLookupError(pid)
+            return proc.pid
+
+        monkeypatch.setattr(receipt_module.os, "getpgid", getpgid, raising=False)
+
+        assert receipt_module.run_command(["fake"], 16384, tmp_path, timeout_seconds=30) == 0
+
+        assert signals == [(proc.pid, signal.SIGTERM), (proc.pid, signal.SIGKILL)]
+        assert lookups == [proc.pid]
+
+    @POSIX_ONLY
+    def test_timed_run_turns_sighup_into_system_exit_then_restores_default(
+        self, monkeypatch, tmp_path, default_sighup
+    ):
+        seen: list[object] = []
+
+        class Probe(_FakePopen):
+            def wait(self, timeout: float | None = None) -> int:
+                seen.append(signal.getsignal(signal.SIGHUP))
+                return super().wait(timeout)
+
+        proc = Probe(waits=[0])
+        install_group_fakes(monkeypatch, proc)
+        install_fake_popen(monkeypatch, proc)
+        assert receipt_module.run_command(["fake"], 16384, tmp_path, timeout_seconds=30) == 0
+
+        handler = seen[0]
+        assert callable(handler)
+        with pytest.raises(SystemExit) as info:
+            handler(signal.SIGHUP, None)
+        assert info.value.code == 128 + signal.SIGHUP
+        assert signal.getsignal(signal.SIGHUP) is signal.SIG_DFL
+
+    @POSIX_ONLY
+    def test_sighup_action_is_restored_after_an_interrupted_timed_run(
+        self, monkeypatch, tmp_path, default_sighup
+    ):
+        proc = _FakePopen(waits=[KeyboardInterrupt(), -15])
+        install_group_fakes(monkeypatch, proc)
+        install_fake_popen(monkeypatch, proc)
+
+        with pytest.raises(KeyboardInterrupt):
+            receipt_module.run_command(["fake"], 16384, tmp_path, timeout_seconds=30)
+
+        assert signal.getsignal(signal.SIGHUP) is signal.SIG_DFL
+
+    @POSIX_ONLY
+    @pytest.mark.parametrize("kind", ["ignored", "custom"])
+    def test_timed_run_keeps_a_caller_chosen_sighup_action(self, monkeypatch, tmp_path, kind):
+        def custom(_signum, _frame):
+            return None
+
+        chosen = signal.SIG_IGN if kind == "ignored" else custom
+        previous = signal.signal(signal.SIGHUP, chosen)
+        try:
+            proc = _FakePopen(waits=[0])
+            install_group_fakes(monkeypatch, proc)
+            install_fake_popen(monkeypatch, proc)
+            assert receipt_module.run_command(["fake"], 16384, tmp_path, timeout_seconds=30) == 0
+            assert signal.getsignal(signal.SIGHUP) is chosen
+        finally:
+            signal.signal(signal.SIGHUP, previous)
+
+    def test_timed_run_without_sighup_on_the_platform_still_installs_sigterm(
+        self, monkeypatch, tmp_path, default_sigterm
+    ):
+        monkeypatch.delattr(receipt_module.signal, "SIGHUP", raising=False)
+        proc = _FakePopen(waits=[0])
+        install_group_fakes(monkeypatch, proc)
+        install_fake_popen(monkeypatch, proc)
+        seen: list[object] = []
+        real_wait = proc.wait
+
+        def wait(timeout: float | None = None) -> int:
+            seen.append(signal.getsignal(signal.SIGTERM))
+            return real_wait(timeout)
+
+        monkeypatch.setattr(proc, "wait", wait)
+
+        assert receipt_module.run_command(["fake"], 16384, tmp_path, timeout_seconds=30) == 0
+
+        assert callable(seen[0])
+        assert signal.getsignal(signal.SIGTERM) is signal.SIG_DFL
 
 
 class TestRedactionBypasses:
