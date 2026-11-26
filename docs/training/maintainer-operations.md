@@ -33,7 +33,7 @@ Do not skip hooks with `--no-verify` and do not force-push. The [runbook convent
 1. The job runs in a provider environment with a required reviewer: `agent-claude`, `agent-copilot`, `agent-codex`, or `agent-droid`. The run waits for your click before it spends anything.
 2. The check it posts is advisory. A failed, skipped, cancelled, or waiting result never holds a merge.
 
-The plugin CLI smoke used to be the one exception. The owner made it advisory on 2026-11-05, so there is no exception now. Older issue text (#6131, #6215, #6197) predates that change. [docs/COST-GOVERNANCE.md](../COST-GOVERNANCE.md#advisory-pull-request-workflows) lists the gated workflows and the secret each environment holds.
+The plugin CLI smoke used to be the one exception. The owner made it advisory on 2026-11-05, so there is no exception now. Older issue text (#6131, #6215, #6197) predates that change. [docs/COST-GOVERNANCE.md](../COST-GOVERNANCE.md#advisory-pull-request-workflows) lists the four environments, which gate no job now, and the secrets each one holds.
 
 1. Approve a run. Open it in the Actions tab, where a gated run shows "Waiting". Read the event that started it, because the approval screen shows the job and not the comment or PR text that drives the agent. Choose **Review deployments**, tick the environments, and approve or reject. One review can approve both `agent-claude` and `agent-copilot`. Each new push cancels the older run, including legs still waiting.
 

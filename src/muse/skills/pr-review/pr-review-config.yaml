@@ -91,7 +91,7 @@ advisory_agent_workflows:
     reason: "Deterministic Validate Spec Coverage check, no model call; kept advisory by owner decision (issue 6182)"
     owner: "rjmurillo"
   - path: ".github/workflows/plugin-cli-smoke.yml"
-    reason: "CLI smoke legs depend on installed third-party CLIs. Owner decision 2026-11-05: no critical path depends on AI"
+    reason: "CLI smoke legs install third-party CLIs and read no model credential; kept advisory by owner decision 2026-11-05"
     owner: "rjmurillo"
 transport_preflight:
   # BEFORE command_key, the workflow runs the --verify-config-only command

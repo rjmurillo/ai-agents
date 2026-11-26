@@ -12,7 +12,6 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "eval" / "software_engineering_library_activation_gate.py"
 CI_SCRIPT_PATH = REPO_ROOT / "scripts" / "eval" / "software_engineering_library_activation_ci.py"
-ADR006_SCANNER_PATH = REPO_ROOT / "scripts" / "ci" / "adr006_run_block_scanner.py"
 
 
 def _ok():

@@ -27,10 +27,7 @@ REQUIRED_CONTEXTS: frozenset[str] = frozenset(
 # so GitHub lets a pull request merge while it fails or stays pending. The local
 # merge-readiness check (check_merge_readiness) is a separate policy and still
 # rejects a failed non-required check that has no recorded disposition.
-AI_QUOTA = (
-    "model-driven: spends provider quota, so it must never gate a merge. No "
-    "workflow carries this label since the agent-* jobs were deleted (2026-11-25)"
-)
+AI_QUOTA = "model-driven: spends provider quota, so it must never gate a merge"
 DETERMINISTIC = (
     "deterministic check: a job name is not pinned in the ruleset, so promoting "
     "it is a ruleset change, not a code change"

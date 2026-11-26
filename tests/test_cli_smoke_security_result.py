@@ -1,7 +1,7 @@
 """Gate ordering, hardening, and result-job tests for the CLI smoke workflow.
 
 Gates run after a failed smoke, every job has a timeout, every ``uv run`` is
-frozen, and the result job sums the quota-skip counts.
+frozen, and the result job has no quota-skip plumbing.
 """
 
 from __future__ import annotations

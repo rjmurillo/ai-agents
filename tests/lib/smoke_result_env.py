@@ -26,7 +26,6 @@ GREEN = {
 def apply_green(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> pytest.MonkeyPatch:
     """Set every job result to green and run from an empty directory."""
     monkeypatch.chdir(tmp_path)
-    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
     for key, value in GREEN.items():
         monkeypatch.setenv(key, value)
     return monkeypatch

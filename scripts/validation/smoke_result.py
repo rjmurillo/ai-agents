@@ -20,13 +20,6 @@ and also not evaluated unless GUARD_NAME equals GUARD_VALUE, so a message that
 blames a downstream cause stays quiet when the upstream job it needs failed.
 ``--skip-message`` prints instead of ``--success-message`` after a skip.
 
-``--count-dir DIR --count-message TEMPLATE`` replaces ``--success-message`` when
-the non-negative integers in DIR's files (a leg's quota-skip count) sum above
-zero. ``{count}`` is the total; a missing DIR sums to zero. A negative, a
-non-integer, or an unreadable file is warned about and ignored, and the count
-then reads ``unknown``. The message prints as a ``::notice::`` and is appended
-to ``GITHUB_STEP_SUMMARY`` when set. ``--count-message`` needs ``--count-dir``.
-
 ``--preset NAME`` expands to a stored argument list (``PRESETS``) placed before
 any other flags, so the workflow stays a one-line call (ADR-006).
 
@@ -39,7 +32,6 @@ import argparse
 import os
 import sys
 from collections.abc import Mapping, Sequence
-from pathlib import Path
 
 EXIT_SUCCESS = 0
 EXIT_MISMATCH = 1
@@ -100,32 +92,6 @@ def failing_checks(checks: Sequence[tuple[str, str, str]], environ: Mapping[str,
     return lines
 
 
-def sum_counts(count_dir: Path) -> tuple[int, bool]:
-    """Return ``(total, clean)``: the sum over ``count_dir``, and whether all tokens parsed.
-
-    A negative (CWE-20) could cancel a real count and hide a skip, so it is
-    ignored like any other bad token, with a warning.
-    """
-    total, clean = 0, True
-    for path in sorted(count_dir.rglob("*")) if count_dir.is_dir() else []:
-        if not path.is_file():
-            continue
-        try:
-            tokens = path.read_text(encoding="utf-8").split()
-        except (OSError, UnicodeDecodeError) as exc:
-            print(f"::warning::ignoring unreadable count file {path}: {type(exc).__name__}")
-            clean = False
-            continue
-        for token in tokens:
-            if token.isascii() and token.isdecimal():
-                total += int(token)
-                continue
-            clean = False
-            kind = "negative" if token.lstrip("-").isdecimal() else "non-integer"
-            print(f"::warning::ignoring {kind} count {token!r} in {path}")
-    return total, clean
-
-
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     names = ("NAME", "EXPECTED", "MESSAGE")
@@ -145,25 +111,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--skip-when", nargs=2, metavar=("NAME", "VALUE"))
     parser.add_argument("--skip-message", default="", help="Printed when the skip held.")
     parser.add_argument("--success-message", default="", help="Printed when all matched.")
-    parser.add_argument("--count-dir", type=Path, help="Directory of quota-skip counts.")
-    parser.add_argument("--count-message", default="", help="Uses {count}; needs --count-dir.")
     return parser
-
-
-def _report_count(args: argparse.Namespace) -> bool:
-    """Print the quota-skip count as a notice and a step summary line; True if printed."""
-    if not (args.count_dir and args.count_message):
-        return False
-    total, clean = sum_counts(args.count_dir)
-    if clean and total == 0:
-        return False
-    text: str = args.count_message.replace("{count}", str(total) if clean else "unknown")
-    print(f"::notice::{text}")
-    summary = os.environ.get("GITHUB_STEP_SUMMARY")
-    if summary:
-        with open(summary, "a", encoding="utf-8") as handle:
-            handle.write(f"{text}\n")
-    return True
 
 
 def _usage_problem(
@@ -173,8 +121,6 @@ def _usage_problem(
         return "at least one --check is required"
     if args.skip_when and not always:
         return "--skip-when needs at least one --check"
-    if args.count_message and not args.count_dir:
-        return "--count-message needs --count-dir"
     return None
 
 
@@ -200,7 +146,7 @@ def main(argv: list[str] | None = None) -> int:
     if skipping:
         if args.skip_message:
             print(args.skip_message)
-    elif not _report_count(args) and args.success_message:
+    elif args.success_message:
         print(args.success_message)
     return EXIT_SUCCESS
 
