@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "description": "Known instruction-file citations of a missing ADR, or of a non-accepted ADR as binding (issue #5200). Delete a line when its citation is repaired. Adding a line legalises a violation. Entry src/claude/AGENTS.md::ADR-121: ADR-121 is proposed, and src/claude/AGENTS.md:33 cites its locator as MUST 2 of plugin-self-containment.md. Accepting the ADR or rewording the line is the owner's decision. Remove the entry when either happens. A missing-record key is not accepted in this repository's baseline: the shipped-tree test asserts there are none.",
+  "description": "Known instruction-file citations of a missing ADR, or of a non-accepted ADR as binding (issue #5200). Delete a line when its citation is repaired. Adding a line legalises a violation. Entry src/claude/AGENTS.md::ADR-121: ADR-121 is proposed, and the plugin guide cites its locator as MUST 2 of plugin-self-containment.md. Accepting the ADR or rewording the line is the owner's decision. Remove the entry when either happens. A missing-record key is not accepted in this repository's baseline: the shipped-tree test asserts there are none.",
   "known": [
     "src/claude/AGENTS.md::ADR-121"
   ]

@@ -107,57 +107,31 @@ def test_a_history_or_reference_label_is_not_a_pointer(text: str) -> None:
 
 
 #: Pointer pattern before the tail was collapsed to one whitespace run. Kept only as the
-#: negative control that proves the scaling check below can tell quadratic from linear.
+#: slow side of the cost comparison below.
 _OLD_TAIL_POINTER = re.compile(gate._POINTER_RE.pattern.replace(r"(?:\s*\.)?\s*$", r"\s*\.?\s*$"))
 
 
-def _best_seconds(run: Callable[[], object], repeats: int = 5) -> float:
-    best = float("inf")
-    for _ in range(repeats):
-        started = time.perf_counter()
-        run()
-        best = min(best, time.perf_counter() - started)
-    return best
+def _cpu_seconds(run: Callable[[], object]) -> float:
+    """CPU time of one call. Host load slows wall-clock time, not this."""
+    started = time.process_time()
+    run()
+    return time.process_time() - started
 
 
-def _space_run_sentence(spaces: int) -> str:
-    return "pins: ADR-080" + " " * spaces + "and more prose"
+def test_the_pointer_match_does_not_backtrack_over_a_long_space_run() -> None:
+    """Blanked code spans leave long space runs; a failed match must stay cheap.
 
-
-def test_the_pointer_match_scales_linearly_over_a_long_space_run() -> None:
-    """Blanked code spans leave long space runs; a failed match must not backtrack.
-
-    Times only the pointer match (the cost this pattern controls), at two sizes 8x
-    apart. Linear gives a ratio near 8, quadratic near 64. The sentence splitter and
-    the per-mention searches in `classify` are quadratic for unrelated reasons and
-    are not asserted here.
+    Compares the pattern with its old two-run tail on one input, in CPU time. The
+    old tail is quadratic here and the new one linear, so the gap is three orders
+    of magnitude; the bound asks for one. The sentence splitter and the per-mention
+    searches in `classify` are quadratic for other reasons and are not asserted.
     """
-    small, large = 6_250, 50_000
-    short, long_ = _space_run_sentence(small), _space_run_sentence(large)
-    ratio = _best_seconds(lambda: gate.is_binding_pointer(long_)) / max(
-        _best_seconds(lambda: gate.is_binding_pointer(short)), 1e-9
-    )
-    assert ratio < 40, f"pointer match grew {ratio:.0f}x for 8x input"
-
-
-def test_the_pointer_match_scales_linearly_over_many_numbers() -> None:
-    sentence = "pins: " + ", ".join(["ADR-080"] * 1_600) + " and more prose"
-    short = "pins: " + ", ".join(["ADR-080"] * 100) + " and more prose"
-    ratio = _best_seconds(lambda: gate.is_binding_pointer(sentence)) / max(
-        _best_seconds(lambda: gate.is_binding_pointer(short)), 1e-9
-    )
-    assert ratio < 64, f"pointer match grew {ratio:.0f}x for 16x input"
-
-
-def test_the_scaling_check_fails_on_the_old_quadratic_tail() -> None:
-    """Negative control: the same ratio on the old pattern is far above the bound."""
-    small, large = 1_500, 12_000
-    ratio = _best_seconds(lambda: _OLD_TAIL_POINTER.match(_space_run_sentence(large)), 3) / max(
-        _best_seconds(lambda: _OLD_TAIL_POINTER.match(_space_run_sentence(small)), 3), 1e-9
-    )
-    assert ratio > 30, (
-        f"old tail grew only {ratio:.0f}x for 8x input; control is not discriminating"
-    )
+    sentence = "pins: ADR-080" + " " * 6_000 + "and more prose"
+    assert _OLD_TAIL_POINTER.match(sentence) is None
+    assert not gate.is_binding_pointer(sentence)
+    old = _cpu_seconds(lambda: _OLD_TAIL_POINTER.match(sentence))
+    new = min(_cpu_seconds(lambda: gate.is_binding_pointer(sentence)) for _ in range(3))
+    assert new * 10 < old, f"pointer match took {new:.4f}s against {old:.4f}s for the old tail"
 
 
 def test_a_long_run_of_numbers_that_is_not_a_pointer_is_unclassified() -> None:

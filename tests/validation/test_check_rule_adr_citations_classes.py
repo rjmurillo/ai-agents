@@ -173,7 +173,12 @@ def test_a_sentence_without_a_mention_does_no_pointer_match(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[str] = []
-    monkeypatch.setattr(gate, "is_binding_pointer", lambda s: calls.append(s) or False)
+
+    def record(sentence: str) -> bool:
+        calls.append(sentence)
+        return False
+
+    monkeypatch.setattr(gate, "is_binding_pointer", record)
     assert citations_in("f.md", "No citation here. Or here.\n", STATUSES, set()) == []
     assert calls == []
 
