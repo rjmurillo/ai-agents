@@ -43,7 +43,7 @@ The report ends in one of four decisions:
 
 ## Advanced use
 
-The process has six steps: identify the structure, run git archaeology (`git log --follow` and `git blame` for the origin commit, author, and date), search for the originating PR and related ADRs, analyze dependencies, fill the report template, and decide. The skill reads ADRs from `${AWESOME_AI_ARCHITECTURE_DIR:-.project-toolkit/architecture}`. When that directory is absent in a vendored install, the search returns nothing.
+The process has six steps: identify the structure, run git archaeology (`git log --follow` for a file, `git log -S` for a text span such as a section or rule line, for the origin commit, author, and date), confirm the origin with a second probe and `git show` (at most three rounds, then report every candidate), search for the originating PR and related ADRs, analyze dependencies, fill the report template, and decide. The skill reads ADRs from `${AWESOME_AI_ARCHITECTURE_DIR:-.project-toolkit/architecture}`. When that directory is absent in a vendored install, the search returns nothing.
 
 Run the script directly from the root of a checkout of this repository:
 

@@ -7,7 +7,11 @@ before you write, patch, or review a skill body or its `description`.
 Source: the agentskills.io guides
 <https://agentskills.io/skill-creation/best-practices> and
 <https://agentskills.io/skill-creation/optimizing-descriptions>, plus the
-specification at <https://agentskills.io/specification>.
+specification at <https://agentskills.io/specification>. The checker,
+workflow-shape, tool, and placement rules adapt Boris Cherny, "Mastering Claude
+Code in 30 minutes", Code with Claude, 2025-05-22
+<https://youtu.be/6eBSHbLKuN0>. Its keybindings and flags are dated and are not
+carried here.
 
 ## Content rules
 
@@ -47,10 +51,36 @@ Apply these to every section of the body.
   better than a prose description.
 - **Track multi-step work with a checklist.** For a workflow with dependencies
   or gates, give the agent a progress checklist to copy and tick off.
-- **Close the loop with validation.** Do the work, validate with a script or a
-  reference checklist, fix, and repeat until it passes. For batch or destructive
-  work, plan-validate-execute: write the plan to a file, check it against a
-  source of truth, then run it.
+- **Close the loop with a named checker and a budget.** Name the feedback tool
+  the agent runs on its own work: a test suite, a validator script, a
+  screenshot it compares, or a reference checklist. Name the command or step
+  and the pass criteria on one line. Budget two to three check, fix, recheck
+  rounds. After the last failed round, stop and report what still fails. For
+  batch or destructive work, plan-validate-execute: write the plan to a file,
+  check it against a source of truth, then run it. An eval for the skill must
+  score the run with the checker available, not only single-shot output; see
+  the `skillopt` skill's `references/eval-authoring.md`.
+- **Start from a workflow shape.** Three shapes cover most skills. Use one as
+  the skeleton. Explore, plan, confirm, then code: read the relevant files,
+  write a plan, get approval, then edit. Tests first: write the tests, see them
+  fail, then implement and iterate until they pass. Build to a target:
+  implement from a mock, spec, or screenshot, check the result with the
+  checker, and iterate. A large task that comes back wrong usually skipped the
+  plan. Write "make a plan and get approval before writing code" into the skill
+  text; no special mode is needed.
+- **Declare tools; do not teach them.** Name each tool the skill uses and what
+  it is for ("run `pytest` to check the fix"). Tool setup and general usage
+  belong in shared configuration (MCP config, settings, the repo instruction
+  file), not in each skill. When a step depends on a repo convention, such as
+  commit format or the PR flow, state the convention or tell the agent to
+  probe it (`git log --oneline -20`, the repo config, the contributing guide).
+  Then a terse skill stays correct in a repo it was not written for.
+- **Ask three placement questions per item.** Before an item goes in the skill
+  or in always-loaded context, ask: who is it for? Must it load every session,
+  or only when this task runs? Is it shared (checked in) or personal (user
+  scope)? Hand the answers to `context-optimizer` placement analysis as
+  inputs; they do not replace it. Keep the always-loaded layer short, because
+  each line there is paid for on every request.
 - **Feed corrections back.** When a user corrects a run, add the correction to
   Gotchas. Read the execution trace as well as the output: wasted steps point
   to vague, inapplicable, or menu-style instructions.
