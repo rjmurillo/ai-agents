@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -16,6 +17,7 @@ import pytest
 from tests.skills.ship.conftest import git
 from tests.skills.ship.ship_helpers import (
     GITHUB,
+    SCRIPTS,
     VALIDATOR_BRANCH_EDIT,
     VALIDATOR_PASS,
     invoke,
@@ -289,3 +291,88 @@ class TestPipelineDetail:
         code, lines = invoke(scripts[2], ["--check", "reviewed"], capsys)
         assert code == 2
         assert lines[-1] == "STOP: validator-config validator exit 2: [FAIL] invalid repo root: /x"
+
+
+class TestFreshRoundFindings:
+    @pytest.mark.parametrize("flag", ["-h", "--help"])
+    @pytest.mark.parametrize("script", ["ship_detect.py", "ship_preflight.py", "ship_pr.py"])
+    def test_help_is_a_stop_not_a_bare_exit(self, tmp_path, script, flag):
+        done = subprocess.run(
+            [sys.executable, "-I", str(SCRIPTS / script), flag, "--output-format", "human"],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        assert done.returncode == 2
+        assert done.stdout.splitlines()[-1].startswith("STOP: bad-arguments")
+
+    @pytest.mark.parametrize("codepoint", [0x80, 0x9B, 0x9D, 0x9F])
+    def test_c1_controls_are_stripped(self, scripts, codepoint):
+        assert scripts[0].clean(f"a{chr(codepoint)}b") == "a b"
+
+    @pytest.mark.parametrize(
+        "url", ["https://github.com#@evil.com/", "https://github.com?@evil.com/x"]
+    )
+    def test_query_or_fragment_at_sign_is_not_userinfo(self, scripts, url):
+        assert scripts[0].remote_host(url) == "github.com"
+
+    def test_title_rule_matches_the_description_validator(self, scripts):
+        import re as _re
+
+        helper = Path(scripts[3].checks_mod._validate_description()).read_text(encoding="utf-8")
+        start = helper.index("_CONVENTIONAL_COMMIT_PATTERN = re.compile(")
+        block = helper[start : helper.index(")\n", helper.index(".+", start)) + 2]
+        parts = _re.findall(r'r"([^"]*)"', block)
+        assert "".join(parts) == scripts[3].checks_mod._CONVENTIONAL_RE.pattern
+
+    @pytest.mark.parametrize("title", ["fix(CI): repair the build", "feat(a b): spaced scope"])
+    def test_titles_the_helper_accepts_are_accepted(self, scripts, title):
+        assert scripts[3].checks_mod.title_problem(title) is None
+
+    def test_title_with_a_control_character_fails(self, scripts):
+        assert scripts[3].checks_mod.title_problem("fix: a\rb") == "title has a control character"
+
+    def test_multiline_body_that_mentions_backslash_n_passes(self, scripts):
+        body = "## Summary\n\nSplits on `\\n` in the parser.\n"
+        assert scripts[3].checks_mod.body_problem(body) is None
+        assert scripts[3].checks_mod.body_problem("one\\ntwo\\nthree") is not None
+
+    def test_every_child_timeout_fits_the_run_budget(self, scripts, monkeypatch):
+        common = scripts[0]
+        monkeypatch.setattr(common, "_RUN_DEADLINE", common.time.monotonic() + 5)
+        seen = []
+        real = common.subprocess.run
+
+        def spy(argv, **kwargs):
+            seen.append(kwargs["timeout"])
+            return real(argv, **kwargs)
+
+        monkeypatch.setattr(common.subprocess, "run", spy)
+        common.run([sys.executable, "-c", "pass"], timeout=600)
+        assert seen and seen[0] <= 5
+
+    @pytest.mark.parametrize(
+        ("rc", "stderr", "reason", "code"),
+        [
+            (2, "Invalid body file: x\n", "pr-create-failed", 2),
+            (4, "gh: error\n", "auth-failed", 4),
+            (
+                1,
+                "To get started with GitHub CLI, please run: gh auth login\nexit\n",
+                "auth-failed",
+                4,
+            ),
+            (1, "gh: GraphQL error\n", "pr-create-failed", 3),
+        ],
+    )
+    def test_create_failures_name_their_cause(
+        self, owner, fakes, scripts, capsys, rc, stderr, reason, code
+    ):
+        _repo, body = owner
+        fakes.rule("new_pr", ["--title"], {"rc": rc, "stderr": stderr})
+        exit_code, lines = publish(scripts, capsys, body)
+        assert exit_code == code
+        assert lines[-1].startswith(f"STOP: {reason}")

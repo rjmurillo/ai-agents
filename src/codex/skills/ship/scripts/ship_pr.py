@@ -203,8 +203,13 @@ def _create_github(ctx, args, body: Path, result):
     matches = list(_GITHUB_PR_URL_RE.finditer(done.stdout))
     match = matches[-1] if matches else None
     if done.returncode != 0 or match is None:
-        last = done.stderr.strip().splitlines()[-1:] or [f"exit {done.returncode}"]
-        return result.stop("pr-create-failed", common.EXIT_EXTERNAL, last[0])
+        halt = detect_mod.query_halt("pr-create-failed", done)
+        # new_pr.py exits 2 on its own config error. Any other code is gh's,
+        # and gh uses 1 for an API error and 4 for an auth error.
+        if done.returncode == 4 or halt.code == common.EXIT_AUTH:
+            return result.stop("auth-failed", common.EXIT_AUTH, halt.detail)
+        code = common.EXIT_CONFIG if done.returncode == 2 else halt.code
+        return result.stop(halt.reason, code, halt.detail)
     result.add("PR", f"host=github number={match.group(1)} url={match.group(0)}")
     return result.next("discharge")
 

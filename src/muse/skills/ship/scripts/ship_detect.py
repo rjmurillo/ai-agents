@@ -74,7 +74,10 @@ def _auth_failure(stderr: str) -> bool:
 
 
 def query_halt(reason: str, done) -> Halt:
-    detail = done.stderr.strip().splitlines()[-1:] or [f"exit {done.returncode}"]
+    """A Halt naming the cause: auth signals anywhere in stderr win over the last line."""
+    lines = [line for line in done.stderr.splitlines() if line.strip()]
+    auth = [line for line in lines if _auth_failure(line)]
+    detail = auth[-1:] or lines[-1:] or [f"exit {done.returncode}"]
     if _auth_failure(done.stderr):
         return Halt("auth-failed", common.EXIT_AUTH, detail[0])
     return Halt(reason, common.EXIT_EXTERNAL, detail[0])

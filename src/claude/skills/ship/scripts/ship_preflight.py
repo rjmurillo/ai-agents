@@ -328,7 +328,8 @@ def _ado_pipeline(ctx, pr: int, wait_seconds: int, after_publish: bool) -> Check
     mismatch = _binding(ctx, pr, branch, str(state.get("head") or ""), after_publish)
     if mismatch is not None:
         return mismatch
-    call_end = time.monotonic() + wait_seconds
+    # Leave room for the evaluation calls after the wait, inside the run budget.
+    call_end = time.monotonic() + min(wait_seconds, max(0.0, common.remaining_seconds() - 120))
     while True:
         rows = _ado_policy_rows(ctx, pr)
         if isinstance(rows, Halt):

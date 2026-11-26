@@ -47,9 +47,13 @@ BASE_VALIDATOR = "scripts/validation/pr_description.py"
 BASE_CLOSURE_FILES = ("scripts/__init__.py",)
 BASE_CLOSURE_DIRS = ("scripts/github_core",)
 VALIDATOR_TIMEOUT_SECONDS = 300
+# The same rule as validate_pr_description.py's _CONVENTIONAL_COMMIT_PATTERN;
+# test_ship_stage2_findings.py fails if the two drift apart.
 _CONVENTIONAL_RE = re.compile(
-    r"^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9][a-z0-9._/-]*\))?!?: \S.{0,198}$"
+    r"^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)"
+    r"(\(.+\))?!?: .+"
 )
+_TITLE_CONTROL_RE = re.compile("[\x00-\x1f\x7f-\x9f\u2028\u2029]")
 # Built with chr() so a formatter cannot turn escapes into the banned bytes.
 _DASHES = (chr(0x2013), chr(0x2014))
 _TITLE_FORBIDDEN = ('"', "$", "`")
@@ -68,6 +72,8 @@ def title_problem(title: str) -> str | None:
         return "title has an em or en dash"
     if any(char in title for char in _TITLE_FORBIDDEN):
         return "title has a quote, dollar sign, or backtick"
+    if _TITLE_CONTROL_RE.search(title):
+        return "title has a control character"
     if not _CONVENTIONAL_RE.match(title):
         return "title is not a conventional commit"
     return None
@@ -78,7 +84,9 @@ def body_problem(text: str) -> str | None:
         return "body still holds the replace-with-PR-body marker"
     if any(dash in text for dash in _DASHES):
         return "body has an em or en dash"
-    if "\\n" in text:
+    # The same rule as pr_validations.validate_no_escaped_newlines: a body made
+    # of literal backslash-n sequences, with no real line break.
+    if "\\n" in text and "\n" not in text.strip():
         return "body has an escaped newline"
     if not text.strip():
         return "body is empty"

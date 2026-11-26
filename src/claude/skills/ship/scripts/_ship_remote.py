@@ -12,7 +12,9 @@ import re
 # git also accepts transports such as ext::, file://, and git://; none of
 # them is a GitHub or Azure DevOps remote, so they are refused.
 ALLOWED_URL_SCHEMES = frozenset({"https", "ssh"})
-_URL_HOST_RE = re.compile(r"^([A-Za-z][A-Za-z0-9+.-]*)://(?:[^/@]*@)?([^/:\s]+)")
+# The authority ends at the first /, ?, or # (RFC 3986), so an @ after it
+# is path, query, or fragment, never userinfo.
+_URL_HOST_RE = re.compile(r"^([A-Za-z][A-Za-z0-9+.-]*)://(?:[^/?#@]*@)?([^/?#:\s]+)")
 _SCP_HOST_RE = re.compile(r"^(?:[^@/:\s]+@)?([^/:\s]+):(?![/:])\S")
 # One or more DNS labels: letters, digits, inner dashes. No empty label,
 # no trailing dot, no bracket literal, at least two characters in all.

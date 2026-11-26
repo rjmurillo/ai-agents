@@ -26,6 +26,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -57,7 +58,7 @@ _ERROR_TYPES = {
 OUTPUT_FORMATS = ("json", "human", "auto")
 VERSION = "1.0.0"
 
-_CONTROL_RE = re.compile("[\x00-\x1f\x7f\x85  ]")
+_CONTROL_RE = re.compile("[\x00-\x1f\x7f-\x9f\u2028\u2029]")  # C0, DEL, C1, line breaks
 _REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$")
 
 
@@ -138,6 +139,8 @@ class ResultParser(argparse.ArgumentParser):
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         kwargs["allow_abbrev"] = False
+        # argparse -h prints usage and exits 0 with no terminal line.
+        kwargs["add_help"] = False
         super().__init__(*args, **kwargs)
 
     def error(self, message: str) -> NoReturn:
@@ -376,13 +379,28 @@ def child_env() -> dict[str, str]:
     return {key: value for key, value in os.environ.items() if key not in CHILD_ENV_DROP}
 
 
+# One script run is one agent tool call, which the host kills at 600 seconds.
+# Every child call shares this budget, so the run ends on a terminal line.
+RUN_BUDGET_SECONDS = 540
+_RUN_DEADLINE = time.monotonic() + RUN_BUDGET_SECONDS
+
+
+def remaining_seconds() -> float:
+    """Seconds left in this run's shared budget, never below 1."""
+    return max(1.0, _RUN_DEADLINE - time.monotonic())
+
+
 def run(
     argv: list[str],
     cwd: Path | None = None,
     timeout: float = 120,
     stdin_text: str | None = None,
 ) -> Completed:
-    """Run ``argv`` without a shell. A missing binary is 127; a timeout is 124."""
+    """Run ``argv`` without a shell. A missing binary is 127; a timeout is 124.
+
+    The timeout never exceeds the time left in the run's shared budget.
+    """
+    timeout = min(timeout, remaining_seconds())
     try:
         done = subprocess.run(
             argv,
