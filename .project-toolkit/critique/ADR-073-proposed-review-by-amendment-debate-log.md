@@ -117,3 +117,12 @@ Scope: one prose sentence on how an overdue `review-by` clears, after a CodeRabb
 | critic | Accept | First voted Block. The sentence left out the prose date and the `proposed` plus `null` trap. Both are fixed. |
 
 The revised text names the exits. A date of today or later that the prose also states, `accepted` with `null`, or a closed status.
+
+## Round 4 (2026-11-26, reduced panel)
+
+Scope: two prose edits after CodeRabbit findings. The recovery text now says to hold the review and record its outcome. It also says every recovery path needs a debate log entry. No executable enforcement changed.
+
+| Agent | Vote | Note |
+|---|---|---|
+| architect | Accept | No check reads a review outcome, so the stated limit is accurate. |
+| critic | Disagree-and-Commit | Text is accurate. It asked to say that every path edits prose. That is fixed. |
