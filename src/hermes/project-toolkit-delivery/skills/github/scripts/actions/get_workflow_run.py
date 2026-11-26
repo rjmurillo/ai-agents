@@ -109,6 +109,28 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
+def _build_summary(
+    run: dict,
+    run_id: int,
+    data: dict,
+    jobs_read: bool,
+    jobs_capped: bool,
+    pending_deployments: list[dict],
+) -> str:
+    failed_jobs = [job["name"] for job in data["jobs"] if job["conclusion"] == "failure"]
+    bits = [f"run {run_id}: {run.get('status')}/{run.get('conclusion') or 'pending'}"]
+    if not jobs_read:
+        bits.append("jobs unread; empty jobs list is not evidence of a green run")
+    elif jobs_capped:
+        bits.append("jobs list capped at 100; later pages not scanned")
+    if jobs_read and failed_jobs:
+        bits.append(f"failed jobs: {', '.join(failed_jobs[:5])}")
+    if pending_deployments:
+        envs = ", ".join(str(dep["environment"]) for dep in pending_deployments)
+        bits.append(f"waiting on environment approval: {envs}")
+    return "; ".join(bits)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     fmt = get_output_format(args.output_format)
@@ -173,20 +195,12 @@ def main(argv: list[str] | None = None) -> int:
         ),
     }
 
-    failed_jobs = [job["name"] for job in data["jobs"] if job["conclusion"] == "failure"]
-    summary_bits = [f"run {run_id}: {run.get('status')}/{run.get('conclusion') or 'pending'}"]
-    if not jobs_read:
-        summary_bits.append("jobs unread; empty jobs list is not evidence of a green run")
-    elif failed_jobs:
-        summary_bits.append(f"failed jobs: {', '.join(failed_jobs[:5])}")
-    if pending_deployments:
-        envs = ", ".join(str(dep["environment"]) for dep in pending_deployments)
-        summary_bits.append(f"waiting on environment approval: {envs}")
+    summary = _build_summary(run, run_id, data, jobs_read, jobs_capped, pending_deployments)
 
     write_skill_output(
         data,
         output_format=fmt,
-        human_summary="; ".join(summary_bits),
+        human_summary=summary,
         status="WARNING" if not jobs_read else "PASS",
         script_name=_SCRIPT_NAME,
     )
