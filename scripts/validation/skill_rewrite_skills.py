@@ -348,12 +348,13 @@ def defines_test(source: str, classes: list[str], func: str) -> bool:
         return False
     for name in classes:
         found = _final_binding(body, name)
-        if not isinstance(found, ast.ClassDef) or _turns_off_collection(found.body, {func}):
+        if not isinstance(found, ast.ClassDef) or found.name != name:
             return False
-        if _defines_constructor(found.body):
+        if _turns_off_collection(found.body, {func}) or _defines_constructor(found.body):
             return False
         body = found.body
-    return isinstance(_final_binding(body, func), (ast.FunctionDef, ast.AsyncFunctionDef))
+    last = _final_binding(body, func)
+    return isinstance(last, (ast.FunctionDef, ast.AsyncFunctionDef)) and last.name == func
 
 
 def _final_binding(body: list[ast.stmt], name: str) -> ast.stmt | None:
@@ -376,61 +377,80 @@ def _final_binding(body: list[ast.stmt], name: str) -> ast.stmt | None:
 
 def _bound_names(node: ast.stmt) -> set[str]:
     """Names *node* binds or deletes at its own level; ``*`` for a star import."""
-    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-        return {node.name}
     if isinstance(node, (ast.Import, ast.ImportFrom)):
         return {(a.asname or a.name).split(".")[0] for a in node.names}
-    targets: list[ast.expr] = []
-    if isinstance(node, (ast.Assign, ast.Delete)):
-        targets = node.targets
-    elif isinstance(node, ast.AugAssign) or (
-        isinstance(node, ast.AnnAssign) and node.value is not None
-    ):
-        targets = [node.target]
-    elif isinstance(node, (ast.For, ast.AsyncFor)):
-        targets = [node.target]
-    elif isinstance(node, (ast.With, ast.AsyncWith)):
-        targets = [i.optional_vars for i in node.items if i.optional_vars is not None]
-    elif isinstance(node, ast.TypeAlias):
-        targets = [node.name]
-    targets = targets + _walrus_targets(node)
+    targets = _statement_targets(node) + _walrus_targets(node)
     stores = (ast.Store, ast.Del)
-    return {
+    names = {
         n.id
         for t in targets
         for n in ast.walk(t)
         if isinstance(n, ast.Name) and isinstance(n.ctx, stores)
     }
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        names.add(node.name)
+    return names
+
+
+def _statement_targets(node: ast.stmt) -> list[ast.expr]:
+    """The target expressions an assignment-like statement binds or deletes."""
+    if isinstance(node, (ast.Assign, ast.Delete)):
+        return node.targets
+    if isinstance(node, ast.AugAssign) or (
+        isinstance(node, ast.AnnAssign) and node.value is not None
+    ):
+        return [node.target]
+    if isinstance(node, (ast.For, ast.AsyncFor)):
+        return [node.target]
+    if isinstance(node, (ast.With, ast.AsyncWith)):
+        return [i.optional_vars for i in node.items if i.optional_vars is not None]
+    if isinstance(node, ast.TypeAlias):
+        return [node.name]
+    return []
 
 
 def _walrus_targets(node: ast.stmt) -> list[ast.expr]:
     """Walrus targets in the expressions *node* runs itself, not in a block body.
 
     A walrus binds in the enclosing scope, even inside a comprehension, so a
-    comprehension is walked. A lambda opens its own scope, so it is not.
+    comprehension is walked. A lambda body opens its own scope, so only its
+    defaults are walked. Annotations are evaluated lazily, so they are not.
     """
-    if isinstance(node, (ast.Try, ast.TryStar)):
-        return []
-    heads: list[ast.AST]
-    if isinstance(node, (ast.If, ast.While)):
-        heads = [node.test]
-    elif isinstance(node, (ast.For, ast.AsyncFor)):
-        heads = [node.iter]
-    elif isinstance(node, (ast.With, ast.AsyncWith)):
-        heads = [i.context_expr for i in node.items]
-    elif isinstance(node, ast.Match):
-        heads = [node.subject]
-    else:
-        heads = [node]
+    heads = _statement_heads(node)
     found: list[ast.expr] = []
     while heads:
         current = heads.pop()
         if isinstance(current, ast.Lambda):
+            heads.extend(_argument_defaults(current.args))
             continue
         if isinstance(current, ast.NamedExpr):
             found.append(current.target)
         heads.extend(ast.iter_child_nodes(current))
     return found
+
+
+def _statement_heads(node: ast.stmt) -> list[ast.AST]:
+    """The expressions *node* evaluates in the enclosing scope, outside any block body."""
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        return [*node.decorator_list, *_argument_defaults(node.args)]
+    if isinstance(node, ast.ClassDef):
+        return [*node.decorator_list, *node.bases, *(k.value for k in node.keywords)]
+    if isinstance(node, (ast.Try, ast.TryStar)):
+        return []
+    if isinstance(node, (ast.If, ast.While)):
+        return [node.test]
+    if isinstance(node, (ast.For, ast.AsyncFor)):
+        return [node.iter]
+    if isinstance(node, (ast.With, ast.AsyncWith)):
+        return [i.context_expr for i in node.items]
+    if isinstance(node, ast.Match):
+        return [node.subject]
+    return [node]
+
+
+def _argument_defaults(args: ast.arguments) -> list[ast.AST]:
+    """Default values, which run where the def or lambda is evaluated."""
+    return [*args.defaults, *(d for d in args.kw_defaults if d is not None)]
 
 
 def _defines_constructor(body: list[ast.stmt]) -> bool:
