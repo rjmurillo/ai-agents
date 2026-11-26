@@ -161,7 +161,10 @@ cloud switches), `ANTHROPIC_API_KEY`, and `ANTHROPIC_BASE_URL`,
 `ANTHROPIC_AUTH_TOKEN`, and `ANTHROPIC_CUSTOM_HEADERS` on every step except
 `gateway`. Isolation does not
 come from the environment: the config directory is relocated, and settings,
-MCP, tools (`--tools ""`), and slash commands are off.
+MCP, tools (`--tools ""`), and slash commands are off. The skill harness
+(`_claude_skill_harness.py`) is the exception: its child loads the skill under
+test with slash commands on, so it gets the allowlist, plus the gateway pair on
+the `gateway` step, and never inherits other parent secrets.
 `report.json` records which steps ran
 as `credential_steps` (`gateway`, `env`, `dotenv`, `disk`, `disk-gh-fallback`, `existing-login`, `prompt`)
 and `REPORT.md` prints a `Credential step` line. `existing-login` reads

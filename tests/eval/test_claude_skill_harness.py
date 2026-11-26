@@ -301,3 +301,77 @@ class TestRunHarness:
         install_runner(claude_env, Recorder(stdout=_stream(), on_call=lambda r: None))
         with pytest.raises(RuntimeError, match="could not install skill"):
             harness.run_harness("do X", model=MODEL, skill_dir=skill_dir, skill_name="demo")
+
+
+class TestChildEnv:
+    """The harness child is allowlisted, not inherited like the eval cell.
+
+    It loads the skill under test with slash commands on, so an unrelated
+    parent secret must never reach it. The gateway pair still does, as a
+    pair, on the gateway step.
+    """
+
+    _PAIR = {"ANTHROPIC_BASE_URL": "http://127.0.0.1:8319", "ANTHROPIC_AUTH_TOKEN": "gw-token"}
+
+    def _child_env(self, monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
+        seen: dict[str, Any] = {}
+        install_runner(
+            monkeypatch,
+            Recorder(stdout=_stream(), on_call=lambda r: _workspace_snapshot(r, seen)),
+        )
+        harness.run_harness("do X", model=MODEL, skill_dir=None, skill_name=None)
+        env: dict[str, str] = seen["env"]
+        return env
+
+    def test_unrelated_parent_secrets_never_reach_the_child(
+        self, claude_env: pytest.MonkeyPatch
+    ) -> None:
+        claude_env.setenv("GH_TOKEN", "ghs-secret")
+        claude_env.setenv("OPENAI_API_KEY", "sk-other-vendor")
+        claude_env.setenv("NODE_OPTIONS", "--require /tmp/evil.js")
+        claude_env.setenv("HTTPS_PROXY", "http://proxy.internal:3128")
+
+        env = self._child_env(claude_env)
+
+        for name in ("GH_TOKEN", "OPENAI_API_KEY", "NODE_OPTIONS", "HTTPS_PROXY"):
+            assert name not in env
+        assert env["CLAUDE_CODE_OAUTH_TOKEN"] == "oauth-token"
+
+    def test_the_eval_cell_still_inherits_what_the_harness_drops(
+        self, claude_env: pytest.MonkeyPatch
+    ) -> None:
+        """Same provider, same credential: only the harness narrows the env."""
+        claude_env.setenv("GH_TOKEN", "ghs-secret")
+        provider = _claude_cli._ClaudeCLIProvider()
+        credential = provider._resolve_credential("claude")
+
+        inherited = provider._build_env(Path("/tmp/profile"), credential)
+        allowlisted = provider._build_env(Path("/tmp/profile"), credential, inherit=False)
+
+        assert inherited["GH_TOKEN"] == "ghs-secret"
+        assert "GH_TOKEN" not in allowlisted
+
+    def test_the_gateway_pair_reaches_the_child_on_the_gateway_step(
+        self, claude_env: pytest.MonkeyPatch
+    ) -> None:
+        claude_env.delenv("CLAUDE_CODE_OAUTH_TOKEN")
+        for name, value in self._PAIR.items():
+            claude_env.setenv(name, value)
+
+        env = self._child_env(claude_env)
+
+        assert env["ANTHROPIC_BASE_URL"] == self._PAIR["ANTHROPIC_BASE_URL"]
+        assert env["ANTHROPIC_AUTH_TOKEN"] == self._PAIR["ANTHROPIC_AUTH_TOKEN"]
+        assert "CLAUDE_CODE_OAUTH_TOKEN" not in env
+        assert Path(env["CLAUDE_CONFIG_DIR"]).name.startswith("eval-claude-harness-")
+        assert "ANTHROPIC_API_KEY" not in env
+
+    def test_a_lone_base_url_never_reaches_the_child(self, claude_env: pytest.MonkeyPatch) -> None:
+        claude_env.setenv("ANTHROPIC_BASE_URL", "https://proxy.example.com")
+        claude_env.setenv("ANTHROPIC_CUSTOM_HEADERS", "x-api-key: sk-ant-metered")
+
+        env = self._child_env(claude_env)
+
+        assert "ANTHROPIC_BASE_URL" not in env
+        assert "ANTHROPIC_CUSTOM_HEADERS" not in env
+        assert env["CLAUDE_CODE_OAUTH_TOKEN"] == "oauth-token"

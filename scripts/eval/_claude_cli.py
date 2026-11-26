@@ -28,8 +28,11 @@ child environment, and `--setting-sources ""` drops the settings files an
 
 ## The environment is inherited, minus what breaks the cell
 
-The child gets the parent environment, not an allowlist, so a proxy, a CA
-bundle, or a gateway the operator exported reaches it. Only these are denied:
+The eval cell's child gets the parent environment, not an allowlist, so a
+proxy, a CA bundle, or a gateway the operator exported reaches it. (The skill
+harness calls `_build_env(..., inherit=False)` and gets the allowlist instead,
+because its child loads the skill under test with slash commands on.) Only
+these are denied:
 
 - every `CLAUDE*` name (`_ISOLATION_DENY_PREFIXES`): `CLAUDE_CONFIG_DIR`, the
   parent session's `CLAUDECODE` and `CLAUDE_CODE_*` plumbing, and the
@@ -105,8 +108,10 @@ from _cli_credentials import (
     resolve_cached,
 )
 from _cli_transport import (
+    BASE_ENV_ALLOWLIST,
     build_envelope,
     inherited_process_env,
+    minimal_process_env,
     run_cli,
     validate_timeout,
 )
@@ -218,12 +223,19 @@ class _ClaudeCLIProvider:
             "--no-session-persistence",
         ]
 
-    def _build_env(self, config_dir: Path, credential: ResolvedCredential) -> dict[str, str]:
+    def _build_env(
+        self, config_dir: Path, credential: ResolvedCredential, *, inherit: bool = True
+    ) -> dict[str, str]:
         """Build the child environment for the resolved credential step.
 
-        The parent environment is inherited minus the deny list in the module
-        docstring. An injected token and the `gateway` step run under a
-        relocated, empty config directory. The `existing-login` step instead
+        With `inherit` (the eval cell), the parent environment is inherited
+        minus the deny list in the module docstring. Without it (the skill
+        harness, whose child loads the skill under test with slash commands
+        on), the child gets only `BASE_ENV_ALLOWLIST`, plus the gateway pair on
+        the `gateway` step, so no other parent secret can reach it.
+
+        An injected token and the `gateway` step run under a relocated, empty
+        config directory. The `existing-login` step instead
         forwards the operator's config directory, because that is where its
         login lives. Under the real-HOME opt-in no config directory is set.
 
@@ -254,11 +266,16 @@ class _ClaudeCLIProvider:
         # `_cli_transport` is a flat sibling module, so mypy resolves it to Any
         # under `ignore_missing_imports`. Pin the contract at this boundary
         # rather than letting Any leak into the subprocess call.
-        env: dict[str, str] = inherited_process_env(
-            denied_names=frozenset(denied),
-            denied_prefixes=_ISOLATION_DENY_PREFIXES,
-            overrides=overrides,
-        )
+        env: dict[str, str]
+        if inherit:
+            env = inherited_process_env(
+                denied_names=frozenset(denied),
+                denied_prefixes=_ISOLATION_DENY_PREFIXES,
+                overrides=overrides,
+            )
+        else:
+            allow = BASE_ENV_ALLOWLIST | (_GATEWAY_ONLY_ENV if gateway else frozenset())
+            env = minimal_process_env(allow=allow, blocked=frozenset(denied), overrides=overrides)
         return env
 
     @staticmethod
