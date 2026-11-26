@@ -199,6 +199,38 @@ def test_entrypoint_delegates_shared_bootstrap(entrypoint: str, tmp_path: Path) 
     assert result.returncode == 73, result.stderr
 
 
+def test_set_pr_ready_bare_bootstrap_ignores_workspace_lib(tmp_path: Path) -> None:
+    plugin = tmp_path / "plugin"
+    shutil.copytree(SCRIPTS, plugin / "skills/github/scripts")
+    shutil.copytree(ROOT / "src/claude/lib", plugin / "lib", symlinks=False)
+    script = plugin / "skills/github/scripts/pr/set_pr_ready.py"
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if key not in ("CLAUDE_PLUGIN_ROOT", "COPILOT_PLUGIN_ROOT", "PYTHONPATH")
+    }
+    env["PATH"] = str(tmp_path / "no-external-tools")
+    workspace = tmp_path / "workspace"
+    shutil.copytree(ROOT / "src/claude/lib", workspace / ".claude/lib", symlinks=False)
+    env["GITHUB_WORKSPACE"] = str(workspace)
+    (plugin / "lib").rename(plugin / "lib-unavailable")
+
+    result = subprocess.run(
+        [sys.executable, str(script), "--help"],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=15,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert "Plugin lib directory not found:" in result.stderr
+    assert str(plugin / "lib") in result.stderr
+
+
 @pytest.mark.parametrize("delegation", ["actual", "comment", "uncalled", "wrong_module"])
 def test_path_validation_reads_only_actual_shared_delegation(
     delegation: str, tmp_path: Path
