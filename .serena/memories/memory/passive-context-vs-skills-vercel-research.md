@@ -8,6 +8,8 @@
 
 AGENTS.md passive context achieves 100% pass rate vs 79% for skills with instructions (53% baseline).
 
+**Update 2026-11-25**: a local probe found the prefer-retrieval instruction alone scored 30/30, while the file map alone scored 22/30. See `decision-the-retrieval-instruction-beats-the-docs-file-map`.
+
 ## Why Passive Context Wins
 
 1. **No decision points**: Agent never decides "should I look this up?"

@@ -10,7 +10,7 @@
 |pr comment navigation response templates review threads: [pr-comment-index](pr-comment-index.md) (258)
 
 [Decision Records]
-|decision records rationale evidence implementation choices review findings: [skills-decision-index](skills-decision-index.md) (2345)
+|decision records rationale evidence implementation choices review findings: [skills-decision-index](skills-decision-index.md) (2421)
 |governance bureaucracy audit open issues PR churn session log redundancy critical review: [audits/2026-08-17-governance-bureaucracy-critical-review](audits/2026-08-17-governance-bureaucracy-critical-review.md) (681)
 |frontmatter key migration nested metadata shape atomic commit count gate scope bypass bulk rename: [decision-frontmatter-migrations-must-cover-both-key-shapes](decision-frontmatter-migrations-must-cover-both-key-shapes.md) (1353)
 |disposition registry base ref waiver self-approve finding eureka: [decision-a-disposition-registry-is-trusted-only-from-the-base-ref](decision-a-disposition-registry-is-trusted-only-from-the-base-ref.md) (416)
@@ -226,7 +226,7 @@
 [Memory and Context]
 |context engineering token optimization progressive disclosure just-in-time token: [memory/context-engineering-principles](memory/context-engineering-principles.md) (600), [memory/memory-token-efficiency](memory/memory-token-efficiency.md) (862)
 |agentic session cost token replay cached input exec output fanout phase threads: [cost/cost-optimization-observations](cost/cost-optimization-observations.md) (707)
-|passive context AGENTS.md skills decision-point retrieval-led compression research: [memory/passive-context-vs-skills-vercel-research](memory/passive-context-vs-skills-vercel-research.md) (461), [claude/claude-md-anthropic-best-practices](claude/claude-md-anthropic-best-practices.md) (759), [claude/claude-code-skills-official-guidance](claude/claude-code-skills-official-guidance.md) (625)
+|passive context AGENTS.md skills decision-point retrieval-led compression research: [memory/passive-context-vs-skills-vercel-research](memory/passive-context-vs-skills-vercel-research.md) (516), [claude/claude-md-anthropic-best-practices](claude/claude-md-anthropic-best-practices.md) (759), [claude/claude-code-skills-official-guidance](claude/claude-code-skills-official-guidance.md) (625)
 |portability symlink TOCTOU scan_all refuse_symlinked_scan_root: [decision-portability-ratchet-symlink-toctou](decision-portability-ratchet-symlink-toctou.md) (314)
 |instruction budget always-on ceiling applyTo scope headroom rule: [decision-the-instruction-budget-gate-already-exists](decision-the-instruction-budget-gate-already-exists.md) (1858)
 |memory index validator one direction unindexed orphan check: [memory-index-validator-checks-one-direction-only](memory-index-validator-checks-one-direction-only.md) (992)
