@@ -51,6 +51,7 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import agent_gate_cli
 from check_agent_delegation import DELEGATORS
 
 from scripts.hook_utilities.frontmatter_block import (
@@ -170,12 +171,7 @@ def validate_orchestrator_vocabulary(repo_root: Path) -> bool:
 
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point. Returns an ADR-035 exit code."""
-    args = argv if argv is not None else sys.argv[1:]
-    repo_root = Path(args[0]).resolve() if args else Path(__file__).resolve().parents[2]
-    if not repo_root.is_dir():
-        print(f"[FAIL] Invalid repository root: {repo_root}", file=sys.stderr)
-        return 2
-    return 0 if validate_orchestrator_vocabulary(repo_root) else 1
+    return agent_gate_cli.run_repo_gate(argv, validate_orchestrator_vocabulary)
 
 
 if __name__ == "__main__":
