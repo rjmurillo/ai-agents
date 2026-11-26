@@ -268,12 +268,10 @@ def _marker_text(repo: Path, survey: Survey) -> str | None:
     if not path_exists(marker):
         return None
     target = _resolve(marker)
-    reason = None
-    if target is None or not within(target, repo):
-        reason = "resolves outside the repository"
-    elif not _is_file(target, ".adr-dir", survey):
-        reason = "is not a regular file"
-    if reason is not None or target is None:
+    reason = "resolves outside the repository"
+    if target is not None and within(target, repo):
+        reason = "" if _is_file(target, ".adr-dir", survey) else "is not a regular file"
+    if target is None or reason:
         survey.rejected.append({"path": ".adr-dir", "reason": reason})
         return None
     try:
