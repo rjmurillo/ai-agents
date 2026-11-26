@@ -72,6 +72,7 @@ _MANIFESTS: tuple[Path, ...] = (
     _REPO_ROOT / "src" / "hermes" / "project-toolkit-knowledge" / "plugin.json",
     _REPO_ROOT / "src" / "hermes" / "project-toolkit-quality" / "plugin.json",
     _REPO_ROOT / "src" / "hermes" / "project-toolkit-authoring" / "plugin.json",
+    _REPO_ROOT / "src" / "hermes" / "project-toolkit-azure-devops" / "plugin.json",
     _REPO_ROOT / "src" / "codex" / "plugin.json",
 )
 
