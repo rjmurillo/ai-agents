@@ -362,20 +362,7 @@ Output:
 - Related ADR: ADR-023 (Dependency Management)
 ```
 
-**Example Fix:**
-
-```python
-# Before
-class User:
-    def __init__(self):
-        self.db = DatabaseConnection()  # Hard-coded dependency
-
-
-# After
-class User:
-    def __init__(self, db: DatabaseInterface):
-        self.db = db  # Injected dependency
-```
+See the [SQLite directory example](references/refactoring-patterns.md#sqlite-directory-example) for a working dependency injection refactor.
 
 ### Example 2: CI Integration
 
@@ -452,6 +439,7 @@ python3 scripts/assess.py --target src/services/auth.py
 For detailed methodology and examples:
 
 - [Calibration Examples](references/calibration-examples.md)
+- [Advanced Calibration Notes](references/calibration-advanced-notes.md)
 - [Refactoring Patterns](references/refactoring-patterns.md)
 - [Dotnet Performance Patterns](references/dotnet-performance-patterns.md)
 

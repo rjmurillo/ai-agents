@@ -20,7 +20,7 @@ import os
 import re
 import subprocess
 import sys
-from dataclasses import dataclass, field, replace
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 
 # ADR-047 keeps this bootstrap inline because imports need sys.path first.
@@ -135,6 +135,11 @@ class Violation:
     line: int
     message: str
     remediation: str
+
+    def to_dict(self) -> dict[str, str | int]:
+        """Serialize fields in their declared order."""
+        result: dict[str, str | int] = asdict(self)
+        return result
 
 
 @dataclass

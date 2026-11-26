@@ -47,6 +47,10 @@ uv run python .claude/skills/ai-agents-validation-and-qa/scripts/instruments.py 
 
 Replace `citation-freshness` with any instrument id. The ids are `citation-freshness`, `investigation-allowlist`, `qa-skip-evidence`, `pester-count`, `skill-tests`, `drift-self-check`. `list` prints each one with the question it answers.
 
+`citation-freshness` checks citations on added lines against their cited content.
+The skill cites the `Run pytest` step in `.github/workflows/pytest.yml`.
+That step documents the workflow's flaky-test reruns.
+
 ## Where it runs
 
 This skill ships only in a checkout of `rjmurillo/ai-agents`. It is not part of any plugin install.

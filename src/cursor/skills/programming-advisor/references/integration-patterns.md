@@ -1,5 +1,7 @@
 # Integration Patterns Reference
 
+<!-- doc-accuracy: external-sdk NextAuth -- TypeScript examples use NextAuth, Prisma, and TanStack Query, not this repository -->
+
 ## Package Manager Detection
 
 | File | Package Manager | Install Command |
@@ -96,13 +98,22 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { userSchema, type UserFormData } from '@/schemas/user'
 
-export function UserForm() {
-  const { register, handleSubmit, formState: { errors } } = useForm<UserFormData>({
+type UserFormProps = {
+  createUser: (data: UserFormData) => Promise<void>
+}
+
+export function UserForm({ createUser }: UserFormProps) {
+  const { register, handleSubmit, reset, setError, formState: { errors, isSubmitting } } = useForm<UserFormData>({
     resolver: zodResolver(userSchema),
   })
 
-  const onSubmit = (data: UserFormData) => {
-    console.log(data)
+  const onSubmit = async (data: UserFormData) => {
+    try {
+      await createUser(data)
+      reset()
+    } catch {
+      setError('root', { message: 'Could not create the account.' })
+    }
   }
 
   return (
@@ -113,7 +124,8 @@ export function UserForm() {
       <input type="password" {...register('password')} />
       {errors.password && <span>{errors.password.message}</span>}
 
-      <button type="submit">Submit</button>
+      {errors.root && <span role="alert">{errors.root.message}</span>}
+      <button type="submit" disabled={isSubmitting}>Submit</button>
     </form>
   )
 }
@@ -121,15 +133,25 @@ export function UserForm() {
 
 ### Data Fetching (TanStack Query)
 
+These hooks assume same-origin `/users` routes with JSON responses.
+
 ```typescript
 // src/hooks/useUsers.ts
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '@/lib/api'
+import type { UserFormData } from '@/schemas/user'
+
+type User = { id: string; email: string }
+
+async function requestUsers<T>(init?: RequestInit): Promise<T> {
+  const response = await fetch('/users', init)
+  if (!response.ok) throw new Error(`User request failed (${response.status})`)
+  return response.json()
+}
 
 export function useUsers() {
   return useQuery({
     queryKey: ['users'],
-    queryFn: () => api.get('/users').then(res => res.data),
+    queryFn: ({ signal }) => requestUsers<User[]>({ signal }),
   })
 }
 
@@ -137,10 +159,12 @@ export function useCreateUser() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (data: CreateUserInput) => api.post('/users', data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] })
-    },
+    mutationFn: (data: UserFormData) => requestUsers<User>({
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users'] }),
   })
 }
 ```
@@ -152,10 +176,13 @@ export function useCreateUser() {
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
+// Persist display preferences only. The auth provider owns the session.
+type User = { displayName: string }
+
 interface UserState {
   user: User | null
   setUser: (user: User) => void
-  logout: () => void
+  clearUser: () => void
 }
 
 export const useUserStore = create<UserState>()(
@@ -163,7 +190,7 @@ export const useUserStore = create<UserState>()(
     (set) => ({
       user: null,
       setUser: (user) => set({ user }),
-      logout: () => set({ user: null }),
+      clearUser: () => set({ user: null }),
     }),
     { name: 'user-storage' }
   )
@@ -172,16 +199,24 @@ export const useUserStore = create<UserState>()(
 
 ### Authentication (NextAuth.js)
 
+This App Router handler uses NextAuth.js v4. Set `NEXTAUTH_SECRET` and the GitHub OAuth credentials on the server.
+
 ```typescript
 // src/app/api/auth/[...nextauth]/route.ts
 import NextAuth from 'next-auth'
 import GitHubProvider from 'next-auth/providers/github'
 
+const { GITHUB_ID, GITHUB_SECRET, NEXTAUTH_SECRET } = process.env
+if (!GITHUB_ID || !GITHUB_SECRET || !NEXTAUTH_SECRET) {
+  throw new Error('Missing server-side GitHub OAuth configuration')
+}
+
 const handler = NextAuth({
+  secret: NEXTAUTH_SECRET,
   providers: [
     GitHubProvider({
-      clientId: process.env.GITHUB_ID!,
-      clientSecret: process.env.GITHUB_SECRET!,
+      clientId: GITHUB_ID,
+      clientSecret: GITHUB_SECRET,
     }),
   ],
 })
@@ -191,7 +226,9 @@ export { handler as GET, handler as POST }
 
 ### Database (Prisma)
 
-```typescript
+Generate the Prisma 5 client with `npx prisma generate` after saving the schema.
+
+```prisma
 // prisma/schema.prisma
 generator client {
   provider = "prisma-client-js"
@@ -214,9 +251,9 @@ model User {
 // src/lib/prisma.ts
 import { PrismaClient } from '@prisma/client'
 
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient }
+const globalForPrisma = globalThis as typeof globalThis & { prisma?: PrismaClient }
 
-export const prisma = globalForPrisma.prisma || new PrismaClient()
+export const prisma = globalForPrisma.prisma ?? new PrismaClient()
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 ```

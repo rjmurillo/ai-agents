@@ -6,6 +6,8 @@ review-by: 2026-07-11
 
 # Principle of Least Privilege
 
+<!-- doc-accuracy: external-sdk Azure-Storage -- C# examples use the Azure Storage and Azure Identity SDKs, not this repository -->
+
 Every program and user should operate using the minimum set of privileges necessary to complete their task.
 
 **Origin**: Jerome Saltzer, MULTICS operating system (1974)
@@ -72,14 +74,20 @@ var scopes = new[] { "User.Read", "Calendars.Read" };
 
 ### Azure Managed Identity
 
+Install `Azure.Identity` and `Azure.Storage.Blobs`. Assign the managed identity
+the Blob Data Reader role on the required container.
+
 ```csharp
-// Service gets only permissions assigned to its managed identity
-var credential = new DefaultAzureCredential();
-var client = new BlobServiceClient(
-    new Uri("https://storage.blob.core.windows.net"),
-    credential
-);
-// Identity only has access to specific containers, not entire account
+using System;
+using Azure.Identity;
+using Azure.Storage.Blobs;
+
+static BlobContainerClient OpenContainer(Uri serviceUri, string containerName)
+{
+    var credential = new ManagedIdentityCredential();
+    var client = new BlobServiceClient(serviceUri, credential);
+    return client.GetBlobContainerClient(containerName);
+}
 ```
 
 ## Common Violations

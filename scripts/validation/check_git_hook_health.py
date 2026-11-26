@@ -465,23 +465,23 @@ def _evaluate(repo_root: Path) -> int:
 def validate_git_hook_health(repo_root: Path) -> bool:
     """Return False when pre-push is inert or verification is impossible.
 
-        Entry point matching the contract the pre-PR registry consumes. Canonical
-        source: ``_root_only`` in ``scripts/validation/pre_pr_sequence.py``, whose adapter
-        signature reads verbatim (quoted at column 0 so the 96-character original
-        is reproduced byte for byte rather than wrapped to fit an indent):
+        The pre-PR registry adapter is ``_root_only`` in
+        ``scripts/validation/pre_pr_sequence.py``. Its signature shape is:
 
-    def _root_only(validator: Callable[[Path], bool]) -> Callable[[Path, argparse.Namespace], bool]:
+    def _root_only(
+        validator: Callable[[Path], GateResult],
+    ) -> Callable[[Path, argparse.Namespace], GateResult]:
 
         A dead pre-push hook or an unverifiable Git state fails loud rather than
         warning. The repair is bounded, and refusing an unverifiable push avoids
         silently recreating the incident this gate exists to catch
-        (.claude/rules/ci-scripts.md MUST 11).
+        (.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md MUST 11).
 
         Prints what was probed and where it resolved on the healthy path, so a
         caller can tell "checked and found hooks live" from "did nothing"
-        (.claude/rules/ci-scripts.md MUST 12). The silence-when-healthy contract
-        of the original SessionStart design does not apply here: that output landed
-        in every session's context, this lands in one pre-PR report.
+        (.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md MUST 12).
+        The silence-when-healthy contract of the original SessionStart design does not apply
+        here: that output landed in every session's context, this lands in one pre-PR report.
     """
     return _evaluate(repo_root) == 0
 

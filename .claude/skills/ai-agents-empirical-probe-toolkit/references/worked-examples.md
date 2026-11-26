@@ -22,7 +22,12 @@ The war stories behind each recipe in `../SKILL.md`. Each incident is why the re
 
 ## Recipe 4: Docs-vs-Reality Audit
 
-**Worked example (the dead pwsh commands)**: `CONTRIBUTING.md:155` said `build/Generate-Agents.ps1` PowerShell invocation until PR #2871 repointed it to `build/generate_agents.py`; zero `.ps1` files exist in the repo outside `.venv` (ADR-042 Python migration; verify: `find . -name '*.ps1' -not -path './.venv/*'`). The real commands are `uv run python build/generate_agents.py` and `uv run python build/scripts/build_all.py`. Anyone who transcribed the old CONTRIBUTING.md shipped a dead runbook. This skill library was itself written under this recipe: every command above was executed before being written down.
+**Worked example (the dead pwsh commands)**: `CONTRIBUTING.md` still invoked the removed PowerShell generator.
+[PR #2871](https://github.com/rjmurillo/ai-agents/pull/2871) replaced that invocation on 2026-07-04.
+The [committed correction](https://github.com/rjmurillo/ai-agents/commit/b320f4ac18cd8915bac55d1ed2b4574b5433210a), dated 2026-07-04, records both commands.
+ADR-042 explains the Python migration.
+Current generation commands are `uv run python build/generate_agents.py` and `uv run python build/scripts/build_all.py`.
+Transcribing the old guide produced a dead runbook.
 
 **Worked example (the imagined contract)**: PR #1887's M4 guard was designed against an imagined contract instead of the canonical `scripts/validate_session_json.py` regex; aligning it took 7 fix commits (`.claude/rules/canonical-source-mirror.md`, citing the #1887 retro).
 

@@ -54,7 +54,16 @@ class TestTheWorkflowWiring:
         assert names.index("Download partition artifacts") < steps.index(gate[0])
         legs = jobs["test"]["strategy"]["matrix"]["include"]
         expected = [leg["junit_file"] for leg in legs]
-        assert len(expected) == 7
+        assert sorted(expected) == [
+            "artifacts/pytest-results-pr-autofix.xml",
+            "artifacts/pytest-results-safe-push.xml",
+            "artifacts/pytest-results-split-1.xml",
+            "artifacts/pytest-results-split-2.xml",
+            "artifacts/pytest-results-split-3.xml",
+            "artifacts/pytest-results-split-4.xml",
+            "artifacts/pytest-results-split-5.xml",
+            "artifacts/pytest-results-split-6.xml",
+        ]
         assert sorted(inputs) == sorted(expected)
 
 

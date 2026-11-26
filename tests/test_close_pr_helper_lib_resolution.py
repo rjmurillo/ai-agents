@@ -29,6 +29,8 @@ def _copy_out_of_tree(tmp_path: Path) -> Path:
     scripts.mkdir(parents=True)
     for name in (*HELPERS, "pr_comment_dedupe.py"):
         shutil.copy2(PR_SCRIPTS / name, scripts / name)
+    # The helpers resolve lib through the skill's shared bootstrap one level up.
+    shutil.copy2(PR_SCRIPTS.parent / "skill_bootstrap.py", scripts.parent / "skill_bootstrap.py")
     assert not (scripts / ".." / ".." / ".." / ".." / "lib").resolve().exists()
     return scripts
 

@@ -76,6 +76,9 @@ Other scripts: `init_skill.py` (scaffold, `--path`, `--dry-run`, `--docs-section
 
 Checklist limits: name is hyphen-case and 64 characters or fewer, description is 1024 characters or fewer, `SKILL.md` stays under 500 lines, and the skill defines 3 to 5 trigger phrases. Start with least-privilege tools (`Read`, `Glob`, `Grep`, `Write`, `Edit`) and add others only when the skill needs them. Write only what the model cannot already know.
 
+Without PyYAML, `quick_validate.py` and `validate-skill.py` share `_yaml_scalars.py`.
+That internal helper handles scalar typing and unquoting for their fallback parsers.
+
 ## Where it runs
 
 | Host | Available |

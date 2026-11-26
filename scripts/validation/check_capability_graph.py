@@ -29,9 +29,17 @@ Six invariants are blocking:
 A seventh blocks the one copied-policy class that can be proven rather than
 guessed: a consumer that declares a dependency and then repeats three or more
 consecutive lines of the owner's text. Issue #5396 calls this the "repeated
-large normative blocks" case. Smaller overlaps are left alone on purpose,
-because a consumer is expected to keep a one-line statement of the invariant
-inline for harnesses that never load the owning rule.
+large normative blocks" case. The owner's text is the owner file plus any
+partial that two or more of the capability's dependents include, because
+ADR-110 section 7 puts a prompt-carried policy's canonical text in a partial
+rather than in the owning rule (issue #7641). The partials are found by
+following `{{> slug}}` includes, the grammar
+`build/scripts/skill_template_grammar.py` renders, so the gate keeps no
+capability-to-path map. Smaller overlaps are left alone on purpose, because a
+consumer is expected to keep a one-line statement of the invariant inline for
+harnesses that never load the owning rule. The text report lists each partial
+the check compares, so a capability whose including dependents fall below two
+shows the lost coverage as a missing `compares` line.
 
 A file with no `capability` block is not a node and is not a defect. Adoption
 is incremental by design, so this gate never blocks a file for staying out of
@@ -58,10 +66,18 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 import yaml  # noqa: E402
+
+_BUILD_SCRIPTS = _SCRIPT_DIR.parents[1] / "build" / "scripts"
+if str(_BUILD_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_BUILD_SCRIPTS))
+
+# The renderer's own include parser, so the gate resolves exactly the partials
+# the build expands (canonical-source-mirror rank 1: shared implementation).
 from instruction_budget_globs import (  # noqa: E402
     UnsupportedApplyToError,
     load_unique_frontmatter,
 )
+from skill_template_grammar import _partial_slugs  # noqa: E402
 
 CANONICAL_GLOBS: tuple[tuple[str, str], ...] = (
     ("templates/skills", "*.SKILL.md.tmpl"),
@@ -121,6 +137,18 @@ NAME_RE = re.compile(r"^[a-z0-9-]{1,64}$")
 MIN_COPIED_RUN = 3
 MIN_COPIED_CHARS = 120
 
+# Skill templates render `{{> slug}}` from this directory. Agent nodes are
+# `*.shared.md` bodies, which `build/generate_agents.py` reads unexpanded, so
+# no agent node can include a partial and the agent tree needs no entry.
+PARTIAL_DIRS: tuple[tuple[str, str], ...] = (("templates/skills/", "templates/skills/partials"),)
+
+# `build/generate_agents.py` reads `templates/agents/*.shared.md` without
+# mustache expansion, so a shared body cannot include a partial and the four
+# approved residue copies named in the security-review reference carry the
+# text verbatim. Partial-derived text is not compared against these files;
+# the owner file's own text still is.
+_RAW_AGENT_BODY = re.compile(r"^templates/agents/[^/]+\.shared\.md$")
+
 
 class TreeError(Exception):
     """A canonical tree cannot answer the question this gate asks."""
@@ -141,6 +169,7 @@ class Node:
     replacement_owner: str | None
     validation: str | None
     body: str = field(compare=False, default="")
+    includes: tuple[tuple[str, str], ...] = field(compare=False, default=())
 
     def replacement(self) -> str:
         """Return the replacement status one line of report can carry."""
@@ -316,6 +345,31 @@ def _harness_template_defects(repo_root: Path) -> list[str]:
     return defects
 
 
+def _resolve_includes(repo_root: Path, rel: str, text: str) -> tuple[tuple[str, str], ...]:
+    """Return (path, text) for every partial the file includes, nested ones too.
+
+    A slug with no partial file is skipped here: the renderer's own grammar
+    check reports it, and this gate only needs the text that does render.
+    """
+    partial_dir = next((d for prefix, d in PARTIAL_DIRS if rel.startswith(prefix)), None)
+    if partial_dir is None:
+        return ()
+    found: dict[str, str] = {}
+    pending = list(_partial_slugs(text))
+    while pending:
+        slug = pending.pop()
+        path = f"{partial_dir}/{slug}.mustache"
+        if path in found:
+            continue
+        source = repo_root / path
+        if not source.is_file():
+            continue
+        body = source.read_text(encoding="utf-8", errors="replace")
+        found[path] = body
+        pending.extend(_partial_slugs(body))
+    return tuple(sorted(found.items()))
+
+
 def collect_nodes(repo_root: Path) -> tuple[list[Node], list[str]]:
     """Return every node carrying a capability block, plus shape defects.
 
@@ -362,6 +416,7 @@ def collect_nodes(repo_root: Path) -> tuple[list[Node], list[str]]:
                 replacement_owner=_optional(block, "replacement-owner"),
                 validation=_optional(block, "validation"),
                 body=text,
+                includes=_resolve_includes(repo_root, rel, text) if _is_canonical(rel) else (),
             )
         )
     return sorted(nodes, key=lambda node: node.path), defects
@@ -437,28 +492,72 @@ def _find_cycle(edges: dict[str, tuple[str, ...]]) -> list[str] | None:
     return None
 
 
-def _windows(text: str) -> set[tuple[str, ...]]:
-    """Return every contiguous MIN_COPIED_RUN-line window in the text.
+def _lines(text: str) -> list[str]:
+    """Return the text's non-blank lines, stripped, in order."""
+    return [line.strip() for line in text.splitlines() if line.strip()]
 
-    Adjacency is the point. An earlier version collected the owner's lines into
-    a set, which discarded their order: a consumer whose lines A, B, C each
-    appeared somewhere in the owner matched even when the owner never held
-    A, B, C together. Windows keep both sides contiguous, so only a real copied
-    block matches.
+
+def _canonical_texts(
+    nodes: list[Node], owners: dict[str, Node]
+) -> dict[str, list[tuple[str, str]]]:
+    """Return, per owned capability, the (path, text) pairs that are its policy.
+
+    The owner file always counts. A partial counts when at least two canonical
+    dependents of the capability include it. That shared include is the
+    composition ADR-110 section 7 prescribes. A partial only one dependent
+    includes (`no-dashes` beside `untrusted-content` in `research`) serves
+    another policy, or cannot yet be told apart from one, so it adds no text.
+    Counting per partial, not intersecting include sets, keeps one dependent's
+    unrelated includes from switching the check off for the whole capability.
+    This is why the gate needs no capability-to-path map: the graph's own
+    include edges name the partial.
     """
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    return {
-        tuple(lines[index : index + MIN_COPIED_RUN])
-        for index in range(len(lines) - MIN_COPIED_RUN + 1)
-    }
+    counts: dict[str, dict[str, int]] = {}
+    bodies: dict[str, str] = {}
+    for node in nodes:
+        if not node.canonical:
+            continue
+        bodies.update(node.includes)
+        # A name listed twice is still one dependent (PR #7694 review).
+        for name in dict.fromkeys(node.depends_on):
+            if name not in owners or name in node.owns:
+                continue
+            per_partial = counts.setdefault(name, {})
+            for path, _ in node.includes:
+                per_partial[path] = per_partial.get(path, 0) + 1
+    texts: dict[str, list[tuple[str, str]]] = {}
+    for name, owner in owners.items():
+        pairs = [(owner.path, owner.body)]
+        shared = sorted(path for path, n in counts.get(name, {}).items() if n >= 2)
+        pairs.extend((path, bodies[path]) for path in shared)
+        texts[name] = pairs
+    return texts
 
 
 def _shared_run(consumer: str, owner: str) -> bool:
-    """Return True when the two texts share one contiguous block of lines."""
-    owner_windows = _windows(owner)
-    for window in _windows(consumer):
-        if window in owner_windows and sum(len(line) for line in window) >= MIN_COPIED_CHARS:
-            return True
+    """Return True when the texts share a run of MIN_COPIED_RUN or more lines.
+
+    The run must be contiguous on both sides and total MIN_COPIED_CHARS or
+    more. Adjacency is the point: an earlier version collected the owner's
+    lines into a set, which matched a consumer whose lines merely appeared
+    somewhere in the owner. A later version compared fixed three-line windows,
+    which missed a longer copy of short lines whose every three-line window
+    fell under the character floor (PR #7694 review). Extending each matched
+    run line by line measures the whole copied block instead.
+    """
+    positions: dict[str, list[int]] = {}
+    for index, line in enumerate(_lines(owner)):
+        positions.setdefault(line, []).append(index)
+    previous: dict[int, tuple[int, int]] = {}
+    for line in _lines(consumer):
+        current: dict[int, tuple[int, int]] = {}
+        for index in positions.get(line, ()):
+            length, chars = previous.get(index - 1, (0, 0))
+            length, chars = length + 1, chars + len(line)
+            if length >= MIN_COPIED_RUN and chars >= MIN_COPIED_CHARS:
+                return True
+            current[index] = (length, chars)
+        previous = current
     return False
 
 
@@ -466,6 +565,7 @@ def check_graph(nodes: list[Node], owners: dict[str, Node]) -> list[str]:
     """Return one finding per violated invariant, sorted for determinism."""
     findings: list[str] = []
     edges: dict[str, tuple[str, ...]] = {}
+    policy = _canonical_texts(nodes, owners)
     for node in nodes:
         for name in node.depends_on:
             if name in node.owns:
@@ -475,11 +575,21 @@ def check_graph(nodes: list[Node], owners: dict[str, Node]) -> list[str]:
             if owner is None:
                 findings.append(f"{node.path}: depends on `{name}`, which no artifact owns")
                 continue
-            if node.canonical and _shared_run(node.body, owner.body):
+            if not node.canonical:
+                continue
+            for source, text in policy[name]:
+                # A raw agent body cannot include a partial, so its verbatim
+                # copy is approved residue; the owner file is still compared.
+                if source != owner.path and _RAW_AGENT_BODY.match(node.path):
+                    continue
+                if not _shared_run(node.body, text):
+                    continue
+                origin = "" if source == owner.path else f" from {source}"
                 findings.append(
-                    f"{node.path}: repeats a block of `{name}`, owned by {owner.path}; "
+                    f"{node.path}: repeats a block of `{name}`{origin}, owned by {owner.path}; "
                     "keep the one-line invariant and drop the copied policy"
                 )
+                break  # one finding per dependency edge is enough to act on
         if node.status == "deprecated" and node.replaced_by:
             if node.replaced_by not in owners:
                 findings.append(
@@ -547,6 +657,8 @@ def render(nodes: list[Node], owners: dict[str, Node], fmt: str) -> str:
             f"replacement={owner.replacement()} validation={owner.validation or 'none'}"
         )
     lines.extend(f"edge {consumer} -> {name}" for consumer, name in edges)
+    for name, pairs in sorted(_canonical_texts(nodes, owners).items()):
+        lines.extend(f"compares {name}: {path}" for path, _ in pairs if path != owners[name].path)
     return "\n".join(lines)
 
 

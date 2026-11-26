@@ -543,13 +543,23 @@ print(
 
 Scripts that check their own output shape and stop early on a bad result. This guard is not verification authority. A separate, independent postcondition check runs after the script where the outcome can be checked independently.
 
+Use the `Result` class from Pattern 1.
+
 ```python
-def execute_with_check(input_data, check_func):
+import json
+from collections.abc import Callable
+from pathlib import Path
+
+
+def execute_with_check[T, U](
+    input_data: T, process: Callable[[T], U], check_func: Callable[[U], tuple[bool, str]]
+) -> Result:
     """
     Execute an operation and fail fast on a bad result.
 
     Args:
         input_data: Input to process
+        process: Operation that produces the output
         check_func: Function that returns (is_valid, reason)
 
     Returns:
@@ -581,7 +591,7 @@ def execute_with_check(input_data, check_func):
 
 
 # Example check functions
-def check_json_output(output):
+def check_json_output(output: str) -> tuple[bool, str]:
     """Check output is valid JSON."""
     try:
         json.loads(output)
@@ -590,14 +600,14 @@ def check_json_output(output):
         return False, f"Invalid JSON: {e}"
 
 
-def check_file_exists(path):
+def check_file_exists(path: str | Path) -> tuple[bool, str]:
     """Check file was created."""
     if Path(path).exists():
         return True, f"File exists: {path}"
     return False, f"File not created: {path}"
 
 
-def check_non_empty(output):
+def check_non_empty(output: object) -> tuple[bool, str]:
     """Check output is non-empty."""
     if output and len(str(output).strip()) > 0:
         return True, "Output is non-empty"

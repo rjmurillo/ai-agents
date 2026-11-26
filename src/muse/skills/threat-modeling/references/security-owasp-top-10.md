@@ -6,6 +6,8 @@ review-by: 2026-07-11
 
 # OWASP Top 10 (2021)
 
+<!-- doc-accuracy: external-sdk EF-Core -- C# examples use Entity Framework Core, not this repository -->
+
 Industry-standard vulnerability categories for web application security. Use as a checklist during Phase 2 (Threat Identification) to ensure coverage.
 
 ## The 10 Categories
@@ -40,13 +42,25 @@ Industry-standard vulnerability categories for web application security. Use as 
 ### A01: Broken Access Control
 
 ```csharp
-// Always verify ownership
-public async Task<Order> GetOrder(int orderId, int userId)
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+
+public sealed record Order(int Id, int UserId);
+
+public sealed class OrdersContext(DbContextOptions<OrdersContext> options) : DbContext(options)
 {
-    var order = await _db.Orders.FindAsync(orderId);
-    if (order.UserId != userId)
-        throw new UnauthorizedAccessException();
-    return order;
+    public DbSet<Order> Orders => Set<Order>();
+}
+
+public sealed class OrderReader(OrdersContext db)
+{
+    // Pass the user ID from the authenticated principal.
+    // A missing order and an order owned by someone else both return null.
+    public Task<Order?> GetOrderAsync(int orderId, int userId, CancellationToken cancellationToken) =>
+        db.Orders.AsNoTracking().SingleOrDefaultAsync(
+            order => order.Id == orderId && order.UserId == userId,
+            cancellationToken);
 }
 ```
 
@@ -59,16 +73,31 @@ Mitigations: Use AES-256 for encryption at rest. Enforce TLS 1.2+ for transport.
 ### A03: Injection
 
 ```csharp
-// Vulnerable
-var sql = $"SELECT * FROM Users WHERE Id = {userId}";
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 
-// Safe: parameterized query
-var user = await _db.Users
-    .FromSqlRaw("SELECT * FROM Users WHERE Id = {0}", userId)
-    .FirstOrDefaultAsync();
+public sealed record User(int Id, string Name);
 
-// Better: use ORM
-var user = await _db.Users.FindAsync(userId);
+public sealed class AccountsContext(DbContextOptions<AccountsContext> options) : DbContext(options)
+{
+    public DbSet<User> Users => Set<User>();
+}
+
+public sealed class UserReader(AccountsContext db)
+{
+    // Vulnerable pattern: interpolating raw input into SQL text.
+    // var sql = $"SELECT * FROM Users WHERE Id = {rawUserInput}";
+
+    // Safe: pass the value as a query parameter through EF Core's relational API.
+    public Task<User?> QueryUserAsync(int userId, CancellationToken cancellationToken) =>
+        db.Users.FromSqlRaw("SELECT * FROM Users WHERE Id = {0}", userId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+    // Better: look up the primary key through the ORM.
+    public ValueTask<User?> FindUserAsync(int userId, CancellationToken cancellationToken) =>
+        db.Users.FindAsync([userId], cancellationToken);
+}
 ```
 
 Mitigations: Use parameterized queries/prepared statements. Validate and sanitize all inputs. Use allowlist validation.

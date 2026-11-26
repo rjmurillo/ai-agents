@@ -1,12 +1,12 @@
 ---
 id: ADR-088
-status: proposed
+status: accepted
 date: 2026-07-27
 decision-makers: []
 supersedes: []
 superseded-by: null
 explainer: null
-implemented: false
+implemented: true
 ---
 
 # ADR-088: Progressive Disclosure for Book-Derived Rules

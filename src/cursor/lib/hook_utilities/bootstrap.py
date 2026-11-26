@@ -1,11 +1,12 @@
-"""Bootstrap helper for Claude Code hook scripts.
+"""Bootstrap helpers for plugin hooks and skill scripts.
 
 This module provides setup_hook_lib_path() which locates the plugin's lib
 directory and adds it to sys.path. Designed to be called with __file__ to
 bootstrap hook imports.
 
-DO NOT use this helper to replace the inline bootstrap in `.claude/hooks/`
-hooks or in skill scripts governed by ADR-047. Those files MUST keep the
+DO NOT use setup_hook_lib_path() to replace the ADR-047 inline bootstrap.
+Only `council.py` and `sol_loop.py` may replace it with load_skill_paths().
+Other hooks and skill scripts keep the
 inline `os.environ.get("CLAUDE_PLUGIN_ROOT")` + `os.path.isdir(_lib_dir)`
 literals (this module also reads `COPILOT_PLUGIN_ROOT`, which the Copilot CLI
 exports): `tests/test_plugin_path_resolution.py` grep-asserts them, and the
@@ -23,14 +24,44 @@ The setup_hook_lib_path function handles:
 
 The resolve_plugin_lib_dir function is also available for cases where you
 need the lib path without auto-setup.
+
+ADR-047 documents load_skill_paths() for llm-council and sol-loop.
 """
 
 from __future__ import annotations
 
+import importlib.util
 import inspect
 import os
 import sys
 from pathlib import Path
+from types import ModuleType
+
+
+def _resolve_skill_paths_lib(own_lib: Path) -> Path:
+    """Find the first lib with paths.py in the two harness roots and own root."""
+    roots = (os.environ.get("COPILOT_PLUGIN_ROOT"), os.environ.get("CLAUDE_PLUGIN_ROOT"))
+    candidates = [Path(root) / "lib" for root in roots if root]
+    candidates.append(own_lib)
+    for lib_dir in candidates:
+        if (lib_dir / "paths.py").is_file():
+            return lib_dir.resolve()
+    raise RuntimeError(f"paths.py not found in any of: {', '.join(map(str, candidates))}")
+
+
+def load_skill_paths(own_lib: Path, script: str) -> ModuleType:
+    """Load the selected paths file, then enable resolved sibling skill imports."""
+    paths_file = _resolve_skill_paths_lib(own_lib) / "paths.py"
+    spec = importlib.util.spec_from_file_location("_skill_paths", paths_file)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load skill paths from {paths_file}")
+    paths = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(paths)
+    script_dir = str(Path(script).resolve().parent)
+    if script_dir in sys.path:
+        sys.path.remove(script_dir)
+    sys.path.insert(0, script_dir)
+    return paths
 
 
 def _plugin_root_from_env() -> str | None:

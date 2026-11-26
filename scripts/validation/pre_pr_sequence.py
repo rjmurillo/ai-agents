@@ -49,6 +49,7 @@ from check_agent_skill_docs import (
     validate_agent_skill_docs,
     validate_skill_page_freshness,
 )
+from check_agent_success_criterion import validate_agent_success_criterion
 from check_agent_tree_frontmatter import validate_agent_tree_frontmatter
 from check_agents_write_targets import validate_agents_write_targets
 from check_bypass_allowlist import validate_bypass_allowlist
@@ -66,6 +67,7 @@ from check_io_portability import validate_io_portability
 from check_md_links import validate_md_links
 from check_measurement_anchoring import validate_measurement_anchoring
 from check_nested_tests import validate_no_nested_tests
+from check_orchestrator_vocabulary import validate_orchestrator_vocabulary
 from check_promotion_exceptions import validate_promotion_exceptions
 from check_push_lock_paths import validate_push_lock_paths
 from check_required_context_conditions import validate_required_context_conditions
@@ -89,7 +91,10 @@ from checks_ci_parity import (
     validate_adr_uniqueness,
     validate_agent_registry,
     validate_agent_skill_discriminator,
+    validate_agent_skill_doc_review,
     validate_closure_manifest,
+    validate_dependency_drift,
+    validate_duplicate_code,
     validate_hook_contracts,
     validate_import_boundaries,
     validate_memory_placement,
@@ -103,6 +108,7 @@ from checks_ci_parity import (
     validate_skill_description_budget,
     validate_skillbook,
     validate_tracked_conflict_markers,
+    validate_unused_dependencies,
 )
 from checks_coverage import (
     validate_review_marker,
@@ -327,6 +333,9 @@ _SEQUENCE: tuple[_Gate, ...] = (
     ),
     _Gate("Nested Test Detection", _root_only(validate_no_nested_tests)),
     _Gate("Duplicate Test Helper Detection", _root_only(validate_duplicate_test_helpers)),
+    _Gate("Python Duplicate Code Detection", _root_only(validate_duplicate_code)),
+    _Gate("Unused Dependency Detection", _root_only(validate_unused_dependencies)),
+    _Gate("Dependency Version Drift", _root_only(validate_dependency_drift)),
     _Gate(
         "Unreachable Code Detection",
         _root_only(validate_unreachable_code),
@@ -450,6 +459,10 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # Advisory: a skill's facts changed since the base ref and its page did not
     # (rule agent-skill-docs MUST 2). pre_pr_policy licenses the FAIL.
     _Gate("Skill Page Freshness (advisory)", _root_only(validate_skill_page_freshness)),
+    # A changed skill or agent source (SKILL.md, skill template, agent template, or rendered
+    # agent) needs its page edited or named in a Docs-Reviewed: trailer (rule agent-skill-docs
+    # MUST 2). PR #7572 left docs/skills/ship.md stale, and the fact check above did not flag it.
+    _Gate("Agent and Skill Doc Review", _root_only(validate_agent_skill_doc_review)),
     # Fails when a line ADDED since the base ref cites a path-and-line
     # location that HEAD contradicts: file untracked, line out of range, or
     # the named anchor content living elsewhere. Automates the manual
@@ -701,6 +714,14 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # withholds Agent; Claude Code lets subagents spawn subagents otherwise.
     # Issue #5184; contract is MUST 9 in templates/rules/claude-agents.md.
     _Gate("Agent Delegation (src/claude/agents)", _root_only(validate_agent_delegation)),
+    # ADR-065: every agent declares the signal a router retries on, and the
+    # router agents carry no supervisor vocabulary. Issue #7639; contract is the
+    # Success Criterion section of templates/rules/claude-agents.md.
+    _Gate(
+        "Agent Success Criterion (src/claude/agents)",
+        _root_only(validate_agent_success_criterion),
+    ),
+    _Gate("Router Vocabulary (orchestrator)", _root_only(validate_orchestrator_vocabulary)),
     # A loose file directly under .claude/skills/ registers as a skill named after
     # the file (issue #5503, CLAUDE.md registered as skill "CLAUDE").
     _Gate(

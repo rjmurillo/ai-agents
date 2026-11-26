@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import sys
 import textwrap
@@ -18,6 +17,8 @@ if TESTS_SKILLS_DIR not in sys.path:
     sys.path.insert(0, TESTS_SKILLS_DIR)
 
 from claude_skills_import import import_skill_script
+
+from tests.skills.diff_scope_repo import DiffFileSelectionContract, make_repo_with_diff, run_git
 
 mod = import_skill_script(".claude/skills/taste-lints/scripts/taste_lints.py")
 check_file_size = mod.check_file_size
@@ -638,54 +639,11 @@ class TestMain:
         assert result == EXIT_VIOLATIONS
 
 
-def _run_git(repo: Path, *args: str) -> None:
-    """Run a git command in the given repo, failing loudly on error."""
-    subprocess.run(
-        ["git", *args],
-        cwd=repo,
-        check=True,
-        capture_output=True,
-        encoding="utf-8",
-    )
-
-
-def _make_repo_with_diff(repo: Path) -> None:
-    """Create a git repo on a feature branch with one file changed vs main."""
-    _run_git(repo, "init", "-b", "main")
-    _run_git(repo, "config", "user.email", "test@example.com")
-    _run_git(repo, "config", "user.name", "Test")
-    (repo / "base.py").write_text("x = 1\n")
-    _run_git(repo, "add", "base.py")
-    _run_git(repo, "commit", "-m", "base")
-    _run_git(repo, "checkout", "-b", "feature")
-    (repo / "changed.py").write_text("y = 2\n")
-    _run_git(repo, "add", "changed.py")
-    _run_git(repo, "commit", "-m", "change")
-
-
-class TestGetDiffFiles:
+class TestGetDiffFiles(DiffFileSelectionContract):
     """Tests for diff-scoped file selection (--diff-scope)."""
 
-    def test_returns_only_changed_files(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        _make_repo_with_diff(tmp_path)
-        monkeypatch.chdir(tmp_path)
-        result = get_diff_files("main")
-        # Paths are anchored to the git root so they resolve from any cwd.
-        assert len(result) == 1
-        assert os.path.isabs(result[0])
-        assert result[0].endswith("/changed.py")
-        assert os.path.isfile(result[0])
-
-    def test_returns_empty_when_no_changes(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        _make_repo_with_diff(tmp_path)
-        _run_git(tmp_path, "checkout", "main")
-        monkeypatch.chdir(tmp_path)
-        result = get_diff_files("main")
-        assert result == []
+    get_diff_files = staticmethod(get_diff_files)
+    governance_doc = None
 
     def test_returns_sorted_changed_files(self) -> None:
         # get_diff_files sorts for deterministic, mode-consistent output.
@@ -710,7 +668,7 @@ class TestGetDiffFiles:
         # An unknown base makes git exit non-zero. That is a failure, not an
         # empty diff: returning [] would let a standards pre-flight pass without
         # linting. The function must surface the failure.
-        _make_repo_with_diff(tmp_path)
+        make_repo_with_diff(tmp_path)
         monkeypatch.chdir(tmp_path)
         with pytest.raises(RuntimeError):
             get_diff_files("does-not-exist")
@@ -744,17 +702,17 @@ class TestMainDiffScope:
     def test_diff_scope_scans_only_changed_files(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        _make_repo_with_diff(tmp_path)
+        make_repo_with_diff(tmp_path)
         # Commit an oversized file on the base. A whole-tree scan would flag it,
         # but it is not in the feature diff so --diff-scope must ignore it. The
         # file is committed (not just left in the working tree) so the test
         # would catch a regression where scoping silently scans the whole tree.
-        _run_git(tmp_path, "checkout", "main")
+        run_git(tmp_path, "checkout", "main")
         (tmp_path / "legacy.py").write_text("x = 1\n" * 501)
-        _run_git(tmp_path, "add", "legacy.py")
-        _run_git(tmp_path, "commit", "-m", "oversized file on main")
-        _run_git(tmp_path, "checkout", "feature")
-        _run_git(tmp_path, "rebase", "main")
+        run_git(tmp_path, "add", "legacy.py")
+        run_git(tmp_path, "commit", "-m", "oversized file on main")
+        run_git(tmp_path, "checkout", "feature")
+        run_git(tmp_path, "rebase", "main")
         monkeypatch.chdir(tmp_path)
         with patch("sys.argv", ["taste_lints.py", "--diff-scope", "main"]):
             result = main()
@@ -763,11 +721,11 @@ class TestMainDiffScope:
     def test_diff_scope_flags_violation_in_changed_file(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        _make_repo_with_diff(tmp_path)
+        make_repo_with_diff(tmp_path)
         oversized = tmp_path / "changed.py"
         oversized.write_text("y = 2\n" * 501)
-        _run_git(tmp_path, "add", "changed.py")
-        _run_git(tmp_path, "commit", "-m", "grow")
+        run_git(tmp_path, "add", "changed.py")
+        run_git(tmp_path, "commit", "-m", "grow")
         monkeypatch.chdir(tmp_path)
         with patch("sys.argv", ["taste_lints.py", "--diff-scope", "main"]):
             result = main()
@@ -777,7 +735,7 @@ class TestMainDiffScope:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         # A git failure must surface as EXIT_ERROR, never a false EXIT_SUCCESS.
-        _make_repo_with_diff(tmp_path)
+        make_repo_with_diff(tmp_path)
         monkeypatch.chdir(tmp_path)
         with patch("sys.argv", ["taste_lints.py", "--diff-scope", "does-not-exist"]):
             result = main()
@@ -786,7 +744,7 @@ class TestMainDiffScope:
     def test_diff_scope_dash_base_returns_error(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        _make_repo_with_diff(tmp_path)
+        make_repo_with_diff(tmp_path)
         monkeypatch.chdir(tmp_path)
         with patch("sys.argv", ["taste_lints.py", "--diff-scope=--bad"]):
             result = main()
@@ -797,7 +755,7 @@ class TestMainDiffScope:
     ) -> None:
         # An empty base (e.g. ship/review passing "$BASE_BRANCH" while unset) must
         # error, not silently fall through to a full-repository scan.
-        _make_repo_with_diff(tmp_path)
+        make_repo_with_diff(tmp_path)
         monkeypatch.chdir(tmp_path)
         with patch("sys.argv", ["taste_lints.py", "--diff-scope", ""]):
             result = main()
@@ -809,11 +767,11 @@ class TestMainDiffScope:
         # Diff paths are repo-root-relative; anchoring them to the git root means
         # the lint still finds them when cwd is a subdirectory. Without the
         # anchor the file would be skipped and the gate would pass falsely.
-        _make_repo_with_diff(tmp_path)
+        make_repo_with_diff(tmp_path)
         oversized = tmp_path / "changed.py"
         oversized.write_text("y = 2\n" * 501)
-        _run_git(tmp_path, "add", "changed.py")
-        _run_git(tmp_path, "commit", "-m", "grow")
+        run_git(tmp_path, "add", "changed.py")
+        run_git(tmp_path, "commit", "-m", "grow")
         subdir = tmp_path / "nested"
         subdir.mkdir()
         monkeypatch.chdir(subdir)
@@ -878,7 +836,7 @@ class TestGetDiffLineNumbersTasteLints:
         assert result == {}
 
     def test_parses_added_lines(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        _make_repo_with_diff(tmp_path)
+        make_repo_with_diff(tmp_path)
         monkeypatch.chdir(tmp_path)
         result = get_diff_line_numbers("main")
         assert len(result) == 1
@@ -957,15 +915,15 @@ class TestFilterViolationsForDiff:
         it, this test would still pass -- meaning a survivor here indicates the
         parameter is not wired up.
         """
-        _make_repo_with_diff(tmp_path)
+        make_repo_with_diff(tmp_path)
         # Add a large file pre-existing on main
         lines = ["x = 1\n"] * 600
         (tmp_path / "big.py").write_text("".join(lines))
-        _run_git(tmp_path, "checkout", "main")
-        _run_git(tmp_path, "add", "big.py")
-        _run_git(tmp_path, "commit", "-m", "big file on main")
-        _run_git(tmp_path, "checkout", "feature")
-        _run_git(tmp_path, "rebase", "main")
+        run_git(tmp_path, "checkout", "main")
+        run_git(tmp_path, "add", "big.py")
+        run_git(tmp_path, "commit", "-m", "big file on main")
+        run_git(tmp_path, "checkout", "feature")
+        run_git(tmp_path, "rebase", "main")
         monkeypatch.chdir(tmp_path)
 
         big = str(tmp_path / "big.py")
@@ -983,14 +941,14 @@ class TestDiffScopeLineFilteringTasteLints:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """A large file on main not in the diff must not produce a file-size violation."""
-        _make_repo_with_diff(tmp_path)
+        make_repo_with_diff(tmp_path)
         lines = ["x = 1\n"] * 600
         (tmp_path / "big.py").write_text("".join(lines))
-        _run_git(tmp_path, "checkout", "main")
-        _run_git(tmp_path, "add", "big.py")
-        _run_git(tmp_path, "commit", "-m", "big file on main")
-        _run_git(tmp_path, "checkout", "feature")
-        _run_git(tmp_path, "rebase", "main")
+        run_git(tmp_path, "checkout", "main")
+        run_git(tmp_path, "add", "big.py")
+        run_git(tmp_path, "commit", "-m", "big file on main")
+        run_git(tmp_path, "checkout", "feature")
+        run_git(tmp_path, "rebase", "main")
         monkeypatch.chdir(tmp_path)
 
         diff_lines = get_diff_line_numbers("main")
@@ -1005,15 +963,15 @@ class TestDiffScopeLineFilteringTasteLints:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """A complexity violation introduced in the diff must still be flagged."""
-        _make_repo_with_diff(tmp_path)
+        make_repo_with_diff(tmp_path)
         # Write a complex function that will trigger check_complexity
         complex_code = "def f(x):\n"
         for i in range(12):
             complex_code += f"    if x == {i}:\n        return {i}\n"
         complex_code += "    return -1\n"
         (tmp_path / "complex.py").write_text(complex_code)
-        _run_git(tmp_path, "add", "complex.py")
-        _run_git(tmp_path, "commit", "-m", "add complex function")
+        run_git(tmp_path, "add", "complex.py")
+        run_git(tmp_path, "commit", "-m", "add complex function")
         monkeypatch.chdir(tmp_path)
 
         diff_lines = get_diff_line_numbers("main")
@@ -1043,18 +1001,18 @@ class TestDiffScopeLineFilteringTasteLints:
         # Pad to make the file long enough that we can add a line at the end
         padding = "# pad\n" * 50
         content = complex_code + padding
-        _make_repo_with_diff(tmp_path)
+        make_repo_with_diff(tmp_path)
         (tmp_path / "complex.py").write_text(content)
-        _run_git(tmp_path, "checkout", "main")
-        _run_git(tmp_path, "add", "complex.py")
-        _run_git(tmp_path, "commit", "-m", "complex function on main")
-        _run_git(tmp_path, "checkout", "feature")
-        _run_git(tmp_path, "rebase", "main")
+        run_git(tmp_path, "checkout", "main")
+        run_git(tmp_path, "add", "complex.py")
+        run_git(tmp_path, "commit", "-m", "complex function on main")
+        run_git(tmp_path, "checkout", "feature")
+        run_git(tmp_path, "rebase", "main")
         # Add one comment at the very end (high line) -- this is the ONLY change
         appended = content + "# new comment added by feature\n"
         (tmp_path / "complex.py").write_text(appended)
-        _run_git(tmp_path, "add", "complex.py")
-        _run_git(tmp_path, "commit", "-m", "add comment at end")
+        run_git(tmp_path, "add", "complex.py")
+        run_git(tmp_path, "commit", "-m", "add comment at end")
         monkeypatch.chdir(tmp_path)
 
         diff_lines = get_diff_line_numbers("main")

@@ -278,29 +278,14 @@ def _split_query_terms(query: str) -> list[str]:
     return safe
 
 
-def _search_with_ripgrep(
-    query: str,
+def _run_search_command(
+    cmd: list[str],
+    terms: list[str],
     memories_dir: Path,
-    deadline: float | None = None,
-    repo_root: Path | None = None,
+    deadline: float | None,
+    failure_outcome: str,
 ) -> list[Path] | None:
-    """Search using ripgrep. Returns None if rg is unavailable or fails.
-
-    Multi-word queries use OR logic, one pattern per stdin line.
-    """
-    rg_path = resolve_tool("rg", [repo_root, memories_dir])
-    if rg_path is None:
-        return None
-
-    terms = _split_query_terms(query)
-    if not terms:
-        return None
-
-    # Patterns go through stdin, not argv, so other local users cannot read
-    # prompt terms from the process list.
-    cmd: list[str] = [rg_path, "-il", "--no-config", "--no-ignore", "--glob", "*.md", "-f", "-"]
-    cmd += ["--", str(memories_dir)]
-
+    """Run a file-search tool with patterns on stdin and parse matching paths."""
     timeout = _search_timeout(deadline)
     if timeout is None:
         note("deadline reached before the file search started")
@@ -323,10 +308,35 @@ def _search_with_ripgrep(
         return None
 
     if result.returncode not in (0, 1):
-        _warn_search_failure(cmd[0], result.returncode, result.stderr, "falling back to grep")
+        _warn_search_failure(cmd[0], result.returncode, result.stderr, failure_outcome)
         return None
 
     return _parse_file_list(result.stdout, memories_dir)
+
+
+def _search_with_ripgrep(
+    query: str,
+    memories_dir: Path,
+    deadline: float | None = None,
+    repo_root: Path | None = None,
+) -> list[Path] | None:
+    """Search using ripgrep. Returns None if rg is unavailable or fails.
+
+    Multi-word queries use OR logic, one pattern per stdin line.
+    """
+    rg_path = resolve_tool("rg", [repo_root, memories_dir])
+    if rg_path is None:
+        return None
+
+    terms = _split_query_terms(query)
+    if not terms:
+        return None
+
+    # Patterns go through stdin, not argv, so other local users cannot read
+    # prompt terms from the process list.
+    cmd: list[str] = [rg_path, "-il", "--no-config", "--no-ignore", "--glob", "*.md", "-f", "-"]
+    cmd += ["--", str(memories_dir)]
+    return _run_search_command(cmd, terms, memories_dir, deadline, "falling back to grep")
 
 
 def _search_with_grep(
@@ -350,33 +360,7 @@ def _search_with_grep(
     # Patterns go through stdin, not argv, so other local users cannot read
     # prompt terms from the process list.
     cmd: list[str] = [grep_path, "-ril", "--include=*.md", "-f", "-", "--", str(memories_dir)]
-
-    timeout = _search_timeout(deadline)
-    if timeout is None:
-        note("deadline reached before the file search started")
-        return None
-
-    try:
-        result = subprocess.run(
-            cmd,
-            input="\n".join(terms) + "\n",
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout,
-        )
-    except subprocess.TimeoutExpired:
-        note(f"{Path(cmd[0]).stem} timed out after {timeout:g}s")
-        return None
-    except OSError:
-        return None
-
-    if result.returncode not in (0, 1):
-        _warn_search_failure(cmd[0], result.returncode, result.stderr, "recall skipped")
-        return None
-
-    return _parse_file_list(result.stdout, memories_dir)
+    return _run_search_command(cmd, terms, memories_dir, deadline, "recall skipped")
 
 
 def _warn_search_failure(tool: str, returncode: int, stderr: str, outcome: str) -> None:

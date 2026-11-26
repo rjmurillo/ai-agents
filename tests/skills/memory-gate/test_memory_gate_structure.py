@@ -23,44 +23,29 @@ Tests follow Arrange/Act/Assert, one behavior per test.
 from __future__ import annotations
 
 import re
-import sys
-from pathlib import Path
 
 import pytest
 
-_BUILD_SCRIPTS = Path(__file__).resolve().parents[3] / "build" / "scripts"
-sys.path.insert(0, str(_BUILD_SCRIPTS))
-try:
-    import plugin_run_launcher
-finally:
-    sys.path.remove(str(_BUILD_SCRIPTS))
+from tests.skills.skill_structure_support import (
+    BACKTICK_TRIGGER,
+    SKILLS_DIR,
+    frontmatter_block,
+    locator_targets,
+)
 
-SKILL_DIR = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "memory-gate"
+SKILL_DIR = SKILLS_DIR / "memory-gate"
 SKILL_MD = SKILL_DIR / "SKILL.md"
 AGENT_INTEGRATION_REFERENCE = SKILL_DIR / "references" / "agent-integration.md"
 
-_FRONTMATTER = re.compile(r"(?s)\A---\r?\n(.*?)\r?\n---\r?\n")
 _VENDOR_FORBIDDEN = re.compile(r"(?<!\w)(?:\.agents|\.serena|\.github)/", re.IGNORECASE)
-_BACKTICK_TRIGGER = re.compile(r"`[^`]+`")
 
 
 def _read_skill() -> str:
     return SKILL_MD.read_text(encoding="utf-8")
 
 
-def _locator_targets(body: str) -> set[str]:
-    return {
-        match.script_rel
-        for line in body.splitlines()
-        for match in plugin_run_launcher.find_locators(line)
-        if match.script_rel
-    }
-
-
 def _frontmatter_block() -> str:
-    match = _FRONTMATTER.search(_read_skill())
-    assert match is not None, "SKILL.md must open with a --- frontmatter block"
-    return match.group(1)
+    return frontmatter_block(_read_skill())
 
 
 def test_skill_md_exists() -> None:
@@ -101,7 +86,7 @@ def test_description_names_gate_operation() -> None:
 def test_description_has_three_to_five_backtick_triggers() -> None:
     # Arrange: SkillForge requires 3 to 5 backtick-wrapped trigger phrases.
     block = _frontmatter_block()
-    triggers = _BACKTICK_TRIGGER.findall(block)
+    triggers = BACKTICK_TRIGGER.findall(block)
 
     # Act / Assert
     assert 3 <= len(triggers) <= 5, (
@@ -132,7 +117,7 @@ def test_uses_portable_script_root() -> None:
     # Act / Assert: executable invocations must run through the plugin-root
     # locator (ADR-121) so a vendored install, or a foreign plugin that exports
     # CLAUDE_PLUGIN_ROOT, cannot redirect the command.
-    assert "skills/memory/scripts/search_memory.py" in _locator_targets(body), (
+    assert "skills/memory/scripts/search_memory.py" in locator_targets(body), (
         "memory-gate must invoke search_memory.py through the plugin-root locator"
     )
 

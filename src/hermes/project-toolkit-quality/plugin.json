@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "project-toolkit-quality",
+  "description": "Project Toolkit skills for security and reliability engineering, code and documentation standards, metrics, and independent model review.",
+  "author": {
+    "name": "rjmurillo"
+  },
+  "license": "Apache-2.0"
+}

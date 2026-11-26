@@ -60,9 +60,9 @@ working tree.
     `src/copilot-cli/skills/steering-matcher/steering-matcher.skill`]
 15. `delete:` CodeQL suppressions file, 12 lines, all comments, not wired to the
     CodeQL workflow. Nothing. [`.github/codeql/suppressions.yml`]
-16. `delete:` two pre-PR runner flags that are parsed and never read, one of
-    them advertised in the PR template checklist. Nothing.
-    [two `add_argument` blocks at `scripts/validation/pre_pr.py:305-335`].
+16. `delete:` two pre-PR runner flags that were parsed but never read.
+    One appeared in the PR template checklist. Nothing.
+    See [the parser correction](https://github.com/rjmurillo/ai-agents/commit/25b9a57a5eed213862d31518ddc87a7ba1517f77) from 2026-09-04.
 17. `delete:` inert `warn` (8 keys) and `coupling.max` (2 keys) in the quality
     config, which the assessor never reads despite the file's own `_comment`
     claiming otherwise. Nothing. [`.qualityrc.json`]
@@ -144,7 +144,7 @@ extra (`mypy`, `semgrep`, `bandit`, `pip-audit`, `ruff`, `pytest*`, `lefthook`,
    the "Session End" PR validation;
    `git_hook_policy.py session` is a validate-if-present pre-commit gate that
    `lefthook.yml` runs as `session-policy`; and
-   `scripts/validation/pre_pr_sequence.py:380` registers it as the
+   `scripts/validation/pre_pr_sequence.py:389` registers it as the
    "Session End Validation" gate.
    All three fire
    whenever a legacy log is staged or cherry-picked, so the validator stays.

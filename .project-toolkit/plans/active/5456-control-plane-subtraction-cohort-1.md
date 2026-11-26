@@ -115,9 +115,9 @@ a process reminder alone.
   governance layer, forbidden by the epic's Abort-if clause 3).
 - ADR-100 item 5 (`post_qa_code_changes` rebind churn) and item 6 (REQ-023
   Out of Scope / Deferred).
-- **PR3 as originally seeded ("delete duplicate gate execution in
-  pre_pr_sequence.py:255-257")**: dropped entirely from this cohort. See
-  Decision Log below.
+- **PR3's original duplicate-gate deletion proposal**: dropped entirely from this cohort.
+  The [2026-09-22 seed](https://github.com/rjmurillo/ai-agents/blob/efd148e89bd1dea56da04f981c08e14448316ded/.project-toolkit/plans/active/5456-control-plane-subtraction-cohort-1.md)
+  records that superseded proposal. See Decision Log below.
 - A follow-up correction to
   `.serena/memories/ci/ci-pre-push-wall-clock-is-python-tests.md`'s "The
   same work runs twice in one hook" section, which this cohort's research

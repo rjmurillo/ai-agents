@@ -6,6 +6,8 @@ review-by: 2026-07-11
 
 # DRY Principle
 
+<!-- doc-accuracy: external-sdk dotnet -- C# examples use ADO.NET and the .NET base class library, not this repository -->
+
 Every piece of knowledge must have a single, unambiguous, authoritative representation within the system. Attribution: Andy Hunt and Dave Thomas, The Pragmatic Programmer (1999).
 
 ## Scope of Redundancy
@@ -44,7 +46,21 @@ if (status == CompletedStatus) { ... }
 **Extract methods**: Replace repeated construction or logic with a single method.
 
 ```csharp
-var connection = CreateConnection(config);
+using System.Data.Common;
+
+static DbConnection CreateConnection(DbProviderFactory factory, string connectionString)
+{
+    var connection = factory.CreateConnection()
+        ?? throw new System.InvalidOperationException("The provider cannot create a connection.");
+    connection.ConnectionString = connectionString;
+    return connection;
+}
+
+static void CheckConnectivity(DbProviderFactory factory, string connectionString)
+{
+    using var connection = CreateConnection(factory, connectionString);
+    connection.Open();
+}
 ```
 
 **Extract classes**: When logic is duplicated across classes, use inheritance (if variations of a common concept) or delegation (if shared need resolved in a common way).

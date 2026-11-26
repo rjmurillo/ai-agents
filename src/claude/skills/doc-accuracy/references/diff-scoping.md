@@ -65,8 +65,14 @@ line, the paired code file and line, evidence, and a severity.
 |------|------------|----------|
 | R1 exit-code set | A touched exit table omits a literal process exit. Dynamic exits remain unjudged. | high |
 | R2 enumeration subset | A closed language or path enumeration omits a collection member. A path list binds only when its line names the collection or its script, or sits in that script. | high |
-| R3 JSON key contents | A claimed noun disagrees with identifiers assigned to its JSON key. | high |
+| R3 JSON key contents | JSON prose names a value that its paired writer never assigns. | high |
 | R4 collection count | A count beside a named literal collection differs from its length. | high |
+
+R2 and R4 need a file reference for collections named in lowercase.
+Prose within the collection's own script also counts as a file reference.
+R4 treats empty lowercase collections as initializers.
+R3 prefers a writer named by the prose or found in its own file.
+When prose names no script, R3 needs one source file for the key.
 
 Touched exit tables include unchanged rows.
 Explicit script paths can resolve unchanged literal collections.

@@ -23,6 +23,7 @@ Exit Codes:
 """
 
 import argparse
+import ast
 import builtins
 import importlib
 import io
@@ -34,8 +35,11 @@ import re
 import shlex
 import subprocess
 import sys
+import textwrap
 import tokenize
+import typing
 from dataclasses import dataclass
+from functools import cache
 from pathlib import Path
 from types import ModuleType
 from typing import Any, cast
@@ -57,6 +61,9 @@ class SourceSymbol:
     line: int
     signature: str
     visibility: str = "public"
+    declaring_type: str = ""
+    partial_scope: str = ""
+    parameter_names: list[str] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -66,6 +73,13 @@ class SourceSymbol:
             "line": self.line,
             "signature": self.signature,
             "visibility": self.visibility,
+            **({"declaring_type": self.declaring_type} if self.declaring_type else {}),
+            **({"partial_scope": self.partial_scope} if self.partial_scope else {}),
+            **(
+                {"parameter_names": self.parameter_names}
+                if self.parameter_names is not None
+                else {}
+            ),
         }
 
 
@@ -363,6 +377,37 @@ def _should_exclude(
     return False
 
 
+_CSHARP_NAMESPACE_RE = re.compile(r"\bnamespace\s+([\w.]+)\s*([;{])")
+_CSHARP_PARAMETER_NAME_RE = re.compile(r"\b([A-Za-z_]\w*)\s*$")
+
+
+def _csharp_parameter_names(
+    view: str, opening: int, owners: list[int], ends: dict[int, int]
+) -> list[str] | None:
+    close = ends.get(opening)
+    if close is None:
+        return None
+    names: list[str] = []
+    start, generic_depth, default_at = opening + 1, 0, None
+    for token in re.finditer(r"[<>=,)]", view[start : close + 1]):
+        index = opening + 1 + token.start()
+        if owners[index] != opening:
+            continue
+        match token[0]:
+            case "<" if default_at is None:
+                generic_depth += 1
+            case ">" if generic_depth:
+                generic_depth -= 1
+            case "=" if not generic_depth and default_at is None:
+                default_at = index
+            case "," | ")" if not generic_depth:
+                parameter = view[start : default_at if default_at is not None else index]
+                if name := _CSHARP_PARAMETER_NAME_RE.search(parameter):
+                    names.append(name[1])
+                start, default_at = index + 1, None
+    return names
+
+
 def _extract_csharp_symbols(content: str, file_path: str) -> list[SourceSymbol]:
     """Extract public symbols from C# source."""
     symbols: list[SourceSymbol] = []
@@ -376,21 +421,52 @@ def _extract_csharp_symbols(content: str, file_path: str) -> list[SourceSymbol]:
         r"|(?:[\w<>\[\],?\s]+)\s+(\w+)\s*[<(])"
     )
 
-    for i, line in enumerate(lines):
+    view = _c_family_code_view(content, "csharp")
+    owners, ends = _balanced_groups(view)
+    namespaces = {m.end() - 1: m[1] for m in _CSHARP_NAMESPACE_RE.finditer(view) if m[2] == "{"}
+    file_namespaces = [m[1] for m in _CSHARP_NAMESPACE_RE.finditer(view) if m[2] == ";"]
+    type_bodies = {
+        header.end() - 1: header["name"]
+        for header in _CSHARP_TYPE_HEADER_RE.finditer(view)
+        if header.end() - 1 in ends
+    }
+    offset = 0
+    for i, (line, checked_line) in enumerate(zip(lines, view.split("\n"), strict=True)):
+        start = offset
+        offset += len(line) + 1
         match = pattern.match(line)
         if not match:
             continue
 
+        declaring_type = ""
+        partial_scope = ""
+        parameter_names = None
+        checked_match = pattern.match(checked_line)
         if match.group(1):
             # Type declaration
             kind = match.group(1)
             name = match.group(2)
             sig = line.strip()
+            if checked_match and "partial" in checked_line[: match.start(1)].split():
+                owner = owners[start + match.start(2)]
+                if owner in namespaces and owners[owner] == -1:
+                    partial_scope = f"{Path(file_path).parent}:{namespaces[owner]}"
+                elif owner == -1 and len(file_namespaces) <= 1:
+                    namespace = file_namespaces[0] if file_namespaces else ""
+                    partial_scope = f"{Path(file_path).parent}:{namespace}"
+                if checked_line[match.end(2) :].lstrip().startswith("<"):
+                    partial_scope = ""
         else:
             # Method or property
             name = match.group(3)
             kind = "method" if "(" in line else "property"
             sig = line.strip()
+            if checked_match and (position := start + match.start(3)) < len(view):
+                declaring_type = type_bodies.get(
+                    _csharp_type_body(position, owners, type_bodies), ""
+                )
+                if method := _CSHARP_METHOD_USE_RE.match(view, position + len(name)):
+                    parameter_names = _csharp_parameter_names(view, method.end() - 1, owners, ends)
 
         symbols.append(
             SourceSymbol(
@@ -399,6 +475,9 @@ def _extract_csharp_symbols(content: str, file_path: str) -> list[SourceSymbol]:
                 file=file_path,
                 line=i + 1,
                 signature=sig,
+                declaring_type=declaring_type,
+                partial_scope=partial_scope,
+                parameter_names=parameter_names,
             )
         )
 
@@ -488,21 +567,51 @@ def _find_referenced_symbols(doc_content: str, symbol_names: set[str]) -> list[s
     return sorted(set(found))
 
 
+def _source_reference_index(
+    source_files: dict[str, str],
+    source_symbols: list[SourceSymbol],
+) -> dict[str, set[str]]:
+    """Index file names, qualified modules, and unambiguous public symbols."""
+    references: dict[str, set[str]] = {}
+    symbols: dict[str, set[str]] = {}
+    for src_path in source_files:
+        path = Path(src_path)
+        references.setdefault(src_path, set()).add(src_path)
+        references.setdefault(path.name, set()).add(src_path)
+        if path.suffix == ".py":
+            module = path.parent if path.stem == "__init__" else path.with_suffix("")
+            for start in range(len(module.parts) - 1):
+                name = ".".join(module.parts[start:])
+                references.setdefault(name, set()).add(src_path)
+    for symbol in source_symbols:
+        symbols.setdefault(symbol.name, set()).add(symbol.file)
+        path = Path(symbol.file)
+        module_name = path.parent.name if path.stem == "__init__" else path.stem
+        references.setdefault(f"{module_name}.{symbol.name}", set()).add(symbol.file)
+    for name, paths in symbols.items():
+        # Identical projections remain coupled. Distinct implementations need
+        # a qualified reference, rather than guessing from words like "main".
+        if len({source_files[path] for path in paths}) == 1:
+            references.setdefault(name, set()).update(paths)
+    return references
+
+
 def _map_doc_to_source(
     doc_path: str,
     doc_content: str,
-    source_files: dict[str, str],
+    source_references: dict[str, set[str]],
 ) -> list[str]:
-    """Map a documentation file to relevant source files."""
-    mapped: list[str] = []
-    doc_lower = doc_content.lower()
-
-    for src_path in source_files:
-        src_name = Path(src_path).stem.lower()
-        if src_name in doc_lower:
-            mapped.append(src_path)
-
-    return sorted(set(mapped))
+    """Map explicit references without matching prose against bare file stems."""
+    mapped: set[str] = set()
+    for reference in re.findall(r"\w+(?:[./\\-]\w+)*", doc_content):
+        reference = reference.replace("\\", "/")
+        paths = source_references.get(reference)
+        if not paths:
+            paths = source_references.get(reference.rsplit("/", 1)[-1])
+        if not paths and "/" not in reference:
+            paths = source_references.get(reference.rsplit(".", 1)[-1])
+        mapped.update(paths or ())
+    return sorted(mapped)
 
 
 def _count_code_blocks(content: str) -> int:
@@ -1130,6 +1239,8 @@ def run_assessment(
             for s in syms:
                 symbol_names.add(s.name)
 
+    source_references = _source_reference_index(source_files, source_symbols)
+
     # Build doc file inventory
     doc_inventory: list[DocFile] = []
     changed_lines: dict[str, list[list[int]]] = {}
@@ -1147,7 +1258,7 @@ def run_assessment(
             continue
 
         refs = _find_referenced_symbols(content, symbol_names)
-        mapped = _map_doc_to_source(rel_path, content, source_files)
+        mapped = _map_doc_to_source(rel_path, content, source_references)
         line_count = content.count("\n") + 1
         if changed_files is not None:
             # No parsed hunk, or a symlinked doc (git diffs only the link
@@ -1337,6 +1448,1668 @@ def _python_stdlib_imported_names(code: str) -> set[str]:
     return names
 
 
+def _python_example_definitions(code: str) -> set[str]:
+    """Resolve top-level declarations without hiding imports or nested names."""
+    try:
+        tree = ast.parse(textwrap.dedent(code))
+    except SyntaxError:
+        return set()
+    definitions = {
+        node.name
+        for node in tree.body
+        if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    imports = {
+        name
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.Import, ast.ImportFrom))
+        for alias in node.names
+        for name in (alias.name, alias.asname)
+        if name
+    }
+    return definitions - imports
+
+
+_PyPos = tuple[int, int]  # (line, character column) in the dedented example
+_PyDef = ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef
+_PY_DEF_NAME_RE = re.compile(r"\b(?:def|class)\s+(\w+)")
+_WORD_RE = re.compile(r"\w+")
+_PY_NESTED_SCOPES = (ast.Lambda, ast.ListComp, ast.SetComp, ast.GeneratorExp, ast.DictComp)
+_PY_TERMINAL_STATEMENTS = (ast.Return, ast.Raise, ast.Break, ast.Continue)
+# Bindings definitely made so far: a class scope, a stdlib module, or an untyped name.
+_PyDefined = dict[str, "_PyScope | None"]
+
+
+class _PyScope:
+    """One Python scope in an example: module, class, function or comprehension.
+
+    ``_local`` holds every name the scope binds anywhere, so a read of a local
+    name never falls through to an enclosing scope. ``defined`` holds the
+    names definitely bound at the current point of the flow analysis.
+    ``_outer`` is what enclosing scopes had definitely bound when this scope
+    was created. A plain class, not a dataclass: on Python 3.10 a dataclass
+    resolves its self-referencing string annotations through ``sys.modules``,
+    which a script loaded by file path may not be registered in.
+    """
+
+    def __init__(self, kind: str, parent: "_PyScope | None", local: set[str]) -> None:
+        self._kind = kind
+        self._local = local
+        self.never: set[str] = set()
+        self.defined: _PyDefined = {}
+        self._outer: _PyDefined = {}
+        if parent is not None:
+            self._outer = dict(parent._outer)
+            if parent._kind != "class":
+                # Nested scopes never see a class body's names.
+                for name in parent._local | parent.never:
+                    self._outer.pop(name, None)
+                self._outer.update(
+                    (n, v) for n, v in parent.defined.items() if n not in parent.never
+                )
+
+    def lookup(self, name: str) -> tuple[bool, "_PyScope | None"]:
+        """Whether ``name`` is definitely bound here and what it binds."""
+        if name in self.never:
+            return False, None
+        table = self.defined if name in self._local else self._outer
+        return (name in table), table.get(name)
+
+
+_PyImportResolver = typing.Callable[[str, str], "_PyScope | None"]
+_PY_STDLIB_MODULE = _PyScope("stdlib", None, set())
+
+
+def _py_scope_locals(nodes: list[Any]) -> tuple[set[str], set[str]]:
+    """Names a scope binds anywhere, and names it declares global or nonlocal.
+
+    Nested function, class, lambda and comprehension bodies are not walked;
+    only a nested definition's own name binds here.
+    """
+    local: set[str] = set()
+    never: set[str] = set()
+    stack = list(nodes)
+    while stack:
+        node = stack.pop()
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            local.add(node.name)
+            continue
+        if isinstance(node, _PY_NESTED_SCOPES):
+            continue
+        if isinstance(node, ast.Name) and not isinstance(node.ctx, ast.Load):
+            local.add(node.id)
+        elif isinstance(node, (ast.Global, ast.Nonlocal)):
+            never.update(node.names)
+        elif isinstance(node, ast.alias):
+            local.add(node.asname or node.name.split(".")[0])
+        elif isinstance(node, ast.ExceptHandler) and node.name:
+            local.add(node.name)
+        elif isinstance(node, (ast.MatchAs, ast.MatchStar)) and node.name:
+            local.add(node.name)
+        elif isinstance(node, ast.MatchMapping) and node.rest:
+            local.add(node.rest)
+        stack.extend(ast.iter_child_nodes(node))
+    return local, never
+
+
+class _PyBindingCollector(ast.NodeVisitor):
+    """Record each name occurrence and whether it resolves within the example.
+
+    A conservative definite-assignment pass. A read resolves only when every
+    path reaching it binds the name: ``if`` needs both branches, ``try``
+    needs the body and every handler, and a binding inside a loop body,
+    ``with`` body or ``match`` case does not survive the statement. A short-
+    circuit or conditional-expression walrus never binds definitely.
+    Imports resolve only when an exact repository module proves a class
+    binding. ``global``/``nonlocal``, ``except`` aliases and match captures
+    stay checkable.
+    """
+
+    def __init__(
+        self, lines: list[str], tree: ast.Module, resolve_import: _PyImportResolver | None = None
+    ) -> None:
+        self._lines = lines
+        local, never = _py_scope_locals(tree.body)
+        self._scope = _PyScope("module", None, local)
+        self._scope.never = never
+        self.uses: list[tuple[_PyPos, str, bool]] = []
+        self.unproven_module_roots: set[_PyPos] = set()
+        self._conditional = 0  # depth inside short-circuit or ternary operands
+        self._halted = False  # the last statement left its block
+        self._resolve_import = resolve_import
+
+    def _pos(self, lineno: int, byte_col: int) -> _PyPos:
+        line = self._lines[lineno - 1].encode("utf-8")
+        return lineno, len(line[:byte_col].decode("utf-8", "replace"))
+
+    def _bind(self, name: str, pos: _PyPos | None, class_scope: "_PyScope | None" = None) -> None:
+        if pos is not None:
+            self.uses.append((pos, name, True))
+        if self._conditional == 0 and name not in self._scope.never:
+            self._scope.defined[name] = class_scope
+
+    def _visit_all(self, nodes: list[Any]) -> None:
+        for child in nodes:
+            if child is not None:
+                self.visit(child)
+
+    # --- expressions --------------------------------------------------------
+
+    def visit_Name(self, node: ast.Name) -> None:
+        pos = self._pos(node.lineno, node.col_offset)
+        if isinstance(node.ctx, ast.Store):
+            self._bind(node.id, pos)
+        elif isinstance(node.ctx, ast.Load):
+            self.uses.append((pos, node.id, self._scope.lookup(node.id)[0]))
+        else:
+            self.uses.append((pos, node.id, False))
+            self._scope.defined.pop(node.id, None)
+
+    def visit_Attribute(self, node: ast.Attribute) -> None:
+        self.visit(node.value)
+        line, end = self._pos(cast(int, node.end_lineno), cast(int, node.end_col_offset))
+        resolved = False
+        if isinstance(node.value, ast.Name):
+            found, class_scope = self._scope.lookup(node.value.id)
+            resolved = found and class_scope is not None and node.attr in class_scope.defined
+            if class_scope is not _PY_STDLIB_MODULE:
+                self.unproven_module_roots.add(self._pos(node.value.lineno, node.value.col_offset))
+        self.uses.append(((line, end - len(node.attr)), node.attr, resolved))
+
+    def visit_NamedExpr(self, node: ast.NamedExpr) -> None:
+        self.visit(node.value)
+        self.visit(node.target)
+
+    def visit_BoolOp(self, node: ast.BoolOp) -> None:
+        self.visit(node.values[0])
+        self._conditional += 1
+        self._visit_all(node.values[1:])
+        self._conditional -= 1
+
+    def visit_IfExp(self, node: ast.IfExp) -> None:
+        self.visit(node.test)
+        self._conditional += 1
+        self._visit_all([node.body, node.orelse])
+        self._conditional -= 1
+
+    # --- simple statements ----------------------------------------------------
+
+    def visit_Import(self, node: ast.Import) -> None:
+        for alias in node.names:
+            root = alias.name.split(".")[0]
+            name = alias.asname or root
+            self._scope.defined.pop(name, None)
+            if root in sys.stdlib_module_names:
+                self._bind(name, None, _PY_STDLIB_MODULE)
+
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+        for alias in node.names:
+            name = alias.asname or alias.name
+            if name == "*":
+                self._scope.defined.clear()
+                continue
+            # An unverified import still replaces any previous binding.
+            self._scope.defined.pop(name, None)
+            if self._resolve_import is None or node.module is None or node.level:
+                continue
+            class_scope = self._resolve_import(node.module, alias.name)
+            if class_scope is None or name in self._scope.never:
+                continue
+            self.uses.append((self._pos(alias.lineno, alias.col_offset), alias.name, True))
+            self._bind(name, None, class_scope)
+            if alias.asname:
+                end = cast(int, alias.end_col_offset) - len(name.encode("utf-8"))
+                self.uses.append((self._pos(cast(int, alias.end_lineno), end), name, True))
+
+    def visit_Assign(self, node: ast.Assign) -> None:
+        self.visit(node.value)
+        self._visit_all(node.targets)
+
+    def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
+        self._visit_all([node.annotation, node.value])
+        if node.value is None and isinstance(node.target, ast.Name):
+            # ``NAME: int`` declares a type but binds nothing.
+            pos = self._pos(node.target.lineno, node.target.col_offset)
+            self.uses.append((pos, node.target.id, False))
+            return
+        self.visit(node.target)
+
+    def visit_AugAssign(self, node: ast.AugAssign) -> None:
+        if isinstance(node.target, ast.Name):
+            pos = self._pos(node.target.lineno, node.target.col_offset)
+            self.uses.append((pos, node.target.id, self._scope.lookup(node.target.id)[0]))
+        self.visit(node.value)
+        self.visit(node.target)
+
+    def generic_visit(self, node: ast.AST) -> None:
+        super().generic_visit(node)
+        if isinstance(node, _PY_TERMINAL_STATEMENTS):
+            self._halted = True
+
+    # --- control flow ---------------------------------------------------------
+
+    def _run_block(self, stmts: list[ast.stmt], start: _PyDefined) -> _PyDefined | None:
+        """Visit ``stmts`` from ``start``; the bindings at exit, or None if none falls out."""
+        self._scope.defined = dict(start)
+        self._halted = False
+        for stmt in stmts:
+            self.visit(stmt)
+            if self._halted:
+                self._halted = False
+                return None
+        return self._scope.defined
+
+    def _merge(self, paths: list[_PyDefined | None], start: _PyDefined) -> None:
+        """Keep only bindings every path that falls through has made."""
+        live = [path for path in paths if path is not None]
+        if not live:
+            self._scope.defined = dict(start)
+            self._halted = True
+            return
+        merged = {
+            name: value for name, value in live[0].items() if all(name in path for path in live[1:])
+        }
+        for name in merged:
+            if any(path[name] is not merged[name] for path in live[1:]):
+                merged[name] = None
+        self._scope.defined = merged
+        self._halted = False
+
+    def visit_If(self, node: ast.If) -> None:
+        self.visit(node.test)
+        start = dict(self._scope.defined)
+        body = self._run_block(node.body, start)
+        orelse = self._run_block(node.orelse, start)
+        self._merge([body, orelse], start)
+
+    def _visit_loop(self, node: ast.For | ast.AsyncFor | ast.While) -> None:
+        # The body may run zero times, so nothing it binds survives the loop.
+        self.visit(node.iter if not isinstance(node, ast.While) else node.test)
+        start = dict(self._scope.defined)
+        if not isinstance(node, ast.While):
+            self.visit(node.target)
+        self._run_block(node.body, self._scope.defined)
+        self._run_block(node.orelse, start)
+        self._scope.defined = start
+        self._halted = False
+
+    def visit_For(self, node: ast.For) -> None:
+        self._visit_loop(node)
+
+    def visit_AsyncFor(self, node: ast.AsyncFor) -> None:
+        self._visit_loop(node)
+
+    def visit_While(self, node: ast.While) -> None:
+        self._visit_loop(node)
+
+    def _visit_with(self, node: ast.With | ast.AsyncWith) -> None:
+        # A context manager may suppress an exception raised in the body.
+        for item in node.items:
+            self.visit(item.context_expr)
+            self._visit_all([item.optional_vars])
+        start = dict(self._scope.defined)
+        self._run_block(node.body, start)
+        self._scope.defined = start
+        self._halted = False
+
+    def visit_With(self, node: ast.With) -> None:
+        self._visit_with(node)
+
+    def visit_AsyncWith(self, node: ast.AsyncWith) -> None:
+        self._visit_with(node)
+
+    def visit_Match(self, node: Any) -> None:
+        self.visit(node.subject)
+        start = dict(self._scope.defined)
+        for case in node.cases:
+            self._scope.defined = dict(start)
+            self._visit_all([case.pattern, case.guard])
+            self._run_block(case.body, self._scope.defined)
+        self._scope.defined = start
+        self._halted = False
+
+    def _visit_try(self, node: Any) -> None:
+        # An exception can leave the body before any binding in it.
+        start = dict(self._scope.defined)
+        body = self._run_block(node.body, start)
+        if body is not None:
+            body = self._run_block(node.orelse, body)
+        paths = [body]
+        for handler in node.handlers:
+            self._scope.defined = dict(start)
+            self._visit_all([handler.type])
+            paths.append(self._run_block(handler.body, self._scope.defined))
+        self._merge(paths, start)
+        merged, halted = self._scope.defined, self._halted
+        final = self._run_block(node.finalbody, start)
+        if final is None:
+            self._scope.defined, self._halted = merged, True
+            return
+        self._scope.defined = {**merged, **final}
+        self._halted = halted
+
+    def visit_Try(self, node: ast.Try) -> None:
+        self._visit_try(node)
+
+    def visit_TryStar(self, node: Any) -> None:
+        self._visit_try(node)
+
+    # --- scopes ---------------------------------------------------------------
+
+    def _bind_def_name(self, node: _PyDef, class_scope: "_PyScope | None" = None) -> None:
+        lineno, col = self._pos(node.lineno, node.col_offset)
+        match = _PY_DEF_NAME_RE.search(self._lines[lineno - 1], col)
+        found = match is not None and match[1] == node.name
+        pos = (lineno, cast(re.Match[str], match).start(1)) if found else None
+        self._bind(node.name, pos, class_scope)
+
+    def _enter(self, kind: str, local: set[str], never: set[str] | None = None) -> _PyScope:
+        outer = self._scope
+        self._scope = _PyScope(kind, outer, local)
+        self._scope.never = never or set()
+        return outer
+
+    def _leave(self, outer: _PyScope) -> None:
+        self._scope = outer
+        self._halted = False
+
+    def _bind_arguments(self, args: ast.arguments) -> None:
+        every = [*args.posonlyargs, *args.args, *args.kwonlyargs, args.vararg, args.kwarg]
+        for arg in every:
+            if arg is not None:
+                self._bind(arg.arg, self._pos(arg.lineno, arg.col_offset))
+
+    @staticmethod
+    def _argument_names(args: ast.arguments) -> set[str]:
+        every = [*args.posonlyargs, *args.args, *args.kwonlyargs, args.vararg, args.kwarg]
+        return {arg.arg for arg in every if arg is not None}
+
+    def _visit_function(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
+        args = node.args
+        every = [*args.posonlyargs, *args.args, *args.kwonlyargs, args.vararg, args.kwarg]
+        self._visit_all([*node.decorator_list, *args.defaults, *args.kw_defaults, node.returns])
+        self._visit_all([arg.annotation for arg in every if arg is not None])
+        self._bind_def_name(node)
+        local, never = _py_scope_locals(node.body)
+        outer = self._enter("function", local | self._argument_names(args), never)
+        self._bind_arguments(args)
+        self._run_block(node.body, self._scope.defined)
+        self._leave(outer)
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self._visit_function(node)
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        self._visit_function(node)
+
+    def visit_Lambda(self, node: ast.Lambda) -> None:
+        self._visit_all([*node.args.defaults, *node.args.kw_defaults])
+        outer = self._enter("function", self._argument_names(node.args))
+        self._bind_arguments(node.args)
+        self.visit(node.body)
+        self._leave(outer)
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        self._visit_all([*node.decorator_list, *node.bases, *node.keywords])
+        local, never = _py_scope_locals(node.body)
+        outer = self._enter("class", local, never)
+        class_scope = self._scope
+        self._run_block(node.body, {})
+        self._leave(outer)
+        # A class name binds only after its body has run.
+        self._bind_def_name(node, class_scope)
+
+    def _visit_comprehension(self, node: Any) -> None:
+        generators: list[ast.comprehension] = node.generators
+        self.visit(generators[0].iter)
+        local, _ = _py_scope_locals([generator.target for generator in generators])
+        outer = self._enter("comprehension", local)
+        for index, generator in enumerate(generators):
+            self.visit(generator.target)
+            if index:
+                self.visit(generator.iter)
+            self._visit_all(generator.ifs)
+        self._visit_all([getattr(node, field, None) for field in ("elt", "key", "value")])
+        self._leave(outer)
+
+    def visit_ListComp(self, node: ast.ListComp) -> None:
+        self._visit_comprehension(node)
+
+    def visit_SetComp(self, node: ast.SetComp) -> None:
+        self._visit_comprehension(node)
+
+    def visit_GeneratorExp(self, node: ast.GeneratorExp) -> None:
+        self._visit_comprehension(node)
+
+    def visit_DictComp(self, node: ast.DictComp) -> None:
+        self._visit_comprehension(node)
+
+
+def _python_example_bindings(
+    code: str, resolve_import: _PyImportResolver | None
+) -> tuple[set[str], str]:
+    """Return excluded names and the code view after stdlib chain blanking.
+
+    A read resolves only to a binding that every path reaching it has made,
+    in a scope visible from the read; ``Owner.name`` resolves only when
+    ``Owner`` is a declared or verified imported class whose body definitely
+    binds ``name``. One unresolved occurrence keeps the name checkable, so this
+    never hides a use before binding, out of scope, or on a path that skips
+    the binding.
+    """
+    source = textwrap.dedent(code)
+    view = _strip_python_non_code(source)
+    imported_names = _python_stdlib_imported_names(view)
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError):
+        return imported_names, _blank_stdlib_attribute_chains(view)
+    collector = _PyBindingCollector(source.split("\n"), tree, resolve_import)
+    collector.visit(tree)
+    status: dict[tuple[_PyPos, str], bool] = {}
+    for pos, name, resolved in collector.uses:
+        key = (pos, name)
+        status[key] = status.get(key, True) and resolved
+    occurrences: dict[str, list[_PyPos]] = {}
+    for lineno, line in enumerate(view.split("\n"), start=1):
+        for word in _WORD_RE.finditer(line):
+            occurrences.setdefault(word[0], []).append((lineno, word.start()))
+    local_names = {
+        name
+        for name in {name for _, name in status}
+        if name in occurrences and all(status.get((pos, name), False) for pos in occurrences[name])
+    }
+    view = _blank_stdlib_attribute_chains(view, collector.unproven_module_roots)
+    return local_names | imported_names, view
+
+
+def _python_import_resolver(
+    repo_root: Path, source_symbols: list[dict[str, Any]]
+) -> _PyImportResolver:
+    """Resolve direct class bindings from an exact repo-root or src module.
+
+    Read indexed Python source without importing it. Leave ambiguous modules,
+    re-exports, and unindexed external modules checkable.
+    """
+    class_files = {
+        (symbol["file"], symbol["name"])
+        for symbol in source_symbols
+        if symbol["kind"] == "class" and symbol["file"].endswith(".py")
+    }
+
+    @cache
+    def resolve(module: str, name: str) -> _PyScope | None:
+        qualified = module.replace(".", "/")
+        paths = [
+            path
+            for prefix in ("", "src/")
+            for path in (f"{prefix}{qualified}.py", f"{prefix}{qualified}/__init__.py")
+            if (repo_root / path).is_file()
+        ]
+        if len(paths) != 1 or (paths[0], name) not in class_files:
+            return None
+        try:
+            source = (repo_root / paths[0]).read_text(encoding="utf-8")
+            tree = ast.parse(source)
+        except (OSError, UnicodeError, SyntaxError, ValueError):
+            return None
+        collector = _PyBindingCollector(source.split("\n"), tree)
+        collector.visit(tree)
+        return collector._scope.lookup(name)[1]
+
+    return resolve
+
+
+_PY_PLAIN_IMPORT_RE = re.compile(r"^[ \t]*import[ \t]+([^\n]+)$", re.MULTILINE)
+_PY_IMPORT_PART_RE = re.compile(r"([\w.]+)(?:\s+as\s+(\w+))?$")
+
+_TYPING_NAMES = frozenset(typing.__all__)
+
+_DECLARATION_RES: dict[str, re.Pattern[str]] = {
+    "csharp": re.compile(r"\b(?:class|record|interface|struct|enum|delegate)\s+([A-Z]\w*)"),
+    "typescript": re.compile(r"\b(?:interface|class|enum|type|const|function)\s+([A-Z]\w*)"),
+    "javascript": re.compile(r"\b(?:interface|class|enum|type|const|function)\s+([A-Z]\w*)"),
+}
+
+_CSHARP_RECORD_PARAMS_RE = re.compile(r"\brecord\s+[A-Z]\w*\s*\(([^)]*)\)")
+_CSHARP_RECORD_PROP_RE = re.compile(r"\b[\w<>\[\],.?]+\s+([A-Z]\w*)")
+
+_JS_BUILTIN_TYPES = frozenset(
+    {
+        "Array",
+        "ArrayBuffer",
+        "BigInt",
+        "Boolean",
+        "DataView",
+        "Date",
+        "Error",
+        "EvalError",
+        "Float32Array",
+        "Float64Array",
+        "Function",
+        "Generator",
+        "Int16Array",
+        "Int32Array",
+        "Int8Array",
+        "Intl",
+        "JSON",
+        "Map",
+        "Math",
+        "Number",
+        "Object",
+        "Promise",
+        "Proxy",
+        "RangeError",
+        "ReferenceError",
+        "Reflect",
+        "RegExp",
+        "Set",
+        "String",
+        "Symbol",
+        "SyntaxError",
+        "TypeError",
+        "Uint16Array",
+        "Uint32Array",
+        "Uint8Array",
+        "URIError",
+        "WeakMap",
+        "WeakSet",
+        "AbortController",
+        "Blob",
+        "Document",
+        "Element",
+        "Event",
+        "EventTarget",
+        "FormData",
+        "Headers",
+        "HTMLElement",
+        "Navigator",
+        "Node",
+        "Request",
+        "Response",
+        "Storage",
+        "URL",
+        "URLSearchParams",
+        "Window",
+    }
+)
+
+_CSHARP_FRAMEWORK_TYPES_EXTRA = frozenset(
+    {
+        "AggregateException",
+        "AppDomain",
+        "ArgumentException",
+        "ArgumentNullException",
+        "ArgumentOutOfRangeException",
+        "BitConverter",
+        "CancellationToken",
+        "CancellationTokenSource",
+        "Convert",
+        "DateTimeOffset",
+        "Delegate",
+        "Enum",
+        "Environment",
+        "EventArgs",
+        "FormatException",
+        "GC",
+        "Guid",
+        "HashSet",
+        "IComparable",
+        "IDisposable",
+        "InvalidCastException",
+        "InvalidOperationException",
+        "IOException",
+        "KeyValuePair",
+        "Lazy",
+        "LinkedList",
+        "NotImplementedException",
+        "NotSupportedException",
+        "NullReferenceException",
+        "OperationCanceledException",
+        "OverflowException",
+        "Queue",
+        "Random",
+        "Stack",
+        "StringBuilder",
+        "SystemException",
+        "Thread",
+        "TimeoutException",
+        "Tuple",
+        "UnauthorizedAccessException",
+        "Uri",
+        "Version",
+        "WeakReference",
+    }
+)
+
+
+def _python_stdlib_module_aliases(code: str) -> set[str]:
+    """Bound names of plain ``import x`` lines whose top-level module is stdlib.
+
+    ``import xml.etree.ElementTree as ET`` binds ``ET``; ``import os, sys``
+    binds ``os`` and ``sys``. Non-stdlib modules stay out so their attribute
+    chains remain checkable. ``code`` must already be stripped of strings
+    and comments.
+    """
+    aliases: set[str] = set()
+    for imports in _PY_PLAIN_IMPORT_RE.findall(code):
+        for part in imports.split(","):
+            match = _PY_IMPORT_PART_RE.match(part.strip())
+            if match and match.group(1).split(".")[0] in sys.stdlib_module_names:
+                aliases.add(match.group(2) or match.group(1).split(".")[0])
+    return aliases
+
+
+def _blank_stdlib_attribute_chains(code: str, unproven_roots: set[_PyPos] | None = None) -> str:
+    """Blank ``alias.attr`` chains for stdlib-imported aliases.
+
+    ``argparse.ArgumentParser`` resolves through the standard library, not
+    the repo, so the attribute name must not reach the identifier scan.
+    Blanking is column-preserving and can only hide a name, never invent one.
+    """
+    aliases = _python_stdlib_module_aliases(code)
+    if not aliases:
+        return code
+    joined = "|".join(sorted((re.escape(a) for a in aliases), key=len, reverse=True))
+    pattern = re.compile(rf"\b(?:{joined})(?:\.\w+)+")
+    roots = unproven_roots or set()
+
+    def blank_line(line: int, text: str) -> str:
+        return pattern.sub(lambda m: m[0] if (line, m.start()) in roots else " " * len(m[0]), text)
+
+    return "\n".join(blank_line(line, text) for line, text in enumerate(code.split("\n"), start=1))
+
+
+def _blank_stdlib_plain_import_lines(code: str) -> str:
+    """Blank the stdlib parts of plain ``import`` lines, preserving columns.
+
+    ``import xml.etree.ElementTree as ET`` contributes no repo symbol, so
+    neither the module path nor the alias may reach the identifier scan.
+    Non-stdlib parts stay visible so their names remain checkable.
+    """
+
+    def repl(match: re.Match[str]) -> str:
+        prefix = match.group(0)[: match.start(1) - match.start(0)]
+        parts: list[str] = []
+        for part in match.group(1).split(","):
+            part_match = _PY_IMPORT_PART_RE.match(part.strip())
+            if part_match and part_match.group(1).split(".")[0] in sys.stdlib_module_names:
+                parts.append(" " * len(part))
+            else:
+                parts.append(part)
+        return prefix + ",".join(parts)
+
+    return _PY_PLAIN_IMPORT_RE.sub(repl, code)
+
+
+def _example_declaration_names(code: str, lang: str) -> set[str]:
+    """Type and member names an example declares itself.
+
+    References to a name the example declares (a class, a record and its
+    positional properties, a method signature) are example-local, not repo
+    symbol references.
+    """
+    if lang == "python":
+        return _python_example_definitions(code)
+    pattern = _DECLARATION_RES.get(lang)
+    if pattern is None:
+        return set()
+    stripped = _try_c_family_code_view(code, lang)
+    if stripped is None:
+        # Unreadable literals: a declaration inside a string must not hide a
+        # real-code name, so drop nothing.
+        return set()
+    names = set(pattern.findall(stripped))
+    for body in re.findall(r"\benum\s+[A-Z]\w*\s*\{([^{}]*)\}", stripped):
+        names.update(re.findall(r"(?:^|,)\s*([A-Za-z]\w*)", body))
+    if lang == "csharp":
+        for params in _CSHARP_RECORD_PARAMS_RE.findall(stripped):
+            names.update(_CSHARP_RECORD_PROP_RE.findall(params))
+    return names
+
+
+_CSHARP_TOKENS_NO_BLOCK = r"""@"(?:""|[^"])*"|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|//[^\r\n]*"""
+_CSHARP_LINE_COMMENT_TOKENS = re.compile(_CSHARP_TOKENS_NO_BLOCK, re.DOTALL)
+_CSHARP_COMMENT_TOKENS = re.compile(_CSHARP_TOKENS_NO_BLOCK + r"|/\*.*?(?:\*/|\Z)", re.DOTALL)
+
+
+def _blank_csharp_comment_token(match: re.Match[str]) -> str:
+    text = match[0]
+    if text.startswith("/*") and (len(text) < 4 or not text.endswith("*/")):
+        # An unclosed ``/*`` stays text. No later ``/*`` can close either, so
+        # the rest is scanned for line comments only. Retrying every open
+        # ``/*`` to the end of input made this pass quadratic.
+        return text[:2] + _CSHARP_LINE_COMMENT_TOKENS.sub(_blank_csharp_comment_token, text[2:])
+    if text.startswith(("//", "/*")):
+        return re.sub(r"[^\r\n]", " ", text)
+    return text
+
+
+def _strip_csharp_comments(code: str) -> str:
+    """Blank comments while preserving string literals and their delimiters."""
+    return _CSHARP_COMMENT_TOKENS.sub(_blank_csharp_comment_token, code)
+
+
+# (start, end) character spans of literal text or comment to blank.
+_Spans = list[tuple[int, int]]
+# The lookbehind lets a second ``$`` run follow only ``@``. Two free ``\$*``
+# runs made a failed match quadratic in the length of a ``$`` run.
+_CSHARP_STRING_PREFIX_RE = re.compile(r'(\$*)(@?)((?:(?<=@)\$+)?)("+)')
+_CSHARP_CHAR_RE = re.compile(r"'(?:\\.[^'\n]{0,8}|[^'\\\n])'")
+_BRACE_RUN_RE = re.compile(r"\{+")
+# Scanner loop steps allowed per input character. A well-formed snippet
+# needs at most about two; each hole that never closes rescans its text.
+_SCAN_STEPS_PER_CHAR = 8
+
+
+class _ScanBudgetError(Exception):
+    """The C-family literal scan ran out of steps."""
+
+
+class _ScanBudget:
+    """Steps left for one C-family scan, so unclosed holes cannot rescan forever."""
+
+    __slots__ = ("_steps",)
+
+    def __init__(self, steps: int) -> None:
+        self._steps = steps
+
+    def spend(self) -> None:
+        self._steps -= 1
+        if self._steps < 0:
+            raise _ScanBudgetError
+
+
+def _c_family_code_view(code: str, lang: str, *, literal_ends: set[int] | None = None) -> str:
+    """Blank C#, TypeScript, and JavaScript literal text and comments.
+
+    Interpolation holes stay visible because they are code. A literal or
+    comment whose terminator is missing stays visible too: blanking hides
+    findings, so the view errs toward keeping text. Column preserving. A
+    snippet the scanner cannot read in bounded work comes back unchanged.
+    """
+    view = _try_c_family_code_view(code, lang, literal_ends=literal_ends)
+    return code if view is None else view
+
+
+def _try_c_family_code_view(
+    code: str, lang: str, *, literal_ends: set[int] | None = None
+) -> str | None:
+    """The literal-blanked view, or None when the scan gives up.
+
+    Crafted nesting exhausts the step budget or the recursion limit. The
+    caller then keeps the raw text, which can only report extra names.
+    ``literal_ends`` is filled only on success.
+    """
+    try:
+        spans = _scan_c_family(
+            code, 0, lang, in_hole=False, budget=_ScanBudget(_SCAN_STEPS_PER_CHAR * len(code))
+        )[1]
+    except (_ScanBudgetError, RecursionError):
+        logger.warning("C-family literal scan gave up on the snippet; keeping raw text")
+        return None
+    chars = list(code)
+    for start, end in spans:
+        if (
+            literal_ends is not None
+            and code[end - 1] != "{"
+            and not code.startswith(("//", "/*"), start)
+        ):
+            literal_ends.add(end)
+        for index in range(start, end):
+            if chars[index] != "\n":
+                chars[index] = " "
+    return "".join(chars)
+
+
+# Pseudo-token kinds the JavaScript scan emits in place of a raw token.
+_JS_CONTROL_END = "control-end"
+_JS_STATEMENT_END = "statement-end"
+_JS_PROPERTY = "property"
+_JS_NON_NULL = "non-null"
+
+
+def _scan_c_family(
+    code: str, i: int, lang: str, *, in_hole: bool, budget: _ScanBudget
+) -> tuple[int, _Spans]:
+    """Scan code from ``i``; inside a hole, stop at its unmatched ``}``."""
+    spans: _Spans = []
+    depth = 0
+    previous = ""
+    control_parens: list[bool] = []
+    statement_braces: list[bool] = []
+    while i < len(code):
+        budget.spend()
+        char = code[i]
+        if code.startswith("//", i):
+            end = code.find("\n", i)
+            end = len(code) if end < 0 else end
+            spans.append((i, end))
+            i = end
+            continue
+        if code.startswith("/*", i):
+            end = code.find("*/", i + 2)
+            if end >= 0:
+                spans.append((i, end + 2))
+                i = end + 2
+                continue
+        regex_end = (
+            _scan_js_regex(code, i) if lang != "csharp" and _js_regex_allowed(previous) else None
+        )
+        if regex_end is not None:
+            spans.append((i, regex_end))
+            i = regex_end
+            previous = "literal"
+            continue
+        literal = _scan_c_family_literal(code, i, lang, budget)
+        if literal is not None:
+            i, literal_spans = literal
+            spans.extend(literal_spans)
+            previous = "literal"
+            continue
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            if depth == 0 and in_hole:
+                return i, spans
+            depth = max(depth - 1, 0)
+        if lang != "csharp" and not char.isspace():
+            match = cast(re.Match[str], _JS_SCAN_TOKEN.match(code, i))
+            token = match[0]
+            if token == "(":
+                control_parens.append(previous in _JS_CONTROL_HEADS)
+            elif token == ")" and control_parens and control_parens.pop():
+                token = _JS_CONTROL_END
+            elif token == "{":
+                statement_braces.append(previous in _JS_STATEMENT_BLOCK_PRECEDERS)
+            elif token == "}" and statement_braces and statement_braces.pop():
+                token = _JS_STATEMENT_END
+            elif previous in (".", "?.") and token in _JS_KEYWORDS:
+                token = _JS_PROPERTY
+            elif token == "!" and lang == "typescript" and not _js_regex_allowed(previous):
+                token = _JS_NON_NULL
+            previous = token
+            i = match.end()
+            continue
+        i += 1
+    return i, spans
+
+
+# Characters and keywords after which ``/`` starts a regex, not a division.
+_JS_REGEX_PRECEDERS = frozenset("(,=:[!&|?{;+-*/%~^") | {"=>", _JS_CONTROL_END, _JS_STATEMENT_END}
+_JS_REGEX_KEYWORDS = frozenset(
+    {"return", "typeof", "instanceof", "in", "new", "delete", "void", "throw", "case", "do", "else"}
+)
+_JS_CONTROL_HEADS = frozenset({"if", "for", "while", "with", "switch", "catch"})
+_JS_STATEMENT_BLOCK_PRECEDERS = frozenset(
+    {"", _JS_CONTROL_END, _JS_STATEMENT_END, ";", "try", "else", "finally", "do"}
+)
+_JS_KEYWORDS = _JS_REGEX_KEYWORDS | _JS_CONTROL_HEADS | _JS_STATEMENT_BLOCK_PRECEDERS
+_JS_SCAN_TOKEN = re.compile(r"[\w$]+|=>|\+\+|--|\?\.|[^\s]")
+
+
+def _js_regex_allowed(previous: str) -> bool:
+    """Whether the last significant token can precede a regex expression."""
+    return not previous or previous in _JS_REGEX_PRECEDERS or previous in _JS_REGEX_KEYWORDS
+
+
+def _scan_js_regex(code: str, i: int) -> int | None:
+    """End index of a JavaScript regex literal at ``i``, or None.
+
+    Escapes and ``[...]`` classes may hold ``/``. A body that reaches a line
+    end is not a regex, so the ``/`` stays ordinary code.
+    """
+    if code[i] != "/" or code.startswith(("//", "/*"), i):
+        return None
+    j, in_class = i + 1, False
+    while j < len(code) and code[j] not in "\r\n\u2028\u2029":
+        char = code[j]
+        if char == "\\":
+            if j + 1 < len(code) and code[j + 1] in "\r\n\u2028\u2029":
+                return None
+            j += 2
+            continue
+        if char == "[":
+            in_class = True
+        elif char == "]":
+            in_class = False
+        elif char == "/" and not in_class:
+            j += 1
+            while j < len(code) and code[j].isalpha():
+                j += 1
+            return j
+        j += 1
+    return None
+
+
+def _scan_c_family_literal(
+    code: str, i: int, lang: str, budget: _ScanBudget
+) -> tuple[int, _Spans] | None:
+    """Return the end index and blank spans of a literal at ``i``, if terminated."""
+    if lang == "csharp":
+        if code[i] == "'":
+            match = _CSHARP_CHAR_RE.match(code, i)
+            return (match.end(), [(i, match.end())]) if match else None
+        if i > 0 and code[i - 1] in "$@":
+            return None
+        prefix = _CSHARP_STRING_PREFIX_RE.match(code, i)
+        if prefix is None or (prefix[1] and prefix[3]):
+            return None
+        dollars = len(prefix[1] or prefix[3])
+        quotes = len(prefix[4])
+        if quotes >= 3 and not prefix[2]:
+            return _scan_quoted(code, i, prefix.end(), '"' * quotes, dollars, lang, "raw", budget)
+        mode = "verbatim" if prefix[2] else "regular"
+        return _scan_quoted(code, i, prefix.start(4) + 1, '"', dollars, lang, mode, budget)
+    if code[i] in "\"'":
+        return _scan_quoted(code, i, i + 1, code[i], 0, lang, "regular", budget)
+    if code[i] == "`":
+        return _scan_quoted(code, i, i + 1, "`", 1, lang, "template", budget)
+    return None
+
+
+def _scan_quoted(
+    code: str,
+    start: int,
+    i: int,
+    closer: str,
+    holes: int,
+    lang: str,
+    mode: str,
+    budget: _ScanBudget,
+) -> tuple[int, _Spans] | None:
+    """Scan a quoted body from ``i``; ``holes`` is the brace count opening a hole.
+
+    ``mode`` is ``regular`` (backslash escapes, one line), ``verbatim``
+    (``""`` escapes, multi-line), ``raw`` (no escapes, multi-line), or
+    ``template`` (JavaScript backquote with ``${`` holes).
+    """
+    spans: _Spans = []
+    text_start = start
+    while i < len(code):
+        budget.spend()
+        if mode in ("regular", "template") and code[i] == "\\":
+            i += 2
+            continue
+        if mode == "regular" and code[i] == "\n":
+            return None
+        if code.startswith(closer, i):
+            if mode == "verbatim" and code.startswith('""', i):
+                i += 2
+                continue
+            spans.append((text_start, i + len(closer)))
+            return i + len(closer), spans
+        opener = _hole_opener_length(code, i, holes, mode)
+        if opener < 0:
+            i += -opener
+            continue
+        if opener:
+            spans.append((text_start, i + opener))
+            end, hole_spans = _scan_c_family(code, i + opener, lang, in_hole=True, budget=budget)
+            closing = "}" * (1 if mode == "template" else holes)
+            if not code.startswith(closing, end):
+                return None
+            spans.extend(hole_spans)
+            text_start = end
+            i = end + len(closing)
+            continue
+        i += 1
+    return None
+
+
+def _hole_opener_length(code: str, i: int, holes: int, mode: str) -> int:
+    """Characters opening a hole at ``i``; negative skips literal braces; 0 is text."""
+    if not holes:
+        return 0
+    if mode == "template":
+        return 2 if code.startswith("${", i) else 0
+    if code[i] != "{":
+        return 0
+    run = cast(re.Match[str], _BRACE_RUN_RE.match(code, i)).end() - i
+    if mode != "raw":
+        # ``{{`` is an escaped brace in an ordinary interpolated string.
+        return -2 if run >= 2 else 1
+    if run < holes:
+        return -run
+    # The trailing ``holes`` braces open the hole; any before them are text.
+    return run
+
+
+_COMMON_FRAMEWORK_TYPES = frozenset(
+    {
+        "String",
+        "Int32",
+        "Boolean",
+        "Object",
+        "Array",
+        "List",
+        "Dictionary",
+        "Task",
+        "Action",
+        "Func",
+        "IEnumerable",
+        "IList",
+        "Console",
+        "Exception",
+        "Math",
+        "DateTime",
+        "TimeSpan",
+        "Path",
+        "File",
+        "Directory",
+        "Type",
+        "Attribute",
+        "Nullable",
+        "True",
+        "False",
+        "None",
+        "Error",
+        "Promise",
+    }
+)
+_CSHARP_KEYWORD_TYPES = frozenset(
+    {"string", "int", "long", "short", "byte", "sbyte", "uint", "ulong", "ushort"}
+    | {"bool", "double", "float", "decimal", "char", "object", "dynamic", "nint", "nuint"}
+)
+_TS_KEYWORD_TYPES = frozenset(
+    {"string", "number", "boolean", "bigint", "symbol", "object", "any", "unknown", "void"}
+)
+# Receivers whose members are never repo claims: framework types per language.
+_PROVEN_RECEIVER_TYPES: dict[str, frozenset[str]] = {
+    "csharp": _COMMON_FRAMEWORK_TYPES
+    | _CSHARP_FRAMEWORK_TYPES_EXTRA
+    | _CSHARP_KEYWORD_TYPES
+    | {"System"},
+    "typescript": _COMMON_FRAMEWORK_TYPES | _JS_BUILTIN_TYPES | _TS_KEYWORD_TYPES,
+    "javascript": _COMMON_FRAMEWORK_TYPES | _JS_BUILTIN_TYPES,
+}
+_TYPE_NAME_RE = re.compile(r"[A-Z][a-zA-Z0-9]+")
+_MEMBER_ACCESS_RE = re.compile(r"(?<!\.)\??\.\s*([A-Za-z_$][\w$]*)")
+_IDENTIFIER_BEFORE_RE = re.compile(r"(\w+)\s*$")
+_NEW_BEFORE_RE = re.compile(r"\bnew\s*$")
+_GROUP_OPENERS = {")": "(", "]": "[", ">": "<"}
+# ``Type name`` declarations (C#) and ``name: Type`` annotations (TypeScript),
+# plus ``name = new Type(`` in both, map a lowercase variable to its type.
+_CSHARP_TYPED_NAME_RE = re.compile(
+    r"\b(?!(?:return|throw|yield|case|new|in|is)\b)"
+    r"([A-Za-z_]\w*(?:\.\w+)*)(?:\s*<[^<>;{}()]*>)?(?:\s*\[\s*\])?\??\s+([a-z_]\w*)\s*(?=[=;,)])"
+)
+_TS_TYPED_NAME_RE = re.compile(r"\b([a-z_$][\w$]*)\s*\??:\s*([A-Za-z_]\w*)")
+_NEW_ASSIGNED_RE = re.compile(r"\b([a-z_]\w*)\s*=\s*new\s+((?:\w+\s*\.\s*)*[A-Z]\w*)")
+_TS_VARIABLE_BEFORE_RE = re.compile(r"\b(?:const|let|var)\s*$")
+
+
+_CSHARP_TYPE_PARAM = r"(?:\b(?:in|out)\s+)?\w+"
+_CSHARP_TYPE_PARAMS = (
+    rf"(?:\s*<(?P<params>\s*{_CSHARP_TYPE_PARAM}(?:\s*,\s*{_CSHARP_TYPE_PARAM})*\s*)>)?"
+)
+_CSHARP_TYPE_TOKEN = r"[A-Za-z_][\w.]*(?:\s*<[^;{}()=]*>)?(?:\s*\[\s*,*\s*\])*\??"
+_CSHARP_DECL_START = r"(?:^|(?<=[{};]))\s*"
+_CSHARP_DECL_MODIFIERS = (
+    r"(?:(?:public|private|protected|internal|static|sealed|abstract|virtual|override"
+    r"|async|extern|partial|unsafe|new|readonly)\s+)*"
+)
+_CSHARP_TYPE_HEADER_RE = re.compile(
+    r"\b(?P<kind>class|struct|interface|enum|record(?:\s+(?:class|struct))?)\s+(?P<name>\w+)"
+    + _CSHARP_TYPE_PARAMS
+    + r"[^;{}]*\{"
+)
+_CSHARP_METHOD_HEAD_RE = re.compile(
+    _CSHARP_DECL_START + rf"(?P<modifiers>{_CSHARP_DECL_MODIFIERS})"
+    r"(?!(?:new|return|throw|yield|if|for|foreach|while|switch|catch|using|lock|var"
+    r"|await|else|do|case|goto"
+    r"|public|private|protected|internal|static|sealed|abstract|virtual|override"
+    r"|async|extern|partial|unsafe|readonly|implicit|explicit|operator)\b)"
+    rf"(?:ref\s+(?:readonly\s+)?)?{_CSHARP_TYPE_TOKEN}\s+(?P<name>\w+)"
+    + _CSHARP_TYPE_PARAMS
+    + r"\s*\(",
+    re.MULTILINE,
+)
+_CSHARP_METHOD_TAIL_RE = re.compile(r"\s*(?:where\s+[^;{}=]*)?(?P<body>\{|=>|;|\Z)")
+_CSHARP_METHOD_USE_RE = re.compile(r"\s*(?:<[^;{}()=]*>\s*)?\(")
+_CSHARP_CONST_HEAD_RE = re.compile(
+    _CSHARP_DECL_START
+    + _CSHARP_DECL_MODIFIERS
+    + rf"const\s+{_CSHARP_TYPE_TOKEN}\s+(\w+)\s*=(?!=|>)",
+    re.MULTILINE,
+)
+_CSHARP_CONST_NEXT_RE = re.compile(r",\s*(\w+)\s*=(?!=|>)")
+_CSHARP_NEW_RE = re.compile(rf"\bnew\b(?:\s+(?P<type>{_CSHARP_TYPE_TOKEN}))?\s*([({{])")
+_CSHARP_TARGET_TYPED_NEW_RE = re.compile(r"(?:[=(\[{]|=>|\breturn)\s*$")
+_CSHARP_INITIALIZER_KEY_RE = re.compile(r"[{,]\s*@?([A-Za-z_]\w*)\s*=(?!=|>)\s*")
+_CSHARP_SEMICOLON_RE = re.compile(";")
+_BALANCED_GROUP_OPENERS = {"}": "{", ")": "(", "]": "["}
+
+
+def _balanced_groups(view: str) -> tuple[list[int], dict[int, int]]:
+    """Innermost group at each character and closing indexes of balanced groups."""
+    owners: list[int] = []
+    ends: dict[int, int] = {}
+    stack: list[int] = []
+    for index, char in enumerate(view):
+        parent = stack[-1] if stack else -1
+        owners.append(parent)
+        if char in "{([":
+            stack.append(index)
+        elif stack and _BALANCED_GROUP_OPENERS.get(char) == view[parent]:
+            ends[stack.pop()] = index
+    return owners, ends
+
+
+def _csharp_type_parameters(header: re.Match[str]) -> set[str]:
+    return {part.split()[-1] for part in (header["params"] or "").split(",") if part.strip()}
+
+
+def _csharp_statement_end(view: str, owners: list[int], start: int, scope_end: int) -> int | None:
+    owner = owners[start]
+    return next(
+        (
+            m.start()
+            for m in _CSHARP_SEMICOLON_RE.finditer(view, start, scope_end)
+            if owners[m.start()] == owner
+        ),
+        None,
+    )
+
+
+def _csharp_initializer_keys(view: str, owners: list[int], ends: dict[int, int]) -> _Spans:
+    """Recognize assignments at an object initializer's own depth."""
+    pending: set[int] = set()
+    for constructor in _CSHARP_NEW_RE.finditer(view):
+        start = constructor.end() - 1
+        if view[start] == "(" and start in ends:
+            if not constructor["type"]:
+                prefix = view[: constructor.start()].rstrip()
+                parent = owners[start]
+                in_arguments = parent != -1 and view[parent] in "([" and prefix.endswith(",")
+                if not in_arguments and not _CSHARP_TARGET_TYPED_NEW_RE.search(prefix):
+                    continue
+            after_args = ends[start] + 1
+            start = after_args + len(view[after_args:]) - len(view[after_args:].lstrip())
+        if start in ends and view[start] == "{":
+            pending.add(start)
+
+    keys: _Spans = []
+    visited: set[int] = set()
+    while pending:
+        start = pending.pop()
+        if start in visited:
+            continue
+        visited.add(start)
+        for match in _CSHARP_INITIALIZER_KEY_RE.finditer(view, start, ends[start]):
+            delimiter = match.start()
+            if delimiter != start and (view[delimiter] != "," or owners[delimiter] != start):
+                continue
+            keys.append(match.span(1))
+            child = match.end()
+            if child in ends and view[child] == "{":
+                pending.add(child)
+    return keys
+
+
+def _csharp_method_bindings(
+    view: str, owners: list[int], ends: dict[int, int], type_bodies: dict[int, str]
+) -> _Spans:
+    """Use balanced parameter lists and the declaration's own body and scope."""
+    spans: _Spans = []
+    for head in _CSHARP_METHOD_HEAD_RE.finditer(view):
+        owner = owners[head.start("name")]
+        if owner != -1 and (view[owner] != "{" or owner not in ends):
+            continue
+        close = ends.get(head.end() - 1)
+        if close is None:
+            continue
+        tail = _CSHARP_METHOD_TAIL_RE.match(view, close + 1)
+        if tail is None:
+            continue
+        body = tail["body"]
+        body_start = tail.start("body")
+        end = ends.get(body_start) if body == "{" else body_start
+        modifiers = set(head["modifiers"].split())
+        # A fragment can end at an explicitly declared method signature.
+        if not body and (
+            owner != -1 or not ({"public", "private", "protected", "internal"} & modifiers)
+        ):
+            continue
+        if (
+            body == ";"
+            and type_bodies.get(owner) != "interface"
+            and not ({"abstract", "extern", "partial"} & modifiers)
+        ):
+            continue
+        scope_end = ends.get(owner, len(view))
+        if body == "=>":
+            end = _csharp_statement_end(view, owners, body_start, scope_end)
+        if end is None:
+            continue
+        declaring_type = _csharp_type_body(owner, owners, type_bodies)
+        spans.extend(
+            span
+            for span in _bare_binding_spans(view, owner + 1, scope_end, {head["name"]}, method=True)
+            if _csharp_type_body(span[0], owners, type_bodies) == declaring_type
+        )
+        spans.extend(
+            _bare_binding_spans(
+                view, head.start(), end, _csharp_type_parameters(head), type_parameter=True
+            )
+        )
+    return spans
+
+
+def _bare_binding_spans(
+    view: str,
+    start: int,
+    end: int,
+    names: set[str],
+    *,
+    method: bool = False,
+    type_parameter: bool = False,
+) -> _Spans:
+    if not names:
+        return []
+    spans: _Spans = []
+    for word in _WORD_RE.finditer(view, start, end):
+        if word[0] not in names:
+            continue
+        prefix = view[: word.start()].rstrip()
+        if prefix.endswith((".", "::")):
+            continue
+        if not type_parameter and _NEW_BEFORE_RE.search(prefix):
+            continue
+        if method and not _CSHARP_METHOD_USE_RE.match(view, word.end()):
+            continue
+        spans.append(word.span())
+    return spans
+
+
+def _blank_example_spans(view: str, spans: _Spans) -> str:
+    chars = list(view)
+    for start, end in spans:
+        chars[start:end] = " " * (end - start)
+    return "".join(chars)
+
+
+def _csharp_type_body(position: int, owners: list[int], type_bodies: dict[int, str]) -> int:
+    while position != -1 and position not in type_bodies:
+        position = owners[position]
+    return position
+
+
+def _csharp_binding_view(view: str) -> str:
+    owners, ends = _balanced_groups(view)
+    spans = _csharp_initializer_keys(view, owners, ends)
+    type_bodies: dict[int, str] = {}
+    for header in _CSHARP_TYPE_HEADER_RE.finditer(view):
+        body = header.end() - 1
+        if body not in ends or owners[body] != owners[header.start()]:
+            continue
+        type_bodies[body] = header["kind"]
+        spans.extend(
+            _bare_binding_spans(
+                view,
+                header.start(),
+                ends[body],
+                _csharp_type_parameters(header),
+                type_parameter=True,
+            )
+        )
+    spans.extend(_csharp_method_bindings(view, owners, ends, type_bodies))
+    for constant in _CSHARP_CONST_HEAD_RE.finditer(view):
+        start = constant.start(1)
+        if owners[start] != -1:
+            continue
+        end = _csharp_statement_end(view, owners, start, len(view))
+        if end is None:
+            continue
+        declarations = [
+            constant,
+            *(
+                other
+                for other in _CSHARP_CONST_NEXT_RE.finditer(view, constant.end(), end)
+                if owners[other.start()] == -1
+            ),
+        ]
+        for declaration in declarations:
+            spans.extend(
+                span
+                for span in _bare_binding_spans(
+                    view, declaration.start(1), len(view), {declaration[1]}
+                )
+                if _csharp_type_body(span[0], owners, type_bodies) == -1
+            )
+    return _blank_example_spans(view, spans)
+
+
+_JS_EXPORT_NAMES_RE = re.compile(r"(?<![\w$.])export\b\s*(?:type\b\s*)?\{([^{}]*)\}(\s*from\b)?")
+_JS_IMPORT_NAMES_RE = re.compile(r"(?<![\w$.])import\b\s*(?:[\w$]+\s*,\s*)?\{([^{}]*)\}\s*from\b")
+_JS_NAMED_ALIAS_RE = re.compile(
+    r"(?:^|(?<=,))\s*(?:(type)\s+)?[\w$]+\s+as\s+([A-Za-z_$][\w$]*)\s*(?=,|$)"
+)
+_JS_MODULE_SPECIFIER_RE = re.compile(
+    r"(?:\s|//[^\r\n]*(?:\r\n?|\n)|/\*(?:[^*]|\*(?!/))*\*/)*"
+    r"""(?:"(?:\\.|[^"\\\r\n])*"|'(?:\\.|[^'\\\r\n])*')"""
+)
+
+
+def _js_named_aliases(clause: re.Match[str], *, export: bool) -> _Spans:
+    offset = clause.start(1)
+    return [
+        (offset + m.start(2), offset + m.end(2))
+        for m in _JS_NAMED_ALIAS_RE.finditer(clause[1])
+        if export or m[1] is None
+    ]
+
+
+def _js_binding_view(view: str, source: str) -> str:
+    """An export alias labels an export. An import alias binds a local name."""
+    if "export" not in view and "import" not in view:
+        return view
+    owners, _ = _balanced_groups(view)
+    exports = [
+        clause for clause in _JS_EXPORT_NAMES_RE.finditer(view) if owners[clause.start()] == -1
+    ]
+    imports = [
+        clause
+        for clause in _JS_IMPORT_NAMES_RE.finditer(view)
+        if owners[clause.start()] == -1 and _JS_MODULE_SPECIFIER_RE.match(source, clause.end())
+    ]
+    aliases = [span for clause in imports for span in _js_named_aliases(clause, export=False)]
+    names = {view[start:end] for start, end in aliases}
+    uses = _bare_binding_spans(view, 0, len(view), names)
+    clauses = [*imports, *(clause for clause in exports if clause[2])]
+    spans = [span for span in uses if not any(c.start() <= span[0] < c.end() for c in clauses)]
+    spans.extend(aliases)
+    spans.extend(span for clause in exports for span in _js_named_aliases(clause, export=True))
+    return _blank_example_spans(view, spans)
+
+
+_TYPE_BODY_RE = re.compile(r"\b(?:class|struct|record|interface)\s+[A-Z]\w*[^{;]*\{")
+# A field or property declared directly in a type body: ``int Total;``,
+# ``decimal Total { get; set; }``, ``int Total => 1;`` or ``int Total = 0;``.
+_CSHARP_MEMBER_DECL_RE = re.compile(
+    r"(?:^|(?<=[{;}]))\s*(?:(?:public|private|protected|internal|static|readonly|const"
+    r"|virtual|override|abstract|sealed|new|required|volatile|unsafe)\s+)*"
+    r"(?!(?:return|throw|await|yield|var|using|case|goto|else|new|class|struct|record"
+    r"|interface|enum)\b)"
+    r"[A-Za-z_][\w.]*(?:\s*<[^<>;{}]*>)?(?:\s*\[\s*\])*\??\s+([A-Z]\w*)\s*(?=;|=(?!=)|\{|=>)",
+    re.MULTILINE,
+)
+# A TypeScript or JavaScript class field or interface property: ``Total: number``.
+_TS_MEMBER_DECL_RE = re.compile(
+    r"(?:^|(?<=[{;,]))\s*(?:(?:public|private|protected|readonly|static|declare|abstract"
+    r"|override)\s+)*([A-Z]\w*)\s*[?!]?\s*(?=:|=(?![=>])|;)",
+    re.MULTILINE,
+)
+
+
+def _type_member_scopes(view: str, lang: str) -> list[tuple[int, int, set[str]]]:
+    """Each declared type's body span and the fields and properties it declares.
+
+    Only declarations at the body's own brace depth count, so a local
+    variable inside a method is not a member. A type whose body never
+    closes contributes nothing.
+    """
+    pattern = _CSHARP_MEMBER_DECL_RE if lang == "csharp" else _TS_MEMBER_DECL_RE
+    scopes: list[tuple[int, int, set[str]]] = []
+    for header in _TYPE_BODY_RE.finditer(view):
+        start, depth = header.end(), 0
+        depths: list[int] = []
+        for index in range(start, len(view)):
+            char = view[index]
+            if char == "}" and depth == 0:
+                body = view[start:index]
+                members = {
+                    match[1] for match in pattern.finditer(body) if depths[match.start(1)] == 0
+                }
+                scopes.append((start, index, members))
+                break
+            depths.append(depth)
+            depth += {"{": 1, "}": -1}.get(char, 0)
+    return scopes
+
+
+def _blank_in_scope_members(view: str, scopes: list[tuple[int, int, set[str]]]) -> str:
+    """Blank a declared member's own declaration and bare uses inside its type body.
+
+    Outside the declaring body a bare name stays visible, so it is checked.
+    """
+    chars = list(view)
+    for start, end, members in scopes:
+        for word in _WORD_RE.finditer(view, start, end):
+            if word[0] in members:
+                chars[word.start() : word.end()] = " " * len(word[0])
+    return "".join(chars)
+
+
+def _skip_group_back(view: str, end: int) -> int | None:
+    """Index of the opener matching the closer just before ``end``, or None."""
+    closer = view[end - 1]
+    opener = _GROUP_OPENERS[closer]
+    depth = 0
+    for index in range(end - 1, -1, -1):
+        if view[index] == closer:
+            depth += 1
+        elif view[index] == opener:
+            depth -= 1
+            if depth == 0:
+                return index
+    return None
+
+
+class _Receiver(typing.NamedTuple):
+    name: str
+    position: int
+    constructed: bool
+    direct: bool
+    type_path: bool = False
+
+
+def _member_receiver(view: str, dot: int) -> _Receiver:
+    """Walk a chain back to its root and distinguish direct member access."""
+    end = dot
+    hops = 0
+    groups: list[str] = []
+    while True:
+        end = len(view[:end].rstrip())
+        while end and view[end - 1] in _GROUP_OPENERS:
+            if view[end - 1] == ">" and view[:end].endswith("=>"):
+                return _Receiver("", dot, False, False)
+            opener = _skip_group_back(view, end)
+            if opener is None:
+                return _Receiver("", dot, False, False)
+            groups.append(view[opener])
+            end = len(view[:opener].rstrip())
+        word = _IDENTIFIER_BEFORE_RE.search(view[:end])
+        if word is None:
+            return _Receiver("", dot, False, False)
+        start = end - len(word[0].rstrip())
+        head = view[:start].rstrip()
+        if head.endswith("."):
+            hops += 1
+            end = len(head) - 1 - (1 if head.endswith("?.") else 0)
+            continue
+        constructed = bool(_NEW_BEFORE_RE.search(head))
+        direct = hops == 0 and (not groups or (constructed and groups == ["("]))
+        return _Receiver(word[1], start, constructed, direct, constructed and not groups)
+
+
+def _receiver_root(view: str, dot: int) -> tuple[str, bool]:
+    receiver = _member_receiver(view, dot)
+    return receiver.name, receiver.constructed
+
+
+def _receiver_bindings(view: str, lang: str) -> typing.Callable[[_Receiver], str]:
+    """Find a receiver's preceding declaration in a visible lexical block."""
+    owners, ends = _balanced_groups(view)
+    declarations: dict[tuple[str, int], dict[int, str]] = {}
+
+    def block(position: int) -> int:
+        owner = owners[position]
+        while owner != -1 and view[owner] != "{":
+            owner = owners[owner]
+        return owner
+
+    def declare(
+        match: re.Match[str], name_group: int, type_group: int, *, inferred: bool = False
+    ) -> None:
+        position = match.start(name_group)
+        scope = block(position)
+        group = owners[position]
+        if group != -1 and view[group] == "(" and group in ends:
+            after = ends[group] + 1
+            tail = view[after:].lstrip()
+            if tail.startswith("{"):
+                scope = len(view) - len(tail)
+        key = (match[name_group], scope)
+        binding = declarations.setdefault(key, {})
+        if inferred and not (
+            binding.get(position) == "var"
+            or (lang == "typescript" and _TS_VARIABLE_BEFORE_RE.search(view[:position]))
+        ):
+            return
+        binding[position] = re.sub(r"\s+", "", match[type_group])
+
+    if lang == "csharp":
+        for match in _CSHARP_TYPED_NAME_RE.finditer(view):
+            declare(match, 2, 1)
+    else:
+        for match in _TS_TYPED_NAME_RE.finditer(view):
+            declare(match, 1, 2)
+    for match in _NEW_ASSIGNED_RE.finditer(view):
+        declare(match, 1, 2, inferred=True)
+
+    def resolve(receiver: _Receiver) -> str:
+        if receiver.constructed:
+            return receiver.name
+        scope = block(receiver.position)
+        while True:
+            local = declarations.get((receiver.name, scope), {})
+            position = max((p for p in local if p < receiver.position), default=-1)
+            if position != -1:
+                return local[position]
+            if scope == -1:
+                return receiver.name
+            scope = block(scope)
+
+    return resolve
+
+
+def _receiver_types(view: str, lang: str) -> dict[str, str]:
+    """Lowercase variable name -> declared or constructed type in the example."""
+    typed = (
+        [(name, kind) for kind, name in _CSHARP_TYPED_NAME_RE.findall(view)]
+        if lang == "csharp"
+        else _TS_TYPED_NAME_RE.findall(view)
+    )
+    types = dict(typed)
+    types.update(_NEW_ASSIGNED_RE.findall(view))
+    return {name: kind.rsplit(".", 1)[-1].strip() for name, kind in types.items()}
+
+
+def _proven_member_names(
+    view: str, lang: str, local_types: set[str], unresolved_types: set[str]
+) -> set[str]:
+    """Member names whose every access has a receiver proven not to be repo API.
+
+    A receiver is proven when its chain starts at a type the example
+    declares, a framework type, a variable declared or constructed with one
+    of those, or ``this``/``base`` inside an example that declares a type.
+    A free variable, or one assigned from an unresolved call, proves
+    nothing, so its members stay checkable.
+    """
+    proven_types = (local_types - unresolved_types) | _PROVEN_RECEIVER_TYPES.get(lang, frozenset())
+    variables = _receiver_types(view, lang)
+    proven: dict[str, bool] = {}
+    for match in _MEMBER_ACCESS_RE.finditer(view):
+        root, constructed = _receiver_root(view, match.start())
+        if root in ("this", "base"):
+            ok = bool(local_types - unresolved_types)
+        else:
+            receiver_type = root if constructed else variables.get(root, root)
+            ok = bool(root) and receiver_type in proven_types
+        proven[match[1]] = proven.get(match[1], True) and ok
+    return {name for name, ok in proven.items() if ok}
+
+
+_CSHARP_MEMBER_CALL_RE = re.compile(r"\s*(?:<[^;{}()]*?>\s*)?\(")
+_NAMED_ARGUMENT_RE = re.compile(r"(?<=[(,])\s*(\w+)\s*:")
+_RepoMethods = dict[tuple[str, str], list[SourceSymbol]]
+
+
+def _qualified_member_checks(
+    source: str,
+    lexical: str,
+    checked: str,
+    lang: str,
+    local_types: set[str],
+    repo_methods: _RepoMethods,
+    literal_ends: set[int],
+) -> tuple[str, set[str], list[tuple[SourceSymbol, str]]]:
+    """Consume member occurrences before bare names reach the global index."""
+    resolve_receiver = _receiver_bindings(lexical, lang)
+    concrete_types = local_types | _PROVEN_RECEIVER_TYPES[lang]
+    unchecked_types = {"dynamic"} if lang == "csharp" else {"any", "unknown"}
+    owners, ends = _balanced_groups(checked)
+    spans: _Spans = []
+    unresolved: set[str] = set()
+    wrong_parameters: list[tuple[SourceSymbol, str]] = []
+    for match in _MEMBER_ACCESS_RE.finditer(checked):
+        name = match[1]
+        receiver = _member_receiver(lexical, match.start())
+        if receiver.type_path:
+            continue
+        receiver_type = resolve_receiver(receiver)
+        call = _CSHARP_MEMBER_CALL_RE.match(checked, match.end())
+        if lang == "csharp" and (
+            not _TYPE_NAME_RE.fullmatch(name) or (not call and receiver_type not in unchecked_types)
+        ):
+            continue
+        if lang == "typescript" and receiver.name[:1].isdigit():
+            continue
+        spans.append(match.span(1))
+        if literal_ends and len(source[: match.start()].rstrip()) in literal_ends:
+            continue
+        if receiver_type in unchecked_types:
+            unresolved.add(name)
+            continue
+        if receiver_type.rsplit(".", 1)[-1] in concrete_types or (
+            receiver.name in {"this", "base"} and local_types
+        ):
+            continue
+
+        methods = repo_methods.get((receiver_type, name), []) if receiver.direct else []
+        static_access = not receiver.constructed and receiver.name == receiver_type
+        methods = [
+            method
+            for method in methods
+            if ("static" in method.signature.split("(", 1)[0].split()) == static_access
+        ]
+        if not methods or call is None:
+            unresolved.add(name)
+            continue
+        opening = call.end() - 1
+        params = [
+            param[1]
+            for param in _NAMED_ARGUMENT_RE.finditer(
+                checked, opening + 1, ends.get(opening, opening)
+            )
+            if owners[param.start(1)] == opening
+        ]
+        if not params:
+            continue
+        methods = [method for method in methods if method.parameter_names is not None]
+        if not methods:
+            unresolved.add(name)
+            continue
+        missing_by_overload = [
+            [param for param in params if param not in (method.parameter_names or [])]
+            for method in methods
+        ]
+        best = min(range(len(methods)), key=lambda index: len(missing_by_overload[index]))
+        wrong_parameters.extend((methods[best], param) for param in missing_by_overload[best])
+    return _blank_example_spans(checked, spans), unresolved, wrong_parameters
+
+
 # A C# preprocessor directive occupies its whole line, optionally indented,
 # with optional whitespace after "#". Directive lines name build symbols
 # (NETFRAMEWORK, NET472, DEBUG) or tooling text (#region, #pragma), never a
@@ -1352,17 +3125,30 @@ def _sibling_module(stem: str) -> ModuleType:
     return importlib.import_module(stem)
 
 
-def _extract_identifiers(code: str, lang: str = "") -> list[str]:
+def _extract_identifiers(
+    code: str,
+    lang: str = "",
+    doc_definitions: frozenset[str] | set[str] = frozenset(),
+    *,
+    resolve_import: _PyImportResolver | None = None,
+) -> list[str]:
     """Extract potential identifiers from a code snippet.
 
     For Python (``lang == "python"``) only code tokens count: strings,
-    docstrings and comments are blanked first, and names imported from
-    the standard library are dropped.
+    docstrings and comments are blanked first, names imported from the
+    standard library, declarations within the example, and names whose every
+    occurrence binds or resolves within the example are dropped, and
+    attribute chains on stdlib-imported modules are blanked.
 
     f-string expressions stay visible only on Python 3.12+, where the
     tokenizer splits f-strings. On 3.10 and 3.11 the whole f-string is one
     STRING token and is blanked, which can only miss a symbol, never add a
-    false finding.
+    false finding. C#, TypeScript, and JavaScript comments are blanked,
+    example-local declarations are dropped. TypeScript and JavaScript
+    literal text is blanked by ``_c_family_code_view``; C# literal text by
+    the steps below. Member calls stay visible for parameter checks against
+    known methods. TypeScript object-literal keys are data, not named
+    parameters.
 
     For C# (``lang == "csharp"``) preprocessor directive lines are blanked
     first, so ``#if NETFRAMEWORK`` does not report an unresolved symbol
@@ -1371,32 +3157,67 @@ def _extract_identifiers(code: str, lang: str = "") -> list[str]:
     ``DEBUG``. Named-argument names in attribute argument lists are blanked
     too, so ``EntryPoint`` in ``[DllImport("k32", EntryPoint = "Beep")]`` is
     not reported. The attribute name itself stays a checked code reference.
-    Comments are still scanned. Other languages keep lines starting with
+    When the literal scan cannot read the snippet, the raw code is scanned,
+    which can only report extra names. Other languages keep lines starting with
     ``#``, because JavaScript and TypeScript private members use that prefix,
     and keep the language-agnostic scan.
     """
-    stdlib_names: set[str] = set()
+    ignored_names: set[str] = set(doc_definitions)
     if lang == "python":
-        code = _strip_python_non_code(code)
-        stdlib_names = _python_stdlib_imported_names(code)
-    elif lang == "csharp":
-        code = _CSHARP_DIRECTIVE_LINE_RE.sub("", code)
-        blanked = _sibling_module("csharp_literals").blank_csharp_literals(code)
-        if blanked is None:
-            # An unclosed string, a multi-line verbatim string, or the
-            # recursion limit stopped the scan. Scanning the unblanked code
-            # can only report extra names, never hide one.
-            logger.warning("C# literal scan could not read the snippet; scanning raw code")
-        else:
-            holes = _sibling_module("csharp_holes")
-            code = holes.blank_csharp_attribute_named_args(blanked)
+        ignored_names.update(_python_example_definitions(code))
+        excluded_names, code = _python_example_bindings(code, resolve_import)
+        ignored_names.update(excluded_names)
+        code = _blank_stdlib_plain_import_lines(code)
+    elif lang in _DECLARATION_RES:
+        if lang == "csharp":
+            code = _CSHARP_DIRECTIVE_LINE_RE.sub("", code)
+            blanked = _sibling_module("csharp_literals").blank_csharp_literals(code)
+            if blanked is None:
+                # An unclosed string, a multi-line verbatim string, or the
+                # recursion limit stopped the scan. Scanning the unblanked code
+                # can only report extra names, never hide one.
+                logger.warning("C# literal scan could not read the snippet; scanning raw code")
+            else:
+                holes = _sibling_module("csharp_holes")
+                code = holes.blank_csharp_attribute_named_args(blanked)
+        ignored_names.update(_example_declaration_names(code, lang))
+        code = _strip_csharp_comments(code) if lang == "csharp" else _c_family_code_view(code, lang)
     # Match CamelCase and snake_case identifiers (3+ chars)
     identifiers = re.findall(r"\b([A-Z][a-zA-Z0-9]+)\b", code)
     # Also match method calls
     identifiers.extend(re.findall(r"\.([A-Za-z]\w+)\s*\(", code))
-    # Named parameters (C# style)
-    identifiers.extend(re.findall(r"(\w+)\s*:", code))
-    return sorted(set(identifiers) - stdlib_names)
+    if lang == "typescript":
+        identifiers.extend(_MEMBER_ACCESS_RE.findall(code))
+
+    if lang not in ("typescript", "javascript"):
+        # Named parameters (C# style)
+        identifiers.extend(re.findall(r"(\w+)\s*:", code))
+    return sorted(set(identifiers) - ignored_names)
+
+
+def _doc_example_definitions(lines: list[str]) -> dict[str, set[str]]:
+    """Type names declared by any fenced example in the document.
+
+    Only declarations in fences of the same language resolve each other.
+    """
+    definitions: dict[str, set[str]] = {}
+    i = 0
+    while i < len(lines):
+        fence_match = re.match(r"^```(\S*)", lines[i])
+        if not fence_match:
+            i += 1
+            continue
+        lang = _detect_language(fence_match.group(1))
+        i += 1
+        block: list[str] = []
+        while i < len(lines) and not lines[i].startswith("```"):
+            block.append(lines[i])
+            i += 1
+        definitions.setdefault(lang, set()).update(
+            _example_declaration_names("\n".join(block), lang)
+        )
+        i += 1
+    return definitions
 
 
 # File-level opt-out for Markdown that documents another product's SDK:
@@ -1672,8 +3493,10 @@ def run_claim_extraction(
 
     # Build symbol -> source file mapping
     symbol_to_source: dict[str, str] = {}
-    for sym in assessment.get("source_symbols", []):
+    source_symbols = assessment.get("source_symbols", [])
+    for sym in source_symbols:
         symbol_to_source[sym["name"]] = sym["file"]
+    resolve_import = _python_import_resolver(repo_root, source_symbols)
 
     for doc_info in assessment.get("documentation_files", []):
         doc_path = repo_root / doc_info["path"]
@@ -1686,6 +3509,7 @@ def run_claim_extraction(
         lines = [ln[:-1] if ln.endswith("\r") else ln for ln in content.split("\n")]
         mapped_sources = doc_info.get("mapped_source_files", [])
         default_source = mapped_sources[0] if mapped_sources else ""
+        doc_definitions = _doc_example_definitions(lines)
 
         ignored_marker = _first_ignored_sdk_marker(lines)
         if ignored_marker is not None:
@@ -1731,7 +3555,12 @@ def run_claim_extraction(
                     i += 1
                     continue
 
-                identifiers = _extract_identifiers(code_content, lang)
+                identifiers = _extract_identifiers(
+                    code_content,
+                    lang,
+                    doc_definitions.get(lang, set()),
+                    resolve_import=resolve_import,
+                )
                 # Map identifiers to source files
                 mapped = default_source
                 for ident in identifiers:
@@ -1883,6 +3712,33 @@ def _scope_findings(
     return findings
 
 
+def _phantom_parameter_finding(
+    number: int, claim: dict[str, Any], actual: SourceSymbol, param: str
+) -> Finding:
+    return Finding(
+        id=f"compile-{number:04d}",
+        claim_id=claim["id"],
+        severity="critical",
+        category="phantom_parameter",
+        file=claim["file"],
+        line=claim["line"],
+        description=(
+            f"Parameter '{param}' does not exist in {actual.name}(). "
+            f"Actual signature: {actual.signature}"
+        ),
+        evidence={
+            "documented": claim["content"][:200],
+            "actual_signature": actual.signature,
+            "source_file": actual.file,
+            "source_line": actual.line,
+        },
+        suggested_fix=(
+            f"Remove or rename parameter '{param}'. Check {actual.file}:{actual.line} for "
+            f"correct signature."
+        ),
+    )
+
+
 def run_compilability_check(
     assessment: dict[str, Any],
     claims_data: dict[str, Any],
@@ -1901,9 +3757,26 @@ def run_compilability_check(
 
     # Build symbol index from assessment
     symbol_index: dict[str, SourceSymbol] = {}
+    csharp_types: dict[str, list[tuple[str, str]]] = {}
+    repo_methods: _RepoMethods = {}
     for sym_dict in source_symbols:
         sym = SourceSymbol(**sym_dict)
         symbol_index[sym.name] = sym
+        if sym.file.lower().endswith(".cs") and sym.kind in {
+            "class",
+            "struct",
+            "record",
+            "interface",
+        }:
+            csharp_types.setdefault(sym.name, []).append((sym.kind, sym.partial_scope))
+        if sym.declaring_type and sym.kind == "method":
+            repo_methods.setdefault((sym.declaring_type, sym.name), []).append(sym)
+    unambiguous = {
+        name
+        for name, declarations in csharp_types.items()
+        if len(declarations) == 1 or (declarations[0][1] and len(set(declarations)) == 1)
+    }
+    repo_methods = {key: methods for key, methods in repo_methods.items() if key[0] in unambiguous}
 
     # Build a set of all known symbol names for quick lookup
     known_names = set(symbol_index.keys())
@@ -1938,6 +3811,56 @@ def run_compilability_check(
 
         content = claim_dict["content"]
         lang = claim_dict.get("language", "")
+        # Literal text and comments are data; interpolation holes stay code.
+        literal_ends: set[int] = set()
+        lexical_content = (
+            _c_family_code_view(content, lang, literal_ends=literal_ends)
+            if lang in _DECLARATION_RES
+            else content
+        )
+        checked_content = lexical_content
+        if lang == "csharp":
+            checked_content = _csharp_binding_view(lexical_content)
+        elif lang in ("typescript", "javascript"):
+            checked_content = _js_binding_view(lexical_content, content)
+        symbols_ref = claim_dict.get("symbols_referenced", [])
+        unresolved_members: set[str] = set()
+        member_only: set[str] = set()
+        if lang in _DECLARATION_RES:
+            # Phase 2 omits example-local and doc-local type declarations.
+            local_types = {
+                word for word in _WORD_RE.findall(lexical_content) if _TYPE_NAME_RE.fullmatch(word)
+            } - set(symbols_ref)
+            if lang in {"csharp", "typescript"}:
+                declared_types = set(_DECLARATION_RES[lang].findall(lexical_content))
+                checked_content, unresolved_members, wrong_parameters = _qualified_member_checks(
+                    content,
+                    lexical_content,
+                    checked_content,
+                    lang,
+                    declared_types | (local_types - known_names),
+                    repo_methods if lang == "csharp" else {},
+                    literal_ends,
+                )
+                for actual, param in wrong_parameters:
+                    finding_counter += 1
+                    findings.append(
+                        _phantom_parameter_finding(finding_counter, claim_dict, actual, param)
+                    )
+            # Keep bare uses and constructors, even if a member shares the name.
+            bare_content = re.sub(r"\.\s*[A-Za-z]\w*", lambda m: " " * len(m[0]), checked_content)
+            member_scopes = _type_member_scopes(checked_content, lang)
+            bare_content = _blank_in_scope_members(bare_content, member_scopes)
+            bare_names = set(re.findall(r"\b([A-Z][a-zA-Z0-9]+)\b", bare_content))
+            declared_members = {name for _, _, names in member_scopes for name in names}
+            accessed_members = set(_MEMBER_ACCESS_RE.findall(checked_content))
+            constructed = set(re.findall(r"\bnew\s+(?:\w+\s*\.\s*)*([A-Z]\w*)", checked_content))
+            # A member the example declares and never reaches through an
+            # unproven receiver is example-local; so is a proven access.
+            member_only = (
+                _proven_member_names(lexical_content, lang, local_types, known_names)
+                | (declared_members - accessed_members)
+            ) - (bare_names | constructed)
 
         # Skip languages without source-symbol extractors (e.g. text/ASCII
         # diagrams, PowerShell, bash).  Only languages present in
@@ -1946,23 +3869,43 @@ def run_compilability_check(
             if claim_dict["type"] == "code_example":
                 continue
 
-        symbols_ref = claim_dict.get("symbols_referenced", [])
-        if not symbols_ref:
-            continue
-
         # A code example may declare its own types, namespaces, properties and
-        # methods. Those are not claims about the repository.
-        declared = _declared_names(content, lang) if claim_dict["type"] == "code_example" else set()
+        # methods. Those are not claims about the repository. Python examples
+        # use AST scope analysis in Phase 2 instead of regex declaration matching.
+        declared = (
+            _declared_names(content, lang)
+            if claim_dict["type"] == "code_example" and lang != "python"
+            else set()
+        )
+        if declared and lang in _DECLARATION_RES:
+            omitted_declared = (
+                declared
+                & local_types
+                - known_names
+                - _COMMON_FRAMEWORK_TYPES
+                - set(symbols_ref)
+                - unresolved_members
+            )
+            omitted_count = sum(
+                1 for name in omitted_declared if re.match(r"^[A-Z][a-zA-Z0-9]+$", name)
+            )
+            if omitted_count:
+                path = claim_dict["file"]
+                declared_name_suppressed[path] = (
+                    declared_name_suppressed.get(path, 0) + omitted_count
+                )
 
-        for sym_name in symbols_ref:
-            if sym_name in known_names:
+        code_words = set(_WORD_RE.findall(checked_content))
+        for sym_name in sorted(set(symbols_ref) | unresolved_members):
+            visible = lang not in _DECLARATION_RES or sym_name in code_words
+            if visible and sym_name in known_names:
                 # Symbol exists, check for parameter accuracy
                 actual = symbol_index[sym_name]
                 if actual.kind == "method" and "(" in content:
                     # Check named parameters in the code example
                     named_params = re.findall(
-                        rf"{re.escape(sym_name)}\s*\([^)]*?(\w+)\s*:",
-                        content,
+                        rf"\b{re.escape(sym_name)}\s*\([^)]*?(\w+)\s*:",
+                        checked_content,
                     )
                     for param in named_params:
                         pattern = rf"\b{re.escape(param)}\b"
@@ -1970,113 +3913,78 @@ def run_compilability_check(
                         if not re.search(pattern, actual.signature):
                             finding_counter += 1
                             findings.append(
-                                Finding(
-                                    id=f"compile-{finding_counter:04d}",
-                                    claim_id=claim_dict["id"],
-                                    severity="critical",
-                                    category="phantom_parameter",
-                                    file=claim_dict["file"],
-                                    line=claim_dict["line"],
-                                    description=(
-                                        f"Parameter '{param}' does not exist in "
-                                        f"{sym_name}(). "
-                                        f"Actual signature: {actual.signature}"
-                                    ),
-                                    evidence={
-                                        "documented": content[:200],
-                                        "actual_signature": actual.signature,
-                                        "source_file": actual.file,
-                                        "source_line": actual.line,
-                                    },
-                                    suggested_fix=(
-                                        f"Remove or rename parameter '{param}'. "
-                                        f"Check {actual.file}:{actual.line} for "
-                                        f"correct signature."
-                                    ),
+                                _phantom_parameter_finding(
+                                    finding_counter, claim_dict, actual, param
                                 )
                             )
-            else:
+
+            if sym_name not in unresolved_members:
+                if not visible or sym_name in known_names:
+                    continue
+                # The example declares this name itself; count the skip so the
+                # report shows what this rule hid (even if also member-only).
+                if (
+                    sym_name in declared
+                    and re.match(r"^[A-Z][a-zA-Z0-9]+$", sym_name)
+                    and sym_name not in _COMMON_FRAMEWORK_TYPES
+                ):
+                    path = claim_dict["file"]
+                    declared_name_suppressed[path] = declared_name_suppressed.get(path, 0) + 1
+                    continue
+                if sym_name in member_only:
+                    continue
                 # Symbol not found in codebase
                 # Only flag CamelCase identifiers (likely type/method names)
                 if not re.match(r"^[A-Z][a-zA-Z0-9]+$", sym_name):
                     continue
 
                 # Skip common framework types
-                framework_types = {
-                    "String",
-                    "Int32",
-                    "Boolean",
-                    "Object",
-                    "Array",
-                    "List",
-                    "Dictionary",
-                    "Task",
-                    "Action",
-                    "Func",
-                    "IEnumerable",
-                    "IList",
-                    "Console",
-                    "Exception",
-                    "Math",
-                    "DateTime",
-                    "TimeSpan",
-                    "Path",
-                    "File",
-                    "Directory",
-                    "Type",
-                    "Attribute",
-                    "Nullable",
-                    "True",
-                    "False",
-                    "None",
-                    "Error",
-                    "Promise",
-                }
-                if sym_name in framework_types:
+                if sym_name in _COMMON_FRAMEWORK_TYPES:
                     continue
 
-                # The example declares this name itself; count the skip so the
-                # report shows what this rule hid.
-                if sym_name in declared:
-                    path = claim_dict["file"]
-                    declared_name_suppressed[path] = declared_name_suppressed.get(path, 0) + 1
+                # Python builtins (ImportError, ValueError, ...) and typing
+                # names (Any, Optional, ...) are never repo symbols.
+                if lang == "python" and (hasattr(builtins, sym_name) or sym_name in _TYPING_NAMES):
                     continue
 
-                # Python builtins (ImportError, ValueError, ...) are never
-                # repo symbols.
-                if lang == "python" and hasattr(builtins, sym_name):
+                # JavaScript and TypeScript built-ins are never repo symbols.
+                if lang in ("javascript", "typescript") and sym_name in _JS_BUILTIN_TYPES:
                     continue
 
-                # The file declares itself documentation for another SDK, so a
-                # symbol missing here is not a claim about this repository.
-                if claim_dict["file"] in external_sdk_files:
-                    path = claim_dict["file"]
-                    external_sdk_suppressed[path] = external_sdk_suppressed.get(path, 0) + 1
+                # Common base class library types beyond the pinned set.
+                if lang == "csharp" and sym_name in _CSHARP_FRAMEWORK_TYPES_EXTRA:
                     continue
 
-                finding_counter += 1
-                findings.append(
-                    Finding(
-                        id=f"compile-{finding_counter:04d}",
-                        claim_id=claim_dict["id"],
-                        severity="high",
-                        category="unresolved_symbol",
-                        file=claim_dict["file"],
-                        line=claim_dict["line"],
-                        description=(
-                            f"Symbol '{sym_name}' referenced in documentation not found in codebase"
-                        ),
-                        evidence={
-                            "documented": content[:200],
-                            "symbol": sym_name,
-                            "search_scope": "all source files",
-                        },
-                        suggested_fix=(
-                            f"Verify '{sym_name}' exists in the codebase. "
-                            f"It may be misspelled, renamed, or removed."
-                        ),
-                    )
+            # The file declares itself documentation for another SDK, so a
+            # symbol missing here is not a claim about this repository.
+            if claim_dict["file"] in external_sdk_files:
+                path = claim_dict["file"]
+                external_sdk_suppressed[path] = external_sdk_suppressed.get(path, 0) + 1
+                continue
+
+            finding_counter += 1
+            findings.append(
+                Finding(
+                    id=f"compile-{finding_counter:04d}",
+                    claim_id=claim_dict["id"],
+                    severity="high",
+                    category="unresolved_symbol",
+                    file=claim_dict["file"],
+                    line=claim_dict["line"],
+                    description=(
+                        f"Symbol '{sym_name}' referenced in documentation not found in codebase"
+                    ),
+                    evidence={
+                        "documented": content[:200],
+                        "symbol": sym_name,
+                        "search_scope": "all source files",
+                    },
+                    suggested_fix=(
+                        f"Verify '{sym_name}' exists in the codebase. "
+                        f"It may be misspelled, renamed, or removed."
+                    ),
                 )
+            )
 
     claims_by_id = {c["id"]: c for c in claims_data.get("claims", [])}
     return {

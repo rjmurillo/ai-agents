@@ -60,6 +60,8 @@ boundaries, 5-dash boundaries, and leading blank lines. python-frontmatter's
 canonical constant is
 
 ```python
+import re
+
 FM_BOUNDARY = re.compile(r"^-{3,}\s*$", re.MULTILINE)
 ```
 

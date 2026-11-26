@@ -2,36 +2,17 @@
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import subprocess
 import sys
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 from scripts.github_core.api import RepoInfo
+from tests.skills.claude_skills_import import import_skill_script
 
-# ---------------------------------------------------------------------------
-# Import the script via importlib (not a package)
-# ---------------------------------------------------------------------------
-_SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
-)
-
-
-def _import_script(name: str):
-    spec = importlib.util.spec_from_file_location(name, _SCRIPTS_DIR / f"{name}.py")
-    assert spec is not None
-    assert spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[name] = mod
-    spec.loader.exec_module(mod)
-    return mod
-
-
-_mod = _import_script("merge_pr")
+_mod = import_skill_script(".claude/skills/github/scripts/pr/merge_pr.py")
 main = _mod.main
 build_parser = _mod.build_parser
 get_allowed_merge_methods = _mod.get_allowed_merge_methods
@@ -1605,6 +1586,8 @@ class TestBlockedRestMergedStateFallback:
                 return _completed(stdout=rest_stdout)
             if _is_readback(cmd):
                 return _completed(stdout=readback)
+            if list(cmd[:2]) == ["gh", "api"]:
+                return _completed(rc=1, stderr="rest fallback unscripted")
             return _completed(rc=view_rc, stdout=view_state)
 
         with (
@@ -2558,6 +2541,10 @@ class _FakeGh:
             if isinstance(self.merge, BaseException):
                 raise self.merge
             return self.merge
+        if list(cmd[:2]) == ["gh", "api"]:
+            # REST readback fallback (rate-limit path): strict tests do not
+            # script it, so it fails closed like the GraphQL read it follows.
+            return _completed(rc=1, stderr="rest fallback unscripted")
         raise AssertionError(f"unexpected command: {cmd!r}")
 
     def merge_calls(self) -> list[list[str]]:
@@ -3080,3 +3067,98 @@ class TestDryRun:
 
         assert code == 0
         assert "dryRun" not in env["Data"]
+
+
+class TestRestRetryOnRateLimit:
+    """GraphQL rate-limit failure triggers the REST fallback (2026-11 fleet incident).
+
+    GraphQL and REST core rate limits are separate budgets, so an exhausted
+    GraphQL budget does not block the REST merge endpoint.
+    """
+
+    _STATE = json.dumps(
+        {
+            "state": "OPEN",
+            "mergeable": "MERGEABLE",
+            "mergeStateStatus": "CLEAN",
+            "headRefName": "feature",
+            "headRefOid": _FIXTURE_HEAD,
+        }
+    )
+
+    def _make_side_effect(
+        self,
+        graphql_fail_stderr: str,
+        rest_rc: int,
+        rest_stdout: str = "",
+        readback: str = _MERGED_READBACK,
+    ):
+        calls = []
+
+        def _side(cmd, **kwargs):
+            calls.append(cmd)
+            if len(calls) == 1:
+                return _completed(stdout=self._STATE, rc=0)
+            if len(calls) == 2:
+                return _completed(rc=1, stderr=graphql_fail_stderr)
+            if len(calls) == 3:
+                return _completed(rc=rest_rc, stdout=rest_stdout)
+            return _completed(stdout=readback, rc=0)
+
+        return _side, calls
+
+    def _run(self, side, argv=None):
+        argv = argv or ["--pull-request", "50", "--strategy", "squash"]
+        with (
+            patch("merge_pr.assert_gh_authenticated"),
+            patch("merge_pr.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
+            patch("merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED),
+            patch("subprocess.run", side_effect=side),
+        ):
+            return main(argv)
+
+    def test_rate_limit_retries_rest_and_succeeds(self, capsys):
+        rest_body = json.dumps({"merged": True, "sha": _FIXTURE_HEAD})
+        side, calls = self._make_side_effect(
+            "API rate limit exceeded for user ID 123",
+            rest_rc=0,
+            rest_stdout=rest_body,
+        )
+        rc = self._run(side)
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert out["Data"]["state"] == "MERGED"
+        assert len(calls) == 4
+
+    def test_rate_limit_case_insensitive_match(self, capsys):
+        rest_body = json.dumps({"merged": True, "sha": _FIXTURE_HEAD})
+        side, calls = self._make_side_effect(
+            "graphql: RATE LIMIT exhausted",
+            rest_rc=0,
+            rest_stdout=rest_body,
+        )
+        rc = self._run(side)
+        assert rc == 0
+        assert len(calls) == 4
+
+    def test_rate_limit_rest_also_fails_reports_rate_limit_error(self, capsys):
+        side, calls = self._make_side_effect(
+            "API rate limit exceeded",
+            rest_rc=1,
+            rest_stdout="",
+            readback=_OPEN_READBACK,
+        )
+        with pytest.raises(SystemExit):
+            self._run(side)
+        assert len(calls) >= 3
+
+    def test_auto_does_not_retry_on_rate_limit(self):
+        side, calls = self._make_side_effect(
+            "API rate limit exceeded",
+            rest_rc=0,
+            rest_stdout=json.dumps({"merged": True, "sha": _FIXTURE_HEAD}),
+        )
+        with pytest.raises(SystemExit):
+            self._run(side, argv=["--pull-request", "50", "--auto"])
+        # No REST retry: no `gh api` merge call appears.
+        assert not any(list(c[:2]) == ["gh", "api"] for c in calls)

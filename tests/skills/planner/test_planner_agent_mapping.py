@@ -11,16 +11,15 @@ paragraph that runs a missing agent's step in the current session.
 
 from __future__ import annotations
 
-import importlib.util
 import re
 from pathlib import Path
-from types import ModuleType
 
 import pytest
 
+from tests.skills.planner_guidance import executor, flatten, planner
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 AGENT_TEMPLATES = REPO_ROOT / "templates" / "agents"
-SCRIPTS = REPO_ROOT / "src" / "claude" / "skills" / "planner" / "scripts"
 PLANNER_TEMPLATE = REPO_ROOT / "templates" / "skills" / "planner.SKILL.md.tmpl"
 PLANNER_DOCS_PAGE = REPO_ROOT / "docs" / "skills" / "planner.md"
 # Every on-disk planner tree, found by glob so a new mirror cannot go unchecked.
@@ -41,33 +40,14 @@ AGENT_REF_RE = re.compile(r"@agent-([a-z][a-z0-9]*(?:-[a-z0-9]+)*)")
 CRITIC_VERDICT_ROW_RE = re.compile(r"^\| \*\*([A-Z_]+)\*\* \|", re.MULTILINE)
 
 
-def _load(name: str) -> ModuleType:
-    spec = importlib.util.spec_from_file_location(f"mapping_{name}", SCRIPTS / f"{name}.py")
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-planner = _load("planner")
-executor = _load("executor")
-
-
-def _flatten(guidance: dict) -> str:
-    parts: list[str] = []
-    for value in guidance.values():
-        parts.extend(value if isinstance(value, list) else [str(value)])
-    return "\n".join(parts)
-
-
 def _planner_outputs() -> dict[str, str]:
-    return {f"review step {s}": _flatten(planner.get_review_step_guidance(s, 2)) for s in (1, 2)}
+    return {f"review step {s}": flatten(planner.get_review_step_guidance(s, 2)) for s in (1, 2)}
 
 
 def _executor_outputs() -> dict[str, str]:
     plan = "plans/example.md"
     return {
-        f"execution step {s}": _flatten(executor.get_step_guidance(s, plan, "go"))
+        f"execution step {s}": flatten(executor.get_step_guidance(s, plan, "go"))
         for s in range(1, 8)
     }
 

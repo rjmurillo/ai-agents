@@ -29,7 +29,12 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from scripts.ci.sarif_rules import dig, effective_level, resolve_rule
+
 _CRITICAL_SEVERITY = 9.0
+_SEVERITY_PROPERTY = "security-severity"
 
 
 @dataclass
@@ -42,23 +47,21 @@ class Tally:
     lines: list[str] = field(default_factory=list)
 
 
-def _severity(rules: list[dict[str, object]], rule_id: object) -> float | None:
-    """Return the numeric ``security-severity`` for a rule id, if it has one."""
-    for rule in rules:
-        if not isinstance(rule, dict) or rule.get("id") != rule_id:
-            continue
-        properties = rule.get("properties")
-        if not isinstance(properties, dict):
-            return None
-        raw = properties.get("security-severity")
-        # A bool is an int in Python; a boolean severity is nonsense, not 0.0/1.0.
-        if isinstance(raw, bool) or not isinstance(raw, (int, float, str)):
-            return None
-        try:
-            return float(raw)
-        except ValueError:
-            return None
-    return None
+def _severity(raw: object) -> float | None:
+    """Parse a numeric security severity, excluding boolean values."""
+    if isinstance(raw, bool) or not isinstance(raw, (int, float, str)):
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        return None
+
+
+def _result_severity(result: dict[str, object], rule: object) -> float | None:
+    properties = result.get("properties")
+    if isinstance(properties, dict) and _SEVERITY_PROPERTY in properties:
+        return _severity(properties[_SEVERITY_PROPERTY])
+    return _severity(dig(rule, "properties", _SEVERITY_PROPERTY))
 
 
 def _message(result: dict[str, object]) -> str:
@@ -70,15 +73,6 @@ def _message(result: dict[str, object]) -> str:
     return ""
 
 
-def _dig(container: object, *keys: str) -> object:
-    """Walk nested mappings, returning None as soon as a level is not a mapping."""
-    for key in keys:
-        if not isinstance(container, dict):
-            return None
-        container = container.get(key)
-    return container
-
-
 def grade(documents: list[tuple[str, dict[str, object]]]) -> Tally:
     """Count findings by severity across parsed SARIF documents."""
     tally = Tally()
@@ -88,10 +82,7 @@ def grade(documents: list[tuple[str, dict[str, object]]]) -> Tally:
         if not isinstance(runs, list):
             continue
         for run in runs:
-            raw_rules = _dig(run, "tool", "driver", "rules")
-            rules = (
-                [r for r in raw_rules if isinstance(r, dict)] if isinstance(raw_rules, list) else []
-            )
+            tool = dig(run, "tool")
             results = run.get("results") if isinstance(run, dict) else None
             if not isinstance(results, list):
                 continue
@@ -99,10 +90,10 @@ def grade(documents: list[tuple[str, dict[str, object]]]) -> Tally:
                 if not isinstance(result, dict):
                     continue
                 tally.total += 1
-                level = result.get("level")
-                rule_id = result.get("ruleId")
+                rule, rule_id = resolve_rule(tool, result)
+                level = effective_level(result, rule)
                 if level == "error":
-                    severity = _severity(rules, rule_id)
+                    severity = _result_severity(result, rule)
                     if severity is not None and severity >= _CRITICAL_SEVERITY:
                         tally.critical += 1
                         tally.lines.append(f"  CRITICAL: {rule_id} - {_message(result)}")

@@ -37,6 +37,12 @@ round 2 revision; rows 4, 5, 8, and 16 to 18 after the module move; rows 10, 11,
 | 29 | A memory root with no `.git` prints a `recall skipped` note | behavior | `test_hook_recalls_notes_only_inside_a_checkout`; mutation removing the note | VERIFIED: mutation failed 1 test |
 | 30 | A resolve error in store lookup never fails a prompt | behavior | `test_recall_fails_open_when_store_resolution_raises`; mutation moving lookup outside the guard | VERIFIED: mutation failed 1 test |
 | 31 | A `.git` file counts as a checkout for recall | behavior | `test_recall_accepts_a_git_file_as_in_a_linked_worktree`; mutation `.exists()` to `.is_dir()` | VERIFIED on 2026-11-24: mutation failed 1 test |
+| 32 | Commit `3ed94c402` (2026-11-24) changed `store_resolution.py` | path | `git show -s --format='%h %ad %s' --date=short 3ed94c402`; `git show --stat` | VERIFIED on 2026-11-25: 51 lines per tree, 6 trees |
+| 33 | `store_resolution.py` imports `STORE_DIRS`, `contained_stores`, `find_memory_root`, and `project_start` from `memory_core.memory_store` after a skill-root `sys.path` insert | quote | `sed -n 19,27p src/claude/skills/memory/scripts/store_resolution.py` | VERIFIED on 2026-11-25 |
+| 34 | The root and store rules exist in two source copies | absence | `git grep -nE "^def (find_memory_root|repository_memory_dir|resolve_memory_store|contained_stores)|^(MEMORY_)?STORE_DIRS"` over the repo, excluding the generated harness trees and `src/claude/lib` | VERIFIED on 2026-11-25: `scripts/memory_enhancement/stores.py:16,23,40` (`MEMORY_STORE_DIRS`, `find_memory_root`, `repository_memory_dir`) and `memory_core/memory_store.py:15,19,27,48` (`STORE_DIRS`, `find_memory_root`, `contained_stores`, `resolve_memory_store`). The names differ; the rules match. `src/claude/lib/memory_enhancement/stores.py` is the build mirror of the first. The first grep used `^STORE_DIRS` and missed `MEMORY_STORE_DIRS`; the refuting seat caught it |
+| 35 | The import-closure gate accepts a folder the file puts on `sys.path` through the `dirname` idiom | quote | `sed -n 25,31p build/scripts/import_closure.py`; `grep -n "def sys_path_inserts" build/scripts/import_closure_paths.py` (line 59) | VERIFIED on 2026-11-25 |
+| 36 | The gate passes with this import in place | behavior | `uv run python build/scripts/check_surface_parity.py`; `pytest -k closure tests/build_scripts` | VERIFIED on 2026-11-25: exit 0; 67 passed |
+| 37 | The parity tests hold both copies and `store_resolution` together | behavior | `pytest -q tests/skills/memory/test_memory_root_parity.py` | VERIFIED on 2026-11-25: 32 passed |
 
 ## Gate results
 
@@ -53,3 +59,17 @@ round 2 revision; rows 4, 5, 8, and 16 to 18 after the module move; rows 10, 11,
   its coverage. One finding concerns ADR-106 itself: its line 95 cites
   `search_memory.py:296` for the `search_episodes` call, which has moved.
   ADR-106's body is not edited here.
+
+### Amendment 2026-11-25 gates (rows 32 to 37)
+
+- Claims ledger: VERIFIED, rows 32 to 37.
+- Documentation accuracy: covered by rows 33 to 35, read from the working tree.
+- Self-consistency: VERIFIED. Forces, Decision 4, Negative consequences,
+  Security, and Confirmation all say two copies. Decision 4 still names the
+  lib bootstrap failure as the reason the skill copy is not in `lib/`.
+- Refuting seat (analyst, haiku), two runs. Run 1 read line numbers as row
+  ids, so it checked rows 24 to 29. Its one body finding was false. It said
+  `scripts/memory_enhancement/stores.py` is missing, but `ls` shows the file.
+  Run 2 checked rows 32 to 37: rows 33 and 35 confirmed, rows 32, 36, and 37
+  NOT RUN (no shell), row 34 refuted as worded. Row 34 now uses a grep that
+  matches both naming schemes. The writer ran rows 32, 36, and 37.

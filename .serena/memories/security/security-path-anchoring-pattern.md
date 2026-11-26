@@ -4,7 +4,7 @@
 
 **Context**: Absolute paths bypass validation when resolved directly. Anchor relative paths to trusted base first, then resolve. This prevents absolute path bypasses of path containment checks.
 
-**Evidence**: PR #760 commit c46a4ca used `Path(user_input).resolve()` after validation, allowing absolute paths to bypass. Commit ddf7052 fixed with `(allowed_base / user_input).resolve()` pattern. The difference: `/etc/passwd` resolves to `/etc/passwd` when direct, but (base / `/etc/passwd`) anchors it to base first.
+**Evidence**: PR #760 commit c46a4ca resolved user input after validation. Commit ddf7052 moved resolution under the allowed base. An absolute right operand replaces the base, so joining alone cannot constrain the result.
 
 **Atomicity**: 91% | **Impact**: 9/10
 
@@ -15,23 +15,29 @@ Correct path injection prevention (Python):
 ```python
 from pathlib import Path
 
-allowed_base = Path("/home/user/files")
-user_input = request.args.get("path")
 
-# CORRECT: Anchor first, then resolve
-resolved_path = (allowed_base / user_input).resolve()
+class SecurityError(ValueError):
+    """The requested path violates the allowed directory boundary."""
 
-# Verify path is within base after resolution
-if not str(resolved_path).startswith(str(allowed_base.resolve())):
-    raise SecurityError("Path traversal attempt detected")
 
-# Now safe to use resolved_path
+def resolve_user_path(allowed_base: Path, user_input: str) -> Path:
+    base = allowed_base.resolve(strict=True)
+    requested = Path(user_input)
+    if not user_input.strip() or requested.anchor:
+        raise SecurityError("Expected a nonempty relative path")
+
+    resolved = (base / requested).resolve()
+    if not resolved.is_relative_to(base):
+        raise SecurityError("Path traversal attempt detected")
+    return resolved
 ```
 
 Why this works:
-- `(allowed_base / "/etc/passwd")` attempts to make `/etc/passwd` relative to base
-- `.resolve()` normalizes the path, showing the attempt
-- Containment check fails because absolute path is outside base
+- Rejecting anchored operands keeps the trusted base in the join
+- `.resolve()` normalizes `..` and follows symlinks that exist, so a link out of base resolves outside it
+- `is_relative_to` compares path parts, so a sibling directory that shares
+  the base name as a prefix still fails the check
+- The check runs once: a link swapped in after it can still race the file open
 
 ## Anti-Pattern
 

@@ -115,3 +115,48 @@ def test_skill_md_keeps_frontmatter_that_names_an_excluded_file(frontmatter: str
     out = hermes_packs.drop_excluded_pointer_lines(text, "alpha", ["alpha/references/r.md"])
 
     assert out == f"{frontmatter}body\n"
+
+
+def _setup_cross_pack_repo(
+    tmp_path: Path, extra_refs: dict[str, str] | None = None
+) -> tuple[Path, dict[str, dict[str, object]]]:
+    repo = make_repo(tmp_path)
+    refs_dir = repo / "src/claude/skills/alpha/references"
+    refs_dir.mkdir(parents=True, exist_ok=True)
+    (refs_dir / "rule-cross.md").write_text(
+        "See skills/beta/references/guide.md.\n", encoding="utf-8"
+    )
+    for name, content in (extra_refs or {}).items():
+        (refs_dir / name).write_text(content, encoding="utf-8")
+    packs: dict[str, dict[str, object]] = {
+        "one": {"description": "Pack one.", "skills": ["alpha"]},
+        "two": {"description": "Pack two.", "skills": ["beta", "gamma"]},
+    }
+    return repo, packs
+
+
+def test_excluded_file_reference_does_not_fail_cross_pack_check(tmp_path: Path) -> None:
+    repo, packs = _setup_cross_pack_repo(tmp_path)
+    with pytest.raises(cfg.HermesPackError, match="beta"):
+        hermes_packs.plan_tree(repo, make_config(packs=packs))
+
+    with_exclusion = make_config(
+        packs=packs,
+        excludedFiles={"alpha/references/rule-cross.md": "References beta in pack two."},
+    )
+    tree = hermes_packs.plan_tree(repo, with_exclusion)
+    assert "project-toolkit-one/skills/alpha/references/rule-cross.md" not in tree
+
+
+def test_non_excluded_file_reference_still_fails_when_another_file_is_excluded(
+    tmp_path: Path,
+) -> None:
+    repo, packs = _setup_cross_pack_repo(
+        tmp_path, extra_refs={"other.md": "Also uses skills/beta/scripts/run.py.\n"}
+    )
+    config = make_config(
+        packs=packs,
+        excludedFiles={"alpha/references/rule-cross.md": "Excluded file."},
+    )
+    with pytest.raises(cfg.HermesPackError, match=r"other\.md.*beta"):
+        hermes_packs.plan_tree(repo, config)

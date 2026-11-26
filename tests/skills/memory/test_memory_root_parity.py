@@ -1,8 +1,8 @@
 """One root rule and one store rule for every memory entry point (ADR-126).
 
-The memory_enhancement package does not ship, so the memory skill keeps two
-more copies of both rules: memory_core.memory_store for the router and
-store_resolution beside search_memory.py. These tests hold the three copies,
+The memory_enhancement package ships only in the Claude plugin lib, so the
+memory skill keeps one copy of both rules in memory_core.memory_store (imported
+by store_resolution beside search_memory.py). These tests hold both copies,
 the hooks, the CLI, and the recall formatter together.
 """
 

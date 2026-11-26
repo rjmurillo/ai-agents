@@ -294,7 +294,7 @@ different owners and states.
   QA-evidence, or session-evidence refresh pattern." One residual gap is
   named and explicitly out of this item's scope: the `-m` fallback at
   `qa_report.py:335` can still over-report if a QA commit falls off the
-  first-parent chain (ADR-100 lines 278-292); nothing in the last 40
+  first-parent chain (ADR-100 lines 279-293); nothing in the last 40
   merges shows it recurring.
 
 #### Item 6: push-ceiling telemetry re-measure
@@ -321,11 +321,11 @@ different owners and states.
 - Owner: `scripts/validation/pre_pr_sequence.py`
 - Consumers: `lefthook.yml` pre-push hook, `pre_pr.py` (direct invocation),
   CI
-- Evidence: `scripts/validation/pre_pr_sequence.py:853-864` reads `fast_stage_ran` and skips with `continue`.
+- Evidence: `scripts/validation/pre_pr_sequence.py:874-885` reads `fast_stage_ran` and skips with `continue`.
   `lefthook.yml:728` sets `AI_AGENTS_PRE_PR_FAST_STAGE_RAN: "1"`.
-  `tests/validation/test_pre_pr_sequence_registry.py:190-198` defines `FAST_STAGE_DUPLICATES`.
+  `tests/validation/test_pre_pr_sequence_registry.py:197-205` defines `FAST_STAGE_DUPLICATES`.
   The set names Count Ratchets, Unreachable Code Detection, Path Normalization, Planning Artifacts, and Em/en-dash Prohibition.
-  `tests/validation/test_pre_pr_sequence_registry.py:293-317` defines `TestFastStageDeferral`.
+  `tests/validation/test_pre_pr_sequence_registry.py:300-324` defines `TestFastStageDeferral`.
 - **Current outcome protected**: the five fast-stage lefthook jobs
   (`count-ratchets`, `unreachable-code-detection`, `path-normalization`,
   `planning-artifacts`, `em/en-dash-prohibition`) do not re-run a second

@@ -14,13 +14,13 @@ review). No exemption remains: every `@agent-*` the planner names must exist.
 
 from __future__ import annotations
 
-import importlib.util
 import re
 from collections.abc import Iterable
 from pathlib import Path
-from types import ModuleType
 
 import pytest
+
+from tests.skills.planner_guidance import executor, flatten, planner
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 AGENT_TEMPLATES = REPO_ROOT / "templates" / "agents"
@@ -37,7 +37,6 @@ PLANNER_TEMPLATE = REPO_ROOT / "templates" / "skills" / "planner.SKILL.md.tmpl"
 PLANNER_DOCS_PAGE = REPO_ROOT / "docs" / "skills" / "planner.md"
 COMMENT_ANALYZER = AGENT_TEMPLATES / "comment-analyzer.shared.md"
 SRC_PLANNER = REPO_ROOT / "src" / "claude" / "skills" / "planner"
-SCRIPTS = SRC_PLANNER / "scripts"
 PLAN_FORMAT = SRC_PLANNER / "resources" / "plan-format.md"
 
 # Agent names planner used before they were mapped to real agents, and the
@@ -67,31 +66,12 @@ SKILL_PROSE_RE = re.compile(r"\b([a-z][a-z0-9]*(?:-[a-z0-9]+)+) skill\b")
 LOAD_SKILL_RE = re.compile(r"\bload ([a-z][a-z0-9]*(?:-[a-z0-9]+)+)\b")
 
 
-def _load(name: str) -> ModuleType:
-    spec = importlib.util.spec_from_file_location(name, SCRIPTS / f"{name}.py")
-    assert spec and spec.loader, name
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-planner = _load("planner")
-executor = _load("executor")
-
-
-def _flatten(guidance: dict) -> str:
-    parts: list[str] = []
-    for value in guidance.values():
-        parts.extend(value if isinstance(value, list) else [str(value)])
-    return "\n".join(parts)
-
-
 def _planner_outputs() -> dict[str, str]:
     outputs = {}
     for step in range(1, 8):
-        outputs[f"planning step {step}"] = _flatten(planner.get_planning_step_guidance(step, 6))
+        outputs[f"planning step {step}"] = flatten(planner.get_planning_step_guidance(step, 6))
     for step in (1, 2, 3):
-        outputs[f"review step {step}"] = _flatten(planner.get_review_step_guidance(step, 2))
+        outputs[f"review step {step}"] = flatten(planner.get_review_step_guidance(step, 2))
     return outputs
 
 
@@ -99,8 +79,8 @@ def _executor_outputs() -> dict[str, str]:
     plan = "plans/example.md"
     outputs = {}
     for step in range(1, 8):
-        outputs[f"execution step {step}"] = _flatten(executor.get_step_guidance(step, plan, "go"))
-    outputs["execution step 1 reconciliation"] = _flatten(
+        outputs[f"execution step {step}"] = flatten(executor.get_step_guidance(step, plan, "go"))
+    outputs["execution step 1 reconciliation"] = flatten(
         executor.get_step_guidance(1, plan, "existing code already implemented, reconciliation")
     )
     return outputs

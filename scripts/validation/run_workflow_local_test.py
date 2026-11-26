@@ -98,6 +98,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.redact_secrets import redact_ci_sink  # noqa: E402
 
 _BYPASS_ENV = "SKIP_WORKFLOW_LOCAL_TEST"
 
@@ -867,6 +871,10 @@ _SECRET_REF_RE = re.compile(r"\bsecrets\.([A-Za-z_][A-Za-z0-9_]*)")
 # runnable locally, so it does not count as "missing".
 _ACT_SECRET_FILE = ".secrets"
 _ACT_BUILTIN_SECRETS = {"GITHUB_TOKEN"}
+_SECRET_ENV_NAME = re.compile(
+    r"(?:^|_)(?:TOKEN|SECRET|PASSWORD|PASSWD|PASSPHRASE|API_KEY|ACCESS_KEY|PRIVATE_KEY|"
+    r"CREDENTIALS?|PAT|COOKIE|CONNECTION_STRING|DSN)(?:_|$)"
+)
 
 
 def _has_secret_value(value: str) -> bool:
@@ -879,18 +887,17 @@ def _has_secret_value(value: str) -> bool:
     return True
 
 
-def _act_secret_file_keys(repo_root: Path) -> set[str]:
-    """Secret names defined in the act default secret file (repo-root .secrets).
+def _act_secret_file_entries(repo_root: Path) -> Iterator[tuple[str, str]]:
+    """Read populated entries in the act default secret file.
 
     Parsed as dotenv: ``KEY=VALUE`` per line; ``#`` comments and blank lines are
     ignored. A missing or unreadable file yields an empty set (no secrets
     supplied from disk).
     """
-    keys: set[str] = set()
     try:
         text = (repo_root / _ACT_SECRET_FILE).read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
-        return keys
+        return
     for line in text.splitlines():
         stripped = line.strip()
         if not stripped or stripped.startswith("#") or "=" not in stripped:
@@ -898,8 +905,11 @@ def _act_secret_file_keys(repo_root: Path) -> set[str]:
         key, value = stripped.split("=", 1)
         key = key.strip()
         if key and _has_secret_value(value):
-            keys.add(key.upper())
-    return keys
+            yield key.upper(), value.strip()
+
+
+def _act_secret_file_keys(repo_root: Path) -> set[str]:
+    return {key for key, _ in _act_secret_file_entries(repo_root)}
 
 
 def _referenced_secrets(path: Path) -> set[str]:
@@ -924,6 +934,43 @@ def _missing_secrets(path: Path, available: set[str]) -> list[str]:
     return sorted(name for name in _referenced_secrets(path) if name not in available)
 
 
+def _redact_capture(capture: tuple[str, str], repo_root: Path, files: Sequence[str]) -> str:
+    """Mask local secret names and values alongside known credential shapes."""
+    names = set(_ACT_BUILTIN_SECRETS)
+    for file in files:
+        names.update(_referenced_secrets(repo_root / file))
+
+    values: set[str] = set()
+    for name, value in os.environ.items():
+        upper_name = name.upper()
+        if upper_name in names or _SECRET_ENV_NAME.search(upper_name):
+            names.add(upper_name)
+            if value:
+                values.add(value)
+    for name, value in _act_secret_file_entries(repo_root):
+        names.add(name)
+        quoted = len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'"
+        values.add(value[1:-1] if quoted else value)
+
+    # A multiline mask in one stream must leave the other stream intact.
+    stdout, stderr = (_redact_diagnostic(text, names, values) for text in capture)
+    return "\n".join(stream.strip("\r\n") for stream in (stdout, stderr) if stream).strip()
+
+
+def _redact_diagnostic(text: str, names: set[str], values: set[str]) -> str:
+    redacted = redact_ci_sink(text, secret_values=values).text
+    # The shared sink ignores short literals. Match these as tokens so a short
+    # fixture or credential does not destroy unrelated words in the diagnostic.
+    for value in sorted(values, key=len, reverse=True):
+        if len(value) < 8:
+            redacted = re.sub(rf"(?<!\w){re.escape(value)}(?!\w)", "***", redacted)
+    return re.sub(
+        r"\b[A-Za-z_][A-Za-z0-9_]*\b",
+        lambda match: "***" if match[0].upper() in names else match[0],
+        redacted,
+    )
+
+
 # --- Stages --------------------------------------------------------------
 
 
@@ -936,7 +983,8 @@ def _actionlint_stage(files: Sequence[str], repo_root: Path) -> StageResult:
     )
     if rc == 0:
         return StageResult("actionlint", True)
-    return StageResult("actionlint", False, _with_cause_hints((out + err).strip()))
+    detail = _redact_capture((out, err), repo_root, files)
+    return StageResult("actionlint", False, _with_cause_hints(detail))
 
 
 # gh act defaults to the ``push`` event. A workflow with no ``push`` trigger
@@ -1270,8 +1318,8 @@ def _local_pytest_stage(files: Sequence[str], repo_root: Path) -> StageResult:
                 env=command_env,
             )
             if returncode != 0:
-                detail = _with_cause_hints((stdout + stderr).strip())
-                return StageResult(stage, False, detail)
+                detail = _redact_capture((stdout, stderr), repo_root, files)
+                return StageResult(stage, False, _with_cause_hints(detail))
     return StageResult(stage, True)
 
 
@@ -1373,6 +1421,31 @@ def _is_act_base_ref_fetch_limitation(text: str) -> bool:
         return False
     failures = [line for line in text.splitlines() if _ACT_MAIN_FAILURE_MARKER in line]
     return all(any(name in line for name in _ACT_BASE_REF_FAILURE_LINES) for line in failures)
+
+
+# duplicate-code.yml hits the same synthetic ``master`` default branch: its
+# BASE_REF falls back to github.event.repository.default_branch, and
+# check_duplicate_code.py exits 3 when git cannot name a fork point with
+# origin/master. Pinned the same three ways as the rule above: this job's
+# label, adjacency of the step's own ``| ERROR`` line and act's ``Failure``
+# line, and no other ``Failure - Main`` line anywhere in the log.
+_ACT_DUPLICATE_BASE_JOB_LABEL = r"\[Duplicate Code Detection/Python duplication ratchet\]"
+_ACT_DUPLICATE_BASE_STEP = "Check Python duplication against the baseline"
+_ACT_DUPLICATE_BASE_PATTERN = re.compile(
+    rf"^[ \t]*(?P<job>{_ACT_DUPLICATE_BASE_JOB_LABEL})[ \t]+\| "
+    r"ERROR: git cannot name a fork point with 'origin/master'[ \t]*\n"
+    rf"[ \t]*(?P=job)[ \t]+\S+[ \t]+Failure - Main {_ACT_DUPLICATE_BASE_STEP}\b",
+    re.MULTILINE,
+)
+
+
+def _is_act_duplicate_base_limitation(text: str) -> bool:
+    """True when the duplicate gate's master fork-point failure is the only failure."""
+    if not _ACT_DUPLICATE_BASE_PATTERN.search(text):
+        return False
+    failures = [line for line in text.splitlines() if _ACT_MAIN_FAILURE_MARKER in line]
+    expected = f"{_ACT_MAIN_FAILURE_MARKER}{_ACT_DUPLICATE_BASE_STEP}"
+    return all(expected in line for line in failures)
 
 
 # act stages a cached action into the container at /var/run/act/actions/<ref>/
@@ -1497,6 +1570,14 @@ _ACT_LIMITATION_RULES: tuple[tuple[str | None, Callable[[str], bool], str], ...]
         "act's synthetic event payload resolves the default branch to master, so "
         "the count-ratchet job cannot fetch its base ref. GitHub populates the "
         "real default branch, so this fails only in local act, not in CI.",
+    ),
+    (
+        None,
+        _is_act_duplicate_base_limitation,
+        "act's synthetic event payload resolves the default branch to master, so "
+        "the duplicate-code job cannot name a fork point with origin/master. "
+        "GitHub populates the real default branch, so this fails only in local "
+        "act, not in CI.",
     ),
     (
         None,
@@ -2055,20 +2136,24 @@ def _run_act_workflows(
             cmd += [*job_arg, *mount_args, "-W", wf]
             rc, out, err = _run(cmd, timeout=timeout, cwd=repo_root, env=env)
             combined = (out + err).strip()
+            captures = [(out, err)]
+            # A run a known act limitation already explains is not contention.
+            # act prints "docker pull" and "docker create" on every run, so the
+            # contention pattern matches any failure; retrying a limitation only
+            # adds a second, unrelated failure that then blocks the downgrade.
             if (
                 rc != 0
                 and _ACT_TIMEOUT_MARKER not in combined
+                and _act_limitation_hint(combined, event) is None
                 and _is_act_contention_failure(combined)
             ):
                 retry_rc, retry_out, retry_err = _run(cmd, timeout=timeout, cwd=repo_root, env=env)
-                retry_combined = (retry_out + retry_err).strip()
                 if retry_rc == 0:
                     label = f"{wf} job {job_arg[1]}" if job_arg else wf
                     warnings.append(f"[WARN] {label}: retried once after act contention.")
                     continue
-                combined = (
-                    f"{combined}\nRetry after act contention also failed:\n{retry_combined}"
-                ).strip()
+                captures.append((retry_out, retry_err))
+                combined += "\n" + (retry_out + retry_err).strip()
                 rc = retry_rc
             if rc == 0:
                 continue
@@ -2082,7 +2167,10 @@ def _run_act_workflows(
                 if hint is not None:
                     warnings.append(f"[WARN] {wf}: {hint} Set {_BYPASS_ENV}=true to silence.")
                     continue
-            return StageResult(stage, False, f"{wf}:\n{_with_cause_hints(combined)}")
+            detail = "\nRetry after act contention also failed:\n".join(
+                _redact_capture(capture, repo_root, [wf]) for capture in captures
+            )
+            return StageResult(stage, False, f"{wf}:\n{_with_cause_hints(detail)}")
     return StageResult(stage, True, "\n".join(warnings))
 
 

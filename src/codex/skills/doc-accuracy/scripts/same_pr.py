@@ -264,27 +264,49 @@ class CodeIndex:
         if isinstance(value, ast.Constant) and type(value.value) is int:
             found.setdefault(value.value, line)
 
-    def assignments(self, key: str) -> list[tuple[str, int, set[str]]]:
-        """Return (file, line, identifiers on the right) for each write to ``key``."""
-        found = []
+    def _all_assignments(self) -> dict[str, list[tuple[str, int, set[str]]]]:
+        cached = self.memo.get("assignments_by_key")
+        if cached is not None:
+            return cast(dict[str, list[tuple[str, int, set[str]]]], cached)
+        by_key: dict[str, list[tuple[str, int, set[str]]]] = {}
         for rel in self.sources:
             tree = self.tree(rel)
-            for node in ast.walk(tree) if tree else []:
-                for value in _writes_to(node, key):
-                    found.append((rel, getattr(node, "lineno", 1), _identifiers(value)))
-        return found
+            if tree is None:
+                continue
+            for node in ast.walk(tree):
+                line = getattr(node, "lineno", 1)
+                for key, value in _all_writes(node):
+                    by_key.setdefault(key, []).append((rel, line, _identifiers(value)))
+        self.memo["assignments_by_key"] = by_key
+        return by_key
+
+    def assignments(self, key: str) -> list[tuple[str, int, set[str]]]:
+        """Return (file, line, identifiers on the right) for each write to ``key``."""
+        return list(self._all_assignments().get(key, ()))
 
 
-def _writes_to(node: ast.AST, key: str) -> list[ast.AST]:
-    """Return the value nodes that ``node`` assigns to attribute, item, or keyword ``key``."""
+def _target_key(target: ast.AST) -> str | None:
+    if isinstance(target, ast.Attribute):
+        return target.attr
+    if isinstance(target, ast.Subscript):
+        return const_str(target.slice)
+    return None
+
+
+def _all_writes(node: ast.AST) -> list[tuple[str, ast.AST]]:
+    """Return (key, value) pairs that ``node`` assigns to an attribute, item, or keyword."""
     if isinstance(node, ast.Assign | ast.AnnAssign) and node.value is not None:
         targets = node.targets if isinstance(node, ast.Assign) else [node.target]
-        if any(_names_key(t, key) for t in targets):
-            return [node.value]
+        keys = dict.fromkeys(k for t in targets if (k := _target_key(t)) is not None)
+        return [(key, node.value) for key in keys]
     if isinstance(node, ast.Call):
-        return [kw.value for kw in node.keywords if kw.arg == key]
+        return [(kw.arg, kw.value) for kw in node.keywords if kw.arg is not None]
     if isinstance(node, ast.Dict):
-        return [v for k, v in zip(node.keys, node.values, strict=True) if const_str(k) == key]
+        return [
+            (key, v)
+            for k, v in zip(node.keys, node.values, strict=True)
+            if (key := const_str(k)) is not None
+        ]
     return []
 
 
@@ -292,12 +314,6 @@ def const_str(node: ast.AST | None) -> str | None:
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         return node.value
     return None
-
-
-def _names_key(target: ast.AST, key: str) -> bool:
-    if isinstance(target, ast.Attribute):
-        return target.attr == key
-    return isinstance(target, ast.Subscript) and const_str(target.slice) == key
 
 
 # ===== rules R1 to R3 =====
@@ -578,30 +594,87 @@ def literal_collections(index: CodeIndex) -> list[tuple[str, int, str, list[ast.
 
 def _same_script(path: str, mention: str) -> bool:
     """True when ``mention`` names ``path`` by its full path or a trailing part."""
+    mention = mention.removeprefix("./")
     return path == mention or path.endswith("/" + mention)
 
 
-def check_literal_subset(prose: ProseLine, index: CodeIndex) -> list[dict[str, object]]:
-    """R2: a closed path enumeration omits a literal collection member."""
-    if re.search(r"\b(?:example|including|such as|e\.g\.)\b", prose.text, re.I):
-        return []
-    named = {s.rstrip("/") for s in re.findall(r"`([^`]+)`", prose.text)}
-    scripts = {m.removeprefix("./") for m in _SCRIPT_MENTION.findall(prose.text)}
-    found = []
+_EXAMPLE_WORD = re.compile(r"\b(?:example|including|such as|e\.g\.)\b", re.I)
+_BACKTICK_SPAN = re.compile(r"`([^`]+)`")
+_SCOPE_WORD = re.compile(r"scope|root|prefix", re.I)
+_COUNT_WORD_VALUES = {
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+}
+
+
+def _literal_subset_index(
+    index: CodeIndex,
+) -> tuple[list[tuple[str, int, str, frozenset[str]]], dict[str, list[int]]]:
+    cached = index.memo.get("literal_subset_index")
+    if cached is not None:
+        return cast(
+            tuple[list[tuple[str, int, str, frozenset[str]]], dict[str, list[int]]],
+            cached,
+        )
+    entries: list[tuple[str, int, str, frozenset[str]]] = []
+    by_member: dict[str, list[int]] = {}
     for path, line, symbol, values in literal_collections(index):
         strings = [const_str(v) for v in values]
         if None in strings or len(strings) < 2:
             continue
-        members = {s.rstrip("/") for s in strings if s is not None}
+        members = frozenset(s.rstrip("/") for s in strings if s is not None)
+        entry_id = len(entries)
+        entries.append((path, line, symbol, members))
+        for member in members:
+            by_member.setdefault(member, []).append(entry_id)
+    result = (entries, by_member)
+    index.memo["literal_subset_index"] = result
+    return result
+
+
+def _literal_count_index(index: CodeIndex) -> dict[str, list[tuple[int, str, int, str, int]]]:
+    cached = index.memo.get("literal_count_index")
+    if cached is not None:
+        return cast(dict[str, list[tuple[int, str, int, str, int]]], cached)
+    by_symbol: dict[str, list[tuple[int, str, int, str, int]]] = {}
+    for pos, (path, line, symbol, values) in enumerate(literal_collections(index)):
+        by_symbol.setdefault(symbol.lower(), []).append((pos, path, line, symbol, len(values)))
+    index.memo["literal_count_index"] = by_symbol
+    return by_symbol
+
+
+def check_literal_subset(prose: ProseLine, index: CodeIndex) -> list[dict[str, object]]:
+    """R2: a closed path enumeration omits a literal collection member."""
+    if "`" not in prose.text or _EXAMPLE_WORD.search(prose.text):
+        return []
+    named = {s.rstrip("/") for s in _BACKTICK_SPAN.findall(prose.text)}
+    if not named:
+        return []
+    entries, by_member = _literal_subset_index(index)
+    candidate_ids = sorted({i for token in named for i in by_member.get(token, ())})
+    if not candidate_ids:
+        return []
+    scripts = _SCRIPT_MENTION.findall(prose.text)
+    scoped = bool(_SCOPE_WORD.search(prose.text))
+    found = []
+    for entry_id in candidate_ids:
+        path, line, symbol, members = entries[entry_id]
         overlap = named & members
         # The line must name the collection, by symbol or by its file, or sit
         # in that file. Two shared paths and a scope word alone matched
         # unrelated table rows (issue #7484), because any changed or
         # mentioned script joins the index for every prose line.
-        explicit = symbol in prose.text
         paths = len(overlap) >= 2 and all(f"`{s}/`" in prose.text for s in overlap)
         own_file = prose.file == path or any(_same_script(path, m) for m in scripts)
-        scoped = bool(re.search(r"scope|root|prefix", prose.text, re.I))
+        explicit = symbol in named and (symbol.isupper() or own_file)
         if not (explicit or paths and own_file and scoped):
             continue
         if overlap and overlap < members:
@@ -646,22 +719,26 @@ def _count_beside_symbol(text: str, symbol: str, words: dict[str, int]) -> int |
 
 def check_literal_count(prose: ProseLine, index: CodeIndex) -> list[dict[str, object]]:
     """R4: a count immediately beside a named collection differs from its length."""
-    words = {
-        "one": 1,
-        "two": 2,
-        "three": 3,
-        "four": 4,
-        "five": 5,
-        "six": 6,
-        "seven": 7,
-        "eight": 8,
-        "nine": 9,
-        "ten": 10,
-    }
+    if "`" not in prose.text:
+        return []
+    by_symbol = _literal_count_index(index)
+    matches = [
+        entry
+        for token in {m.lower() for m in _BACKTICK_SPAN.findall(prose.text)}
+        for entry in by_symbol.get(token, ())
+    ]
+    if not matches:
+        return []
+    matches.sort(key=lambda item: item[0])
+    scripts = _SCRIPT_MENTION.findall(prose.text)
     found = []
-    for path, line, symbol, values in literal_collections(index):
-        count = _count_beside_symbol(prose.text, symbol, words)
-        if count is None or count == len(values):
+    for _pos, path, line, symbol, length in matches:
+        if not symbol.isupper() and not (
+            length and (path == prose.file or any(_same_script(path, script) for script in scripts))
+        ):
+            continue
+        count = _count_beside_symbol(prose.text, symbol, _COUNT_WORD_VALUES)
+        if count is None or count == length:
             continue
         found.append(
             make_finding(
@@ -669,8 +746,8 @@ def check_literal_count(prose: ProseLine, index: CodeIndex) -> list[dict[str, ob
                 "high",
                 prose,
                 (path, line, symbol),
-                {"stated": count, "actual": len(values)},
-                f"Count {count} differs from {len(values)} entries in `{symbol}`",
+                {"stated": count, "actual": length},
+                f"Count {count} differs from {length} entries in `{symbol}`",
             )
         )
     return found
@@ -686,7 +763,14 @@ _KEY_HOLDS_NOUN = re.compile(
 # Placeholder names that docs use to describe the pattern itself, not a real JSON key.
 _PLACEHOLDER_KEYS = {"key", "field", "name", "value", "k", "x"}
 _PRONOUNS = {"it", "them", "this", "that", "these", "those", "all", "everything", "both"}
-_NON_NOUNS = {"recorded", "listed", "stored", "written", "retained", "reported"}
+_NON_NOUNS = {"recorded", "listed", "stored", "written", "retained", "reported"} | {
+    "at",
+    "are",
+    "is",
+    "its",
+    "only",
+}
+_JSON_MENTION = re.compile(r"\bjson\b", re.IGNORECASE)
 
 
 def _stem5(word: str) -> str:
@@ -707,6 +791,9 @@ def check_json_key(prose: ProseLine, index: CodeIndex) -> tuple[list[dict[str, o
     """
     found: list[dict[str, object]] = []
     notes: list[str] = []
+    if not _JSON_MENTION.search(prose.text):
+        return found, notes
+    scripts = _SCRIPT_MENTION.findall(prose.text)
     pairs = [
         m.groupdict() for p in (_NOUN_UNDER_KEY, _KEY_HOLDS_NOUN) for m in p.finditer(prose.text)
     ]
@@ -715,6 +802,16 @@ def check_json_key(prose: ProseLine, index: CodeIndex) -> tuple[list[dict[str, o
         if noun.lower() in _PRONOUNS | _NON_NOUNS or key in _PLACEHOLDER_KEYS:
             continue
         writes = [w for w in index.assignments(key) if w[2]]
+        bound_writes = [
+            write
+            for write in writes
+            if write[0] == prose.file or any(_same_script(write[0], script) for script in scripts)
+        ]
+        if bound_writes:
+            writes = bound_writes
+        elif scripts or len({path for path, _, _ in writes}) > 1:
+            notes.append(f"R3: no unique source for `{key}` in changed code")
+            continue
         if not writes:
             notes.append(f"R3: no assignment to `{key}` with identifiers in changed code")
             continue
@@ -792,19 +889,75 @@ def _shared_prefix(a: str, b: str) -> int:
     return count
 
 
+def _shared_parts(left: tuple[str, ...], right: tuple[str, ...]) -> int:
+    count = 0
+    for a, b in zip(left, right, strict=False):
+        if a != b:
+            break
+        count += 1
+    return count
+
+
+class _PreparedRegions:
+    """Precomputed region metadata and token index for fast checklist pairing."""
+
+    def __init__(self, regions: dict[str, list[CodeRegion]]) -> None:
+        self.items: list[tuple[str, str, tuple[str, ...], CodeRegion, frozenset[str]]] = []
+        self.by_token: dict[str, list[int]] = {}
+        self.by_basename: dict[str, list[int]] = {}
+        self._base_top: dict[str, list[int]] = {}
+        for path, found in regions.items():
+            basename = Path(path).name
+            parts = tuple(path.split("/")[:-1])
+            for region in found:
+                idx = len(self.items)
+                toks = frozenset(_tokens(region.symbol))
+                self.items.append((path, basename, parts, region, toks))
+                self.by_basename.setdefault(basename, []).append(idx)
+                for tok in toks:
+                    self.by_token.setdefault(tok, []).append(idx)
+        self._basenames = tuple(self.by_basename)
+
+    def _top_zero_overlap(self, prose_file: str) -> list[int]:
+        cached = self._base_top.get(prose_file)
+        if cached is not None:
+            return cached
+        prose_parts = tuple(prose_file.split("/")[:-1])
+        scored = [
+            ((path != prose_file, 0, -_shared_parts(prose_parts, parts), path, region.line), idx)
+            for idx, (path, _base, parts, region, _toks) in enumerate(self.items)
+        ]
+        scored.sort(key=lambda item: item[0])
+        top = [idx for _, idx in scored[:MAX_PAIRS]]
+        self._base_top[prose_file] = top
+        return top
+
+    def pair(self, prose: ProseLine) -> list[dict[str, Any]]:
+        if not self.items:
+            return []
+        words = _tokens(prose.text)
+        prose_parts = tuple(prose.file.split("/")[:-1])
+        candidates = set(self._top_zero_overlap(prose.file))
+        for tok in words:
+            candidates.update(self.by_token.get(tok, ()))
+        for basename in self._basenames:
+            if basename in prose.text:
+                candidates.update(self.by_basename[basename])
+        ranked = []
+        for idx in candidates:
+            path, basename, parts, region, toks = self.items[idx]
+            overlap = len(words & toks)
+            if basename in prose.text:
+                overlap += 5
+            close = _shared_parts(prose_parts, parts)
+            ranked.append(((path != prose.file, -overlap, -close, path, region.line), region))
+        ranked.sort(key=lambda item: item[0])
+        return [{"file": r.file, "line": r.line, "symbol": r.symbol} for _, r in ranked[:MAX_PAIRS]]
+
+
 def pair_code(prose: ProseLine, regions: dict[str, list[CodeRegion]]) -> list[dict[str, Any]]:
     """Code symbols changed in this diff: same file first, then by overlap and path closeness."""
-    words = _tokens(prose.text)
-    ranked = []
-    for path, found in regions.items():
-        close = _shared_prefix(prose.file, path)
-        for region in found:
-            overlap = len(words & _tokens(region.symbol))
-            if Path(path).name in prose.text:
-                overlap += 5
-            ranked.append(((path != prose.file, -overlap, -close, path, region.line), region))
-    ranked.sort(key=lambda item: item[0])
-    return [{"file": r.file, "line": r.line, "symbol": r.symbol} for _, r in ranked[:MAX_PAIRS]]
+    return _PreparedRegions(regions).pair(prose)
 
 
 def _read_scannable(target: Path, rel: str, is_unsafe: Callable[[Path], bool]) -> str | None:
@@ -915,7 +1068,14 @@ def run_same_pr(
             checklist_regions.setdefault(path, []).append(CodeRegion(path, line, symbol))
     entries = _checklist(prose_by_file, checklist_regions, notes, flagged)
     entries += unchanged_references(
-        target, tracked_files or [], ranges, regions, removed_symbols or {}, is_unsafe
+        target,
+        tracked_files or [],
+        ranges,
+        regions,
+        removed_symbols or {},
+        is_unsafe,
+        changed_files=changed_files,
+        normalize=normalize,
     )
     examined = {
         "changed_files": len(changed_files),
@@ -930,6 +1090,62 @@ def run_same_pr(
     }
 
 
+_WORD_RUN = re.compile(r"\w+")
+_PURE_WORD = re.compile(r"^\w+$")
+
+
+def _match_aliases(
+    text: str,
+    word_aliases: set[str],
+    flags_by_word: dict[str, list[str]],
+    nonword_always: list[str],
+    tree_nonword: list[str],
+) -> set[str]:
+    line_words = set(_WORD_RUN.findall(text))
+    word_hits = line_words & word_aliases
+    extras: set[str] = set()
+    if "--" in text:
+        for word in line_words:
+            for flag in flags_by_word.get(word, ()):
+                if flag in text:
+                    extras.add(flag)
+    for item in nonword_always:
+        if item in text:
+            extras.add(item)
+    for item in tree_nonword:
+        if item in text:
+            extras.add(item)
+    if not extras:
+        return word_hits
+    candidates = sorted(word_hits | extras, key=len, reverse=True)
+    regex = re.compile(r"(?<![\w])(?:" + "|".join(re.escape(n) for n in candidates) + r")(?![\w])")
+    return set(regex.findall(text))
+
+
+def _partition_aliases(
+    aliases: dict[str, list[dict[str, Any]]],
+    removed: dict[str, list[dict[str, Any]]],
+) -> tuple[set[str], dict[str, list[str]], list[str], dict[str, list[str]], dict[str, set[str]]]:
+    word_aliases: set[str] = set()
+    flags_by_word: dict[str, list[str]] = {}
+    nonword_always: list[str] = []
+    tree_nonword: dict[str, list[str]] = {}
+    removed_trees: dict[str, set[str]] = {
+        sym: {_reference_tree(p["file"]) for p in pairs} for sym, pairs in removed.items()
+    }
+    for name in aliases:
+        if _PURE_WORD.match(name):
+            word_aliases.add(name)
+        elif name.startswith("--") and (first := _WORD_RUN.search(name)):
+            flags_by_word.setdefault(first.group(0), []).append(name)
+        elif name in removed_trees:
+            for tree in removed_trees[name]:
+                tree_nonword.setdefault(tree, []).append(name)
+        else:
+            nonword_always.append(name)
+    return word_aliases, flags_by_word, nonword_always, tree_nonword, removed_trees
+
+
 def unchanged_references(
     target: Path,
     tracked: list[str],
@@ -937,8 +1153,18 @@ def unchanged_references(
     regions: dict[str, list[CodeRegion]],
     removed: dict[str, list[dict[str, Any]]],
     is_unsafe: Callable[[Path], bool],
+    *,
+    changed_files: set[str],
+    normalize: Callable[[str], str],
 ) -> list[dict[str, Any]]:
-    """List unchanged prose naming changed symbols, flags, or deleted headings."""
+    """List unchanged prose naming changed symbols, flags, or deleted headings.
+
+    A path in ``changed_files`` with no parsed hunk (binary, mode-only) is
+    changed in full, as ``doc_accuracy._get_changed_diff`` documents, so none of
+    its lines count as unchanged. A tracked path outside ``changed_files`` has
+    no changed line.
+    """
+    changed_keys = {normalize(path) for path in changed_files}
     aliases: dict[str, list[dict[str, Any]]] = {}
     for path, changes in regions.items():
         for region in changes:
@@ -951,10 +1177,8 @@ def unchanged_references(
         aliases.setdefault(symbol, []).extend(pairs)
     if not aliases:
         return []
-    pattern = re.compile(
-        r"(?<![\w])(?:"
-        + "|".join(re.escape(n) for n in sorted(aliases, key=len, reverse=True))
-        + r")(?![\w])"
+    word_aliases, flags_by_word, nonword_always, tree_nonword, removed_trees = _partition_aliases(
+        aliases, removed
     )
     entries = []
     for rel in tracked:
@@ -963,18 +1187,18 @@ def unchanged_references(
         text = _read_scannable(target, rel, is_unsafe)
         if text is None:
             continue
-        changed = changed_line_numbers(ranges.get(rel, []), len(text.splitlines()))
-        for line in _markdown_prose(
-            rel, text.splitlines(), set(range(1, len(text.splitlines()) + 1)) - changed
-        ):
-            names = set(pattern.findall(line.text))
+        lines = text.splitlines()
+        key = normalize(rel)
+        file_ranges = ranges.get(key) or ([] if key not in changed_keys else None)
+        changed = changed_line_numbers(file_ranges, len(lines))
+        rel_tree = _reference_tree(rel)
+        local_nonword = tree_nonword.get(rel_tree, [])
+        for line in _markdown_prose(rel, lines, set(range(1, len(lines) + 1)) - changed):
+            names = _match_aliases(
+                line.text, word_aliases, flags_by_word, nonword_always, local_nonword
+            )
             # A heading's references belong to its skill tree or document directory.
-            names = {
-                n
-                for n in names
-                if n not in removed
-                or any(_reference_tree(rel) == _reference_tree(p["file"]) for p in removed[n])
-            }
+            names = {n for n in names if n not in removed_trees or rel_tree in removed_trees[n]}
             if names:
                 pairs = [p for name in sorted(names) for p in aliases[name]]
                 entries.append(
@@ -1044,6 +1268,7 @@ def _checklist(
     notes: dict[tuple[str, int], list[str]],
     flagged: set[tuple[str, int]],
 ) -> list[dict[str, Any]]:
+    prepared = _PreparedRegions(regions)
     entries = []
     for rel, prose in prose_by_file.items():
         for line in prose:
@@ -1055,7 +1280,7 @@ def _checklist(
                         "prose_line": line.line,
                         "text": line.text,
                         "reasons": reasons,
-                        "pairs": pair_code(line, regions),
+                        "pairs": prepared.pair(line),
                     }
                 )
     return entries

@@ -547,7 +547,7 @@ If 2+ agents flagged scope concerns:
 
 ### ADR Update Generation
 
-```python
+```markdown
 # Orchestrator generates updated ADR based on consolidated feedback
 # No agent invocation needed - orchestrator synthesizes
 

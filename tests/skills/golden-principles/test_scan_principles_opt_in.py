@@ -24,6 +24,7 @@ if TESTS_SKILLS_DIR not in sys.path:
 from claude_skills_import import import_skill_script
 
 from scripts.ai_review_common.verdict import adapt_local_axis_verdict
+from tests.skills.diff_scope_repo import make_repo_with_diff, run_git
 
 core = import_skill_script(
     ".claude/skills/golden-principles/scripts/scan_principles_core.py",
@@ -35,44 +36,13 @@ EXIT_SUCCESS = mod.EXIT_SUCCESS
 EXIT_VIOLATIONS = mod.EXIT_VIOLATIONS
 
 
-def _run_git(repo: Path, *args: str) -> None:
-    """Run a git command in the given repo, failing loudly on error."""
-    subprocess.run(
-        ["git", *args],
-        cwd=repo,
-        check=True,
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-    )
-
-
-def _make_repo_with_diff(repo: Path, *, adopts_principles: bool) -> None:
-    """Create a repo whose feature branch adds one file, optionally adopting GP rules."""
-    _run_git(repo, "init", "-b", "main")
-    _run_git(repo, "config", "user.email", "test@example.com")
-    _run_git(repo, "config", "user.name", "Test")
-    (repo / "base.py").write_text("x = 1\n", encoding="utf-8")
-    _run_git(repo, "add", "base.py")
-    if adopts_principles:
-        doc = repo / core.GOVERNANCE_DOC
-        doc.parent.mkdir(parents=True)
-        doc.write_text("# Golden principles\n", encoding="utf-8")
-        _run_git(repo, "add", core.GOVERNANCE_DOC)
-    _run_git(repo, "commit", "-m", "base")
-    _run_git(repo, "checkout", "-b", "feature")
-    (repo / "changed.py").write_text("y = 2\n", encoding="utf-8")
-    _run_git(repo, "add", "changed.py")
-    _run_git(repo, "commit", "-m", "change")
-
-
 def _scan_new_shell_script(
     repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> tuple[int, dict[str, Any]]:
     """Commit one new .sh on the feature branch and run the /review invocation."""
     (repo / "verify-package-contents.sh").write_text("echo verify\n", encoding="utf-8")
-    _run_git(repo, "add", "verify-package-contents.sh")
-    _run_git(repo, "commit", "-m", "add shell helper")
+    run_git(repo, "add", "verify-package-contents.sh")
+    run_git(repo, "commit", "-m", "add shell helper")
     monkeypatch.chdir(repo)
     capsys.readouterr()
     argv = ["scan_principles.py", "--diff-scope", "main", "--format", "json"]
@@ -90,7 +60,7 @@ class TestRepositoryPolicyOptIn:
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        _make_repo_with_diff(tmp_path, adopts_principles=False)
+        make_repo_with_diff(tmp_path)
 
         rc, payload = _scan_new_shell_script(tmp_path, monkeypatch, capsys)
 
@@ -110,7 +80,7 @@ class TestRepositoryPolicyOptIn:
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        _make_repo_with_diff(tmp_path, adopts_principles=False)
+        make_repo_with_diff(tmp_path)
 
         rc, payload = _scan_new_shell_script(tmp_path, monkeypatch, capsys)
 
@@ -123,7 +93,7 @@ class TestRepositoryPolicyOptIn:
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        _make_repo_with_diff(tmp_path, adopts_principles=True)
+        make_repo_with_diff(tmp_path, core.GOVERNANCE_DOC)
 
         rc, payload = _scan_new_shell_script(tmp_path, monkeypatch, capsys)
 
@@ -141,10 +111,10 @@ class TestRepositoryPolicyOptIn:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         # Running from a subdirectory must still find the root's document.
-        _make_repo_with_diff(tmp_path, adopts_principles=True)
+        make_repo_with_diff(tmp_path, core.GOVERNANCE_DOC)
         (tmp_path / "added.sh").write_text("echo added\n", encoding="utf-8")
-        _run_git(tmp_path, "add", "added.sh")
-        _run_git(tmp_path, "commit", "-m", "add shell script")
+        run_git(tmp_path, "add", "added.sh")
+        run_git(tmp_path, "commit", "-m", "add shell script")
         subdir = tmp_path / "nested"
         subdir.mkdir()
         monkeypatch.chdir(subdir)
@@ -160,7 +130,7 @@ class TestRepositoryPolicyOptIn:
         # cwd sits outside any repository; the scanned directory's repo adopts.
         repo = tmp_path / "repo"
         repo.mkdir()
-        _make_repo_with_diff(repo, adopts_principles=True)
+        make_repo_with_diff(repo, core.GOVERNANCE_DOC)
         (repo / "tool.sh").write_text("echo hi\n", encoding="utf-8")
         outside = tmp_path / "outside"
         outside.mkdir()
@@ -192,9 +162,9 @@ class TestRepositoryPolicyOptIn:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         # The base adopted the rule; the branch cannot exempt itself by deleting it.
-        _make_repo_with_diff(tmp_path, adopts_principles=True)
-        _run_git(tmp_path, "rm", "-q", core.GOVERNANCE_DOC)
-        _run_git(tmp_path, "commit", "-m", "drop governance doc")
+        make_repo_with_diff(tmp_path, core.GOVERNANCE_DOC)
+        run_git(tmp_path, "rm", "-q", core.GOVERNANCE_DOC)
+        run_git(tmp_path, "commit", "-m", "drop governance doc")
 
         rc, payload = _scan_new_shell_script(tmp_path, monkeypatch, capsys)
 
@@ -207,12 +177,12 @@ class TestRepositoryPolicyOptIn:
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        _make_repo_with_diff(tmp_path, adopts_principles=False)
+        make_repo_with_diff(tmp_path)
         doc = tmp_path / core.GOVERNANCE_DOC
         doc.parent.mkdir(parents=True)
         doc.write_text("# Golden principles\n", encoding="utf-8")
-        _run_git(tmp_path, "add", core.GOVERNANCE_DOC)
-        _run_git(tmp_path, "commit", "-m", "adopt governance doc")
+        run_git(tmp_path, "add", core.GOVERNANCE_DOC)
+        run_git(tmp_path, "commit", "-m", "adopt governance doc")
 
         rc, _ = _scan_new_shell_script(tmp_path, monkeypatch, capsys)
 
@@ -223,7 +193,7 @@ class TestRepositoryPolicyOptIn:
     ) -> None:
         repo = tmp_path / "repo"
         repo.mkdir()
-        _make_repo_with_diff(repo, adopts_principles=True)
+        make_repo_with_diff(repo, core.GOVERNANCE_DOC)
         script = repo / "tool.sh"
         script.write_text("echo hi\n", encoding="utf-8")
         outside = tmp_path / "outside"
@@ -238,7 +208,7 @@ class TestRepositoryPolicyOptIn:
     def test_base_adoption_is_false_for_unknown_base(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        _make_repo_with_diff(tmp_path, adopts_principles=True)
+        make_repo_with_diff(tmp_path, core.GOVERNANCE_DOC)
         monkeypatch.chdir(tmp_path)
 
         assert core.base_adopts_principles("main") is True
@@ -263,7 +233,7 @@ class TestRepositoryPolicyOptIn:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         # No arguments: scan the repository that holds cwd, and honor its document.
-        _make_repo_with_diff(tmp_path, adopts_principles=True)
+        make_repo_with_diff(tmp_path, core.GOVERNANCE_DOC)
         (tmp_path / "tool.sh").write_text("echo hi\n", encoding="utf-8")
         monkeypatch.chdir(tmp_path)
 

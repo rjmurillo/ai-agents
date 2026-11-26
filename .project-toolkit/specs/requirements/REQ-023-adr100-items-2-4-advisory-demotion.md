@@ -45,7 +45,8 @@ flag with a recorded abuse history
 (`.project-toolkit/retrospective/2026-08-07-pr-4402-scope-bypass.md`, cited directly
 in ADR-100's own text) (item 4 target). ADR-100 itself documents that item 1
 (the two commit-ceiling CI/pre-push enforcement sites) is already delivered
-by ADR-099, verified 2026-09-10 against `git_hook_policy.py:6717` and <!-- citation-freshness: ignore -- a dated 2026-09-10 verification record; the cited commit-ceiling code no longer exists at this path -->
+by ADR-099, verified 2026-09-10 against
+[the 2026-08-21 removal](https://github.com/rjmurillo/ai-agents/commit/3487d2f694ce45f1aed3028c51c935ec10b552d0) and
 `scripts/ci/enforce_pr_validation.py`. Items 2-4 are the unclaimed remainder
 of an already-accepted decision.
 
@@ -271,8 +272,9 @@ or alert; this is a one-time behavior change to an existing gate.
       scenario).
 - [ ] REQ-023-AC8: WHEN this REQ's changes land, THE SYSTEM SHALL keep
       ADR-100 item 1's already-delivered status unchanged (no regression to
-      `_check_commit_limit`'s advisory-only behavior at
-      `git_hook_policy.py:6727` or `enforce_pr_validation.py`'s removed
+      `_check_commit_limit`'s advisory-only behavior from
+      [the 2026-08-21 removal](https://github.com/rjmurillo/ai-agents/commit/3487d2f694ce45f1aed3028c51c935ec10b552d0)
+      or `enforce_pr_validation.py`'s removed
       bypass-label branch) SO THAT this REQ does not reopen work ADR-099
       already closed.
 

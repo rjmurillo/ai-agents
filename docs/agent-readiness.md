@@ -1,7 +1,8 @@
 # Agent Readiness Signals
 
 This page records how this repository answers each Agent Readiness signal.
-It covers two signals that pass and nine that are out of scope.
+It records implemented checks and signals that do not fit this project's runtime.
+Local checks do not certify a new remote readiness score.
 
 ## Why some signals are out of scope
 
@@ -10,16 +11,42 @@ Claude Code and GitHub Copilot CLI. It runs no hosted service. The
 [`README.md`](../README.md#fastest-start) "Data sent" bullet states this, in
 the "Fastest Start" section.
 
-Several readiness signals measure a running service. They need a server,
-users, or deploys to observe. This repository has none of those, so those
-signals do not apply.
+Service-oriented signals require infrastructure this toolkit does not operate.
+They remain explicitly unsupported, not claimed as passing.
 
-## Signals that pass
+## Privacy-preserving scope
+
+Repository-side readiness work preserves the existing "Data sent" contract.
+It adds no automatic client telemetry, hosted backend, or remote flag service.
+Existing host CLI behavior and user-invoked service calls remain unchanged.
+GitHub workflow alerts describe repository operations, not installed-plugin activity.
+Remote CI timing, release cadence, and readiness scoring require separate verification.
+
+## Implemented checks
 
 | Signal | Status | Evidence |
 |---|---|---|
 | `circuit_breakers` | Pass (retry with backoff) | [`scripts/github_core/api.py`](../scripts/github_core/api.py) |
 | `alerting_configured` | Pass (GitHub issue alerts) | [`.github/workflows/check-ruleset-drift.yml`](../.github/workflows/check-ruleset-drift.yml), [`.github/workflows/drift-detection.yml`](../.github/workflows/drift-detection.yml) |
+| `duplicate_code_detection` | Python token-based detector with a shrink-only baseline | [Detector guide](duplicate-code-detection.md), [workflow](../.github/workflows/duplicate-code.yml) |
+| `unused_dependencies_detection` | deptry checks each Python manifest | [Checker](../scripts/validation/check_unused_dependencies.py), [workflow](../.github/workflows/dependency-hygiene.yml) |
+| `version_drift_detection` | Shared Python and npm dependency constraints are compared | [Checker](../scripts/validation/check_dependency_drift.py), [policy](../.github/dependency-hygiene/policy.toml) |
+| `fast_ci_feedback` | Six balanced test groups; remote timing remains unverified | [Test workflow](../.github/workflows/pytest.yml), [partition runner](../scripts/ci/run_pytest_partition.py) |
+| `issue_templates` | Structured bug and feature forms require actionable details | [Forms](../.github/ISSUE_TEMPLATE/), [contract tests](../tests/ci/test_issue_templates.py) |
+| `error_to_insight_pipeline` | Unattended workflow failures create or update actionable issues | [Alert workflow](../.github/workflows/workflow-failure-alert.yml), [runbook](runbooks/workflow-failure-alert.md) |
+| `deployment_observability` | Release-impact checks link workflow results, registry checks, and alerts | [Deploy impact checks](runbooks/deploy-impact-checks.md) |
+
+### New operational coverage
+
+The [failure-alert workflow](../.github/workflows/workflow-failure-alert.yml)
+watches unattended workflow failures on `main`.
+It opens or updates one issue per workflow through the existing alert helper.
+The [runbook](runbooks/workflow-failure-alert.md) describes recovery and privacy.
+This tracks repository operations, not errors from users' installed plugins.
+
+The [deploy-impact runbook](runbooks/deploy-impact-checks.md) links real release checks.
+It does not claim visibility into users' machines.
+Neither workflow execution nor delivery cadence follows from local test results.
 
 ### circuit_breakers
 
@@ -118,13 +145,11 @@ alert channel.
 | Signal | Status | Reason | What would change the decision |
 |---|---|---|---|
 | `error_tracking_contextualized` | Out of scope | No hosted service throws runtime errors to track. Errors surface in the user's CLI session. | The project ships a hosted service. |
-| `error_to_insight_pipeline` | Out of scope | No error tracker exists to feed a pipeline. | Error tracking is added for a hosted service. |
 | `product_analytics_instrumentation` | Out of scope | Analytics would send usage data from user machines. That breaks the [`README.md`](../README.md#fastest-start) "Data sent" statement. | Users opt in, and the privacy statement is changed first. |
 | `feature_flag_infrastructure` | Out of scope | Users install a plugin version. No server exists to flip a flag at run time. | The project ships a hosted service with staged rollouts. |
 | `distributed_tracing` | Out of scope | No multi-service request path exists to trace. | The project runs two or more services that call each other. |
 | `metrics_collection` | Out of scope | No runtime process exists to emit telemetry. | The project runs a long-lived service. |
-| `deployment_observability` | Out of scope | Releases publish plugin files. Nothing is deployed to a server. | The project deploys to an environment it operates. |
-| `deployment_frequency` | Out of scope | There are no deploys to count. Releases follow [`RELEASING.md`](../RELEASING.md). | The project deploys a service on a schedule. |
+| `deployment_frequency` | Owner decision | Releases follow [`RELEASING.md`](../RELEASING.md). Local checks cannot establish delivery cadence. | Confirm release cadence and resolve publishing prerequisites. |
 | `build_performance_tracking` | Out of scope | The repository has no compiled build to time. Generation runs in seconds through [`build/scripts/build_all.py`](../build/scripts/build_all.py). | Build time grows enough to slow pull requests. |
 
 Revisit this page when the project adds a hosted service or changes the

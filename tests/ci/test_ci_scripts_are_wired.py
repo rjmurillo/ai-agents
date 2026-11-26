@@ -43,6 +43,11 @@ _WORKFLOW_DIRS = (
 # non-empty reason, so that adding one is a decision rather than a way to
 # silence this test.
 _NOT_WORKFLOW_INVOKED: dict[str, str] = {
+    "sarif_rules.py": (
+        "Library imported by check_codeql_sarif.py, which codeql-analysis.yml "
+        "invokes. Holds SARIF rule and level resolution. Covered by "
+        "tests/ci/test_check_codeql_sarif.py."
+    ),
     "hermes_mirror.py": (
         "Library imported by type_ignore_count_ratchet.py and "
         "subprocess_encoding_count_ratchet.py, which the ratchet workflow runs. "

@@ -2,29 +2,13 @@
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import subprocess
-import sys
-from pathlib import Path
 from unittest.mock import patch
 
-_SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
-)
+from tests.skills.claude_skills_import import import_skill_script
 
-
-def _import_script(name: str):
-    spec = importlib.util.spec_from_file_location(name, _SCRIPTS_DIR / f"{name}.py")
-    assert spec is not None
-    assert spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[name] = mod
-    spec.loader.exec_module(mod)
-    return mod
-
-
-_mod = _import_script("resolve_pr_review_thread")
+_mod = import_skill_script(".claude/skills/github/scripts/pr/resolve_pr_review_thread.py")
 main = _mod.main
 build_parser = _mod.build_parser
 

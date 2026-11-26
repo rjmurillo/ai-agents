@@ -1,0 +1,70 @@
+# Dependency Hygiene
+#
+# Two deterministic gates over the repository's Python and npm manifests:
+#
+# * Unused dependencies: scripts/validation/check_unused_dependencies.py runs
+#   deptry per manifest. Tool-only packages need a reasoned, evidence-backed
+#   exemption in .github/dependency-hygiene/policy.toml.
+# * Version drift: scripts/validation/check_dependency_drift.py compares the
+#   constraints that shared packages carry across manifests.
+#
+# `uv lock --check` per project catches manifest-to-lockfile drift. The job holds
+# no secrets and runs on pull_request, so fork PRs get the same read-only gate.
+
+name: Dependency Hygiene
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-hygiene-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  dependency-hygiene:
+    name: Dependency Hygiene
+    runs-on: ubuntu-26.04-arm
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
+
+      - name: Lockfiles match manifests
+        run: |
+          uv lock --check --project .
+          uv lock --check --project packages/semantic-hooks
+          uv lock --check --project build/plugin-scanner
+
+      - name: Unused dependencies
+        run: >-
+          uv run --frozen --extra dev --extra eval
+          python scripts/validation/check_unused_dependencies.py
+
+      - name: Version drift
+        run: uv run --frozen --extra dev python scripts/validation/check_dependency_drift.py
+
+      - name: Checker tests
+        run: >-
+          uv run --frozen --extra dev --extra eval
+          python -m pytest
+          tests/validation/test_check_unused_dependencies.py
+          tests/validation/test_check_dependency_drift.py
+          tests/validation/test_dependency_hygiene_policy.py
+          -p no:cacheprovider -n0

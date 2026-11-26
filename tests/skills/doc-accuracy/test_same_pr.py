@@ -10,11 +10,19 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import cast
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from diff_scope_helpers import Json, edit_files_and_commit, make_repo, run_same_pr
+from diff_scope_helpers import (
+    Json,
+    checklist_entry,
+    edit_files_and_commit,
+    line_of,
+    make_repo,
+    run_same_pr,
+)
 
 
 def test_closed_scope_list_checks_explicit_unchanged_script(tmp_path: Path) -> None:
@@ -55,8 +63,25 @@ def test_literal_count_and_unchanged_option_reference(tmp_path: Path) -> None:
     )
     _code, findings, checklist = run_same_pr(repo, tmp_path, "--phases", "1")
     assert any(f["rule"] == "R4" for f in findings["findings"])
-    entry = _entry(checklist, "guide.md", "--preflight")
+    entry = checklist_entry(checklist, "guide.md", "--preflight")
     assert any(p["symbol"] == "_preflight" for p in entry["pairs"])
+
+
+def test_local_collection_does_not_bind_to_unrelated_prose(tmp_path: Path) -> None:
+    script = "scripts/tool.py"
+    repo = make_repo(tmp_path, {script: "", "guide.md": "# Guide\n"})
+    edit_files_and_commit(
+        repo,
+        {
+            script: 'git = ["git", "-c", "user.name=smoke"]\nclaims = []\n',
+            "guide.md": "Use the `git` CLI for checks.\nThe one `claims` record is sufficient.\n",
+        },
+    )
+
+    code, findings, _ = run_same_pr(repo, tmp_path, "--phases", "1")
+
+    assert code == 0
+    assert _rule(findings, "R2") == _rule(findings, "R4") == []
 
 
 def test_repo_cardinality_reaches_markdown_templates_and_json(tmp_path: Path) -> None:
@@ -84,22 +109,8 @@ ASSESS = "src/claude/skills/code-qualities-assessment/scripts/assess.py"
 CSHARP_DOC = "src/claude/skills/code-qualities-assessment/references/csharp-parser.md"
 
 
-def _line_of(text: str, needle: str) -> int:
-    """1-based line of the first line containing ``needle``."""
-    for number, line in enumerate(text.splitlines(), start=1):
-        if needle in line:
-            return number
-    raise AssertionError(f"{needle!r} not in fixture")
-
-
 def _rule(findings: Json, rule: str) -> list[Json]:
     return [f for f in findings["findings"] if f["rule"] == rule]
-
-
-def _entry(checklist: Json, path: str, needle: str) -> Json:
-    hits = [e for e in checklist["entries"] if e["prose_file"] == path and needle in e["text"]]
-    assert len(hits) == 1, [e["text"] for e in checklist["entries"]]
-    return cast(Json, hits[0])
 
 
 # -- #7451: language enumeration names a subset of the closed set --------------
@@ -195,9 +206,9 @@ def test_r2_flags_subset_of_languages_for_a_shared_raise_site(tmp_path: Path) ->
     assert code == 10
     assert hit["severity"] == "high"
     assert hit["prose"]["file"] == TMPL
-    assert hit["prose"]["line"] == _line_of(tmpl_text, "missing C# or TypeScript")
+    assert hit["prose"]["line"] == line_of(tmpl_text, "missing C# or TypeScript")
     assert hit["code"]["file"] == ASSESS
-    assert hit["code"]["line"] == _line_of(GRAMMARS_HEAD, "except ImportError") + 1
+    assert hit["code"]["line"] == line_of(GRAMMARS_HEAD, "except ImportError") + 1
     assert hit["evidence"]["named"] == ["C#", "TypeScript"]
     assert hit["evidence"]["missing"] == ["JavaScript"]
 
@@ -254,7 +265,7 @@ def test_r3_flags_noun_the_assigned_value_never_mentions(tmp_path: Path) -> None
     assert code == 10
     assert hit["prose"] == {"file": CSHARP_DOC, "line": 3, "text": CSHARP_LINE}
     assert hit["code"]["file"] == ASSESS
-    assert hit["code"]["line"] == _line_of(COMPARISON_HEAD, "comparison.parser_dependency")
+    assert hit["code"]["line"] == line_of(COMPARISON_HEAD, "comparison.parser_dependency")
     assert hit["evidence"]["key"] == "parser_dependency_admission"
     assert hit["evidence"]["noun"] == "regression"
 
@@ -291,8 +302,32 @@ def test_r3_without_an_assignment_goes_to_the_checklist(tmp_path: Path) -> None:
 
     assert _rule(findings, "R3") == []
     assert code == 0
-    entry = _entry(checklist, CSHARP_DOC, "unassigned_key")
+    entry = checklist_entry(checklist, CSHARP_DOC, "unassigned_key")
     assert any("unassigned_key" in reason for reason in entry["reasons"])
+
+
+@pytest.mark.parametrize(
+    ("prose", "ambiguous"),
+    [
+        ("The regression is under `parser_dependency_admission`.", False),
+        ("JSON `parser_dependency_admission` keeps only admitted dependencies.", False),
+        ("JSON retains the regression under `parser_dependency_admission`.", True),
+    ],
+)
+def test_r3_leaves_non_json_or_ambiguous_claims_to_the_checklist(
+    tmp_path: Path, prose: str, ambiguous: bool
+) -> None:
+    repo = make_repo(tmp_path, {CSHARP_DOC: "# C# parser\n", ASSESS: COMPARISON_BASE})
+    changes = {CSHARP_DOC: f"# C# parser\n\n{prose}\n", ASSESS: COMPARISON_HEAD}
+    if ambiguous:
+        changes["another_writer.py"] = COMPARISON_HEAD
+    edit_files_and_commit(repo, changes)
+
+    code, findings, checklist = run_same_pr(repo, tmp_path)
+
+    assert code == 0
+    assert _rule(findings, "R3") == []
+    assert checklist_entry(checklist, CSHARP_DOC, "parser_dependency_admission")
 
 
 # -- R1: Exit Codes table against literal exit integers ------------------------
@@ -360,138 +395,3 @@ def test_r1_ignores_a_table_when_no_script_is_identifiable(tmp_path: Path) -> No
     _, findings, _ = run_same_pr(repo, tmp_path)
 
     assert _rule(findings, "R1") == []
-
-
-# -- checklist entries: #6584, #6852, #7379 ------------------------------------
-
-ADR_SCRIPT = "src/claude/skills/adr-review/scripts/detect_adr_changes.py"
-ADR_BASE = '''\
-import yaml
-
-
-def _has_duplicate_keys(frontmatter: str) -> bool:
-    """Return True when the frontmatter repeats a mapping key."""
-    try:
-        yaml.safe_load(frontmatter)
-    except yaml.YAMLError:
-        return False
-    return False
-'''
-ADR_HEAD = '''\
-import yaml
-
-
-def _has_duplicate_keys(frontmatter: str) -> bool:
-    """Return True when the frontmatter repeats a mapping key.
-
-    Stricter/looser/different than canonical: identical detection; this returns
-    a bool because callers only branch on it.
-    """
-
-    class _Dup(yaml.YAMLError):
-        pass
-
-    class _Loader(yaml.SafeLoader):
-        pass
-
-    def _check(loader: yaml.SafeLoader, node: yaml.MappingNode) -> dict[object, object]:
-        seen: list[object] = []
-        for key_node, _ in node.value:
-            key = loader.construct_object(key_node, deep=True)
-            if key in seen:
-                raise _Dup
-            seen.append(key)
-        return loader.construct_mapping(node, deep=True)
-
-    try:
-        yaml.load(frontmatter, Loader=_Loader)
-    except _Dup:
-        return True
-    return False
-'''
-
-
-def test_checklist_pairs_a_docstring_claim_with_the_changed_nested_code(tmp_path: Path) -> None:
-    repo = make_repo(tmp_path, {ADR_SCRIPT: ADR_BASE})
-    edit_files_and_commit(repo, {ADR_SCRIPT: ADR_HEAD})
-
-    code, findings, checklist = run_same_pr(repo, tmp_path)
-
-    entry = _entry(checklist, ADR_SCRIPT, "identical detection")
-    assert code == 0 and findings["findings"] == []
-    assert entry["prose_line"] == _line_of(ADR_HEAD, "identical detection")
-    assert "identical" in entry["reasons"]
-    pairs = {p["symbol"]: p for p in entry["pairs"]}
-    assert {"_check", "_Dup"} <= set(pairs)
-    assert pairs["_check"]["file"] == ADR_SCRIPT
-    assert pairs["_check"]["line"] == _line_of(ADR_HEAD, "def _check")
-    assert pairs["_Dup"]["line"] == _line_of(ADR_HEAD, "class _Dup")
-
-
-GROWTH = "tests/test_subprocess_text_encoding.py"
-GROWTH_BASE = '''\
-def _cpu_growth(run, small_input, large_input, tries: int = 3):
-    """CPU time of ``run(large_input)`` over ``run(small_input)``."""
-    return run(large_input) / run(small_input)
-'''
-GROWTH_HEAD = '''\
-def _cpu_growth(run, small_input, large_input, tries: int = 3):
-    """CPU time of ``run(large_input)`` over ``run(small_input)``, and the large result.
-
-    The large result comes back so a caller can check it without a fifth run.
-    """
-    small_best = large_best = float("inf")
-    large_result = None
-    for _ in range(tries):
-        small_best = min(small_best, run(small_input))
-        large_result = run(large_input)
-        large_best = min(large_best, large_result)
-    return large_best / small_best, large_result
-'''
-
-
-def test_checklist_flags_ordinal_count_beside_changed_loop(tmp_path: Path) -> None:
-    repo = make_repo(tmp_path, {GROWTH: GROWTH_BASE})
-    edit_files_and_commit(repo, {GROWTH: GROWTH_HEAD})
-
-    _, _, checklist = run_same_pr(repo, tmp_path)
-
-    entry = _entry(checklist, GROWTH, "fifth run")
-    assert entry["prose_line"] == _line_of(GROWTH_HEAD, "fifth run")
-    assert "number" in entry["reasons"]
-    (pair,) = [p for p in entry["pairs"] if p["symbol"] == "_cpu_growth"]
-    assert pair["file"] == GROWTH
-    assert pair["line"] > 0
-
-
-SEVERITY_DOC = "src/claude/skills/review/resources/finding-severity.md"
-SEVERITY_SCRIPT = "src/claude/skills/review/scripts/render_findings.py"
-SEVERITY_LINE = (
-    "- A label never claims more than its value can do to the axis verdict. "
-    "Only `critical` and `high` move it, so `medium` is a SUGGESTION."
-)
-SEVERITY_BASE_DOC = "## Rules\n\n- Print the axis's own value after the label.\n"
-SEVERITY_HEAD_DOC = SEVERITY_BASE_DOC + SEVERITY_LINE + "\n"
-SEVERITY_BASE_PY = 'LABELS = {"critical": "CRITICAL", "high": "IMPORTANT"}\n'
-SEVERITY_HEAD_PY = (
-    'LABELS = {"critical": "CRITICAL", "high": "IMPORTANT", "medium": "SUGGESTION"}\n\n\n'
-    'def label_for(value: str) -> str:\n    return LABELS.get(value, "UNSPECIFIED")\n'
-)
-
-
-def test_checklist_pairs_a_severity_claim_with_changed_review_code(tmp_path: Path) -> None:
-    repo = make_repo(tmp_path, {SEVERITY_DOC: SEVERITY_BASE_DOC, SEVERITY_SCRIPT: SEVERITY_BASE_PY})
-    edit_files_and_commit(
-        repo, {SEVERITY_DOC: SEVERITY_HEAD_DOC, SEVERITY_SCRIPT: SEVERITY_HEAD_PY}
-    )
-
-    code, findings, checklist = run_same_pr(repo, tmp_path)
-
-    entry = _entry(checklist, SEVERITY_DOC, "Only `critical` and `high`")
-    assert code == 0 and findings["findings"] == []
-    assert entry["prose_line"] == _line_of(SEVERITY_HEAD_DOC, "Only `critical`")
-    assert {"only", "never"} <= set(entry["reasons"])
-    assert {p["file"] for p in entry["pairs"]} == {SEVERITY_SCRIPT}
-    assert all(p["line"] > 0 for p in entry["pairs"])
-    # The contradicting rules live in unchanged files; the artifact says it cannot see them.
-    assert any("unchanged" in limit for limit in checklist["limits"])

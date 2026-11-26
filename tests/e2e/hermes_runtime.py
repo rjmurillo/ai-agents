@@ -29,11 +29,103 @@ from pathlib import Path
 INSTALL_TIMEOUT_SECONDS = 300
 QUICK_TIMEOUT_SECONDS = 120
 
-# Packs whose ``caution`` guard verdict was reviewed and accepted. Name a pack here
-# only with that review; the smoke fails for every other pack rated ``caution``.
-FORCE_ALLOWED_PACKS: frozenset[str] = frozenset(
-    {"project-toolkit-delivery", "project-toolkit-authoring"}
-)
+# A reviewed high finding: (``pattern_id``, file inside the pack, 1-based line,
+# SHA-256 hex of that line's text). Lines are numbered the way the pinned guard
+# numbers them: ``read_text(encoding="utf-8-sig").split("\n")`` in
+# ``tools/skills_guard.py``. A finding that moves, whose line changes, or that is
+# new does not match, so it needs a fresh review.
+ReviewedFinding = tuple[str, str, int, str]
+
+# High guard findings that were read and accepted, per pack (ADR-115 Decision 6).
+# A ``caution`` pack installs with ``--force`` only when every high finding it has
+# is listed here. Any other high finding fails the smoke until someone reviews it.
+# ``dangerous`` (any critical finding) is never forced. Reviewed 2026-11-19 at
+# hermes-agent 63d0b94120027d487c9a5235b9ec64b696af1b26:
+# - context_exfil: prose that tells the agent to read earlier plan or spec output
+#   from the conversation.
+# - inline_shell_exec: a backtick-matching regex, a CI error table row, and
+#   read-only ``!`git ...``` context lines in two SKILL.md files.
+# - python_os_environ: a reference example that drops CI variables from a child
+#   process environment.
+# The invisible_unicode entry for skillforge's ``_conformance_parse.py`` was
+# dropped after #7531 wrote that byte-order mark as an ``\ufeff`` escape.
+_GH_ISSUE = "skills/github/scripts/issue/check_existing_pr_for_issue.py"
+FORCE_ALLOWED_FINDINGS: dict[str, frozenset[ReviewedFinding]] = {
+    "project-toolkit-delivery": frozenset(
+        {
+            (
+                "context_exfil",
+                "skills/build/SKILL.md",
+                26,
+                "044b7a3d3ee253b9b88f48fae33d24cf00de3ec6aef3582e05d6b7a096354b81",
+            ),
+            (
+                "context_exfil",
+                "skills/plan/SKILL.md",
+                38,
+                "f9568df509fac0462cd7e194a57a4dd984e89bf27f500cf35d4ab0d98533f89e",
+            ),
+            (
+                "inline_shell_exec",
+                "skills/github/fix-ci.md",
+                137,
+                "25f389554f53cba49b5ade78b0f47887a2477ac49ffe9f01f6503f5c6e251526",
+            ),
+            (
+                "inline_shell_exec",
+                _GH_ISSUE,
+                122,
+                "45947c367269d02c1b8ef3be1be51524705fa86d5aaa36b81e9562d0a552c2c9",
+            ),
+            (
+                "inline_shell_exec",
+                _GH_ISSUE,
+                124,
+                "cd329b23957bfa205df0b31ae3ef439979beaa018506e767a4fcbbb6320b74e0",
+            ),
+            (
+                "inline_shell_exec",
+                "skills/pr-review/SKILL.md",
+                77,
+                "b6d90e26d7b0c71c7cec3facc4d6df85ec16906a41768c0ba638f968cfaf44c5",
+            ),
+            (
+                "inline_shell_exec",
+                "skills/pr-review/SKILL.md",
+                78,
+                "2ea4295d4bd6c37d574dba6e003064e4e7cbe0de207cd71034c0c885dcdd5860",
+            ),
+            (
+                "inline_shell_exec",
+                "skills/push-pr/SKILL.md",
+                33,
+                "3bf15d66448dee25466cf8e62241abc4aded65669586a53e2b8c741654e0f47e",
+            ),
+            (
+                "inline_shell_exec",
+                "skills/push-pr/SKILL.md",
+                34,
+                "bb91750fc659d56fc8c4ca22cb1cf2e484ddce69f3ba3cbea3f2e24f0a8953ac",
+            ),
+            (
+                "inline_shell_exec",
+                "skills/push-pr/SKILL.md",
+                35,
+                "b6d90e26d7b0c71c7cec3facc4d6df85ec16906a41768c0ba638f968cfaf44c5",
+            ),
+        }
+    ),
+    "project-toolkit-authoring": frozenset(
+        {
+            (
+                "python_os_environ",
+                "skills/skillforge/references/script-design-rules.md",
+                232,
+                "06908eb0196006f16571a90e2a5d615884e0cd0655167c6a09a6b1779f1c79f4",
+            ),
+        }
+    ),
+}
 
 # Snippets run with the Python that Hermes installed into, so they can import its
 # own modules. They print one JSON document on stdout.
@@ -44,10 +136,27 @@ print(json.dumps([s["name"] for s in json.loads(skills_list())["skills"]]))
 """
 
 GUARD_SNIPPET = """
-import json, sys
+import hashlib, json, sys
 from pathlib import Path
 from tools.plugin_guard import scan_plugin
-print(json.dumps({p: scan_plugin(Path(p), source="local").verdict for p in sys.argv[1:]}))
+out = {}
+for p in sys.argv[1:]:
+    result = scan_plugin(Path(p), source="local")
+    high = set()
+    for f in result.findings:
+        if f.severity not in ("high", "critical"):
+            continue
+        digest = "unreadable"
+        if isinstance(f.line, int) and f.line >= 1 and isinstance(f.file, str):
+            try:
+                lines = (Path(p) / f.file).read_text(encoding="utf-8-sig").split("\\n")
+                text = lines[f.line - 1]
+                digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+            except (OSError, UnicodeDecodeError, IndexError):
+                pass
+        high.add((f.pattern_id, f.file, f.line, digest))
+    out[p] = {"verdict": result.verdict, "high": sorted(high, key=str)}
+print(json.dumps(out))
 """
 
 CHECKOUT_SNIPPET = """
@@ -152,21 +261,33 @@ def stage_git_repo(files_root: Path, repo: Path, *, subdir: str) -> Path:
     return repo
 
 
-def force_for_verdict(pack_name: str, verdict: str) -> bool:
+def force_for_verdict(
+    pack_name: str, verdict: str, high_findings: frozenset[ReviewedFinding]
+) -> bool:
     """Return whether ``pack_name`` installs with ``--force`` under guard ``verdict``.
 
-    Only a ``caution`` pack named in :data:`FORCE_ALLOWED_PACKS` gets ``--force``. Any
-    other pack must be ``safe``; a ``caution`` or worse verdict on it fails the smoke,
-    so a new finding in a pack cannot be installed past the guard without a decision.
+    ``high_findings`` holds the pack's high and critical findings as
+    ``(pattern_id, file, line, sha256 of that line)``. A ``safe`` pack installs
+    without ``--force``. A ``caution`` pack gets ``--force`` only when every one
+    of its high findings is in :data:`FORCE_ALLOWED_FINDINGS` for that pack.
+    Every other case fails the smoke, so a new finding cannot be installed past
+    the guard without a review.
     """
     if verdict == "safe":
         return False
-    if verdict == "caution" and pack_name in FORCE_ALLOWED_PACKS:
-        return True
-    raise ValueError(
-        f"{pack_name} is rated {verdict!r}; only a caution verdict on "
-        f"{sorted(FORCE_ALLOWED_PACKS)} may install with --force"
-    )
+    if verdict != "caution":
+        raise ValueError(f"{pack_name} is rated {verdict!r}; only caution may install with --force")
+    if not high_findings:
+        raise ValueError(
+            f"{pack_name} is rated 'caution' with no high findings; the guard output is not trusted"
+        )
+    unreviewed = sorted(high_findings - FORCE_ALLOWED_FINDINGS.get(pack_name, frozenset()))
+    if unreviewed:
+        raise ValueError(
+            f"{pack_name} is rated 'caution' with unreviewed high findings {unreviewed}; "
+            "review them and add them to FORCE_ALLOWED_FINDINGS before --force"
+        )
+    return True
 
 
 def install_pack(

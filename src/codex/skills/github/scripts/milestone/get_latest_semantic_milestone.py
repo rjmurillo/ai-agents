@@ -19,32 +19,22 @@ import os
 import re
 import sys
 
-_plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
-_workspace = os.environ.get("GITHUB_WORKSPACE")
-if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
-    _lib_dir = os.path.join(_plugin_root, "lib")
-elif _workspace:
-    _lib_dir = os.path.join(_workspace, ".claude", "lib")
-else:
-    _lib_dir = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
-    )
-if not os.path.isdir(_lib_dir):
-    print(f"Plugin lib directory not found: {_lib_dir}", file=sys.stderr)
-    sys.exit(2)  # Config error per ADR-035
-if _lib_dir not in sys.path:
-    sys.path.insert(0, _lib_dir)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from github_core.api import (
+from skill_bootstrap import ensure_plugin_paths
+
+ensure_plugin_paths(__file__, (".claude", "lib"))
+
+from github_core import (
+    add_output_format_arg,
     assert_gh_authenticated,
+    get_output_format,
     gh_api_paginated,
     resolve_repo_params,
-)
-from github_core.output import (
-    add_output_format_arg,
-    get_output_format,
+    write_github_output,
     write_skill_error,
     write_skill_output,
+    write_step_summary,
 )
 
 # Optional v prefix matches the repository tag and milestone convention
@@ -55,31 +45,6 @@ _SEMVER_PATTERN = re.compile(r"^v?\d+\.\d+\.\d+$")
 def _parse_semver_tuple(version: str) -> tuple[int, ...]:
     """Parse 'X.Y.Z' into (X, Y, Z) for proper numeric sorting."""
     return tuple(int(part) for part in version.removeprefix("v").split("."))
-
-
-def _write_github_output(outputs: dict[str, str]) -> None:
-    """Write key=value pairs to GITHUB_OUTPUT if available."""
-    output_file = os.environ.get("GITHUB_OUTPUT")
-    if not output_file:
-        return
-    try:
-        with open(output_file, "a", encoding="utf-8") as fh:
-            for key, value in outputs.items():
-                fh.write(f"{key}={value}\n")
-    except OSError:
-        pass
-
-
-def _write_step_summary(content: str) -> None:
-    """Write content to GITHUB_STEP_SUMMARY if available."""
-    summary_file = os.environ.get("GITHUB_STEP_SUMMARY")
-    if not summary_file:
-        return
-    try:
-        with open(summary_file, "a", encoding="utf-8") as fh:
-            fh.write(content)
-    except OSError:
-        pass
 
 
 _HELP_EPILOG = """\
@@ -128,14 +93,14 @@ def main(argv: list[str] | None = None) -> int:
             script_name="get_latest_semantic_milestone.py",
             extra={"title": "", "number": 0, "found": False},
         )
-        _write_github_output(
+        write_github_output(
             {
                 "milestone_title": "",
                 "milestone_number": "0",
                 "found": "false",
             }
         )
-        _write_step_summary(
+        write_step_summary(
             f"## Milestone Detection Result\n\n"
             f"**Status**: No semantic version milestones found\n\n"
             f"No open milestones matching semantic versioning format (X.Y.Z) "
@@ -160,7 +125,7 @@ def main(argv: list[str] | None = None) -> int:
             script_name="get_latest_semantic_milestone.py",
             extra={"title": "", "number": 0, "found": False},
         )
-        _write_github_output(
+        write_github_output(
             {
                 "milestone_title": "",
                 "milestone_number": "0",
@@ -168,7 +133,7 @@ def main(argv: list[str] | None = None) -> int:
             }
         )
         available_list = "\n".join(f"- {m.get('title', '(untitled)')}" for m in milestones)
-        _write_step_summary(
+        write_step_summary(
             f"## Milestone Detection Result\n\n"
             f"**Status**: No semantic version milestones found\n\n"
             f"Found {len(milestones)} open milestone(s), but none match "
@@ -190,7 +155,7 @@ def main(argv: list[str] | None = None) -> int:
         script_name="get_latest_semantic_milestone.py",
     )
 
-    _write_github_output(
+    write_github_output(
         {
             "milestone_title": latest["title"],
             "milestone_number": str(latest["number"]),
@@ -199,7 +164,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     semver_list = "\n".join(f"- **{m['title']}** (ID: {m['number']})" for m in semantic)
-    _write_step_summary(
+    write_step_summary(
         f"## Milestone Detection Result\n\n"
         f"**Status**: Found semantic version milestone\n\n"
         f"**Milestone**: {latest['title']} (ID: {latest['number']})\n\n"

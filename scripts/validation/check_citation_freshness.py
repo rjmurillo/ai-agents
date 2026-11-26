@@ -17,10 +17,10 @@ Deliberate scope: added lines only (``citation_reverse_pass.py`` covers
 unchanged citations into changed files), so historical trees (``stale_script_refs``'s
 ``HISTORICAL_ROOTS``), whose citations were true when written, are never
 re-policed. HEAD is the state verified, because HEAD is what a push ships
-(``.claude/rules/ci-scripts.md``, "Read the state you are asserting
-about, and name the ref"). Anchorless citations get existence and range
-checks only. A slashless name is verified only when it names a file
-tracked at the repository root (``.markdownlint-cli2.yaml:138``), so
+(``ai-agents-validation-and-qa`` skill, ``rule-ci-scripts.md``, "Read the state you are asserting
+about, and name the ref"). Anchorless citations get existence and range checks only.
+A slashless name is verified only when it names a file tracked at the
+repository root (``.markdownlint-cli2.yaml:138``), so
 illustrative snippets such as ``auth.ts:47`` stay ignored. Escape
 hatch: ``citation-freshness: ignore`` (with a reason) on the citing line
 or the line above, or, in Markdown, on the line directly above the code
@@ -60,16 +60,15 @@ from citation_anchors import (  # noqa: E402
     _URL,
     _anchor_candidates,
     _anchor_matches,
-    _atx_heading,
     _basename_index,
     _citation_aliases,
     _context_lines,
     _continuation_quote,
     _expand_adr_citations,
     _expand_continuations,
+    _markdown_unit,
     _range_misses_distinctive_anchors,
     _same_line_segment,
-    _table_row,
 )
 from citation_exemptions import _is_exempt_citing_file  # noqa: E402
 from citation_head_state import (  # noqa: E402
@@ -183,8 +182,7 @@ def _citation_anchors(
     # A Markdown heading or table row is a complete unit (see _context_lines),
     # so one ending in a colon never harvests the indented line below it as a
     # continuation quote either.
-    complete_unit = markdown and (_atx_heading(line_text) or _table_row(line_text))
-    if citing_lines is not None and not complete_unit:
+    if citing_lines is not None and not (markdown and _markdown_unit(citing_lines, line_index)):
         quote = _continuation_quote(citing_lines, line_index)
         if quote is not None:
             anchors.append(quote)

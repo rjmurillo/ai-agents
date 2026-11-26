@@ -14,6 +14,8 @@ the one-command setup in [CONTRIBUTING.md](../../CONTRIBUTING.md#setup-steps).
 | Runbook | Use it when |
 |---|---|
 | [Red CI on main](red-ci-on-main.md) | A required check fails on `main`, or a "Python Tests failed on main" issue opens |
+| [Unattended workflow failure](workflow-failure-alert.md) | A "Workflow failed:" issue opens |
+| [Deploy impact checks](deploy-impact-checks.md) | A shipped change merges or the npm publish workflow completes |
 | [npm publish or promotion gate failure](publish-failure.md) | The npm Publish workflow fails or the promotion gate blocks |
 | [Ruleset drift alert](ruleset-drift-alert.md) | A "Ruleset Parameter Drift Detected" or "Ruleset Required Context Drift Detected" issue opens |
 | [Agent drift alert](agent-drift-alert.md) | An "Agent Drift Detected" issue with the `drift-detected` label opens |

@@ -2,7 +2,7 @@
 """Run one CI pytest partition in full.
 
 Each leg in `.github/workflows/pytest.yml` calls this with its partition name
-(`split-1` through `split-5`, `safe-push`, `pr-autofix`).
+(`split-1` through `split-6`, `safe-push`, `pr-autofix`).
 The partition's argument list lives here (Python, not YAML) per ADR-006. Every
 leg runs its whole share on every event, so coverage combine always receives
 data from every partition.
@@ -76,7 +76,7 @@ _PARALLEL = ["-n", "auto", "--dist", PYTEST_DIST_MODE]
 # Both paths stay relative on purpose: run_pytest_non_tmp starts pytest with
 # cwd=PROJECT_ROOT, so pytest resolves them against the repo root whatever
 # directory this script is launched from (a test pins that).
-SPLIT_COUNT = 5
+SPLIT_COUNT = 6
 DURATIONS_RESTORE_PATH = ".pytest-split/durations.json"
 LEG_DURATIONS_DIR = "artifacts"
 MODULE_SPLIT_PLUGIN = "scripts.ci.pytest_module_split"

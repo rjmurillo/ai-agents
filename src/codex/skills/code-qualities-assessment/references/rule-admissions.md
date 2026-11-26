@@ -27,6 +27,11 @@ A root the scanner's interpreter can import from its site-packages is always
 third-party, so a same-named folder cannot hide an installed dependency. A
 bare folder, or a module the HEAD commit does not hold, is not first-party.
 
+In a `test_*.py` or `conftest.py` file under a `tests` folder, `pytest` does
+not count as a third-party root. The test runner is not a dependency of the
+code under test, so adding `import pytest` for `mark.parametrize` couples
+nothing new. Any other new root in a test file still fails.
+
 ## Still failing
 
 A new third-party root, a line that gained a copy, or any other regressed

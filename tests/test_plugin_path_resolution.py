@@ -13,10 +13,14 @@ and ensures the standard boilerplate includes path validation per ADR-047.
 
 from __future__ import annotations
 
-import ast
 from pathlib import Path
 
 import pytest
+
+from tests.plugin_bootstrap_helpers import (
+    delegates_to_shared_bootstrap,
+    skill_resolution_source,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 HOOKS_DIR = REPO_ROOT / ".claude" / "hooks"
@@ -57,8 +61,6 @@ LIB_DIR_VALIDATION_PATTERNS = (
 # call string would have satisfied a substring-only check; the AST-based
 # check rejects that because text inside string literals is not parsed
 # as code.
-_BOOTSTRAP_MODULE = "_bootstrap"
-_BOOTSTRAP_FUNC = "ensure_plugin_paths"
 
 
 _EXCLUDED_DIR_NAMES = frozenset({"__pycache__", "tests"})
@@ -85,50 +87,6 @@ def _has_lib_import(content: str) -> bool:
 def _has_lib_dir_validation(content: str) -> bool:
     """Check if file validates lib directory exists before importing."""
     return any(pattern in content for pattern in LIB_DIR_VALIDATION_PATTERNS)
-
-
-def _delegates_to_shared_bootstrap(content: str) -> bool:
-    """Check if the file delegates plugin-path resolution to ``_bootstrap``.
-
-    Uses AST analysis (not substring matching) so a docstring or comment
-    that happens to contain the import or call text cannot grant the
-    exemption. A file qualifies only when its parsed AST contains:
-
-    1. ``from _bootstrap import ... ensure_plugin_paths ...`` AND
-    2. an actual call to ``ensure_plugin_paths()`` (bare name) or
-       ``_bootstrap.ensure_plugin_paths()`` (attribute form).
-
-    A SyntaxError or any AST traversal failure conservatively denies
-    the exemption: a file the test cannot parse has not proven
-    delegation, so it must satisfy the inline-pattern checks instead.
-    """
-    try:
-        tree = ast.parse(content)
-    except SyntaxError:
-        return False
-
-    has_import = False
-    has_call = False
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module == _BOOTSTRAP_MODULE:
-            for alias in node.names:
-                if alias.name == _BOOTSTRAP_FUNC:
-                    has_import = True
-                    break
-        elif isinstance(node, ast.Call):
-            func = node.func
-            if isinstance(func, ast.Name) and func.id == _BOOTSTRAP_FUNC:
-                has_call = True
-            elif (
-                isinstance(func, ast.Attribute)
-                and func.attr == _BOOTSTRAP_FUNC
-                and isinstance(func.value, ast.Name)
-                and func.value.id == _BOOTSTRAP_MODULE
-            ):
-                has_call = True
-        if has_import and has_call:
-            return True
-    return False
 
 
 class TestPluginPathResolution:
@@ -169,7 +127,7 @@ class TestPluginPathResolution:
                 continue
             if PLUGIN_PATH_PATTERN in content:
                 continue
-            if _delegates_to_shared_bootstrap(content):
+            if delegates_to_shared_bootstrap(content):
                 continue
             rel = hook_path.relative_to(REPO_ROOT)
             violations.append(str(rel))
@@ -213,7 +171,7 @@ class TestSkillPluginPathResolution:
         """Skill scripts importing from lib must use CLAUDE_PLUGIN_ROOT."""
         violations = []
         for script_path in skill_scripts_with_lib_imports:
-            content = script_path.read_text(encoding="utf-8")
+            content = skill_resolution_source(script_path)
             if PLUGIN_PATH_PATTERN not in content:
                 rel = script_path.relative_to(REPO_ROOT)
                 violations.append(str(rel))
@@ -230,7 +188,7 @@ class TestSkillPluginPathResolution:
         """Skill scripts with CLAUDE_PLUGIN_ROOT must validate lib dir exists (ADR-047)."""
         violations = []
         for script_path in skill_scripts_with_lib_imports:
-            content = script_path.read_text(encoding="utf-8")
+            content = skill_resolution_source(script_path)
             if PLUGIN_PATH_PATTERN in content and not _has_lib_dir_validation(content):
                 rel = script_path.relative_to(REPO_ROOT)
                 violations.append(str(rel))

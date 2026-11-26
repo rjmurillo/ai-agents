@@ -31,6 +31,7 @@ Thank you for your interest in contributing to this project. This guide explains
 
 - **Python 3.14.x** (primary scripting language per ADR-042)
 - **UV** (Python package manager, see [installation](https://docs.astral.sh/uv/getting-started/installation/))
+- **Node.js LTS and npm** (required for the locked copy/paste detector)
 - **PowerShell 7.5+** (`pwsh`, used by some pytest tests)
 
 If `pwsh` is a .NET global tool (`~/.dotnet/tools/pwsh`), export `DOTNET_ROOT`
@@ -48,28 +49,47 @@ Without it the pwsh tests fail with `You must install or update .NET`. See
 
 ### Setup Steps
 
-**One command.** From a fresh clone, this installs the locked environment and
+**One command.** From a fresh clone, this installs locked Python and Node tools,
 Git hooks, then runs a quick test to prove the setup works:
 
 ```bash
-uv sync --frozen --extra dev && uv run --frozen lefthook install --reset-hooks-path && uv run --frozen lefthook check-install && git config blame.ignoreRevsFile .git-blame-ignore-revs && uv run --frozen pytest tests/test_workspace_limits.py -q
+uv sync --frozen --extra dev && npm ci --ignore-scripts && uv run --frozen lefthook install --reset-hooks-path && uv run --frozen lefthook check-install && git config blame.ignoreRevsFile .git-blame-ignore-revs && uv run --frozen pytest tests/test_workspace_limits.py -q
 ```
 
-It covers steps 4, 6, and 7 below. Step 5 (Git configuration) stays manual.
+It covers steps 4, 5, 7, and 8 below. Step 6 (Git configuration) stays manual.
 
 1. Fork the repository
 2. Clone your fork locally
-3. **Install Python 3.14.x** (see Prerequisites above)
+3. **Install Python 3.14.x, UV, and Node.js LTS with npm** (see Prerequisites above)
 4. **Set up Python environment**: `uv sync --frozen --extra dev` (creates `.venv` from `uv.lock` without re-resolving it). This matches the locked environment the pre-push gate and CI use. On managed containers, `scripts/bootstrap-vm.sh` runs this automatically.
-5. Configure Git for cross-platform development (see [Git Configuration](#git-configuration) below)
-6. Install Git hooks: `uv run --frozen lefthook install --reset-hooks-path`, then verify with `uv run --frozen lefthook check-install`
-7. Hide the bulk format commit from blame: `git config blame.ignoreRevsFile .git-blame-ignore-revs`
-8. Make your changes following the guidelines below
-9. Submit a pull request
+5. **Install locked Node tools**: `npm ci --ignore-scripts`. This installs jscpd without lifecycle scripts. Tests and pre-PR validation require it.
+6. Configure Git for cross-platform development (see [Git Configuration](#git-configuration) below)
+7. Install Git hooks: `uv run --frozen lefthook install --reset-hooks-path`, then verify with `uv run --frozen lefthook check-install`
+8. Hide the bulk format commit from blame: `git config blame.ignoreRevsFile .git-blame-ignore-revs`
+9. Make your changes following the guidelines below
+10. Submit a pull request
 
-**Open in dev container:** `.devcontainer/devcontainer.json` covers steps 3, 4, and 6; steps 5 and 7 stay manual. It installs Python 3.14, uv, Node 26, PowerShell 7.5, and the GitHub CLI, then runs the `uv sync` and Lefthook commands above. It does not run the `tests/test_workspace_limits.py` check from the one command, so run that once to prove the environment. Use VS Code "Reopen in Container" or `devcontainer up --workspace-folder .`. Open a normal clone, not a git worktree: a worktree's `.git` file points outside the container mount, so the Lefthook install exits 128. Each feature reference carries a sha256 digest, so integrity is verified on every client without an extra flag. Add `--frozen-lockfile` to also check the committed `devcontainer-lock.json` against the config. If you change a feature, run `devcontainer upgrade --workspace-folder .` and commit both files.
+**Open in dev container:** `.devcontainer/devcontainer.json` covers steps 3, 4, and 7; steps 5, 6, and 8 stay manual. It installs Python 3.14, uv, Node 26, PowerShell 7.5, and the GitHub CLI, then runs the `uv sync` and Lefthook commands above. It does not install the locked Node tools. Run `npm ci --ignore-scripts` after opening the container. It does not run the `tests/test_workspace_limits.py` check from the one command, so run that once to prove the environment. Use VS Code "Reopen in Container" or `devcontainer up --workspace-folder .`. Open a normal clone, not a git worktree: a worktree's `.git` file points outside the container mount, so the Lefthook install exits 128. Each feature reference carries a sha256 digest, so integrity is verified on every client without an extra flag. Add `--frozen-lockfile` to also check the committed `devcontainer-lock.json` against the config. If you change a feature, run `devcontainer upgrade --workspace-folder .` and commit both files.
 
 **After setup, quality gates are automated.** Pre-commit hooks run ruff (Python) and markdownlint on staged files. Pre-push hooks run full test suites, drift detection, and security scans before each push. CI runs the complete validation suite. No manual test commands needed for routine development.
+
+### Duplication and dependency checks
+
+Install the locked copy/paste detector with `npm ci --ignore-scripts`.
+Python development dependencies include the locked `deptry` scanner.
+Pre-PR validation runs these checks, as do their dedicated CI workflows:
+
+```bash
+uv run --frozen python scripts/validation/check_duplicate_code.py --base-ref origin/main
+uv run --frozen --extra dev --extra eval python scripts/validation/check_unused_dependencies.py
+uv run --frozen --extra dev python scripts/validation/check_dependency_drift.py
+```
+
+The [duplication guide](docs/duplicate-code-detection.md) explains the shrink-only baseline.
+Dependency exemptions require named packages, reasons, and evidence in
+`.github/dependency-hygiene/policy.toml`.
+Keep intentional library compatibility floors separate from development-tool versions.
+Unused exemptions fail validation.
 
 ### Dogfood the shipped Copilot base
 

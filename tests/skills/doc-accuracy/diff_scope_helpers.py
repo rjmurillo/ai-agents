@@ -6,7 +6,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 TESTS_SKILLS_DIR = str(Path(__file__).resolve().parents[1])
 if TESTS_SKILLS_DIR not in sys.path:
@@ -103,3 +103,17 @@ def run_same_pr(repo: Path, tmp_path: Path, *extra: str) -> tuple[int, Json, Jso
     findings: Json = json.loads((out / "same-pr-findings.json").read_text(encoding="utf-8"))
     checklist: Json = json.loads((out / "same-pr-checklist.json").read_text(encoding="utf-8"))
     return code, findings, checklist
+
+
+def line_of(text: str, needle: str) -> int:
+    """1-based line of the first line containing ``needle``."""
+    for number, line in enumerate(text.splitlines(), start=1):
+        if needle in line:
+            return number
+    raise AssertionError(f"{needle!r} not in fixture")
+
+
+def checklist_entry(checklist: Json, path: str, needle: str) -> Json:
+    hits = [e for e in checklist["entries"] if e["prose_file"] == path and needle in e["text"]]
+    assert len(hits) == 1, [e["text"] for e in checklist["entries"]]
+    return cast(Json, hits[0])

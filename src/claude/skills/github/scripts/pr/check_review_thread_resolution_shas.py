@@ -12,28 +12,10 @@ import sys
 from html.parser import HTMLParser
 from typing import Any
 
-_plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
-if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
-    _lib_dir = os.path.join(_plugin_root, "lib")
-else:
-    _lib_dir = ""
-    _here = os.path.abspath(os.path.dirname(__file__))
-    _ancestor = _here
-    while True:
-        _candidate = os.path.join(_ancestor, "lib", "github_core")
-        if os.path.isdir(_candidate):
-            _lib_dir = os.path.dirname(_candidate)
-            break
-        _parent = os.path.dirname(_ancestor)
-        if _parent == _ancestor:
-            break
-        _ancestor = _parent
-if not os.path.isdir(_lib_dir):
-    print(f"Plugin lib directory not found: {_lib_dir}", file=sys.stderr)
-    sys.exit(2)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from skill_bootstrap import ensure_plugin_paths
 
-if _lib_dir not in sys.path:
-    sys.path.insert(0, _lib_dir)
+ensure_plugin_paths(__file__, discovery="ancestors")
 
 _script_dir = os.path.dirname(os.path.abspath(__file__))
 if _script_dir not in sys.path:

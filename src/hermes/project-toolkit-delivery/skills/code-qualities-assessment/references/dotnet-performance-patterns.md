@@ -7,6 +7,8 @@ note: Zero-Allocation Coroutines wiki page not found. Content focuses on allocat
 
 # .NET Performance Patterns for Quality Assessment
 
+<!-- doc-accuracy: external-sdk dotnet -- C# examples use the .NET base class library, not this repository -->
+
 Allocation-free and performance-conscious patterns relevant to code quality scoring. These patterns affect testability, coupling, and encapsulation scores.
 
 ## Allocation-Free Patterns
@@ -16,8 +18,10 @@ Allocation-free and performance-conscious patterns relevant to code quality scor
 Use `Span<T>` and `ReadOnlySpan<T>` for stack-based, zero-allocation slicing.
 
 ```csharp
+using System;
+
 // Allocation-free string parsing
-public static bool TryParseHeader(ReadOnlySpan<char> line, out ReadOnlySpan<char> key, out ReadOnlySpan<char> value)
+static bool TryParseHeader(ReadOnlySpan<char> line, out ReadOnlySpan<char> key, out ReadOnlySpan<char> value)
 {
     int separator = line.IndexOf(':');
     if (separator < 0)
@@ -38,15 +42,29 @@ public static bool TryParseHeader(ReadOnlySpan<char> line, out ReadOnlySpan<char
 ### ArrayPool for Buffer Reuse
 
 ```csharp
-byte[] buffer = ArrayPool<byte>.Shared.Rent(4096);
-try
+using System;
+using System.Buffers;
+using System.IO;
+
+delegate void ProcessBytes(ReadOnlySpan<byte> data);
+
+static class StreamReaderExample
 {
-    int bytesRead = stream.Read(buffer, 0, buffer.Length);
-    ProcessData(buffer.AsSpan(0, bytesRead));
-}
-finally
-{
-    ArrayPool<byte>.Shared.Return(buffer);
+    public static void ReadChunk(Stream stream, ProcessBytes processData)
+    {
+        const int chunkSize = 4096;
+        byte[] buffer = ArrayPool<byte>.Shared.Rent(chunkSize);
+        try
+        {
+            int bytesRead = stream.Read(buffer, 0, chunkSize);
+            if (bytesRead > 0)
+                processData(buffer.AsSpan(0, bytesRead));
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
+    }
 }
 ```
 
@@ -55,15 +73,22 @@ finally
 ### ValueTask for Hot Paths
 
 ```csharp
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+
 // Avoid Task allocation when result is often synchronous
-public ValueTask<int> GetCachedValueAsync(string key)
+static ValueTask<int> GetCachedValueAsync(
+    string key,
+    IReadOnlyDictionary<string, int> cache,
+    Func<string, Task<int>> getFromStoreAsync)
 {
-    if (_cache.TryGetValue(key, out int value))
+    if (cache.TryGetValue(key, out int value))
     {
         return new ValueTask<int>(value); // No allocation
     }
 
-    return new ValueTask<int>(GetFromStoreAsync(key));
+    return new ValueTask<int>(getFromStoreAsync(key));
 }
 ```
 
@@ -74,52 +99,71 @@ public ValueTask<int> GetCachedValueAsync(string key)
 ### Allocation in Hot Loops (Non-Redundancy: 3/10)
 
 ```csharp
+using System;
+using System.Collections.Generic;
+
 // Bad: allocates on every iteration
-foreach (var item in items)
+static void ProcessWithAllocation(IEnumerable<int> items, Action<IReadOnlyList<string>> process)
 {
-    var result = new List<string>();  // Allocation per iteration
-    result.Add(item.ToString());     // Another allocation
-    Process(result);
+    foreach (var item in items)
+    {
+        var result = new List<string>();  // Allocation per iteration
+        result.Add(item.ToString());     // Another allocation
+        process(result);
+    }
 }
 
 // Better: reuse outside loop
-var result = new List<string>();
-foreach (var item in items)
+// The callback must finish reading each batch before the list is reused.
+static void ProcessWithReuse(IEnumerable<int> items, Action<IReadOnlyList<string>> process)
 {
-    result.Clear();
-    result.Add(item.ToString());
-    Process(result);
+    var result = new List<string>();
+    foreach (var item in items)
+    {
+        result.Clear();
+        result.Add(item.ToString());
+        process(result);
+    }
 }
 ```
 
 ### Boxing Value Types (Encapsulation: 4/10)
 
 ```csharp
+using System;
+
 // Bad: boxes int to object
 object boxed = 42;
 int unboxed = (int)boxed;
 
 // Better: use generics
-void Process<T>(T value) where T : struct { }
+static T ReadValue<T>(T value) where T : struct => value;
+Console.WriteLine(ReadValue(42));
 ```
 
 ### String Concatenation in Loops (Non-Redundancy: 2/10)
 
 ```csharp
+using System.Collections.Generic;
+using System.Text;
+
 // Bad: O(n^2) allocations
-string result = "";
-foreach (var item in items)
+static string Concatenate(IEnumerable<int> items)
 {
-    result += item.ToString();  // New string each iteration
+    string result = "";
+    foreach (var item in items)
+        result += item.ToString();  // New string each iteration
+    return result;
 }
 
-// Better: single allocation
-var sb = new StringBuilder();
-foreach (var item in items)
+// Better: append to a growable buffer and create the final string once.
+static string AppendItems(IEnumerable<int> items)
 {
-    sb.Append(item.ToString());
+    var builder = new StringBuilder();
+    foreach (var item in items)
+        builder.Append(item);
+    return builder.ToString();
 }
-string result = sb.ToString();
 ```
 
 ## SDK-Style Project Detection

@@ -1,5 +1,7 @@
 # Secret Detection Patterns
 
+<!-- doc-accuracy: external-sdk Azure-Key-Vault -- C# examples use the Azure Key Vault SDK, not this repository -->
+
 ## Purpose
 
 This document defines patterns for detecting hardcoded secrets, credentials, and sensitive data in code. Use these patterns to identify potential security risks before code reaches production.
@@ -222,17 +224,29 @@ These patterns suggest the secret might be a placeholder:
 ### Instead of Hardcoding
 
 ```csharp
-// BAD: Hardcoded
-var apiKey = "sk_live_abc123...";
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Azure.Security.KeyVault.Secrets;
+using Microsoft.Extensions.Configuration;
+
+// BAD: Hardcoded placeholder illustrates where a real secret can leak.
+const string HardcodedExample = "sk_live_abc123...";
 
 // GOOD: Environment variable
-var apiKey = Environment.GetEnvironmentVariable("API_KEY");
+static string FromEnvironment() => Environment.GetEnvironmentVariable("API_KEY")
+    ?? throw new InvalidOperationException("API_KEY is required.");
 
-// GOOD: Secret manager
-var apiKey = await secretManager.GetSecretAsync("api-key");
+// GOOD: Azure Key Vault. Supply a SecretClient authenticated for this vault.
+static async Task<string> FromVault(SecretClient secretManager, CancellationToken cancellationToken)
+{
+    var secret = await secretManager.GetSecretAsync("api-key", cancellationToken: cancellationToken);
+    return secret.Value.Value;
+}
 
-// GOOD: Configuration with user secrets (development)
-var apiKey = configuration["ApiKey"];
+// GOOD: Configuration with user secrets in development.
+static string FromConfiguration(IConfiguration configuration) => configuration["ApiKey"]
+    ?? throw new InvalidOperationException("ApiKey is required.");
 ```
 
 ### Commit Prevention

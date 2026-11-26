@@ -9,20 +9,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from .test_assess import _commit, _init_repo, _regression_argv, _run_git
+from .shipped_assess import assert_shipped_scanner_counts
+from .test_assess import _commit, _init_repo, _mod, _regression_argv, _run_git
 
-_SCRIPT = (
-    Path(__file__).resolve().parents[3]
-    / ".claude"
-    / "skills"
-    / "code-qualities-assessment"
-    / "scripts"
-    / "assess.py"
-)
-_spec = importlib.util.spec_from_file_location("assess", _SCRIPT)
-assert _spec is not None and _spec.loader is not None
-_mod = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_mod)
 assess_content = _mod.assess_content
 
 
@@ -246,7 +235,7 @@ def test_default_coupling_gate_scores_only_non_system_directives(
     assert not (tmp_path / ".qualityrc.json").exists()
 
     result = subprocess.run(
-        [sys.executable, str(_SCRIPT), "--target", str(target), "--format", "json"],
+        [sys.executable, str(_mod.__file__), "--target", str(target), "--format", "json"],
         cwd=tmp_path,
         capture_output=True,
         text=True,
@@ -432,10 +421,6 @@ def test_shipped_csharp_parser_runs_from_consumer_directory(
     tmp_path: Path, plugin_parts: tuple[str, ...]
 ) -> None:
     """AC1/AC2: Every shipped scanner parses source outside its own plugin directory."""
-    root = Path(__file__).resolve().parents[3]
-    script = root.joinpath(
-        "src", *plugin_parts, "skills", "code-qualities-assessment", "scripts", "assess.py"
-    )
     target = tmp_path / "Consumer.cs"
     target.write_text(
         'global\nusing Company.IO;\nclass C {\nstring text = @"\n'
@@ -444,34 +429,4 @@ def test_shipped_csharp_parser_runs_from_consumer_directory(
         encoding="utf-8",
     )
 
-    result = subprocess.run(
-        [sys.executable, "-I", str(script), "--target", str(target), "--format", "json"],
-        cwd=tmp_path,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-        timeout=30,
-    )
-
-    assert result.returncode == 0, result.stderr
-    coupling = json.loads(result.stdout)["files"][0]["coupling"]
-    assert coupling["value"] == 9.0
-    assert coupling["confidence"] == 0.6
-    assert coupling["reasons"][0] == "1 import/dependency statements"
-
-    without_packages = subprocess.run(
-        [sys.executable, "-I", "-S", str(script), "--target", str(target), "--format", "json"],
-        cwd=tmp_path,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-        timeout=30,
-    )
-
-    assert without_packages.returncode == 1
-    assert "tree-sitter" in without_packages.stderr
-    assert not without_packages.stdout
+    assert_shipped_scanner_counts(plugin_parts, target, 9.0, 1)

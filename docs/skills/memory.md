@@ -72,6 +72,9 @@ uv run python .claude/skills/memory/scripts/search_memory.py "retry policy" --ma
 | `convert_index_table_links.py`, `convert_memory_references.py` | Link conversion, each with `--dry-run`. |
 | `invoke_memory_cross_reference.py` | Cross-reference memories. |
 
+Both link converters share file processing and statistics through `memory_link_processing.py`.
+The helper is internal, not another conversion command.
+
 Run any script with `--help` for the exact flags.
 
 ## Where it runs

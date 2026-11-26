@@ -1,13 +1,13 @@
 ---
 id: ADR-126
-status: proposed
-date: 2026-11-23
+status: accepted
+date: 2026-11-25
 decision-makers:
   - rjmurillo
 supersedes: []
 superseded-by: null
 explainer: null
-implemented: false
+implemented: true
 ---
 
 # ADR-126: Repository-Resolved Memory Store
@@ -38,7 +38,11 @@ Forces:
   (ADR-109 amendment 2026-11-20); the memory skill ships to five more trees.
   A shipped script may import only the standard library, a declared dependency,
   its tree's `lib/`, or a module beside it (import-closure gate, issue #7221).
-  So the root and store rules exist in three source copies.
+  The package ships only in `lib/`, so the skill keeps its own copy.
+  The gate also accepts a folder a script puts on `sys.path` through the
+  `dirname(__file__)` idiom, so `store_resolution.py` shares that copy.
+  Two source copies of the root and store rules exist.
+  (Amended 2026-11-25; this record first said three.)
 - Recalled text enters model context. It must arrive as data.
 
 ## Prior Art Investigation
@@ -96,22 +100,25 @@ existing identities do not change.
 **4. One root rule and one store rule.** A repository root is the nearest
 ancestor holding `.git`, `.serena/memories`, or `.project-toolkit/memory`.
 Search starts from `CLAUDE_PROJECT_DIR` when the host sets it, else from the
-current directory. Each rule exists in three source copies, one per import
-boundary. The build mirrors the two skill copies into each harness tree.
+current directory. Each rule exists in two source copies, one per import
+boundary. The build mirrors the skill copy into each harness tree.
 
 - `scripts/memory_enhancement/stores.py`: `find_memory_root`,
   `repository_memory_dir`, and `shadowed_notes_dir`. The prompt recall hook
   (both entry points), SessionEnd, and the CLI use it; the hook adds Decision 7.
 - `src/claude/skills/memory/memory_core/memory_store.py`: `find_memory_root`
   and `resolve_memory_store`. The shipped router uses it.
-- `src/claude/skills/memory/scripts/store_resolution.py`: `find_memory_root`
-  and `resolve_stores`, which also reports shadowed notes. It sits beside
-  `search_memory.py`, which may not import `memory_core`.
 
-The two skill copies do not live in `lib/`. The memory skill ships to five
-trees with no `memory_enhancement`, `search_memory.py` may not import
-`memory_core`, and the lib bootstrap fails when `CLAUDE_PLUGIN_ROOT` points at
-another plugin. The CLI takes its root from
+`src/claude/skills/memory/scripts/store_resolution.py` holds no copy. It sits
+beside `search_memory.py` and adds `resolve_stores`, which also reports
+shadowed notes. It imports `STORE_DIRS`, `contained_stores`,
+`find_memory_root`, and `project_start` from `memory_core.memory_store`. It
+reaches `memory_core` by putting its skill folder on `sys.path` through the
+`dirname(__file__)` idiom, which the import-closure gate accepts.
+
+The skill copy does not live in `lib/`. The memory skill ships to five trees
+with no `memory_enhancement`. The lib bootstrap also fails when
+`CLAUDE_PLUGIN_ROOT` points at another plugin. The CLI takes its root from
 `--repo-root` and picks its default folder with `repository_memory_dir`.
 
 **5. The prompt recall hook frames recalled text as data.** Its block says
@@ -169,7 +176,7 @@ that visible instead of silent.
 
 ### Negative
 
-- Three source copies of the root and store rules exist because the package
+- Two source copies of the root and store rules exist because the package
   ships only in the Claude lib while the skill ships to five more trees (see Decision 4). The
   parity tests are the only guard.
 - Corpus maintenance scripts still assume the Serena layout (Decision 2). In a
@@ -180,8 +187,9 @@ that visible instead of silent.
   diagnostic names the `git mv` step.
 - Prose that named `.serena/memories/` as the only store had to change across
   agent and skill templates.
-- Rollback to Serena only means removing the notes branch from the three
-  store-rule copies and the hook. Serena identities do not move, so nothing in
+- Rollback to Serena only means removing the notes branch from the two
+  store-rule copies, `store_resolution.resolve_stores`, and the hook.
+  `resolve_stores` reads notes and computes the shadow on its own. Serena identities do not move, so nothing in
   `.serena/memories/` changes; notes written meanwhile need a `git mv`. The
   hook keeps Decision 7's `.git` rule either way.
 
@@ -194,7 +202,8 @@ that visible instead of silent.
 ADR-106's Security Considerations apply to `.project-toolkit/memory/notes/`
 unchanged. Notes are committed files a branch can change, so recalled text is
 untrusted data. A store the resolver finds that resolves outside the repository
-root is ignored by all three store-rule copies. A linked memory file (a file
+root is ignored by both store-rule copies. `resolve_stores` also skips a
+default episode store that resolves outside the root. A linked memory file (a file
 symlink) counts only when it resolves inside its own store, in the search script, the router, and the
 loader the hook uses, so a committed link cannot surface another repository file
 such as `.env`. The corpus walk does not enter a linked folder: `rglob` returned
@@ -208,15 +217,17 @@ stops recall entirely (Decision 7). A path the caller passes explicitly, such as
 
 `tests/skills/memory/test_memory_root_parity.py` confirms the decisions:
 
-- `test_hook_and_skill_choose_the_same_root` runs four layouts through all
-  three root-rule copies and the recall hook's root (Decisions 4 and 7).
+- `test_hook_and_skill_choose_the_same_root` runs four layouts through both
+  root-rule copies and the recall hook's root (Decisions 4 and 7).
+  `store_resolution` re-exports the skill copy, so its assert adds no leg.
 - `test_hook_recalls_notes_only_inside_a_checkout`, and in
   `tests/test_memory_recall_limits.py`
   `test_a_project_dir_with_no_git_ancestor_recalls_nothing` and
   `test_a_symlinked_memories_dir_notes_the_directory_and_reason`, check the
   recall hook's trust boundary (Decision 7).
 - `test_every_picker_chooses_the_same_store` runs five layouts, including an
-  empty Serena folder beside notes, through all three store-rule copies, and
+  empty Serena folder beside notes, through both store-rule copies and the
+  search script, and
   `test_every_picker_ignores_a_serena_link_outside_the_root` checks containment.
 - `test_router_prefers_the_project_directory_over_the_current_directory` checks
   the start directory.
@@ -241,6 +252,17 @@ stops recall entirely (Decision 7). A path the caller passes explicitly, such as
 - `test_recall_accepts_a_git_file_as_in_a_linked_worktree` checks that a `.git`
   file counts, and the `notes-nested-in-outer-git` layout in
   `test_hook_and_skill_choose_the_same_root` checks that the nearest marker wins.
+
+## Amendment 2026-11-25
+
+Branch `fix/agent-readiness-signals` commit `3ed94c402` (2026-11-24) changed
+`store_resolution.py`. It now imports the store rule from
+`memory_core.memory_store` instead of keeping a third copy. It reaches
+`memory_core` through a skill-root `sys.path` insert. The import-closure gate
+(`build/scripts/import_closure.py:25-31`, enforced by `sys_path_inserts` at
+`build/scripts/import_closure_paths.py:59`) accepts that idiom. Forces, Decision
+4, Consequences, Security, and Confirmation now say two copies. No decision
+changed. The lib bootstrap is still avoided for the reason Decision 4 gives.
 
 ## Impact on Dependent Components
 

@@ -1,170 +1,82 @@
 #!/usr/bin/env python3
-"""Instrument dispatcher for the ai-agents-generation-and-release skill.
-
-  instruments.py --repo . list
-  instruments.py --repo . run <id> [-- args...]
-
-`list` prints every linked instrument and whether its files exist (exit 1 when any
-is missing). `run` executes the instrument argv from the repo root and passes the
-child's exit code through. Exit codes: 0 ok, 1 missing instrument file, 2 bad
-arguments or unknown id, 3 the run target failed to start.
-"""
+"""Instrument dispatcher for the ai-agents-generation-and-release skill."""
 
 from __future__ import annotations
 
-import argparse
-import json
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
+
+from scripts.instrument_cli import (
+    InstrumentDispatcher,
+    InstrumentHelp,
+    drift_instrument,
+    instrument_epilog,
+    instrument_row,
+    repo_paths_exist,
+)
+
 SKILL = "ai-agents-generation-and-release"
 SCRIPTS = f".claude/skills/{SKILL}/scripts"
 
+
+def _inventory_instrument(
+    command: str, answers: str, source: str = "Phase 1 Know the Seam"
+) -> dict[str, Any]:
+    return instrument_row(
+        command, answers, f"python3 {SCRIPTS}/generator_inventory.py --repo . {command}", source
+    )
+
+
 INSTRUMENTS: list[dict[str, Any]] = [
-    {
-        "id": "generators",
-        "answers": "Which generators does build_all.py run, in what order, and what are OWNED_PREFIXES?",
-        "argv": ["python3", f"{SCRIPTS}/generator_inventory.py", "--repo", ".", "generators"],
-        "source": "Phase 1 Know the Seam",
-    },
-    {
-        "id": "path",
-        "answers": "Which tree is canonical for a repo path, and what regenerates it? Pass the path after --.",
-        "argv": ["python3", f"{SCRIPTS}/generator_inventory.py", "--repo", ".", "path"],
-        "source": "Phase 1 Know the Seam",
-    },
-    {
-        "id": "skills",
-        "answers": "How many skill templates exist and which skills are repo-local?",
-        "argv": ["python3", f"{SCRIPTS}/generator_inventory.py", "--repo", ".", "skills"],
-        "source": "Phase 1 Know the Seam",
-    },
-    {
-        "id": "gates",
-        "answers": "Which lefthook job or workflow job runs each drift gate?",
-        "argv": ["python3", f"{SCRIPTS}/generator_inventory.py", "--repo", ".", "gates"],
-        "source": "Phase 3 Drift gates",
-    },
-    {
-        "id": "build-all-check",
-        "answers": "Is any generated tree stale against its canonical source?",
-        "argv": ["uv", "run", "python", "build/scripts/build_all.py", "--check"],
-        "source": "Phase 3 Drift gates",
-    },
-    {
-        "id": "version-field",
-        "answers": "Does any plugin manifest or marketplace entry carry a version field?",
-        "argv": ["python3", "build/scripts/validate_plugin_version_bump.py"],
-        "source": "Phase 4 Plugin manifests",
-    },
-    {
-        "id": "manifest-parity",
-        "answers": "Do the plugin manifest descriptions agree on component counts?",
-        "argv": ["python3", "build/scripts/check_plugin_manifest_parity.py"],
-        "source": "Phase 4 Plugin manifests",
-    },
-    {
-        "id": "drift-self-check",
-        "answers": "Has this skill drifted from its reverify.json checks?",
-        "argv": [
-            "python3",
-            ".claude/skills/skill-bootstrap/scripts/bootstrap_drift.py",
-            "check",
-            "--repo",
-            ".",
-            "--skills-root",
-            ".claude/skills",
-            "--name",
-            SKILL,
-            "--require",
-        ],
-        "source": "Provenance and Maintenance",
-    },
+    _inventory_instrument(command, question)
+    for command, question in {
+        "generators": "Which generators does build_all.py run, in what order, and what are OWNED_PREFIXES?",
+        "path": "Which tree is canonical for a repo path, and what regenerates it? Pass the path after --.",
+        "skills": "How many skill templates exist and which skills are repo-local?",
+    }.items()
+] + [
+    _inventory_instrument(
+        "gates",
+        "Which lefthook job or workflow job runs each drift gate?",
+        "Phase 3 Drift gates",
+    ),
+    instrument_row(
+        "build-all-check",
+        "Is any generated tree stale against its canonical source?",
+        "uv run python build/scripts/build_all.py --check",
+        "Phase 3 Drift gates",
+    ),
+    instrument_row(
+        "version-field",
+        "Does any plugin manifest or marketplace entry carry a version field?",
+        "python3 build/scripts/validate_plugin_version_bump.py",
+        "Phase 4 Plugin manifests",
+    ),
+    instrument_row(
+        "manifest-parity",
+        "Do the plugin manifest descriptions agree on component counts?",
+        "python3 build/scripts/check_plugin_manifest_parity.py",
+        "Phase 4 Plugin manifests",
+    ),
+    {**drift_instrument(SKILL, SCRIPTS.rsplit("/", 2)[0]), "source": "Provenance and Maintenance"},
 ]
 
 
-def _repo_paths(argv: list[str]) -> list[str]:
-    """Return argv tokens that look like repo-relative file paths."""
-    return [a for a in argv[1:] if "/" in a and not a.startswith("-")]
+_HELP_EPILOG = instrument_epilog("generators")
 
 
-def row_exists(repo: Path, row: dict[str, Any]) -> bool:
-    return all((repo / p).exists() for p in _repo_paths(row["argv"]))
-
-
-def cmd_list(repo: Path) -> int:
-    rows = []
-    missing = []
-    for row in INSTRUMENTS:
-        exists = row_exists(repo, row)
-        rows.append({**row, "exists": exists})
-        if not exists:
-            missing.append(row["id"])
-    print(
-        json.dumps(
-            {"skill": SKILL, "instruments": rows, "examined": len(rows), "missing": missing},
-            indent=2,
-        )
-    )
-    return 1 if missing else 0
-
-
-def cmd_run(repo: Path, instrument_id: str, extra: list[str]) -> int:
-    row = next((r for r in INSTRUMENTS if r["id"] == instrument_id), None)
-    if row is None:
-        known = ", ".join(r["id"] for r in INSTRUMENTS)
-        print(f"error: unknown instrument '{instrument_id}' (known: {known})", file=sys.stderr)
-        return 2
-    try:
-        sys.stdout.flush()
-        return subprocess.run([*row["argv"], *extra], cwd=repo, check=False).returncode
-    except OSError as exc:
-        print(f"error: cannot start {row['argv'][0]}: {exc}", file=sys.stderr)
-        return 3
-
-
-_HELP_EPILOG = """\
-run passes a started child process exit code through unchanged.
-
-examples:
-  %(prog)s --repo . list
-  %(prog)s --repo . run generators
-
-exit codes:
-  0  ok
-  1  a listed instrument file is missing
-  2  bad arguments or unknown id
-  3  the run target failed to start
-"""
-
-
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description=__doc__.splitlines()[0],
-        epilog=_HELP_EPILOG,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    parser.add_argument("--repo", default=".", help="repository root (default: .)")
-    sub = parser.add_subparsers(dest="command", required=True)
-    sub.add_parser("list", help="list instruments and whether each exists")
-    run = sub.add_parser("run", help="run one instrument")
-    run.add_argument("id")
-    run.add_argument("extra", nargs=argparse.REMAINDER)
-    return parser
-
-
-def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
-    repo = Path(args.repo)
-    if not repo.is_dir():
-        print(f"error: --repo {args.repo} is not a directory", file=sys.stderr)
-        return 2
-    if args.command == "list":
-        return cmd_list(repo)
-    extra = args.extra[1:] if args.extra[:1] == ["--"] else args.extra
-    return cmd_run(repo, args.id, extra)
+_dispatcher = InstrumentDispatcher(
+    InstrumentHelp(SKILL, __doc__ or "", _HELP_EPILOG, "plain"),
+    lambda: INSTRUMENTS,
+    repo_paths_exist,
+)
+main = _dispatcher.main
+cmd_list = _dispatcher.cmd_list
+cmd_run = _dispatcher.cmd_run
+build_parser = _dispatcher.build_parser
 
 
 if __name__ == "__main__":

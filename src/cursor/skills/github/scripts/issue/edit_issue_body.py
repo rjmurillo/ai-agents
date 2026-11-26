@@ -22,32 +22,20 @@ import os
 import subprocess
 import sys
 
-_plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
-_workspace = os.environ.get("GITHUB_WORKSPACE")
-if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
-    _lib_dir = os.path.join(_plugin_root, "lib")
-elif _workspace:
-    _lib_dir = os.path.join(_workspace, ".claude", "lib")
-else:
-    _lib_dir = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
-    )
-if not os.path.isdir(_lib_dir):
-    print(f"Plugin lib directory not found: {_lib_dir}", file=sys.stderr)
-    sys.exit(2)
-if _lib_dir not in sys.path:
-    sys.path.insert(0, _lib_dir)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from skill_bootstrap import ensure_plugin_paths
 
-from github_core.api import error_and_exit, resolve_repo_params
-from github_core.output import (
+ensure_plugin_paths(__file__, (".claude", "lib"))
+
+from github_core import (
     add_output_format_arg,
-    get_output_format,
-    write_skill_output,
-)
-from github_core.validation import (
     assert_valid_body_file,
+    error_and_exit,
     escaped_newline_body_error,
+    get_output_format,
     read_body_file_text,
+    resolve_repo_params,
+    write_skill_output,
 )
 
 _HELP_EPILOG = """\

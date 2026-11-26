@@ -7,29 +7,15 @@ import json
 import pytest
 
 from tests.close_pr_test_support import OPEN, pages, run_close, state_reply
+from tests.gh_pr_lookup_cases import PR_VIEW_FAILURE_CASES
 from tests.test_close_pr import _completed
 
 pytestmark = pytest.mark.usefixtures("stub_git_probes", "tmp_path_is_temp_root")
 
-_GH_MISSING_PR = (
-    "GraphQL: Could not resolve to a PullRequest with the number of 999999. "
-    "(repository.pullRequest)\n"
-)
-_GH_MISSING_REPO = "GraphQL: Could not resolve to a Repository with the name 'o/r'. (repository)"
 _DRY = ["--pull-request", "5", "--dry-run"]
 
 
-@pytest.mark.parametrize(
-    ("stdout", "stderr", "code"),
-    [
-        pytest.param("", _GH_MISSING_PR, 2, id="gh-missing-pr"),
-        pytest.param(_GH_MISSING_PR, "", 2, id="marker-on-stdout-fallback"),
-        pytest.param("", "not found", 2, id="legacy-wording"),
-        pytest.param("", "gh: Not Found (HTTP 404)", 2, id="legacy-any-case"),
-        pytest.param("", "HTTP 502: Bad Gateway", 3, id="external-error"),
-        pytest.param("", _GH_MISSING_REPO, 3, id="missing-repo"),
-    ],
-)
+@pytest.mark.parametrize(("stdout", "stderr", "code"), PR_VIEW_FAILURE_CASES)
 def test_failed_pr_view_exit_code(stdout, stderr, code):
     """A failed PR lookup maps to the ADR-035 code and never closes the PR."""
     replies = [_completed(rc=1, stdout=stdout, stderr=stderr)]  # any later gh call raises

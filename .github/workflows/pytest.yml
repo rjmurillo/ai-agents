@@ -117,13 +117,13 @@ jobs:
     name: Check for zero-collection test files (blocking)
     # Copilot review round 3, PR #5344: this whole-tree guard examines every
     # file under testpaths regardless of diff, so it must not sit behind a
-    # path filter (`.claude/rules/ci-scripts.md`: "The whole tree ... MUST
-    # run"). It used to live inside the `test` job's `primary` leg (split-1).
-    # That leg was skipped whenever check-paths reported no Python-relevant
-    # diff, which let a mainline push publish a stale green tick without
-    # measuring the current tree. The `test` job now has no job-level `if:` or
-    # `needs:`, but this guard stays a separate job. No `needs:`/`if:` here on
-    # purpose.
+    # path filter
+    # (`.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`: "The
+    # whole tree ... MUST run"). It used to live inside the `test` job's `primary` leg
+    # (split-1). That leg was skipped whenever check-paths reported no Python-relevant
+    # diff, which let a mainline push publish a stale green tick without measuring the
+    # current tree. The `test` job now has no job-level `if:` or `needs:`, but this
+    # guard stays a separate job. No `needs:`/`if:` here on purpose.
     runs-on: ubuntu-26.04-arm
     timeout-minutes: 5
     permissions:
@@ -211,9 +211,9 @@ jobs:
     # Issue #5636, decision D13. The ruff and subprocess-encoding count
     # ratchets and the unused-argument gate score every tracked Python file in
     # scope, so they are whole-tree checks
-    # (`.claude/rules/ci-scripts.md`, "Path filters gate the diff, never the
-    # tree"). This job has no `needs:` and no
-    # `if:` on purpose, the same shape as zero-collection-guard above.
+    # (`.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`,
+    # "Path filters gate the diff, never the tree"). This job has no `needs:`
+    # and no `if:` on purpose, the same shape as zero-collection-guard above.
     #
     # This job's name is pinned in scripts/ci/ruleset_required_contexts.py and
     # and must match ruleset 11104075 (ci-scripts.md MUST 22 dual-name rollout).
@@ -368,6 +368,9 @@ jobs:
           - partition: split-5
             coverage_file: artifacts/.coverage.split-5
             junit_file: artifacts/pytest-results-split-5.xml
+          - partition: split-6
+            coverage_file: artifacts/.coverage.split-6
+            junit_file: artifacts/pytest-results-split-6.xml
           - partition: safe-push
             coverage_file: artifacts/.coverage.safe-push
             junit_file: artifacts/pytest-results-safe-push.xml
@@ -390,6 +393,9 @@ jobs:
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
           enable-git-hooks: false
+
+      - name: Install locked scanner dependencies
+        run: npm ci --ignore-scripts
 
       # Issue #2655: blocking parse gate. PR #2640 shipped PEP 758 syntax
       # (unparenthesized except tuples) that Python 3.14 accepts but 3.13 and
@@ -667,6 +673,7 @@ jobs:
             --main-data artifacts/.coverage.split-3 \
             --main-data artifacts/.coverage.split-4 \
             --main-data artifacts/.coverage.split-5 \
+            --main-data artifacts/.coverage.split-6 \
             --main-data artifacts/.coverage.safe-push \
             --main-data artifacts/.coverage.pr-autofix \
             --pin-data artifacts/.coverage.pin-verdict \
@@ -717,6 +724,7 @@ jobs:
           artifacts/pytest-results-split-3.xml
           artifacts/pytest-results-split-4.xml
           artifacts/pytest-results-split-5.xml
+          artifacts/pytest-results-split-6.xml
           artifacts/pytest-results-safe-push.xml
           artifacts/pytest-results-pr-autofix.xml
           --budget pyproject.toml
@@ -768,6 +776,7 @@ jobs:
           artifacts/pytest-results-split-3.xml
           artifacts/pytest-results-split-4.xml
           artifacts/pytest-results-split-5.xml
+          artifacts/pytest-results-split-6.xml
           artifacts/pytest-results-safe-push.xml
           artifacts/pytest-results-pr-autofix.xml
           --breach-policy consecutive-main
@@ -847,7 +856,7 @@ jobs:
           restore-keys: test-duration-history-
 
       # pytest-split durations for the next run. Each split leg wrote only its own
-      # tests to artifacts/durations-split-N.json, so the five files union into
+      # tests to artifacts/durations-split-N.json, so the six files union into
       # the full map. The merge runs on every event so a wiring break shows on a
       # pull request. The save runs only on a push to main. Actions scopes a
       # cache to the ref that wrote it and a pull request can read the base
@@ -863,6 +872,7 @@ jobs:
           artifacts/durations-split-3.json
           artifacts/durations-split-4.json
           artifacts/durations-split-5.json
+          artifacts/durations-split-6.json
           --output .pytest-split/durations.json
 
       - name: Save pytest-split durations

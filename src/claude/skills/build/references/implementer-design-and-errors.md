@@ -1,5 +1,7 @@
 # Design Qualities and Error Handling
 
+<!-- doc-accuracy: external-sdk dotnet -- C# examples use the .NET base class library, not this repository -->
+
 Loaded by the `implementer` agent when it designs or refactors code. The agent body keeps a working rule for each topic.
 
 Bottom-up. Design emerges from qualities, not from pattern selection.
@@ -17,14 +19,38 @@ Bottom-up. Design emerges from qualities, not from pattern selection.
 **Cohesion**: Class has single responsibility. Method has single function. Use Programming by Intention:
 
 ```csharp
-// C#
-public void ProcessOrder(Order order)
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+public sealed record LineItem(decimal UnitPrice, int Quantity);
+public sealed record Order(string Id, IReadOnlyList<LineItem> Items);
+public sealed record OrderReceipt(string OrderId, decimal Total);
+
+public sealed class OrderProcessor(Action<OrderReceipt> saveOrder)
 {
-    if (!IsValid(order)) throw new ArgumentException(...);
-    var items = GetLineItems(order);
-    CalculateTotals(items);
-    ApplyDiscounts(items);
-    SaveOrder(order);
+    public void ProcessOrder(Order order)
+    {
+        if (!IsValid(order))
+            throw new ArgumentException("The order must contain valid line items.", nameof(order));
+
+        var items = GetLineItems(order);
+        var subtotal = CalculateTotals(items);
+        var total = ApplyDiscounts(subtotal);
+        SaveOrder(order.Id, total);
+    }
+
+    private static bool IsValid(Order order) => order.Items.Count > 0 &&
+        order.Items.All(item => item.Quantity > 0 && item.UnitPrice >= 0m);
+
+    private static IReadOnlyList<LineItem> GetLineItems(Order order) => order.Items;
+
+    private static decimal CalculateTotals(IReadOnlyList<LineItem> items) =>
+        items.Sum(item => item.UnitPrice * item.Quantity);
+
+    private static decimal ApplyDiscounts(decimal subtotal) => subtotal >= 100m ? subtotal * 0.9m : subtotal;
+
+    private void SaveOrder(string orderId, decimal total) => saveOrder(new OrderReceipt(orderId, total));
 }
 ```
 
@@ -49,32 +75,72 @@ Goal: intentional coupling (documented, necessary) vs accidental (unplanned side
 
 **Retry with backoff**: For transient failures only. Max 3 retries with exponential backoff.
 
+The caller classifies retryable failures and supplies an operation that is safe to retry.
+
 ```csharp
-// C#
-public async Task<T> WithRetry<T>(Func<Task<T>> operation, int maxRetries = 3)
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+
+public sealed class TransientException(string message, Exception cause) : Exception(message, cause) { }
+
+public sealed class MaxRetriesExceededException(Exception cause) : Exception("All attempts failed.", cause) { }
+
+public static class Retry
 {
-    for (int i = 0; i < maxRetries; i++)
+    public static async Task<T> WithRetry<T>(
+        Func<CancellationToken, Task<T>> operation,
+        int maxRetries = 3,
+        CancellationToken cancellationToken = default)
     {
-        try { return await operation(); }
-        catch (TransientException) when (i < maxRetries - 1)
+        ArgumentOutOfRangeException.ThrowIfNegative(maxRetries);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(maxRetries, 3);
+
+        for (int attempt = 0; ; attempt++)
         {
-            await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, i)));
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                return await operation(cancellationToken);
+            }
+            catch (TransientException error)
+            {
+                if (attempt == maxRetries)
+                    throw new MaxRetriesExceededException(error);
+
+                await Task.Delay(TimeSpan.FromSeconds(1 << attempt), cancellationToken);
+            }
         }
     }
-    throw new MaxRetriesExceededException();
 }
 ```
 
 ```python
-# Python
-async def with_retry(operation: Callable, max_retries: int = 3) -> Any:
-    for i in range(max_retries):
+import asyncio
+from collections.abc import Awaitable, Callable
+
+
+class TransientError(Exception):
+    """A failure the operation has classified as safe to retry."""
+
+
+class MaxRetriesExceededError(Exception):
+    """The operation exhausted all attempts."""
+
+
+async def with_retry[T](operation: Callable[[], Awaitable[T]], max_retries: int = 3) -> T:
+    if not 0 <= max_retries <= 3:
+        raise ValueError("max_retries must be between 0 and 3")
+
+    attempt = 0
+    while True:
         try:
             return await operation()
-        except TransientError:
-            if i < max_retries - 1:
-                await asyncio.sleep(2**i)
-    raise MaxRetriesExceededError()
+        except TransientError as error:
+            if attempt == max_retries:
+                raise MaxRetriesExceededError("All attempts failed") from error
+            await asyncio.sleep(2**attempt)
+            attempt += 1
 ```
 
 **Error categories**:

@@ -6,7 +6,7 @@ import pytest
 
 from scripts.ci import run_pytest_partition as mod
 
-_SPLIT_PARTITIONS = ("split-1", "split-2", "split-3", "split-4", "split-5")
+_SPLIT_PARTITIONS = ("split-1", "split-2", "split-3", "split-4", "split-5", "split-6")
 
 
 def _path_flag(partition: str) -> str:

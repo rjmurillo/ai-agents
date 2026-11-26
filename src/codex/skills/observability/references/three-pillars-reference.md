@@ -6,6 +6,8 @@ review-by: 2026-07-11
 
 # Observability Three Pillars
 
+<!-- doc-accuracy: external-sdk OpenTelemetry -- C# examples use the OpenTelemetry .NET SDK, not this repository -->
+
 Understand a system's internal state by examining its external outputs. Three complementary signal types provide complete visibility.
 
 ## Observability vs Monitoring
@@ -75,11 +77,26 @@ Distributed request flow across services.
 
 Single SDK covering all three pillars. Vendor-neutral, CNCF standard.
 
+This tracing example uses `OpenTelemetry` and `OpenTelemetry.Exporter.OpenTelemetryProtocol`.
+
 ```csharp
+using System;
+using System.Diagnostics;
+using OpenTelemetry;
+using OpenTelemetry.Trace;
+
+using var source = new ActivitySource("MyService");
 using var tracerProvider = Sdk.CreateTracerProviderBuilder()
-    .AddSource("MyService")
+    .AddSource(source.Name)
     .AddOtlpExporter()
     .Build();
+
+using (var activity = source.StartActivity("load-config"))
+{
+    var environment = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Production";
+    activity?.SetTag("app.environment", environment);
+    Console.WriteLine(environment);
+}
 ```
 
 ## Relationship to SRE

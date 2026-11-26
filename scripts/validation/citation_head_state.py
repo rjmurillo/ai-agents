@@ -88,7 +88,7 @@ def _parse_diff_lines(
     """
     # Deterministic textual output whatever the contributor's diff drivers
     # or textconv configure (.gitattributes assigns markdown a driver).
-    # Matches scripts/validation/git_hook_policy.py:301 verbatim:
+    # Matches scripts/validation/git_hook_policy.py:303 verbatim:
     #     TEXTUAL_DIFF_FLAGS = ("--no-ext-diff", "--no-textconv", "--text")
     # Rename detection and path rendering are pinned too, following
     # scripts/ci/diff_line_scope.py's git_diff_unified_zero: with a

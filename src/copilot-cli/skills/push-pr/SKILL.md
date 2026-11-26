@@ -78,6 +78,10 @@ Folded rule: before you write, run, or quote a push lock or any command that ser
 
 Based on the above changes:
 
+`<target>` is the branch the PR merges into: the repository default branch
+unless the user names another. Steps 5 and 7 use it. Accept only a name made
+of letters, digits, `.`, `_`, `/`, and `-`; otherwise stop and ask the user.
+
 1. Create a new branch if on main.
    1. Determine the type of change that maps to a conventional commit type
       followed by a 3-5 word description (for example, `fix/parser-log-enrichment`).
@@ -121,10 +125,10 @@ Based on the above changes:
    fix costs a CI round after the PR opens. Commit first: local mode reads
    committed `HEAD` only, so an uncommitted file reads as not in the diff. Run
    the local mode, which reads the same body file and
-   `git diff origin/main...HEAD` with no network call:
+   `git diff origin/<target>...HEAD` with no network call:
 
    ```bash
-   uv run --frozen python -I scripts/validation/pr_description.py --body-file ".project-toolkit/scratch/pr-body-<returned-uuid>.md" --base origin/main
+   uv run --frozen python -I scripts/validation/pr_description.py --body-file ".project-toolkit/scratch/pr-body-<returned-uuid>.md" --base origin/<target>
    ```
 
    - Exit 1 means a CRITICAL finding, usually `File mentioned but not in diff`.
@@ -134,14 +138,14 @@ Based on the above changes:
      it exits 0.
    - Exit 2 means the check could not run: an unreadable or non-UTF-8 body
      file, an unknown or invalid base ref, or git unavailable. For a missing
-     `origin/main`, pass `--base` with the ref the PR targets, such as
-     `<remote>/<default-branch>`. Do not skip the step.
+     `origin/<target>`, pass `--base` with the remote ref that holds the
+     target branch, such as `<remote>/<target>`. Do not skip the step.
    - Do not apply the `description-validation-bypass` label. A human maintainer
      decides that.
    - A checkout without `scripts/validation/pr_description.py`, such as a plugin
      install, cannot run this step. Say it was not run, and compare every
      path under the change heading (inline code, bold, list item, or link) to
-     `git diff --name-only origin/main...HEAD` by hand.
+     `git diff --name-only origin/<target>...HEAD` by hand.
 6. Push the branch to origin.
 7. Create the pull request. `host=ado` skips the rest of this step and follows
    Azure DevOps PR Creation. `host=github` uses the new_pr skill script:
@@ -158,6 +162,7 @@ Based on the above changes:
    ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 -I "$d/lib/ptk_run.py" skills/github/scripts/pr/new_pr.py --title "<conventional commit title>" --body-file ".project-toolkit/scratch/pr-body-<returned-uuid>.md"; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
    ```
 
+- `<target>` is not the default branch: add `--base "<target>"` inside the command, before its `; fi`, so the PR opens against the branch step 5 checked. Without it, `new_pr.py` targets the repository default branch.
 - Branch checked out in a worktree outside the clone, and the command runs from another checkout (for example the primary clone): add `--head "<branch>"` inside the command, before its `; fi`. Words after the closing `)` run as a separate command. Running the command from the worktree itself needs no `--head`, because `new_pr.py` uses the current branch. Never remove the worktree to open the PR. Push the branch first, since `gh` resolves the head on the remote. `new_pr.py` exits 2 and prints the push command when origin lacks the branch.
 - A rejected body file fails one of these checks: the path must resolve under the repo root, a temp directory, or the git dir; it must be a regular UTF-8 file; and it must no longer hold the `<!-- replace with PR body -->` line. `--prepare-body-file` creates a unique path that passes the path check.
 - Title MUST follow conventional commit format (e.g., `feat: Add feature`, `fix(auth): Resolve bug`)
@@ -217,8 +222,10 @@ az repos pr create --output json --title "<conventional commit title>" --descrip
   `--repository`, `--reviewers`, `--required-reviewers`, `--work-items`,
   `--transition-work-items`, `--open`, or `--source-branch`. The one exception:
   add `--target-branch <branch>` only when the PR must not target the
-  repository default branch. Then step 5 MUST have run with
-  `--base origin/<branch>`, so the path check reads the same diff the PR shows.
+  repository default branch. Then step 5 MUST have checked the paths against
+  `origin/<branch>`, so the check read the same diff the PR shows. Run the
+  validator with `--base origin/<branch>`, or, when the validator is absent,
+  do the manual comparison against that branch.
 - A non-zero exit means no PR was created. Report FAIL with the `az` stderr and
   stop. Never retry with a different command shape.
 - On exit 0, check the `description` field of the JSON output. If it starts
@@ -273,6 +280,8 @@ stdin, never as a command-line argument to `gh`.
    ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 -I "$d/lib/ptk_run.py" skills/github/scripts/pr/new_pr.py --title "<conventional commit title>" --body '<body text>'; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
    ```
 
+   - `<target>` is not the default branch: add `--base "<target>"` before the
+     `; fi`, as in step 7.
    - Paste the file's final contents, unchanged, as the `--body` text. Step 5
      checked the file, so every edit made there must reach this command.
    - Quote the body so the shell passes it literally. In bash or Git Bash,
@@ -292,15 +301,14 @@ stdin, never as a command-line argument to `gh`.
    - Do not add `--skip-validation`. The fallback changes how the body arrives,
      not which checks it must pass.
 
-You have the capability to call multiple tools in a single response. You MUST do all of the above in a single message. Do not use any other tools or do anything else. Do not send any other text or messages besides these tool calls.
-
 ## Verification
 
 - [ ] Branch created off main when the working branch was main, never a push to main
 - [ ] `host` detected from the origin URL, and `ado` created the PR with `az repos pr create`, never `new_pr.py`
 - [ ] No commit created when the tree was already clean
 - [ ] Title follows conventional commit format
-- [ ] Local `pr_description.py --body-file` run exited 0 before the push, or its absence stated
+- [ ] Local `pr_description.py --body-file` run exited 0 against `origin/<target>` before the push, or its absence stated
+- [ ] GitHub PR opened against `<target>`, with `--base "<target>"` passed when it is not the default branch
 - [ ] Body written into the allocator's returned path, copied exactly, never through a shell variable (Windows: the `--body` fallback, with step 5 still run)
 - [ ] Every template section adapted from the real diff, with no placeholder comment left in
 - [ ] An `## Acceptance criteria` heading present with `- [ ]` bullets, checked only where met

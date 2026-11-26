@@ -1,0 +1,61 @@
+name: Bug report
+description: Report a reproducible problem with an agent, skill, hook, or tool.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search existing issues before reporting a bug.
+        Report vulnerabilities privately through [security advisories](https://github.com/rjmurillo/ai-agents/security/advisories/new).
+        Remove secrets, personal data, and private prompts from all examples.
+  - type: input
+    id: component
+    attributes:
+      label: Affected component
+      description: Name the agent, skill, hook, command, or file.
+      placeholder: "Example: scripts/validation/pre_pr.py"
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include OS, host CLI version, Python version, and repository commit.
+      placeholder: |
+        OS:
+        Host and version:
+        Python version:
+        Repository commit or plugin update date:
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Provide exact commands and minimal, sanitized inputs.
+      placeholder: |
+        1. Start from...
+        2. Run...
+        3. Observe...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: Describe the result you expected, including relevant exit codes.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Describe what happened and its impact.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs
+      description: Include relevant errors or workflow links. Remove sensitive information.
+      render: text

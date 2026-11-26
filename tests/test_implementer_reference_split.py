@@ -63,7 +63,7 @@ REFERENCES = {
 # One or two lines per reference that a trim would silently lose.
 LOAD_BEARING_LINES = {
     "implementer-design-and-errors.md": (
-        "throw new MaxRetriesExceededException();",
+        "throw new MaxRetriesExceededException(error);",
         "| Business | Return result type | Insufficient funds, item unavailable |",
     ),
     "implementer-impact-analysis.md": (

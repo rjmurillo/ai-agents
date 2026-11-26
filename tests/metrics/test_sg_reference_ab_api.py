@@ -37,7 +37,7 @@ from tests.metrics.sg_reference_ab_helpers import (
 
 
 def test_default_model_imports_from_the_real_anthropic_api_module() -> None:
-    assert api.default_model() == "claude-sonnet-5"
+    assert api.default_model() == "claude-sonnet-5-5"
 
 
 def test_default_model_falls_back_when_anthropic_api_file_absent(tmp_path: Path) -> None:

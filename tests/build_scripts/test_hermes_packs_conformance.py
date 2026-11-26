@@ -65,11 +65,9 @@ def test_committed_hermes_tree_equals_the_render(real_config: cfg.HermesConfig) 
     tree = hermes_packs.plan_tree(_REPO_ROOT, real_config)
     out = _REPO_ROOT / real_config.output_dir
 
-    on_disk = {
-        p.relative_to(out).as_posix()
-        for p in out.rglob("*")
-        if p.is_file() and "__pycache__" not in p.parts
-    }
+    # The generator's own listing, so this test and ``--check`` skip the same
+    # bytecode (``binplace_manifest.is_bytecode_artifact``), a bare ``.pyc`` too.
+    on_disk = hermes_packs._existing_files(out)
 
     assert on_disk == set(tree)
     for rel, packed in tree.items():
@@ -100,7 +98,9 @@ def test_the_seven_guard_dangerous_skills_are_excluded(real_config: cfg.HermesCo
 
 def test_the_exclusion_table_is_closed_over_references(real_config: cfg.HermesConfig) -> None:
     source = _REPO_ROOT / real_config.source_dir
-    refs = checks.find_references(source, checks.discover_skills(source))
+    refs = checks.find_references(
+        source, checks.discover_skills(source), real_config.excluded_files
+    )
 
     assert checks.exclusion_closure(refs, set(real_config.excluded)) == set(real_config.excluded)
     assert checks.check_references(real_config, refs) == []
@@ -190,6 +190,7 @@ def test_the_real_tree_has_no_dash_characters() -> None:
         "README.md",
         "project-toolkit-delivery/plugin.json",
         "project-toolkit-knowledge/plugin.json",
+        "project-toolkit-quality/plugin.json",
         "project-toolkit-authoring/plugin.json",
     ):
         text = (out / name).read_text(encoding="utf-8")

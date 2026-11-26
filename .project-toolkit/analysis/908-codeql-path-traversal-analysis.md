@@ -130,7 +130,7 @@ CodeQL correctly identifies a security anti-pattern: **tainted data flows into P
    ```
 
 **Validation Order Issue**:
-```python
+```text
 # INSECURE (Current):
 Check null bytes → Path(tainted) → Validate result
 

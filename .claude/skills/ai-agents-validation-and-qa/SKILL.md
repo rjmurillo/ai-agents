@@ -14,7 +14,7 @@ metadata:
 
 # ai-agents Validation and QA
 
-<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths because its audience is repo contributors, not plugin consumers. Declared paths: .agents/governance/FAILURE-MODES.md, .agents/governance/TESTING-ANTI-PATTERNS.md, .agents/governance/TESTING-RIGOR.md, .agents/governance/test-location-standards.md, .project-toolkit/architecture/ADR-, .project-toolkit/architecture/ADR-034-investigation-session-qa-exemption.md, .project-toolkit/retrospective, scripts/instruments.py, scripts/modules/investigation_allowlist.py, scripts/validate_session_json.py, scripts/validation/pre_pr.py -->
+<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths because its audience is repo contributors, not plugin consumers. Declared paths: .agents/governance/FAILURE-MODES.md, .agents/governance/TESTING-ANTI-PATTERNS.md, .agents/governance/TESTING-RIGOR.md, .agents/governance/test-location-standards.md, .project-toolkit/architecture/ADR-, .project-toolkit/architecture/ADR-034-investigation-session-qa-exemption.md, .project-toolkit/retrospective, scripts/modules/investigation_allowlist.py, scripts/validate_session_json.py, scripts/validation/pre_pr.py -->
 This repo runs verification-based governance: a claim is true when a gate, test, or command output says it is, not when an agent asserts it. This skill defines the evidence bar for code changes, where tests live and how they are collected, the anti-pattern canon (each entry paid for by a real incident), and the QA gate semantics at session end.
 
 Audience: a zero-context contributor (human or model) about to write, run, or skip tests in this repository.
@@ -136,7 +136,7 @@ coverage report --include=scripts/ai_review_common/verdict.py --fail-under=100
 | File-set sensitivity | Collect with EVERY test file that exercises the module. After a test-file split, `test_ai_review.py` alone reported 63% and tripped the gate | pytest.yml:508 |
 | Coverage target form | Collect with bare `--cov --cov-branch`, then isolate the module with `coverage report --include=<path> --fail-under=100`. A module-name `--cov=<name>` target fails when the module is a file-path target not importable by name | pytest.yml:524 |
 
-Related discipline, FM-10: there is no neutral default for a missing signal (FAILURE-MODES.md:390). The neutral default is UNKNOWN, not PASS (`extract_verdict` on no-match, `merge_verdicts` on empty; `get_verdict` fails safe to CRITICAL_FAIL). The verdict-parser PR still took 3 fix rounds to make UNKNOWN blocking everywhere it flowed: the workflow verdict list, the action parser allowlist, and the action exit-code mapping. When testing parsers or gates, always include the missing-signal case and assert it raises or blocks, never that it silently passes.
+Related discipline, FM-10: there is "no neutral default for a missing signal" (FAILURE-MODES.md:391). The neutral default is UNKNOWN, not PASS (`extract_verdict` on no-match, `merge_verdicts` on empty; `get_verdict` fails safe to CRITICAL_FAIL). The verdict-parser PR still took 3 fix rounds to make UNKNOWN blocking everywhere it flowed: the workflow verdict list, the action parser allowlist, and the action exit-code mapping. When testing parsers or gates, always include the missing-signal case and assert it raises or blocks, never that it silently passes.
 
 ### Phase 5: QA evidence semantics
 
@@ -203,7 +203,7 @@ Before claiming a change meets the evidence bar:
 
 ## Scripts
 
-`scripts/instruments.py` lists and runs every checker this skill relies on:
+The bundled `instruments.py` lists and runs this skill's checkers:
 
 ```bash
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-validation-and-qa/scripts/instruments.py --repo . list; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )

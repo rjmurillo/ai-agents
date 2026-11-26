@@ -25,6 +25,7 @@ the regexes cannot see (a path assembled at run time) is outside this check.
 from __future__ import annotations
 
 import re
+from collections.abc import Collection
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -84,18 +85,25 @@ def skill_files(skill_dir: Path) -> list[Path]:
     return found
 
 
-def find_references(source_root: Path, skills: list[str]) -> References:
-    """Map each skill to the other shipped skills its files refer to."""
+def find_references(
+    source_root: Path,
+    skills: list[str],
+    excluded_files: Collection[str] = (),
+) -> References:
+    """Map each skill to the other shipped skills its shipped files refer to."""
     shipped = set(skills)
+    excluded = set(excluded_files)
     refs: References = {}
     for name in skills:
         skill_dir = source_root / name
         for path in skill_files(skill_dir):
+            where = path.relative_to(skill_dir).as_posix()
+            if f"{name}/{where}" in excluded:
+                continue
             try:
                 text = path.read_text(encoding="utf-8")
             except UnicodeDecodeError:
                 continue
-            where = path.relative_to(skill_dir).as_posix()
             for pattern in REFERENCE_PATTERNS:
                 for match in pattern.finditer(text):
                     target = match.group(1)

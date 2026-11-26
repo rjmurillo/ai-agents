@@ -430,3 +430,59 @@ def test_rule_pass_skips_a_comparison_change_records_admitted(
 
     assert comparison.rule_admissions is None
     assert control.rule_admissions is not None
+
+
+_TEST_BASE = "def test_one():\n    assert 1\n"
+_TEST_HEAD = (
+    "import pytest\n\n\n@pytest.mark.parametrize('n', [1, 2])\ndef test_one(n):\n    assert n\n"
+)
+
+
+@pytest.mark.parametrize(
+    "name", ["tests/test_widget.py", "tests/unit/test_widget.py", "tests/conftest.py"]
+)
+def test_pytest_added_to_a_test_module_is_admitted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], name: str
+) -> None:
+    _repo(tmp_path, monkeypatch, {name: _TEST_BASE}, {name: _TEST_HEAD})
+
+    rc = _run(tmp_path, _ADMISSION)
+
+    out, err = capsys.readouterr()
+    comparison = _comparison(out, name)
+    assert rc == 0
+    assert comparison["regressions"] == ["coupling"]
+    assert comparison["rule_admissions"]["coupling"]["headThirdParty"] == []
+    assert "ADMITTED: issue #7525, rule no_new_third_party_import" in err
+    assert adapt_local_axis_verdict(_AXIS, out, rc) == "WARN"
+
+
+@pytest.mark.parametrize(
+    "name", ["tools/test_widget.py", "tests/widget_helpers.py", "tests_extra/test_widget.py"]
+)
+def test_pytest_outside_a_test_module_still_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], name: str
+) -> None:
+    _repo(tmp_path, monkeypatch, {name: _TEST_BASE}, {name: _TEST_HEAD})
+
+    rc = _run(tmp_path, _ADMISSION)
+
+    out, err = capsys.readouterr()
+    assert rc == 10
+    assert _comparison(out, name)["rule_admissions"] is None
+    assert f"NOT ADMITTED: {name}: coupling: new third-party pytest" in err
+    assert adapt_local_axis_verdict(_AXIS, out, rc) == "FAIL"
+
+
+def test_other_package_added_to_a_test_module_still_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    name = "tests/test_widget.py"
+    head = "import pytest\nimport requests\n\n\ndef test_one():\n    assert requests\n"
+    _repo(tmp_path, monkeypatch, {name: _TEST_BASE}, {name: head})
+
+    rc = _run(tmp_path, _ADMISSION)
+
+    _out, err = capsys.readouterr()
+    assert rc == 10
+    assert f"NOT ADMITTED: {name}: coupling: new third-party requests" in err

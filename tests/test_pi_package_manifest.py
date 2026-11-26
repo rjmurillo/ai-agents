@@ -1,7 +1,7 @@
 """Committed-artifact gate for the root ``package.json`` Pi reads (ADR-115 Decision 5, 11).
 
-Pi installs a package from a repository root. The root ``package.json`` holds
-only the ``pi`` key, so a stray field or a missing skill directory would change
+Pi installs a package from a repository root. Its manifest declares skills and
+the pinned development scanner. Extra fields or missing skill directories change
 what Pi loads or what other npm tooling sees. Pi's skill naming rules are quoted
 from Pi 1.2.0 ``docs/skills.md``: names use lowercase letters, numbers, and
 hyphens, with no leading, trailing, or consecutive hyphens, at most 64
@@ -23,7 +23,7 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_JSON = REPO_ROOT / "package.json"
 EXPECTED_SKILLS_ENTRY = ["./src/claude/skills"]
-EXPECTED_KEYS = {"name", "private", "keywords", "pi"}
+EXPECTED_KEYS = {"name", "private", "keywords", "pi", "devDependencies"}
 
 NAME_MAX = 64
 DESCRIPTION_MAX = 1024
@@ -44,6 +44,8 @@ def manifest_problems(manifest: dict[str, Any], root: Path) -> list[str]:
         problems.append("private must be true")
     if manifest.get("keywords") != ["pi-package"]:
         problems.append("keywords must be exactly ['pi-package']")
+    if manifest.get("devDependencies") != {"jscpd": "5.4.3"}:
+        problems.append("devDependencies must be exactly {'jscpd': '5.4.3'}")
     pi = manifest.get("pi")
     if not isinstance(pi, dict) or set(pi) != {"skills"}:
         problems.append("pi must hold only the skills key")
@@ -105,6 +107,14 @@ def test_every_skill_directory_meets_pis_metadata_rules() -> None:
     ("mutation", "fragment"),
     [
         ({"version": "1.0.0"}, "keys"),
+        ({"dependencies": {"jscpd": "5.4.3"}}, "keys"),
+        ({"scripts": {"scan": "jscpd"}}, "keys"),
+        ({"devDependencies": {}}, "devDependencies"),
+        ({"devDependencies": None}, "devDependencies"),
+        ({"devDependencies": ["jscpd"]}, "devDependencies"),
+        ({"devDependencies": {"jscpd": "^5.4.3"}}, "devDependencies"),
+        ({"devDependencies": {"jscpd": "5.4.4"}}, "devDependencies"),
+        ({"devDependencies": {"jscpd": "5.4.3", "extra": "1.0.0"}}, "devDependencies"),
         ({"private": False}, "private must be true"),
         ({"keywords": []}, "keywords"),
         ({"keywords": ["pi-package", "extra"]}, "keywords"),

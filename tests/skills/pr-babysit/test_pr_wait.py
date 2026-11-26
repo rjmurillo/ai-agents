@@ -2,24 +2,18 @@
 
 from __future__ import annotations
 
-import importlib.util
 import json
-import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
 
+from tests.skills.claude_skills_import import import_cached_module
+
 # Load the shared helpers by path, so the test directory never joins sys.path.
-_helpers = sys.modules.get("_pr_wait_helpers")
-if _helpers is None:
-    _spec = importlib.util.spec_from_file_location(
-        "_pr_wait_helpers", Path(__file__).with_name("_pr_wait_helpers.py")
-    )
-    assert _spec and _spec.loader
-    _helpers = importlib.util.module_from_spec(_spec)
-    sys.modules["_pr_wait_helpers"] = _helpers
-    _spec.loader.exec_module(_helpers)
+_helpers: Any = import_cached_module(
+    "tests/skills/pr-babysit/_pr_wait_helpers.py", "_pr_wait_helpers"
+)
 _gate = _helpers.gate_payload
 _node = _helpers.node
 _pr = _helpers.pr_payload
