@@ -219,6 +219,22 @@ def fill(template: str, values: Mapping[str, str]) -> str:
     return out
 
 
+def task_file(template: str, task: str) -> str:
+    """Fill a task-file template, refusing an id that could leave its directory.
+
+    Task ids come from scorer output. A forged id such as `../../secret` would
+    otherwise copy an arbitrary file into the proposer workspace. Only the
+    placeholders the template uses are checked.
+    """
+    values = {"task_id": task, "task_name": task.rsplit("::", 1)[-1]}
+    for key, value in values.items():
+        if "{" + key + "}" not in template:
+            continue
+        if "/" in value or "\\" in value or value in ("", ".", ".."):
+            raise ControllerError(f"task id {task!r} is not safe to use in a path")
+    return fill(template, values)
+
+
 def kill_group(proc: subprocess.Popen[bytes]) -> None:
     """Kill the child's process group when its call ends.
 

@@ -77,7 +77,10 @@ stops early.
   (its own code and the gate's, directories included, so a planted package is
   caught), and any `trusted_paths` the config names, such as the scorer's own
   files. The optimizer runs with `PYTHONPYCACHEPREFIX` under the state
-  directory, so a planted cache in `scripts/eval/__pycache__` is never read. It checks them before each scoring run and after each
+  directory, and each scorer run with it inside that run's own directory, so a
+  planted cache beside trusted code is never read.
+- Task ids come from scorer output. An id with a path separator, or `.` or
+  `..`, is refused before it fills `opt_task_files`. It checks them before each scoring run and after each
   step, and stops on any change.
 - Around each scoring run, it digests the whole state directory except the new
   run's output directory, and stops if anything else changed.

@@ -162,6 +162,17 @@ Verdict: WARN. Eleven of twelve round 1 items verified fixed. The proposer allow
 | Note 5 | `TypeError` and `AttributeError` escaped as exit 1. | Fixed. Mapped to exit 3. |
 | Plugin review | Only top-level `.py` files were digested, so a planted package or bytecode cache could shadow a module. | Fixed. Every entry under `scripts/eval/` is digested, `deny_write` names the directory, and the optimizer runs with `PYTHONPYCACHEPREFIX` under state. |
 
+### Security axis on `b00f6f838`
+
+Verdict: WARN, two Low findings, both reachable only after the launcher rule fails.
+
+| Id | Finding | Disposition |
+| --- | --- | --- |
+| S1 | `tree_digest` skips `__pycache__`, and the scorer ran with no cache prefix, so a planted cache beside the scorer's code could run. | Fixed. Each scorer run gets `PYTHONPYCACHEPREFIX` inside its own run directory. |
+| S2 | Scorer-derived task ids filled `opt_task_files` unchecked, so `../../x` could copy an arbitrary file to the proposer. | Fixed. `task_file` refuses a separator, `.`, or `..` in any placeholder the template uses. |
+
+The spec-compliance axis on `b00f6f838` returned WARN because the owner decisions were not on #7642. They are now recorded there in a comment.
+
 ## Dissent and residual risk
 
 - The boundary holds only under a launcher deny rule the controller cannot verify. The owner chose this in decision D2 over an OS user or a CI job.

@@ -70,12 +70,21 @@ from _controller_io import (
     read_artifact,
     resolve,
     run_child,
+    task_file,
     tree_digest,
     trusted_code,
     write_artifact,
 )
 
-__all__ = ["EXIT_CONFIG", "EXIT_EXTERNAL", "EXIT_OK", "Controller", "ControllerError", "main"]
+__all__ = [
+    "EXIT_CONFIG",
+    "EXIT_EXTERNAL",
+    "EXIT_OK",
+    "Controller",
+    "ControllerError",
+    "main",
+    "task_file",
+]
 
 _DECISIONS = {0: "ACCEPT", 1: "REJECT"}
 
@@ -152,8 +161,12 @@ class Controller:
         # The candidate's code may run inside the scorer. Everything already in
         # state must be exactly as the controller left it when the scorer ends.
         before = tree_digest([self.state], exclude=run_dir)
+        # The scorer's bytecode cache goes inside its own run directory, so a
+        # cache planted beside the scorer's code is never read and the state
+        # digest above still excludes everything the scorer may write.
+        scorer_env = {**os.environ, "PYTHONPYCACHEPREFIX": str(run_dir / "pycache")}
         duration = self._call(
-            [fill(part, values) for part in self.config.scorer], f"scorer {label}"
+            [fill(part, values) for part in self.config.scorer], f"scorer {label}", scorer_env
         )
         if tree_digest([self.state], exclude=run_dir) != before:
             raise ControllerError(f"controller state changed while {label} was scored")
@@ -189,10 +202,7 @@ class Controller:
             tasks_dir = workspace / "tasks"
             tasks_dir.mkdir()
             for task in opt:
-                name = task.rsplit("::", 1)[-1]
-                source = resolve(
-                    fill(self.config.opt_task_files, {"task_id": task, "task_name": name})
-                )
+                source = resolve(task_file(self.config.opt_task_files, task))
                 if not source.is_file():
                     raise ControllerError(f"optimize-group task file {source} is missing")
                 shutil.copy2(source, tasks_dir / source.name)

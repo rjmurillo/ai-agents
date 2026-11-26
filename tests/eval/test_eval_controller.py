@@ -668,3 +668,26 @@ def test_gate_runs_with_bytecode_cache_under_state(
     assert ec.main(["run", "--config", str(config)]) == 0
     prefix = str(tmp_path / "state" / "pycache")
     assert envs and all(env["PYTHONPYCACHEPREFIX"] == prefix for env in envs)
+
+
+@pytest.mark.parametrize("task", ["suite::../secret", "suite::a/b", "suite::..", "a\\b"])
+def test_task_file_refuses_ids_that_leave_the_directory(task: str) -> None:
+    with pytest.raises(ec.ControllerError):
+        ec.task_file("/fixtures/{task_name}.json", task)
+
+
+def test_task_file_fills_a_plain_id() -> None:
+    assert ec.task_file("/fixtures/{task_name}.json", "suite::T01") == "/fixtures/T01.json"
+
+
+def test_scorer_runs_with_its_bytecode_cache_in_its_run_dir(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    scorer = tmp_path / "scripts" / "scorer.py"
+    scorer.write_text(
+        scorer.read_text(encoding="utf-8")
+        + "\nimport os\nopen(out + '.env', 'w').write(os.environ.get('PYTHONPYCACHEPREFIX', ''))\n",
+        encoding="utf-8",
+    )
+    assert ec.main(["run", "--config", str(config)]) == 0
+    recorded = next((tmp_path / "state" / "runs").glob("incumbent-0-*/junit.xml.env"))
+    assert recorded.read_text(encoding="utf-8") == str(recorded.parent / "pycache")
