@@ -2,10 +2,10 @@
 
 ## Summary
 
-- **Rounds**: 4 of 10
+- **Rounds**: 6 of 10
 - **Prior debate log**: `.project-toolkit/critique/ADR-057-debate-log-2.md`
 - **Outcome**: Consensus (2 Accept)
-- **Final Status**: accepted. The record's status is unchanged. This debate covers three sentences.
+- **Final Status**: accepted. The record's status is unchanged. This debate covers three sentences, and round 5 revisits one of them.
 - **Panel**: reduced, architect and critic. The edit removes a contradiction in prose. It changes no executable enforcement.
 - **Trigger**: a review bot on PR #7629 noted that criterion 2 says a behavior change updates scenario expectations alongside the prompt. That contradicts the gated-change freeze.
 - **Date**: 2026-11-25
@@ -73,6 +73,33 @@
 | architect | Accept. The wording matches Amendment 2026-11-25 items 1 and 3. |
 | critic | Accept. Its replacement text is applied verbatim. |
 
+## Round 5 Summary
+
+### Key Issues Addressed
+
+- A second CodeRabbit pass found line 92 said scenarios land "before the first template edit". The gate starts the freeze at the first commit that touches any file of the skill, `references/` included. An author who edits a reference first would follow the text and fail.
+
+### Agent Positions
+
+| Agent | Position |
+|-------|----------|
+| architect | Accept. Flagged that ADR-127 decision 7 item 8 still says "before any template edit", outside this diff. |
+| critic | Disagree-and-Commit. "Prompt surface" undersells the rule: `_freeze_findings` counts `scripts/` too, and the template path needs its `templates/skills/` prefix. |
+
+## Round 6 Summary
+
+### Major Changes Made
+
+- Line 92 now says scenarios "land in a commit before the first commit that touches the skill (its `templates/skills/<name>.SKILL.md.tmpl` or any file under `src/claude/skills/<name>/` or `.claude/skills/<name>/`, `scripts/` included) and then stay frozen". This is the critic's text, verbatim.
+
+### Agent Positions
+
+| Agent | Position |
+|-------|----------|
+| architect | Accept. The text matches `_freeze_findings` lines 21 to 30. |
+| critic | Accept. No P0 or P1 remains. |
+
 ### Next Steps
 
-- None. Richard ratifies the ADR-057 and ADR-127 amendments at merge of PR #7629.
+- ADR-127 decision 7 item 8 keeps its narrower "before any template edit" wording. It is recorded in the PR body for Richard.
+- Richard ratifies the ADR-057 and ADR-127 amendments at merge of PR #7629.
