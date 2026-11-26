@@ -319,6 +319,19 @@ def _ado_evaluate(ctx, pr: int, rows: list[dict], state: dict) -> Check | Halt:
     return Check("pipeline", "PASS", f"pr={pr} builds={len(rows)} merge={merge_commit}")
 
 
+def _ado_moved(ctx, pr: int, state: dict) -> Check | Halt | None:
+    """Re-read the PR after a check; PENDING when its head or merge commit moved."""
+    again = _ado_state(ctx, pr)
+    if isinstance(again, Halt):
+        return again
+    if again.get("head") != state.get("head"):
+        return Check("pipeline", "PENDING", f"pr={pr} head moved during the check")
+    if again.get("merge") != state.get("merge"):
+        # The builds ran against a newer merge commit: check them again.
+        return Check("pipeline", "PENDING", f"pr={pr} merge commit moved during the check")
+    return None
+
+
 def _ado_pipeline(ctx, pr: int, wait_seconds: int, after_publish: bool) -> Check | Halt:
     state = _ado_state(ctx, pr)
     if isinstance(state, Halt):
@@ -337,15 +350,7 @@ def _ado_pipeline(ctx, pr: int, wait_seconds: int, after_publish: bool) -> Check
         pending = [row for row in rows if row.get("status") in ("queued", "running")]
         if rows and not pending:
             verdict = _ado_evaluate(ctx, pr, rows, state)
-            again = _ado_state(ctx, pr)
-            if isinstance(again, Halt):
-                return again
-            if again.get("head") != state.get("head"):
-                return Check("pipeline", "PENDING", f"pr={pr} head moved during the check")
-            if again.get("merge") != state.get("merge"):
-                # The builds ran against a newer merge commit: check them again.
-                return Check("pipeline", "PENDING", f"pr={pr} merge commit moved during the check")
-            return verdict
+            return _ado_moved(ctx, pr, state) or verdict
         if not rows and not after_publish:
             return Check("pipeline", "FAIL", f"pr={pr} has no blocking build policy evaluation")
         remaining = call_end - time.monotonic()
