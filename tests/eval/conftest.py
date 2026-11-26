@@ -36,6 +36,11 @@ def _hermetic_credential_sources(monkeypatch: pytest.MonkeyPatch):
     """
     from tests.eval._credential_test_support import install_inert_sources
 
+    # The Claude CLI child inherits the parent environment, and an exported
+    # gateway pair preempts every other step. A developer's hub session must
+    # not change what a test resolves or what reaches a fake child.
+    for name in ("ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_CUSTOM_HEADERS"):
+        monkeypatch.delenv(name, raising=False)
     install_inert_sources(monkeypatch)
     yield
     from tests.eval._credential_test_support import reset_cache
