@@ -161,6 +161,20 @@ class TestScenarioFile:
         assert code == 1
         assert "differs at" in out
 
+    def test_scenario_edit_reverted_after_the_skill_changed_blocks(
+        self, repo: Path, capsys: Capsys
+    ) -> None:
+        driver_change(repo)
+        write(repo, SCEN, scenario_doc(9))
+        commit(repo, "late scenario edit")
+        write(repo, SCEN, scenario_doc())
+        commit(repo, "revert the late edit")
+        commit_evidence(repo)
+        code, out = run(repo, capsys)
+        assert code == 1
+        assert "after a commit that touches the skill" in out
+        assert "differs at" not in out
+
     @staticmethod
     def _merge_side_branch(repo: Path) -> None:
         """Merge a branch cut from the base into the current branch, leaving the merge open."""

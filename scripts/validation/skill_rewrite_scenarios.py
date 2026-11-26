@@ -1,8 +1,8 @@
 """Scenario-file rules of the ADR-127 evidence check.
 
 Reads ``tests/evals/<name>-scenarios.json`` at head and at the merge base:
-the file must parse, stay frozen after the first commit that touches the
-skill, keep every kept scenario's label, and name a replacing test for each
+the file must parse, land before any commit that touches the skill and stay
+frozen after it, keep every kept scenario's label, and name a replacing test for each
 scenario it drops. ``check_skill_rewrite_evidence.py`` owns the gate.
 """
 
@@ -27,17 +27,28 @@ def _touches_surface(files: dict[str, str], name: str) -> bool:
 def _freeze_findings(ctx: Context, name: str, scenario_path: str) -> list[str]:
     """Scenarios land before the skill changes and stay frozen, whatever the commit order.
 
-    Two invariants hold for every commit in ``merge_base..head``. No commit
+    Three invariants hold for every commit in ``merge_base..head``. No commit
     changes the scenario file and the skill surface together. Every commit
     that touches the surface holds the scenario blob that head holds, or
-    lacks the file exactly when head lacks it. A later edit fails the second;
-    so does a merge that restores an older corpus after the skill changed.
+    lacks the file exactly when head lacks it. No commit changes the scenario
+    file once a commit that touches the surface is among its ancestors. A
+    later edit fails the second; so does a merge that restores an older
+    corpus after the skill changed. An edit that a later commit reverts fails
+    the third.
     """
     head_blobs = ctx.git.tree_blobs(ctx.head, scenario_path)
+    surface = [c for c in ctx.commits if _touches_surface(ctx.changes(c), name)]
     problems = []
     for commit in ctx.commits:
         files = ctx.changes(commit)
-        if not _touches_surface(files, name):
+        if commit not in surface:
+            if scenario_path in files and any(
+                ctx.git.is_ancestor(s, commit) is True for s in surface
+            ):
+                problems.append(
+                    f"{scenario_path} changes at {commit[:10]}, after a commit that touches "
+                    "the skill; scenarios stay frozen once the skill changes"
+                )
             continue
         if scenario_path in files:
             problems.append(
