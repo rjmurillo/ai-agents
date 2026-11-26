@@ -220,7 +220,10 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 3
 
-    scan_capped = len(runs) >= min(fetch_limit, _MAX_LIMIT)
+    # A full page under a plain --limit listing is the truncation the caller
+    # asked for, so it carries no signal. The flag fires only when the scan was
+    # truncated in a way nobody requested: a PR filter scanning one page.
+    scan_capped = bool(args.pull_request) and len(runs) >= min(fetch_limit, _MAX_LIMIT)
     if args.pull_request:
         runs = [
             run
