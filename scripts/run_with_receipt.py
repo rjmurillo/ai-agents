@@ -26,11 +26,15 @@ has at most that many seconds after launch. A wrapper-enforced timeout returns
 124, and a large-output receipt for one adds ``timeout: true``. A child that
 exits 124 on its own is indistinguishable without that receipt line. Where the
 platform has POSIX process groups, a timed child starts in a new session and a
-timeout sends SIGTERM to the group, allows a short grace period, then sends
-SIGKILL. Elsewhere the direct child is killed. The shared validation runner is
-not reused here because it decodes through text-mode ``communicate``; this
-wrapper needs byte streams so invalid UTF-8, redaction, and line assembly keep
-their existing behavior. The local cleanup is only the process-group part.
+timeout sends SIGTERM to the group, gives every group member a 1 second grace
+period (the wrapper reaps the leader inside it, and the period ends early once
+the group is empty), then sends SIGKILL. Elsewhere the direct child is killed.
+The same stop runs when the wrapper itself is cancelled while a deadline is
+armed: Ctrl-C, or SIGTERM (which exits 143 once the child is stopped, unless the
+caller installed its own SIGTERM handler). The shared validation runner is not
+reused here because it decodes through text-mode ``communicate``; this wrapper
+needs byte streams so invalid UTF-8, redaction, and line assembly keep their
+existing behavior. The local cleanup is only the process-group part.
 
 ``read`` pages through a saved artifact by byte range. The artifact holds the
 redacted bytes. Unredacted bytes are never written, so a retrieval cannot
@@ -46,6 +50,7 @@ write or read the artifact). ``read`` returns 0 or 2/3 on those same terms.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import os
 import re
 import shlex
@@ -55,6 +60,7 @@ import sys
 import threading
 import time
 import uuid
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from io import BufferedReader
 from pathlib import Path
@@ -86,6 +92,7 @@ _MASK = "***"
 _ARTIFACT_NAME = re.compile(r"^\d{8}T\d{6}-[0-9a-f]{8}\.log$")
 _PIPE_DRAIN_GRACE_S = 2.0
 _TERM_GRACE_S = 1.0
+_GROUP_POLL_S = 0.05
 _REAP_GRACE_S = 1.0
 _SUPPORTS_PGROUP = sys.platform != "win32" and hasattr(os, "killpg")
 
@@ -245,12 +252,30 @@ def _terminate_child(proc: _ChildProcess) -> None:
         proc.kill()
         return
     _signal_group(pgid, signal.SIGTERM)
+    deadline = time.monotonic() + _TERM_GRACE_S
     try:
+        # Reaping the leader ends its zombie but not the window: other group
+        # members keep the rest of it for their own SIGTERM handlers.
         proc.wait(timeout=_TERM_GRACE_S)
+        while _group_alive(pgid) and (left := deadline - time.monotonic()) > 0:
+            time.sleep(min(left, _GROUP_POLL_S))
     except subprocess.TimeoutExpired:
         pass
     finally:
         _signal_group(pgid, signal.SIGKILL)
+
+
+def _group_alive(pgid: int) -> bool:
+    """True while any process is still in group `pgid`."""
+    if sys.platform == "win32":
+        return False
+    try:
+        os.killpg(pgid, 0)
+    except ProcessLookupError:
+        return False
+    except OSError:
+        return True
+    return True
 
 
 def _reap_stopped_child(proc: _ChildProcess) -> None:
@@ -260,8 +285,43 @@ def _reap_stopped_child(proc: _ChildProcess) -> None:
         pass
 
 
+@contextlib.contextmanager
+def _sigterm_raises() -> Iterator[None]:
+    """Turn SIGTERM into ``SystemExit`` while a timed child runs, then restore the default.
+
+    A timed child lives in its own session, so a SIGTERM to this process never
+    reaches it, and the default action would end this process with the child
+    still running. ``SystemExit`` instead unwinds through ``_spawn_and_collect``,
+    which stops the child's group. Only the default action is replaced, and only
+    on the main thread, where ``signal.signal`` works.
+    """
+    if (
+        not _SUPPORTS_PGROUP
+        or threading.current_thread() is not threading.main_thread()
+        or signal.getsignal(signal.SIGTERM) is not signal.SIG_DFL
+    ):
+        yield
+        return
+
+    def _stop(_signum: int, _frame: object) -> None:
+        raise SystemExit(128 + signal.SIGTERM)
+
+    signal.signal(signal.SIGTERM, _stop)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+
+
 def _run_child(argv: list[str], timeout_seconds: int | None = None) -> tuple[int, Capture, bool]:
     """Run argv without a shell and return the exit code, output, and timeout state."""
+    if timeout_seconds is None:
+        return _spawn_and_collect(argv, None)
+    with _sigterm_raises():
+        return _spawn_and_collect(argv, timeout_seconds)
+
+
+def _spawn_and_collect(argv: list[str], timeout_seconds: int | None) -> tuple[int, Capture, bool]:
     if timeout_seconds is None:
         proc = subprocess.Popen(
             argv,
@@ -284,16 +344,24 @@ def _run_child(argv: list[str], timeout_seconds: int | None = None) -> tuple[int
         threading.Thread(target=_pump, args=(proc.stdout, "out", capture), daemon=True),
         threading.Thread(target=_pump, args=(proc.stderr, "err", capture), daemon=True),
     ]
-    for thread in threads:
-        thread.start()
     timed_out = False
     try:
+        for thread in threads:
+            thread.start()
         code = proc.wait(timeout=timeout_seconds)
     except subprocess.TimeoutExpired:
         timed_out = True
         _terminate_child(proc)
         _reap_stopped_child(proc)
         code = EXIT_TIMEOUT
+    except BaseException:
+        # Ctrl-C, a forwarded SIGTERM, or any other unwind must not leave a
+        # timed child running in its own session. An untimed child keeps the
+        # caller's process group, so the caller's signal already reaches it.
+        if timeout_seconds is not None:
+            _terminate_child(proc)
+            _reap_stopped_child(proc)
+        raise
     # A grandchild can keep a pipe open after the child exits; do not wait on it.
     for thread in threads:
         thread.join(timeout=_PIPE_DRAIN_GRACE_S)
