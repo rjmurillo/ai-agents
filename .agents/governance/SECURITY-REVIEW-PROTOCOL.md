@@ -30,8 +30,9 @@ When external reviewers (Gemini Code Assist, human reviewers) identify vulnerabi
 **BEFORE manual code review**, security agent MUST fetch CodeQL alerts:
 
 ```bash
-# Fetch open alerts through the GitHub API
-gh api repos/{owner}/{repo}/code-scanning/alerts \
+# Fetch open alerts for this checkout's current branch through the GitHub API
+env -u GH_REPO gh api --method GET repos/{owner}/{repo}/code-scanning/alerts \
+  -f "ref=refs/heads/$(git branch --show-current)" \
   --jq '.[] | select(.state=="open")'
 ```
 

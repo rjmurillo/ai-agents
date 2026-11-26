@@ -92,8 +92,9 @@ uv run pytest .project-toolkit/security/benchmarks/ -v
 The security agent workflow now fetches CodeQL alerts before manual review:
 
 ```bash
-# Fetch open CodeQL alerts through the GitHub API
-gh api repos/{owner}/{repo}/code-scanning/alerts \
+# Fetch open CodeQL alerts for this checkout's current branch through the GitHub API
+env -u GH_REPO gh api --method GET repos/{owner}/{repo}/code-scanning/alerts \
+  -f "ref=refs/heads/$(git branch --show-current)" \
   --jq '.[] | select(.state=="open")'
 ```
 

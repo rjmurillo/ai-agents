@@ -110,7 +110,8 @@ def _anchor_candidates(context_lines: list[str], citation_text: str) -> list[str
         # Triple-quote delimiters would otherwise pair with the opening
         # quote of a real anchor and swallow it.
         masked = masked.replace('"""', " ").replace("'''", " ")
-        for span in _BACKTICK_SPAN.findall(masked) + _DQUOTE_SPAN.findall(masked):
+        quote_masked = _mask_dquotes_in_backtick_spans(masked)
+        for span in _BACKTICK_SPAN.findall(masked) + _DQUOTE_SPAN.findall(quote_masked):
             candidate = _span_anchor(span, citation_text)
             if candidate is not None:
                 anchors.append(candidate)
@@ -318,6 +319,22 @@ def _mask_escaped_backticks(text: str) -> str:
     return "".join(out)
 
 
+def _mask_dquotes_in_backtick_spans(text: str) -> str:
+    """Blank double quotes inside backtick spans, keeping length.
+
+    A quote inside a code span is code content, not a prose-quote delimiter.
+    Treating it as one pairs it with a later anchor quote and hides that anchor.
+    """
+    if '"' not in text or "`" not in text:
+        return text
+    out = list(text)
+    for match in _BACKTICK_SPAN.finditer(text):
+        for index in range(match.start(), match.end()):
+            if out[index] == '"':
+                out[index] = " "
+    return "".join(out)
+
+
 def _snap_out_of_tokens(text: str, point: int, low: int, high: int) -> int:
     """Move a split point out of any span, quote, or identifier it bisects.
 
@@ -325,8 +342,14 @@ def _snap_out_of_tokens(text: str, point: int, low: int, high: int) -> int:
     so it says nothing about where the gap splits and is skipped. A token
     that wraps only one citation still counts: the split must not cut it.
     """
-    for pattern in (_BACKTICK_SPAN, _DQUOTE_SPAN, _IDENTIFIER):
-        for match in pattern.finditer(text):
+    quote_masked = _mask_dquotes_in_backtick_spans(text)
+    token_sources = (
+        (_BACKTICK_SPAN, text),
+        (_DQUOTE_SPAN, quote_masked),
+        (_IDENTIFIER, text),
+    )
+    for pattern, source in token_sources:
+        for match in pattern.finditer(source):
             if match.start() <= low and match.end() >= high:
                 continue
             if match.start() < point < match.end():

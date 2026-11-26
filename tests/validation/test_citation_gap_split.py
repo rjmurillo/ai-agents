@@ -266,3 +266,39 @@ def test_a_backslash_inside_a_code_span_still_closes_it() -> None:
     (_first, _a), (_second, second_anchors) = _segments(line)
 
     assert second_anchors == ["return 1"]
+
+
+# A quote inside an earlier backtick span is code content, not the opening
+# delimiter of a double-quoted anchor. Paired as one, it swallows the gap and
+# cuts the second citation's quoted anchor in half (Sol WS2B review).
+SOURCE = "lib/source.py"
+
+
+def _quote_in_span_line(target_line: int) -> str:
+    return f'See `print("` in {SOURCE}:1, then "return 1" in {TARGET}:{target_line}.'
+
+
+def test_quote_inside_an_earlier_code_span_does_not_hide_the_second_anchor() -> None:
+    line = _quote_in_span_line(4)
+
+    (_first, _first_anchors), (_second, second_anchors) = _segments(line)
+
+    assert "return 1" in second_anchors
+
+
+def _quote_in_span_repo(tmp_path: Path, target_line: int) -> Path:
+    root = _repo(tmp_path)
+    (root / SOURCE).write_text('print("name")\n', encoding="utf-8")
+    _add_doc(root, "docs/inventory.md", _quote_in_span_line(target_line) + "\n")
+    return root
+
+
+@pytest.mark.parametrize(("target_line", "expected"), [(4, 0), (5, 1)])
+def test_gate_judges_a_quote_after_a_quote_inside_a_code_span(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], target_line: int, expected: int
+) -> None:
+    root = _quote_in_span_repo(tmp_path, target_line)
+
+    code, out = _run(root, capsys)
+
+    assert code == expected, out
