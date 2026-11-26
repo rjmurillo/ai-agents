@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -74,6 +76,33 @@ def _parse_surface(text: str) -> tuple[str, Path]:
     return name.strip(), Path(path.strip())
 
 
+def _file_identity(path: Path) -> set[tuple[int, int]]:
+    info = path.stat()
+    return {(info.st_dev, info.st_ino)}
+
+
+def _pinned_identities(paths: Any) -> set[tuple[int, int]]:
+    """Device and inode of every pinned file, so a hard-linked --out is caught."""
+    found: set[tuple[int, int]] = set()
+    for path in paths:
+        files = [p for p in path.rglob("*") if p.is_file()] if path.is_dir() else [path]
+        for item in files:
+            found |= _file_identity(item)
+    return found
+
+
+def _write_atomic(out: Path, text: str) -> None:
+    """Write a sibling temp file, then replace, so an alias of --out is never truncated."""
+    fd, tmp = tempfile.mkstemp(dir=out.parent, prefix=f".{out.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        os.replace(tmp, out)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+
+
 def _cmd_pin(args: argparse.Namespace) -> int:
     surfaces: dict[str, Path] = {}
     for text in args.surface or []:
@@ -88,7 +117,9 @@ def _cmd_pin(args: argparse.Namespace) -> int:
     out = Path(args.out)
     if any(overlaps(out, p) for p in surfaces.values()):
         raise SkillOptError("--out must not overwrite or sit inside a pinned surface")
-    out.write_text(json.dumps(pins, indent=2) + "\n", encoding="utf-8")
+    if out.exists() and _file_identity(out) & _pinned_identities(surfaces.values()):
+        raise SkillOptError("--out is a hard link to a pinned file; choose another path")
+    _write_atomic(out, json.dumps(pins, indent=2) + "\n")
     sys.stderr.write(f"pinned {len(pins['surfaces'])} read-only surface(s) -> {out}\n")
     return 0
 

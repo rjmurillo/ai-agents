@@ -12,6 +12,14 @@ Every file here names train task ids only. A `sel` id in a task list or a
 free-text field exits 2, because the candidate author must not see `sel`
 tasks (Precondition 4). Patch text in `patches.json` is not scanned.
 
+Only a literal `false` counts as a failure. An `"UNVERIFIED"` result is not
+a failure: it cannot sit in a weakness pattern or be a predicted fix.
+
+Sections 2 to 4 cover accuracy edits, judged by `pair-gate`. An
+efficiency-only edit, made when every task already passes, skips them. Its
+prediction is the metric and threshold it declares for `efficiency-gate`.
+Pins (section 5) still apply.
+
 ## 1. Proposer tier
 
 Run `skillopt.py proposer-check --model <proposer>` before Reflect.
@@ -123,8 +131,10 @@ After the candidate re-roll, run `skillopt.py manifesto-verify --eval eval.json
 | 2 | none | invalid input, or a `sel` id in an entry's task lists |
 
 A listed at-risk regression is reported in `at_risk_regressed`, not
-falsified. A falsified prediction means the root cause was wrong. Record it
-in the `buffer-add` note even when `pair-gate` accepts, and mine again.
+falsified. A falsified prediction means the root cause was wrong; mine
+again. When `pair-gate` rejects, put the verdict in the `buffer-add` note.
+When it accepts, keep the report with the run's evidence and do not call
+`buffer-add`, because the buffer marks a patch set as known bad.
 `manifesto-verify` never replaces `pair-gate`; the `sel` runner still
 returns only the gate verdict.
 
@@ -159,6 +169,13 @@ What is enforced and what is only named:
   `eval.json` declares `pins`, and by `pin-check` at any time.
 - Pins store absolute paths. Moving the checkout, or gating from another
   worktree, exits 2 until you pin again.
+- A pinned symlink records both the link and its target. A link that now
+  points elsewhere is a mismatch, even when the new target has the same
+  bytes.
+- `pin` hashes the path you name. When an eval command runs a grader by a
+  path relative to the bundle, each bundle has its own copy. Keep graders
+  outside the bundle, or pin the incumbent's and the candidate's copies as
+  two surfaces.
 - The model is enforced only when you pass `--model` to `pin-check`. Nothing
   reads the model your harness actually used.
 - A manifest without `pins` gates as before. Deleting the `pins` field alone

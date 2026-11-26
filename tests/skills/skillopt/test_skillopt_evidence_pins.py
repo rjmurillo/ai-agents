@@ -111,6 +111,32 @@ class TestPins:
         assert "sit inside a pinned surface" in capsys.readouterr().err
         assert not (graders / "pins.json").exists()
 
+    def test_out_hard_linked_to_pinned_file_exits_2(self, tmp_path: Path, capsys: Capture) -> None:
+        eval_path, verifier = self.setup_files(tmp_path)
+        before = eval_path.read_bytes()
+        alias = tmp_path / "pins.json"
+        alias.hardlink_to(eval_path)
+        argv = ["pin", "--eval", str(eval_path), "--surface", f"verifier={verifier}"]
+        argv += ["--model", "m", "--out", str(alias)]
+        assert skillopt.main(argv) == 2
+        assert "hard link" in capsys.readouterr().err
+        assert eval_path.read_bytes() == before
+
+    def test_retargeted_symlink_is_a_mismatch(self, tmp_path: Path, capsys: Capture) -> None:
+        eval_path, _ = self.setup_files(tmp_path)
+        v1, v2 = tmp_path / "check-v1.py", tmp_path / "check-v2.py"
+        v1.write_text("same\n", encoding="utf-8")
+        v2.write_text("same\n", encoding="utf-8")
+        link = tmp_path / "current-check.py"
+        link.symlink_to(v1)
+        out = tmp_path / "pins.json"
+        argv = ["pin", "--eval", str(eval_path), "--surface", f"verifier={link}"]
+        assert skillopt.main([*argv, "--model", "m", "--out", str(out)]) == 0
+        link.unlink()
+        link.symlink_to(v2)
+        assert skillopt.main(["pin-check", "--pins", str(out)]) == 1
+        assert json.loads(capsys.readouterr().out)["changed_surfaces"] == ["verifier"]
+
     def test_duplicate_surface_name_exits_2(self, tmp_path: Path, capsys: Capture) -> None:
         eval_path, verifier = self.setup_files(tmp_path)
         other = tmp_path / "other.py"

@@ -100,6 +100,15 @@ class TestWeaknessCheck:
         leak = weakness(tasks=["s1-b"], mechanism="s1-b fails like s1 does")
         assert run(tmp_path, self.ARGV, eval=eval_set, inc=inc, w=leak) == 2
 
+    def test_unverified_baseline_task_is_not_a_failure(
+        self, tmp_path: Path, capsys: Capture
+    ) -> None:
+        inc = {**INCUMBENT, "t2": "UNVERIFIED"}
+        assert run(tmp_path, self.ARGV, eval=EVAL, inc=inc, w=weakness()) == 2
+        assert "no verified result" in capsys.readouterr().err
+        assert run(tmp_path, self.ARGV, eval=EVAL, inc=inc, w=weakness(tasks=["t1"])) == 0
+        assert json.loads(capsys.readouterr().out)["unclustered_failures"] == ["t3"]
+
     def test_task_in_both_splits_exits_2(self, tmp_path: Path, capsys: Capture) -> None:
         eval_set = {"splits": {"train": ["x", "t2"], "sel": ["x"]}}
         doc = weakness(tasks=["x"], mechanism="same as x")
@@ -188,6 +197,13 @@ class TestManifestoCheck:
         assert self.call(tmp_path, manifesto(**override)) == 2
         assert message in capsys.readouterr().err
 
+    def test_unverified_predicted_fix_exits_2(self, tmp_path: Path, capsys: Capture) -> None:
+        argv = [x if x != "@inc" else "@inc2" for x in self.ARGV]
+        inc = {**INCUMBENT, "t3": "UNVERIFIED"}
+        m = manifesto(predicted_fixes=["t1", "t3"])
+        assert run(tmp_path, argv, eval=EVAL, inc2=inc, w=weakness(), m=m, p=PATCHES) == 2
+        assert "no verified failing result" in capsys.readouterr().err
+
     def test_unaddressable_pattern_exits_2(self, tmp_path: Path, capsys: Capture) -> None:
         assert self.call(tmp_path, manifesto(), w=weakness(addressable=False)) == 2
         assert "not addressable" in capsys.readouterr().err
@@ -259,6 +275,17 @@ class TestManifestoVerify:
         entry = json.loads(capsys.readouterr().out)["entries"][0]
         assert entry["confirmed_fixes"] == ["t1"]
         assert entry["missed_fixes"] == ["t4"]
+
+    def test_unverified_baseline_is_neither_confirmed_nor_missed(
+        self, tmp_path: Path, capsys: Capture
+    ) -> None:
+        inc = {**INCUMBENT, "t1": "UNVERIFIED"}
+        assert run(tmp_path, self.ARGV, eval=EVAL, m=manifesto(), inc=inc, cand=CANDIDATE) == 1
+        report = json.loads(capsys.readouterr().out)
+        assert report["verdict"] == "PREDICTION_UNVERIFIED"
+        assert report["entries"][0]["confirmed_fixes"] == ["t2"]
+        assert report["entries"][0]["missed_fixes"] == []
+        assert report["unverified"] == ["t1"]
 
     def test_sel_prediction_exits_2(self, tmp_path: Path, capsys: Capture) -> None:
         assert self.call(tmp_path, manifesto(predicted_fixes=["s1"]), CANDIDATE) == 2

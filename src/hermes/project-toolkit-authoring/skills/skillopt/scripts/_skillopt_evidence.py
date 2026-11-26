@@ -178,6 +178,11 @@ def check_weakness(
                 raise SkillOptError(
                     f"pattern {pid!r}: task {tid!r} passed at baseline; cluster failures only"
                 )
+            if incumbent_results.get(tid) is not False:
+                raise SkillOptError(
+                    f"pattern {pid!r}: task {tid!r} has no verified result at baseline; "
+                    "an UNVERIFIED task is not a failure"
+                )
             if tid in owner:
                 raise SkillOptError(f"task {tid!r} is in patterns {owner[tid]!r} and {pid!r}")
             owner[tid] = pid
@@ -189,7 +194,7 @@ def check_weakness(
                 "addressable": pattern["addressable"],
             }
         )
-    failing = [t for t in train if incumbent_results.get(t) is not True]
+    failing = [t for t in train if incumbent_results.get(t) is False]
     return {
         "patterns": out,
         "recurrent_addressable": [p["id"] for p in out if p["recurrent"] and p["addressable"]],
@@ -215,6 +220,12 @@ def _check_predictions(
     if passing:
         raise SkillOptError(
             f"{where}: predicted_fixes {', '.join(passing)} already pass at baseline"
+        )
+    unverified = [t for t in fixes if incumbent_results.get(t) is not False]
+    if unverified:
+        raise SkillOptError(
+            f"{where}: predicted_fixes {', '.join(unverified)} have no verified "
+            "failing result at baseline"
         )
     risks = _train_ids(entry.get("at_risk"), "at_risk", where, train_set, sel, allow_empty=True)
     failing = [t for t in risks if incumbent_results.get(t) is not True]
@@ -347,24 +358,22 @@ def verify_manifesto(
                 "confirmed_fixes": [
                     t
                     for t in fixes
-                    if incumbent_results.get(t) is not True and candidate_results.get(t) is True
+                    if incumbent_results.get(t) is False and candidate_results.get(t) is True
                 ],
                 "missed_fixes": [
                     t
                     for t in fixes
-                    if incumbent_results.get(t) is True or candidate_results.get(t) is not True
+                    if incumbent_results.get(t) is True or candidate_results.get(t) is False
                 ],
                 "at_risk_regressed": [
                     t
                     for t in risks
-                    if incumbent_results.get(t) is True and candidate_results.get(t) is not True
+                    if incumbent_results.get(t) is True and candidate_results.get(t) is False
                 ],
             }
         )
     regressions = [
-        t
-        for t in train
-        if incumbent_results.get(t) is True and candidate_results.get(t) is not True
+        t for t in train if incumbent_results.get(t) is True and candidate_results.get(t) is False
     ]
     unpredicted = [t for t in regressions if t not in at_risk_all]
     if unverified:
@@ -394,7 +403,11 @@ def make_pins(surfaces: dict[str, Path], model: str) -> dict[str, Any]:
     for name, path in sorted(surfaces.items()):
         if not path.exists():
             raise SkillOptError(f"read-only surface {name!r} does not exist: {path}")
-        pinned[name] = {"path": str(path.resolve()), "sha256": path_sha256(path)}
+        pinned[name] = {
+            "path": str(path.absolute()),
+            "target": str(path.resolve()),
+            "sha256": path_sha256(path),
+        }
     return {"schema": PINS_SCHEMA, "model": model.strip(), "surfaces": pinned}
 
 
@@ -409,7 +422,8 @@ def check_pins(pins: Any, model: str | None = None) -> dict[str, Any]:
         if not isinstance(entry, dict) or not isinstance(entry.get("path"), str):
             raise SkillOptError(f"pins surface {name!r} must have a 'path' string")
         path = Path(entry["path"])
-        if not path.exists() or path_sha256(path) != entry.get("sha256"):
+        retargeted = "target" in entry and str(path.resolve()) != entry["target"]
+        if retargeted or not path.exists() or path_sha256(path) != entry.get("sha256"):
             changed.append(name)
     model_changed = model is not None and model.strip() != doc.get("model")
     return {
