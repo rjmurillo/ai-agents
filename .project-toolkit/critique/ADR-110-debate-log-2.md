@@ -70,3 +70,11 @@ Each seat received commit `bcccf3c16` and the round 1 dispositions above.
 independent-thinker: inferring the canonical partial from include counts goes
 silent when a capability drops to one including dependent. Nothing signals that
 loss of coverage. Recorded as accepted residual risk in ADR-110 section 7.
+
+### Evidence provenance
+
+All six seats ran on one model family, so their agreement is not independent
+proof. The deterministic checks carry the weight: the real-tree test fails on
+the `origin/main` gate and passes on this branch, and the residue pin failed on
+a planted fifth copy. Reverting the gate change is a one-commit revert of
+`scripts/validation/check_capability_graph.py` and its tests.

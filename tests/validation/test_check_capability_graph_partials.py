@@ -65,10 +65,15 @@ def test_a_dependent_pasting_the_canonical_partial_fails_and_names_it(
     assert "templates/skills/partials/policy-text.mustache" in err
 
 
-def test_a_dependent_both_including_and_pasting_the_partial_fails(tree: Path) -> None:
+def test_a_dependent_both_including_and_pasting_the_partial_fails(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     _policy_tree(tree, pasted_body=f"{{{{> policy-text}}}}\n\n{_POLICY}")
 
     assert gate.validate_capability_graph(tree) is False
+    err = capsys.readouterr().err
+    assert "templates/skills/pasted.SKILL.md.tmpl" in err
+    assert "templates/skills/partials/policy-text.mustache" in err
 
 
 def test_a_dependent_including_the_partial_passes(tree: Path) -> None:
@@ -110,7 +115,7 @@ def test_an_agent_shared_body_carrying_the_partial_verbatim_passes(tree: Path) -
 def test_a_nested_partial_include_counts_as_canonical_text(
     tree: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Agent partials include other partials, so resolution follows the chain."""
+    """A partial may include another partial, so resolution follows the chain."""
     _policy_tree(tree, pasted_body=f"Steps.\n\n{_POLICY}")
     included = tree / "templates" / "skills" / "included.SKILL.md.tmpl"
     included.write_text(
@@ -191,3 +196,45 @@ def test_a_dependent_with_only_unrelated_includes_does_not_switch_the_check_off(
 
     assert gate.validate_capability_graph(tree) is False
     assert "templates/skills/partials/policy-text.mustache" in capsys.readouterr().err
+
+
+def test_an_include_naming_no_partial_file_is_skipped_without_a_finding(tree: Path) -> None:
+    """The renderer's grammar check owns a missing partial; this gate only reads what renders."""
+    _policy_tree(tree, pasted_body="Steps.\n\n{{> policy-text}}\n\n{{> no-such-partial}}\n")
+
+    assert gate.validate_capability_graph(tree) is True
+
+
+def test_a_partial_two_dependents_include_counts_even_when_it_serves_another_policy(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Pins the known limit: two includers make a partial count, whatever it governs.
+
+    The finding still names the partial file, so a reader sees which text was
+    copied even when the capability name is the wrong frame for it.
+    """
+    sibling = (
+        "## Unrelated sibling policy\n\n"
+        "This paragraph governs punctuation in authored prose and has nothing to\n"
+        "do with the policy capability. Two dependents include it beside the\n"
+        "policy include, so the gate counts it as that capability's text.\n"
+    )
+    _policy_tree(tree, pasted_body=f"Steps.\n\n{sibling}")
+    (tree / "templates" / "skills" / "partials" / "sibling.mustache").write_text(
+        sibling, encoding="utf-8"
+    )
+    for name in ("included", "second"):
+        path = tree / "templates" / "skills" / f"{name}.SKILL.md.tmpl"
+        path.write_text(path.read_text(encoding="utf-8") + "\n{{> sibling}}\n", encoding="utf-8")
+
+    assert gate.validate_capability_graph(tree) is False
+    assert "templates/skills/partials/sibling.mustache" in capsys.readouterr().err
+
+
+def test_the_text_report_lists_each_compared_partial(tree: Path) -> None:
+    _policy_tree(tree, pasted_body="Steps.\n\n{{> policy-text}}\n")
+    nodes, owners, _ = gate.survey(tree)
+
+    report = gate.render(nodes, owners, "text")
+
+    assert "compares policy: templates/skills/partials/policy-text.mustache" in report.splitlines()

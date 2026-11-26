@@ -30,13 +30,16 @@ A seventh blocks the one copied-policy class that can be proven rather than
 guessed: a consumer that declares a dependency and then repeats three or more
 consecutive lines of the owner's text. Issue #5396 calls this the "repeated
 large normative blocks" case. The owner's text is the owner file plus any
-partial that two or more of the capability's dependents include, because ADR-110
-section 7 puts a prompt-carried policy's canonical text in a partial rather
-than in the owning rule (issue #7641). The partials are found by following
-`{{> slug}}` includes, the grammar `build/scripts/skill_template_grammar.py`
-renders, so the gate keeps no capability-to-path map. Smaller overlaps are left alone on purpose,
-because a consumer is expected to keep a one-line statement of the invariant
-inline for harnesses that never load the owning rule.
+partial that two or more of the capability's dependents include, because
+ADR-110 section 7 puts a prompt-carried policy's canonical text in a partial
+rather than in the owning rule (issue #7641). The partials are found by
+following `{{> slug}}` includes, the grammar
+`build/scripts/skill_template_grammar.py` renders, so the gate keeps no
+capability-to-path map. Smaller overlaps are left alone on purpose, because a
+consumer is expected to keep a one-line statement of the invariant inline for
+harnesses that never load the owning rule. The text report lists each partial
+the check compares, so a capability whose including dependents fall below two
+shows the lost coverage as a missing `compares` line.
 
 A file with no `capability` block is not a node and is not a defect. Adoption
 is incremental by design, so this gate never blocks a file for staying out of
@@ -134,11 +137,10 @@ NAME_RE = re.compile(r"^[a-z0-9-]{1,64}$")
 MIN_COPIED_RUN = 3
 MIN_COPIED_CHARS = 120
 
-# Each template tree renders `{{> slug}}` from its own partial directory.
-PARTIAL_DIRS: tuple[tuple[str, str], ...] = (
-    ("templates/skills/", "templates/skills/partials"),
-    ("templates/agents/", "templates/agents/partials"),
-)
+# Skill templates render `{{> slug}}` from this directory. Agent nodes are
+# `*.shared.md` bodies, which `build/generate_agents.py` reads unexpanded, so
+# no agent node can include a partial and the agent tree needs no entry.
+PARTIAL_DIRS: tuple[tuple[str, str], ...] = (("templates/skills/", "templates/skills/partials"),)
 
 # `build/generate_agents.py` reads `templates/agents/*.shared.md` without
 # mustache expansion, so a shared body cannot include a partial and the four
@@ -568,6 +570,8 @@ def check_graph(nodes: list[Node], owners: dict[str, Node]) -> list[str]:
             if not node.canonical:
                 continue
             for source, text in policy[name]:
+                # A raw agent body cannot include a partial, so its verbatim
+                # copy is approved residue; the owner file is still compared.
                 if source != owner.path and _RAW_AGENT_BODY.match(node.path):
                     continue
                 if not _shared_run(node.body, text):
@@ -577,7 +581,7 @@ def check_graph(nodes: list[Node], owners: dict[str, Node]) -> list[str]:
                     f"{node.path}: repeats a block of `{name}`{origin}, owned by {owner.path}; "
                     "keep the one-line invariant and drop the copied policy"
                 )
-                break
+                break  # one finding per dependency edge is enough to act on
         if node.status == "deprecated" and node.replaced_by:
             if node.replaced_by not in owners:
                 findings.append(
@@ -645,6 +649,8 @@ def render(nodes: list[Node], owners: dict[str, Node], fmt: str) -> str:
             f"replacement={owner.replacement()} validation={owner.validation or 'none'}"
         )
     lines.extend(f"edge {consumer} -> {name}" for consumer, name in edges)
+    for name, pairs in sorted(_canonical_texts(nodes, owners).items()):
+        lines.extend(f"compares {name}: {path}" for path, _ in pairs if path != owners[name].path)
     return "\n".join(lines)
 
 
