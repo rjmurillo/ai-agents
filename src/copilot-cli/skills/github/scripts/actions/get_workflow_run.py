@@ -127,7 +127,10 @@ def _build_summary(
         bits.append(f"failed jobs: {', '.join(failed_jobs[:5])}")
     if pending_deployments:
         envs = ", ".join(str(dep["environment"]) for dep in pending_deployments)
-        bits.append(f"waiting on environment approval: {envs}")
+        if any(dep["reviewers"] for dep in pending_deployments):
+            bits.append(f"waiting on environment approval: {envs}")
+        else:
+            bits.append(f"environment wait timer pending (no approval required): {envs}")
     return "; ".join(bits)
 
 

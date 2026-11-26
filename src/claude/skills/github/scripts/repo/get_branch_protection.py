@@ -234,7 +234,7 @@ def main(argv: list[str] | None = None) -> int:
             return 3
 
     rules, rules_error = gh_api_get(
-        f"repos/{owner}/{repo}/rules/branches/{quote_branch(args.branch)}"
+        f"repos/{owner}/{repo}/rules/branches/{quote_branch(args.branch)}?per_page=100"
     )
     ruleset_read = True
     if rules is None:
