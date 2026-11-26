@@ -426,10 +426,11 @@ def run(
     timeout: float = 120,
     stdin_text: str | None = None,
     env: dict[str, str] | None = None,
+    pass_fds: tuple[int, ...] = (),
 ) -> Completed:
     """Run ``argv`` without a shell. A missing binary is 127; a timeout is 124.
 
-    ``env`` adds variables on top of ``child_env()``, such as a validated ``GH_HOST``.
+    ``env`` adds variables on top of ``child_env()``; ``pass_fds`` stay open in the child.
 
     On Windows, ``_ship_windows`` resolves a bare name, and an argument that
     cmd.exe would rewrite for a ``.cmd`` target is refused as 126.
@@ -453,20 +454,20 @@ def run(
             check=False,
             shell=False,
             env={**child_env(), **(env or {})},
+            pass_fds=pass_fds,
         )
     except FileNotFoundError:
         return Completed(127, "", f"{argv[0]}: not found")
     except OSError as exc:
-        # A binary that exists but cannot run (no execute bit, bad format) is
-        # a failed call, never a crash, so the script still ends on STOP.
+        # A binary that cannot run is a failed call, never a crash: still STOP.
         return Completed(126, "", f"{argv[0]}: cannot run: {exc.strerror or exc}")
     except subprocess.TimeoutExpired:
         return Completed(124, "", f"{argv[0]}: timed out after {timeout:g}s")
     return Completed(done.returncode, done.stdout or "", done.stderr or "")
 
 
-def git(args: list[str], cwd: Path | None = None, timeout: float = 60) -> Completed:
-    return run(["git", *args], cwd=cwd, timeout=timeout)
+def git(args: list[str], cwd: Path | None = None, timeout: float = 60, **kw: Any) -> Completed:
+    return run(["git", *args], cwd=cwd, timeout=timeout, **kw)
 
 
 def repo_root(cwd: Path | None = None) -> Path | None:

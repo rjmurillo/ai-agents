@@ -453,10 +453,10 @@ def test_git_status_failure_stops(github, fakes, scripts, capsys, monkeypatch):
     common = scripts[0]
     real_git = common.git
 
-    def broken(args, cwd=None, timeout=60):
+    def broken(args, cwd=None, timeout=60, **kw):
         if args[:1] == ["status"]:
             return common.Completed(128, "", "fatal")
-        return real_git(args, cwd=cwd, timeout=timeout)
+        return real_git(args, cwd=cwd, timeout=timeout, **kw)
 
     monkeypatch.setattr(common, "git", broken)
     code, lines = _preflight(scripts, capsys, "--check", "tree")

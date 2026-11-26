@@ -94,7 +94,8 @@ Runs the checks that have one right answer.
 
 - `pipeline` on GitHub wraps `get_pr_checks.py`. It keeps today's rules.
   The PR's own URL names its host, owner, and repository. The helper gets them as `--owner`, `--repo`, and `GH_HOST`.
-  The second head read names the same repository, so a fork's PR with the same number is never read.
+  The second head read names the same repository, so a fork's PR with the same number is never read there.
+  The first read uses gh's default repository; its branch and SHA must still match the local HEAD.
   PASS needs exit 0, `RequiredState == SUCCESS`, and `AllPassing == true`.
 - `pipeline` on ADO moves today's bash policy block into Python.
   Each blocking build policy must be approved on the current merge commit.
@@ -135,8 +136,10 @@ Owns everything `/push-pr` did after the body is written.
 - It reruns `check` and stops on any failure before the push.
 - It holds the shared push lock, `$HOME/src/scratch/locks/push-lock-<slug>.lock`, for the whole push. It prints `PUSH_LOCK: held`.
   The commit guard reads that lock, so a commit cannot land while the pre-push suite runs.
+  Git and its hooks inherit the lock, as with `flock <file> git push`, so a hook still running after a push timeout keeps it.
   A lock another push holds is `STOP: push-locked`, exit 3, and nothing is pushed.
-  With no flock (Windows), no `HOME`, or an unwritable lock directory, it pushes and prints `PUSH_LOCK: unavailable`.
+  With no flock (Windows), no `HOME`, an unwritable lock directory, or a failed lock call, it pushes and prints `PUSH_LOCK: unavailable`.
+  It pushes rather than stops there, because a stop would block every publish on that host. The cost is no serialization with the commit guard there.
 - GitHub create calls `new_pr.py` as today.
 - ADO create builds a fixed argument list and runs it without a shell.
 - On Windows, `az` is `az.cmd`, which runs through cmd.exe. The scripts find it on absolute `PATH` entries only, never the current directory.

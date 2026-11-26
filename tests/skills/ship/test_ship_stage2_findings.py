@@ -192,11 +192,11 @@ class TestProcessFailuresEndOnStop:
         # A full budget: the push gets 540 less the 120 seconds kept for the PR create.
         monkeypatch.setattr(common, "remaining_seconds", lambda: 540.0)
 
-        def slow(args, cwd=None, timeout=60):
+        def slow(args, cwd=None, timeout=60, **kw):
             if args[:1] == ["push"]:
                 assert timeout == 420
                 return common.Completed(124, "", "git: timed out after 540s")
-            return real_git(args, cwd=cwd, timeout=timeout)
+            return real_git(args, cwd=cwd, timeout=timeout, **kw)
 
         monkeypatch.setattr(common, "git", slow)
         code, lines = publish(scripts, capsys, body)

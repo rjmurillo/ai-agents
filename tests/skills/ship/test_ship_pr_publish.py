@@ -226,9 +226,9 @@ class TestPublishGitHub:
         seen: list[list[str]] = []
         real_git = common.git
 
-        def spy(args, cwd=None, timeout=60):
+        def spy(args, cwd=None, timeout=60, **kw):
             seen.append(list(args))
-            return real_git(args, cwd=cwd, timeout=timeout)
+            return real_git(args, cwd=cwd, timeout=timeout, **kw)
 
         monkeypatch.setattr(common, "git", spy)
         publish(

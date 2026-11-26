@@ -40,12 +40,14 @@ def push_lock_path(branch: str) -> Path | None:
 
 
 @contextlib.contextmanager
-def push_lock(branch: str) -> Iterator[str]:
-    """Hold the shared push lock for ``branch`` without waiting; yield its state.
+def push_lock(branch: str) -> Iterator[tuple[str, tuple[int, ...]]]:
+    """Take the shared push lock for ``branch`` without waiting; yield its state.
 
-    ``held`` means this process holds it until the block ends. ``busy`` means
-    another push of the branch holds it now. ``unavailable`` means this host
-    cannot take it: no flock, no HOME, or an unwritable lock directory.
+    ``held`` comes with the lock descriptor. Pass it to the push child, as
+    ``flock <file> git push`` does, so a hook still running after a push
+    timeout keeps the lock. ``busy`` means another push of the branch holds
+    it now. ``unavailable`` means this host cannot take it: no flock, no
+    HOME, an unwritable lock directory, or a failed lock call.
     """
     path = push_lock_path(branch)
     fd = -1
@@ -54,17 +56,19 @@ def push_lock(branch: str) -> Iterator[str]:
             path.parent.mkdir(parents=True, exist_ok=True)
             fd = os.open(path, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
     if fd < 0 or _fcntl is None:
-        yield "unavailable"
+        yield "unavailable", ()
         return
     state = "held"
     try:
         _fcntl.flock(fd, _fcntl.LOCK_EX | _fcntl.LOCK_NB)
     except BlockingIOError:
         state = "busy"
+    except OSError:  # such as ENOLCK on a home directory with no lock support
+        state = "unavailable"
     try:
-        yield state
+        yield state, (fd,) if state == "held" else ()
     finally:
-        os.close(fd)  # closing this only descriptor also releases the flock
+        os.close(fd)  # the flock ends when the last inherited copy closes
 
 
 def scratch_dir(root: Path, create: bool = False) -> Path | None:

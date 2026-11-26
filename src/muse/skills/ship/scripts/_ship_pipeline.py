@@ -78,9 +78,12 @@ def _github_head(ctx: Context, pr: int, owner: PrRepo | None) -> tuple[str, str,
     data = common.parse_json(done.stdout)
     if not isinstance(data, dict) or not data.get("headRefName") or not data.get("headRefOid"):
         return Halt("checks-query-failed", common.EXIT_EXTERNAL, f"PR {pr} head did not parse")
-    owner = _pr_repo(str(data.get("url") or ""), pr)
+    url = str(data.get("url") or "")
+    owner = _pr_repo(url, pr)
     if owner is None:
-        return Halt("checks-query-failed", common.EXIT_EXTERNAL, f"PR {pr} URL did not parse")
+        return Halt(
+            "checks-query-failed", common.EXIT_EXTERNAL, f"PR {pr} URL did not parse: {url}"
+        )
     return str(data["headRefName"]), str(data["headRefOid"]), owner
 
 

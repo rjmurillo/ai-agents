@@ -88,10 +88,10 @@ def fail_push(monkeypatch, common, stderr: str) -> None:
     """Make every ``git push`` fail with ``stderr``; other git calls run for real."""
     real_git = common.git
 
-    def failing(args, cwd=None, timeout=60):
+    def failing(args, cwd=None, timeout=60, **kw):
         if args[:1] == ["push"]:
             return common.Completed(128, "", stderr)
-        return real_git(args, cwd=cwd, timeout=timeout)
+        return real_git(args, cwd=cwd, timeout=timeout, **kw)
 
     monkeypatch.setattr(common, "git", failing)
 

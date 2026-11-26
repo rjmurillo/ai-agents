@@ -231,10 +231,10 @@ class TestFreshRoundThreeFindings:
         common = scripts[0]
         real_git = common.git
 
-        def failing(args, cwd=None, timeout=60):
+        def failing(args, cwd=None, timeout=60, **kw):
             if args[:1] == ["push"]:
                 return common.Completed(1, "", stderr)
-            return real_git(args, cwd=cwd, timeout=timeout)
+            return real_git(args, cwd=cwd, timeout=timeout, **kw)
 
         monkeypatch.setattr(common, "git", failing)
         code, lines = publish(scripts, capsys, body)

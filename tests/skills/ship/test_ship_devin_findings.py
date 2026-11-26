@@ -7,6 +7,7 @@ push lock, and the Windows guard when PATHEXT omits ``.EXE``.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import subprocess
@@ -143,7 +144,7 @@ class TestCiVerdictRepository:
         _head(fakes, 42, url, repo)
         code, lines = _pipeline(scripts, capsys)
         assert code == 3
-        assert lines[-1] == "STOP: checks-query-failed PR 42 URL did not parse"
+        assert lines[-1].startswith("STOP: checks-query-failed PR 42 URL did not parse:")
         assert not fakes.calls("get_pr_checks")
 
 
@@ -288,7 +289,7 @@ class TestPushLock:
         assert code == 0
         fd = os.open(_lock_file(), os.O_RDWR)
         try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)  # raises if still held
         finally:
             os.close(fd)
 
@@ -337,6 +338,53 @@ class TestPushLock:
         assert code == 0, lines
         assert values(lines, "PUSH_LOCK") == ["unavailable"]
         assert not _lock_file().exists()
+        assert _remote_has_branch(tmp_path)
+
+    def test_a_hook_still_running_after_the_push_keeps_the_lock(self, owner, scripts, capsys):
+        """A push timeout kills git, not its hook tree, so the hook must hold the lock."""
+        repo, body = owner
+        hook = repo / ".git" / "hooks" / "pre-push"
+        hook.write_text("#!/bin/sh\n(sleep 3) </dev/null >/dev/null 2>&1 &\n", encoding="utf-8")
+        hook.chmod(0o755)
+        code, lines = publish(scripts, capsys, body)
+        assert code == 0, lines
+        fd = os.open(_lock_file(), os.O_RDWR)
+        try:
+            with pytest.raises(BlockingIOError):
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(fd, fcntl.LOCK_EX)  # the sleeper exits, then the lock frees
+        finally:
+            os.close(fd)
+
+    def test_a_failed_lock_call_pushes_without_the_lock(
+        self, owner, scripts, capsys, monkeypatch, tmp_path
+    ):
+        _repo, body = owner
+
+        class NoLocks:
+            LOCK_EX, LOCK_NB = fcntl.LOCK_EX, fcntl.LOCK_NB
+
+            @staticmethod
+            def flock(fd, op):
+                raise OSError(37, "No locks available")
+
+        monkeypatch.setattr(scripts[0]._paths, "_fcntl", NoLocks)
+        code, lines = publish(scripts, capsys, body)
+        assert code == 0, lines
+        assert values(lines, "PUSH_LOCK") == ["unavailable"]
+        assert _remote_has_branch(tmp_path)
+
+    @pytest.mark.parametrize("branch", ["main", "feat/a/b", "fix-x/y"])
+    def test_the_path_matches_the_commit_guard(self, scripts, monkeypatch, tmp_path, branch):
+        guard_path = Path(__file__).resolve().parents[3] / "scripts" / "validation"
+        spec = importlib.util.spec_from_file_location(
+            "push_lock_guard", guard_path / "check_push_lock_before_commit.py"
+        )
+        assert spec is not None and spec.loader is not None
+        guard = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(guard)
+        monkeypatch.setenv("HOME", str(tmp_path))
+        assert scripts[0]._paths.push_lock_path(branch) == guard.lock_path_for_branch(branch)
 
     def test_a_branch_slug_replaces_each_slash(self, scripts, monkeypatch, tmp_path):
         monkeypatch.setenv("HOME", str(tmp_path))
