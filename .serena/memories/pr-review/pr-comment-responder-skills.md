@@ -51,7 +51,7 @@ Counts read 2026-11-26 from `get_pr_review_threads.py --pull-request 7691 --incl
 
 - **ADR-038 WONTFIX**: the record is amended by reference to ADR-089, and the index row comes from its preserved Decision sentence.
 - **ADR-114 WONTFIX**: the 2026-11-05 amendment already makes the smoke advisory; retitling an accepted record is a separate decision.
-- **Resolved before replied**: all 5 threads were resolved about 10 seconds before any reply existed. See the learning below.
+- **Resolved before replied**: all 5 threads were resolved by 05:06:22Z, at least 13 seconds before the first reply posted at 05:06:35Z. See the learning below.
 
 ### PR #987 (2026-01-23)
 
@@ -681,13 +681,13 @@ This can be addressed in a follow-up PR focused on [specific improvement].
 
 **Observed** (session transcript, UTC):
 
-1. 05:06:13Z: every reply failed with `body file is group-writable outside an owner-only directory`. Every resolve printed `[PASS] Resolved thread`.
+1. Loop issued 05:06:13Z, output at 05:06:22Z: every reply failed with `body file is group-writable outside an owner-only directory`. Every resolve printed `[PASS] Resolved thread`.
 2. 05:06:33Z: `chmod 700` on `.project-toolkit/scratch/replies/` and `chmod 600` on its files, then the 5 replies posted (05:06:35Z to 05:06:44Z per the GitHub API).
 3. 05:06:53Z: GraphQL showed 5 resolved threads, each with 2 comments, last author `rjmurillo`.
 
-**Cause**: the umask is `0002` and `.project-toolkit/scratch/` is mode 775, so new files are 664 in an open directory. The reader refuses that pair (`scripts/github_core/body_file.py` lines 259 to 270, read 2026-11-26). Mode 600 on the file alone is accepted; so is a 664 file under a 700 directory.
+**Cause**: `umask` printed `0002` and `stat` showed `.project-toolkit/scratch/` at mode 775 in a fresh worktree on 2026-11-26. New files land as 664 in an open directory, and the reader refuses that pair (`scripts/github_core/body_file.py` lines 259 to 270). File details: [body-file-readers-refuse-open-directories-and-world-writable-files](../github-skill/body-file-readers-refuse-open-directories-and-world-writable-files.md).
 
-**Lesson**: gate each resolve on that reply's success, then confirm the reply exists before you report the thread done. Body-file details: [body-file-readers-refuse-open-directories-and-world-writable-files](../github-skill/body-file-readers-refuse-open-directories-and-world-writable-files.md).
+**Gap**: the skill's Anti-Patterns row already says "verify before resolve" (`SKILL.md` line 357, read 2026-11-26). The loop resolved on its own schedule, not on the reply's exit code, so that check never ran before the resolve.
 
 ## Next Session TODO
 
