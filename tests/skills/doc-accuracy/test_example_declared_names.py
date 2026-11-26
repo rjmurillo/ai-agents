@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import gc
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -182,22 +184,72 @@ def test_method_signature_claims_ignore_declared_names(tmp_path: Path) -> None:
     assert "Ghost" in by_symbol(data)
 
 
+# Linear work grows 4x when the input grows 4x; quadratic work grows 16x. The
+# geometric midpoint, 8, separates the two without depending on how fast or how
+# busy the runner is. CPU time (``time.process_time``) does not count time spent
+# waiting for a loaded CPU, and a tracer such as coverage multiplies both sides
+# by about the same factor, so the ratio cancels it. A wall-clock ceiling did
+# neither: issue 7662 saw 2.097 s against a 2.0 s limit with no regression.
+_GROWTH_FACTOR = 4
+_GROWTH_RATIO_LIMIT = 8.0
+_TRIES = 3
+
+
+def _cpu_seconds(run: Callable[[str], object], argument: str) -> float:
+    """CPU seconds for ``run(argument)``, with the collector drained and paused."""
+    gc.collect()
+    was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        started = time.process_time()
+        run(argument)
+        return time.process_time() - started
+    finally:
+        if was_enabled:
+            gc.enable()
+
+
+def _cpu_growth(run: Callable[[str], object], small: str, large: str) -> float:
+    """CPU time of ``run(large)`` over ``run(small)``, best of ``_TRIES`` each.
+
+    The minimum drops scheduler noise, which only ever adds time. The two
+    sides alternate so a slow stretch of the host hits both. A small run of
+    zero CPU time fails instead of making any workload pass or fail vacuously.
+    """
+    small_best = large_best = float("inf")
+    for _ in range(_TRIES):
+        small_best = min(small_best, _cpu_seconds(run, small))
+        large_best = min(large_best, _cpu_seconds(run, large))
+    assert small_best > 0.0, "the small input ran in zero CPU time; enlarge it"
+    return large_best / small_best
+
+
+def _assert_linear(run: Callable[[str], object], small: str, large: str) -> None:
+    ratio = _cpu_growth(run, small, large)
+    assert ratio < _GROWTH_RATIO_LIMIT, (
+        f"CPU time grew {ratio:.1f}x for {_GROWTH_FACTOR}x the input, "
+        f"limit {_GROWTH_RATIO_LIMIT:.0f}x (linear is about {_GROWTH_FACTOR}x)"
+    )
+
+
+# Each block takes a scale ``k``. The test runs k=1 and k=_GROWTH_FACTOR, and
+# the large block is the size this test has always used.
 @pytest.mark.parametrize(
-    ("lang", "code"),
+    ("lang", "block"),
     [
-        ("csharp", "public a b c\n" * 20000),
-        ("csharp", "public " * 20000),
-        ("csharp", "public a, " * 20000),
-        ("csharp", "public " + ", " * 40000),
-        ("csharp", "public a," + " " * 60000 + "!"),
-        ("csharp", "aaaa " * 20000),
-        ("typescript", "export " * 20000),
-        ("csharp", '"' + '\\"' * 20000 + "\\"),
-        ("csharp", '@"' + '""' * 20000),
-        ("csharp", '"""' * 20000),
-        ("csharp", '"' * 100000 + "a" + '"' * 99999 + "a"),
-        ("typescript", "`" + "\\`" * 20000 + "\\"),
-        ("python", "\n" * 40000 + "x"),
+        ("csharp", lambda k: "public a b c\n" * (5000 * k)),
+        ("csharp", lambda k: "public " * (5000 * k)),
+        ("csharp", lambda k: "public a, " * (5000 * k)),
+        ("csharp", lambda k: "public " + ", " * (10000 * k)),
+        ("csharp", lambda k: "public a," + " " * (15000 * k) + "!"),
+        ("csharp", lambda k: "aaaa " * (5000 * k)),
+        ("typescript", lambda k: "export " * (5000 * k)),
+        ("csharp", lambda k: '"' + '\\"' * (5000 * k) + "\\"),
+        ("csharp", lambda k: '@"' + '""' * (5000 * k)),
+        ("csharp", lambda k: '"""' * (5000 * k)),
+        ("csharp", lambda k: '"' * (25000 * k) + "a" + '"' * (25000 * k - 1) + "a"),
+        ("typescript", lambda k: "`" + "\\`" * (5000 * k) + "\\"),
+        ("python", lambda k: "\n" * (10000 * k) + "x"),
     ],
     ids=[
         "cs-modifiers",
@@ -215,13 +267,55 @@ def test_method_signature_claims_ignore_declared_names(tmp_path: Path) -> None:
         "py-blank-lines",
     ],
 )
-def test_declared_names_stays_linear_on_crafted_blocks(lang: str, code: str) -> None:
+def test_declared_names_stays_linear_on_crafted_blocks(
+    lang: str, block: Callable[[int], str]
+) -> None:
     """A PR-controlled block must not stall the gate (quadratic took 14s at 6000 lines)."""
-    start = time.perf_counter()
+    _assert_linear(lambda code: mod._declared_names(code, lang), block(1), block(_GROWTH_FACTOR))
 
-    mod._declared_names(code, lang)
 
-    assert time.perf_counter() - start < 2.0
+def _quadratic(code: str) -> int:
+    return sum(code.count(code[index]) for index in range(len(code)))
+
+
+def test_assert_linear_fails_a_quadratic_workload() -> None:
+    with pytest.raises(AssertionError, match="CPU time grew"):
+        _assert_linear(_quadratic, "ab" * 1000, "ab" * 1000 * _GROWTH_FACTOR)
+
+
+def test_assert_linear_fails_at_exactly_the_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setitem(globals(), "_cpu_growth", lambda *_: _GROWTH_RATIO_LIMIT)
+    with pytest.raises(AssertionError, match="CPU time grew 8.0x"):
+        _assert_linear(len, "a", "aaaa")
+
+
+def test_assert_linear_passes_just_under_the_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setitem(globals(), "_cpu_growth", lambda *_: _GROWTH_RATIO_LIMIT - 0.01)
+    _assert_linear(len, "a", "aaaa")
+
+
+def test_cpu_growth_refuses_a_small_run_too_fast_to_measure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(time, "process_time", lambda: 1.0)
+    with pytest.raises(AssertionError, match="zero CPU time"):
+        _cpu_growth(len, "a", "aaaa")
+
+
+def test_cpu_seconds_leaves_the_collector_as_it_found_it() -> None:
+    was_enabled = gc.isenabled()
+    try:
+        gc.enable()
+        _cpu_seconds(len, "a")
+        assert gc.isenabled()
+        gc.disable()
+        _cpu_seconds(len, "a")
+        assert not gc.isenabled()
+    finally:
+        if was_enabled:
+            gc.enable()
+        else:
+            gc.disable()
 
 
 def test_summary_and_markdown_reports_name_declared_skips(
