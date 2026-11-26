@@ -17,22 +17,39 @@ from skill_rewrite_context import EVIDENCE_ROOT, RETIRED_FILE, Context
 from skill_rewrite_skills import _SKILL_DIRS, PYTEST_FILE_GLOB, defines_test, is_collected_file
 
 
-def _freeze_findings(ctx: Context, name: str, scenario_path: str) -> list[str]:
+def _touches_surface(files: dict[str, str], name: str) -> bool:
+    """True when a commit's paths hold the skill's template or anything under its skill dirs."""
     template = f"templates/skills/{name}.SKILL.md.tmpl"
     dirs = tuple(f"{d.format(n=name)}/" for d in _SKILL_DIRS)
-    last_scenario = first_surface = None
-    for index, commit in enumerate(ctx.commits):
+    return any(f == template or f.startswith(dirs) for f in files)
+
+
+def _freeze_findings(ctx: Context, name: str, scenario_path: str) -> list[str]:
+    """Scenarios land before the skill changes and stay frozen, whatever the commit order.
+
+    Two invariants hold for every commit in ``merge_base..head``. No commit
+    changes the scenario file and the skill surface together. Every commit
+    that touches the surface holds the scenario blob that head holds, or
+    lacks the file exactly when head lacks it. A later edit fails the second;
+    so does a merge that restores an older corpus after the skill changed.
+    """
+    head_blobs = ctx.git.tree_blobs(ctx.head, scenario_path)
+    problems = []
+    for commit in ctx.commits:
         files = ctx.changes(commit)
+        if not _touches_surface(files, name):
+            continue
         if scenario_path in files:
-            last_scenario = index
-        if first_surface is None and any(f == template or f.startswith(dirs) for f in files):
-            first_surface = index
-    if last_scenario is not None and first_surface is not None and last_scenario >= first_surface:
-        return [
-            f"{scenario_path} changes in or after the first commit that touches the skill; "
-            "scenarios land in their own earlier commit and stay frozen"
-        ]
-    return []
+            problems.append(
+                f"{scenario_path} changes in the same commit as the skill ({commit[:10]}); "
+                "scenarios land in their own earlier commit and stay frozen"
+            )
+        elif ctx.git.tree_blobs(commit, scenario_path) != head_blobs:
+            problems.append(
+                f"{scenario_path} differs at {commit[:10]}, a commit that touches the skill; "
+                "scenarios must land before the skill changes and stay frozen"
+            )
+    return problems
 
 
 def scenario_rows(data: bytes) -> list[dict[str, Any]] | None:
