@@ -1,6 +1,6 @@
 """Behavior tests for ship_preflight.py with fake gh, az, and helpers.
 
-S8 in evals/skill-rewrites/ship/retired.json names a test in this file.
+S8 in evals/skill-rewrites/ship/retired.json, which #7582 adds, names a test in this file.
 """
 
 from __future__ import annotations

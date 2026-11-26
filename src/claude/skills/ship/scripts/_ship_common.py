@@ -24,6 +24,7 @@ import importlib.util
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -420,7 +421,7 @@ def run(
     timeout = min(timeout, remaining_seconds())
     try:
         done = subprocess.run(
-            argv,
+            _resolved(argv),
             cwd=str(cwd) if cwd is not None else None,
             input=stdin_text,
             capture_output=True,
@@ -441,6 +442,18 @@ def run(
     except subprocess.TimeoutExpired:
         return Completed(124, "", f"{argv[0]}: timed out after {timeout:g}s")
     return Completed(done.returncode, done.stdout or "", done.stderr or "")
+
+
+def _resolved(argv: list[str]) -> list[str]:
+    """On Windows, resolve a bare program name through PATHEXT (``az`` is ``az.cmd``).
+
+    Without a shell, CreateProcess finds only ``.exe`` files. Elsewhere, and
+    for a name with a path, ``argv`` is returned unchanged.
+    """
+    if os.name != "nt" or os.path.dirname(argv[0]):
+        return argv
+    found = shutil.which(argv[0])
+    return [found, *argv[1:]] if found else argv
 
 
 def git(args: list[str], cwd: Path | None = None, timeout: float = 60) -> Completed:

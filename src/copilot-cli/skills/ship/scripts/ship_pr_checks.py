@@ -151,7 +151,12 @@ def _check_paths(ctx: Context, body_file: Path, base: str, result: common.Result
     if files is None:
         _not_run(result, f"{shown} has no path validator")
         return None
-    with tempfile.TemporaryDirectory(prefix="ship-validator-") as directory:
+    try:
+        holder = tempfile.TemporaryDirectory(prefix="ship-validator-")
+    except OSError as exc:
+        _not_run(result, f"could not create a private directory ({exc.strerror or exc})")
+        return None
+    with holder as directory:
         tree = Path(directory)
         failure = _write_private_tree(ctx, ref, files, tree)
         if failure:

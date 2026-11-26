@@ -205,3 +205,59 @@ class TestEscapedNewlineRuleMatchesTheHelper:
         capsys.readouterr()
         ours = scripts[3].checks_mod.body_problem(body) == "body has an escaped newline"
         assert ours is helper_rejects
+
+
+class TestWindowsProgramResolution:
+    def test_a_bare_name_resolves_through_pathext_on_windows(self, scripts, monkeypatch):
+        common = scripts[0]
+        monkeypatch.setattr(common.os, "name", "nt")
+        monkeypatch.setattr(common.shutil, "which", lambda name: f"C:/Azure/{name}.cmd")
+        assert common._resolved(["az", "repos", "pr", "list"]) == [
+            "C:/Azure/az.cmd",
+            "repos",
+            "pr",
+            "list",
+        ]
+
+    def test_an_unfound_name_is_left_for_the_127_path(self, scripts, monkeypatch):
+        common = scripts[0]
+        monkeypatch.setattr(common.os, "name", "nt")
+        monkeypatch.setattr(common.shutil, "which", lambda name: None)
+        assert common._resolved(["az", "x"]) == ["az", "x"]
+
+    @pytest.mark.parametrize("name", ["posix", "nt"])
+    def test_a_path_or_a_posix_host_is_unchanged(self, scripts, monkeypatch, name):
+        common = scripts[0]
+        monkeypatch.setattr(common.os, "name", name)
+        monkeypatch.setattr(common.shutil, "which", lambda program: "/elsewhere/" + program)
+        argv = [sys.executable, "-I", "x.py"] if name == "nt" else ["az", "x"]
+        assert common._resolved(argv) == argv
+
+    def test_run_passes_the_resolved_program(self, scripts, monkeypatch, tmp_path):
+        common = scripts[0]
+        seen = []
+        monkeypatch.setattr(common, "_resolved", lambda argv: seen.append(argv) or argv)
+        common.run([sys.executable, "-c", "pass"], cwd=tmp_path)
+        assert seen == [[sys.executable, "-c", "pass"]]
+
+
+class TestPrivateDirectoryFailure:
+    def test_a_temp_dir_failure_is_not_run(
+        self, owner, base_validator, scripts, capsys, monkeypatch
+    ):
+        repo, body = owner
+        base_validator(repo, VALIDATOR_PASS)
+        checks = scripts[3].checks_mod
+
+        def refuse(*args, **kwargs):
+            raise PermissionError(13, "Permission denied")
+
+        monkeypatch.setattr(checks.tempfile, "TemporaryDirectory", refuse)
+        code, lines = run_pr(
+            scripts, capsys, "check", "--title", "feat(ship): x", "--body-file", str(body)
+        )
+        assert code == 0
+        assert values(lines, "CHECK")[-1].startswith(
+            "paths=NOT-RUN could not create a private directory (Permission denied)"
+        )
+        assert lines[-1] == "NEXT: compare-paths-by-hand"

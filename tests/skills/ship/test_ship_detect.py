@@ -1,6 +1,7 @@
 """Behavior tests for ship_detect.py with fake gh and az on PATH.
 
-S1 to S7 in evals/skill-rewrites/ship/retired.json name tests in this file.
+S1 to S7 in evals/skill-rewrites/ship/retired.json, which #7582 adds, name tests in
+this file.
 """
 
 from __future__ import annotations
