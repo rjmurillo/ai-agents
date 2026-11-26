@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import pytest
 
+from scripts.validation import run_workflow_local_test as w
 from tests.lib.act_smoke_payload import (
     _CHECKOUT_BY_JOB,
     _DECIDE,
@@ -23,7 +24,6 @@ from tests.lib.act_smoke_payload import (
     _git_annotation,
     _hint,
     _workflow,
-    w,
 )
 
 

@@ -11,6 +11,7 @@ from __future__ import annotations
 import pytest
 import yaml
 
+from scripts.validation import run_workflow_local_test as w
 from tests.lib.act_smoke_payload import (
     _DECIDE,
     _EVENT,
@@ -31,7 +32,6 @@ from tests.lib.act_smoke_payload import (
     _git_annotation,
     _hint,
     _workflow,
-    w,
 )
 
 
