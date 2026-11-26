@@ -45,7 +45,9 @@ def process(request: pytest.FixtureRequest) -> str:
 
 
 def test_process_names_the_target_branch_before_step_1(process: str) -> None:
-    preamble = process[: _ITEM_RE.search(process).start()]
+    first_step = _ITEM_RE.search(process)
+    assert first_step, "Process has no numbered steps"
+    preamble = process[: first_step.start()]
     assert "`<target>`" in preamble
     assert "default branch" in preamble
 
