@@ -157,7 +157,7 @@ The spike found where the upstream design fails on this repo's sessions. Each go
 - Copilot block loop: `stop_hook_active` is unreliable, so the hook records each blocked claim's digest. A second stop with the same claim finds the digest and passes.
 - Marker file unwritable: the hook does not block, because it cannot guarantee one block per claim. It logs one stderr line.
 - Unmeasured kinds: `build`, `deployed`, and `url` did not appear in the spike tally. A kind with fewer than 10 judged stamps in the release sample ships as `no receipt` only on Copilot and is listed as unmeasured in the skill page.
-- Overlapping Stop events: the hook is stateless, so both emit the same stamps.
+- Overlapping Stop events: on Claude Code the hook keeps no state, so both emit the same stamps. On Copilot CLI both stops read one block marker, and Open questions lists that case.
 
 ## Security
 
@@ -170,7 +170,7 @@ The spike found where the upstream design fails on this repo's sessions. Each go
 ## Observability
 
 - What proves it works: the labeled eval fixtures reproduce their expected stamps exactly, and the timing test stays under budget.
-- Runtime signal: one stderr line on every skip path (off, no transcript, budget, error), as the reflect nudge does.
+- Runtime signal: one stderr line on each skip path (no transcript, budget, error, marker failure), as the reflect nudge does. The off switch prints nothing and exits before any read (AC-9).
 - No metrics or alerts, because the hook is local.
 
 ## Acceptance criteria
@@ -253,6 +253,9 @@ Spec work that must land here before the build slice starts:
 - A definition of normalized claim values, with a digest rule for kinds that carry no value.
 - Acceptance criteria for ADR-128 Decisions 4 and 6.
 - The block reason text, and a count of blocks that change the reply.
+- The Copilot behavior when two stops overlap and both read the block marker before either writes it. AC-28 covers sequential stops only.
+- A stated firing bound for the Claude Code registration. AC-1 allows one `systemMessage` per Stop event. The owner judges whether that meets ADR-084 condition g.
+- A signal after release that shows the hook still earns its place, with a review date.
 
 ## CVA summary
 
