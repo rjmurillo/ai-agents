@@ -117,8 +117,8 @@ durable competitive surface and everything else is plumbing.
   activation, citation, and behavior scores (1 to 5), with `--dry-run` as the
   zero-spend validation path and ADR-035 exit codes.
 - A measured failure baseline to beat: FM-1 (Context Reading Failure) recorded
-  95.8% session-start non-compliance in a sampled period
-  (`.agents/governance/FAILURE-MODES.md:47`).
+  95.8% Session End protocol failure (23 of 24 sessions) in a sampled period
+  (`.agents/governance/FAILURE-MODES.md:48`).
 
 ### First three steps
 
@@ -268,7 +268,7 @@ Sources and re-verification:
 - ADR-072 status, review verdict, five conditions, harness list: `.project-toolkit/architecture/ADR-072-jtbd-plugin-architecture.md`. Re-verify: `sed -n '1,25p;119,131p' .project-toolkit/architecture/ADR-072-jtbd-plugin-architecture.md`.
 - ADR-068 status and measurements (3/197 kills, ~246 ms cold start, 40 shims): `.project-toolkit/architecture/ADR-068-consolidated-hook-dispatcher.md`. Re-verify: `sed -n '1,10p' .project-toolkit/architecture/ADR-068-consolidated-hook-dispatcher.md; grep -n -A1 -e "Three of" -e "246" -e "N=40" .project-toolkit/architecture/ADR-068-consolidated-hook-dispatcher.md`.
 - Rule-activation eval mechanisms, judge dimensions, exit codes: `scripts/eval/eval-rule-activation.py` docstring. Re-verify: `sed -n '1,40p' scripts/eval/eval-rule-activation.py`.
-- FM-1 95.8% evidence: `.agents/governance/FAILURE-MODES.md:47`. Re-verify: `grep -n "95.8" .agents/governance/FAILURE-MODES.md`.
+- FM-1 95.8% evidence: `.agents/governance/FAILURE-MODES.md:48`. Re-verify: `grep -n "95.8" .agents/governance/FAILURE-MODES.md`.
 - Detect-Log-Graduate and explicit retrieval: the `reflect` skill, `.claude/skills/memory/SKILL.md`, and `.claude/skills/memory-search/SKILL.md`. Re-verify the deleted advisory hooks' absence with `ls .claude/hooks/PreToolUse/`.
 - Retired EVENT telemetry and guard classifier: see `references/program3-self-improving-loop.md`.
 - Runtime contract test and anchoring validator: `tests/build_scripts/test_generate_hooks_runtime_contract.py`, `scripts/validation/validate_hook_anchoring.py`. Re-verify: `ls tests/build_scripts/test_generate_hooks_runtime_contract.py scripts/validation/validate_hook_anchoring.py`.

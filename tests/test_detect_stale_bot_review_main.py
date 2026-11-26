@@ -85,7 +85,10 @@ class TestMain:
         envelope = json.loads(capsys.readouterr().out)
         assert envelope["Success"] is True
         assert envelope["Data"]["verdict"] == "DISMISSAL_HANDOFF"
-        assert "reviews/100/dismissals" in envelope["Data"]["handoff"]
+        assert (
+            "dismiss_pr_review.py" in envelope["Data"]["handoff"]
+            and "--review-id 100" in envelope["Data"]["handoff"]
+        )
         assert sorted(calls) == [
             "get_pr_checks.py",
             "get_pr_context.py",
@@ -165,7 +168,7 @@ class TestMain:
         assert _run_main(fake) == 0
         data = json.loads(capsys.readouterr().out)["Data"]
         assert data["verdict"] == "DISMISSAL_HANDOFF"
-        assert "reviews/100/dismissals" in data["handoff"]
+        assert "dismiss_pr_review.py" in data["handoff"] and "--review-id 100" in data["handoff"]
         assert "required CI checks pass" in data["handoff"]
         assert "CI is green" not in data["handoff"]
 
@@ -284,7 +287,7 @@ class TestMain:
         rereview = _review(101, CODERABBIT, "COMMENTED", HEAD, "2026-09-02T00:00:00Z")
         fake = _siblings(_pr(), (0, _checks()), [_stale_cr(), rereview], [])
         assert _run_main(fake, ["--pull-request", "7", "--output-format", "human"]) == 0
-        assert "gh api -X PUT" in capsys.readouterr().out
+        assert "dismiss_pr_review.py" in capsys.readouterr().out
 
 
 class TestRunSibling:

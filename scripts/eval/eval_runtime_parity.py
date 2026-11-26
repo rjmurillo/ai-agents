@@ -433,8 +433,9 @@ def _fixture_env(workspace: Path, harness: str, executable: str) -> dict[str, st
     """Build a fixture's environment and give an isolated Claude run a login.
 
     `runtime_env` stays login-free because capability probes share it. A parity
-    fixture is a deliberate live run, so it resolves the credential the same
-    way the `claude-cli` grader does. The token travels as an environment
+    fixture is a deliberate live run, so it resolves the credential the way the
+    `claude-cli` grader does, minus the gateway step: it needs a token to
+    inject, and a gateway gives none. The token travels as an environment
     variable under the empty profile, which keeps `~/.claude` instructions out
     of the run. No credential file is copied or linked. A login the empty
     profile cannot reach raises `IsolatedLoginError`; `main` checks this first.

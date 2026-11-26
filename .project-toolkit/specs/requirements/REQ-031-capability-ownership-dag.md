@@ -221,7 +221,7 @@ Invariants:
 
 The validator reads the canonical `templates/` trees through the existing
 frontmatter parsing in `scripts/validation/`. It registers as one gate in the
-`_SEQUENCE` table at `scripts/validation/pre_pr_sequence.py:317`. It writes no
+`_SEQUENCE` table at `scripts/validation/pre_pr_sequence.py:320`. It writes no
 file during validation. Failure mode on a malformed YAML header is a named
 parse error against the file path, never a silent skip.
 
@@ -285,7 +285,9 @@ Numbered, in EARS syntax, each independently pass or fail.
     byte-identical.
 11. WHEN a node declares `depends-on` naming a capability whose owner's text it
     repeats for three or more consecutive lines totalling 120 characters or
-    more, THE validator SHALL exit non-zero and name both files.
+    more, THE validator SHALL exit non-zero and name both files. The owner's
+    text includes any partial that two or more of the capability's dependents
+    include (ADR-110 section 7, amended 2026-11-25 for issue #7641).
 12. WHERE a node declares `status: sunset` or `status: deprecated` without
     `replaced-by` and without both `replacement-platform` and
     `replacement-owner`, THE validator SHALL exit non-zero.

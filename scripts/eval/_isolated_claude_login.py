@@ -9,6 +9,7 @@ the run. No credential file is copied or linked.
 
 from __future__ import annotations
 
+import dataclasses
 import os
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -45,6 +46,12 @@ _NO_ISOLATED_LOGIN = (
     "an isolated Claude run needs a token, but the stored login has none. "
     "Run `claude setup-token` and export CLAUDE_CODE_OAUTH_TOKEN, or pass --real-home."
 )
+_NO_ISOLATED_CREDENTIAL = (
+    "an isolated Claude run found no token to inject. It tried "
+    "CLAUDE_CODE_OAUTH_TOKEN, a dotenv file, and the stored login. It does not "
+    "use a gateway (ANTHROPIC_BASE_URL plus ANTHROPIC_AUTH_TOKEN). Run "
+    "`claude setup-token` and export CLAUDE_CODE_OAUTH_TOKEN, or pass --real-home."
+)
 _API_KEY_ENV = "ANTHROPIC_API_KEY"
 
 
@@ -58,7 +65,15 @@ def add_claude_login(env: dict[str, str], executable: str) -> None:
     Blank credential variables are dropped first. An exported key or token wins
     over the stored login and is left alone.
     """
-    spec = _claude_cli.CREDENTIAL_SPEC
+    # These runners build their own child env and inject one token, so the
+    # gateway step (no token to inject) is left out. A separate transport key
+    # keeps this lookup from sharing the claude-cli grader's cached step.
+    spec = dataclasses.replace(
+        _claude_cli.CREDENTIAL_SPEC,
+        transport="claude-cli-isolated",
+        preempt=None,
+        missing_message=_NO_ISOLATED_CREDENTIAL,
+    )
     for name in (_API_KEY_ENV, spec.inject_env):
         if name in env and not env[name].strip():
             del env[name]

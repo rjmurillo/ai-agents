@@ -86,7 +86,7 @@ def _report_model_id_matches(report_value: object, entry_value: object) -> bool:
     Shared by the ``winner``-vs-``model`` and ``default_model``-vs-
     ``default_model`` legs of ``_sweep_report_satisfies_rule2``; split out
     so that function stays under the cyclomatic-complexity ceiling
-    (``.claude/rules/code-quality.md``: methods <= complexity 10).
+    (``src/claude/skills/build/references/rule-code-quality.md``: methods <= complexity 10).
     """
     if not isinstance(report_value, str):
         return False

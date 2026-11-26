@@ -1,12 +1,12 @@
 ---
 id: ADR-110
-status: proposed
-date: 2026-09-22
+status: accepted
+date: 2026-11-25
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
 explainer: null
-implemented: false
+implemented: true
 review-by: 2027-03-22
 ---
 
@@ -14,10 +14,14 @@ review-by: 2027-03-22
 
 ## Status
 
-Proposed. The record defines where capability ownership is declared and what a
-gate may refuse. The gate ships with it and finds nothing yet, because no
-artifact declares a capability block until TASK-040 Milestone 3 converts the
-first policy.
+Accepted 2026-11-25 by six-seat adr-review consensus, recorded in
+`.project-toolkit/critique/ADR-110-debate-log-2.md`. The record defines where
+capability ownership is declared and what a gate may refuse. TASK-040 shipped
+all five milestones in PRs #5879, #5881, and #5885, merged 2026-09-22 and
+2026-09-23. Milestone 3 converted `untrusted-content-handling` to one owner and
+two canonical partials. On 2026-11-25 the gate reads 50 canonical nodes and 16
+edges at `0b31dc034`. The issue #7641 change makes it refuse a dependent that
+pastes the converted policy back in.
 
 ## Evidence labels
 
@@ -175,6 +179,26 @@ universal.md from the former `security` rule, which first held it (now at
 - `tests/validation/test_untrusted_content_partial_parity.py` asserts
   `_SKILL_PARTIAL.read_bytes() == _AGENT_PARTIAL.read_bytes()`
 
+**Amended 2026-11-25, issue #7641:** the copied-block check (the seventh check
+in `scripts/validation/check_capability_graph.py`) first compared a dependent
+only with the owner file. Under this section the owner file holds the one-line
+MUST, and the policy text lives in the partial, so a dependent that pasted the
+partial's paragraph passed. The check now also compares a dependent with any
+partial that two or more of the capability's dependents include. The gate finds
+that partial by following `{{> slug}}` includes, so it keeps no
+capability-to-path map. A partial only one dependent includes is not counted:
+`research` also includes `no-dashes`, which serves another policy. A
+`templates/agents/*.shared.md` body is not compared with partial text.
+`build/generate_agents.py` reads it without expansion, so the four approved
+residue copies carry the text verbatim.
+`tests/validation/test_untrusted_content_partial_parity.py` pins those four by
+name, so a fifth copy fails there instead.
+
+Residual risk, accepted: a capability with fewer than two including
+dependents gets no partial comparison. A reflowed or reworded paste also
+evades the check, because it matches three identical contiguous lines. The
+gate guards against drift by copy. It is not an injection control.
+
 The paths live here rather than in the rule because the rule ships to installs
 that do not have the `templates/` tree, and a rule naming a path its reader
 cannot open is dead weight there.
@@ -267,7 +291,7 @@ and the deterministic report pays it back in one command.
 ## Implementation Notes
 
 REQ-031, DESIGN-029, and TASK-040 carry the schema, the component design, and
-the three-milestone sequence. The first conversion is the untrusted-content
+the five-milestone sequence. The first conversion is the untrusted-content
 policy: 13 authored locations to one canonical owner in the former `security` rule,
 with each consumer keeping a one-line MUST. **Amended 2026-11-24:** that rule left
 `templates/rules/` and became the skill reference
