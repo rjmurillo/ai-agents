@@ -94,6 +94,14 @@ def inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> list[str]:
     return ["prog", "--before", str(before), "--after", str(after), "--scenarios", str(scenarios)]
 
 
+def _symlink_or_skip(link: Path, target: Path) -> None:
+    """Create *link*, or skip where the platform refuses symlinks."""
+    try:
+        link.symlink_to(target)
+    except (OSError, NotImplementedError) as exc:
+        pytest.skip(f"symlinks unavailable here: {exc}")
+
+
 def _run(monkeypatch: pytest.MonkeyPatch, argv: list[str]) -> int:
     monkeypatch.setattr(sys, "argv", argv)
     with pytest.raises(SystemExit) as exc:
@@ -282,7 +290,7 @@ class TestUnwritableOutputFailsBeforeAnyCall:
         blocker = tmp_path / "blocker"
         blocker.write_text("not a folder", encoding="utf-8")
         link = tmp_path / "results.json"
-        link.symlink_to(blocker / "real.json")
+        _symlink_or_skip(link, blocker / "real.json")
         argv = [*inputs, "--output", str(link), *(["--dry-run"] if dry_run else [])]
 
         assert _run(monkeypatch, argv) == 2
@@ -307,7 +315,7 @@ class TestSymlinkedOutput:
     ) -> None:
         destination = tmp_path / "elsewhere" / "deep" / "real.json"
         link = tmp_path / "results.json"
-        link.symlink_to(destination)
+        _symlink_or_skip(link, destination)
         assert not (tmp_path / "elsewhere").exists()
 
         assert _run(monkeypatch, [*inputs, "--output", str(link)]) == 0
@@ -321,7 +329,7 @@ class TestSymlinkedOutput:
         destination = tmp_path / "real.json"
         destination.write_text("stale", encoding="utf-8")
         link = tmp_path / "results.json"
-        link.symlink_to(destination)
+        _symlink_or_skip(link, destination)
 
         assert _run(monkeypatch, [*inputs, "--output", str(link)]) == 0
 
