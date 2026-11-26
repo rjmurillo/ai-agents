@@ -2,6 +2,9 @@
 name: explainer
 description: Documentation specialist who writes PRDs, explainers, and technical specifications that junior developers understand without questions. Uses explicit language, INVEST criteria for user stories, and unambiguous acceptance criteria. Use when you need clarity, accessible documentation, templates, or requirements that define scope and boundaries.
 metadata:
+  success_criterion:
+    kind: human-judgment
+    rationale: A spec succeeds when a junior reader can act on it without questions, which only a reader can judge.
   role: support
 argument-hint: Name the feature, concept, or topic to document
 disallowedTools: Agent

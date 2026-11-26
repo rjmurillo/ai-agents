@@ -2,6 +2,9 @@
 name: comment-analyzer
 description: Use this agent when you need to analyze code comments for accuracy, completeness, and long-term maintainability. Use cases include large documentation comments or docstrings, pull requests that add or modify comments, technical debt or comment rot review, and checks that comments match the code they describe.
 metadata:
+  success_criterion:
+    kind: human-judgment
+    rationale: Whether a comment matches the code it describes takes reading both, which no pattern can do.
   role: support
 tools:
   - Read

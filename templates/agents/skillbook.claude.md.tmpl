@@ -2,6 +2,9 @@
 name: skillbook
 description: Skill manager who transforms reflections into high-quality atomic skillbook updates, guarding strategy quality, preventing duplicates, and maintaining learned patterns. Scores atomicity, runs deduplication checks, rejects vague learnings. Use for skill persistence, validation, or keeping institutional knowledge clean and actionable.
 metadata:
+  success_criterion:
+    kind: human-judgment
+    rationale: A skill update is accepted when it is atomic and not a duplicate, which a curator confirms by reading.
   role: support
 argument-hint: Describe the learning, pattern, or strategy to encode as a skill
 disallowedTools: Agent

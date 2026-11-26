@@ -1,6 +1,6 @@
 # orchestrator agent
 
-The `orchestrator` agent coordinates specialist agents end to end. It classifies a task, routes it to the right agents, manages handoffs, and hands back one synthesized result. It does not implement, design, or review.
+The `orchestrator` agent coordinates specialist agents end to end. It classifies a task, routes it to the right agents, sequences handoffs, and hands back one synthesized result. It does not implement, design, or review.
 
 ## When to use it
 

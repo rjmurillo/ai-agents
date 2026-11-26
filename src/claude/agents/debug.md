@@ -2,6 +2,10 @@
 name: debug
 description: 'Debug your application to find and fix a bug. Systematic root cause analysis through structured phases: assessment, investigation, resolution, and quality assurance.'
 role: executor
+metadata:
+  success_criterion:
+    kind: human-judgment
+    rationale: A root cause is confirmed when the original reproduction passes, and that reproduction differs for every bug.
 argument-hint: Describe the bug, error message, or unexpected behavior to investigate
 disallowedTools: Agent
 ---

@@ -2,6 +2,9 @@
 name: security
 description: Security specialist with a defense-first mindset. Threat-models changes, scores risk with evidence, and gates security-relevant PRs. Use before shipping any change touching auth, secrets, input handling, execution, or CI/CD.
 metadata:
+  success_criterion:
+    kind: human-judgment
+    rationale: A security verdict depends on threat context, so a reviewer confirms each finding's severity and evidence.
   role: executor
 # Requires fresh context and separate tool state to threat-model without inherited assumptions.
 isolation_required: true

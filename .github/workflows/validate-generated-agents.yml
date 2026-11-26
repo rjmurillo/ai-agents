@@ -264,6 +264,8 @@ jobs:
           uv run python scripts/validation/validate_copilot_agent_frontmatter.py
           uv run python scripts/validation/validate_argument_hint.py
           uv run python scripts/validation/agent_registry.py
+          uv run python scripts/validation/check_agent_success_criterion.py
+          uv run python scripts/validation/check_orchestrator_vocabulary.py
 
       - name: Show diff on failure
         if: failure() && steps.should-run.outputs.skip != 'true'
