@@ -195,7 +195,8 @@ def missing_outcomes(
     A validator counts as present when it has a bound ``PASS`` that examined at
     least one item, or a bound record that already yields a finding. A ``PASS``
     that examined nothing (zero, or no count) proves nothing, which
-    ``.claude/rules/ci-scripts.md`` MUST 12 names as the silent pass.
+    ``.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`` MUST 12 names as
+    the silent pass.
 
     A ``SKIP`` with ``policy.exempt`` counts as present and is no finding. The
     evidence directory holds one only when the fetch step verified it (see
