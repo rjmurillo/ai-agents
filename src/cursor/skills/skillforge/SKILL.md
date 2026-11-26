@@ -233,30 +233,28 @@ and [references/specification-template.md](references/specification-template.md)
 
 ## Phase 3: Generation
 
-Generate the skill directory in this order: structure, `SKILL.md`, references,
-assets, then any scripts and docs page. Keep `SKILL.md` concise; move deep detail into
-reference files. Choose map, GPS, or
-hybrid design with the Design Selection section of the script integration
-framework. Record that choice in the generated skill only where it changes the
-workflow. Reuse an existing tool before adding a script.
-
 Read [references/skill-content-rules.md](references/skill-content-rules.md)
-before you write or review a `SKILL.md` body or `description`, and for
-per-host native tool names. It owns the
-content rules and the description rules that `skillify` and `skillopt` cite.
+before writing or reviewing `SKILL.md`. It owns content, description, and
+native tool rules. Create the directory structure, then draft `SKILL.md`.
+
+### Placement Check
+
+For a new skill or an edit that adds or moves standing knowledge, run
+`context-optimizer` placement analysis on the whole `SKILL.md` draft before
+moving detail to `references/`. Weigh planned or existing script actions,
+then follow a Passive Context or Hybrid result. Mechanics-only edits
+(scripts, tests, wording) skip the check.
+
+After the check, keep `SKILL.md` concise. Write references, assets, scripts,
+and the docs page in that order. Choose map, GPS, or hybrid design with the
+Design Selection section of the script integration framework. Record that choice
+in the generated skill only where it changes the workflow. Reuse an existing
+tool before adding a script.
 
 See [references/phase3-generation-deep-dive.md](references/phase3-generation-deep-dive.md),
 [references/output-structure.md](references/output-structure.md),
 [references/script-integration-framework.md](references/script-integration-framework.md),
 and [references/script-patterns-catalog.md](references/script-patterns-catalog.md).
-
-### Placement Check
-
-Before a new skill lands or an edit adds or moves standing knowledge,
-run `context-optimizer` placement analysis on the draft SKILL.md to
-place its knowledge (facts, rules, reference material). Weigh script
-actions, then follow a Passive Context or Hybrid result.
-Mechanics-only edits (scripts, tests, wording) skip it.
 
 ---
 

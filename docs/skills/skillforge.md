@@ -56,7 +56,7 @@ A change to a safety control, a permission boundary, a shipped default, or anyth
 
 **Phases.** Triage, analysis, specification, generation, then a synthesis panel of 3 to 4 independent evaluators who must all approve (required at the Full tier and for consequential changes). The skill scores timelessness and requires 7 or more at Standard and Full tiers.
 
-**Placement check.** Before a new skill lands, and when an edit adds or moves standing knowledge, the skill runs [`context-optimizer`](context-optimizer.md) placement analysis on the draft `SKILL.md` to place its knowledge content. The analyzer reads `SKILL.md` only, so the skill weighs actions in `scripts/` before it follows a passive-context or hybrid placement. Mechanics-only edits (scripts, tests, wording) skip it.
+**Placement check.** A new skill or an edit that adds or moves standing knowledge triggers this check. The skill runs [`context-optimizer`](context-optimizer.md) on the whole `SKILL.md` draft before moving detail to `references/`. The analyzer reads only `SKILL.md`. The skill weighs planned or existing script actions before following a Passive Context or Hybrid result. Mechanics-only edits (scripts, tests, wording) skip it.
 
 **External skill catalogs.** To adapt a third-party skill source, it requires a commit-pinned source, reuses local skills over duplicating, and rejects skills coupled to one product.
 
