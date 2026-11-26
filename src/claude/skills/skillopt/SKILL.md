@@ -76,8 +76,8 @@ reproduce its reported gains.
    independent. Replacement holdouts written by the same agent are still
    exposed.
 5. **Right container.** For a skill, run `context-optimizer`
-   placement analysis on its knowledge before any rollout budget. If it
-   belongs in passive context, stop and report it. Never in the loop or gates.
+   placement analysis on the whole skill before any rollout budget. On a
+   Passive Context result, stop and report it. Never in the loop or gates.
 
 Freeze the `train` and `sel` task lists before authoring any candidate. Keep
 `sel` prompts, verifiers, and outcomes away from the candidate author for the
