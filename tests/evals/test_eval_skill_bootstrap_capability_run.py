@@ -92,7 +92,9 @@ def test_run_writes_jsonl_that_loads_and_scores(tmp_path, checkout, monkeypatch,
     tasks_file = _write_tasks(tmp_path, TASKS)
     by_prompt = {t["prompt"]: t for t in TASKS["tasks"]}
 
-    def fake_run_one(path: Path, prompt: str, model: str) -> dict[str, Any]:
+    def fake_run_one(
+        path: Path, prompt: str, model: str, extra_tools: tuple[str, ...] = ()
+    ) -> dict[str, Any]:
         task = by_prompt[prompt.rsplit("\n\n", 1)[1]]
         return {
             "result": _fake_answer(task),
@@ -166,6 +168,86 @@ def test_checkout_without_skill_exits_2(tmp_path, monkeypatch):
 
     assert code == 2
     assert not out.exists()
+
+
+def _ok() -> dict[str, Any]:
+    return {
+        "result": "",
+        "is_error": False,
+        "num_turns": 1,
+        "cost_usd": 0.0,
+        "output_tokens": 1,
+        "wall_s": 1.0,
+    }
+
+
+def test_named_skill_is_required_and_its_tools_reach_run_one(tmp_path, monkeypatch):
+    monkeypatch.setattr(cap.shutil, "which", lambda name: "/bin/claude")
+    _head(monkeypatch, "h")
+    root = tmp_path / "co"
+    (root / ".claude" / "skills" / "chestertons-fence").mkdir(parents=True)
+    (root / ".claude" / "skills" / "chestertons-fence" / "SKILL.md").write_text("x")
+    tool = "Bash(git blame:*)"
+    data = {**TASKS, "skill": "chestertons-fence", "allowed_tools": [tool]}
+    seen: list[tuple[str, ...]] = []
+
+    def fake(path: Path, prompt: str, model: str, extra: tuple[str, ...] = ()) -> dict[str, Any]:
+        seen.append(extra)
+        return _ok()
+
+    monkeypatch.setattr(cap, "run_one", fake)
+
+    code = _run(["--task", "A"], _write_tasks(tmp_path, data), root, tmp_path / "o.jsonl", "before")
+
+    assert code == 0
+    assert seen == [(tool,)] * REPS
+
+
+def test_checkout_without_the_named_skill_exits_2(tmp_path, checkout, monkeypatch, capsys):
+    monkeypatch.setattr(cap, "run_one", lambda *a: pytest.fail("run_one must not be called"))
+    data = {**TASKS, "skill": "chestertons-fence"}
+    out = tmp_path / "o.jsonl"
+
+    code = _run([], _write_tasks(tmp_path, data), checkout, out, "before")
+
+    assert code == 2
+    assert "carries no chestertons-fence" in capsys.readouterr().err
+    assert not out.exists()
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"skill": "Bad_Name"},
+        {"skill": "../x"},
+        {"allowed_tools": "Read"},
+        {"allowed_tools": [""]},
+        {"allowed_tools": ["Write"]},
+        {"allowed_tools": ["Edit(src/**)"]},
+    ],
+)
+def test_bad_skill_or_tool_grant_exits_2_before_any_run(tmp_path, checkout, monkeypatch, extra):
+    monkeypatch.setattr(cap, "run_one", lambda *a: pytest.fail("run_one must not be called"))
+
+    code = _run([], _write_tasks(tmp_path, {**TASKS, **extra}), checkout, tmp_path / "o", "before")
+
+    assert code == 2
+
+
+def test_run_one_grants_extra_tools_and_still_denies_writes(monkeypatch, tmp_path):
+    seen: dict[str, list[str]] = {}
+
+    def popen(command, **kwargs):
+        seen["argv"] = command
+        raise OSError("stop")
+
+    monkeypatch.setattr(cap.subprocess, "Popen", popen)
+    with pytest.raises(OSError):
+        cap.run_one(tmp_path, "p", "m", ("Bash(git blame:*)",))
+    argv = seen["argv"]
+    deny = argv.index("--disallowedTools")
+    assert argv.index("Bash(git blame:*)") < deny
+    assert {"Edit", "Write", "NotebookEdit"} <= set(argv[deny:])
 
 
 def test_head_failure_exits_3_before_opening_out(tmp_path, checkout, monkeypatch, capsys):

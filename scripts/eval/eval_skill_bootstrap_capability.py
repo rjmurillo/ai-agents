@@ -19,6 +19,10 @@ Usage:
 `run` compares the checkout HEAD with the tasks file `base_commit`, where the gold
 was derived, and warns on stderr when they differ.
 
+A tasks file may name another skill with `skill` (default `skill-bootstrap`) and
+grant it more read-only tools with `allowed_tools`, so one runner serves the
+before/after eval of any skill that answers questions about this repository.
+
 Exit codes:
     0 ok
     1 logic (a CLI error in any cell; means would compare unequal samples)
@@ -50,6 +54,8 @@ GIT_TIMEOUT_S = 30
 STDERR_TAIL_CHARS = 2000
 GRADER_KINDS = ("pairs_f1", "set_f1_prefix", "set_f1")
 BASE_COMMIT_RE = re.compile(r"[0-9a-f]{40}")
+DEFAULT_SKILL = "skill-bootstrap"
+SKILL_NAME_RE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 # Deny flags the prefix grants accept: --allow-commands runs repo argv; the rest write
 # files. Claude Code 2.1.302 probe (2026-10-17): drift rule refuses; without it, runs.
 _SCRIPT_DIR = "python3 .claude/skills/skill-bootstrap/scripts"
@@ -84,6 +90,7 @@ READ_ONLY_TOOLS = (
     "Bash(git diff-tree:*)",
     *(f"Bash({_SCRIPT_DIR}/{name}.py:*)" for name in _SKILL_SCRIPTS),
 )
+WRITE_TOOLS = ("Edit", "Write", "NotebookEdit")
 CONDITIONS = ("before", "after")
 # Each fenced block ends at the next fence without consuming it, so an unterminated
 # draft block cannot swallow the opening fence of the final block.
@@ -119,6 +126,14 @@ def load_tasks(path: Path) -> dict[str, Any]:
     base = data.get("base_commit")
     if base is not None and not (isinstance(base, str) and BASE_COMMIT_RE.fullmatch(base)):
         raise ValueError(f"{path}: 'base_commit' must be a 40-character lowercase hex SHA")
+    skill = data.get("skill", DEFAULT_SKILL)
+    if not (isinstance(skill, str) and SKILL_NAME_RE.fullmatch(skill)):
+        raise ValueError(f"{path}: 'skill' must be a lowercase hyphenated skill name")
+    extra = data.get("allowed_tools", [])
+    if not (isinstance(extra, list) and all(isinstance(t, str) and t.strip() for t in extra)):
+        raise ValueError(f"{path}: 'allowed_tools' must be a list of non-empty strings")
+    if any(t.split("(", 1)[0] in WRITE_TOOLS for t in extra):
+        raise ValueError(f"{path}: 'allowed_tools' must not grant {', '.join(WRITE_TOOLS)}")
     seen: set[str] = set()
     for task in data["tasks"]:
         _check_task(path, task, seen)
@@ -226,7 +241,9 @@ def _kill_group(child: subprocess.Popen[str]) -> None:
         pass  # a process outside the group still holds the pipes; leave it
 
 
-def run_one(checkout: Path, prompt: str, model: str) -> dict[str, Any]:
+def run_one(
+    checkout: Path, prompt: str, model: str, extra_tools: tuple[str, ...] = ()
+) -> dict[str, Any]:
     started = time.monotonic()
     command = [
         "claude",
@@ -238,10 +255,9 @@ def run_one(checkout: Path, prompt: str, model: str) -> dict[str, Any]:
         "json",
         "--allowedTools",
         *READ_ONLY_TOOLS,
+        *extra_tools,
         "--disallowedTools",
-        "Edit",
-        "Write",
-        "NotebookEdit",
+        *WRITE_TOOLS,
         DENY_DRIFT_COMMANDS,
         DENY_EVAL_IN_REPO,
         *DENY_WRITES,
@@ -351,10 +367,12 @@ def cmd_run(args: argparse.Namespace) -> int:
         print("ERROR: claude CLI not found", file=sys.stderr)
         return 3
     checkout = Path(args.checkout).resolve()
-    if not (checkout / ".claude" / "skills" / "skill-bootstrap" / "SKILL.md").is_file():
-        print(f"ERROR: {checkout} carries no skill-bootstrap", file=sys.stderr)
-        return 2
     data = load_tasks(Path(args.tasks))
+    skill = data.get("skill", DEFAULT_SKILL)
+    if not (checkout / ".claude" / "skills" / skill / "SKILL.md").is_file():
+        print(f"ERROR: {checkout} carries no {skill}", file=sys.stderr)
+        return 2
+    extra_tools = tuple(data.get("allowed_tools", []))
     unknown = sorted(set(args.task or ()) - {t["id"] for t in data["tasks"]})
     if unknown or args.reps < 1:
         print(
@@ -374,7 +392,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         for rep in range(args.reps):
             for task in selected:
                 prompt = f"{data['preamble']}\n\n{task['prompt']}"
-                record = run_one(checkout, prompt, args.model)
+                record = run_one(checkout, prompt, args.model, extra_tools)
                 answer = extract_answer(record["result"])
                 record.update(
                     condition=args.condition,
