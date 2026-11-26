@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import importlib.util
+import marshal
+import os
+import py_compile
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -30,8 +33,17 @@ def _paths(tmp_path: Path) -> tuple[Path, Path]:
 def _write_source(workspace: Path, relative: str) -> Path:
     source = workspace / relative
     source.parent.mkdir(parents=True, exist_ok=True)
-    source.write_text("# source\n", encoding="utf-8")
+    if not source.exists():
+        source.write_text("# source\n", encoding="utf-8")
     return source
+
+
+def _pytest_pyc_bytes(source: Path) -> bytes:
+    data = source.read_bytes()
+    code = compile(data, str(source), "exec")
+    flags = (3).to_bytes(4, "little")
+    header = importlib.util.MAGIC_NUMBER + flags + importlib.util.source_hash(data)
+    return header + marshal.dumps(code)
 
 
 def _write_pyc(
@@ -41,7 +53,8 @@ def _write_pyc(
     tag: str = INTERPRETER_TAG,
     *,
     source_exists: bool = True,
-    content: bytes = PYC_BYTES,
+    content: bytes | None = None,
+    invalidation_mode: py_compile.PycInvalidationMode = py_compile.PycInvalidationMode.TIMESTAMP,
 ) -> Path:
     if source_exists:
         _write_source(workspace, relative)
@@ -52,7 +65,16 @@ def _write_pyc(
         / f"{source.name.removesuffix('.py')}.{tag}.pyc"
     )
     cache_path.parent.mkdir(parents=True, exist_ok=True)
-    cache_path.write_bytes(content)
+    if content is not None:
+        cache_path.write_bytes(content)
+    elif source_exists and tag == INTERPRETER_TAG:
+        py_compile.compile(
+            str(source), cfile=str(cache_path), invalidation_mode=invalidation_mode, doraise=True
+        )
+    elif source_exists and tag == PYTEST_TAG:
+        cache_path.write_bytes(_pytest_pyc_bytes(source))
+    else:
+        cache_path.write_bytes(PYC_BYTES)
     return cache_path
 
 
@@ -136,6 +158,163 @@ def test_removes_a_file_with_a_valid_name_but_invalid_magic(tmp_path: Path) -> N
     assert _run(workspace, cache_root) == 0
 
     assert not invalid.exists()
+
+
+@pytest.mark.parametrize("flags", [0, 1, 4])
+def test_removes_pytest_bytecode_with_flags_pytest_rejects(tmp_path: Path, flags: int) -> None:
+    workspace, cache_root = _paths(tmp_path)
+    pyc = _write_pyc(workspace, cache_root, "tests/test_probe.py", PYTEST_TAG)
+    data = bytearray(pyc.read_bytes())
+    data[4:8] = flags.to_bytes(4, "little")
+    pyc.write_bytes(bytes(data))
+
+    assert _run(workspace, cache_root) == 0
+
+    assert not pyc.exists()
+
+
+def test_removes_pytest_bytecode_with_a_mismatched_source_hash(tmp_path: Path) -> None:
+    workspace, cache_root = _paths(tmp_path)
+    pyc = _write_pyc(workspace, cache_root, "tests/test_probe.py", PYTEST_TAG)
+    data = bytearray(pyc.read_bytes())
+    data[8] ^= 0xFF
+    pyc.write_bytes(bytes(data))
+
+    assert _run(workspace, cache_root) == 0
+
+    assert not pyc.exists()
+
+
+def test_removes_pytest_bytecode_truncated_after_the_header(tmp_path: Path) -> None:
+    workspace, cache_root = _paths(tmp_path)
+    pyc = _write_pyc(workspace, cache_root, "tests/test_probe.py", PYTEST_TAG)
+    pyc.write_bytes(pyc.read_bytes()[:16])
+
+    assert _run(workspace, cache_root) == 0
+
+    assert not pyc.exists()
+
+
+def test_removes_pytest_bytecode_with_a_truncated_marshal_payload(tmp_path: Path) -> None:
+    workspace, cache_root = _paths(tmp_path)
+    pyc = _write_pyc(workspace, cache_root, "tests/test_probe.py", PYTEST_TAG)
+    pyc.write_bytes(pyc.read_bytes()[:32])
+
+    assert _run(workspace, cache_root) == 0
+
+    assert not pyc.exists()
+
+
+def test_removes_interpreter_bytecode_with_a_stale_timestamp(tmp_path: Path) -> None:
+    workspace, cache_root = _paths(tmp_path)
+    source = _write_source(workspace, "pkg/module.py")
+    pyc = _write_pyc(workspace, cache_root, "pkg/module.py")
+    source.write_text("# source changed to a different length\n", encoding="utf-8")
+
+    assert _run(workspace, cache_root) == 0
+
+    assert not pyc.exists()
+
+
+def test_removes_interpreter_bytecode_with_a_mismatched_checked_hash(tmp_path: Path) -> None:
+    workspace, cache_root = _paths(tmp_path)
+    source = _write_source(workspace, "pkg/module.py")
+    pyc = _write_pyc(
+        workspace,
+        cache_root,
+        "pkg/module.py",
+        invalidation_mode=py_compile.PycInvalidationMode.CHECKED_HASH,
+    )
+    source.write_text("# changed\n", encoding="utf-8")
+
+    assert _run(workspace, cache_root) == 0
+
+    assert not pyc.exists()
+
+
+def test_keeps_interpreter_unchecked_hash_bytecode_after_the_source_changes(tmp_path: Path) -> None:
+    workspace, cache_root = _paths(tmp_path)
+    source = _write_source(workspace, "pkg/module.py")
+    pyc = _write_pyc(
+        workspace,
+        cache_root,
+        "pkg/module.py",
+        invalidation_mode=py_compile.PycInvalidationMode.UNCHECKED_HASH,
+    )
+    source.write_text("# changed\n", encoding="utf-8")
+
+    assert _run(workspace, cache_root) == 0
+
+    assert pyc.is_file()
+
+
+def test_removes_interpreter_bytecode_with_unknown_flag_bits(tmp_path: Path) -> None:
+    workspace, cache_root = _paths(tmp_path)
+    pyc = _write_pyc(workspace, cache_root, "pkg/module.py")
+    data = bytearray(pyc.read_bytes())
+    data[4:8] = (4).to_bytes(4, "little")
+    pyc.write_bytes(bytes(data))
+
+    assert _run(workspace, cache_root) == 0
+
+    assert not pyc.exists()
+
+
+def test_keeps_interpreter_flags_two_when_timestamp_data_matches(tmp_path: Path) -> None:
+    workspace, cache_root = _paths(tmp_path)
+    pyc = _write_pyc(workspace, cache_root, "pkg/module.py")
+    data = bytearray(pyc.read_bytes())
+    data[4:8] = (2).to_bytes(4, "little")
+    pyc.write_bytes(bytes(data))
+
+    assert _run(workspace, cache_root) == 0
+
+    assert pyc.is_file()
+
+
+def test_keeps_timestamp_bytecode_the_import_machinery_would_reuse(tmp_path: Path) -> None:
+    workspace, cache_root = _paths(tmp_path)
+    source = workspace / "pkg" / "module.py"
+    source.parent.mkdir(parents=True)
+    source.write_text('VALUE = "old"\n', encoding="utf-8")
+    pyc = _write_pyc(workspace, cache_root, "pkg/module.py")
+    original_stat = source.stat()
+    source.write_text('VALUE = "new"\n', encoding="utf-8")
+    os.utime(source, (original_stat.st_atime, original_stat.st_mtime))
+
+    assert _run(workspace, cache_root) == 0
+
+    assert pyc.is_file()
+
+
+def test_removes_interpreter_bytecode_truncated_after_the_header(tmp_path: Path) -> None:
+    workspace, cache_root = _paths(tmp_path)
+    pyc = _write_pyc(workspace, cache_root, "pkg/module.py")
+    pyc.write_bytes(pyc.read_bytes()[:16])
+
+    assert _run(workspace, cache_root) == 0
+
+    assert not pyc.exists()
+
+
+def test_removes_bytecode_with_a_truncated_marshal_payload(tmp_path: Path) -> None:
+    workspace, cache_root = _paths(tmp_path)
+    pyc = _write_pyc(workspace, cache_root, "pkg/module.py")
+    pyc.write_bytes(pyc.read_bytes()[:32])
+
+    assert _run(workspace, cache_root) == 0
+
+    assert not pyc.exists()
+
+
+def test_removes_bytecode_whose_payload_is_not_a_code_object(tmp_path: Path) -> None:
+    workspace, cache_root = _paths(tmp_path)
+    pyc = _write_pyc(workspace, cache_root, "pkg/module.py")
+    pyc.write_bytes(pyc.read_bytes()[:16] + marshal.dumps({"not": "code"}))
+
+    assert _run(workspace, cache_root) == 0
+
+    assert not pyc.exists()
 
 
 def test_removes_a_symlink_even_when_its_name_looks_valid(tmp_path: Path) -> None:
@@ -294,12 +473,12 @@ def test_removes_a_pyc_whose_name_has_no_source_stem(tmp_path: Path) -> None:
     assert not stemless.exists()
 
 
-def test_a_magic_read_error_marks_the_file_invalid(tmp_path: Path) -> None:
+def test_a_pyc_read_error_marks_the_file_invalid(tmp_path: Path) -> None:
     workspace, cache_root = _paths(tmp_path)
     pyc = _write_pyc(workspace, cache_root, "pkg/module.py")
 
     with mock.patch.object(Path, "open", side_effect=PermissionError("denied")):
-        assert not prune._has_current_magic(pyc)
+        assert prune._read_pyc(pyc) is None
 
 
 def test_a_file_that_disappears_before_removal_is_not_an_error(tmp_path: Path) -> None:

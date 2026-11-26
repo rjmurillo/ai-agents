@@ -5,8 +5,9 @@ The cache root is the checkout-shaped subtree of PYTHONPYCACHEPREFIX. A file
 may remain only when it is regular bytecode for the running interpreter, its
 name carries either the running interpreter tag or the running pytest rewrite
 tag, it sits at the deterministic prefixed path Python derives for its source,
-and that source still exists in the checkout. Every other entry is removed, then
-empty directories are removed bottom up.
+that source still exists in the checkout, its invalidation data matches what the
+consumer validates, and its marshal payload loads to a code object. Every other
+entry is removed, then empty directories are removed bottom up.
 
 EXIT CODES (ADR-035):
   0 - success, including a missing cache root with zero entries examined
@@ -20,8 +21,10 @@ from __future__ import annotations
 import argparse
 import errno
 import importlib.util
+import marshal
 import os
 import sys
+import types
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -126,19 +129,75 @@ def _source_for(path: Path, cache_root: Path, workspace: Path, tags: frozenset[s
     return workspace / relative.parent / f"{stem}.py"
 
 
-def _has_current_magic(path: Path) -> bool:
+def _read_pyc(path: Path) -> bytes | None:
     try:
-        with path.open("rb") as stream:
-            return stream.read(4) == importlib.util.MAGIC_NUMBER
+        return path.read_bytes()
+    except OSError:
+        return None
+
+
+def _source_hash_matches(data: bytes, source: Path) -> bool:
+    try:
+        source_bytes = source.read_bytes()
     except OSError:
         return False
+    return data[8:16] == importlib.util.source_hash(source_bytes)
+
+
+def _timestamp_matches(data: bytes, source: Path) -> bool:
+    try:
+        stat = source.stat()
+    except OSError:
+        return False
+    recorded_mtime = int.from_bytes(data[8:12], "little")
+    recorded_size = int.from_bytes(data[12:16], "little")
+    return (
+        recorded_mtime == int(stat.st_mtime) & 0xFFFFFFFF
+        and recorded_size == stat.st_size & 0xFFFFFFFF
+    )
+
+
+def _interpreter_invalidation_matches(data: bytes, source: Path, flags: int) -> bool:
+    if flags & ~0b11:
+        return False
+    if flags & 0b1:
+        return (flags & 0b10) == 0 or _source_hash_matches(data, source)
+    return _timestamp_matches(data, source)
+
+
+def _payload_is_code(data: bytes) -> bool:
+    try:
+        payload = marshal.loads(data[16:])
+    except Exception:
+        return False
+    return isinstance(payload, types.CodeType)
+
+
+def _consumer_accepts(data: bytes, source: Path, *, pytest_tagged: bool) -> bool:
+    if len(data) <= 16 or data[:4] != importlib.util.MAGIC_NUMBER:
+        return False
+    flags = int.from_bytes(data[4:8], "little")
+    if pytest_tagged:
+        metadata_matches = flags == 3 and _source_hash_matches(data, source)
+    else:
+        metadata_matches = _interpreter_invalidation_matches(data, source, flags)
+    return metadata_matches and _payload_is_code(data)
 
 
 def _is_current_pyc(path: Path, cache_root: Path, workspace: Path, tags: frozenset[str]) -> bool:
     if path.is_symlink() or not path.is_file():
         return False
+    tag = _matching_tag(path.name, tags)
+    if tag is None:
+        return False
     source = _source_for(path, cache_root, workspace, tags)
-    return source is not None and source.is_file() and _has_current_magic(path)
+    if source is None or not source.is_file():
+        return False
+    data = _read_pyc(path)
+    if data is None:
+        return False
+    pytest_tag = f"{sys.implementation.cache_tag}-pytest-{pytest.__version__}"
+    return _consumer_accepts(data, source, pytest_tagged=tag == pytest_tag)
 
 
 def _remove_invalid_entries(
