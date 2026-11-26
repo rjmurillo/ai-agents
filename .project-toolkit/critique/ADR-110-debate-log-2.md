@@ -42,6 +42,31 @@ saw the author's reasoning or another seat's findings.
 
 | ID | Seat | Finding | Reason |
 |---|---|---|---|
-| R1-8 | independent-thinker | Add an explicit `canonical-text` key | ADR-110 section 2 closes the block vocabulary, and a path key in the owner is the second registry section 1 refuses. Include edges already name the partial |
+| R1-8 | independent-thinker | Add an explicit `canonical-text` key | ADR-110 section 7 keeps the partial paths out of the owning rule, because the rule ships to installs that have no `templates/` tree. A path key in the owner's block would put a dead path into the shipped rule. Include edges already name the partial. (Round 2 corrected this citation from sections 1 and 2.) |
 | R1-9 | critic | Restore the original `date` | ADR-073 and `adr-generator` define `date` as last-updated |
 | R1-10 | architect, independent-thinker | Private `_partial_slugs` import | `build/scripts/skill_templates.py:161` already imports the private `_SLUG` from the same module. Sharing the renderer's parser is the canonical-source-mirror rank 1 |
+
+## Round 2
+
+Each seat received commit `bcccf3c16` and the round 1 dispositions above.
+
+| Seat | Vote | Notes |
+|---|---|---|
+| architect | Accept | All three round 1 objections resolved; asked that this log record round 2 before status changes |
+| critic | Accept | Ran the real-tree test against `origin/main`'s gate: it returned True on the paste, so the test fails before the fix |
+| independent-thinker | Disagree-and-Commit | R1-8 holds on section 7, not sections 1 and 2; citation corrected above. Residual risk acceptable as recorded |
+| security | Accept | The four-file pin closes the open exemption. Low: the residue test scans `templates/` only |
+| analyst | Accept | Ran every ledger row with a shell. All verified. Old gate exit 0, new gate exit 1 on the same pasted copy. Ledger line 518 corrected to 517 |
+| high-level-advisor | Accept | The owner's issue #7641 done-when item asks for accepted; consensus supplies the ADR-073 gate |
+
+## Outcome
+
+- Consensus reached in round 2: five Accept, one Disagree-and-Commit.
+- Status moves from proposed to accepted in the same change as this log (ADR-073).
+- `implemented: true`: TASK-040 Milestones 1 to 5 merged in PRs #5879, #5881, and #5885.
+
+### Dissent recorded
+
+independent-thinker: inferring the canonical partial from include counts goes
+silent when a capability drops to one including dependent. Nothing signals that
+loss of coverage. Recorded as accepted residual risk in ADR-110 section 7.
