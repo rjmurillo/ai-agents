@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import _ship_common as common
+    import _ship_pr_query as pr_query_mod
     import _ship_refs as refs_mod
     import _ship_windows as windows_mod
 else:
@@ -34,6 +35,7 @@ else:
         )
     common = sys.modules["_ship_common"]
     windows_mod = common.load_sibling("_ship_windows")
+    pr_query_mod = common.load_sibling("_ship_pr_query")
     refs_mod = common.load_sibling("_ship_refs")
 
 SCRIPT = "ship_detect.py"
@@ -53,9 +55,6 @@ REASONS = frozenset(
         "base-mismatch",
     }
 )
-# number, URL, author, draft, target branch; number None means no open PR.
-PrQuery = tuple[int | None, str, str, bool | None, str]
-_NO_PR_SIGNAL = "no pull requests found"
 # Phrases a CLI prints for an auth failure. Bare words such as "authentication"
 # also appear in echoed branch names and titles, so they are not signals.
 _AUTH_SIGNALS = (
@@ -133,29 +132,6 @@ def protected_branches(base: str, origin_default: str) -> frozenset[str]:
     return PROTECTED_BRANCHES | {base, origin_default}
 
 
-_NO_OPEN_PR: PrQuery = (None, "", "", None, "")
-
-
-def _github_pr(root: Path) -> PrQuery | Halt:
-    fields = "number,author,state,url,isDraft,baseRefName"
-    done = common.run(["gh", "pr", "view", "--json", fields], cwd=root)
-    if done.returncode != 0:
-        if _NO_PR_SIGNAL in done.stderr.lower():
-            return _NO_OPEN_PR
-        return query_halt("pr-query-failed", done)
-    data = common.parse_json(done.stdout)
-    if not isinstance(data, dict) or not isinstance(data.get("number"), int):
-        return Halt("pr-query-failed", common.EXIT_EXTERNAL, "gh returned no PR number")
-    if data.get("state") != "OPEN":
-        return _NO_OPEN_PR
-    raw_author = data.get("author")
-    author = raw_author if isinstance(raw_author, dict) else {}
-    draft = data.get("isDraft") if isinstance(data.get("isDraft"), bool) else None
-    login = str(author.get("login") or "")
-    target = str(data.get("baseRefName") or "")
-    return (data["number"], str(data.get("url", "")), login, draft, target)
-
-
 def _github_user(root: Path, host_name: str) -> str | Halt:
     # gh api ignores the origin remote, so name the host: on GitHub Enterprise
     # the login must come from the same host as the PR author.
@@ -166,59 +142,6 @@ def _github_user(root: Path, host_name: str) -> str | Halt:
     return login
 
 
-def _ado_row_for_base(rows: list[object], base: str | None) -> object:
-    """The active PR to use. Several can share a source branch, each with its own target.
-
-    With ``--base``, the first row that targets it; when none does, the first row,
-    so ``detect`` still stops with ``base-mismatch``. Without ``--base``, the first row.
-    """
-    if base is None:
-        return rows[0]
-    wanted = f"refs/heads/{base}"
-    matching = [row for row in rows if isinstance(row, dict) and row.get("targetRefName") == wanted]
-    return (matching or rows)[0]
-
-
-def _ado_pr(root: Path, branch: str, base: str | None = None) -> PrQuery | Halt:
-    done = common.run(
-        [
-            "az",
-            "repos",
-            "pr",
-            "list",
-            "--source-branch",
-            f"refs/heads/{branch}",
-            "--status",
-            "active",
-            "--output",
-            "json",
-        ],
-        cwd=root,
-    )
-    if done.returncode != 0:
-        return query_halt("pr-query-failed", done)
-    data = common.parse_json(done.stdout)
-    if not isinstance(data, list):
-        return Halt("pr-query-failed", common.EXIT_EXTERNAL, "az returned no PR list")
-    if not data:
-        return _NO_OPEN_PR
-    chosen = _ado_row_for_base(data, base)
-    first = chosen if isinstance(chosen, dict) else {}
-    pr_id = first.get("pullRequestId")
-    if not isinstance(pr_id, int):
-        return Halt("pr-query-failed", common.EXIT_EXTERNAL, "az returned no pullRequestId")
-    raw_repository = first.get("repository")
-    repository = raw_repository if isinstance(raw_repository, dict) else {}
-    web_url = str(repository.get("webUrl", ""))
-    url = f"{web_url}/pullrequest/{pr_id}" if web_url else ""
-    raw_created_by = first.get("createdBy")
-    created_by = raw_created_by if isinstance(raw_created_by, dict) else {}
-    draft = first.get("isDraft") if isinstance(first.get("isDraft"), bool) else None
-    target = str(first.get("targetRefName") or "")
-    target = target[len("refs/heads/") :] if target.startswith("refs/heads/") else ""
-    return (pr_id, url, str(created_by.get("uniqueName") or ""), draft, target)
-
-
 def _ado_user(root: Path) -> str | Halt:
     done = common.run(
         ["az", "account", "show", "--query", "user.name", "--output", "tsv"], cwd=root
@@ -227,6 +150,20 @@ def _ado_user(root: Path) -> str | Halt:
     if done.returncode != 0 or not name:
         return query_halt("user-query-failed", done)
     return name
+
+
+def _open_pr(root: Path, host: str, branch: str, base: str | None) -> pr_query_mod.PrQuery | Halt:
+    """The open PR's fields, or the Halt for a failed command or a reply that did not parse."""
+    found = (
+        pr_query_mod.github_pr(root)
+        if host == "github"
+        else pr_query_mod.ado_pr(root, branch, base)
+    )
+    if isinstance(found, str):
+        return Halt("pr-query-failed", common.EXIT_EXTERNAL, found)
+    if isinstance(found, common.Completed):
+        return query_halt("pr-query-failed", found)
+    return found
 
 
 def unsafe_checkout(root: Path) -> Halt | None:
@@ -328,7 +265,7 @@ def detect(cwd: Path | None = None, base: str | None = None) -> Context | Halt:
     root, host, host_name, branch, head = checkout
     origin_default = default_branch(root)
     target = base or origin_default
-    pr_query = _github_pr(root) if host == "github" else _ado_pr(root, branch, base)
+    pr_query = _open_pr(root, host, branch, base)
     if isinstance(pr_query, Halt):
         return pr_query
     pr, pr_url, author, pr_draft, pr_target = pr_query
