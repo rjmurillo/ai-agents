@@ -114,7 +114,7 @@ FILE_SIZE_EXEMPT_SEGMENTS: tuple[tuple[str, ...], ...] = (
     # needs them byte-exact, so they cannot be sharded or edited by hand.
     (".github", "cli-smoke"),
     # evals/skill-rewrites/<name>/*.json: ADR-127 eval results, written whole
-    # by scripts/eval/eval-prompt-change.py with one record per run. The
+    # by scripts/eval/eval-prompt-change.py as one JSON object per invocation. The
     # evidence check requires them append-only, so they cannot be sharded or
     # trimmed by hand.
     ("evals", "skill-rewrites"),

@@ -221,6 +221,26 @@ def test_a_scan_path_outside_the_report_directory_exits_2(tmp_path, capsys, name
     assert code == 2 and html == "" and "outside the report directory" in err
 
 
+def test_a_nul_byte_in_the_scan_path_exits_2_without_a_traceback(tmp_path, capsys):
+    root = tmp_path / "run"
+
+    code, html, err = _run(root, _adr_only(repos=[{"repo": "r", "scan": "a\0b.json"}]), capsys)
+
+    assert code == 2 and html == "" and "error:" in err
+    assert "Traceback" not in err and "cannot read adr_drift scan" in err
+
+
+def test_a_nul_byte_in_the_decisions_path_exits_2_without_a_traceback(tmp_path, capsys):
+    root = tmp_path / "run"
+    _scan_file(root, [])
+
+    code, html, err = _run(
+        root, _adr_only(repos=[{"repo": "r", "scan": SCAN, "decisions": "a\0"}]), capsys
+    )
+
+    assert code == 2 and html == "" and "error:" in err and "Traceback" not in err
+
+
 def test_a_symlink_that_leaves_the_report_directory_exits_2(tmp_path, capsys):
     root = tmp_path / "run"
     (root / "adr_drift").mkdir(parents=True)

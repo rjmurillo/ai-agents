@@ -230,33 +230,28 @@ def load_dir(path: Path, rel: str, survey: Survey, explicit: bool = False) -> Ad
         entries = []
     root = _resolve(path)
     for entry in entries:
-        if UNREAD_NAME.match(entry.name) and _is_file(entry, f"{rel}/{entry.name}", survey):
+        name = f"{rel}/{entry.name}" if rel else entry.name
+        if UNREAD_NAME.match(entry.name) and _is_file(entry, name, survey):
             survey.adrs_refused = True
-            survey.rejected.append(
-                {"path": f"{rel}/{entry.name}", "reason": "a format this scan does not read"}
-            )
+            survey.rejected.append({"path": name, "reason": "a format this scan does not read"})
             continue
-        if entry.suffix.lower() != ".md" or not _is_file(entry, f"{rel}/{entry.name}", survey):
+        if entry.suffix.lower() != ".md" or not _is_file(entry, name, survey):
             continue
         target = _resolve(entry)
         if root is None or target is None or not within(target, root):
             survey.adrs_refused = True
-            survey.rejected.append(
-                {"path": f"{rel}/{entry.name}", "reason": "resolves outside the folder"}
-            )
+            survey.rejected.append({"path": name, "reason": "resolves outside the folder"})
             continue
         parsed = parse_name(entry.name)
         if parsed is None and DATE_PREFIX.match(entry.name):
             # A date-named record: skill-bootstrap may number it; these checks do not.
             survey.adrs_refused = True
-            survey.rejected.append(
-                {"path": f"{rel}/{entry.name}", "reason": "a date-named record, not numbered"}
-            )
+            survey.rejected.append({"path": name, "reason": "a date-named record, not numbered"})
             continue
         if parsed is None:
             other.append(entry.name)
             continue
-        files.append(AdrFile(entry, f"{rel}/{entry.name}" if rel else entry.name, *parsed))
+        files.append(AdrFile(entry, name, *parsed))
     files.sort(key=lambda f: (f.number, f.path.name))
     return AdrDir(path, rel, files, other, explicit)
 
@@ -344,7 +339,7 @@ def find_adr_dirs(repo: Path) -> Survey:
     survey = Survey()
     marker = _read_marker(repo, survey)
     if marker is not None:
-        rel = marker.relative_to(repo).as_posix()
+        rel = "" if marker == repo else marker.relative_to(repo).as_posix()
         survey.dirs.append(load_dir(marker, rel, survey, explicit=True))
         survey.markers.append(".adr-dir")
         return survey

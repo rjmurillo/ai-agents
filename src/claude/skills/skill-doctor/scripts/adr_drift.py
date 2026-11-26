@@ -76,7 +76,14 @@ def repo_root(path_arg: str) -> Path:
         if exc.timed_out:
             raise ExitError(3, f"git could not read {path_arg}: {exc}") from exc
         raise ExitError(2, f"{path_arg} is not a git repository ({exc})") from exc
-    return Path(top).resolve()
+    root = Path(top).resolve()
+    asked = path.resolve()
+    # A `core.worktree` setting in the scanned repository's own config can point
+    # the top level at any folder. Every containment check anchors on this root,
+    # so a root that does not hold the folder the caller named is refused.
+    if asked != root and root not in asked.parents:
+        raise ExitError(2, f"{path_arg} reports a git top level outside itself ({root})")
+    return root
 
 
 def _sort_key(finding: Finding) -> tuple[Any, ...]:

@@ -154,6 +154,35 @@ def test_locate_from_a_subdirectory_resolves_the_repo_root(tmp_path, capsys):
     assert _locate(capsys, repo / "sub")["primary"] == ADR_DIR
 
 
+def test_repo_root_of_a_subdirectory_is_the_top_level(tmp_path):
+    repo = seeded_repo(tmp_path / "repo")
+    (repo / "deep" / "er").mkdir(parents=True)
+
+    assert adr_drift.repo_root(str(repo / "deep" / "er")) == repo.resolve()
+
+
+def test_repo_root_follows_a_symlink_to_the_repository(tmp_path):
+    repo = seeded_repo(tmp_path / "repo")
+    link = tmp_path / "link"
+    symlink_or_skip(link, repo)
+
+    assert adr_drift.repo_root(str(link)) == repo.resolve()
+
+
+@pytest.mark.parametrize("command", ["locate", "scan"])
+def test_a_core_worktree_outside_the_named_folder_is_refused(tmp_path, capsys, command):
+    repo = seeded_repo(tmp_path / "repo")
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    git(repo, "config", "core.worktree", str(elsewhere))
+    extra = ["--out", str(tmp_path / "o.json")] if command == "scan" else []
+
+    code, out, err = run_cli(capsys, command, "--repo", str(repo), *extra)
+
+    assert code == 2 and out == "" and "git top level outside itself" in err
+    assert not (tmp_path / "o.json").exists()
+
+
 def _digest(repo: Path) -> dict[str, str]:
     return {
         str(p.relative_to(repo)): hashlib.sha256(p.read_bytes()).hexdigest()

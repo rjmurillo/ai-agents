@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import adr_corpus
 import adr_drift
 import pytest
 from adr_drift_helpers import (
@@ -285,3 +286,37 @@ def test_a_marker_that_cannot_be_statted_is_a_read_error_and_known_folders_still
     assert [e["path"] for e in located["read_errors"]] == [".adr-dir"]
     assert located["rejected"] == []
     assert [d["path"] for d in located["adr_dirs"]] == [ADR_DIR]
+
+
+def _root_marker_repo(tmp_path: Path) -> Path:
+    return seeded_repo(
+        tmp_path / "repo", {".adr-dir": ".\n", "ADR-001-x.md": adr_text(1), "notes.txt": "n"}
+    )
+
+
+def test_a_dot_marker_gives_repo_relative_paths_without_a_dot_slash(tmp_path, capsys):
+    repo = _root_marker_repo(tmp_path)
+
+    entry = _locate(capsys, repo)["adr_dirs"][0]
+    survey = adr_corpus.find_adr_dirs(repo)
+
+    assert [f.rel for f in survey.dirs[0].files] == ["ADR-001-x.md"]
+    assert entry["path"] == "" and survey.markers == [".adr-dir"]
+
+
+def test_a_dot_marker_rejection_has_no_leading_slash(tmp_path):
+    repo = seeded_repo(tmp_path / "repo", {".adr-dir": ".\n", "2024-01-02-pick.md": "# Pick\n"})
+
+    survey = adr_corpus.find_adr_dirs(repo)
+
+    assert [r["path"] for r in survey.rejected] == ["2024-01-02-pick.md"]
+
+
+def test_a_commit_editing_an_adr_in_a_dot_marker_root_is_not_a_candidate(tmp_path, capsys):
+    repo = _root_marker_repo(tmp_path)
+    edit = {"ADR-001-x.md": adr_text(1, body="edited")}
+    commit(repo, edit, "docs: ADR-001 replaced wording")
+
+    result = scan(capsys, repo)
+
+    assert not [f for f in result["findings"] if f["kind"] == "adr-superseded-by-commit"]
