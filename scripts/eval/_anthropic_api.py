@@ -30,13 +30,12 @@ from _eval_common import (
 )
 from _eval_errors import TemperatureDeprecatedError
 
-# Single source of truth for the default eval model. Every eval script imports
-# this instead of hard-coding an id, so a model bump is a one-line change here
-# (issue #2858). The previous default `claude-sonnet-4-20250514` is a dead id
-# that returns HTTP 404 against a current key. `claude-sonnet-5` follows the
-# routing policy in AGENTS.md (Sonnet 5 for specified judgment) and is priced
-# in `_eval_common.py`. It rejects `temperature`; `call_api` retries without it.
-DEFAULT_MODEL = "claude-sonnet-5"
+# Single source of truth for the default eval model (issue #2858): a model
+# bump is a one-line change here. `claude-sonnet-5-5` is priced in
+# `_eval_common.py`. It replaced `claude-sonnet-5`, which the local CLIProxy
+# hub rejects with HTTP 400 "unknown provider for model" (2026-11-25).
+# `call_api` retries once without `temperature` when the API rejects it.
+DEFAULT_MODEL = "claude-sonnet-5-5"
 
 _MODELS_ENDPOINT = "https://api.anthropic.com/v1/models"
 _MAX_ERROR_BODY_BYTES = 65536
