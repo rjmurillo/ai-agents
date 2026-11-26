@@ -315,8 +315,8 @@ Bounds: 30 s per call, 600 s of fallback time per run.
 
 1. **Measure the band.** Run the heuristic over the 90-day comment set. Record the count and share at 0.4 to 0.6, and the share at exactly 0.5 with no matched pattern. No model needed.
    - Unit: production scores every comment node in a thread, replies included (`update_reviewer_signal_stats.py:212-245`). Report the band share split into thread openers and replies.
-   - Window: the fetch filters on PR `updatedAt`, not comment time (`scripts/github_core/api.py:1365`). State this in the result.
-   - Loss: `reviewThreads(first: 100)` and `comments(first: 50)` request no `pageInfo` (`api.py:1313-1317`). Count PRs and threads that hit either limit and report the loss. Do not present a partial read as the full set.
+   - Window: the fetch filters on PR `updatedAt`, not comment time (`scripts/github_core/api.py:1343`). State this in the result.
+   - Loss: `reviewThreads(first: 100)` and `comments(first: 50)` request no `pageInfo` (`api.py:1341-1345`). Count PRs and threads that hit either limit and report the loss. Do not present a partial read as the full set.
 2. **Build a labeled corpus.** Sample 200 comments, stratified: 100 from the band, 100 outside it, across every reviewer in the signal table.
    - Unit: the eval scores the same unit production scores, with thread position recorded per row.
    - Labelers (owner decision, 2026-11-24): a council of 3 non-Anthropic models. Arm C runs on Anthropic, so no labeler shares its vendor. The label is the majority vote. The council sees only the blinded sheet, never arm output.
