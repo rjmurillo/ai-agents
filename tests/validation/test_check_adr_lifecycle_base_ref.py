@@ -260,6 +260,28 @@ def test_a_check_the_base_ref_baseline_lacks_does_not_fail_the_branch_adding_it(
     assert _plain_run(tmp_path, baseline) == EXIT_OK
 
 
+@pytest.mark.parametrize("check", ["review-by-past-due", "implemented-implies-decided"])
+def test_a_base_ref_baseline_listing_a_zero_tolerance_check_is_not_a_config_error(
+    tmp_path, capsys, check
+):
+    """Issue #7638: main may predate a check's move to zero-tolerance.
+
+    The live baseline may not list a zero-tolerance check, but the base-ref copy
+    can. Reading that copy must not fail every branch with a config error.
+    """
+    _, baseline = _repo(tmp_path)
+    payload = json.loads(baseline.read_text(encoding="utf-8"))
+    payload["violations"][check] = {_GOOD_PATH: 1}
+    baseline.write_text(json.dumps(payload), encoding="utf-8")
+    _commit(tmp_path, "base baseline predates the zero-tolerance move")
+    _git(tmp_path, "checkout", "-q", "-b", "feature")
+    _set_baseline(baseline, 0)
+    _commit(tmp_path, "drop the entry the gate can no longer hold")
+
+    assert _plain_run(tmp_path, baseline) == EXIT_OK
+    assert "zero-tolerance" not in capsys.readouterr().err
+
+
 def test_a_missing_check_at_the_base_ref_still_guards_the_checks_it_names(tmp_path, capsys):
     adr_dir, baseline = _repo(tmp_path)
     _without_check(baseline, "cited-paths-exist")
