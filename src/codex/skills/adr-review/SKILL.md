@@ -243,6 +243,12 @@ After skill invocation:
       (ADR-073 Phase-3 acceptance gate). A hand-edit to `accepted` with no
       debate-log artifact is a forgeable approval signal and MUST be rejected.
 <!-- vendor-portability: declared. adr-review checks accepted-transition evidence under .project-toolkit/critique/; a consumer repo without it reports missing evidence, not a silent pass. -->
+- [ ] If this review moves `status` from `proposed` to `accepted`: `review-by` is
+      reset to `null`, or to a revisit date the prose also states. The decision date
+      is spent. An `accepted` record that keeps it fails `review-by-past-due` (ADR-073).
+- [ ] If this review keeps `status` as `proposed` after `review-by` passed: set a new
+      `review-by` that the prose also states, record the review outcome in the prose,
+      and add a debate log entry for the edit (ADR-073).
 - [ ] All P0 issues addressed or documented
 - [ ] Dissent captured for Disagree-and-Commit positions
 - [ ] Recommendations provided to orchestrator
