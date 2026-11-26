@@ -59,7 +59,7 @@ OUTPUT_FORMATS = ("json", "human", "auto")
 VERSION = "1.0.0"
 
 CONTROL_RE = re.compile("[\x00-\x1f\x7f-\x9f\u2028\u2029]")  # C0, DEL, C1, line breaks
-_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$")
+_REF_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,199}")
 
 
 # A token ends only at ASCII whitespace. Unicode spaces and control
@@ -354,8 +354,8 @@ class Completed:
 
 
 # Variables that would point a child at another repository or host than the
-# checkout and its origin (ADR-127 decision 3 item 6). gh takes its host from
-# the origin remote inside a checkout, so GitHub Enterprise needs no GH_HOST.
+# checkout and its origin (ADR-127 decision 3 item 6). Calls that do not read
+# the origin remote, such as gh api, name the host with --hostname instead.
 # Git configuration (GIT_CONFIG_*, GIT_SSH_COMMAND) is user setup, not a
 # target, and passes through.
 CHILD_ENV_DROP = frozenset(
@@ -451,7 +451,7 @@ def repo_root(cwd: Path | None = None) -> Path | None:
 
 def safe_ref(value: str) -> bool:
     """Return whether ``value`` is a plain branch name safe to pass as an argument."""
-    if not _REF_RE.match(value):
+    if not _REF_RE.fullmatch(value):
         return False
     if ".." in value or "//" in value or value.endswith(("/", ".lock", ".")):
         return False

@@ -203,7 +203,7 @@ def _check_ado_description(ctx, title: str, body_file: Path, result) -> bool:
         [sys.executable, "-I", str(helper), "--title", title, "--body-file", str(body_file)],
         cwd=ctx.root,
     )
-    problem = description_problem(done.returncode, done.stdout)
+    problem = description_problem(done.returncode, done.stdout, done.stderr)
     if problem:
         result.add("CHECK", f"description=FAIL {problem}")
         return False
@@ -211,14 +211,16 @@ def _check_ado_description(ctx, title: str, body_file: Path, result) -> bool:
     return True
 
 
-def description_problem(returncode: int, stdout: str) -> str | None:
+def description_problem(returncode: int, stdout: str, stderr: str = "") -> str | None:
     """Read validate_pr_description.py's JSON report; None when it holds no error.
 
     Without --fail-on-violation the helper exits 0 even on an error, so the
-    report's ErrorCount decides, not the exit code.
+    report's ErrorCount decides, not the exit code. A nonzero exit carries the
+    helper's last stderr line.
     """
     if returncode != 0:
-        return f"exit={returncode}"
+        cause = common.cause_line(stderr, "")
+        return f"exit={returncode}" + (f": {cause}" if cause else "")
     start = stdout.find("{")
     report = common.parse_json(stdout[start:]) if start >= 0 else None
     if not isinstance(report, dict) or not isinstance(report.get("ErrorCount"), int):

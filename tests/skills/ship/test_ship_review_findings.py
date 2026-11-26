@@ -303,3 +303,101 @@ class TestFreshRoundFourFindings:
         assert values(lines, "CHECK") == [
             "pipeline=PENDING pr=77 merge commit moved during the check"
         ]
+
+
+class TestFreshRoundFiveFindings:
+    @pytest.mark.parametrize("value", ["main\n", "develop\n", "feat/x\n"])
+    def test_a_trailing_newline_is_not_a_safe_ref(self, scripts, value):
+        assert scripts[0].safe_ref(value) is False
+        assert scripts[0].safe_ref(value.strip()) is True
+
+    def test_a_base_with_a_newline_never_reaches_the_push(
+        self, make_repo, fakes, scripts, capsys, body_file, tmp_path
+    ):
+        repo = make_repo(GITHUB)
+        git(repo, "switch", "-q", "-C", "develop")
+        fakes.no_pr_github()
+        code, lines = publish(
+            scripts,
+            capsys,
+            body_file(repo),
+            "--draft",
+            "--paths-checked-by-hand",
+            "--base",
+            "develop\n",
+        )
+        assert code != 0
+        assert lines[-1].startswith("STOP: ")
+        assert "PUSH: pushed" not in lines
+        assert _remote_has(tmp_path, "develop") is None
+
+    def _github_pr(self, make_repo, fakes):
+        repo = make_repo(GITHUB)
+        fakes.no_pr_github()
+        fakes.rule(
+            "gh",
+            ["pr", "view", "41"],
+            {
+                "stdout": json.dumps(
+                    {
+                        "headRefName": "feat/ship-change",
+                        "headRefOid": git(repo, "rev-parse", "HEAD"),
+                    }
+                )
+            },
+        )
+
+    def test_exit_7_with_a_failed_required_check_is_fail(self, make_repo, fakes, scripts, capsys):
+        self._github_pr(make_repo, fakes)
+        data = {
+            "RequiredState": "PENDING",
+            "AllPassing": False,
+            "FailedRequiredChecks": [{"Name": "lint"}],
+            "PendingRequiredChecks": [{"Name": "tests"}],
+        }
+        fakes.rule("get_pr_checks", [], {"rc": 7, "stdout": json.dumps({"Data": data}) + "\n"})
+        code, lines = invoke(scripts[2], ["--check", "pipeline", "--pr", "41"], capsys)
+        assert code == 1
+        check = values(lines, "CHECK")[-1]
+        assert check.startswith("pipeline=FAIL pr=41")
+        assert "failing=lint,tests" in check
+
+    def test_exit_7_still_running_names_the_pr_and_checks(self, make_repo, fakes, scripts, capsys):
+        self._github_pr(make_repo, fakes)
+        data = {"RequiredState": "PENDING", "PendingRequiredChecks": [{"Name": "tests"}]}
+        fakes.rule("get_pr_checks", [], {"rc": 7, "stdout": json.dumps({"Data": data}) + "\n"})
+        code, lines = invoke(scripts[2], ["--check", "pipeline", "--pr", "41"], capsys)
+        assert code == 0
+        assert values(lines, "CHECK")[-1] == (
+            "pipeline=PENDING pr=41 required checks still running pending=tests"
+        )
+
+    def test_exit_7_with_an_incomplete_rollup_stays_pending(
+        self, make_repo, fakes, scripts, capsys
+    ):
+        self._github_pr(make_repo, fakes)
+        data = {"RequiredState": "UNKNOWN", "ChecksIncomplete": True}
+        fakes.rule("get_pr_checks", [], {"rc": 7, "stdout": json.dumps({"Data": data}) + "\n"})
+        code, lines = invoke(scripts[2], ["--check", "pipeline", "--pr", "41"], capsys)
+        assert code == 0
+        assert values(lines, "CHECK")[-1].startswith("pipeline=PENDING pr=41")
+
+    def test_exit_7_without_data_names_the_pr(self, make_repo, fakes, scripts, capsys):
+        self._github_pr(make_repo, fakes)
+        fakes.rule("get_pr_checks", [], {"rc": 7, "stdout": "not json\n"})
+        code, lines = invoke(scripts[2], ["--check", "pipeline", "--pr", "41"], capsys)
+        assert code == 0
+        assert values(lines, "CHECK")[-1] == "pipeline=PENDING pr=41 required checks still running"
+
+    @pytest.mark.parametrize(
+        ("stderr", "expected"),
+        [
+            (
+                "Body file not found: /nonexistent/x.md\n",
+                "exit=2: Body file not found: /nonexistent/x.md",
+            ),
+            ("", "exit=2"),
+        ],
+    )
+    def test_a_description_helper_failure_names_its_cause(self, scripts, stderr, expected):
+        assert scripts[3].checks_mod.description_problem(2, "", stderr) == expected

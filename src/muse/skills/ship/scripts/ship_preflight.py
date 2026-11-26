@@ -169,13 +169,17 @@ def _read_github_checks(ctx, pr: int, wait_seconds: int) -> tuple[int, dict] | C
         "json",
     ]
     done = common.run(argv, cwd=ctx.root, timeout=budget + 60)
-    if done.returncode == 7:
-        return Check("pipeline", "PENDING", "required checks still running")
     if done.returncode == 4:
         return Halt("auth-failed", common.EXIT_AUTH, "check query was not authorized")
     lines = done.stdout.strip().splitlines()
     envelope = common.parse_json(lines[-1]) if lines else None
     data = envelope.get("Data") if isinstance(envelope, dict) else None
+    if done.returncode == 7:
+        # Exit 7 is a timeout or an incomplete rollup, and it can still carry a
+        # failed required check, so the Data decides when it parses.
+        if isinstance(data, dict):
+            return 7, data
+        return Check("pipeline", "PENDING", f"pr={pr} required checks still running")
     if not isinstance(data, dict) or done.returncode not in (0, 1):
         error = envelope.get("Error") if isinstance(envelope, dict) else None
         message = error.get("Message") if isinstance(error, dict) else None
@@ -190,17 +194,28 @@ def _github_verdict(ctx, pr: int, code: int, data: dict) -> Check:
     """Turn one get_pr_checks.py result into PASS or FAIL. Exit 0 alone is not green."""
     if code == 0 and data.get("RequiredState") == "SUCCESS" and data.get("AllPassing") is True:
         return Check("pipeline", "PASS", f"pr={pr} head={ctx.head[:12]}")
-    if data.get("RequiredState") == "PENDING" and not data.get("FailedRequiredChecks"):
+    still_running = code == 7 or data.get("RequiredState") == "PENDING"
+    if still_running and not data.get("FailedRequiredChecks"):
         # Read without waiting, or the wait ended early: still running, not failed.
-        return Check("pipeline", "PENDING", f"pr={pr} required checks still running")
-    names = []
-    for key in ("FailedRequiredChecks", "MissingRequiredChecks", "PendingRequiredChecks"):
-        for item in data.get(key) or []:
-            names.append(str(item.get("Name", item)) if isinstance(item, dict) else str(item))
+        pending = _check_names(data, ("PendingRequiredChecks",))
+        tail = " pending=" + ",".join(pending) if pending else ""
+        return Check("pipeline", "PENDING", f"pr={pr} required checks still running{tail}")
+    names = _check_names(
+        data, ("FailedRequiredChecks", "MissingRequiredChecks", "PendingRequiredChecks")
+    )
     detail = f"pr={pr} required={data.get('RequiredState')} all_passing={data.get('AllPassing')}"
     if names:
-        detail += " failing=" + ",".join(names[:10])
+        detail += " failing=" + ",".join(names)
     return Check("pipeline", "FAIL", detail)
+
+
+def _check_names(data: dict, keys: tuple[str, ...]) -> list[str]:
+    """Return up to 10 check names from the listed Data keys."""
+    names = []
+    for key in keys:
+        for item in data.get(key) or []:
+            names.append(str(item.get("Name", item)) if isinstance(item, dict) else str(item))
+    return names[:10]
 
 
 def _github_pipeline(ctx, pr: int, after_publish: bool, wait_seconds: int) -> Check | Halt:
