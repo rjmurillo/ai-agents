@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -139,6 +140,36 @@ class TestPins:
         assert skillopt.main(["pin-check", "--pins", str(out)]) == 1
         assert json.loads(capsys.readouterr().out)["changed_surfaces"] == ["verifier"]
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
+    def test_directory_symlink_pins_and_detects_edit(self, tmp_path: Path, capsys: Capture) -> None:
+        eval_path, _ = self.setup_files(tmp_path)
+        graders = tmp_path / "graders-v1"
+        graders.mkdir()
+        (graders / "grade.py").write_text("v1\n", encoding="utf-8")
+        link = tmp_path / "current-graders"
+        link.symlink_to(graders, target_is_directory=True)
+        out = tmp_path / "pins.json"
+        argv = ["pin", "--eval", str(eval_path), "--surface", f"tracer={link}"]
+        assert skillopt.main([*argv, "--model", "m", "--out", str(out)]) == 0
+        assert skillopt.main(["pin-check", "--pins", str(out)]) == 0
+        capsys.readouterr()
+        (graders / "grade.py").write_text("v2\n", encoding="utf-8")
+        assert skillopt.main(["pin-check", "--pins", str(out)]) == 1
+        assert json.loads(capsys.readouterr().out)["changed_surfaces"] == ["tracer"]
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="named pipes are POSIX only")
+    def test_named_pipe_surface_is_refused_not_read(self, tmp_path: Path, capsys: Capture) -> None:
+        pins = self.pin(tmp_path)
+        verifier = tmp_path / "check.py"
+        verifier.unlink()
+        os.mkfifo(verifier)
+        assert skillopt.main(["pin-check", "--pins", str(pins)]) == 1
+        assert json.loads(capsys.readouterr().out)["changed_surfaces"] == ["verifier"]
+        eval_path = tmp_path / "eval.json"
+        argv = ["pin", "--eval", str(eval_path), "--surface", f"verifier={verifier}"]
+        assert skillopt.main([*argv, "--model", "m", "--out", str(tmp_path / "p2.json")]) == 2
+        assert "not a regular file or directory" in capsys.readouterr().err
+
     def test_pins_without_target_still_match(self, tmp_path: Path, capsys: Capture) -> None:
         pins = self.pin(tmp_path)
         data = json.loads(pins.read_text(encoding="utf-8"))
@@ -250,6 +281,12 @@ class TestPairGateDeclaredPins:
         argv = ["efficiency-gate", *argv[1:], "--measurements", str(measurements)]
         assert skillopt.main(argv) == 2
         assert "read-only surface changed" in capsys.readouterr().err
+
+    def test_null_pins_field_refuses_gate(self, tmp_path: Path, capsys: Capture) -> None:
+        argv = self.gate_files(tmp_path)
+        write_json(tmp_path / "eval.json", {"splits": {"sel": ["s1"]}, "pins": None})
+        assert skillopt.main(argv) == 2
+        assert "must be a path string" in capsys.readouterr().err
 
     def test_no_declaration_keeps_old_behavior(self, tmp_path: Path) -> None:
         eval_path = write_json(tmp_path / "eval.json", {"splits": {"sel": ["s1"]}})

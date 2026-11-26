@@ -95,16 +95,21 @@ def _text(
     value = entry.get(field)
     if not isinstance(value, str) or not value.strip():
         raise SkillOptError(f"{where}: '{field}' must be a nonempty string")
-    # Blank out train ids first, so sel id s1 is not found inside train id s1-b.
-    scrubbed = value
-    for tid in sorted(train or (), key=len, reverse=True):
-        scrubbed = re.sub(rf"(?<![\w-]){re.escape(tid)}(?![\w-])", " ", scrubbed)
+    # A sel match is allowed only inside a full train id match, so sel id s1
+    # passes inside train id s1-b while sel id suite.case still fails after train id suite.
+    train_spans = [
+        m.span()
+        for tid in train or ()
+        for m in re.finditer(rf"(?<![\w-]){re.escape(tid)}(?![\w-])", value)
+    ]
     for tid in sorted(sel or ()):
-        if re.search(rf"(?<!\w){re.escape(tid)}(?!\w)", scrubbed):
-            raise SkillOptError(
-                f"{where}: '{field}' names sel task {tid!r}; "
-                "the candidate author must use train evidence only"
-            )
+        for m in re.finditer(rf"(?<!\w){re.escape(tid)}(?!\w)", value):
+            start, end = m.span()
+            if not any(a <= start and end <= b for a, b in train_spans):
+                raise SkillOptError(
+                    f"{where}: '{field}' names sel task {tid!r}; "
+                    "the candidate author must use train evidence only"
+                )
     return value
 
 
@@ -338,10 +343,17 @@ def verify_manifesto(
     )
     at_risk_all: set[str] = set()
     report_entries: list[dict[str, Any]] = []
+    seen_patches: set[int] = set()
     for index, entry in enumerate(entries):
         where = f"manifesto entry {index}"
         if not isinstance(entry, dict):
             raise SkillOptError(f"{where} must be an object")
+        patch = entry.get("patch")
+        if isinstance(patch, bool) or not isinstance(patch, int) or patch < 0:
+            raise SkillOptError(f"{where}: 'patch' must be a nonnegative integer index")
+        if patch in seen_patches:
+            raise SkillOptError(f"{where}: patch {patch} has two manifesto entries")
+        seen_patches.add(patch)
         fixes = _train_ids(
             entry.get("predicted_fixes"),
             "predicted_fixes",
@@ -354,7 +366,7 @@ def verify_manifesto(
         at_risk_all.update(risks)
         report_entries.append(
             {
-                "patch": entry.get("patch"),
+                "patch": patch,
                 "confirmed_fixes": [
                     t
                     for t in fixes
@@ -363,7 +375,9 @@ def verify_manifesto(
                 "missed_fixes": [
                     t
                     for t in fixes
-                    if incumbent_results.get(t) is True or candidate_results.get(t) is False
+                    if isinstance(incumbent_results.get(t), bool)
+                    and isinstance(candidate_results.get(t), bool)
+                    and not (incumbent_results[t] is False and candidate_results[t] is True)
                 ],
                 "at_risk_regressed": [
                     t
@@ -393,6 +407,11 @@ def verify_manifesto(
 # --------------------------------------------------------------------------- #
 # Read-only pins: eval set, verifier, tracer, and model configuration
 # --------------------------------------------------------------------------- #
+def _hashable(path: Path) -> bool:
+    """A regular file or a directory; a FIFO or device would block or mislead the hash."""
+    return path.is_file() or path.is_dir()
+
+
 def make_pins(surfaces: dict[str, Path], model: str) -> dict[str, Any]:
     """Record sha256 digests of the read-only surfaces and the model in use."""
     if "eval" not in surfaces:
@@ -403,10 +422,12 @@ def make_pins(surfaces: dict[str, Path], model: str) -> dict[str, Any]:
     for name, path in sorted(surfaces.items()):
         if not path.exists():
             raise SkillOptError(f"read-only surface {name!r} does not exist: {path}")
+        if not _hashable(path):
+            raise SkillOptError(f"read-only surface {name!r} is not a regular file or directory")
         pinned[name] = {
             "path": str(path.absolute()),
             "target": str(path.resolve()),
-            "sha256": path_sha256(path),
+            "sha256": path_sha256(path.resolve()),
         }
     return {"schema": PINS_SCHEMA, "model": model.strip(), "surfaces": pinned}
 
@@ -423,7 +444,9 @@ def check_pins(pins: Any, model: str | None = None) -> dict[str, Any]:
             raise SkillOptError(f"pins surface {name!r} must have a 'path' string")
         path = Path(entry["path"])
         retargeted = "target" in entry and str(path.resolve()) != entry["target"]
-        if retargeted or not path.exists() or path_sha256(path) != entry.get("sha256"):
+        if retargeted or not _hashable(path):
+            changed.append(name)
+        elif path_sha256(path.resolve()) != entry.get("sha256"):
             changed.append(name)
     model_changed = model is not None and model.strip() != doc.get("model")
     return {
@@ -436,9 +459,9 @@ def check_pins(pins: Any, model: str | None = None) -> dict[str, Any]:
 
 def assert_declared_pins(eval_path: Path, eval_set: dict[str, Any]) -> None:
     """When eval.json names a pins file, refuse to gate unless every pin still matches."""
-    declared = eval_set.get("pins")
-    if declared is None:
+    if "pins" not in eval_set:
         return
+    declared = eval_set["pins"]
     if not isinstance(declared, str) or not declared.strip():
         raise SkillOptError("eval set 'pins' must be a path string to a pins file")
     pins_path = (eval_path.parent / declared).resolve()

@@ -173,9 +173,10 @@ What is enforced and what is only named:
   points elsewhere is a mismatch, even when the new target has the same
   bytes.
 - `pin` hashes the path you name. When an eval command runs a grader by a
-  path relative to the bundle, each bundle has its own copy. Keep graders
-  outside the bundle, or pin the incumbent's and the candidate's copies as
-  two surfaces.
+  path relative to the bundle, each bundle has its own copy, and the
+  candidate's copy does not exist until `apply` creates it. Keep graders
+  outside the bundle so the baseline pin covers them. A grader inside the
+  bundle is not covered by that pin.
 - The model is enforced only when you pass `--model` to `pin-check`. Nothing
   reads the model your harness actually used.
 - A manifest without `pins` gates as before. Deleting the `pins` field alone

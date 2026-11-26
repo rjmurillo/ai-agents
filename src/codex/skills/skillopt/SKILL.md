@@ -178,9 +178,9 @@ One optimization step:
    Read the security note in `references/eval-set-format.md` first:
    `eval.json` commands run any binary on `PATH`. For a skill directory with
    scripts, pass the directory to `hash` and `apply`; it hashes as one bundle.
-   When the manifest sets `"scorer": "nondeterministic"`, the `sel` runner
-   also reruns the byte-identical incumbent into `null_results.json` now (see
-   Before promotion, step 2). It also runs `pin`.
+   The `sel` runner runs `pin`. For `"scorer": "nondeterministic"` it also
+   reruns the byte-identical incumbent into `null_results.json` now (see
+   Before promotion, step 2).
 2. **Budget.** `skillopt.py budget --step T --total N` prints L_t, the
    cosine-decayed cap on atomic patches this step. T is 0-based, from 0 to
    N-1; `--step N` exits 2 with `out of range`.
@@ -209,7 +209,7 @@ One optimization step:
    `sel` half. For command tasks, run
    `skillopt.py run --eval eval.json --bundle CANDIDATE_DIR --role candidate
    --out-dir results/`, then grade tasks with no `command`.
-   Then run `manifesto-verify`.
+   For an accuracy edit, run `manifesto-verify`.
 7. **Gate.** `skillopt.py pair-gate --eval eval.json --incumbent-results
    incumbent_results.json --candidate-results candidate_results.json`. If you
    used `run --out-dir results/`, pass the files under `results/`. For a

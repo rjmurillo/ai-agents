@@ -100,6 +100,14 @@ class TestWeaknessCheck:
         leak = weakness(tasks=["s1-b"], mechanism="s1-b fails like s1 does")
         assert run(tmp_path, self.ARGV, eval=eval_set, inc=inc, w=leak) == 2
 
+    def test_sel_id_that_extends_a_train_id_is_a_leak(self, tmp_path: Path) -> None:
+        eval_set = {"splits": {"train": ["suite", "t2"], "sel": ["suite.case"]}}
+        inc = {"suite": False, "t2": True}
+        leak = weakness(tasks=["suite"], mechanism="suite fails; see suite.case")
+        assert run(tmp_path, self.ARGV, eval=eval_set, inc=inc, w=leak) == 2
+        ok = weakness(tasks=["suite"], mechanism="suite skips the write step")
+        assert run(tmp_path, self.ARGV, eval=eval_set, inc=inc, w=ok) == 0
+
     def test_unverified_baseline_task_is_not_a_failure(
         self, tmp_path: Path, capsys: Capture
     ) -> None:
@@ -293,6 +301,27 @@ class TestManifestoVerify:
         assert report["entries"][0]["confirmed_fixes"] == ["t2"]
         assert report["entries"][0]["missed_fixes"] == []
         assert report["unverified"] == ["t1"]
+
+    def test_unverified_baseline_with_failing_candidate_is_not_missed(
+        self, tmp_path: Path, capsys: Capture
+    ) -> None:
+        inc = {**INCUMBENT, "t1": "UNVERIFIED"}
+        cand = {**CANDIDATE, "t1": False}
+        assert run(tmp_path, self.ARGV, eval=EVAL, m=manifesto(), inc=inc, cand=cand) == 1
+        report = json.loads(capsys.readouterr().out)
+        assert report["verdict"] == "PREDICTION_UNVERIFIED"
+        assert report["entries"][0]["missed_fixes"] == []
+
+    @pytest.mark.parametrize("patch", [None, True, -1, "0"])
+    def test_bad_patch_index_exits_2(self, tmp_path: Path, capsys: Capture, patch: Any) -> None:
+        assert self.call(tmp_path, manifesto(patch=patch), CANDIDATE) == 2
+        assert "nonnegative integer" in capsys.readouterr().err
+
+    def test_duplicate_patch_index_exits_2(self, tmp_path: Path, capsys: Capture) -> None:
+        doc = manifesto()
+        doc["entries"].append(dict(doc["entries"][0]))
+        assert self.call(tmp_path, doc, CANDIDATE) == 2
+        assert "two manifesto entries" in capsys.readouterr().err
 
     def test_sel_prediction_exits_2(self, tmp_path: Path, capsys: Capture) -> None:
         assert self.call(tmp_path, manifesto(predicted_fixes=["s1"]), CANDIDATE) == 2

@@ -63,12 +63,13 @@ For a loop in this plugin, the read-only surfaces are:
 - the model configuration: model name, effort, and reasoning budget,
 - permissions, hook registration, and security gates.
 
-`skillopt` pins the eval set, verifiers, and tracer files by sha256
-(`skillopt.py pin`, `pin-check`). It records the model name as text, and
+`skillopt.py pin` always hashes the eval set by sha256. It hashes a verifier,
+tracer, or other file only when the caller passes it as a `--surface`; an
+omitted file gets no change detection. It records the model name as text, and
 `pin-check --model` compares it. Effort and budget are pinned only when they
-live in a config file passed as a surface. Hook registration and permissions
-are not pinned by any skillopt check; keep them out of any loop's editable
-set.
+live in a config file passed as a surface. Nothing pins hook registration or
+permissions automatically. Pass those files as surfaces to pin them, and keep
+them out of any loop's editable set.
 
 ## Two related cautions
 
