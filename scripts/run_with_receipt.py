@@ -40,10 +40,13 @@ unless the caller installed its own SIGTERM or SIGHUP handler. SIGKILL of the
 wrapper cannot be caught by any handler, so it leaves a timed child tree
 running.
 
-The deadline bounds the child command. The wrapper itself returns within the
-deadline plus 6 seconds in the worst case: 1 second of SIGTERM grace, 1 second
-to reap the leader, and up to 2 seconds for each of the two output pipe drains
-when a process outside the group holds a pipe open.
+The deadline bounds the child command. The wrapper stops the child and its group
+within the deadline plus 6 seconds in the worst case: 1 second of SIGTERM grace,
+1 second to reap the leader, and up to 2 seconds for each of the two output pipe
+drains when a process outside the group holds a pipe open. Redaction and artifact
+writing run after that stop and take extra time in proportion to the output size.
+The wrapper as a whole can therefore return later than that bound. A caller that
+sets an outer timeout must allow for it, or the receipt and artifact are lost.
 
 The shared validation runner is not reused here because it decodes through
 text-mode ``communicate``; this wrapper needs byte streams so invalid UTF-8,
@@ -284,7 +287,10 @@ def _terminate_child(proc: _ChildProcess, pgid: int | None = None) -> None:
     except subprocess.TimeoutExpired:
         pass
     finally:
-        _signal_group(pgid, signal.SIGKILL)
+        # A group that is already empty has no member to kill, and its id may be
+        # reused by an unrelated group once the leader is reaped.
+        if _group_alive(pgid):
+            _signal_group(pgid, signal.SIGKILL)
 
 
 def _group_alive(pgid: int) -> bool:
@@ -370,23 +376,30 @@ def _spawn_and_collect(argv: list[str], timeout_seconds: int | None) -> tuple[in
             shell=False,
             start_new_session=_SUPPORTS_PGROUP,
         )
-    # Capture the group once. After the leader is reaped its pid no longer finds
-    # the group, so every later group stop uses this id.
-    pgid = _own_group(proc.pid) if timeout_seconds is not None and _SUPPORTS_PGROUP else None
-    capture = Capture()
-    threads = [
-        threading.Thread(target=_pump, args=(proc.stdout, "out", capture), daemon=True),
-        threading.Thread(target=_pump, args=(proc.stderr, "err", capture), daemon=True),
-    ]
+    # The guard opens right after Popen returns: a cancel that lands later in this
+    # function must still stop a timed child that lives in its own session. Until
+    # the group is captured, the unwind path looks the group up from the leader.
+    pgid: int | None = None
+    group_stopped = False
     timed_out = False
     try:
         try:
+            # Capture the group once. After the leader is reaped its pid no longer
+            # finds the group, so every later group stop uses this id.
+            if timeout_seconds is not None and _SUPPORTS_PGROUP:
+                pgid = _own_group(proc.pid)
+            capture = Capture()
+            threads = [
+                threading.Thread(target=_pump, args=(proc.stdout, "out", capture), daemon=True),
+                threading.Thread(target=_pump, args=(proc.stderr, "err", capture), daemon=True),
+            ]
             for thread in threads:
                 thread.start()
             code = proc.wait(timeout=timeout_seconds)
         except subprocess.TimeoutExpired:
             timed_out = True
             _terminate_child(proc, pgid)
+            group_stopped = True
             _reap_stopped_child(proc)
             code = EXIT_TIMEOUT
         else:
@@ -394,6 +407,9 @@ def _spawn_and_collect(argv: list[str], timeout_seconds: int | None) -> tuple[in
             # outlive it, and the deadline must bound those too.
             if pgid is not None and _group_alive(pgid):
                 _terminate_child(proc, pgid)
+            # The group is now stopped or was empty. With the leader reaped, its
+            # pid and group id are free for reuse, so nothing signals them again.
+            group_stopped = True
         # A grandchild can keep a pipe open after the child exits; do not wait on it.
         for thread in threads:
             thread.join(timeout=_PIPE_DRAIN_GRACE_S)
@@ -401,7 +417,8 @@ def _spawn_and_collect(argv: list[str], timeout_seconds: int | None) -> tuple[in
         # Ctrl-C, a forwarded SIGTERM or SIGHUP, or any other unwind must not
         # leave a timed child running in its own session. An untimed child keeps
         # the caller's process group, so the caller's signal already reaches it.
-        if timeout_seconds is not None:
+        # A group that is already stopped or found empty is not signalled again.
+        if timeout_seconds is not None and not group_stopped:
             _terminate_child(proc, pgid)
             _reap_stopped_child(proc)
         raise

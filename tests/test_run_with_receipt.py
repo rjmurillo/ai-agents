@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import io
 import os
 import runpy
@@ -116,6 +117,25 @@ def install_group_fakes(
     return signals
 
 
+def install_stubborn_group(
+    monkeypatch: pytest.MonkeyPatch, proc: _FakePopen
+) -> list[tuple[int, int]]:
+    """Fake a group that outlives SIGTERM, with a clock that skips the grace window.
+
+    The group is still there at the end of the window, so the stop must send
+    SIGKILL. Returns the signals sent to it.
+    """
+    signals = install_group_fakes(monkeypatch, proc, group_alive_probes=10_000)
+    clock = {"now": 100.0}
+
+    def sleep(seconds: float) -> None:
+        clock["now"] += seconds
+
+    monkeypatch.setattr(receipt_module.time, "sleep", sleep)
+    monkeypatch.setattr(receipt_module.time, "monotonic", lambda: clock["now"])
+    return signals
+
+
 # A three-level tree for the real-process lifetime tests. The leader starts a
 # grandchild in its own process group. Each process writes its pid file only
 # after it has installed its SIGTERM disposition, so a pid file means "ready".
@@ -160,6 +180,7 @@ runpy.run_path(sys.argv[0], run_name="__main__")
 #   MODE "plain"  the grandchild keeps the default SIGTERM action and the output pipes
 #   MODE "ignore" the grandchild ignores SIGTERM and keeps the output pipes
 #   MODE "quiet"  the grandchild keeps the default action but closes its output pipes
+#   MODE "setsid" the grandchild leaves the leader's group and keeps the output pipes
 # The leader writes child.pid and exits only once the grandchild is ready. The
 # grandchild sleeps at most 30 s so a leaked one expires by itself.
 EARLY_EXIT_SCRIPT = """
@@ -170,6 +191,8 @@ root, mode = Path(sys.argv[1]), sys.argv[2]
 if sys.argv[3] == "grand":
     if mode == "ignore":
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    if mode == "setsid":
+        os.setsid()
     if mode == "quiet":
         devnull = os.open(os.devnull, os.O_RDWR)
         os.dup2(devnull, 1)
@@ -621,7 +644,7 @@ class TestTimeoutDeadline:
             waits=[subprocess.TimeoutExpired(["fake"], 2), -15],
         )
         calls = install_fake_popen(monkeypatch, proc)
-        signals = install_group_fakes(monkeypatch, proc)
+        signals = install_stubborn_group(monkeypatch, proc)
 
         code = receipt_module.run_command(["fake"], 16384, tmp_path, timeout_seconds=2)
 
@@ -690,7 +713,7 @@ class TestTimeoutDeadline:
             ]
         )
         install_fake_popen(monkeypatch, proc)
-        signals = install_group_fakes(monkeypatch, proc)
+        signals = install_stubborn_group(monkeypatch, proc)
 
         code = receipt_module.run_command(["fake"], 16384, tmp_path, timeout_seconds=2)
 
@@ -900,7 +923,8 @@ class TestTimedChildLifetime:
 
         receipt_module._terminate_child(proc)
 
-        assert signals == [(proc.pid, signal.SIGTERM), (proc.pid, signal.SIGKILL)]
+        # The members left inside the window, so the group is empty and gets no SIGKILL.
+        assert signals == [(proc.pid, signal.SIGTERM)]
         assert len(sleeps) == 3
         assert all(0 < step <= receipt_module._TERM_GRACE_S for step in sleeps)
 
@@ -924,7 +948,7 @@ class TestTimedChildLifetime:
     @POSIX_ONLY
     def test_interrupt_while_waiting_stops_a_timed_group(self, monkeypatch, tmp_path):
         proc = _FakePopen(waits=[KeyboardInterrupt(), -15])
-        signals = install_group_fakes(monkeypatch, proc)
+        signals = install_stubborn_group(monkeypatch, proc)
         install_fake_popen(monkeypatch, proc)
 
         with pytest.raises(KeyboardInterrupt):
@@ -1091,8 +1115,9 @@ class TestTimedGroupStopOnEveryExit:
             assert wait_until(lambda: tree_ready(tmp_path)), "child tree never became ready"
             child, grand = tree_pids(tmp_path)
             # The leader is reaped by the wrapper, so its wait is over. The grandchild
-            # ignores SIGTERM and holds the output pipes, so the wrapper is now inside
-            # its grace window or its pipe drain.
+            # is in the leader's group, ignores SIGTERM, and holds the output pipes, so
+            # the wrapper is now inside its SIGTERM grace window. The pipes stay open
+            # until the SIGKILL at the end of that window, so no drain starts before it.
             assert wait_until(lambda: pid_reaped(child))
             wrapper.send_signal(signal.SIGTERM)
             assert wrapper.wait(timeout=20) == 128 + signal.SIGTERM
@@ -1171,7 +1196,7 @@ class TestTimedGroupStopOnEveryExit:
         self, monkeypatch, tmp_path
     ):
         proc = _FakePopen(waits=[0])
-        signals = install_group_fakes(monkeypatch, proc, group_alive_probes=2)
+        signals = install_stubborn_group(monkeypatch, proc)
         install_fake_popen(monkeypatch, proc)
         lookups: list[int] = []
 
@@ -1263,6 +1288,121 @@ class TestTimedGroupStopOnEveryExit:
 
         assert callable(seen[0])
         assert signal.getsignal(signal.SIGTERM) is signal.SIG_DFL
+
+
+class TestPostSpawnWindowAndStoppedGroup:
+    """Round 3 findings: no unguarded window after spawn, no signal to a stopped group."""
+
+    @POSIX_ONLY
+    @pytest.mark.parametrize("window", ["Capture", "_own_group"])
+    def test_cancel_between_spawn_and_the_guard_still_stops_the_child(
+        self, monkeypatch, tmp_path, default_sigterm, window
+    ):
+        spawned: list[subprocess.Popen[bytes]] = []
+        real_popen = subprocess.Popen
+        fired: list[bool] = []
+        real_target = getattr(receipt_module, window)
+
+        def popen(*args, **kwargs):
+            proc = real_popen(*args, **kwargs)
+            spawned.append(proc)
+            return proc
+
+        def cancel_once(*args, **kwargs):
+            # A SIGTERM that lands right after the child was spawned.
+            if not fired:
+                fired.append(True)
+                signal.raise_signal(signal.SIGTERM)
+            return real_target(*args, **kwargs)
+
+        monkeypatch.setattr(receipt_module.subprocess, "Popen", popen)
+        monkeypatch.setattr(receipt_module, window, cancel_once)
+        try:
+            with pytest.raises(SystemExit) as info:
+                receipt_module.run_command(
+                    py("import time; time.sleep(20)"), 16384, tmp_path, timeout_seconds=30
+                )
+            assert info.value.code == 128 + signal.SIGTERM
+            assert len(spawned) == 1
+            assert spawned[0].poll() is not None, (
+                "a cancel after spawn left the timed child running"
+            )
+        finally:
+            for proc in spawned:
+                if proc.poll() is None:
+                    with contextlib.suppress(OSError):
+                        os.killpg(proc.pid, signal.SIGKILL)
+                    proc.wait()
+
+    @POSIX_ONLY
+    def test_group_that_dies_on_sigterm_at_the_deadline_gets_no_sigkill(
+        self, monkeypatch, tmp_path
+    ):
+        signals: list[tuple[int, int]] = []
+        real_killpg = os.killpg
+
+        def killpg(pgid: int, sig: int) -> None:
+            if sig != 0:
+                signals.append((pgid, sig))
+            real_killpg(pgid, sig)
+
+        monkeypatch.setattr(receipt_module.os, "killpg", killpg)
+
+        code = receipt_module.run_command(
+            py("import time; time.sleep(30)"), 16384, tmp_path, timeout_seconds=1
+        )
+
+        assert code == receipt_module.EXIT_TIMEOUT
+        assert [sig for _, sig in signals] == [signal.SIGTERM]
+        assert len({pgid for pgid, _ in signals}) == 1
+
+    @POSIX_ONLY
+    @pytest.mark.parametrize(
+        ("probes", "expected"),
+        [(0, []), (1, [signal.SIGTERM])],
+        ids=["group-found-empty", "group-stopped-by-sigterm"],
+    )
+    def test_cancel_after_the_group_is_stopped_sends_no_further_signal(
+        self, monkeypatch, tmp_path, probes, expected
+    ):
+        proc = _FakePopen(waits=[0])
+        signals = install_group_fakes(monkeypatch, proc, group_alive_probes=probes)
+        install_fake_popen(monkeypatch, proc)
+
+        class CancelOnJoin(threading.Thread):
+            def join(self, timeout: float | None = None) -> None:
+                raise KeyboardInterrupt
+
+        monkeypatch.setattr(receipt_module.threading, "Thread", CancelOnJoin)
+
+        with pytest.raises(KeyboardInterrupt):
+            receipt_module.run_command(["fake"], 16384, tmp_path, timeout_seconds=30)
+
+        assert signals == [(proc.pid, sig) for sig in expected]
+
+    @POSIX_ONLY
+    def test_sigterm_during_the_pipe_drain_exits_promptly(self, tmp_path):
+        # The grandchild leaves the leader's group and keeps the output pipes, so
+        # the wrapper sits in its pipe drain once the leader is reaped.
+        wrapper = start_wrapper(tmp_path, EARLY_EXIT_SCRIPT, "setsid", "0")
+        try:
+            assert wait_until(lambda: tree_ready(tmp_path)), "child tree never became ready"
+            child, _ = tree_pids(tmp_path)
+            assert child is not None
+            assert wait_until(lambda: pid_reaped(child))
+            assert wrapper.poll() is None, "the wrapper did not wait for the held pipes"
+            sent = time.monotonic()
+            wrapper.send_signal(signal.SIGTERM)
+            assert wrapper.wait(timeout=20) == 128 + signal.SIGTERM
+            assert time.monotonic() - sent < receipt_module._PIPE_DRAIN_GRACE_S
+            # The leader's group is empty: the grandchild left it.
+            with pytest.raises(ProcessLookupError):
+                os.killpg(child, 0)
+        finally:
+            if wrapper.poll() is None:
+                wrapper.kill()
+                wrapper.wait()
+            kill_tree(tmp_path)
 
 
 class TestRedactionBypasses:
