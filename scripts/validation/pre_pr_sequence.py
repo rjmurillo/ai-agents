@@ -433,11 +433,10 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # repointed.
     _Gate("Skill ADR Bindings (ratchet)", _root_only(validate_skill_adr_bindings)),
     # Resolves an `ADR-NNN` citation in a rule file, any `AGENTS.md` or
-    # `CLAUDE.md`, an agent template or a rendered agent against that ADR's own
-    # record and status (issue #5200). The third ADR consumer gate: the skill
-    # gate reads `metadata.adr`, this one reads prose. A number with no tracked
-    # record fails, and so does a citation the classifier places as binding.
-    # Baselined by identity, so a new violation cannot hide behind a repaired one.
+    # `CLAUDE.md`, or an agent template or rendered agent, against that ADR's
+    # record and status (issue #5200). The skill gate reads `metadata.adr`; this
+    # one reads prose. A number with no tracked record fails, as does a citation
+    # the classifier places as binding. Baselined by identity, like its siblings.
     _Gate("Rule ADR Citations (ratchet)", _root_only(validate_rule_adr_citations)),
     # Resolves an `ADR-NNN` citation inside a live ADR body against the cited
     # record's own status. The skill and rule ADR gates never read ADR bodies,
