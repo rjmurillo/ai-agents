@@ -1,7 +1,7 @@
 """Subprocess encoding convention count ratchet (issue #4261).
 
-Counts calls to subprocess.run / subprocess.Popen / subprocess.check_output /
-subprocess.check_call that use text mode (text= or encoding=) but omit errors=.
+Counts UTF-8-pinned text subprocess calls without literal errors="replace".
+The scanner also flags unresolved keyword splats and honors the strict-ok marker.
 The count must not exceed the baseline. Improvements are allowed; regressions
 block. The baseline may only fall.
 
@@ -162,9 +162,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         counter=current_count,
         scan_error="check_subprocess_encoding.py failed to run",
         regression_advice=(
-            "New subprocess calls that use text= or encoding= must also pass "
-            'errors= (issue #4261). Add errors="replace" to the call, or '
-            'errors="strict" if a decode failure is an error condition.'
+            'Add a literal errors="replace" to UTF-8-pinned text calls and to '
+            "calls that pass **kwargs (issue #4261). "
+            "For strict decoding, add # subprocess-encoding: strict-ok on the "
+            "call line and state the reason."
         ),
         merge_tree_backed=MERGE_TREE_BACKED,
     )

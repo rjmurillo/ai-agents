@@ -102,13 +102,13 @@ GIT_TIMEOUT_SECONDS = 5
 # bound the run: the corrupted path issues five sequential git calls, so it
 # allows 25s against the 10s `timeout:` the `repo-health` job declares in
 # `lefthook.yml`. Which cap fires decides what the reader gets. Measured on
-# lefthook 2.1.10 (`.claude/rules/ci-scripts.md` MUST-19), a `timeout:` kill
-# lands on the job's shell before any guard runs, replacing the repair guidance
-# with a generic timeout line, which is the one failure this gate exists to
-# prevent. So 7s here, plus `uv run` startup measured at 0.077s and 0.130s warm
-# and 0.944s cold, leaves the 10s cap unreached. Exhausting the budget still
-# blocks, with exit 3 naming the command that ran out.
-# `tests/validation/test_check_repo_health_budget.py` pins the two together.
+# lefthook 2.1.10 (`.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`
+# MUST-19), a `timeout:` kill lands on the job's shell before any guard runs, replacing the
+# repair guidance with a generic timeout line, which is the one failure this gate exists to
+# prevent. So 7s here, plus `uv run` startup measured at 0.077s and 0.130s warm and 0.944s
+# cold, leaves the 10s cap unreached. Exhausting the budget still blocks, with exit 3 naming
+# the command that ran out. `tests/validation/test_check_repo_health_budget.py` pins the two
+# together.
 GIT_BUDGET_SECONDS = 7
 
 # git refuses every command, including `git config --unset-all`, when core.bare
