@@ -22,10 +22,9 @@ called it self-assigned weight:
 - **On merge**, this record governs. It defines the layer boundary, the precedence chain, the
   provenance rule, and the predicate vocabulary that every later slice consumes. It moves no
   generator, no config, and no routing default.
-- **It enforced nothing until M1 landed.** M1 to M6 (issues #5686 to #5691) closed as
-  completed; M5 closed through PR #5743 (`5cad780a2`, 2026-09-11). The single artifact it first shipped asserts that the gates its
-  conformance table names exist and that each class either names one or is marked missing. That
-  is a citation gate, not a behavior gate.
+- **It enforced nothing until M1 landed.** M1 to M6 (#5686 to #5691) closed as completed, M5 via
+  PR #5743 (`5cad780a2`). The single artifact it first shipped asserts that the gates its conformance
+  table names exist and that each class names one or is marked missing: a citation gate, not a behavior gate.
 
 Three of six review seats voted BLOCK on the first revision. This is the second. The debate log
 is `.project-toolkit/critique/ADR-107-debate-log.md`.
@@ -374,8 +373,8 @@ src/agent-registry-schema.ts, src/transforms/command-syntax-translator.ts, and t
 tests/copilot-target-emitter.test.ts and tests/command-syntax-translator.test.ts were added by
 PR #1645, sat orphaned with no root `package.json`, `tsconfig.json`, or `bunfig.toml` wiring them
 to any runner, and were deleted by the 2026-09-04 ponytail audit cleanup (issue #5456): the live
-CLI is `packages/ai-agents-cli/`, and `.github/workflows/cli-smoke.yml:156` sets
-`working-directory: packages/ai-agents-cli` before `bun test` at `:179` (`repo-observed`). Those
+CLI is `packages/ai-agents-cli/`, and `.github/workflows/cli-smoke.yml:167` sets
+`working-directory: packages/ai-agents-cli` before `bun test` at `:190` (`repo-observed`). Those
 files carried passing-looking tests that nothing ran.
 
 ## Prior Art Investigation

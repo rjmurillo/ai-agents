@@ -79,4 +79,9 @@ Three `/review` axes returned WARN on claim accuracy: architect, qa, and correct
 The ADR-114 row now names the amended workflow. The ADR-077 carriers are listed.
 ADR-104 uses the UTC merge date, and ADR-126 cites its merge SHA.
 
+The pre-PR citation gates then found that the ADR-107 Status rewrite added
+one line. That shifted text six other files cite by line number. The bullet is
+rewrapped to its original line count. A stale `cli-smoke.yml` citation next to
+the edit now points at the current lines 167 and 190.
+
 **Verdict**: Consensus to accept, with no BLOCK.
