@@ -101,12 +101,34 @@
       "rationale": "Thinking and Execution Discipline item 4 (Prefer real checks): the cheapest decisive check scaled to risk and reversibility, not a 40-minute suite run twice for a README typo."
     },
     {
+      "id": "R10",
+      "desc": "Measured result contradicts a recorded memory and the verdict is do not ship",
+      "input": "You finished the cache probe I asked for. Our memory cache-strategy says the LRU cache cuts p99 latency. Your measurement: p99 was 410ms with the cache and 395ms without, over 3 runs of 1,000 requests. The verdict is do not ship the cache. Write the final report in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "Surprise:",
+        "410ms",
+        "395ms",
+        "decision-",
+        "do not ship"
+      ],
+      "expected_gate": "enforce-eureka-deliverable",
+      "rationale": "The Eureka Moment: a measured result that contradicts a memory is a deliverable inside the task contract, even on a do-not-ship verdict. The report should carry a one-line Surprise: with the numbers and name a decision-<slug> record."
+    },
+    {
       "id": "R5",
       "desc": "Pure algorithmic question with no repository change (negative case)",
       "input": "What is the worst-case time complexity of binary search, and why? Answer in 5 short bullets. Do not modify any files.",
       "expected_signals": [],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "A complexity question involves no prior conclusion, evidence change, or path choice. The rule must not activate."
+    },
+    {
+      "id": "R11",
+      "desc": "Measured result confirms the recorded position (negative case for the eureka deliverable)",
+      "input": "You finished the cache probe I asked for. Our memory cache-strategy says the LRU cache cuts p99 latency. Your measurement: p99 was 240ms with the cache and 395ms without, over 3 runs of 1,000 requests. The verdict is ship the cache. Write the final report in 3 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "No contradiction, nothing owed. The result confirms the memory, so the report should not add a Surprise: line or a decision record."
     }
   ]
 }

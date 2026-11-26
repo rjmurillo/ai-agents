@@ -8,9 +8,10 @@ hub, tools Read, Glob, Grep. The probe and scorer were written by the same agent
 
 ## The rule
 
-When a docs index goes in AGENTS.md or CLAUDE.md, the line that tells the model
-to retrieve is what does the work. The file map adds tokens but no accuracy.
-Ship the instruction first. Add a map only if a measurement shows it helps.
+On this fixture, the line that tells the model to retrieve did the work. The
+map alone scored 22/30; the instruction alone scored 30/30, the same as map
+plus instruction. Lead with the instruction. Add a map only if a measurement
+on harder questions shows it helps.
 
 ## Question
 
@@ -57,8 +58,11 @@ shelved `index_docs_tree.py` generator.
 ## Decision
 
 The docs-index generator for `context-optimizer` was not shipped. Ship
-guidance should lead with the retrieval instruction. Compaction and file maps
-are optional and unproven here.
+guidance should lead with the retrieval instruction. This probe does not show
+the map hurts: both instruction arms hit the 30/30 ceiling, and the full index
+used fewer mean input tokens (18,023) than the instruction arm (18,668). It
+shows only that the map added no accuracy here. Harder questions may separate
+the two arms.
 
 ## Why this was nearly lost
 

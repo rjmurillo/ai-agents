@@ -20,7 +20,7 @@ When first-principles reasoning contradicts conventional wisdom on a question th
 > `.serena/memories/` files, or return it to the parent session
 > (`universal.md` MUST NOT 11, issue #5061).
 
-**Log format.** Write to Serena memory via `mcp__serena__write_memory` with name `decision-<short-slug>`. Body covers:
+**Log format.** The record is a committed file, `.serena/memories/decision-<short-slug>.md`. Write it with `mcp__serena__write_memory` (name `decision-<short-slug>`) when that tool targets this checkout, or edit the file directly. Body covers:
 
 1. **Question**: one sentence on the decision.
 2. **Conventional answer**: what Layer 1 or Layer 2 says, with a citation (ADR number, doc link, blog URL, codebase path).
@@ -30,4 +30,11 @@ When first-principles reasoning contradicts conventional wisdom on a question th
 
 Why log: the next reader (you in three months, or another agent next session) will hit the same fork and want the reasoning. Without the log they will either repeat the analysis or revert to the conventional answer and undo your work. The log compounds.
 
-**When the memory write fails.** If `mcp__serena__write_memory` returns an error or the tool is unavailable, fall back to a code comment in the file the decision applies to. Format: a comment block with the same five fields (question, conventional answer, first-principles position, evidence, decision). The comment is worse than a memory entry (less searchable, no graph) but better than losing the reasoning.
+**When the memory write fails.** If `mcp__serena__write_memory` returns an error or the tool is unavailable, write the same file directly with the editor and commit it. That still satisfies the `builder-ethos` eureka record.
+
+If no file under `.serena/memories/` can be written (read-only checkout, no commit access), the record is blocked. Do two things:
+
+1. Put a comment block with the same five fields in the file the decision applies to, or in the reply when no such file exists.
+2. Add one line to the reply: `Blocked record: decision-<short-slug>, <cause>`. The parent session or the user then commits the file.
+
+A blocked record is reported, not silently dropped. The comment is worse than a memory entry (less searchable, no graph) but better than losing the reasoning.
