@@ -423,18 +423,23 @@ def _base_commit_warning(checkout: Path, head: str, base: str | None) -> str | N
     )
 
 
+def _checkout_problem(checkout: Path, skill: str, tasks_path: Path) -> str | None:
+    """Return why the checkout cannot host this eval, else None."""
+    if not (checkout / ".claude" / "skills" / skill / "SKILL.md").is_file():
+        return f"{checkout} carries no {skill}"
+    if exposure := _gold_exposure(checkout, tasks_path):
+        return f"{exposure}; run from a standalone clone without the tasks file"
+    return None
+
+
 def cmd_run(args: argparse.Namespace) -> int:
     if shutil.which("claude") is None:
         print("ERROR: claude CLI not found", file=sys.stderr)
         return 3
     checkout = Path(args.checkout).resolve()
     data = load_tasks(Path(args.tasks))
-    skill = data.get("skill", DEFAULT_SKILL)
-    if not (checkout / ".claude" / "skills" / skill / "SKILL.md").is_file():
-        print(f"ERROR: {checkout} carries no {skill}", file=sys.stderr)
-        return 2
-    if exposure := _gold_exposure(checkout, Path(args.tasks)):
-        print(f"ERROR: {exposure}; run from a checkout without the tasks file", file=sys.stderr)
+    if problem := _checkout_problem(checkout, data.get("skill", DEFAULT_SKILL), Path(args.tasks)):
+        print(f"ERROR: {problem}", file=sys.stderr)
         return 2
     extra_tools = tuple(data.get("allowed_tools", []))
     unknown = sorted(set(args.task or ()) - {t["id"] for t in data["tasks"]})
