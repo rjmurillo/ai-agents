@@ -18,8 +18,7 @@ artifacts:
     # 397 adds room for references/typescript-parser.md (issue #7435).
     # 398 adds references/python-parser.md (issue #7436).
     # 399 adds references/powershell-parser.md (issue #7437), leaving 1 under the cap.
-    # 400 adds doc-accuracy's scripts/same_pr.py (the --same-pr scan), leaving 0 under the cap.
-    packMaxFiles: 400
+    packMaxFiles: 399
     # hermes-agent commit whose plugin_guard and install limits this table was
     # measured against. The guard test and the smoke test install this commit.
     hermesCommit: "63d0b94120027d487c9a5235b9ec64b696af1b26"
@@ -35,25 +34,30 @@ artifacts:
       - model-rationale
     # A skill appears in exactly one pack or under `excluded`. A new skill
     # fails the build until it is added here, so a new skill never moves an old
-    # one. An old skill changes packs only by owner decision, recorded in ADR-115
-    # Decision 6, and takes every skill its path references connect. On
-    # 2026-11-24 six skills moved from knowledge, which sat at the 400-file cap,
-    # to authoring.
+    # one. Moving a shipped skill to another pack changes what its users must
+    # install, so it needs an owner decision recorded in ADR-115 Decision 6 and
+    # takes every skill its path references connect (the quality pack split
+    # delivery when delivery reached 404 files, and the authoring pack moved
+    # six skill-authoring skills out of knowledge).
     packs:
       delivery:
-        description: "Project Toolkit skills for GitHub pull request work, build, test, and quality gates, security review, and operations."
+        description: "Project Toolkit skills for GitHub pull request work, planning, build, test, and review gates."
         skills:
           [agent-harness-reference, ai-agents-external-claims, analyze, api-doc-authoring,
-           benchmark-models, build,
-           chaos-experiment, code-qualities-assessment, codeql-scan, destructive-change-safety,
-           doc-accuracy, dx-review, execution-plans, fix-markdown-fences, git-advanced-workflows,
-           github, github-url-intercept, golden-principles, llm-council, maintainer-review, merge-resolver,
-           metrics, modernize, observability, orphan-ref-validator, pipeline-validator, plan,
+           benchmark-models, build, code-qualities-assessment,
+           doc-accuracy, dx-review, execution-plans, git-advanced-workflows,
+           github, github-url-intercept, maintainer-review, merge-resolver,
+           modernize, orphan-ref-validator, pipeline-validator, plan,
            pr-autofix, pr-babysit, pr-comment-responder, pr-review,
-           push-pr, quality-grades, research, reviewer-findings, security-review, slo-designer, sol-loop,
-           steering-matcher, style-enforcement, sync, takeover, taste-lints,
-           technical-writing, test, threat-modeling,
+           push-pr, quality-grades, research, reviewer-findings,
+           steering-matcher, sync, takeover, taste-lints, test,
            validate-pr-description, validation-authority, windows-image-updater]
+      quality:
+        description: "Project Toolkit skills for security and reliability engineering, code and documentation standards, metrics, and independent model review."
+        skills:
+          [chaos-experiment, codeql-scan, destructive-change-safety, fix-markdown-fences,
+           golden-principles, llm-council, metrics, observability, security-review,
+           slo-designer, sol-loop, style-enforcement, technical-writing, threat-modeling]
       knowledge:
         description: "Project Toolkit skills for memory, context, decisions, requirements, strategy, and documentation."
         skills:
@@ -67,8 +71,9 @@ artifacts:
            software-engineering-library, spec, using-serena-symbols, work-operating-model,
            world-model-diagnostic]
       authoring:
-        description: "Project Toolkit skills for writing, tuning, and bootstrapping skills, and for placing context."
-        skills: [context-optimizer, prose-self-check, skill-bootstrap, skillforge, skillify, skillopt]
+        description: "Project Toolkit skills for creating, measuring, and tuning skills, context placement, and agent prose."
+        skills:
+          [context-optimizer, prose-self-check, skill-bootstrap, skillforge, skillify, skillopt]
     # Hermes runs plugin_guard on every install and blocks a dangerous verdict.
     # Exclusion is transitive: a skill that refers to an excluded skill is
     # excluded too, because its reference would point at nothing.
@@ -91,10 +96,10 @@ artifacts:
     # A file of a packed skill that no pack carries. The key is
     # `<skill>/<path inside the skill>`. A key that matches no file fails the build.
     excludedFiles:
-      pr-comment-responder/references/rule-lossless-queue-reads.md: "Folded path rule; the delivery pack is at its 400-file cap."
-      build/references/rule-code-quality.md: "Folded path rule; the delivery pack is at its 400-file cap."
-      build/references/rule-powershell.md: "Folded path rule; the delivery pack is at its 400-file cap."
-      build/references/rule-csharp.md: "Folded path rule; the delivery pack is at its 400-file cap."
-      push-pr/references/rule-push-lock.md: "Folded path rule; the delivery pack is at its 400-file cap."
-      test/references/rule-testing.md: "Folded path rule; the delivery pack is at its 400-file cap."
+      pr-comment-responder/references/rule-lossless-queue-reads.md: "Folded path rule kept out of Hermes pack budget (PR #7541)."
+      build/references/rule-code-quality.md: "Folded path rule; references observability in the quality pack."
+      build/references/rule-powershell.md: "Folded path rule kept out of Hermes pack budget (PR #7541)."
+      build/references/rule-csharp.md: "Folded path rule kept out of Hermes pack budget (PR #7541)."
+      push-pr/references/rule-push-lock.md: "Folded path rule kept out of Hermes pack budget (PR #7563)."
+      test/references/rule-testing.md: "Folded path rule kept out of Hermes pack budget (PR #7563)."
       retrospective/scripts/copilot_journal.py: "Needs the skill-doctor parser, which Hermes does not ship, so --journal always reports unavailable there."

@@ -1,5 +1,7 @@
 # Frontmatter Parsing: Buy vs Build vs Extend Evaluation
 
+<!-- doc-accuracy: external-sdk python-frontmatter -- Python examples call python-frontmatter and PyYAML, not this repository -->
+
 **Date**: 2026-09-16
 **Driving issue**: [#5275](https://github.com/rjmurillo/ai-agents/issues/5275) (Three ADR frontmatter parsers disagree on closing-fence strictness)
 **Depth tier**: Quick (Phase 0 of `buy-vs-build-framework`)
@@ -191,6 +193,10 @@ H4 and H5 together are the finding that most changes the plan: **the obvious
 one-line mitigation for H5 is exactly H4.** The correct pin is a handler subclass:
 
 ```python
+import yaml
+from frontmatter.default_handlers import YAMLHandler
+
+
 class _PinnedYAMLHandler(YAMLHandler):
     def load(self, fm, **kw):
         kw["Loader"] = yaml.SafeLoader  # match yaml.safe_load exactly, per ADR-073

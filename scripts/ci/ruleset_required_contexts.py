@@ -66,7 +66,9 @@ REPORT_ONLY_WORKFLOWS: dict[str, str] = {
     "citation-verify.yml": DETERMINISTIC,
     "cli-smoke.yml": DETERMINISTIC,
     "dependabot-approve-and-auto-merge.yml": AUTOMATION,
+    "dependency-hygiene.yml": DETERMINISTIC,
     "dependency-review.yml": DETERMINISTIC,
+    "duplicate-code.yml": DETERMINISTIC,
     # Red by design when a pull request edits a file in the completion gate's
     # dispatch closure: the job reports every such edit (ADR-101, Application B).
     # It is the signal for a human to read that diff, not a defect, so it must

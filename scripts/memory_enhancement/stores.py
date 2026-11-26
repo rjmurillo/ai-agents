@@ -3,9 +3,9 @@
 Each repository has one memory store: ``.serena/memories`` when that folder
 exists, else ``.project-toolkit/memory/notes``. This package ships only in the
 Claude plugin lib, and the memory skill ships to five more trees, so the skill
-keeps two more copies: ``memory_core/memory_store.py`` for the router and
-``scripts/store_resolution.py`` for the search script. The
-test_memory_root_parity tests hold all three together.
+keeps one copy in ``memory_core/memory_store.py`` (imported by
+``scripts/store_resolution.py`` for the search script). The
+test_memory_root_parity tests hold both copies together.
 """
 
 from __future__ import annotations

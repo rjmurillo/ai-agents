@@ -1,7 +1,7 @@
 """Static-contract tests for bounded pytest-xdist parallelism in pytest.yml.
 
-Issue #4854, reshaped by issue #6239. The test job is a seven-entry matrix. The
-five duration-balanced split groups use xdist (`-n auto --dist worksteal`).
+Issue #4854, reshaped by issue #6239. The test job is an eight-entry matrix. The
+six duration-balanced split groups use xdist (`-n auto --dist worksteal`).
 Safe-push and pr-autofix stay serial. No hard-coded worker count.
 
 The coverage combine job downloads artifacts from all matrix legs and merges
@@ -36,7 +36,7 @@ _POOL_IGNORES = {
     "tests/test_mutation_workspace_signals.py",
     "tests/test_pr_autofix_late_live_state_gate.py",
 }
-_SPLIT_LEGS = ["split-1", "split-2", "split-3", "split-4", "split-5"]
+_SPLIT_LEGS = ["split-1", "split-2", "split-3", "split-4", "split-5", "split-6"]
 
 # Any argv spelling that starts workers or picks a distribution mode.
 _PARALLEL_TOKEN = re.compile(r"(?<!\S)(-n|--numprocesses|--dist)(?:[=\s]|$)")
@@ -77,7 +77,18 @@ def _partition_args(name: str) -> list[str]:
 
 
 class TestMatrixStructure:
-    """The test job is a six-partition matrix."""
+    """The test job is an eight-partition matrix."""
+
+    def test_locked_scanner_is_installed_before_every_test_partition(self) -> None:
+        steps = _job_steps("test")
+        install = next(
+            index
+            for index, step in enumerate(steps)
+            if step.get("run") == "npm ci --ignore-scripts"
+        )
+        run = next(index for index, step in enumerate(steps) if step.get("name") == _MAIN_STEP)
+        assert install < run
+        assert "if" not in steps[install]
 
     def test_node_uses_the_runner_system_ca(self) -> None:
         assert _job("test")["env"]["NODE_OPTIONS"] == "--use-system-ca"
@@ -89,7 +100,7 @@ class TestMatrixStructure:
         assert "env.ACT == 'true'" in output
         assert "env.ACT != 'true'" in filter_step["if"]
 
-    def test_six_partitions_exist(self) -> None:
+    def test_eight_partitions_exist(self) -> None:
         partitions = [e["partition"] for e in _matrix()]
         assert partitions == [*_SPLIT_LEGS, "safe-push", "pr-autofix"]
 
@@ -126,8 +137,8 @@ class TestMatrixStructure:
         for entry in _matrix():
             assert "coverage_file" in entry, f"{entry['partition']} missing coverage_file"
             assert "junit_file" in entry, f"{entry['partition']} missing junit_file"
-        assert len({entry["coverage_file"] for entry in _matrix()}) == 7
-        assert len({entry["junit_file"] for entry in _matrix()}) == 7
+        assert len({entry["coverage_file"] for entry in _matrix()}) == 8
+        assert len({entry["junit_file"] for entry in _matrix()}) == 8
 
     def test_every_partition_has_runner_args(self) -> None:
         matrix_partitions = {entry["partition"] for entry in _matrix()}
@@ -148,7 +159,7 @@ class TestMatrixStructure:
             _partition_args(name)[_partition_args(name).index("--module-group") + 1]
             for name in _SPLIT_LEGS
         ]
-        assert groups == ["1", "2", "3", "4", "5"]
+        assert groups == ["1", "2", "3", "4", "5", "6"]
         splits = {
             _partition_args(n)[_partition_args(n).index("--module-splits") + 1] for n in _SPLIT_LEGS
         }

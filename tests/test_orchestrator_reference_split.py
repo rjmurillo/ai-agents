@@ -20,7 +20,12 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+from tests.agent_reference_helpers import (
+    REPO_ROOT,
+    read_reference_text,
+    reference_loading_section,
+)
+
 REFERENCE_DIR = REPO_ROOT / "src" / "claude" / "skills" / "autoplan" / "references"
 LOADING_HEADING = "## Reference Loading"
 SHARED_PATH_FORM = (
@@ -31,20 +36,21 @@ COPILOT_PATH_FORM = "${COPILOT_PLUGIN_ROOT}/skills/autoplan/references/"
 UNRESOLVED_RULE = "apply the rules in this file and state that the reference was unavailable"
 
 ORCHESTRATOR_PATHS = (
-    Path("templates/agents/orchestrator.shared.md"),
-    Path("src/claude/agents/orchestrator.md"),
-    Path(".claude/agents/orchestrator.md"),
-    Path(".github/agents/orchestrator.agent.md"),
-    Path("src/copilot-cli/agents/orchestrator.agent.md"),
-    Path("src/vs-code-agents/orchestrator.agent.md"),
+    "templates/agents/orchestrator.shared.md",
+    "src/claude/agents/orchestrator.md",
+    ".claude/agents/orchestrator.md",
+    ".github/agents/orchestrator.agent.md",
+    "src/copilot-cli/agents/orchestrator.agent.md",
+    "src/vs-code-agents/orchestrator.agent.md",
 )
 
 
-def _expected_path_form(path: Path) -> str:
+def _expected_path_form(path: str) -> str:
     """Claude Code and Cursor get the bare Claude root, Copilot CLI its own, the rest both."""
-    if path.parts[:2] in {(".claude", "agents"), ("src", "claude"), ("src", "cursor")}:
+    parts = Path(path).parts
+    if parts[:2] in {(".claude", "agents"), ("src", "claude"), ("src", "cursor")}:
         return CLAUDE_PATH_FORM
-    if ".github" in path.parts or "copilot-cli" in path.parts:
+    if ".github" in parts or "copilot-cli" in parts:
         return COPILOT_PATH_FORM
     return SHARED_PATH_FORM
 
@@ -65,20 +71,12 @@ REFERENCES = {
 }
 
 
-def _text(path: Path) -> str:
-    return " ".join((REPO_ROOT / path).read_text(encoding="utf-8").split())
-
-
-def _loading_section(path: Path) -> str:
-    text = _text(path)
-    assert text.count(LOADING_HEADING) == 1, f"{path} must carry {LOADING_HEADING!r} once"
-    rest = text[text.index(LOADING_HEADING) + len(LOADING_HEADING) :]
-    boundary = rest.find(" ## ")
-    return rest if boundary == -1 else rest[:boundary]
+def _loading_section(path: str) -> str:
+    return reference_loading_section(read_reference_text(path), path, LOADING_HEADING)
 
 
 @pytest.mark.parametrize("path", ORCHESTRATOR_PATHS, ids=str)
-def test_reference_loading_names_every_reference_with_a_condition(path: Path) -> None:
+def test_reference_loading_names_every_reference_with_a_condition(path: str) -> None:
     section = _loading_section(path)
     expected_form = _expected_path_form(path)
 
@@ -89,7 +87,7 @@ def test_reference_loading_names_every_reference_with_a_condition(path: Path) ->
 
 
 @pytest.mark.parametrize("path", ORCHESTRATOR_PATHS, ids=str)
-def test_harness_without_a_skill_tree_has_a_fallback_rule(path: Path) -> None:
+def test_harness_without_a_skill_tree_has_a_fallback_rule(path: str) -> None:
     assert UNRESOLVED_RULE in _loading_section(path), f"{path} has no unresolved-path rule"
 
 
@@ -103,9 +101,9 @@ def test_reference_exists_and_is_not_empty(name: str) -> None:
 
 @pytest.mark.parametrize("name", sorted(REFERENCES))
 @pytest.mark.parametrize("path", ORCHESTRATOR_PATHS, ids=str)
-def test_body_keeps_the_stub_heading_that_points_at_its_reference(path: Path, name: str) -> None:
+def test_body_keeps_the_stub_heading_that_points_at_its_reference(path: str, name: str) -> None:
     heading, _ = REFERENCES[name]
-    text = _text(path)
+    text = read_reference_text(path)
 
     assert heading in text, f"{path} lost {heading!r}"
     assert name in text[text.index(heading) :], f"{path} stub for {heading!r} never names {name}"
@@ -113,7 +111,7 @@ def test_body_keeps_the_stub_heading_that_points_at_its_reference(path: Path, na
 
 def test_drift_stub_points_at_the_same_reference() -> None:
     for path in ORCHESTRATOR_PATHS:
-        text = _text(path)
+        text = read_reference_text(path)
         stub = text[text.index("### 7-Step Recovery") :]
         assert "orchestrator-resume-and-drift.md" in stub, f"{path} drift stub lost its pointer"
 

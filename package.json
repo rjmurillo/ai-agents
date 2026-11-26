@@ -4,5 +4,8 @@
   "keywords": ["pi-package"],
   "pi": {
     "skills": ["./src/claude/skills"]
+  },
+  "devDependencies": {
+    "jscpd": "5.4.3"
   }
 }

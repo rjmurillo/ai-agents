@@ -425,7 +425,7 @@ Promoting it (Open question 1, option A) is an architecture change and needs an 
    - C. Write a small stdlib HTTP transport inside `llm_classification` and skip CLI cells. Smallest scope. Gives up local CLI support.
    Recommendation: A, if the eval passes. It is an architecture change, so it needs an ADR and the owner's decision.
 2. Should the summary publish fallback counts per reviewer, or only per run?
-3. Should auto-detect pick the user's harness CLI? The only harness marker with repo evidence is `CLAUDECODE` (`scripts/validation/run_workflow_local_test.py:126`). No Codex or Copilot marker is evidenced. Current answer: no, CLI is opt-in.
+3. Should auto-detect pick the user's harness CLI? The only harness marker with repo evidence is `CLAUDECODE` (`scripts/validation/run_workflow_local_test.py:130`). No Codex or Copilot marker is evidenced. Current answer: no, CLI is opt-in.
 4. Does a `claude --print` child started inside a Claude Code session re-fire the parent's hooks? The eval cell passes `--setting-sources ""` to avoid loading settings, but no test proves hooks stay quiet.
 5. Answered 2026-11-24: a CI secret is acceptable if the eval passes. The `agent-claude` environment already holds `ANTHROPIC_API_KEY`, so no new secret is needed for CI rank 1.
 

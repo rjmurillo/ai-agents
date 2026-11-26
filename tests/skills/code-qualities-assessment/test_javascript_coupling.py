@@ -4,27 +4,14 @@ JavaScript reuses the pinned TSX grammar from tree-sitter-typescript.
 """
 
 import importlib.util
-import json
-import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
-from .test_assess import _commit, _init_repo, _regression_argv, _run_git
+from .shipped_assess import assert_shipped_scanner_counts
+from .test_assess import _commit, _init_repo, _mod, _regression_argv, _run_git
 
-_SCRIPT = (
-    Path(__file__).resolve().parents[3]
-    / ".claude"
-    / "skills"
-    / "code-qualities-assessment"
-    / "scripts"
-    / "assess.py"
-)
-_spec = importlib.util.spec_from_file_location("assess", _SCRIPT)
-assert _spec is not None and _spec.loader is not None
-_mod = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_mod)
 assess_content = _mod.assess_content
 
 
@@ -115,7 +102,7 @@ def test_javascript_adds_no_parser_import_to_the_scanner() -> None:
 
     The set holds the C#, TypeScript, and Python (issue #7436) grammars only.
     """
-    assert _mod._python_external_imports(_SCRIPT) == {
+    assert _mod._python_external_imports(Path(_mod.__file__)) == {
         "tree_sitter",
         "tree_sitter_c_sharp",
         "tree_sitter_python",
@@ -245,10 +232,6 @@ def test_shipped_javascript_parser_runs_from_consumer_directory(
     tmp_path: Path, plugin_parts: tuple[str, ...]
 ) -> None:
     """Every shipped scanner parses JavaScript outside its own plugin directory."""
-    root = Path(__file__).resolve().parents[3]
-    script = root.joinpath(
-        "src", *plugin_parts, "skills", "code-qualities-assessment", "scripts", "assess.py"
-    )
     target = tmp_path / "consumer.mjs"
     target.write_text(
         'import a from "a"; export * from "./all.js";\n// import b from "b";\n'
@@ -256,34 +239,4 @@ def test_shipped_javascript_parser_runs_from_consumer_directory(
         encoding="utf-8",
     )
 
-    result = subprocess.run(
-        [sys.executable, "-I", str(script), "--target", str(target), "--format", "json"],
-        cwd=tmp_path,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-        timeout=30,
-    )
-
-    assert result.returncode == 0, result.stderr
-    coupling = json.loads(result.stdout)["files"][0]["coupling"]
-    assert coupling["value"] == 7.0
-    assert coupling["confidence"] == 0.6
-    assert coupling["reasons"][0] == "3 import/dependency statements"
-
-    without_packages = subprocess.run(
-        [sys.executable, "-I", "-S", str(script), "--target", str(target), "--format", "json"],
-        cwd=tmp_path,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-        timeout=30,
-    )
-
-    assert without_packages.returncode == 1
-    assert "tree-sitter" in without_packages.stderr
-    assert not without_packages.stdout
+    assert_shipped_scanner_counts(plugin_parts, target, 7.0, 3)

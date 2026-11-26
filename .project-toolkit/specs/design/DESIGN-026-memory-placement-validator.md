@@ -50,8 +50,8 @@ templates/rules/knowledge-persistence.md   canonical (edit: new "Placement
         |
         |  uv run python build/scripts/build_all.py
         v
-.claude/rules/knowledge-persistence.md             install tree
-.github/instructions/knowledge-persistence.instructions.md   Copilot mirror
+.claude/rules/knowledge-persistence.md             repository-local rule
+.github/instructions/knowledge-persistence.instructions.md   repository-local Copilot mirror
 
 .serena/memories/README.md   canonical, hand-maintained (edit: new "What
                               belongs here" section, points at the taxonomy
@@ -65,6 +65,10 @@ lefthook.yml   edit: one new job in the existing memory-size/memory-index/
 ```
 
 ## Technology Decisions
+
+PR #7242 made this rule repository-only on 2026-11-11.
+The template still generates the repository-local outputs shown above.
+Plugin copies were intentionally removed and must not be restored.
 
 | Decision | Choice | O5 source | Rationale |
 |---|---|---|---|

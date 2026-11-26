@@ -1284,15 +1284,15 @@ def validate_pr_description(
                         "change claims; paths elsewhere are informational. "
                         "Remove the path, move it out of that heading, or wrap "
                         "it in a code fence. "
-                        # CONTRIBUTING.md:909, section "Bypassing Description
-                        # Validation", reads verbatim: "1. A human maintainer
+                        # CONTRIBUTING.md:1076, in the section Bypassing
+                        # Description Validation, reads verbatim: "1. A human maintainer
                         # MUST add the `description-validation-bypass` label
                         # (case-insensitive match)". Naming it as the reader's
                         # own next step tells an agent to grant itself a
                         # permission it does not hold (issue #4782).
                         #
                         # Stricter/looser/different than canonical:
-                        # CONTRIBUTING.md:909 states only who MAY add the
+                        # CONTRIBUTING.md:1076 states only who MAY add the
                         # label. This message additionally states who may NOT
                         # (the reader), because the load-bearing half for an
                         # autonomous reader is the prohibition, not the

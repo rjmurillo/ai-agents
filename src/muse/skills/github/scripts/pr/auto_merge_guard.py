@@ -1,25 +1,15 @@
 #!/usr/bin/env python3
 """Guard GitHub auto-merge before resolving the final review thread."""
 
-from __future__ import annotations
-
 import os
 import sys
 from typing import Any
 
-_plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
-if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
-    _lib_dir = os.path.join(_plugin_root, "lib")
-else:
-    _lib_dir = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
-    )
-if not os.path.isdir(_lib_dir):
-    print(f"Plugin lib directory not found: {_lib_dir}", file=sys.stderr)
-    sys.exit(2)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-if _lib_dir not in sys.path:
-    sys.path.insert(0, _lib_dir)
+from skill_bootstrap import ensure_plugin_paths
+
+ensure_plugin_paths(__file__)
 
 from github_core.api import gh_graphql
 
