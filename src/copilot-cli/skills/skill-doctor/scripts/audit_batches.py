@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 import audit_scores
+from session_common import THREADS, session_thread
 
 ASSIGNMENT_VERSION = 1
 MANIFEST_FILENAME = "assignment.json"
@@ -64,6 +65,18 @@ def _sampled_by_stratum(inventory: Mapping[str, Any]) -> dict[str, list[str]]:
                 session_key(session)
             )
     return {name: sorted(keys) for name, keys in strata.items()}
+
+
+def _threads_of(inventory: Mapping[str, Any], ids: Sequence[str]) -> dict[str, str]:
+    """Session type for each assigned id, read from the inventory, never from the scorer."""
+    wanted = set(ids)
+    threads: dict[str, str] = {}
+    for session in inventory.get("sessions") or []:
+        key = session_key(session)
+        if key in wanted:
+            # Inventories made before the ``thread`` field still carry the parser's tag.
+            threads[key] = session.get("thread") or session_thread(session["meta"])
+    return dict(sorted(threads.items()))
 
 
 def _ordered_strata(names: Sequence[str]) -> list[str]:
@@ -136,6 +149,7 @@ def build_assignment(
                     "representative": False,
                     "non_probability_note": NON_PROBABILITY_NOTE,
                     "session_ids": chunk,
+                    "session_threads": _threads_of(inventory, chunk),
                 }
             )
     return {
@@ -197,6 +211,11 @@ def _check_assignment(assignment: Any) -> list[str]:
     ids = assignment["session_ids"]
     if not isinstance(ids, list) or not all(isinstance(i, str) for i in ids):
         return ["assignment session_ids must be a list of strings"]
+    threads = assignment.get("session_threads")
+    if threads is not None and not (
+        isinstance(threads, dict) and all(v in THREADS for v in threads.values())
+    ):
+        return ["assignment session_threads must map session ids to top_level or subagent"]
     number = _number_from(assignment["batch_id"])
     expected = _batch_id(assignment["source_digest"], assignment["stratum"], ids, number)
     if number < 1 or assignment["batch_id"] != expected:
@@ -221,6 +240,28 @@ def _identity_errors(
     if row.get("stratum", assignment["stratum"]) != assignment["stratum"]:
         errors.append(f"{where}: foreign assignment, stratum {row.get('stratum')!r}")
     return errors
+
+
+def _thread_errors(assignment: Mapping[str, Any], index: int, row: Mapping[str, Any]) -> list[str]:
+    """A row that names a thread must agree with the assignment's script-supplied value."""
+    expected = (assignment.get("session_threads") or {}).get(row.get("session_id"))
+    if expected is None or row.get("thread") in (None, expected):
+        return []
+    return [
+        f"rows[{index}] {row.get('session_id')!r}: thread {row.get('thread')!r} is not {expected!r}"
+    ]
+
+
+def _stamp_threads(assignment: Mapping[str, Any], rows: Sequence[Any]) -> list[dict[str, Any]]:
+    """Copy rows, filling ``thread`` from the assignment when the scorer left it out."""
+    known = assignment.get("session_threads") or {}
+    stamped = []
+    for row in rows:
+        copy = dict(row)
+        if copy.get("thread") is None and copy.get("session_id") in known:
+            copy["thread"] = known[copy["session_id"]]
+        stamped.append(copy)
+    return stamped
 
 
 def _membership_errors(assigned: Sequence[str], rows: Sequence[Any]) -> list[str]:
@@ -256,6 +297,7 @@ def validate_rows(
     for index, row in enumerate(rows):
         if isinstance(row, dict):
             errors.extend(_identity_errors(assignment, index, row))
+            errors.extend(_thread_errors(assignment, index, row))
         errors.extend(audit_scores.validate_session(row, tables, index))
     return errors
 
@@ -302,7 +344,8 @@ def import_scores(
         for row in load_accepted(accepted_path, assignment["source_digest"])
         if row.get("session_id") not in assigned
     ]
-    merged = sorted(kept + list(incoming_rows), key=lambda row: row["session_id"])
+    incoming = _stamp_threads(assignment, incoming_rows)
+    merged = sorted(kept + incoming, key=lambda row: row["session_id"])
     audit_scores.write_atomic(
         accepted_path, {"source_digest": assignment["source_digest"], "sessions": merged}
     )
