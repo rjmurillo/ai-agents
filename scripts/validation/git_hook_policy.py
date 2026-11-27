@@ -688,7 +688,7 @@ HEADROOM_MARGIN_SECONDS = 60
 _PYTEST_NO_TESTS_COLLECTED = 5
 # Opt into executing the whole suite in an on-demand run, with no testmon selection.
 # Unset is the default: an on-demand run executes only the tests
-# pytest-testmon selects. Pre-push does not run pytest; CI's `pytest.yml`
+# pytest-testmon selects. Pre-push runs no full pytest suite; CI's `pytest.yml`
 # partition matrix is the gate (ADR-104 amendment, 2026-11-26).
 PYTEST_FULL_SUITE_LOCALLY_ENV = "AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY"
 # The third flag loads `testmon_scoped_sync` (issue #6406): without it a partition
@@ -8176,7 +8176,7 @@ def _testmon_stand_in(repo_root: Path) -> list[list[str]]:
         "which checks\n"
         "  imports, and leaves execution to CI.\n"
         "  The pytest header and summary below show what testmon selected and ran.\n"
-        "  Pre-push does not run pytest. CI runs every test: "
+        "  Pre-push runs only a few targeted pytest checks. CI runs every test: "
         ".github/workflows/pytest.yml\n"
         "  runs every pytest leg in full on every pull request, merge-queue "
         "event, and push to main\n"

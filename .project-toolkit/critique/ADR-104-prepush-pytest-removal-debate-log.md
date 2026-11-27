@@ -75,6 +75,7 @@ edits answer them. None changes the decision or a binding rule.
 | CI round-trip trigger had no threshold or source | Set it to more than 3 failing `pull_request` runs per week, read from Actions history. |
 | Reversibility not stated | Revert Path now says job removal is reversible and `--isolated` is one-way. |
 | "`git_hook_policy.py` untouched" was false | Corrected in Binding Changes, Impact table, ledger C10, and this log. |
+| PR review: revert file list missed one test | Revert Path now lists `tests/ci/test_lefthook_container_bound.py`. |
 
 Reduced panel: architect and critic scope, applied through the `/review`
 analyst, architect, and decision-rigor axes. No executable rule changed.

@@ -924,14 +924,14 @@ seconds. The same two tests passed in 27.92 seconds under `RUN_CLI_E2E=1` with
 console; no log artifact is committed.
 ## Editing any `.claude/rules/*.md` file changes a number the doctrine asserts
 
-`model-context-doctrine.md` states the shipped plugin tree's always-on size as
-a literal byte count, and `tests/validation/test_always_on_corpus_claims.py`
-measures the tree and asserts the prose matches. Editing a rule changes that
-measurement, so a one-paragraph clarification to an unrelated rule turns the
-guard red.
+`model-context-doctrine.md` lists which rules load on every turn, and
+`tests/validation/test_always_on_corpus_claims.py` asserts that the list
+matches the generated trees. It also fails when the doctrine states a byte
+count. Changing a rule's `paths:` scope changes that membership, so a small
+scope edit to an unrelated rule turns the guard red.
 
 The trap is where it fires. The guard is a pytest test, and pre-push no
-longer runs pytest (ADR-104 amendment, 2026-11-26), so CI `pytest.yml` is the
+longer runs the full pytest suite (ADR-104 amendment, 2026-11-26), so CI `pytest.yml` is the
 first gate to catch it. Nothing in the pre-commit set catches it, and the edit
 itself looks unrelated to any figure. Run the test file yourself before you
 push.

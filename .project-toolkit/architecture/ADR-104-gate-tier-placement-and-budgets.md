@@ -658,7 +658,8 @@ Adding `--isolated` is one-way by design. To restore local pre-push pytest/colle
 `zero-collection-tests` (and stage/compute-lane comments) in `lefthook.yml`,
 re-add `"zero-collection-tests"` to `CONTAINER_UNCLAMPED_JOBS` in
 `scripts/ci/lefthook_budget_model.py`, restore pre-push wiring assertions in
-`tests/test_lefthook_integration.py`, `tests/ci/test_lefthook_prepush_fast_fail.py`,
+`tests/test_lefthook_integration.py`, `tests/ci/test_lefthook_container_bound.py`,
+`tests/ci/test_lefthook_prepush_fast_fail.py`,
 `tests/ci/test_zero_collection_guard_wiring.py`,
 `tests/validation/test_pre_pr_covers_pre_push_jobs.py`,
 `tests/validation/test_pre_pr_covers_workflow_validators.py`, and
