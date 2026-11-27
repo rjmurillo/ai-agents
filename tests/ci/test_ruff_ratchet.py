@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -163,6 +164,9 @@ def test_passes_when_changed_python_files_are_clean(
     assert files == ["scripts/clean.py"]
     assert exit_code == ruff_ratchet.EXIT_OK
     assert recorder.commands[1] == [
+        sys.executable,
+        "-P",
+        "-m",
         "ruff",
         "check",
         "--output-format=json",
@@ -181,6 +185,9 @@ def test_run_ruff_separates_options_from_dash_prefixed_paths(
 
     assert exit_code == ruff_ratchet.EXIT_OK
     assert recorder.commands[0] == [
+        sys.executable,
+        "-P",
+        "-m",
         "ruff",
         "check",
         "--output-format=json",
@@ -527,6 +534,41 @@ def test_git_timeout_is_an_external_error_without_a_fallback_retry(
     assert "Command timed out after 60s" in capsys.readouterr().err
 
 
+def test_git_timeout_prints_partial_stdout(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # The runner contract preserves what git flushed before the deadline. The
+    # ratchet's documented diagnostic guarantee covers that output too.
+    recorder = RunRecorder(
+        [timed_out(60, stdout=names("scripts/partial.py"), stderr="progress: reading refs")]
+    )
+    monkeypatch.setattr(ruff_ratchet, "_run_subprocess", recorder)
+
+    status, files, _base = ruff_ratchet.changed_python_files("feature-base", tmp_path)
+    captured = capsys.readouterr()
+
+    assert status == ruff_ratchet.EXIT_EXTERNAL
+    assert files == []
+    assert "git partial stdout" in captured.err
+    assert "scripts/partial.py" in captured.err
+
+
+def test_git_signal_death_prints_a_diagnostic_when_stderr_is_empty(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # A signal-killed git produces no ref resolution and no finding. The log
+    # must say that much even when the child wrote only whitespace to stderr.
+    recorder = RunRecorder([completed(-15, stderr="\n")])
+    monkeypatch.setattr(ruff_ratchet, "_run_subprocess", recorder)
+
+    status, files, _base = ruff_ratchet.changed_python_files("feature-base", tmp_path)
+    captured = capsys.readouterr()
+
+    assert status == ruff_ratchet.EXIT_EXTERNAL
+    assert files == []
+    assert "signal 15" in captured.err
+
+
 def test_git_timeout_on_the_fallback_ref_is_an_external_error(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -780,7 +822,7 @@ def _install_hung_popen(
     child = _HungPopen(partial_stdout, partial_stderr)
     monkeypatch.setattr(subprocess_runner.subprocess, "Popen", lambda *_a, **_k: child)
     # The stand-in has no real pid; never signal a process group for it.
-    monkeypatch.setattr(subprocess_runner, "_terminate", lambda _proc: None)
+    monkeypatch.setattr(subprocess_runner, "_terminate", lambda _proc, _job=None: None)
     return child
 
 
@@ -799,34 +841,52 @@ def test_real_runner_ruff_timeout_exits_external_with_partial_output(
     assert '[{"code": "E5' in captured.err
 
 
-def test_real_runner_git_timeout_exits_external_without_fallback(
+def test_real_runner_git_timeout_exits_external_with_partial_output(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    child = _install_hung_popen(monkeypatch, b"", b"")
+    child = _install_hung_popen(monkeypatch, b"scripts/partial.py\0", b"progress: reading refs")
 
     status, files, _base = ruff_ratchet.changed_python_files("feature-base", tmp_path)
+    captured = capsys.readouterr()
 
     assert status == ruff_ratchet.EXIT_EXTERNAL
     assert files == []
     assert child.timeouts[0] == ruff_ratchet._GIT_TIMEOUT_SECONDS
     # One hung call: the timed-out communicate plus its drain, no second git.
     assert len(child.timeouts) == 2
-    assert (
-        f"Command timed out after {ruff_ratchet._GIT_TIMEOUT_SECONDS}s" in capsys.readouterr().err
-    )
+    assert f"Command timed out after {ruff_ratchet._GIT_TIMEOUT_SECONDS}s" in captured.err
+    assert "progress: reading refs" in captured.err
+    assert "git partial stdout" in captured.err
+    assert "scripts/partial.py" in captured.err
 
 
-def test_real_runner_missing_ruff_exits_external(
+def test_real_runner_missing_ruff_module_exits_external(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     from scripts.validation import subprocess_runner
 
-    def missing(*_args: object, **_kwargs: object) -> None:
-        raise FileNotFoundError("ruff")
+    class _MissingModulePopen:
+        pid = 1
+        returncode = 1
 
-    monkeypatch.setattr(subprocess_runner.subprocess, "Popen", missing)
+        def communicate(self, timeout: float | None = None) -> tuple[str, str]:
+            return "", "No module named ruff\n"
+
+        def __enter__(self) -> _MissingModulePopen:
+            return self
+
+        def __exit__(self, *_exc: object) -> None:
+            return None
+
+    monkeypatch.setattr(
+        subprocess_runner.subprocess,
+        "Popen",
+        lambda *_a, **_k: _MissingModulePopen(),
+    )
 
     exit_code = ruff_ratchet.run_ruff(["scripts/a.py"], tmp_path, {})
 
     assert exit_code == ruff_ratchet.EXIT_EXTERNAL
-    assert "Command not found: ruff" in capsys.readouterr().err
+    captured = capsys.readouterr()
+    assert "No module named ruff" in captured.err
+    assert "produced no JSON output" in captured.err

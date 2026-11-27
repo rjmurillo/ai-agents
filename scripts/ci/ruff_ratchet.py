@@ -74,8 +74,17 @@ _GIT_TIMEOUT_SECONDS = 60
 # runner and a very large change without letting a hung ruff stall the job.
 _RUFF_TIMEOUT_SECONDS = 180
 
-# Cap on partial ruff stdout echoed after a timeout or an unexpected exit.
+# Cap on partial stdout echoed after a timeout or an unexpected exit.
 _PARTIAL_OUTPUT_LIMIT = 2000
+
+
+def _print_partial_stdout(tool: str, stdout: str) -> None:
+    if stdout.strip():
+        print(
+            f"{tool} partial stdout (first {_PARTIAL_OUTPUT_LIMIT} chars):\n"
+            f"{stdout[:_PARTIAL_OUTPUT_LIMIT]}",
+            file=sys.stderr,
+        )
 
 
 def default_base_ref() -> str:
@@ -124,6 +133,17 @@ def changed_python_files(base_ref: str, repo_root: Path) -> tuple[int, list[str]
         result = git_diff_name_only(_FALLBACK_BASE_REF, repo_root)
     if result.returncode != 0:
         print(result.stderr.strip(), file=sys.stderr)
+        if (
+            result.returncode < 0
+            and "Command timed out after" not in result.stderr
+            and "Command not found:" not in result.stderr
+        ):
+            signal_number = -result.returncode
+            print(
+                f"error: git diff terminated by signal {signal_number}; no result was produced",
+                file=sys.stderr,
+            )
+        _print_partial_stdout("git", result.stdout)
         return EXIT_EXTERNAL, [], resolved
 
     files = [
@@ -225,8 +245,12 @@ def run_ruff(
         print("No changed Python files found. Ruff ratchet passed.")
         return EXIT_OK
 
+    # Invoke the installed module through the current Python executable. A
+    # bare ``ruff`` can resolve to a .cmd or .bat shim on Windows, and Windows
+    # may parse list-form batch arguments as shell input (CPython security
+    # considerations). Git-controlled filenames are in this argument list.
     returncode, stdout, stderr = _run_subprocess(
-        ["ruff", "check", "--output-format=json", "--", *files],
+        [sys.executable, "-P", "-m", "ruff", "check", "--output-format=json", "--", *files],
         timeout=_RUFF_TIMEOUT_SECONDS,
         cwd=repo_root,
     )

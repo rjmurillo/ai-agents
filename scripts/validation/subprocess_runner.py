@@ -10,23 +10,26 @@ diagnostic that explained where the child stopped.
 ``checks_common`` re-exports :func:`_run_subprocess`, so every existing
 ``from checks_common import _run_subprocess`` keeps resolving.
 
-On timeout the whole process group dies, not only the direct child (issue
+On timeout the child's process tree dies, not only the direct child (issue
 #6412). ``subprocess.run(timeout=)`` kills just the direct child, so a
 ``gh act`` grandchild kept its ports bound after the gate that started it had
-already failed. The group gets SIGTERM, a short grace window, then SIGKILL. A
-descendant that started its own session is outside the group, so the child that
-started it must forward the stop itself (``run_workflow_local_test`` does).
-While a child runs on the main thread, a SIGTERM to this process becomes
-``SystemExit`` so the same cleanup stops the child's group.
+already failed. On POSIX the group gets SIGTERM, a short grace window, then
+SIGKILL. Windows uses a job object to terminate the tree. A descendant that
+started its own POSIX session is outside the group, so the child that started
+it must forward the stop itself (``run_workflow_local_test`` does). While a
+child runs on the main thread, a SIGTERM to this process becomes ``SystemExit``
+so the same cleanup stops the child's tree.
 
-Every child runs in a new session, so it has no controlling terminal. A child
-that prompts through ``/dev/tty`` (ssh passphrase, git credential prompt, gpg
-pinentry) fails instead of prompting. The callers here run unattended gates.
+On POSIX every child runs in a new session, so it has no controlling terminal.
+A child that prompts through ``/dev/tty`` (ssh passphrase, git credential
+prompt, gpg pinentry) fails instead of prompting. The callers here run
+unattended gates.
 """
 
 from __future__ import annotations
 
 import contextlib
+import ctypes
 import os
 import signal
 import subprocess
@@ -50,9 +53,12 @@ from scripts.validation.evidence import (
 # came from the child itself.
 _SENTINEL_EXIT = -1
 
-# True where ``os.killpg`` exists. Where it does not (Windows), the child gets
-# no session of its own and a timeout kills the direct child only.
+# True where ``os.killpg`` exists. Windows uses a job object instead, so the
+# timeout path still reaches descendants rather than only the direct child.
 _SUPPORTS_PGROUP = hasattr(os, "killpg")
+
+_CREATE_NEW_PROCESS_GROUP = 0x00000200
+_CREATE_SUSPENDED = 0x00000004
 
 # Seconds to wait for the pipes to close after the kill. A grandchild that
 # started its own session survives the group kill and keeps the pipe open, so
@@ -64,6 +70,76 @@ _DRAIN_TIMEOUT = 5
 # run_workflow_local_test gives gh act, plus time to send its SIGKILL. A shorter
 # window ends the wrapper mid-cleanup and gh act survives (issue #6412).
 _TERM_GRACE = 5.0
+
+
+def _last_error() -> int:
+    get_last_error = getattr(ctypes, "get_last_error", None)
+    return int(get_last_error()) if get_last_error is not None else 0
+
+
+def _windows_creation_flags() -> int:
+    """Start a Windows child suspended so it cannot spawn before job assignment."""
+    if os.name != "nt":
+        return 0
+    return int(getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", _CREATE_NEW_PROCESS_GROUP)) | int(
+        getattr(subprocess, "CREATE_SUSPENDED", _CREATE_SUSPENDED)
+    )
+
+
+class _WindowsJob:
+    """Own the job object that lets a timeout terminate a Windows child tree.
+
+    The process starts suspended, is assigned before its main thread resumes,
+    and the job is terminated explicitly on timeout. Closing the handle does
+    not itself kill a normally completed child's descendants, matching the
+    POSIX runner contract.
+    """
+
+    def __init__(self, process: subprocess.Popen[str]) -> None:
+        loader = getattr(ctypes, "WinDLL", None)
+        if loader is None:
+            raise OSError("Windows job objects are unavailable")
+        kernel32 = loader("kernel32", use_last_error=True)
+        create_job = kernel32.CreateJobObjectW
+        create_job.restype = ctypes.c_void_p
+        handle = create_job(None, None)
+        if not handle:
+            raise OSError(_last_error(), "CreateJobObjectW failed")
+
+        self._kernel32 = kernel32
+        self._handle: int | None = int(handle)
+        try:
+            process_handle = getattr(process, "_handle", None)
+            if process_handle is None:
+                raise OSError("Windows process handle is unavailable")
+            assigned = kernel32.AssignProcessToJobObject(
+                ctypes.c_void_p(self._handle),
+                ctypes.c_void_p(int(process_handle)),
+            )
+            if not assigned:
+                raise OSError(_last_error(), "AssignProcessToJobObject failed")
+            ntdll = loader("ntdll", use_last_error=True)
+            resume_process = ntdll.NtResumeProcess
+            resume_process.restype = ctypes.c_long
+            status = int(resume_process(ctypes.c_void_p(int(process_handle))))
+            if status != 0:
+                raise OSError(status, "NtResumeProcess failed")
+        except BaseException:
+            self.close()
+            raise
+
+    def terminate(self) -> None:
+        if self._handle is None:
+            return
+        terminated = self._kernel32.TerminateJobObject(ctypes.c_void_p(self._handle), 1)
+        if not terminated:
+            raise OSError(_last_error(), "TerminateJobObject failed")
+
+    def close(self) -> None:
+        if self._handle is None:
+            return
+        self._kernel32.CloseHandle(ctypes.c_void_p(self._handle))
+        self._handle = None
 
 
 def _decode_stream(data: bytes | str | None) -> str:
@@ -124,14 +200,21 @@ def _own_group(pid: int) -> int | None:
     return None if pgid == os.getpgid(0) else pgid
 
 
-def _terminate(proc: _Child) -> None:
-    """Stop the child's process group, or the child alone where groups are absent.
+def _terminate(proc: _Child, windows_job: _WindowsJob | None = None) -> None:
+    """Stop the child's process tree, or its process group where POSIX provides one.
 
-    SIGTERM goes first and the group leader gets ``_TERM_GRACE`` seconds to run
-    its handlers. A wrapper such as ``run_workflow_local_test`` uses that window
-    to stop a ``gh act`` it started in a session of its own, which a group kill
-    from here cannot reach (issue #6412). SIGKILL then ends whatever is left.
+    On POSIX, SIGTERM goes first and the group leader gets ``_TERM_GRACE``
+    seconds to run its handlers. A wrapper such as ``run_workflow_local_test``
+    uses that window to stop a ``gh act`` it started in a session of its own,
+    which a group kill from here cannot reach (issue #6412). SIGKILL then ends
+    whatever is left.
     """
+    if windows_job is not None:
+        try:
+            windows_job.terminate()
+        except OSError:
+            proc.kill()
+        return
     if sys.platform == "win32" or not _SUPPORTS_PGROUP:
         proc.kill()
         return
@@ -185,7 +268,9 @@ def _sigterm_raises() -> Iterator[None]:
 
 
 def _reap_timed_out(
-    proc: subprocess.Popen[str], timed_out: subprocess.TimeoutExpired
+    proc: subprocess.Popen[str],
+    timed_out: subprocess.TimeoutExpired,
+    windows_job: _WindowsJob | None = None,
 ) -> tuple[str, str]:
     """Kill a timed-out child's tree and return the stdout and stderr it wrote.
 
@@ -194,7 +279,7 @@ def _reap_timed_out(
     keeps the pipe open the read times out too, and the partial output from
     that attempt (or from the first) is returned instead of blocking.
     """
-    _terminate(proc)
+    _terminate(proc, windows_job)
     drained: tuple[bytes | str | None, bytes | str | None]
     try:
         drained = proc.communicate(timeout=_DRAIN_TIMEOUT)
@@ -211,7 +296,7 @@ def _run_in_group(
     cwd: Path | str | None,
     env: dict[str, str] | None,
 ) -> tuple[int, str, str]:
-    """Run ``command`` in its own session so a timeout can kill its whole tree."""
+    """Run ``command`` in its own tree boundary so a timeout can kill the tree."""
     with (
         _sigterm_raises(),
         subprocess.Popen(
@@ -223,18 +308,31 @@ def _run_in_group(
             cwd=cwd,
             env=env,
             start_new_session=_SUPPORTS_PGROUP,
+            creationflags=_windows_creation_flags(),
         ) as proc,
     ):
+        windows_job: _WindowsJob | None = None
         try:
-            stdout, stderr = proc.communicate(timeout=timeout)
-        except subprocess.TimeoutExpired as timed_out:
-            partial_stdout, partial_stderr = _reap_timed_out(proc, timed_out)
-            marker = f"Command timed out after {timeout}s"
-            combined = f"{partial_stderr}\n{marker}" if partial_stderr else marker
-            return _SENTINEL_EXIT, partial_stdout, combined
+            if os.name == "nt":
+                try:
+                    windows_job = _WindowsJob(proc)
+                except OSError as error:
+                    proc.kill()
+                    proc.wait()
+                    return _SENTINEL_EXIT, "", f"Windows job setup failed: {error}"
+            try:
+                stdout, stderr = proc.communicate(timeout=timeout)
+            except subprocess.TimeoutExpired as timed_out:
+                partial_stdout, partial_stderr = _reap_timed_out(proc, timed_out, windows_job)
+                marker = f"Command timed out after {timeout}s"
+                combined = f"{partial_stderr}\n{marker}" if partial_stderr else marker
+                return _SENTINEL_EXIT, partial_stdout, combined
         except BaseException:
-            _terminate(proc)
+            _terminate(proc, windows_job)
             raise
+        finally:
+            if windows_job is not None:
+                windows_job.close()
     return proc.returncode, stdout, stderr
 
 
@@ -250,7 +348,7 @@ def _run_subprocess(
     callers that only want to add a variable should merge it with
     ``os.environ`` themselves before passing it in.
 
-    On a timeout the child's whole process group is killed, so a grandchild
+    On a timeout the child's process tree is killed, so a grandchild
     such as the ``gh-act`` artifact server does not survive to hold its ports
     (issue #6412). The partial stdout and stderr the child flushed before the
     timeout are preserved (issue #4955) instead of being discarded. The timeout
