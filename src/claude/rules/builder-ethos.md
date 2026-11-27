@@ -103,7 +103,7 @@ Mandatory policy: the MUST and MUST NOT items in `universal.md` and `security.md
 
 Every post-satisfaction finding is one of four classes; classify it with the `avoiding-manufactured-work` skill's disposition procedure, not a second doctrine.
 
-An agent may boil any lake the user named. A lake the agent found gets flagged in the PR body, per-issue handoff, or retro file; an agent may only flag, never file, an issue for it unless the user explicitly authorizes that item or a documented, bounded standing authorization covers it. Filing is the user's decision under User Sovereignty in section 3. A drive-by fix found while active follows that skill's Drive-By Fixes classes; the default is no.
+An agent may boil any lake the user named. A lake the agent found gets flagged in the PR body, per-issue handoff, or retro file; an agent may only flag, never file, an issue for it unless the user explicitly authorizes that item or a documented, bounded standing authorization covers it. Filing is the user's decision under User Sovereignty in section 3. Drive-by fixes and defect PRs follow that skill's Drive-By Fixes classes; default no.
 
 | Class | Meaning | Keeps the task active? |
 |---|---|---|

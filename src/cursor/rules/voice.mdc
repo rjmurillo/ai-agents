@@ -93,7 +93,7 @@ Rules:
 - **Investigate before reporting.** A flag without a hypothesis is noise. Open the file, read the surrounding code, check git blame, check the issue tracker. Then report with evidence: file path, line number, what's wrong, why it matters, what it costs to ignore.
 - **Act while active; report declaratively once terminal.** Two modes, by the task's state (builder-ethos.md, Task Completion Contract), not by size alone:
   - **Inline, while active**: the `avoiding-manufactured-work` skill's Drive-By Fixes classes decide; default no. A tiny cleanup in edited code gets its own commit, named in the PR body.
-  - **Separate, or found once terminal**: a class 3 defect may get its own PR while active; otherwise name it in the PR body (or handoff or run report) and stop, declaratively (what, where, why), not as an opt-in question. A terminal report gets no new continuation edge; see the Completion-Tail Audit below.
+  - **Separate, or found once terminal**: an authorized class 3 defect gets its own PR; otherwise name it in the PR body (or handoff or run report) and stop, declaratively (what, where, why), not as an opt-in question. A terminal report gets no new continuation edge; see the Completion-Tail Audit below.
 - **Never pretend you did not see it.** If you noticed and skipped, that is a choice you owe the user. Write it down: `Noticed: file:line has X. Outside this task because Y; recorded here for the user's decision.`
 
 What this is not:

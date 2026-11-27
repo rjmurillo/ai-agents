@@ -72,10 +72,10 @@ Use this when you find something to change that the request did not name. Work t
 |---|---|---|
 | 1. Tidy | Tiny, behavior-preserving cleanup in code the change already touches, when it makes the requested diff easier to read: a typo, a missing type hint, a dead local, a clearer local name in the function you edit. Renaming things elsewhere in the file does not qualify. | Same PR, its own commit, named in the PR body. |
 | 2. Needed | Anything the requested change needs to be correct: callers, tests, docs, generated output. | Same PR. This is the change itself, not a drive-by. |
-| 3. Defect | A confirmed defect with a named impact and its own proof (a reproduction or failing test), when it changes behavior, needs a different reviewer or code owner, or must be revertable alone. | Separate branch and PR with its own proof, when you hold authority to open one (see below). Otherwise name it, its impact, and its proof in the PR body. If the main change depends on it, land it first and say so in both PRs. |
+| 3. Defect | A confirmed defect with a named impact and its own proof (a reproduction or failing test), when it changes behavior, needs a different reviewer or code owner, or must be revertable alone. | Separate branch and PR with its own proof, only with authority for that extra PR (see below). Otherwise name it, its impact, and its proof in the PR body. If the main change depends on it, land it first and say so in both PRs. |
 | 4. Taste | Style or naming preference, whole-file formatting, cross-module renames, refactors with no named consumer. | Do not do it. No issue, no branch, no follow-up PR. |
 
-Classify in table order. Test class 2 first: if the requested change needs it to be correct, it is class 2 and stays in the PR, even when it is also a defect.
+Classify in this order: class 2, then 3, then 1, then 4. If the requested change needs it to be correct, it is class 2 and stays in the PR, even when it is also a defect.
 
 Stop conditions:
 
@@ -85,7 +85,7 @@ Stop conditions:
 
 If you cannot name what breaks and how you will prove the fix, do not start.
 
-Authority for class 3: the current task must authorize changes, and you must also hold authority to open a PR, such as a user order to ship or a workflow whose contract opens PRs. This section is the bounded standing authorization builder-ethos section 4 names, and it covers one class 3 PR per task. A second confirmed defect is named in the PR body, not opened. In a question, review, or diagnosis, or once the task is terminal, name the defect, its impact, and its proof in the report instead (builder-ethos section 6). Filing an issue still follows the builder-ethos section 4 flag rule.
+Authority for class 3: a second PR is state the user did not name (builder-ethos section 6). It needs a user order or workflow contract that covers opening PRs for defects found along the way; an order to ship the requested change alone does not. One class 3 PR per task. A second confirmed defect is named in the PR body, not opened. In a question, review, or diagnosis, or once the task is terminal, name the defect, its impact, and its proof in the report instead (builder-ethos section 6). Filing an issue still follows the builder-ethos section 4 flag rule.
 
 Practice behind the classes:
 

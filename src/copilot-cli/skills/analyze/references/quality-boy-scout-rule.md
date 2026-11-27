@@ -53,9 +53,9 @@ When reporting findings, classify improvements by scope:
 
 | Classification | Action | Example |
 |---------------|--------|---------|
-| Boy Scout fix | Include with current work | Rename misleading variable |
+| Boy Scout fix | Include with current work | Clarify a local name in the function you edit |
 | Refactor the change needs | Same PR, as part of the change | Extract a method the new code calls |
-| Large refactor | Dedicated task with plan | Restructure module boundaries |
+| Large refactor | Name it in the PR body; the user decides | Restructure module boundaries |
 | Architecture change | ADR required | Change data flow pattern |
 
 ## Related Concepts
