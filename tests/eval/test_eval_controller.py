@@ -1091,7 +1091,8 @@ def test_input_that_escapes_the_run_directory_is_refused(tmp_path: Path, templat
     assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
 
 
-# Claim from an imported review learning: `_collect` follows a planted symlink
+# Claim from an imported review learning: the collector (then `_collect`, now
+# `collect_all`) follows a planted symlink
 # and reads or copies bytes from outside the results tree. These pin the
 # observed behavior: the link itself moves, its target is never read, and
 # extract refuses an input that resolves outside the run directory.
@@ -1418,23 +1419,80 @@ def test_runs_directory_swapped_for_a_link_is_refused(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
-def test_planted_quarantine_stops_the_run_without_writing_through(tmp_path: Path) -> None:
+def test_planted_quarantine_names_cannot_capture_the_report(tmp_path: Path) -> None:
+    # The scorer knows `run_id`, so it can plant the old fixed name and the
+    # bare prefix. Neither is where the report goes.
     config, outside = _plant_around_run(tmp_path, "run_dir", collect=True)
     state = tmp_path / "state"
     real = sys.modules["_controller_io"].collect_or_quarantine
+    planted: list[Path] = []
 
     def plant_first(
-        templates: list[str], values: dict[str, str], run_dir: Path, quarantine: Path
-    ) -> list[str]:
-        quarantine.symlink_to(outside)
-        result: list[str] = real(templates, values, run_dir, quarantine)
+        templates: list[str], values: dict[str, str], run_dir: Path, base: Path, prefix: str
+    ) -> tuple[Path, list[str]]:
+        for name in (f"quarantine-{values['run_id']}", prefix):
+            (base / name).symlink_to(outside)
+            planted.append(base / name)
+        result: tuple[Path, list[str]] = real(templates, values, run_dir, base, prefix)
         return result
 
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(ec, "collect_or_quarantine", plant_first)
+        assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+    assert [p.name for p in outside.iterdir() if p.name != "pycache"] == ["victim.txt"]
+    (quarantine,) = [p for p in state.glob("quarantine-incumbent-*") if p not in planted]
+    assert not quarantine.is_symlink()
+    assert [p.name for p in quarantine.iterdir()] == ["0"]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
+def test_replaced_run_dir_error_names_the_quarantine(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config, _ = _plant_around_run(tmp_path, "run_dir", collect=True)
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+    (quarantine,) = (tmp_path / "state").glob("quarantine-incumbent-*")
+    assert f"reports moved to {quarantine}" in capsys.readouterr().err
+
+
+def test_failed_quarantine_does_not_hide_the_scorer_error(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    _edit_config(config, scorer=[sys.executable, "-c", "raise SystemExit(9)"])
+
+    def broken(*_args: object) -> tuple[Path, list[str]]:
+        raise ec.ControllerError("quarantine broke", ec.EXIT_EXTERNAL)
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(ec, "collect_or_quarantine", broken)
         assert ec.main(["run", "--config", str(config)]) == ec.EXIT_EXTERNAL
-    assert not (outside / "0").exists()
-    assert len(list(state.glob("quarantine-*"))) == 1
+    err = capsys.readouterr().err
+    assert "exited 9" in err
+    assert "quarantine broke" not in err
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
+def test_abort_record_is_written_while_the_locks_are_held(tmp_path: Path) -> None:
+    config, _ = _plant_around_run(tmp_path, "run_dir")
+    lock = sys.modules["_controller_lock"]
+    real = ec.Controller._record
+    held: list[bool] = []
+
+    def probe(self: Any, event: dict[str, Any]) -> None:
+        if event.get("event") == "abort":
+            # flock conflicts across descriptors even in one process.
+            try:
+                with lock.state_lock(tmp_path / "state"):
+                    held.append(False)
+            except ec.ControllerError:
+                held.append(True)
+        real(self, event)
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(ec.Controller, "_record", probe)
+        assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+    assert held == [True]
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")

@@ -155,6 +155,7 @@ class Controller:
         run_dir = self.state / "runs" / run_id
         run_dir.mkdir(parents=True)
         values = {"run_id": run_id, "run_dir": str(run_dir)}
+        collect_args = (self.config.collect, values, run_dir, self.state, f"quarantine-{run_id}-")
         # The candidate's code may run inside the scorer. Everything already in
         # state must be exactly as the controller left it when the scorer ends.
         before = tree_digest([self.state], exclude=run_dir)
@@ -176,17 +177,14 @@ class Controller:
             # A failed scorer may still have written a report outside state,
             # with held-out outcomes in it. Move what exists before stopping;
             # collection problems must not hide the scorer's own error.
-            collect_or_quarantine(
-                self.config.collect, values, run_dir, self.state / f"quarantine-{run_id}"
-            )
+            with contextlib.suppress(ControllerError):
+                collect_or_quarantine(*collect_args)
             raise
-        # Collected before every check below, so no refusal leaves a report
-        # outside state.
-        problems = collect_or_quarantine(
-            self.config.collect, values, run_dir, self.state / f"quarantine-{run_id}"
-        )
-        # The digest skips `run_dir` by path, so a link swapped in for it (or
-        # for `runs/`) would carry reports and results outside state unseen.
+        # Attempt collection before any integrity check can stop the run.
+        landed, problems = collect_or_quarantine(*collect_args)
+        if landed != run_dir:
+            status = "; ".join(problems) if problems else f"reports moved to {landed}"
+            raise ControllerError(f"{run_dir} was replaced while {label} was scored; {status}")
         self._require_run_dir(run_dir, label)
         if tree_digest([self.state], exclude=run_dir) != before:
             raise ControllerError(f"controller state changed while {label} was scored")
@@ -249,12 +247,13 @@ class Controller:
                 # path check is refused rather than copied.
                 data = read_private(source, "optimize-group task file")
                 target = tasks_dir / source.name
-                if target.exists():
+                # `lexists`, so a dangling link reads as taken, not free.
+                if os.path.lexists(target):
                     raise ControllerError(
                         f"two optimize-group task files share the name {source.name}; "
                         "use a template whose file names are unique per task"
                     )
-                target.write_bytes(data)
+                write_private(target, data)
         passed = sum(1 for value in opt.values() if value)
         document = {
             "step": step,
@@ -397,22 +396,24 @@ class Controller:
         previous = signal.signal(signal.SIGTERM, self.on_sigterm)
         previous_int = signal.signal(signal.SIGINT, self.on_sigterm)
         try:
-            # Held for the whole run; a refused second run has not started.
+            # Held for the whole run, abort record included; a refused second
+            # run has not started and writes nothing.
             with state_lock(self.state), artifact_lock(self.config.artifact):
-                return self._run()
-        except ControllerError as exc:
-            # A planted log refuses the abort record; the original error wins.
-            with contextlib.suppress(ControllerError):
-                if self.started and self.log.parent.is_dir():
-                    self._record(
-                        {
-                            "event": "abort",
-                            "code": exc.code,
-                            "error": str(exc),
-                            "detail": exc.detail,
-                        }
-                    )
-            raise
+                try:
+                    return self._run()
+                except ControllerError as exc:
+                    # A planted log refuses the abort record; the original error wins.
+                    with contextlib.suppress(ControllerError):
+                        if self.started and self.log.parent.is_dir():
+                            self._record(
+                                {
+                                    "event": "abort",
+                                    "code": exc.code,
+                                    "error": str(exc),
+                                    "detail": exc.detail,
+                                }
+                            )
+                    raise
         finally:
             # A handler installed from C reads back as None; fall back to default.
             signal.signal(signal.SIGTERM, previous if previous is not None else signal.SIG_DFL)

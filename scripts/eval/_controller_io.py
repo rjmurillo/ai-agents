@@ -6,6 +6,7 @@ file helpers that reject leaf links and moves reports into the run directory.
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
 import os
@@ -43,6 +44,12 @@ _WINDOWS_BASE_ENV = ("SYSTEMROOT", "COMSPEC", "PATHEXT", "TEMP", "TMP", "WINDIR"
 _OPEN_FLAGS = (
     getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_BINARY", 0)
 )
+# What `os.open` reports for a leaf link (ELOOP on Linux and macOS, EMLINK on
+# FreeBSD), a FIFO with no reader, a missing or taken name, or a directory.
+# Windows reports a directory as EACCES.
+_REFUSED = {errno.ELOOP, errno.EMLINK, errno.ENXIO, errno.ENOENT, errno.EEXIST, errno.EISDIR}
+if os.name == "nt":
+    _REFUSED.add(errno.EACCES)
 
 
 def _walk(root: Path) -> list[Path]:
@@ -70,7 +77,8 @@ def _open_regular(path: Path, flags: int) -> tuple[int, os.stat_result] | None:
     """Open `path` as a regular file, or return None.
 
     None covers a link at the leaf, a FIFO, a directory, a device, and a
-    missing file; the caller names the refusal. The type check reads the open
+    missing file; the caller names the refusal. Any other open error, such as
+    a full disk or a denied permission, raises with its cause. The type check reads the open
     descriptor, so the file checked is the file then read or written. Windows
     has no `O_NOFOLLOW`, so a leaf link is refused there by a check first.
     """
@@ -78,8 +86,13 @@ def _open_regular(path: Path, flags: int) -> tuple[int, os.stat_result] | None:
         return None
     try:
         handle = os.open(path, flags | _OPEN_FLAGS, 0o600)
-    except OSError:
-        return None
+    except OSError as exc:
+        # A link, FIFO, missing file, or taken name is a refusal the caller
+        # names. Anything else, such as a full disk, is reported as itself.
+        if exc.errno in _REFUSED:
+            return None
+        message = f"could not open {path}: {exc.strerror or exc}"
+        raise ControllerError(message, EXIT_EXTERNAL) from exc
     info = os.fstat(handle)
     if not stat.S_ISREG(info.st_mode):
         os.close(handle)
@@ -99,7 +112,7 @@ def read_private(path: Path, what: str) -> bytes:
         return stream.read()
 
 
-def write_private(path: Path, text: str, *, append: bool = False) -> None:
+def write_private(path: Path, text: str | bytes, *, append: bool = False) -> None:
     """Create (or append to) a controller file without writing through a plant.
 
     A new file is an exclusive create, which fails on anything already at the
@@ -113,7 +126,7 @@ def write_private(path: Path, text: str, *, append: bool = False) -> None:
     if opened is None:
         raise ControllerError(f"{path} is not a regular file the controller made; not writing it")
     with os.fdopen(opened[0], "ab" if append else "wb") as stream:
-        stream.write(text.encode("utf-8"))
+        stream.write(text.encode("utf-8") if isinstance(text, str) else text)
 
 
 def is_real_dir(path: Path) -> bool:
@@ -205,23 +218,25 @@ def collect_all(templates: Sequence[str], values: Mapping[str, str], run_dir: Pa
 
 
 def collect_or_quarantine(
-    templates: Sequence[str], values: Mapping[str, str], run_dir: Path, quarantine: Path
-) -> list[str]:
-    """Move `collect` outputs into `run_dir`, or into `quarantine` if it was replaced.
+    templates: Sequence[str], values: Mapping[str, str], run_dir: Path, state: Path, prefix: str
+) -> tuple[Path, list[str]]:
+    """Move `collect` outputs into `run_dir`, or into a quarantine if it was replaced.
 
-    A replaced `run_dir` must not leave held-out reports in the checkout, so
-    they go to a fresh directory in state that the scorer never knew of.
-    `quarantine` must not exist; `mkdir` refuses a planted entry or link.
+    Returns the directory the reports went to and any collection problems. A
+    replaced `run_dir` must not leave held-out reports in the checkout, so
+    they go to a new directory in `state`. `mkdtemp` picks a random name and
+    creates it exclusively, so the scorer cannot plant it ahead of time.
     """
-    if is_real_dir(run_dir):
-        return collect_all(templates, values, run_dir)
+    if not templates or is_real_dir(run_dir):
+        return run_dir, collect_all(templates, values, run_dir)
     try:
-        quarantine.mkdir(mode=0o700)
+        quarantine = Path(tempfile.mkdtemp(prefix=prefix, dir=state))
     except OSError as exc:
-        raise ControllerError(f"could not make {quarantine}: {exc}", EXIT_EXTERNAL) from exc
+        message = f"could not make a quarantine in {state}: {exc}"
+        raise ControllerError(message, EXIT_EXTERNAL) from exc
     if not is_real_dir(quarantine):
         raise ControllerError(f"{quarantine} is not a plain directory", EXIT_EXTERNAL)
-    return collect_all(templates, values, quarantine)
+    return quarantine, collect_all(templates, values, quarantine)
 
 
 def refuse_stale_reports(templates: Sequence[str], values: Mapping[str, str], label: str) -> None:

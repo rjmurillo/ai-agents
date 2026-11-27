@@ -2367,8 +2367,8 @@ changed nothing in `state_dir` outside the new run's directory.
 
 The scorer runs inside `state_dir/runs/` and can leave links there.
 The controller checks that the run directory still resolves to itself.
-If it does not, `collect` reports move to a fresh
-`state_dir/quarantine-<run_id>` and the run stops, so none stay in the checkout.
+If it does not, the controller tries to move `collect` reports into a new
+`state_dir/quarantine-<run_id>-<random>` directory before stopping.
 It checks the ledger directory before invoking the gate. Controller file
 reads and writes reject leaf symlinks, hard links, and non-regular files.
 These checks do not replace isolation from a child that keeps running.
@@ -2382,8 +2382,8 @@ The controller holds two locks throughout each run:
   `policy` lists the lock file under `deny_read_write`.
 
 The locks use `fcntl` on POSIX and `msvcrt` on Windows. The operating system
-releases them on process exit. Release only closes the lock; both lock files
-stay in place, so release never removes a path a child could have swapped.
+releases them on process exit. Both lock files stay in place after release.
+Git ignores the artifact lock in this checkout.
 Do not remove a lock file while any controller could be using it. A platform without
 either locking primitive refuses to run.
 

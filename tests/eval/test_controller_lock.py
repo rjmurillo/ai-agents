@@ -190,10 +190,15 @@ def test_state_lock_creates_a_private_state_dir(tmp_path: Path) -> None:
     assert [entry.name for entry in state.iterdir()] == [lock.STATE_LOCK]
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
 def test_artifact_lock_is_keyed_by_the_real_path(tmp_path: Path) -> None:
-    artifact = tmp_path / "a.json"
+    real_dir = tmp_path / "real"
+    real_dir.mkdir()
+    artifact = real_dir / "a.json"
     artifact.write_text("{}", encoding="utf-8")
-    spelled = tmp_path / "." / "a.json"
+    # Another spelling of the same file, through a linked parent directory.
+    (tmp_path / "alias").symlink_to(real_dir, target_is_directory=True)
+    spelled = tmp_path / "alias" / "a.json"
     assert lock.artifact_lock_path(artifact) == lock.artifact_lock_path(spelled)
     other = tmp_path / "b.json"
     assert lock.artifact_lock_path(artifact) != lock.artifact_lock_path(other)
@@ -203,6 +208,24 @@ def test_artifact_lock_is_keyed_by_the_real_path(tmp_path: Path) -> None:
                 pass
         with lock.artifact_lock(other):
             pass
+
+
+def test_artifact_lock_folds_case_in_the_name(tmp_path: Path) -> None:
+    assert lock.artifact_lock_path(tmp_path / "A.json") == lock.artifact_lock_path(
+        tmp_path / "a.json"
+    )
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX link counts")
+def test_a_hard_link_at_the_lock_path_is_refused_and_left_alone(tmp_path: Path) -> None:
+    victim = tmp_path / "victim.txt"
+    victim.write_text("keep", encoding="utf-8")
+    path = tmp_path / "controller.lock"
+    os.link(victim, path)
+    with pytest.raises(ControllerError, match="expected one regular file"):
+        with lock.exclusive(path, "busy"):
+            pass
+    assert victim.read_text(encoding="utf-8") == "keep"
 
 
 def test_artifact_lock_ignores_tempdir_and_keeps_its_file(

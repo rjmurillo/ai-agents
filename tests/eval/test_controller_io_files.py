@@ -8,6 +8,7 @@ FIFO (which must not hang the controller), and a missing file.
 
 from __future__ import annotations
 
+import errno
 import os
 import sys
 from pathlib import Path
@@ -74,6 +75,12 @@ def test_write_private_creates_a_new_file(tmp_path: Path) -> None:
     path = tmp_path / "tasks.txt"
     io.write_private(path, "a\nb\n")
     assert path.read_text(encoding="utf-8") == "a\nb\n"
+
+
+def test_write_private_writes_bytes_unchanged(tmp_path: Path) -> None:
+    path = tmp_path / "task.json"
+    io.write_private(path, b'{"id": "\xff"}')
+    assert path.read_bytes() == b'{"id": "\xff"}'
 
 
 def test_write_private_create_refuses_an_existing_file(tmp_path: Path) -> None:
@@ -181,3 +188,41 @@ def test_read_artifact_refuses_a_link_swapped_in(tmp_path: Path) -> None:
     artifact.symlink_to(_victim(tmp_path))
     with pytest.raises(ControllerError, match="no longer a regular file"):
         io.read_artifact(artifact)
+
+
+@pytest.mark.parametrize("code", [errno.ENOSPC, errno.EACCES])
+def test_open_errors_other_than_a_refusal_name_their_cause(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, code: int
+) -> None:
+    # A full disk or a denied permission is not tampering; say what it is.
+    if code == errno.EACCES and sys.platform == "win32":
+        pytest.skip("Windows reports a directory as EACCES, so it is a refusal there")
+    path = tmp_path / "f.txt"
+
+    def failing(*_args: object, **_kwargs: object) -> int:
+        raise OSError(code, os.strerror(code))
+
+    monkeypatch.setattr(io.os, "open", failing)
+    with pytest.raises(ControllerError, match=f"could not open {path}: {os.strerror(code)}"):
+        io.write_private(path, "x")
+
+
+def test_collect_into_reports_a_failed_move_and_collect_all_keeps_going(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first, second = tmp_path / "a.xml", tmp_path / "b.xml"
+    first.write_text("a", encoding="utf-8")
+    second.write_text("b", encoding="utf-8")
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    real_move = io.shutil.move
+
+    def flaky(source: str, destination: str) -> object:
+        if source == str(first):
+            raise OSError(errno.EIO, "disk error")
+        return real_move(source, destination)
+
+    monkeypatch.setattr(io.shutil, "move", flaky)
+    problems = io.collect_all([str(first), str(second)], {}, run_dir)
+    assert problems == [f"could not move scorer output {first}: [Errno {errno.EIO}] disk error"]
+    assert (run_dir / "1").read_text(encoding="utf-8") == "b"
