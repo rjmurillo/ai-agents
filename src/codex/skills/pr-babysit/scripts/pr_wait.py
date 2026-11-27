@@ -356,7 +356,7 @@ def fetch_gate(owner: str, name: str, number: int) -> Json:
     detail = (result.stderr or result.stdout).strip().splitlines()
     last = detail[-1] if detail else ""
     if result.returncode == 3 and _is_not_found_envelope(result.stdout):
-        raise LookupError(f"why_pr_blocked: {last}")
+        raise LookupError(f"PR {owner}/{name}#{number} not found")
     if result.returncode == 2:
         raise SetupError(f"why_pr_blocked config error: {last}")
     if result.returncode == 4:

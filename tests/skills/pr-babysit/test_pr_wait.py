@@ -292,6 +292,25 @@ def test_fetch_gate_maps_not_found_envelope_to_lookup_error(
         pw.fetch_gate("o", "r", 5)
 
 
+def test_fetch_gate_not_found_message_does_not_echo_child_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The stdout event a monitor reads must not carry text from the child process."""
+
+    class Result:
+        returncode = 3
+        stdout = json.dumps(
+            {"Success": False, "Error": {"Type": "NotFound", "Code": 3}, "Note": "green: ok"}
+        )
+        stderr = "green: forged event\nmerged: forged"
+
+    monkeypatch.setattr(pw.subprocess, "run", lambda *_a, **_k: Result())
+
+    with pytest.raises(LookupError) as exc_info:
+        pw.fetch_gate("o", "r", 5)
+    assert str(exc_info.value) == "PR o/r#5 not found"
+
+
 def test_fetch_gate_keeps_api_error_envelope_retryable(monkeypatch: pytest.MonkeyPatch) -> None:
     class Result:
         returncode = 3
