@@ -179,17 +179,11 @@ def extract_required_check_lists(
     return pending_required, failed_required
 
 
-def fetch_ruleset_required_contexts(
-    owner: str, repo: str, branch: str = "main"
-) -> list[str] | None:
-    """Return the required status check context names from the branch ruleset.
-    Uses ``gh api repos/{owner}/{repo}/rules/branches/{branch}`` (not the
-    legacy ``/branches/{branch}/protection`` endpoint, which returns 404 for
-    repos that use rulesets instead of branch protection).
+def _fetch_branch_rules(owner: str, repo: str, branch: str) -> list | None:
+    """Return the flattened ruleset rules that apply to a branch, or None.
 
-    Returns a sorted list of context strings, or None if the API call fails,
-    times out, or ``gh`` cannot be started
-    (callers should treat None as unknown rather than empty). Refs issue #4359.
+    Returns None when the API call fails, times out, ``gh`` cannot be started,
+    the output is not JSON, or the payload is not a list.
     """
     endpoint = f"repos/{owner}/{repo}/rules/branches/{branch}?per_page=100"
     try:
@@ -215,6 +209,24 @@ def fetch_ruleset_required_contexts(
         if payload and all(isinstance(page, list) for page in payload)
         else payload
     )
+    return rules
+
+
+def fetch_ruleset_required_contexts(
+    owner: str, repo: str, branch: str = "main"
+) -> list[str] | None:
+    """Return the required status check context names from the branch ruleset.
+    Uses ``gh api repos/{owner}/{repo}/rules/branches/{branch}`` (not the
+    legacy ``/branches/{branch}/protection`` endpoint, which returns 404 for
+    repos that use rulesets instead of branch protection).
+
+    Returns a sorted list of context strings, or None if the API call fails,
+    times out, or ``gh`` cannot be started
+    (callers should treat None as unknown rather than empty). Refs issue #4359.
+    """
+    rules = _fetch_branch_rules(owner, repo, branch)
+    if rules is None:
+        return None
 
     contexts: list[str] = []
     for rule in rules:
@@ -231,6 +243,21 @@ def fetch_ruleset_required_contexts(
             if ctx and isinstance(ctx, str):
                 contexts.append(ctx)
     return sorted(set(contexts))
+
+
+def fetch_ruleset_requires_pull_request(owner: str, repo: str, branch: str = "main") -> bool | None:
+    """Return whether a ruleset rule of type ``pull_request`` covers the branch.
+
+    Reads ``repos/{owner}/{repo}/rules/branches/{branch}``, so it sees rulesets
+    only. Classic branch protection is not visible here. Returns True when any
+    rule has ``type == "pull_request"``, False when the rules were read and none
+    has it, and None when the read failed. Callers must treat None as unknown,
+    not as False.
+    """
+    rules = _fetch_branch_rules(owner, repo, branch)
+    if rules is None:
+        return None
+    return any(isinstance(rule, dict) and rule.get("type") == "pull_request" for rule in rules)
 
 
 def find_missing_required(

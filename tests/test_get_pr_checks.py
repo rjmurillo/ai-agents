@@ -2792,6 +2792,142 @@ class TestChecksRollupRulesetHelpers:
         assert contexts == ["Run Python Tests"]
 
 
+def _rules_result(payload, *, returncode: int = 0) -> subprocess.CompletedProcess:
+    return subprocess.CompletedProcess(
+        args=[], returncode=returncode, stdout=json.dumps(payload), stderr=""
+    )
+
+
+_PULL_REQUEST_RULE = {"type": "pull_request", "parameters": {"required_approving_review_count": 1}}
+_STATUS_RULE = {
+    "type": "required_status_checks",
+    "parameters": {"required_status_checks": [{"context": "Validate PR"}]},
+}
+
+
+class TestFetchRulesetRequiresPullRequest:
+    """Unit tests for fetch_ruleset_requires_pull_request and the shared rules read."""
+
+    @staticmethod
+    def _call(**run_kwargs):
+        from github_core.checks_rollup import fetch_ruleset_requires_pull_request
+
+        with patch("github_core.checks_rollup.subprocess.run", **run_kwargs) as mock_run:
+            result = fetch_ruleset_requires_pull_request("o", "r", "main")
+        return result, mock_run
+
+    def test_pull_request_rule_present_returns_true(self):
+        result, _ = self._call(return_value=_rules_result([[_STATUS_RULE, _PULL_REQUEST_RULE]]))
+        assert result is True
+
+    def test_rules_without_pull_request_returns_false(self):
+        result, _ = self._call(return_value=_rules_result([[_STATUS_RULE]]))
+        assert result is False
+
+    def test_empty_rule_list_returns_false(self):
+        result, _ = self._call(return_value=_rules_result([]))
+        assert result is False
+
+    def test_empty_page_returns_false(self):
+        result, _ = self._call(return_value=_rules_result([[]]))
+        assert result is False
+
+    def test_non_zero_exit_returns_none(self):
+        result, _ = self._call(return_value=_rules_result([[_PULL_REQUEST_RULE]], returncode=1))
+        assert result is None
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            subprocess.TimeoutExpired(cmd=["gh", "api"], timeout=30),
+            OSError("gh"),
+            FileNotFoundError("gh"),
+        ],
+        ids=["timeout", "oserror", "gh-missing"],
+    )
+    def test_gh_cannot_complete_returns_none(self, error):
+        result, _ = self._call(side_effect=error)
+        assert result is None
+
+    def test_invalid_json_returns_none(self):
+        bad = subprocess.CompletedProcess(args=[], returncode=0, stdout="not-json", stderr="")
+        result, _ = self._call(return_value=bad)
+        assert result is None
+
+    @pytest.mark.parametrize("payload", [{"type": "pull_request"}, "pull_request", 7, None])
+    def test_non_list_payload_returns_none(self, payload):
+        result, _ = self._call(return_value=_rules_result(payload))
+        assert result is None
+
+    def test_slurped_pages_are_flattened(self):
+        pages = [[_STATUS_RULE], [{"type": "deletion"}], [_PULL_REQUEST_RULE]]
+        result, _ = self._call(return_value=_rules_result(pages))
+        assert result is True
+
+    def test_flat_list_payload_is_accepted(self):
+        result, _ = self._call(return_value=_rules_result([_STATUS_RULE, _PULL_REQUEST_RULE]))
+        assert result is True
+
+    def test_non_dict_entries_are_skipped(self):
+        result, _ = self._call(
+            return_value=_rules_result([["pull_request", 3, None, _PULL_REQUEST_RULE]])
+        )
+        assert result is True
+
+    def test_only_non_dict_entries_returns_false(self):
+        result, _ = self._call(return_value=_rules_result([["pull_request", 3, None]]))
+        assert result is False
+
+    def test_uses_the_branch_rules_endpoint(self):
+        _, mock_run = self._call(return_value=_rules_result([[]]))
+        command = mock_run.call_args.args[0]
+        assert command[:5] == ["gh", "api", "--paginate", "--slurp", command[4]]
+        assert command[-1] == "repos/o/r/rules/branches/main?per_page=100"
+
+    def test_other_errors_are_not_swallowed(self):
+        from github_core.checks_rollup import fetch_ruleset_requires_pull_request
+
+        with (
+            patch("github_core.checks_rollup.subprocess.run", side_effect=ValueError("bug")),
+            pytest.raises(ValueError),
+        ):
+            fetch_ruleset_requires_pull_request("o", "r", "main")
+
+    def test_required_contexts_unchanged_for_mixed_payload(self):
+        """Regression guard: the shared helper keeps the contexts contract."""
+        from github_core.checks_rollup import fetch_ruleset_required_contexts
+
+        pages = [
+            [
+                _PULL_REQUEST_RULE,
+                "junk",
+                {
+                    "type": "required_status_checks",
+                    "parameters": {
+                        "required_status_checks": [
+                            {"context": "b"},
+                            {"context": "a"},
+                            {"context": ""},
+                            {"nocontext": 1},
+                            "x",
+                        ]
+                    },
+                },
+            ],
+            [_STATUS_RULE, {"type": "required_status_checks"}],
+        ]
+        with patch("github_core.checks_rollup.subprocess.run", return_value=_rules_result(pages)):
+            contexts = fetch_ruleset_required_contexts("o", "r", "main")
+        assert contexts == ["Validate PR", "a", "b"]
+
+    @pytest.mark.parametrize("payload", [{"a": 1}, "x"])
+    def test_required_contexts_none_for_non_list_payload(self, payload):
+        from github_core.checks_rollup import fetch_ruleset_required_contexts
+
+        with patch("github_core.checks_rollup.subprocess.run", return_value=_rules_result(payload)):
+            assert fetch_ruleset_required_contexts("o", "r", "main") is None
+
+
 _RUN_A = "https://github.com/o/r/actions/runs/30827748904/job/91733674289"
 _RUN_A2 = "https://github.com/o/r/actions/runs/30827748904/job/91733675289"
 _RUN_B = "https://github.com/o/r/actions/runs/30826833314/job/91730700818"

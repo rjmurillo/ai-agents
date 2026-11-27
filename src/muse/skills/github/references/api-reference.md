@@ -173,10 +173,10 @@ Check for merge conflicts or failing required checks. Use `get_pr_context.py` to
 
 ## Blocked PR diagnosis
 
-`mergeable_state` and `mergeStateStatus: blocked` are cached and frequently stale. `why_pr_blocked.py` decomposes them into required checks, review threads, and merge conflicts. It does not query `reviewDecision` or the required-approving-review count, so a repository that requires approvals can still be blocked on that when the script reports no cause.
+`mergeable_state` and `mergeStateStatus: blocked` are cached and frequently stale. `why_pr_blocked.py` decomposes a blocked state into required checks, review threads, merge conflicts, and a review requesting changes. It counts `CHANGES_REQUESTED` only when the base branch has a `pull_request` ruleset rule. It reports `ReviewDecision` and `ChangesRequestedBlocking` either way. It does not read classic branch protection or the required-approving-review count. So `REVIEW_REQUIRED` is reported but never counted.
 
 - GitHub's "A conversation must be resolved before this pull request can be merged" message means unresolved review threads: resolve them with `resolve_pr_review_thread.py`.
-- If the script reports no cause and the PR is still blocked, compare `get_pr_context.py`'s `review_decision` field with the target branch's required-approving-review count.
+- If the script reports no cause and the PR is still blocked, compare `ReviewDecision` with the branch's required approvals from `get_branch_protection.py`. For a bot review, run `detect_stale_bot_review.py`.
 
 ## rerun_failed_jobs.py details
 

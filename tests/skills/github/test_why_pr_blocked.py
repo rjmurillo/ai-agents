@@ -6,6 +6,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
+from contextlib import ExitStack
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
@@ -54,8 +55,12 @@ def _gql_pr(
     thread_page_info: dict | None = None,
     base_branch: str = "main",
     committed_date: str | None = None,
+    review_decision: str | None = None,
 ) -> dict:
-    """Build a minimal GraphQL response for why_pr_blocked."""
+    """Build a minimal GraphQL response for why_pr_blocked.
+
+    The ``reviewDecision`` key is omitted unless ``review_decision`` is given.
+    """
     response: dict = {
         "repository": {
             "pullRequest": {
@@ -94,6 +99,8 @@ def _gql_pr(
         }
     }
 
+    if review_decision is not None:
+        response["repository"]["pullRequest"]["reviewDecision"] = review_decision
     if committed_date is not None:
         commit = response["repository"]["pullRequest"]["commits"]["nodes"][0]["commit"]
         commit["committedDate"] = committed_date
@@ -591,7 +598,7 @@ class TestBuildParser:
 
 
 class TestMain:
-    def _patch_env(self, gql_data, *, ruleset=None):
+    def _patch_env(self, gql_data, *, ruleset=None, pull_request_rule=None):
         return (
             patch("why_pr_blocked.assert_gh_authenticated"),
             patch(
@@ -602,6 +609,10 @@ class TestMain:
             patch(
                 "why_pr_blocked.fetch_ruleset_required_contexts",
                 return_value=ruleset,
+            ),
+            patch(
+                "why_pr_blocked.fetch_ruleset_requires_pull_request",
+                return_value=pull_request_rule,
             ),
         )
 
@@ -1127,3 +1138,205 @@ class TestQueuedVsAbsent:
         assert rc == 1
         assert data["QueuedRequired"] == []
         assert data["AbsentRequired"] == ["Validate PR"]
+
+
+# ---------------------------------------------------------------------------
+# Tests: review decision (CHANGES_REQUESTED counts only with a pull_request rule)
+# ---------------------------------------------------------------------------
+
+_GREEN_CHECKS = [_check_run_node("Validate PR", "SUCCESS")]
+_PRE_EXISTING_KEYS = {
+    "Number",
+    "Owner",
+    "Repo",
+    "BaseBranch",
+    "MergeStateStatus",
+    "OverallState",
+    "MissingRequired",
+    "QueuedRequired",
+    "AbsentRequired",
+    "HeadCommittedAt",
+    "FailingRequired",
+    "PendingRequired",
+    "IndeterminateRequired",
+    "BlockingRuns",
+    "UnresolvedThreads",
+    "HasBlocker",
+    "RulesetContextsAvailable",
+}
+
+
+class TestReviewDecisionDiagnose:
+    def test_empty_string_decision_normalizes_to_none(self):
+        result = diagnose({"ReviewDecision": ""}, [], pull_request_rule=True)
+        assert result["ReviewDecision"] is None
+        assert result["ChangesRequestedBlocking"] is False
+
+    def test_missing_decision_is_none(self):
+        assert diagnose({}, [])["ReviewDecision"] is None
+
+    @pytest.mark.parametrize("rule", [None, False])
+    def test_not_blocking_without_a_confirmed_rule(self, rule):
+        result = diagnose({"ReviewDecision": "CHANGES_REQUESTED"}, [], pull_request_rule=rule)
+        assert result["ReviewDecision"] == "CHANGES_REQUESTED"
+        assert result["ChangesRequestedBlocking"] is False
+
+    def test_blocking_only_for_changes_requested_with_rule(self):
+        result = diagnose({"ReviewDecision": "CHANGES_REQUESTED"}, [], pull_request_rule=True)
+        assert result["ChangesRequestedBlocking"] is True
+
+    @pytest.mark.parametrize("decision", ["APPROVED", "REVIEW_REQUIRED", "", None])
+    def test_other_decisions_never_block(self, decision):
+        result = diagnose({"ReviewDecision": decision}, [], pull_request_rule=True)
+        assert result["ChangesRequestedBlocking"] is False
+
+    def test_two_positional_arguments_still_work(self):
+        result = diagnose({"CheckNodes": []}, [])
+        assert result["ChangesRequestedBlocking"] is False
+        assert result["ReviewDecision"] is None
+
+    def test_grace_seconds_stays_third_positional(self):
+        result = diagnose({"HeadCommittedAt": None}, ["X"], 0)
+        assert result["AbsentRequired"] == ["X"]
+
+
+class TestReviewDecisionFetch:
+    def test_query_requests_review_decision(self):
+        assert "reviewDecision" in _mod._PR_QUERY
+
+    def test_fetch_returns_decision(self):
+        gql = _gql_pr(review_decision="CHANGES_REQUESTED")
+        with patch("why_pr_blocked.gh_graphql", return_value=gql):
+            assert fetch_pr_data("o", "r", 42)["ReviewDecision"] == "CHANGES_REQUESTED"
+
+    def test_absent_key_gives_none_without_crash(self):
+        gql = _gql_pr()
+        assert "reviewDecision" not in gql["repository"]["pullRequest"]
+        with patch("why_pr_blocked.gh_graphql", return_value=gql):
+            assert fetch_pr_data("o", "r", 42)["ReviewDecision"] is None
+
+
+class TestReviewDecisionMain:
+    @staticmethod
+    def _run(
+        capsys,
+        *,
+        decision,
+        rule,
+        check_nodes=None,
+        args=(),
+        fmt="json",
+        omit_decision=False,
+    ):
+        gql = _gql_pr(
+            overall_state="SUCCESS",
+            check_nodes=_GREEN_CHECKS if check_nodes is None else check_nodes,
+            review_decision=None if omit_decision else decision,
+        )
+        helper = TestMain()
+        with ExitStack() as stack:
+            mocks = [
+                stack.enter_context(p)
+                for p in helper._patch_env(gql, ruleset=["Validate PR"], pull_request_rule=rule)
+            ]
+            rc = main(["--pull-request", "42", "--output-format", fmt, *args])
+        captured = capsys.readouterr()
+        return rc, captured.out, captured.err, mocks[-1]
+
+    def test_changes_requested_with_rule_blocks(self, capsys):
+        rc, out, _, rule_mock = self._run(capsys, decision="CHANGES_REQUESTED", rule=True)
+        data = json.loads(out)["Data"]
+        assert rc == 1
+        assert data["HasBlocker"] is True
+        assert data["ChangesRequestedBlocking"] is True
+        assert data["ReviewDecision"] == "CHANGES_REQUESTED"
+        rule_mock.assert_called_once_with("o", "r", "main")
+
+    def test_blocked_human_summary_names_review_and_stale_bot_script(self, capsys):
+        rc, out, err, _ = self._run(capsys, decision="CHANGES_REQUESTED", rule=True, fmt="human")
+        text = out + err
+        assert rc == 1
+        assert "a review requesting changes" in text
+        assert "detect_stale_bot_review.py" in text
+
+    def test_changes_requested_without_rule_does_not_block(self, capsys):
+        rc, out, _, _ = self._run(capsys, decision="CHANGES_REQUESTED", rule=False)
+        data = json.loads(out)["Data"]
+        assert rc == 0
+        assert data["HasBlocker"] is False
+        assert data["ChangesRequestedBlocking"] is False
+        assert data["ReviewDecision"] == "CHANGES_REQUESTED"
+
+    def test_not_counted_human_summary_names_classic_protection(self, capsys):
+        rc, out, err, _ = self._run(capsys, decision="CHANGES_REQUESTED", rule=False, fmt="human")
+        text = out + err
+        assert rc == 0
+        assert "not counted" in text
+        assert "classic branch protection is not read" in text
+        assert "no enforced review requesting changes" in text
+
+    def test_rule_lookup_failure_exits_3(self, capsys):
+        rc, out, _, _ = self._run(capsys, decision="CHANGES_REQUESTED", rule=None)
+        payload = json.loads(out)
+        assert rc == 3
+        assert payload["Error"]["Type"] == "ApiError"
+        assert "pull request rule" in payload["Error"]["Message"]
+
+    def test_empty_base_branch_skips_lookup(self, capsys):
+        rc, out, err, rule_mock = self._run(
+            capsys,
+            decision="CHANGES_REQUESTED",
+            rule=True,
+            args=("--base-branch", ""),
+            fmt="human",
+        )
+        assert rc == 0
+        rule_mock.assert_not_called()
+        assert "base branch rules were not read" in out + err
+
+    def test_empty_base_branch_json_is_not_blocking(self, capsys):
+        rc, out, _, rule_mock = self._run(
+            capsys, decision="CHANGES_REQUESTED", rule=True, args=("--base-branch", "")
+        )
+        data = json.loads(out)["Data"]
+        assert rc == 0
+        assert data["ChangesRequestedBlocking"] is False
+        assert data["ReviewDecision"] == "CHANGES_REQUESTED"
+        rule_mock.assert_not_called()
+
+    @pytest.mark.parametrize("decision", [None, "", "APPROVED", "REVIEW_REQUIRED"])
+    def test_other_decisions_never_look_up_the_rule(self, capsys, decision):
+        rc, out, _, rule_mock = self._run(capsys, decision=decision, rule=True)
+        data = json.loads(out)["Data"]
+        assert rc == 0
+        assert data["ChangesRequestedBlocking"] is False
+        assert data["HasBlocker"] is False
+        assert data["ReviewDecision"] == (decision or None)
+        assert rule_mock.call_count == 0
+
+    def test_review_and_failing_check_both_named(self, capsys):
+        rc, out, err, _ = self._run(
+            capsys,
+            decision="CHANGES_REQUESTED",
+            rule=True,
+            check_nodes=[_check_run_node("Validate PR", "FAILURE")],
+            fmt="human",
+        )
+        text = out + err
+        assert rc == 1
+        assert "1 failing required check(s)" in text
+        assert "a review requesting changes" in text
+
+    def test_absent_review_decision_key_does_not_crash(self, capsys):
+        rc, out, _, rule_mock = self._run(capsys, decision=None, rule=True, omit_decision=True)
+        data = json.loads(out)["Data"]
+        assert rc == 0
+        assert data["ReviewDecision"] is None
+        assert rule_mock.call_count == 0
+
+    def test_output_contract_keeps_old_keys_and_adds_two(self, capsys):
+        _, out, _, _ = self._run(capsys, decision="APPROVED", rule=True)
+        data = json.loads(out)["Data"]
+        assert _PRE_EXISTING_KEYS <= set(data)
+        assert {"ReviewDecision", "ChangesRequestedBlocking"} <= set(data)
+        assert set(data) == _PRE_EXISTING_KEYS | {"ReviewDecision", "ChangesRequestedBlocking"}
