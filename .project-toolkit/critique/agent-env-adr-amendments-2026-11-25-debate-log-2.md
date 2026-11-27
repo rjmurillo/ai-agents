@@ -173,3 +173,11 @@ Both seats read the wording diff and the ADR-088 change. Architect vote: Accept.
 The ledger's Fourth pass called `6c0a0fc5db` the last tip of the pull request #7630 branch. That was wrong. `git ls-remote origin refs/pull/7630/head` prints `f4557cc4f2`. `6c0a0fc5db` is a local merge of `main` into that head, and it was never pushed. The merge commit `715828e46f` (2026-11-26) repeats the wrong phrase in its message. The message stays, because the branch history is not rewritten.
 
 The ledger intro and the Merge resolution section above now say what `6c0a0fc5db` is. A new ledger row checks the tree identity from pushed commits only: `git merge-tree --write-tree f4557cc4f2 4d104e9a8f` and `git rev-parse dff887317c^{tree}` both print `984f58ed058c`. No ADR text changed. The seats did not re-vote on this correction, because it changes no record they reviewed.
+
+## Frontmatter dates, 2026-11-27
+
+The pointer clarification above edited one line in each of ADR-071, ADR-083, ADR-101, and ADR-109 on 2026-11-27. The frontmatter `date` field is the last-updated date (ADR-073). It still read 2026-11-26 in ADR-071, ADR-083, and ADR-109, and 2026-11-25 in ADR-101. Each now reads 2026-11-27, and the repo build regenerated the ADR index.
+
+The change is frontmatter only. No body text changed and no line count changed. The seats voted on the pointer wording above. They did not vote again on the date field.
+
+ADR-057 keeps `date: 2026-11-26`. Its last edit is the merge resolution of that date. The advisory Doc Date Drift check still flags ADR-057 line 4, because it compares the field with the commit date of `HEAD`.
