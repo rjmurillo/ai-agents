@@ -189,11 +189,11 @@ CRITICAL_PATTERNS = [
     r"^scripts/validation/adr_debate_evidence\.py$",
     r"^(?:lefthook|\.lefthook|\.config/lefthook)(?:-local)?\.(?:yml|yaml|json|jsonc|toml)$",
     r"^\.husky/",
-    r".*/Auth/",
-    r".*/Authentication/",
-    r".*/Authorization/",
-    r".*/Security/",
-    r".*/Identity/",
+    r"(?:^|.*/)Auth/",
+    r"(?:^|.*/)Authentication/",
+    r"(?:^|.*/)Authorization/",
+    r"(?:^|.*/)Security/",
+    r"(?:^|.*/)Identity/",
     # "auth" as a name part, not as a substring of the word author (author, authors,
     # authored, authoring, authorship, authorial). The lookahead needs a lowercase
     # "or", then a non-letter or an uppercase letter, so AuthOrchestrator, authOrg,
@@ -695,7 +695,10 @@ def critical_changes_are_comment_only(
         raise GitReadError(f"invalid ref {diff_base!r}: refs must not start with '-'")
     critical = [f["File"] for f in result["findings"] if f["RiskLevel"] == "critical"]
     return bool(critical) and all(
-        _file_change_is_comment_only(path, diff_base, ref, repo_root) for path in critical
+        _file_change_is_comment_only(
+            _repo_relative_path(path, repo_root), diff_base, ref, repo_root
+        )
+        for path in critical
     )
 
 

@@ -447,3 +447,28 @@ def test_cli_diff_base_exempts_a_comment_only_push(
 
     assert exit_code == 0
     assert "policy.exempt" in capsys.readouterr().err
+
+
+def test_cli_diff_base_exempts_an_absolute_comment_only_path(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    write_commit(repo, WORKFLOW, WORKFLOW_TEXT.replace("build the project", "compile it"))
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "detect_infrastructure.py",
+            "--files",
+            str(repo / WORKFLOW),
+            "--require-security-review",
+            "--diff-base",
+            _base(repo),
+            "--repo-root",
+            str(repo),
+        ],
+    )
+
+    exit_code = mod.main()
+
+    assert exit_code == 0
+    assert "policy.exempt" in capsys.readouterr().err
