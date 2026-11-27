@@ -253,8 +253,8 @@ Write `$REPORT_DIR/report.json` in the shape in `references/report-schema.md`. `
 
 Read `$SKILL_ROOT/references/report-schema.md` for the full field list before you write the file.
 
-Copy `harness_coverage_complete`, `notice`, and each harness's `scoreable`, `skill_candidates`, and `sampled` from `inventory.json`.
-Write it without numbers, then run `assemble_report.py` per `$SKILL_ROOT/references/audit-workflow.md` to fill `scores`, `sessions_analyzed`, per-harness `overall`, and `audit`. That reference covers the shareable export too.
+Copy `harness_coverage_complete`, `notice`, `top_level_notice`, each harness's `scoreable`, `skill_candidates`, and `sampled`, and `stats.per_thread` as `sampling.per_thread` from `inventory.json`.
+Write it without numbers, then run `assemble_report.py` per `$SKILL_ROOT/references/audit-workflow.md` to fill `scores`, `sessions_analyzed`, per-harness and per-type `overall`, and `audit`. That reference covers the shareable export too.
 Keep `evaluation.optimization` at `not_run` for every skill-doctor run.
 Only a later skillopt result may set `evaluation.optimization` to `run` and a suggestion `status` of `accepted`, `rejected`, or `inconclusive`; that suggestion then needs its own `"evaluation": {"baseline": "<ref>", "candidate": "<ref>"}` object with non-empty references.
 The renderer exits 1 on a measured status without that evidence, a drafted diff for unresolved variants, or a "no beneficial change" verdict without scored evaluation.
