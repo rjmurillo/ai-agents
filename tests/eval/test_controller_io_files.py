@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import errno
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -203,7 +204,9 @@ def test_open_errors_other_than_a_refusal_name_their_cause(
         raise OSError(code, os.strerror(code))
 
     monkeypatch.setattr(io.os, "open", failing)
-    with pytest.raises(ControllerError, match=f"could not open {path}: {os.strerror(code)}"):
+    with pytest.raises(
+        ControllerError, match=re.escape(f"could not open {path}: {os.strerror(code)}")
+    ):
         io.write_private(path, "x")
 
 
@@ -226,3 +229,26 @@ def test_collect_into_reports_a_failed_move_and_collect_all_keeps_going(
     problems = io.collect_all([str(first), str(second)], {}, run_dir)
     assert problems == [f"could not move scorer output {first}: [Errno {errno.EIO}] disk error"]
     assert (run_dir / "1").read_text(encoding="utf-8") == "b"
+
+
+@posix_only
+def test_collect_into_tolerates_a_link_removed_before_its_unlink(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "report.xml"
+    source.write_text("r", encoding="utf-8")
+    destination = tmp_path / "0"
+    destination.symlink_to(tmp_path / "elsewhere")
+    real_is_symlink = Path.is_symlink
+
+    def racing(self: Path) -> bool:
+        # A leftover child removes the link right after the controller saw it.
+        result = real_is_symlink(self)
+        if self == destination and result:
+            self.unlink()
+        return result
+
+    monkeypatch.setattr(Path, "is_symlink", racing)
+    problems = io.collect_into(source, destination)
+    assert problems == [f"collect destination {destination} existed before collection"]
+    assert destination.read_text(encoding="utf-8") == "r"

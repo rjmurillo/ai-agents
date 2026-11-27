@@ -1400,6 +1400,9 @@ def test_run_dir_swapped_for_a_link_is_refused_before_anything_lands_outside(
     assert [p.name for p in outside.iterdir() if p.name not in scorer_wrote] == ["victim.txt"]
     if collect:
         _assert_report_quarantined(tmp_path)
+    else:
+        # Nothing to collect, so no quarantine is made.
+        assert not list((tmp_path / "state").glob("quarantine-*"))
 
 
 def _assert_report_quarantined(tmp_path: Path) -> None:
@@ -1453,6 +1456,21 @@ def test_replaced_run_dir_error_names_the_quarantine(
     assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
     (quarantine,) = (tmp_path / "state").glob("quarantine-incumbent-*")
     assert f"reports moved to {quarantine}" in capsys.readouterr().err
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
+def test_replaced_run_dir_error_names_the_quarantine_and_the_missing_report(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config, _ = _plant_around_run(tmp_path, "run_dir", collect=True)
+    missing = str(tmp_path / "loose" / "{run_id}.missing")
+    data = json.loads(config.read_text(encoding="utf-8"))
+    _edit_config(config, collect=[*data["collect"], missing])
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+    (quarantine,) = (tmp_path / "state").glob("quarantine-incumbent-*")
+    err = capsys.readouterr().err
+    assert f"reports moved to {quarantine}" in err
+    assert ".missing" in err
 
 
 def test_failed_quarantine_does_not_hide_the_scorer_error(

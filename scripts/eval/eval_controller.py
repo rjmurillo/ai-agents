@@ -183,7 +183,7 @@ class Controller:
         # Attempt collection before any integrity check can stop the run.
         landed, problems = collect_or_quarantine(*collect_args)
         if landed != run_dir:
-            status = "; ".join(problems) if problems else f"reports moved to {landed}"
+            status = "; ".join([f"reports moved to {landed}", *problems])
             raise ControllerError(f"{run_dir} was replaced while {label} was scored; {status}")
         self._require_run_dir(run_dir, label)
         if tree_digest([self.state], exclude=run_dir) != before:

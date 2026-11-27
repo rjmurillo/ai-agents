@@ -6,6 +6,7 @@ file helpers that reject leaf links and moves reports into the run directory.
 
 from __future__ import annotations
 
+import contextlib
 import errno
 import hashlib
 import json
@@ -191,7 +192,9 @@ def collect_into(source: Path, destination: Path) -> list[str]:
         problems.append(f"collect destination {destination} existed before collection")
         if not destination.is_symlink():
             return problems
-        destination.unlink()
+        # A leftover child may remove the link first; that is not an error.
+        with contextlib.suppress(FileNotFoundError):
+            destination.unlink()
     try:
         shutil.move(str(source), str(destination))
     except OSError as exc:
