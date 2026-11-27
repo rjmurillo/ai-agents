@@ -201,7 +201,7 @@ _SKILL_FILE_PATTERN: re.Pattern[str] = re.compile(
 # then printed "All skill frontmatter validated successfully!", a sentence about
 # a corpus it never opened. The codex, cursor, muse, and hermes trees joined so
 # GP-003 holds on every shipped copy; ADR-115 debate log 4 found no scanner
-# read them, and the hermes copies of four skills had lost their version.
+# read them, and the hermes copies of three skills had lost their version.
 # ADR-119: shipped skills are directory links under .claude/skills, which rglob
 # does not follow, so they are read at src/claude/skills.
 _SKILL_TREE_PREFIXES: tuple[str, ...] = (
@@ -706,6 +706,8 @@ def validate_skill_frontmatter(repo_root: Path) -> bool:
     if not files:
         print(f"[FAIL] No SKILL.md found under {', '.join(_SKILL_TREE_PREFIXES)}")
         return False
+    # Name absent trees, so a moved tree cannot pass as a smaller corpus.
+    print(_skill_corpus.corpus_summary(repo_root, _SKILL_TREE_PREFIXES))
     failures: list[tuple[Path, list[str]]] = []
     for file_path in files:
         with contextlib.redirect_stdout(io.StringIO()):
