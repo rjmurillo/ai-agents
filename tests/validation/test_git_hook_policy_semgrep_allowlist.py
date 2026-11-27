@@ -404,3 +404,37 @@ def test_crlf_file_still_allows_the_listed_line(
     target.write_bytes(target.read_bytes().replace(b"\n", b"\r\n"))
     _git(repo, "add", "-A")
     assert entry_point(repo, base) == 0
+
+
+@pytest.mark.parametrize(
+    "text",
+    ['["a\u2028b"]', '{"cells": "a\u2028b"}', "a\u2028b"],
+    ids=["list", "cells", "bad"],
+)
+def test_notebook_fallbacks_split_on_newline_only(text: str) -> None:
+    assert "\u2028" in text
+    assert policy._notebook_code_lines(text) == [text]
+
+
+def test_unreadable_object_fails_closed(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    repo, _base = _repo_with_change(tmp_path, SOURCE, _allowed(EXEC_RULE))
+    assert policy._suppression_text_or_none("HEAD:missing.py", repo) is None
+    assert "missing.py" in capsys.readouterr().err
+    assert policy._diff_full_content_suppression_violations(["missing.py"], repo) is None
+
+
+@pytest.mark.parametrize(
+    ("line", "expected"),
+    [
+        pytest.param(_allowed(EXEC_RULE), [], id="listed"),
+        pytest.param(
+            _allowed(EXEC_RULE) + "\x0c, " + SUBPROCESS_RULE, [f"HEAD:{SOURCE}:5"], id="ff"
+        ),
+    ],
+)
+def test_diff_full_content_reads_exact_bytes(
+    tmp_path: Path, line: str, expected: list[str]
+) -> None:
+    repo, _base = _repo_with_change(tmp_path, SOURCE, line)
+    _git(repo, "commit", "-q", "-m", "head")
+    assert policy._diff_full_content_suppression_violations([SOURCE], repo) == expected
