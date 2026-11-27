@@ -3,8 +3,9 @@
 - positive: in the hook context a slot is taken with the bounded wait, and the
   run happens inside it.
 - negative: a direct run, CI, and a container take no slot and wait zero.
-- edge: an expired wait still runs the gates; the lefthook timeout is the run
-  budget plus the wait.
+- edge: an expired wait runs when a slot is free or slots are disabled, fails
+  closed with exit 3 when all configured slots stay occupied, and the lefthook
+  timeout is the run budget plus the wait.
 """
 
 from __future__ import annotations

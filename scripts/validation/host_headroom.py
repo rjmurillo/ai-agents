@@ -16,6 +16,7 @@ import math
 import os
 import random
 import sys
+import threading
 import time
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
@@ -33,19 +34,28 @@ MAX_PSI_ENV = "AI_AGENTS_HEAVY_STAGE_MAX_PSI"
 SLOT_DIR_ENV = "AI_AGENTS_HEAVY_STAGE_SLOT_DIR"
 DEFAULT_SLOTS = 3
 DEFAULT_MAX_LOAD_PER_CPU = 1.0
+# Initial heuristic for Linux CPU PSI `some avg10` (% wall time with >=1 task waiting on CPU);
+# override with AI_AGENTS_HEAVY_STAGE_MAX_PSI if healthy pushes stall or contended pushes spike.
 DEFAULT_MAX_CPU_PSI = 25.0
 POLL_SECONDS = 5.0
 POLL_JITTER_RATIO = 0.5
 _CPU_PSI_PATH = Path("/proc/pressure/cpu")
 _PROC_STAT_PATH = Path("/proc/stat")
+_SLOT_LOCK_TEMPLATE = "slot-{}.lock"
 
 # Slot files this process holds; `other_stages` skips them.
 _OWN_SLOTS: set[Path] = set()
+_OWN_SLOTS_LOCK = threading.Lock()
 
 
 @dataclass(frozen=True)
 class Settings:
-    """Concurrency cap and host CPU pressure limits (0 disables a knob)."""
+    """Concurrency cap and host CPU pressure limits.
+
+    ``slots=0`` disables slot locking, ``max_load=0`` disables all CPU pressure
+    waiting (including ``max_psi`` so callers omitting ``max_psi`` stay disabled),
+    and ``max_psi=0`` disables only the Linux CPU PSI check.
+    """
 
     slots: int
     max_load: float
@@ -164,6 +174,8 @@ def _check_pressure(
     config: Settings, load: Callable[[], float | None] | None
 ) -> tuple[bool, str | None]:
     """Return ``(has_headroom, description)`` for current host CPU pressure."""
+    # max_load <= 0 disables all CPU pressure checks (including max_psi) so callers
+    # that construct Settings(slots=0, max_load=0.0, ...) stay disabled in CI/tests.
     if config.max_load <= 0:
         return True, None
     if load is None:
@@ -241,9 +253,11 @@ def other_stages(settings: Settings) -> int:
     if settings.slots <= 0 or not _HAS_FLOCK:
         return 0
     held = 0
+    with _OWN_SLOTS_LOCK:
+        owned = frozenset(_OWN_SLOTS)
     for index in range(settings.slots):
-        path = settings.slot_dir / f"slot-{index}.lock"
-        if path in _OWN_SLOTS:
+        path = settings.slot_dir / _SLOT_LOCK_TEMPLATE.format(index)
+        if path in owned:
             continue
         try:
             fd = os.open(path, os.O_RDWR)
@@ -267,7 +281,7 @@ def _claim_slot(stage: str, config: Settings, out: TextIO) -> tuple[tuple[int, i
     try:
         config.slot_dir.mkdir(parents=True, exist_ok=True)
         for index in range(config.slots):
-            path = config.slot_dir / f"slot-{index}.lock"
+            path = config.slot_dir / _SLOT_LOCK_TEMPLATE.format(index)
             fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
             try:
                 fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -277,7 +291,8 @@ def _claim_slot(stage: str, config: Settings, out: TextIO) -> tuple[tuple[int, i
             except OSError:
                 os.close(fd)
                 raise
-            _OWN_SLOTS.add(path)
+            with _OWN_SLOTS_LOCK:
+                _OWN_SLOTS.add(path)
             return (index, fd), True
     except OSError as error:
         print(
@@ -303,9 +318,11 @@ def heavy_stage_slot(
 ) -> Iterator[Grant]:
     """Hold a heavy-stage slot for the ``with`` body, waiting up to ``wait_budget``.
 
-    Slots are never hoarded while waiting on CPU pressure. If ``wait_budget``
-    expires with all configured slots occupied, raises ``HeadroomTimeoutError``
-    (exit 3) instead of running uncapped.
+    Slots are never hoarded while waiting on CPU pressure. Passing ``load=None``
+    uses Linux ``/proc/pressure/cpu`` and ``/proc/stat`` (with ``load_average``
+    fallback); passing an explicit ``load`` callable evaluates only that
+    callable. If ``wait_budget`` expires with all configured slots occupied,
+    raises ``HeadroomTimeoutError`` (exit 3) instead of running uncapped.
     """
     out = sys.stderr if stream is None else stream
     config = read_settings() if settings is None else settings
@@ -314,6 +331,8 @@ def heavy_stage_slot(
     announced = False
     taken: tuple[int, int] | None = None
     headroom = False
+    pressure_ok = True
+    summary: str | None = None
     low = POLL_SECONDS * (1.0 - POLL_JITTER_RATIO)
     high = POLL_SECONDS * (1.0 + POLL_JITTER_RATIO)
     try:
@@ -343,10 +362,17 @@ def heavy_stage_slot(
             sleep(min(delay if math.isfinite(delay) and delay > 0 else low, remaining))
         waited = clock() - start
         if not headroom:
-            if use_slots and taken is None:
+            if use_slots and taken is None and not pressure_ok:
                 taken, use_slots = _claim_slot(stage, config, out)
-            _, final_summary = _check_pressure(config, load)
-            detail = final_summary or "host pressure unavailable"
+            detail = (
+                summary
+                if summary is not None
+                else (
+                    "pressure check disabled"
+                    if config.max_load <= 0
+                    else "host pressure unavailable"
+                )
+            )
             if use_slots and taken is None:
                 print(
                     f"ERROR: {stage}: no free heavy-stage slot after {waited:g}s "
@@ -369,7 +395,9 @@ def heavy_stage_slot(
         yield Grant(slot=None if taken is None else taken[0], headroom=headroom, waited=waited)
     finally:
         if taken is not None:
-            _OWN_SLOTS.discard(config.slot_dir / f"slot-{taken[0]}.lock")
+            path = config.slot_dir / _SLOT_LOCK_TEMPLATE.format(taken[0])
+            with _OWN_SLOTS_LOCK:
+                _OWN_SLOTS.discard(path)
             try:
                 fcntl.flock(taken[1], fcntl.LOCK_UN)
             finally:
