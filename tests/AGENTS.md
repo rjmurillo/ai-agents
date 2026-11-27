@@ -39,14 +39,14 @@ Pytest suite: root guard, `tests/conftest.py`, flat `test_*.py`, topic subdirs; 
 
 - `check_nested_tests.py` does not scan every test file, and not by depth: helpers not named `test_*.py` (`tests/hook_test_helpers.py`, `tests/ci/ratchet_test_helpers.py`) are never opened.
 - `checks_coverage.py` is not a coverage gate; it wraps the advisory `/review`-marker check. Real 100% pins: `coverage report --fail-under=100` steps in `pytest.yml`.
-- "My push ran the suite" is false: pre-push does not run pytest (ADR-104, 2026-11-26). Run targeted `uv run pytest <paths>`; CI runs all legs.
+- "My push ran the suite" is false: pre-push does not run pytest (ADR-104, 2026-11-26). Run `uv run pytest <paths>`; CI runs all.
 - `tests/evals/*-scenarios.json` are pytest input, not just `scripts/eval/` corpora. `tests/eval/test_eval_prompt_change.py::TestShippedScenariosValid` requires 2+ `verdict_options` each; sibling contract tests pin critic, qa, orchestrator and spec scenario IDs.
 
 ## Dependencies
 
 - Feeds `pytest.yml`'s `zero-collection-guard` (blocking, no `needs:`/`if:`) and the 8-leg matrix, which `check-paths` never gates.
 - Other workflows run named test files (grep below), so a rename reds a check the path filter never shows; `claude.yml` runs `tests/workflows/test_claude_authorization.py` as `scripts/ci/check_claude_authorization.py --checker`.
-- `lefthook.yml` pre-push omits `python-tests` and `zero-collection-tests` (ADR-104, 2026-11-26); CI `pytest.yml` is the gate.
+- `lefthook.yml` pre-push omits `python-tests` and `zero-collection-tests`; CI `pytest.yml` gates both.
 - Pre-PR gate registry and flags: `scripts/AGENTS.md`. Template-drift and parity semantics: `build/AGENTS.md`.
 
 ## Architecture
