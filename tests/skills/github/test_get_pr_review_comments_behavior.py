@@ -282,12 +282,15 @@ def test_invalid_flag_combinations_return_one_before_authentication(argv, messag
 
 
 def test_review_comment_api_failure_exits_three(capsys):
-    with patch(
-        "grc_behavior_under_test.gh_api_paginated",
-        side_effect=RuntimeError("boom"),
+    with (
+        patch("grc_behavior_under_test.assert_gh_authenticated"),
+        patch(
+            "grc_behavior_under_test.gh_api_paginated",
+            side_effect=RuntimeError("boom"),
+        ),
     ):
         with pytest.raises(SystemExit) as exc:
-            grc.get_pr_review_comments("o", "r", 42)
+            grc.main(["--owner", "o", "--repo", "r", "--pull-request", "42"])
 
     assert exc.value.code == 3
     assert "Failed to fetch PR review comments" in capsys.readouterr().err

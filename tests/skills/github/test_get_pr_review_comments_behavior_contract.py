@@ -280,12 +280,25 @@ def test_author_filter_applies_to_review_and_issue_comments():
 
 
 def test_issue_comment_api_failure_exits_three(capsys):
-    with patch(
-        "grc_behavior_under_test.gh_api_paginated",
-        side_effect=[[], RuntimeError("boom")],
+    with (
+        patch("grc_behavior_under_test.assert_gh_authenticated"),
+        patch(
+            "grc_behavior_under_test.gh_api_paginated",
+            side_effect=[[], RuntimeError("boom")],
+        ),
     ):
         with pytest.raises(SystemExit) as exc:
-            grc.get_pr_review_comments("o", "r", 42, include_issue_comments=True)
+            grc.main(
+                [
+                    "--owner",
+                    "o",
+                    "--repo",
+                    "r",
+                    "--pull-request",
+                    "42",
+                    "--include-issue-comments",
+                ]
+            )
 
     assert exc.value.code == 3
     assert "Failed to fetch issue comments for PR #42" in capsys.readouterr().err
