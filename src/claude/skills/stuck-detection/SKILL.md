@@ -3,13 +3,7 @@ name: stuck-detection
 version: 1.3.0
 model: haiku
 model-rationale: cost. The 'haiku' rolling alias resolves via the platform model_tiers map to a tier priced below the sonnet-tier harness default; this unit is routing/mechanical work where the cheaper tier suffices (ADR-080 rule 3).
-description: >-
-  Detect agent loops (repeated topics or repeated tool failures) and emit a
-  self-reflection nudge. Use as an orchestrator guard against token-burning
-  loops. Use when you say "check stuck loop", "detect repetition", "agent
-  looping", "check failure loop", or "reset stuck history". Do NOT use
-  for semantic similarity checks or multi-turn intent tracking; use a richer
-  evaluation tool for those.
+description: "Detect agent loops (repeated topics or tool failures) and emit a self-reflection nudge, as an orchestrator guard. Use when you say \"check stuck loop\", \"detect repetition\", or \"agent looping\". Do NOT use for semantic similarity or multi-turn intent tracking."
 license: Apache-2.0
 metadata:
   routing:
