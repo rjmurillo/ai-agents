@@ -5,7 +5,7 @@ Date: 2026-11-26. Harness: `evals/skill-description-routing/`. Claude Code CLI 2
 ## Question
 
 Do shorter skill descriptions route requests as well as the descriptions on main?
-The run scored 103 of them. The change ships 101.
+The run scored 103 of them. The change ships 97.
 
 ## Verdict
 
@@ -133,9 +133,12 @@ The `skillforge` commit hook rejects any commit that touches the `ship` skill fi
 The skill gained scripts in #7737 and has no `## Scripts` section.
 That defect is on main and outside this change, so the `ship` file stays untouched.
 
-The change ships 101 descriptions. Each one matches the text that was scored.
-Both held-back skills sit at their `before` text, which the `before` arm scored.
-`extract_arms.py` confirmed this against origin/main 4d104e9a8f (2026-11-26).
+Four more skills keep main's text to preserve contracts checked outside this eval.
+`context-optimizer` and `skillforge` retain trigger ownership and redirect wording.
+`memory-documentary` retains its source availability wording.
+`pr-review` still routes through SkillForge for `which skill handles pull requests?`.
+
+The change ships 97 descriptions. Each matches the text the eval scored.
 
 ## The listing cap
 
@@ -166,11 +169,11 @@ So the deciding run lifted the cap, and both arms showed everything.
 
 | Tree | Before, chars | After, chars |
 |---|---|---|
-| `.claude/skills`, 121 skills | 51,188 | 36,325 |
-| `src/copilot-cli/skills`, 103 skills | not recorded | 30,587 |
+| `.claude/skills`, 121 skills on 2026-11-27 | 51,188 | 37,100 |
+| `src/copilot-cli/skills`, 103 skills on 2026-11-27 | not recorded | 31,362 |
 
-Sizes come from `scripts/skill_description_budget.py` at 4d104e9a8f (2026-11-26).
-The ratchet in `scripts/skill_description_budget.json` drops to 36,400 and 30,600.
+`skill_description_budget.py` measured the base and final catalogs on 2026-11-27.
+The ratchet drops to 37,200 and 31,400 chars.
 
 ## Deviations from the registered plan
 
@@ -178,8 +181,8 @@ The ratchet in `scripts/skill_description_budget.json` drops to 36,400 and 30,60
   It was not resumed and its rows were not read. More runs spend the quota this change protects.
   So the net routing effect under the default cap is not measured here.
 - The registered text asked for a Sonnet rerun only if G4 reverted a skill. G4 reverted none.
-  The shipped catalog differs from the scored `after` arm by two skills at `before` text.
-  That exact mix was not run as one catalog.
+  Six candidate descriptions do not ship. Those skills keep main's text.
+  The eval did not run the final mix as one catalog.
 
 ## Limits
 

@@ -1,7 +1,11 @@
 ---
 name: memory-documentary
 version: 1.0.0
-description: "Evidence-based documentary reports across project memory, repository artifacts, and GitHub issues, with citation chains. Use when you ask for an \"evidence-based report\", \"investigate across all memory systems\", or \"what happened with X over time\". Do NOT use for a single recall (use memory-search) or citation hygiene (use memory-enhancement)."
+description: Generate evidence-based documentary reports by searching across
+  available project memory, reference sources, repository artifacts, and
+  GitHub issues. Produces investigative journalism-style analysis with full citation
+  chains. Use when you ask for an "evidence-based report", "investigate across all
+  memory systems", "what happened with X over time". Do NOT use for a single semantic recall (use memory-search) or for citation hygiene (use memory-enhancement).
 license: Apache-2.0
 metadata:
   timelessness: 8/10

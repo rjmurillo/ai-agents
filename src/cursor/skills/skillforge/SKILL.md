@@ -1,6 +1,6 @@
 ---
 name: skillforge
-description: "Skill router and creator. Use when you say \"create a skill\", \"do I have a skill for\", \"which skill should I use\", \"improve the X skill\", or \"SkillForge: {goal}\", or before adding a PreToolUse or PostToolUse hook. Do NOT use for placement or markdown compression (use context-optimizer), eval-gated tuning (use skillopt), saving finished work (use skillify), or mining a repo's skill library (use skill-bootstrap)."
+description: "Intelligent skill router and creator. Analyzes ANY input to recommend existing skills, improve them, or create new ones. Use when you say \"create a skill\", \"do I have a skill for\", \"which skill should I use\", \"improve the X skill\", or \"SkillForge: {goal}\". Also use before adding or widening a PreToolUse or PostToolUse hook. Do NOT use for context optimization, placement analysis, markdown compression, extraction and indexing, or rule audits (use context-optimizer), eval-gated optimization of an existing skill (use skillopt), or saving finished work as a skill (use skillify). For a whole repository's skill library mined from history, use skill-bootstrap."
 license: MIT
 metadata:
   version: 4.1.0
