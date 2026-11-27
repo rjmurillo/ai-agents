@@ -62,11 +62,10 @@ def test_direct_read_repo_head_resolves_symbolic_head_with_loose_ref(tmp_path, m
     assert module._direct_read_repo_head() == head_sha
 
 
-def test_direct_read_repo_head_falls_back_for_packed_refs_only_branch(tmp_path, monkeypatch):
-    """Fallback: `git pack-refs --all` removes the loose file. The fast path never scans
-    `packed-refs` (see conftest.py's `_resolve_ref` docstring for why), so it raises here
-    and `_real_repo_head` falls back to the authoritative subprocess, which still
-    resolves."""
+def test_direct_read_repo_head_resolves_packed_refs_only_branch(tmp_path, monkeypatch):
+    """Positive: `git pack-refs --all` removes the loose file and writes a sorted
+    `packed-refs`. The fast path binary-searches `packed-refs` directly with no git
+    subprocess."""
     module = _load_root_conftest()
     repo = tmp_path / "repo"
     head_sha = _init_git_repo(repo)
@@ -74,9 +73,9 @@ def test_direct_read_repo_head_falls_back_for_packed_refs_only_branch(tmp_path, 
     _run_git(repo, "pack-refs", "--all")
     assert not (repo / ".git" / "refs" / "heads" / branch).exists()  # loose file is gone
     monkeypatch.setattr(module, "PROJECT_ROOT", repo)
+    _refuse_subprocess_run(monkeypatch)
 
-    with pytest.raises(module._HeadFastPathUnresolvedError, match="may be packed"):
-        module._direct_read_repo_head()
+    assert module._direct_read_repo_head() == head_sha
     assert module._real_repo_head() == head_sha
 
 
@@ -93,6 +92,24 @@ def test_direct_read_repo_head_resolves_linked_worktree_common_dir(tmp_path, mon
     _refuse_subprocess_run(monkeypatch)
 
     assert module._direct_read_repo_head() == feature_sha
+
+
+def test_direct_read_repo_head_resolves_linked_worktree_packed_only_branch(tmp_path, monkeypatch):
+    """Positive: a linked worktree whose branch lives only in commondir's `packed-refs`
+    resolves without spawning Git."""
+    module = _load_root_conftest()
+    main_repo = tmp_path / "main"
+    _init_git_repo(main_repo)
+    linked = tmp_path / "linked"
+    _run_git(main_repo, "worktree", "add", "--quiet", str(linked), "-b", "packed-feature")
+    feature_sha = _run_git(linked, "rev-parse", "HEAD")
+    _run_git(main_repo, "pack-refs", "--all")
+    assert not (main_repo / ".git" / "refs" / "heads" / "packed-feature").exists()
+    monkeypatch.setattr(module, "PROJECT_ROOT", linked)
+    _refuse_subprocess_run(monkeypatch)
+
+    assert module._direct_read_repo_head() == feature_sha
+    assert module._real_repo_head() == feature_sha
 
 
 def test_direct_read_repo_head_returns_none_for_unborn_head(tmp_path, monkeypatch):
@@ -143,13 +160,21 @@ def _repo_with_malformed_head(repo: Path) -> None:
     _make_git_dir(repo, "not-a-recognized-head-shape\n")
 
 
-def _repo_with_packed_only_ref(repo: Path) -> None:
-    """No loose ref for HEAD's branch but a `packed-refs` file exists (e.g. after `git
-    pack-refs --all`): the fast path cannot rule the ref out of it, so it must raise rather
-    than read the ref as absent (see `_resolve_ref`)."""
+def _repo_with_unsorted_packed_refs(repo: Path) -> None:
+    """A `packed-refs` file lacking the `sorted` header trait cannot be binary-searched,
+    so the fast path fails closed and delegates to Git."""
     git_dir = _make_git_dir(repo, "ref: refs/heads/main\n")
     (git_dir / "packed-refs").write_text(
-        f"# pack-refs with: peeled fully-peeled sorted\n{'a' * 40} refs/heads/main\n",
+        f"# pack-refs with: peeled fully-peeled\n{'a' * 40} refs/heads/main\n",
+        encoding="utf-8",
+    )
+
+
+def _repo_with_malformed_packed_refs(repo: Path) -> None:
+    """A sorted `packed-refs` file with a corrupt entry fails closed to Git."""
+    git_dir = _make_git_dir(repo, "ref: refs/heads/main\n")
+    (git_dir / "packed-refs").write_text(
+        "# pack-refs with: peeled fully-peeled sorted\nnot-an-oid refs/heads/main\n",
         encoding="utf-8",
     )
 
@@ -217,7 +242,8 @@ def _repo_with_broken_commondir(repo: Path) -> None:
     [
         (_repo_with_reftable_storage, "reftable"),
         (_repo_with_malformed_head, "not a recognized shape"),
-        (_repo_with_packed_only_ref, "may be packed"),
+        (_repo_with_unsorted_packed_refs, "not sorted"),
+        (_repo_with_malformed_packed_refs, "malformed packed-refs"),
         (_repo_with_unsafe_ref_name, "safe refs/heads"),
         (_repo_with_windows_style_unsafe_ref_name, "safe refs/heads"),
         (_repo_with_non_heads_ref_name, "safe refs/heads"),

@@ -174,10 +174,10 @@ class TestPrEdges:
         common = scripts[0]
         real_git = common.git
 
-        def broken(args, cwd=None, timeout=60):
+        def broken(args, cwd=None, timeout=60, **kw):
             if args[:1] == ["status"]:
                 return common.Completed(128, "", "fatal")
-            return real_git(args, cwd=cwd, timeout=timeout)
+            return real_git(args, cwd=cwd, timeout=timeout, **kw)
 
         monkeypatch.setattr(common, "git", broken)
         code, lines = invoke(
@@ -212,7 +212,15 @@ class TestPreflightEdges:
         fakes.rule(
             "gh",
             ["pr", "view", "41"],
-            {"stdout": json.dumps({"headRefName": "feat/ship-change", "headRefOid": head})},
+            {
+                "stdout": json.dumps(
+                    {
+                        "headRefName": "feat/ship-change",
+                        "headRefOid": head,
+                        "url": "https://github.com/o/r/pull/41",
+                    }
+                )
+            },
             {"rc": 1, "stderr": "HTTP 502\n"},
         )
         fakes.rule(
@@ -232,7 +240,17 @@ class TestPreflightEdges:
         fakes.rule(
             "az",
             ["repos", "pr", "list"],
-            {"stdout": json.dumps([{"pullRequestId": 77, "createdBy": {"uniqueName": "me"}}])},
+            {
+                "stdout": json.dumps(
+                    [
+                        {
+                            "pullRequestId": 77,
+                            "targetRefName": "refs/heads/main",
+                            "createdBy": {"uniqueName": "me"},
+                        }
+                    ]
+                )
+            },
         )
         fakes.rule("az", ["account", "show"], {"stdout": "me\n"})
         state = {

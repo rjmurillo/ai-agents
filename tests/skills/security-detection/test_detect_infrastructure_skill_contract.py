@@ -52,3 +52,10 @@ def test_skill_has_no_legacy_plugin_root_form() -> None:
     text = SKILL_PATH.read_text(encoding="utf-8")
 
     assert "COPILOT_PLUGIN_ROOT:-" not in text
+
+
+def test_skill_lists_the_extracted_hook_policy_module_as_critical() -> None:
+    text = SKILL_PATH.read_text(encoding="utf-8")
+
+    assert "`scripts/validation/git_hook_policy.py`" in text
+    assert "`scripts/validation/adr_debate_evidence.py`" in text
