@@ -153,11 +153,9 @@ None for this debate. The preamble tiers need their own record, with a byte ceil
 
 **Trigger**: CodeRabbit review of PR 7730 found that the voice and builder-ethos pools measured the seven-clause candidate, not the shipped `core`.
 **Change**: ADR-129 section 2 gains `Exception: measured candidate differs from shipped core`, with scope, reason and a reversal trigger. No decision text changes.
-**Panel**: reduced (architect, critic). The edit adds no executable enforcement and changes no rule other gates read.
+**Panel verdicts**: Unavailable. No independent architect or critic reviewed this amendment.
 
-| Agent | Position | Note |
-|---|---|---|
-| architect | Accept | The exception states what was measured and what was not. The record matches the gate rule that a miss keeps text only as a named exception. |
-| critic | Accept with note | The reversal trigger depends on a paid rerun that has no owner or date beyond the record review date. Kept as written; the owner sets the date. |
+- Architecture check (author): The exception names its scope, evidence gap, and reversal trigger.
+- Critic check (author): The candidate scores cannot certify the shipped text. The scheduled rerun decides whether the cut stands.
 
 No paid eval was run for this amendment. The gap stays open until the rerun.
