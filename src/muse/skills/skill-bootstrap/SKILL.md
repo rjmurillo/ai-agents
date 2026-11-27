@@ -1,7 +1,7 @@
 ---
 name: skill-bootstrap
 version: 1.0.0
-description: Mine a repository's history, reviews, and agent sessions to author and evaluate its project skill library. Use when you say `bootstrap skills`, `capture project workflow knowledge`, `build this repo's skill library`, or `project skill library`, including existing-skill improvements. Do NOT use for one skill (use skillforge), scored tuning (use skillopt), or session diagnosis (use skill-doctor).
+description: Mine a repository's history, reviews, and agent sessions to author and evaluate its project skill library. Use when you say `bootstrap skills`, `capture project workflow knowledge`, `build this repo's skill library`, `project skill library`, or `audit agent reply friction`, including existing-skill improvements. Do NOT use for one skill (use skillforge), scored tuning (use skillopt), or skill-usage diagnosis (use skill-doctor).
 license: Apache-2.0
 metadata:
   domains: [skill-creation, onboarding, workflow, knowledge-handoff]
@@ -65,6 +65,7 @@ skill does nothing; only an explicit request starts a run.
 - `capture project workflow knowledge`
 - `build this repo's skill library`
 - `project skill library`
+- `audit agent reply friction`
 
 ## When Not To Use
 
@@ -219,6 +220,10 @@ Pass each skill this run wrote or updated with `--authored`, so its uncommitted 
    Add `--update <skill>` for each authorized improvement and `--also-allow <path>` for each path the user authorized in Phase 1. A file grant covers that exact path; end a directory grant with `/`.
 4. Deliver the report defined in [references/authoring-and-gates.md](references/authoring-and-gates.md#bootstrap-report).
 
+## Reply-friction audit
+
+`audit agent reply friction` measures where agent replies cost the reader effort: buried decisions, unexplained identifiers, needless offers, and pushes to continue. It ends in a local report, authors no skill, and can run alone. Follow [references/reply-friction.md](references/reply-friction.md); `replies_audit.py` does the counting. Rationale: it mines the same session evidence as Phase 2, and each confirmed pattern is a Phase 3 candidate.
+
 ## Maintenance: drift loop
 
 Skills decay as the repository moves. Run the drift check on a schedule, after a large merge, or before relying on a library you did not author:
@@ -250,7 +255,7 @@ Each CLI uses only the Python standard library, prints JSON with an `examined` c
 | Reporting capability `UNMEASURED` by default | Freeze cases and score with and without the skill |
 | A skill with no `reverify.json` | Machine-checkable provenance, so drift is detected, not discovered |
 | Copying a maintained procedure into a skill | Link to it; add only the hint that prevents a known wrong turn |
-| A friction ledger, registry, or per-fact database | Put the lesson in the skill with a source reference |
+| A friction ledger, registry, or per-fact database kept in the repository | Put the lesson in the skill with a source reference; sweep and audit run directories are temporary |
 | Writing generated skill copies when the repo renders from templates | Stop at Phase 1 step 3 and ask |
 | Reporting a stage that never ran | Report `UNAVAILABLE` or `NOT RUN` with the reason |
 

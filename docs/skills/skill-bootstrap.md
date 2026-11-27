@@ -6,13 +6,14 @@ Mines a repository's git history, review rounds, and agent sessions, then author
 
 - You want to capture a project's unwritten workflow knowledge as skills.
 - You want to build or refresh a repository's skill library from evidence.
-- Trigger phrases: `bootstrap skills`, `capture project workflow knowledge`, `build this repo's skill library`, `project skill library`.
+- Trigger phrases: `bootstrap skills`, `capture project workflow knowledge`, `build this repo's skill library`, `project skill library`, `audit agent reply friction`.
+- You want rates for where agent replies cost you effort, from your local Claude Code transcripts.
 
 ## When not to use it
 
 - You want one skill created or improved: use [`skillforge`](skillforge.md) instead.
 - You want scored tuning of a skill: use [`skillopt`](skillopt.md) instead.
-- You want session diagnosis only: use [`skill-doctor`](skill-doctor.md) instead.
+- You want to know how installed skills performed in sessions: use [`skill-doctor`](skill-doctor.md) instead.
 - You want to save a workflow you just finished: use [`skillify`](skillify.md) instead.
 - You want README or architecture templates: use [`codebase-documenter`](codebase-documenter.md) instead.
 
@@ -63,6 +64,7 @@ uv run python .claude/skills/skill-bootstrap/scripts/bootstrap_drift.py check --
 | `bootstrap_eval.py` | `freeze`, `check`, `score` | Freeze cases and score capability with and without the skill |
 | `bootstrap_drift.py` | `check` | Re-verify skill provenance against the repository |
 | `bootstrap_sweep.py` | `tally` | Tally judged friction incidents from outside the repo |
+| `replies_audit.py` | `prepare`, `tally` | Sample agent replies into a private directory outside the repo, then turn judge labels into weighted friction rates |
 
 `bootstrap_drift.py check` runs a `command` check only with `--allow-commands`, which executes repository code. Never pass it in a job that holds secrets or runs untrusted pull request content. Drift exit `1` lists `update_candidates` and `update_args`, which you pass as separate arguments to a new run.
 
