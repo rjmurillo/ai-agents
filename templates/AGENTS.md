@@ -36,7 +36,7 @@ Per-class render map. Compilers run inside `build_all.py`; binplace copies the p
 ## Skip
 
 - Generated, never hand-edited (source is `templates/` except `src/claude/lib`, `src/copilot-cli/lib` packages and `bootstrap.py` from `scripts/`, and `src/copilot-cli/skills`, `src/codex/skills` non-SKILL.md from `src/claude/skills/<name>/`): `src/claude/agents|rules|skills|hooks`, `src/claude/hooks/hooks.json`, `src/copilot-cli/agents|instructions|skills|lib/<pkg>|hooks`, `src/vs-code-agents/`, `.claude/rules|hooks`, `.claude/settings.json`, `.github/agents|hooks|instructions`, each `.claude/skills/<name>/SKILL.md`.
-- Hand-maintained inside those trees: `src/claude/lib/{paths,ptk_run}.py`, `src/copilot-cli/lib/*.py`, the seven docs under `.claude/hooks/`, `src/vs-code-agents/copilot-instructions.md`, under `src/claude/skills/<name>/` (repo-local: `.claude/skills/<name>/`), everything but `SKILL.md`.
+- Hand-maintained inside those trees: `src/claude/lib/{paths,ptk_run}.py`, `src/copilot-cli/lib/*.py` but `bootstrap.py`, the seven docs under `.claude/hooks/`, `src/vs-code-agents/copilot-instructions.md`, under `src/claude/skills/<name>/` (repo-local: `.claude/skills/<name>/`), everything but `SKILL.md`.
 
 ## Constraints
 
