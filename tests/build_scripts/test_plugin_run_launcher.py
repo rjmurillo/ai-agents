@@ -403,13 +403,8 @@ _NOT_ARGUMENTS = [
     " esac",
 ]
 
-# The locator sits inside a quoted wrapper. The quote after it closes the wrapper.
-_WRAPPERS = [
-    ("bash -c '", " ' --"),
-    ("bash -c '", "' --"),
-    ('sh -c "', ' "'),
-    ("x=' ", " '"),
-]
+# The quote after the locator closes the wrapper that holds it.
+_WRAPPERS = [("bash -c '", " ' --"), ("bash -c '", "' --"), ('sh -c "', ' "'), ("x=' ", " '")]
 
 
 @pytest.mark.parametrize("after", _STRAY_ARGUMENTS)

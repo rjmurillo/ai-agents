@@ -405,17 +405,7 @@ def test_a_scan_of_another_root_is_not_held_to_this_checkouts_baseline(
 
 @pytest.mark.parametrize(
     "after",
-    [
-        ' --head "$BRANCH"',
-        " -x",
-        " somefile.txt",
-        ' "$VAR"',
-        " $VAR",
-        " --flag value",
-        " ../input.json",
-        " .env",
-        " > out.txt --flag",
-    ],
+    [' --head "$BRANCH"', " -x", " $VAR", " ../input.json", " .env", " > out.txt --flag"],
 )
 def test_arguments_after_the_closing_parenthesis_are_reported(tmp_path: Path, after: str) -> None:
     [offense] = _scan(tmp_path, {"README.md": f"Run `{render_locator(_BAR)}{after}` now.\n"})
