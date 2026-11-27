@@ -1,0 +1,25 @@
+{
+  "author_family": "anthropic",
+  "branch": "t3/ws2d-run-semgrep-doc-correction",
+  "counts": {
+    "dropped": 0,
+    "kept": 0,
+    "overlap": 0,
+    "raw": 0,
+    "sol_only": 0
+  },
+  "critic_sha256": "4f45eb9e0d3ea764eaab51f3576fac02d9a548299ce5e8dcbfc81f95b3c38d5d",
+  "dropped": [],
+  "failure_class": "rate-limit",
+  "findings": [],
+  "head_sha": "fabf93e58b8c10396884ae90634f31ee0320e3ab",
+  "key": "t3/ws2d-run-semgrep-doc-correction",
+  "model": "gpt-6.2-sol",
+  "overlap_rule": "same file and line within 3 of a critic path:line or range",
+  "pr": "",
+  "round": 1,
+  "schema_version": 2,
+  "status": "unavailable",
+  "timestamp": "2026-11-26T06:04:17Z",
+  "verdict": ""
+}
