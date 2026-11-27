@@ -45,11 +45,14 @@ def test_oversize_transcript_gets_its_own_batch(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("path", ["gone.md", None, ""])
-def test_unreadable_or_missing_transcript_counts_as_zero_bytes(tmp_path: Path, path) -> None:
+def test_unreadable_or_missing_transcript_counts_as_zero_bytes(
+    tmp_path: Path, path: str | None
+) -> None:
     inventory = _sized_inventory(tmp_path, [40, 40])
     inventory["sessions"][0]["transcript_path"] = str(tmp_path / path) if path else path
     assignment = ab.build_assignment(inventory, 20, max_batch_bytes=50)
     assert _sizes(assignment) == [40]
+    assert assignment["unreadable_transcripts"] == [ab.session_key(inventory["sessions"][0])]
 
 
 def test_batch_rule_names_the_top_level_reservation(tmp_path: Path) -> None:
@@ -57,6 +60,72 @@ def test_batch_rule_names_the_top_level_reservation(tmp_path: Path) -> None:
     inventory["sampling"]["top_level_rule"] = "TOP"
     batch = ab.build_assignment(inventory, 20)["batches"][0]
     assert batch["selection_rule"] == "R W TOP"
+
+
+def _collected_inventory(root: Path, sizes: list[int]) -> Path:
+    """Lay out ``<root>/out`` as the collector does after ``--out out`` run from ``root``."""
+    out = root / "out"
+    (out / "transcripts").mkdir(parents=True)
+    inventory = _inventory(len(sizes))
+    for session, size in zip(inventory["sessions"], sizes, strict=False):
+        name = f"{session['harness']}-{session['meta']['id']}.md"
+        (out / "transcripts" / name).write_bytes(b"x" * size)
+        session["transcript_path"] = f"out/transcripts/{name}"
+    path = out / "inventory.json"
+    path.write_text(json.dumps(inventory), encoding="utf-8")
+    return path
+
+
+def test_relative_transcript_paths_resolve_from_the_inventory_folder(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    inv = _collected_inventory(tmp_path, [90, 90])
+    monkeypatch.chdir(inv.parent)  # not the folder the collector ran in
+    out = tmp_path / "batches"
+    argv = ["assign", str(inv), "--batch-size", "20", "--max-batch-bytes", "150"]
+    assert ab.main([*argv, "--out", str(out)]) == 0
+    manifest = json.loads((out / ab.MANIFEST_FILENAME).read_text(encoding="utf-8"))
+    assert _sizes(manifest) == [90, 90]
+    assert manifest["unreadable_transcripts"] == []
+
+
+def test_build_assignment_uses_base_dir_for_relative_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    inv = _collected_inventory(tmp_path, [90, 90])
+    inventory = json.loads(inv.read_text(encoding="utf-8"))
+    monkeypatch.chdir(inv.parent)
+    blind = ab.build_assignment(inventory, 20, max_batch_bytes=150)
+    assert _sizes(blind) == [0]
+    seen = ab.build_assignment(inventory, 20, max_batch_bytes=150, base_dir=inv.parent)
+    assert _sizes(seen) == [90, 90]
+
+
+def test_unreadable_transcripts_are_listed_and_warned_about(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    inventory = _sized_inventory(tmp_path, [40, 40, 40])
+    inventory["sessions"][1]["transcript_path"] = str(tmp_path / "gone.md")
+    inv = tmp_path / "inventory.json"
+    inv.write_text(json.dumps(inventory), encoding="utf-8")
+    out = tmp_path / "o"
+    argv = ["assign", str(inv), "--batch-size", "20", "--max-batch-bytes", "100"]
+    assert ab.main([*argv, "--out", str(out)]) == 0
+    manifest = json.loads((out / ab.MANIFEST_FILENAME).read_text(encoding="utf-8"))
+    assert manifest["unreadable_transcripts"] == ["copilot:s1"]
+    err = capsys.readouterr().err
+    assert "1 sampled transcripts were unreadable" in err
+    assert "copilot:s1" in err
+
+
+def test_no_warning_when_every_transcript_is_readable(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    inv = tmp_path / "inventory.json"
+    inv.write_text(json.dumps(_sized_inventory(tmp_path, [80, 80])), encoding="utf-8")
+    argv = ["assign", str(inv), "--batch-size", "20", "--max-batch-bytes", "100"]
+    assert ab.main([*argv, "--out", str(tmp_path / "o")]) == 0
+    assert "unreadable" not in capsys.readouterr().err
 
 
 def test_no_byte_cap_leaves_the_assignment_unchanged(tmp_path: Path) -> None:

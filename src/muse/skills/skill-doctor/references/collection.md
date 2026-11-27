@@ -30,7 +30,7 @@ Harnesses with scoreable sessions are ranked by scoreable count (descending), th
 
 Inside each harness, sessions that used an installed skill are taken first, newest first, until each skill has --per-skill sessions. Remaining slots go to sessions that used no skill, newest first, up to --no-skill. This is skill-first selection: it favors sessions that exercise skills, so per-harness grades describe that slice, not the harness as a whole. The --per-skill and --no-skill caps apply within each harness, and a quota the caps cannot fill is left unused.
 
-Top-level sessions are sampled first, by the same rule, into the `--top-level-quota` reservation. Open reserved slots take the remaining top-level sessions, newest first, past the `--per-skill` and `--no-skill` caps. Subagent sessions then fill the rest, and slots they cannot fill return to top-level sessions. `sampling.top_level_rule` stores this text; `sampling.top_level_reserved`, `top_level_sampled`, and `subagent_slots` hold the counts.
+Top-level sessions are sampled first, by the same rule, into the `--top-level-quota` reservation. Open reserved slots take the remaining top-level sessions, newest first, past the `--per-skill` and `--no-skill` caps. Subagent sessions then fill the rest, and slots they cannot fill return to top-level sessions. Both types count against the same per-harness `--per-skill` and `--no-skill` caps, so only the reserved backfill passes them. When the reservation leaves no slot for a harness, the notice names `--top-level-quota` instead of the `--max-sessions` cap. `sampling.top_level_rule` stores this text; `sampling.top_level_reserved`, `top_level_sampled`, and `subagent_slots` hold the counts.
 
 ### Why these defaults
 

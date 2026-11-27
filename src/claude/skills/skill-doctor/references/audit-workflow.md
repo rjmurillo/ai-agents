@@ -56,7 +56,7 @@ It recomputes the score artifact from `scores.json` and sets `scores`, `stats.se
 
 ## Batched reviews
 
-For a long review, split the work into batches instead of scoring in one pass. Size each batch by transcript bytes. `--max-batch-bytes` closes a batch before its transcripts pass the cap. A transcript over the cap gets its own batch, and `--batch-size` still caps the count:
+For a long review, split the work into batches instead of scoring in one pass. Size each batch by transcript bytes. `--max-batch-bytes` closes a batch before its transcripts pass the cap. The script finds each transcript in the `transcripts` folder beside the inventory file, so it works from any directory. A sampled transcript it cannot read counts as 0 bytes: the script warns on stderr and lists the ids under `unreadable_transcripts` in `assignment.json`. A transcript over the cap gets its own batch, and `--batch-size` still caps the count:
 
 ```bash
 python3 "$SKILL_ROOT/scripts/audit_batches.py" assign "$REPORT_DIR/inventory.json" --batch-size 20 --max-batch-bytes 150000 --out "$REPORT_DIR/batches"

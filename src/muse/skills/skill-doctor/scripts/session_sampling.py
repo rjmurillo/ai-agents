@@ -7,6 +7,7 @@ cap. See docs/skill-doctor-upstream-sync.md in the source repository.
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from types import SimpleNamespace
 from typing import Any
 
@@ -36,7 +37,8 @@ TOP_LEVEL_RULE = (
     "remaining top-level sessions, newest first, past the --per-skill and --no-skill caps. "
     "Subagent sessions fill every slot the top-level sessions leave open, and slots the "
     "subagent sessions cannot fill return to top-level sessions that the rules above select "
-    "at the larger cap. "
+    "at the larger cap. Both session types count against the same per-harness --per-skill "
+    "and --no-skill caps, so only the reserved backfill passes them. "
     "--top-level-quota 0 samples both session types as one pool."
 )
 
@@ -57,10 +59,25 @@ NON_PROBABILITY_NOTE = (
 )
 
 
-def sample_one_harness(sessions: Any, skills: Any, args: Any) -> set[str]:
-    """Skill-first sample of one recency-ordered pool, up to ``args.max_sessions``."""
+@dataclass
+class HarnessUsage:
+    """Per-skill and no-skill sessions a harness already holds from an earlier pass."""
+
+    skills: dict[str, int] = field(default_factory=dict)
+    no_skill: int = 0
+
+
+def sample_one_harness(
+    sessions: Any, skills: Any, args: Any, seed: HarnessUsage | None = None
+) -> set[str]:
+    """Skill-first sample of one recency-ordered pool, up to ``args.max_sessions``.
+
+    ``seed`` carries sessions the harness already holds, so the caps bind across passes.
+    """
     sampled: set[str] = set()
     counts = dict.fromkeys(skills, 0)
+    if seed:
+        counts.update(seed.skills)
     for session in sessions:
         if len(sampled) >= args.max_sessions:
             break
@@ -70,7 +87,7 @@ def sample_one_harness(sessions: Any, skills: Any, args: Any) -> set[str]:
             # Count every skill the session used, so a multi-skill session fills each quota.
             for name in used:
                 counts[name] = counts.get(name, 0) + 1
-    no_skill = 0
+    no_skill = seed.no_skill if seed else 0
     for session in sessions:
         if len(sampled) >= args.max_sessions or no_skill >= args.no_skill:
             break
@@ -96,10 +113,20 @@ def harness_quotas(pools: dict[str, int], cap: int) -> dict[str, int]:
     return quotas
 
 
-def _omission_notice(cap: int, ranked: list[str], omitted: list[dict[str, Any]]) -> str | None:
+def _omission_notice(
+    cap: int, ranked: list[str], omitted: list[dict[str, Any]], block: dict[str, Any]
+) -> str | None:
     if not omitted:
         return None
     names = ", ".join(f"{item['harness']} ({item['scoreable']} scoreable)" for item in omitted)
+    if block and cap >= len(ranked):
+        # The cap alone would fit every harness, so the top-level reservation took the slots.
+        return (
+            f"--top-level-quota {block['top_level_quota']} reserved {block['top_level_reserved']} "
+            f"of the --max-sessions {cap} slots and top-level sessions took "
+            f"{block['top_level_sampled']}, leaving none for: {names}. Lower "
+            "--top-level-quota or raise --max-sessions to cover every harness."
+        )
     return (
         f"--max-sessions {cap} is lower than the {len(ranked)} harnesses with scoreable "
         f"sessions, so the sample omits: {names}. Raise the cap to cover every harness."
@@ -107,9 +134,16 @@ def _omission_notice(cap: int, ranked: list[str], omitted: list[dict[str, Any]])
 
 
 def _skill_first_by_harness(
-    sessions: Any, skills: Any, args: Any, cap: int
+    sessions: Any,
+    skills: Any,
+    args: Any,
+    cap: int,
+    seed: dict[str, HarnessUsage] | None = None,
 ) -> tuple[set[str], dict[str, dict[str, int]]]:
-    """Deal ``cap`` slots across harnesses, then sample each harness skill-first."""
+    """Deal ``cap`` slots across harnesses, then sample each harness skill-first.
+
+    ``seed`` holds each harness's sessions from an earlier pass, so the caps bind across passes.
+    """
     groups: dict[str, list[Any]] = {}
     for session in sessions:
         groups.setdefault(session["harness"], []).append(session)
@@ -123,7 +157,7 @@ def _skill_first_by_harness(
             sub = SimpleNamespace(
                 max_sessions=quota, per_skill=args.per_skill, no_skill=args.no_skill
             )
-            picked = sample_one_harness(group, skills, sub)
+            picked = sample_one_harness(group, skills, sub, (seed or {}).get(harness))
         sampled |= picked
         per_harness[harness] = {
             "scoreable": len(group),
@@ -135,6 +169,20 @@ def _skill_first_by_harness(
             ),
         }
     return sampled, per_harness
+
+
+def _usage_by_harness(sessions: Any, keys: set[str]) -> dict[str, HarnessUsage]:
+    """Count the sessions in ``keys`` against each harness's per-skill and no-skill caps."""
+    usage: dict[str, HarnessUsage] = {}
+    for session in sessions:
+        if session["_key"] not in keys:
+            continue
+        held = usage.setdefault(session["harness"], HarnessUsage())
+        for name in session["skills_used"]:
+            held.skills[name] = held.skills.get(name, 0) + 1
+        if not session["skills_used"]:
+            held.no_skill += 1
+    return usage
 
 
 def _is_top_level(session: Any) -> bool:
@@ -184,13 +232,18 @@ def _reserve_top_level(
     top_keys, per_harness = _skill_first_by_harness(top, skills, args, reserved)
     _backfill(top, top_keys, per_harness, reserved)
     child_cap = max(args.max_sessions - len(top_keys), 0)
-    child_keys, child_counts = _skill_first_by_harness(children, skills, args, child_cap)
+    # Both passes count against the same per-harness caps. Only the reserved backfill may pass them.
+    child_keys, child_counts = _skill_first_by_harness(
+        children, skills, args, child_cap, _usage_by_harness(top, top_keys)
+    )
     _merge_harness_counts(per_harness, child_counts)
     # Slots the subagent sessions left open return to top-level sessions, but only to
     # ones a skill-first pass at the larger cap would pick, so the caps still bind.
     top_cap = max(args.max_sessions - len(child_keys), 0)
     if top_cap > len(top_keys):
-        wider, _ = _skill_first_by_harness(top, skills, args, top_cap)
+        wider, _ = _skill_first_by_harness(
+            top, skills, args, top_cap, _usage_by_harness(children, child_keys)
+        )
         _backfill(top, top_keys, per_harness, top_cap, allowed=wider)
     block = {
         "top_level_rule": TOP_LEVEL_RULE,
@@ -231,7 +284,7 @@ def sample_sessions(
         **block,
         "harness_coverage_complete": not omitted,
         "omitted_harnesses": omitted,
-        "notice": _omission_notice(args.max_sessions, ranked, omitted),
+        "notice": _omission_notice(args.max_sessions, ranked, omitted, block),
     }
     requested = getattr(args, "timeline_supplement", 0) or 0
     if requested > 0:
