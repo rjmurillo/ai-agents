@@ -248,6 +248,7 @@ def test_prompt_change_entrypoint_stops_after_one_call(
         security_critical=False,
         model="model",
         dry_run=False,
+        output=None,
     )
 
     def fail(*values: object) -> None:
@@ -256,8 +257,9 @@ def test_prompt_change_entrypoint_stops_after_one_call(
         _raise_metadata_error(module.MalformedProviderMetadataError)
 
     monkeypatch.setattr(module, "_parse_args", lambda: args)
-    monkeypatch.setattr(module, "load_scenarios", lambda path: [{}])
-    monkeypatch.setattr(module, "_load_prompts", lambda parsed: ("before", "after", "test"))
+    monkeypatch.setattr(module, "read_scenarios_file", lambda path: b"[{}]")
+    monkeypatch.setattr(module, "parse_scenarios", lambda raw, path: [{}])
+    monkeypatch.setattr(module, "_load_prompts", lambda parsed, base: ("before", "after", "test"))
     monkeypatch.setattr(module, "load_api_key_for_selected_provider", lambda provider: "")
     monkeypatch.setattr(module, "verify_model_available", lambda key, model: None)
     monkeypatch.setattr(module, "_run_and_report", fail)

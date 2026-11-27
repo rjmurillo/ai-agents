@@ -63,6 +63,7 @@ from scripts.hook_utilities.frontmatter_block import (
     decode_frontmatter_yaml,
     split_frontmatter,
 )
+from scripts.validation import skill_corpus as _skill_corpus
 from scripts.validation.models import ValidationResult
 
 # Valid model identifiers.
@@ -527,32 +528,15 @@ def get_staged_skill_files() -> list[Path]:
 def default_corpus_files() -> list[Path]:
     """Return every SKILL.md under the trees named in ``_SKILL_TREE_PREFIXES``.
 
-    Roots are anchored on ``_PROJECT_ROOT`` rather than the working directory so
-    the audit reports the same corpus from any subdirectory
-    (``.claude/rules/ci-scripts.md`` MUST-8). An absent tree is skipped, not an
-    error: a vendored install legitimately ships one tree and not the other.
+    Discovery lives in ``skill_corpus.corpus_files``. Module globals are read
+    at call time so tests can repoint ``_PROJECT_ROOT``.
     """
-    files: list[Path] = []
-    for prefix in _SKILL_TREE_PREFIXES:
-        root = _PROJECT_ROOT / prefix
-        if root.is_dir():
-            files.extend(root.rglob("SKILL.md"))
-    return sorted(files)
+    return _skill_corpus.corpus_files(_PROJECT_ROOT, _SKILL_TREE_PREFIXES)
 
 
 def default_corpus_summary() -> str:
-    """One line naming the trees a default full scan measures, and any absent.
-
-    Printed so the corpus behind the summary sentence is stated rather than
-    assumed. An absent tree is named too: silence there is what let the
-    single-tree scan read as a whole-repository result.
-    """
-    present = [p for p in _SKILL_TREE_PREFIXES if (_PROJECT_ROOT / p).is_dir()]
-    absent = [p for p in _SKILL_TREE_PREFIXES if p not in present]
-    line = f"Scanning skill trees: {', '.join(present) if present else '(none present)'}"
-    if absent:
-        line += f"; absent, not scanned: {', '.join(absent)}"
-    return line
+    """One line naming the trees a default full scan measures, and any absent."""
+    return _skill_corpus.corpus_summary(_PROJECT_ROOT, _SKILL_TREE_PREFIXES)
 
 
 def get_skill_files(

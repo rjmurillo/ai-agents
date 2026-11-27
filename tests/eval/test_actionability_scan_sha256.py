@@ -29,6 +29,8 @@ from tests.eval._actionability_corpus_test_support import (
     write_prs,
 )
 
+pytestmark = pytest.mark.usefixtures("freeze_actionability_clock")
+
 scan = importlib.import_module("scripts.eval.actionability_scan")
 
 _HEX64 = "0123456789abcdef" * 4

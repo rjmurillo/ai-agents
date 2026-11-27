@@ -29,10 +29,10 @@ a span. Spans are therefore the one place a citation is read from, and only
 fenced blocks are stripped.
 
 Existence is judged against tracked files (`git ls-files`), not the filesystem,
-per `.claude/rules/ci-scripts.md` MUST 9: a gitignored build output present on
-one machine must not move a ratchet count. Outside a git checkout of
-`repo_root` itself the working tree is the only source of truth, so the
-filesystem answers instead.
+per `.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`
+MUST 9: a gitignored build output present on one machine must not move a
+ratchet count. Outside a git checkout of `repo_root` itself the working tree
+is the only source of truth, so the filesystem answers instead.
 """
 
 from __future__ import annotations

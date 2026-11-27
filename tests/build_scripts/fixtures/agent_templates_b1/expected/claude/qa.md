@@ -1,6 +1,9 @@
 ---
 name: qa
 description: Quality assurance specialist who verifies implementations work correctly for real users, not just passing tests. Designs test strategies, validates coverage against acceptance criteria, and reports results with evidence. Use when you need confidence through verification, regression testing, edge-case coverage, or user-scenario validation.
+success_criterion:
+  kind: human-judgment
+  rationale: QA verdicts rest on coverage numbers and gate evidence the reviewer must check against the stated thresholds.
 metadata:
   role: executor
 # Requires fresh context and separate tool state to review implementations independently.

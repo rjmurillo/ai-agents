@@ -1,6 +1,9 @@
 ---
 name: task-decomposer
 description: Task decomposition specialist who breaks PRDs and epics into atomic, estimable work items with clear acceptance criteria and done definitions. Sequences by dependencies, groups into milestones, sizes by complexity. Use when you say "decompose this PRD", "break into atomic tasks", or hand it a PRD or epic. Do NOT use to sequence roadmap epics into milestones (use milestone-planner).
+success_criterion:
+  kind: human-judgment
+  rationale: A breakdown succeeds when each item is independently shippable, which the planner judges against the PRD.
 metadata:
   role: support
 argument-hint: Provide the PRD or epic to break into tasks

@@ -1,0 +1,65 @@
+{
+  "base_commit": "8104f1166537de524e872e37ea3ccd4db0c95e9e",
+  "frozen": "2026-11-26: tasks and gold written before any chestertons-fence edit; gold derived with git log -S, git log --follow, and git show by the author, not by the skill's script; correction after one baseline run (before any skill edit): Q1 rep 0 answered 33b9871d63, a pre-squash commit on remotes/pr/1256 that the prompt's 'into the repository' admitted, so every prompt now counts only commits reachable from HEAD; second correction (before any skill edit reached the before checkout): Q1 rep 0 read 'content' as the current exact bytes and answered 9a26c1000f (#7178), so Q1 now asks for the commit that created the file",
+  "skill": "chestertons-fence",
+  "allowed_tools": [
+    "Bash(git blame:*)",
+    "Bash(python3 .claude/skills/chestertons-fence/scripts/investigate.py:*)"
+  ],
+  "preamble": "You are in a checkout of this repository. Use the chestertons-fence skill: read .claude/skills/chestertons-fence/SKILL.md and follow it for the investigation step only (skip the report file and the decision). Answer from this checkout's files and git history alone. Count only commits reachable from HEAD (plain `git log`, no ref arguments); ignore PR branches and other remote refs. End your reply with exactly one fenced ```json block holding the answer object.",
+  "tasks": [
+    {
+      "id": "Q1-moved-file",
+      "lens": "file origin across a path move",
+      "prompt": "Someone proposes deleting src/claude/skills/chestertons-fence/scripts/investigate.py. Which commit first created this script as a file (the commit that added it, at whatever path it lived then; later edits to its bytes do not count)? Answer object: {\"origin\": [\"<commit SHA, at least 9 hex characters>\"]}. List only the commit you conclude is the origin.",
+      "grader": "set_f1_prefix",
+      "answer_key": "origin",
+      "gold": [
+        "2058fbe8f25d77690de4fecee686230dff611d6d"
+      ],
+      "traps": [
+        "77a44751bd: ADR-109 B3 mirrored the file to its current path"
+      ]
+    },
+    {
+      "id": "Q2-section-in-file",
+      "lens": "text span, not a file",
+      "prompt": "Someone proposes deleting the 'Post-2023 evidence rules' section of the chestertons-fence skill. Which commit first added that section? Answer object: {\"origin\": [\"<commit SHA, at least 9 hex characters>\"]}. List only the commit you conclude is the origin.",
+      "grader": "set_f1_prefix",
+      "answer_key": "origin",
+      "gold": [
+        "0eb2c32b62"
+      ],
+      "traps": [
+        "later commits that mirrored the section into other plugin trees (#6452, #6468)",
+        "the skill's own origin commit 2058fbe8f2"
+      ]
+    },
+    {
+      "id": "Q3-rule-line",
+      "lens": "text span that moved with its file",
+      "prompt": "Someone proposes relaxing the em-dash ban in src/claude/rules/universal.md. Which commit first added the line that forbids em-dashes (U+2014) to universal.md, at whatever path universal.md lived then? Answer object: {\"origin\": [\"<commit SHA, at least 9 hex characters>\"]}. List only the commit you conclude is the origin.",
+      "grader": "set_f1_prefix",
+      "answer_key": "origin",
+      "gold": [
+        "0c0710f15d"
+      ],
+      "traps": [
+        "084f893403: ADR-109 B2 moved rules to templates"
+      ]
+    },
+    {
+      "id": "Q4-gate-script",
+      "lens": "file origin, stable path",
+      "prompt": "Someone proposes deleting build/scripts/validate_plugin_version_bump.py. Which commit first introduced this script? Answer object: {\"origin\": [\"<commit SHA, at least 9 hex characters>\"]}. List only the commit you conclude is the origin.",
+      "grader": "set_f1_prefix",
+      "answer_key": "origin",
+      "gold": [
+        "b16e489678"
+      ],
+      "traps": [
+        "ADR-092 commits that inverted what the gate checks"
+      ]
+    }
+  ]
+}
