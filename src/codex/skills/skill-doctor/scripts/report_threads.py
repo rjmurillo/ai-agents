@@ -31,3 +31,8 @@ def thread_table_html(esc: Callable[[Any], str], pct: Callable[[Any], str], per_
         '<th scope="col">Sampled</th><th scope="col">Overall</th></tr></thead>'
         f"<tbody>{rows}</tbody></table></div>"
     )
+
+
+def notices_html(esc: Callable[[Any], str], *notices: Any) -> str:
+    """One escaped notice paragraph per warning that is set."""
+    return "".join(f'<p class="notice">{esc(text)}</p>' for text in notices if text)

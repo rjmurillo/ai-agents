@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import assemble_report
@@ -13,6 +14,8 @@ import audit_scores
 import pytest
 from audit_batch_helpers import Row, _inventory, _row
 from render_report import render_page
+from session_sampling import sample_sessions
+from session_threads import cap_advice, summarize_threads
 
 INPUTS = Path(__file__).resolve().parent / "fixtures" / "audit" / "reproduction"
 
@@ -166,3 +169,120 @@ def test_assignment_without_session_threads_still_imports(tmp_path: Path) -> Non
     ab.import_scores(batch, tmp_path / "accepted.json", rows)
     stored = json.loads((tmp_path / "accepted.json").read_text(encoding="utf-8"))["sessions"]
     assert all("thread" not in row for row in stored)
+
+
+def test_legacy_inventory_reads_the_subagent_tag_from_session_meta() -> None:
+    inventory = _inventory(3)
+    inventory["sessions"][0]["meta"]["thread_source"] = "subagent"
+    threads = ab.build_assignment(inventory, 10)["batches"][0]["session_threads"]
+    assert threads["copilot:s0"] == "subagent"
+    assert threads["copilot:s2"] == "top_level"
+
+
+def test_explicit_thread_field_wins_over_session_meta() -> None:
+    inventory = _inventory(2)
+    inventory["sessions"][0]["thread"] = "top_level"
+    inventory["sessions"][0]["meta"]["thread_source"] = "subagent"
+    threads = ab.build_assignment(inventory, 10)["batches"][0]["session_threads"]
+    assert threads["copilot:s0"] == "top_level"
+
+
+def test_legacy_subagent_score_without_thread_imports_as_subagent(tmp_path: Path) -> None:
+    inventory = _inventory(2)
+    inventory["sessions"][0]["meta"]["thread_source"] = "subagent"
+    batch = ab.build_assignment(inventory, 10)["batches"][0]
+    rows = [_row(batch, sid) for sid in batch["session_ids"]]
+    ab.import_scores(batch, tmp_path / "accepted.json", rows)
+    stored = json.loads((tmp_path / "accepted.json").read_text(encoding="utf-8"))["sessions"]
+    assert {r["session_id"]: r["thread"] for r in stored}["copilot:s0"] == "subagent"
+
+
+def test_assemble_fills_missing_per_type_sampled_counts() -> None:
+    draft = load("draft.json")
+    draft["sampling"]["per_thread"] = {"subagent": {"scoreable": 5}, "top_level": {}}
+    report = assemble_report.assemble(draft, {"sessions": scored_with_threads()})
+    per_thread = report["sampling"]["per_thread"]
+    assert per_thread["subagent"]["sampled"] == 2
+    assert per_thread["top_level"]["sampled"] == 4
+    assert per_thread["subagent"]["scoreable"] == 5
+    assert "scoreable" not in per_thread["top_level"]
+    assert "<td>Subagent</td><td>5</td><td>2</td>" in render_page(report)
+
+
+def test_assemble_rejects_a_per_type_sampled_count_the_scores_do_not_match() -> None:
+    draft = load("draft.json")
+    draft["sampling"]["per_thread"] = {"subagent": {"sampled": 3}}
+    with pytest.raises(assemble_report.AssemblyError) as raised:
+        assemble_report.assemble(draft, {"sessions": scored_with_threads()})
+    assert any("session type 'subagent': 2 of 3" in e for e in raised.value.errors)
+
+
+def test_assemble_keeps_a_matching_per_type_sampled_count() -> None:
+    draft = load("draft.json")
+    draft["sampling"]["per_thread"] = {"subagent": {"sampled": 2, "scoreable": 2}}
+    report = assemble_report.assemble(draft, {"sessions": scored_with_threads()})
+    assert report["sampling"]["per_thread"]["subagent"]["sampled"] == 2
+
+
+def test_report_renders_the_top_level_gap_notice_and_opens_sampling() -> None:
+    report = sampling_report()
+    report["sampling"]["top_level_notice"] = "the sample holds no <b>top-level</b> sessions"
+    page = render_page(report)
+    assert '<p class="notice">the sample holds no &lt;b&gt;top-level&lt;/b&gt; sessions</p>' in page
+    assert '<details class="section" open><summary>Sampling</summary>' in page
+
+
+def test_report_without_either_notice_leaves_sampling_closed() -> None:
+    page = render_page(sampling_report())
+    assert 'class="notice"' not in page
+    assert '<details class="section"><summary>Sampling</summary>' in page
+
+
+def _session(harness: str, thread: str, name: str, skills: list[str]) -> dict[str, Any]:
+    return {
+        "harness": harness,
+        "thread": thread,
+        "_key": f"{harness}:{name}",
+        "skills_used": skills,
+    }
+
+
+def _gap_notice(sessions: list[dict[str, Any]], max_sessions: int = 12) -> str:
+    args = SimpleNamespace(max_sessions=max_sessions, per_skill=3, no_skill=4)
+    sampled, per_harness, sampling = sample_sessions(sessions, ["s"], args)
+    summarize_threads(sessions, sampled, per_harness, sampling)
+    notice: str = sampling["top_level_notice"]
+    return notice
+
+
+def test_gap_notice_names_no_skill_cap_when_it_excludes_top_level_work() -> None:
+    sessions = [_session("claude", "subagent", f"c{i}", []) for i in range(5)]
+    sessions += [_session("claude", "top_level", f"t{i}", []) for i in range(2)]
+    notice = _gap_notice(sessions)
+    assert "--no-skill" in notice
+    assert "--max-sessions" not in notice
+
+
+def test_gap_notice_names_per_skill_cap_when_it_excludes_top_level_work() -> None:
+    sessions = [_session("claude", "subagent", f"c{i}", ["s"]) for i in range(3)]
+    sessions.append(_session("claude", "top_level", "t0", ["s"]))
+    notice = _gap_notice(sessions)
+    assert "--per-skill" in notice
+    assert "--max-sessions" not in notice
+
+
+def test_gap_notice_names_max_sessions_when_the_overall_cap_binds() -> None:
+    sessions = [_session("claude", "subagent", f"c{i}", []) for i in range(2)]
+    sessions += [_session("claude", "top_level", f"t{i}", []) for i in range(2)]
+    notice = _gap_notice(sessions, max_sessions=2)
+    assert "--max-sessions" in notice
+    assert "--per-skill" not in notice
+
+
+def test_gap_advice_names_every_cap_when_harnesses_are_held_back_differently() -> None:
+    sessions = [
+        _session("claude", "top_level", "t", []),
+        _session("codex", "top_level", "t", []),
+    ]
+    per_harness = {"claude": {"sampled": 1, "quota": 1}, "codex": {"sampled": 0, "quota": 2}}
+    assert "--max-sessions, --per-skill, or --no-skill" in cap_advice(sessions, set(), per_harness)

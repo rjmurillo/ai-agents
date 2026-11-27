@@ -248,6 +248,7 @@ def test_prompt_change_entrypoint_stops_after_one_call(
         security_critical=False,
         model="model",
         dry_run=False,
+        output=None,
     )
 
     def fail(*values: object) -> None:
