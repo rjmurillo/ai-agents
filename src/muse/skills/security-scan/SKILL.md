@@ -1,9 +1,9 @@
 ---
 name: security-scan
+version: 2.0.0
 description: Detect CWE-78 (command injection) regex patterns in Python, PowerShell, Bash, and C# files before PR submission. CWE-22 is delegated to CodeQL; see Scope. Use when you ask "scan for command injection", "CWE-78 check before PR". Do NOT use to decide whether security review is warranted (use security-detection).
 license: Apache-2.0
 metadata:
-  version: 2.0.0
   routing:
     role: front-door
     invoker: autoplan

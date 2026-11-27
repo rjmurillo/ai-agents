@@ -460,7 +460,10 @@ class TestValidateSkillFile:
     def test_valid_file(self, tmp_path: Path) -> None:
         skill_file = tmp_path / "test-skill" / "SKILL.md"
         skill_file.parent.mkdir()
-        skill_file.write_text("---\nname: test-skill\ndescription: A test skill\n---\n# Body")
+        skill_file.write_text(
+            "---\nname: test-skill\ndescription: A test skill\n"
+            "version: 1.0.0\nlicense: MIT\n---\n# Body"
+        )
         result = validate_skill_file(skill_file)
         assert result.passed is True
         assert not result.errors
@@ -499,7 +502,9 @@ class TestValidateSkillFile:
             "---\nname: full-skill\n"
             "description: Full skill with all fields\n"
             "model: claude-sonnet-4-6\n"
-            "allowed-tools:\n  - bash\n  - edit\n---"
+            "allowed-tools:\n  - bash\n  - edit\n"
+            "compatibility: Requires git\n"
+            "version: 1.0.0\nlicense: MIT\n---"
         )
         result = validate_skill_file(skill_file)
         assert result.passed is True
@@ -519,7 +524,8 @@ class TestValidateSkillFile:
         skill_file = tmp_path / "no-content" / "SKILL.md"
         skill_file.parent.mkdir()
         skill_file.write_text(
-            "---\nname: no-content\ndescription: Skill with no content after frontmatter\n---"
+            "---\nname: no-content\ndescription: Skill with no content after frontmatter\n"
+            "version: 1.0.0\nlicense: MIT\n---"
         )
         result = validate_skill_file(skill_file)
         assert result.passed is True
@@ -543,7 +549,9 @@ class TestMain:
     def test_valid_file_ci_mode_returns_0(self, tmp_path: Path) -> None:
         skill_dir = tmp_path / ".claude" / "skills" / "ok-skill"
         skill_dir.mkdir(parents=True)
-        (skill_dir / "SKILL.md").write_text("---\nname: ok-skill\ndescription: Valid\n---")
+        (skill_dir / "SKILL.md").write_text(
+            "---\nname: ok-skill\ndescription: Valid\nversion: 1.0.0\nlicense: MIT\n---"
+        )
         exit_code = main(
             [
                 "--path",
@@ -585,7 +593,7 @@ class TestMain:
             skill_dir = tmp_path / ".claude" / "skills" / name
             skill_dir.mkdir(parents=True)
             (skill_dir / "SKILL.md").write_text(
-                f"---\nname: {name}\ndescription: Skill {name}\n---"
+                f"---\nname: {name}\ndescription: Skill {name}\nversion: 1.0.0\nlicense: MIT\n---"
             )
         exit_code = main(
             [
@@ -605,7 +613,8 @@ class TestMain:
         valid_dir = tmp_path / ".claude" / "skills" / "valid-skill"
         valid_dir.mkdir(parents=True)
         (valid_dir / "SKILL.md").write_text(
-            "---\nname: valid-skill\ndescription: Valid test skill\n---"
+            "---\nname: valid-skill\ndescription: Valid test skill\n"
+            "version: 1.0.0\nlicense: MIT\n---"
         )
         invalid_dir = tmp_path / ".claude" / "skills" / "invalid"
         invalid_dir.mkdir(parents=True)
@@ -628,7 +637,9 @@ class TestMain:
         skill_dir = tmp_path / ".claude" / "skills" / "ok-skill"
         skill_dir.mkdir(parents=True)
         skill_file = skill_dir / "SKILL.md"
-        skill_file.write_text("---\nname: ok-skill\ndescription: Valid\n---")
+        skill_file.write_text(
+            "---\nname: ok-skill\ndescription: Valid\nversion: 1.0.0\nlicense: MIT\n---"
+        )
         exit_code = main(
             [
                 "--path",
@@ -674,18 +685,23 @@ class TestBuildParser:
 
 
 class TestDefaultCorpus:
-    """The default full scan covers both skill trees, not just `.claude/skills`.
+    """The default full scan covers every skill tree, not just `.claude/skills`.
 
     `_SKILL_FILE_PATTERN` has always matched both trees for the staged and
     changed-files branches, while `--path` defaulted to `.claude/skills` alone.
     A default run therefore measured 98 of 209 SKILL.md bodies and printed "All
     skill frontmatter validated successfully!", a whole-corpus sentence derived
-    from 47% of the corpus. This script has no lefthook or workflow caller, so
-    that default is its only invocation path.
+    from 47% of the corpus. The pre-PR gate and the corpus test both run that
+    default, so it must cover every shipped tree.
     """
 
-    _VALID = "---\nname: alpha\ndescription: A valid skill.\n---\nBody\n"
-    _INVALID = "---\nname: Not A Valid Name\ndescription: Bad name.\n---\nBody\n"
+    _VALID = (
+        "---\nname: alpha\ndescription: A valid skill.\nversion: 1.0.0\nlicense: MIT\n---\nBody\n"
+    )
+    _INVALID = (
+        "---\nname: Not A Valid Name\ndescription: Bad name.\n"
+        "version: 1.0.0\nlicense: MIT\n---\nBody\n"
+    )
 
     @staticmethod
     def _write_skill(root: Path, prefix: str, name: str, body: str) -> Path:
@@ -755,8 +771,48 @@ class TestDefaultCorpus:
         out = capsys.readouterr().out
         assert "Scanning skill trees: .claude/skills" in out
         absent = out.split("absent, not scanned: ", 1)[1].splitlines()[0]
-        assert absent.split(", ") == ["src/claude/skills", "src/copilot-cli/skills"]
+        assert absent.split(", ") == [
+            "src/claude/skills",
+            "src/copilot-cli/skills",
+            "src/codex/skills",
+            "src/cursor/skills",
+            "src/muse/skills",
+            "src/hermes",
+        ]
         assert "  Total:  1" in out
+
+    @pytest.mark.parametrize(
+        "prefix",
+        ["src/codex/skills", "src/cursor/skills", "src/muse/skills", "src/hermes/pack-a/skills"],
+    )
+    def test_default_scan_fails_on_a_bad_copy_in_each_generated_tree(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, prefix: str
+    ) -> None:
+        # ADR-115 debate log 4: no scanner read these trees, so a copy that lost
+        # its version passed everywhere.
+        root = self._fake_root(tmp_path, monkeypatch)
+        self._write_skill(root, ".claude/skills", "alpha", self._VALID)
+        self._write_skill(
+            root, prefix, "alpha", "---\nname: alpha\ndescription: d\nlicense: MIT\n---\n"
+        )
+
+        assert main(["--ci"]) == 1
+
+    @pytest.mark.parametrize(
+        ("path", "matched"),
+        [
+            ("src/hermes/project-toolkit-authoring/skills/skillforge/SKILL.md", True),
+            ("src/cursor/skills/alpha/SKILL.md", True),
+            ("src/codex/skills/alpha/SKILL.md", True),
+            ("src/muse/skills/alpha/SKILL.md", True),
+            ("src/hermes/alpha/SKILL.md", False),
+            ("src/other/skills/alpha/SKILL.md", False),
+        ],
+    )
+    def test_changed_file_pattern_matches_every_scanned_tree(
+        self, path: str, matched: bool
+    ) -> None:
+        assert _sf_mod._is_skill_file_path(path) is matched
 
     def test_no_trees_present_reports_nothing_found(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]

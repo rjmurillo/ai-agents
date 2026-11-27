@@ -12,7 +12,8 @@ Every skill lives in a `SKILL.md` file inside a directory under `.claude/skills/
 |-------|------|-------------|---------|
 | `name` | string | Lowercase, alphanumeric + hyphens, max 64 chars | Skill identifier. Must match directory name. |
 | `description` | string | Max 1024 characters | Primary trigger mechanism. Claude uses this to decide when to activate the skill. |
-| `version` | string | Semantic versioning (e.g., `1.0.0`) | Tracks skill evolution. Required by `.claude/rules/claude-agents.md` MUST 2. Claude Code does not read it. |
+| `version` | string | SemVer 2.0.0 (e.g., `1.0.0`), top level, not under `metadata` | Tracks skill evolution. Required by GP-003 and `.claude/rules/claude-agents.md` MUST 2. Claude Code does not read it. |
+| `license` | string | Non-empty SPDX identifier (e.g., `MIT`) | Legal licensing. Required by GP-003. Claude Code does not read it. |
 
 ### Optional Fields
 
@@ -21,7 +22,6 @@ Every skill lives in a `SKILL.md` file inside a directory under `.claude/skills/
 | `model` | string | Bare rolling alias only (`haiku`), never a versioned id. Requires `model-rationale`. See [Model Selection](#model-selection). | Overrides the harness-inherited model. |
 | `model-rationale` | string | Required whenever `model` is set | One line justifying the cheaper tier ([ADR-080](../.project-toolkit/architecture/ADR-080-model-pin-justification-policy.md) rule 3). |
 | `allowed-tools` | string | Comma-separated tool names | Restricts which tools Claude can use during execution. |
-| `license` | string | SPDX identifier (e.g., `MIT`) | Legal licensing. Not validated by Claude Code. |
 | `metadata` | object | Custom key-value pairs | Domain-specific configuration. |
 
 ### Minimum Valid Frontmatter
@@ -30,6 +30,7 @@ Every skill lives in a `SKILL.md` file inside a directory under `.claude/skills/
 ---
 name: my-skill
 version: 1.0.0
+license: MIT
 description: Does something useful when you need it
 ---
 ```
@@ -52,9 +53,8 @@ metadata:
 ---
 ```
 
-No `model:` line appears above on purpose: the skill inherits the harness
-model, which is the correct default under
-[ADR-080](../.project-toolkit/architecture/ADR-080-model-pin-justification-policy.md).
+No `model:` line appears above on purpose: the skill inherits the harness model,
+the correct default under [ADR-080](../.project-toolkit/architecture/ADR-080-model-pin-justification-policy.md).
 
 ## Validation Rules
 
@@ -68,7 +68,7 @@ model, which is the correct default under
 
 - `name`: Only lowercase letters, numbers, hyphens. Regex: `^[a-z0-9-]{1,64}$`
 - `description`: Non-empty, max 1024 characters, no XML tags.
-- `version`: Semver string. `validate-skill.py` warns, but does not fail, on a bad format. It also reads `metadata.version`. No gate checks that it is present.
+- `version` and `license`: the pre-PR `Skill Frontmatter` gate (`scripts/validation/skill_frontmatter.py`) fails a missing `license`, or a `version` that is missing, not SemVer 2.0.0, or only under `metadata`. It checks every skill tree.
 - `model`: Omitted, or a bare rolling alias that prices below the harness default (see Model Selection below). A versioned id is rejected.
 - `model-rationale`: Required whenever `model` is present.
 - `allowed-tools`: Tool names must match available Claude Code tools.
@@ -431,7 +431,7 @@ this gate; issue #5389 owns it.
 Before committing a new skill, verify:
 
 - [ ] Frontmatter starts with `---` on line 1 (no blank lines before)
-- [ ] `name` field: lowercase, alphanumeric + hyphens, < 64 chars; `version` field: semver (e.g., `1.0.0`)
+- [ ] `name` field: lowercase, alphanumeric + hyphens, < 64 chars; `version`: SemVer (`1.0.0`); `license`: SPDX (`MIT`)
 - [ ] `description` field: includes trigger keywords, < 1024 chars
 - [ ] `model` field: absent, or a bare cost alias (`haiku`) with `model-rationale`. Never a versioned id (ADR-080 rule 1)
 - [ ] `allowed-tools` (if present): comma-separated valid tool names
