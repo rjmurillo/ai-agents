@@ -84,7 +84,7 @@ def _git_accepts(name: str) -> bool:
 
 @pytest.fixture
 def valid_branch(scripts):
-    return scripts[1].refs_mod.valid_branch
+    return scripts[1].pr_query_mod.valid_branch
 
 
 class TestValidBranchMatchesGit:

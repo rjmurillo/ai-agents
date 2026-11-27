@@ -24,7 +24,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import _ship_common as common
     import _ship_pr_query as pr_query_mod
-    import _ship_refs as refs_mod
     import _ship_windows as windows_mod
 else:
     _HERE = Path(__file__).resolve(strict=True).parent  # the real entry, never a symlink's dir
@@ -36,7 +35,6 @@ else:
     common = sys.modules["_ship_common"]
     windows_mod = common.load_sibling("_ship_windows")
     pr_query_mod = common.load_sibling("_ship_pr_query")
-    refs_mod = common.load_sibling("_ship_refs")
 
 SCRIPT = "ship_detect.py"
 REASONS = frozenset(
@@ -241,7 +239,7 @@ def _pr_base(pr: int, pr_target: str, base: str | None) -> str | Halt:
     ``release/2026+hotfix``. It reaches git as one argv element or a
     ``refs/remotes/<remote>/<target>`` path, never as an option or a shell word.
     """
-    if not pr_target or not refs_mod.valid_branch(pr_target):
+    if not pr_target or not pr_query_mod.valid_branch(pr_target):
         return Halt("pr-query-failed", common.EXIT_EXTERNAL, f"PR {pr} has no target branch")
     if base is not None and base != pr_target:
         detail = f"--base {base} is not the target of open PR {pr}, {pr_target}"
@@ -254,7 +252,7 @@ def base_arg_ok(base: str) -> bool:
 
     ``detect`` then holds a branch outside the plain-ref rule to the open PR's own target.
     """
-    return common.safe_ref(base) or refs_mod.valid_branch(base)
+    return common.safe_ref(base) or pr_query_mod.valid_branch(base)
 
 
 def detect(cwd: Path | None = None, base: str | None = None) -> Context | Halt:

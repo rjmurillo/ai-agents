@@ -1,13 +1,36 @@
-"""Read the open PR for the current branch from gh or az.
+"""Read the open PR for the current branch, and check the branch names a PR can target.
 
 Stdlib only, Python 3.10 floor. ``github_pr`` and ``ado_pr`` return a ``PrQuery``
 on success. A command that failed returns its ``Completed``, and a reply that did
 not parse returns a ``str`` detail. ``ship_detect`` turns either into its ``Halt``;
 this module never imports it, so the one ``Halt`` type stays shared.
+
+``valid_branch`` checks a branch name git accepts, such as the target of an open
+PR, including the typed ``--base``. ``safe_ref`` in ``_ship_common`` is the
+reviewed allowlist for a name the user types: it admits letters, digits, ``.``,
+``_``, ``/``, and ``-`` only. A host may hold a valid branch outside it, such as
+``release/2026+hotfix``. ``valid_branch`` accepts those, by the rules of
+``git check-ref-format`` for ``refs/heads/<name>``, so a valid target is never
+refused for its spelling. A typed ``--base`` passes this check too;
+``ship_detect`` then holds it to the open PR's target, and to ``safe_ref`` when
+no PR is open.
+
+Stricter than git, on purpose: a name over 255 characters, the name ``HEAD``,
+and any control character git would admit (C1 controls and Unicode line
+breaks) are refused, because a name is printed on one result line. A name
+that starts with ``-`` is refused as well: git forbids it for a branch, and it
+would read as an option in an argument list. A name is only ever an argv
+element or a ``refs/remotes/<remote>/<name>`` path element, never a shell or
+revision expression.
+
+``tests/skills/ship/test_ship_target_branch.py`` runs the real
+``git check-ref-format`` over accepted, rejected, and stricter names, so the
+two cannot drift silently.
 """
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -21,6 +44,10 @@ else:
 PrQuery = tuple[int | None, str, str, bool | None, str]
 _NO_PR_SIGNAL = "no pull requests found"
 _NO_OPEN_PR: PrQuery = (None, "", "", None, "")
+MAX_BRANCH_CHARS = 255
+# git: ASCII control characters, DEL, space, and ~ ^ : ? * [ \ are never allowed.
+# Added here: C1 controls and the Unicode line breaks (see the module docstring).
+_FORBIDDEN_RE = re.compile(r"[\x00-\x20\x7f-\x9f\u2028\u2029~^:?*\[\\]")
 
 
 def github_pr(root: Path) -> PrQuery | common.Completed | str:
@@ -94,3 +121,14 @@ def ado_pr(root: Path, branch: str, base: str | None = None) -> PrQuery | common
     target = str(first.get("targetRefName") or "")
     target = target[len("refs/heads/") :] if target.startswith("refs/heads/") else ""
     return (pr_id, url, str(created_by.get("uniqueName") or ""), draft, target)
+
+
+def valid_branch(name: str) -> bool:
+    """Return whether ``name`` is a branch git accepts under ``refs/heads/``, and safe to print."""
+    if not name or len(name) > MAX_BRANCH_CHARS or name in ("HEAD", "@"):
+        return False
+    if name.startswith(("-", "/")) or name.endswith(("/", ".")):
+        return False
+    if ".." in name or "//" in name or "@{" in name or _FORBIDDEN_RE.search(name):
+        return False
+    return not any(part.startswith(".") or part.endswith(".lock") for part in name.split("/"))
