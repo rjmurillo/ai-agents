@@ -5,8 +5,8 @@ Serena code navigation|initialize once when available|active at start with `.mcp
 Knowledge -> context|C7/DW/Web|mem|constraints gov|ADRs arch|skills/rules .claude|generators gov
 Gates|S init/handoff/resume/memory/git|P `pre_pr.py`/no BLOCKING/security/style|E handoff/memory/lint/commit/check
 **Always**: Python ADR-042|branch/skills/PR/lint|SHA Actions|workflows|No manifest version (ADR-092)|skill/agent->page or Docs-Reviewed
-**Ask First**: architecture/ADR/breaking/security
-**Autonomy Guardrail**: tiers ADR-112|irreversible->human|ambiguous minimal+flag
+**Ask First**: architecture/ADR/rule/breaking/security|make it, surface at PR top, keep going
+**Autonomy Guardrail**: tiers ADR-112|irreversible->human|ambiguous direction minimal+flag|found defect->fix now (builder-ethos section 4)
 **Never**: Secrets|New bash scripts|YAML logic|Raw `gh`|Force-push|No-verify|Internal refs|Scratch
 Setup|one command: `CONTRIBUTING.md` Setup Steps|non-root only
 Disk|wt: `~/worktrees/<repo>/<branch>`|scratch: wt `.project-toolkit/scratch/`|done: remove wt+branch

@@ -188,10 +188,10 @@ Evaluate the retrospective itself. Write the results into the artifact's closing
   1. Review each Delta item.
   2. **Check for a Blocker before filtering.** If evidence falsifies a frozen acceptance criterion or mandatory policy, keep it as a Blocker. If it duplicates an existing item, cite that item instead of dropping the Blocker. Drop other items that are not actionable or duplicate an existing item.
   3. Assign a class from the frozen completion contract of the work under review, not from severity. Test the classes in this order:
-     - **Blocker**: evidence falsifies a frozen acceptance criterion or mandatory policy. Name the falsified criterion. A Blocker stays blocking; recording it here does not permit declaring the work complete.
+     - **Blocker**: evidence falsifies a frozen acceptance criterion or mandatory policy, or shows an unfixed defect on the work's path. Name the falsified criterion or the defect. A Blocker stays blocking; recording it here does not permit declaring the work complete.
      - **Requested improvement**: an explicit part of the contract that is not yet satisfied.
-     - **Optional enhancement**: useful, but no criterion or consumer requires it. It does not reopen completed work.
-     - **Side quest**: outside the requested objective. It does not reopen completed work.
+     - **Optional enhancement**: useful, no defect behind it, and no criterion or consumer requires it. It does not reopen completed work.
+     - **Side quest**: off the work's path with no defect, or a taste change. It does not reopen completed work.
   4. Record each actionable item in the `Findings for the owner` table with a `path:line` evidence reference. An empty table is valid.
 
   The owner reads the table and decides what becomes an issue. The table is the only destination for Delta items. Read the Delta Triage activity in `frameworks.md` for the categories and the table template.

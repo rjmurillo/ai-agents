@@ -87,8 +87,8 @@ Escalate only a material disagreement that survives one evidence-rich reply.
 
 - Debt this PR introduces is fixed before merge.
 - Existing debt the PR makes unsafe or materially worse is addressed now.
-- Other existing debt does not widen the PR. Track it separately only when it
-  is worth fixing; incidental debt needs no new work item.
+- An existing defect on the PR's path is fixed in this PR, with its test
+  (`builder-ethos.md` section 4). Taste debt does not widen the PR.
 - A promise to "clean up later" in a thread is not tracking. A deferral
   needs a filed issue or the repository's TODO convention, referenced as
   `Refs #<issue>`.

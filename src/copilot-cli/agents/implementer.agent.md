@@ -281,16 +281,9 @@ Save to: `.project-toolkit/planning/impact-analysis-code-[feature].md`. Read `im
 - Style preferences that don't affect testability or correctness
 - Code that is ugly but functional and untouched by your changes
 
-### Decision Rule
+### Defect Ownership
 
-Ask: "Does this refactoring unblock my task or improve testability of code I'm changing?"
-
-- **Yes**: Refactor, document in commit message
-- **No**: Flag it to the owner in the handoff, do not refactor now
-
-### Boy Scout Rule Application
-
-"Leave code cleaner than you found it" applies ONLY to code you touch for the task. Do not expand scope to adjacent code.
+Follow `builder-ethos.md` section 4 for discovered defects. Keep taste changes out.
 
 ## Task Behaviors
 

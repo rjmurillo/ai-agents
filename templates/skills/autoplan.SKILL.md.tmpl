@@ -250,10 +250,10 @@ Classify every decision the run surfaces; never promote silently.
 |-------|------------|----------|
 | Mechanical | One defensible answer (run tests, fix lint, sync a mirror) | Decide silently |
 | Taste | Viable trade-offs, low reversal cost (naming, small refactor shape) | Decide, surface at the final gate |
-| Sovereignty | Architecture, new ADRs, breaking changes, security posture, anything external or irreversible | Stop and ask. Never auto-decide |
+| PR approval | Architecture, ADR, rule, breaking or security change in the repo | Implement and seek approval at the top of the PR |
+| Sovereignty | User direction, destructive or production action outside the repo, required human approval | Stop the blocked action and ask |
 
-The Sovereignty row is the AGENTS.md Ask First list plus the Autonomy
-Guardrail. When a Sovereignty decision blocks the whole run, present 2 to 3
+The PR approval and Sovereignty rows follow `builder-ethos.md` section 4. When a Sovereignty decision blocks the whole run, present 2 to 3
 options with trade-offs per the Confusion Protocol and wait. See
 `references/writing-style-and-confusion-protocol.md` for the full protocol,
 completeness scoring, and writing-style mechanics. Read

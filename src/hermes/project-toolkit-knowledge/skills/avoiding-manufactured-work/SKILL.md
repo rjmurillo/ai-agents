@@ -1,6 +1,6 @@
 ---
 name: avoiding-manufactured-work
-version: 1.1.0
+version: 1.2.0
 description: "Stop manufactured work after a deliverable looks done and classify post-completion findings into the four contract classes builder-ethos.md delegates here. Use when a worker produced a plan, issue, PR, backlog item, or follow-up task and you must verify a real user, criterion, or blocked decision demanded it."
 license: Apache-2.0
 ---
@@ -8,6 +8,8 @@ license: Apache-2.0
 # Avoiding Manufactured Work
 
 Detect follow-up work that exists because the agent wanted to keep helping, not because a real consumer asked for it.
+
+A defect found on the path is not manufactured work. builder-ethos.md section 4 (Own found defects) makes it part of the task: fix it in the same work with its tests, callers, docs, and generated mirrors. This skill stops speculative work, never a fix.
 
 ## Sibling skill
 
@@ -20,16 +22,16 @@ Pair this with the `front-gate-before-pipeline` pattern. Front-gate fires before
 ## Process
 
 1. Name the concrete work product under review.
-2. Identify the consumer: user, issue, acceptance criterion, failing check, reviewer thread, or blocked downstream decision.
+2. Identify the consumer: user, issue, acceptance criterion, failing check, reviewer thread, blocked downstream decision, or an evidenced defect on the path.
 3. If no consumer exists, stop. Do not create a task, issue, PR, memo, or research artifact.
 4. If a consumer exists, verify the proposed follow-up is the smallest action that unblocks that consumer.
 5. Report the disposition as one of: keep, shrink, defer, or delete.
 
 ## Decision Rules
 
-- Keep work that directly satisfies an acceptance criterion, fixes a failing required check, resolves a reviewer thread, or unblocks a named decision.
+- Keep work that directly satisfies an acceptance criterion, fixes a failing required check, resolves a reviewer thread, unblocks a named decision, or fixes a defect on the path.
 - Shrink work when the demand is real but the proposed scope exceeds what the consumer needs.
-- Defer work when the demand is plausible but no current consumer is blocked.
+- Defer work when the demand is plausible but no current consumer is blocked. A found defect is never deferred: it is a Blocker.
 - Delete work when it is speculative, reputational, performative, or created to make the agent appear thorough.
 
 ## Output
@@ -53,12 +55,12 @@ This section is that procedure. It maps each class onto the keep/shrink/defer/de
 
 | Class | Disposition |
 |---|---|
-| Blocker | keep, scoped to the falsified criterion |
+| Blocker | keep, scoped to the falsified criterion or the found defect, fixed completely |
 | Requested improvement | keep, or shrink to the smallest action that satisfies it |
 | Optional enhancement | defer |
 | Side quest | delete |
 
-Test the Blocker class first. A finding that falsifies mandatory safety or repository policy is a Blocker whether or not it sits inside the requested objective, so it never reaches the Side quest row and never maps to delete. Classify in table order: Blocker, then Requested improvement, then Optional enhancement, then Side quest.
+Test the Blocker class first. A finding that falsifies mandatory safety or repository policy, or an evidenced defect on the path, is a Blocker whether or not it sits inside the requested objective, so it never reaches the Side quest row and never maps to defer or delete. Only a taste change, a speculative feature, or an off-path finding with no defect reaches Optional enhancement or Side quest. Classify in table order: Blocker, then Requested improvement, then Optional enhancement, then Side quest.
 
 A defer or a delete is a disposition, not a silent drop. Name the finding and its class in the report, then stop. Naming it is not a reason to reopen the task; only the Reactivation section below can do that.
 
@@ -68,12 +70,13 @@ Before non-trivial execution, derive the smallest task contract, in order: curre
 
 ## Reactivation
 
-A terminal task reopens only when evidence falsifies a named frozen criterion, a mandatory policy adds a blocker, or the user reopens it or makes a new request. Reviewer preference, optional hardening, a new context, or remaining budget cannot reactivate it. A child task's completion does not terminate its parent; a new request is new work unless it explicitly reopens the prior one. A consumer holding task identity and completion evidence must not reopen it without one of these events.
+A terminal task reopens only when evidence falsifies a named frozen criterion, a mandatory policy adds a blocker, a defect turns up on the path, or the user reopens it or makes a new request. Reviewer preference, optional hardening, a new context, or remaining budget cannot reactivate it. A child task's completion does not terminate its parent; a new request is new work unless it explicitly reopens the prior one. A consumer holding task identity and completion evidence must not reopen it without one of these events.
 
 ## Checklist
 
 - [ ] The work product is named concretely, not as a category.
 - [ ] A consumer is named, or the disposition is delete.
 - [ ] The proposed action is the smallest one that unblocks that consumer.
-- [ ] Any post-completion finding was tested against Blocker first.
+- [ ] Any post-completion finding was tested against Blocker first, found defects included.
+- [ ] No found defect was deferred, filed for later, or left as a PR-body note when the agent could fix it.
 - [ ] Every finding reached a stated disposition; none was dropped silently.

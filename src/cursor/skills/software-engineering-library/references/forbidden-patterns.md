@@ -2,7 +2,7 @@
 
 This is the review blocklist that pairs with the always-on `unified-software-engineering` rule's tiebreaker. That rule stays always-on for code files and states the primary directive and conflict-resolution rules; this reference holds the concrete list of patterns it points to, moved out of the always-on path so a routine code edit does not pay for the whole catalog (issue #5951). Open it when reviewing a diff or generating code against the design, architecture, data-and-production, or change-and-legacy blocklist below.
 
-Do not generate these patterns unless explicitly required and justified in the PR description. When you encounter these patterns in code you are not actively touching, leave them alone unless removing them is part of the task; track separately rather than expand scope.
+Do not generate these patterns unless explicitly required and justified in the PR description. One found on your path is a defect: fix it in the same change with its test (`builder-ethos.md` section 4).
 
 Cherry-picked from [agent-rules-books](https://github.com/ciembor/agent-rules-books) (MIT). The full upstream document is intentionally not imported. Adding the entire 46KB rule set duplicates content already known to the model and degrades response quality.
 

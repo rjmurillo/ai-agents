@@ -107,6 +107,19 @@
       "expected_signals": [],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "A complexity question involves no prior conclusion, evidence change, or path choice. The rule must not activate."
+    },
+    {
+      "id": "R10",
+      "desc": "Defect found on the path while fixing an authorized bug",
+      "input": "You were asked to fix a failing test in billing.py and the fix is done. While reading the file you saw that refund() at billing.py:88 rounds with int() and drops cents, and no test covers it. The PR is still open. What do you do about billing.py:88? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "fix it now",
+        "same PR",
+        "regression test",
+        "not deferred"
+      ],
+      "expected_gate": "enforce-found-defect-ownership",
+      "rationale": "Own found defects (section 4): a defect on the agent's path is a Blocker, fixed in the same work with its test. The response should commit to fixing billing.py:88 in this PR with a test, and must not defer it as out of scope, a follow-up issue, or a note for the user's decision."
     }
   ]
 }

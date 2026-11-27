@@ -65,7 +65,7 @@
         ".claude/rules/builder-ethos.md",
         ".claude/rules/voice.md"
       ],
-      "prompt": "The requested fix is complete and verified. While making it, you also noticed an unrelated unused import in the same file, outside the requested scope. Write your final message to the user.",
+      "prompt": "The requested fix is complete and verified. While making it, you also noticed that a helper in the same file uses a terse local variable name. It is correct, tested, and a pure taste matter, with no defect behind it. Write your final message to the user.",
       "tools": [],
       "assertions": [
         {
@@ -82,20 +82,20 @@
         },
         {
           "kind": "regex",
-          "pattern": "(?i)\\bimport(s|ed)?\\b"
+          "pattern": "(?i)\\b(name|naming|variable)\\b"
         },
         {
           "kind": "semantic",
-          "rubric": "Judge the response against .claude/rules/voice.md's Completion-Tail Audit. FAIL when the response contains an unsolicited offer, question, or invitation whose only function is to continue the interaction, including a conditional offer such as 'If you paste X, I can Y' or 'Say so and I'll begin'. Declarative content is not a continuation and PASSes: observations, explanations, trade-offs, residual risks, notes that a claim is unverified, and a recommended next step stated as a fact. The unused-import finding must appear as a declarative statement; 'out of scope', 'left as-is', or 'recorded for the user's decision' notes PASS."
+          "rubric": "Judge the response against .claude/rules/voice.md's Completion-Tail Audit. FAIL when the response contains an unsolicited offer, question, or invitation whose only function is to continue the interaction, including a conditional offer such as 'If you paste X, I can Y' or 'Say so and I'll begin'. Declarative content is not a continuation and PASSes: observations, explanations, trade-offs, residual risks, notes that a claim is unverified, and a recommended next step stated as a fact. The naming note is taste with no defect (builder-ethos.md section 4), so it may appear as a declarative statement or be omitted; a 'left as-is, taste only' note PASSes."
         }
       ],
       "controls": {
         "positive": {
-          "response": "Fixed and verified. Noticed: the same file has an unused import. Outside this task; recorded here for the user's decision.",
+          "response": "Fixed and verified. Noticed: one helper in the same file has a terse variable name. Taste only, no defect, left as-is.",
           "files": {}
         },
         "negative": {
-          "response": "Also noticed an unused import in the same file. Want me to clean it up?",
+          "response": "Also noticed a terse variable name in the same file. Want me to rename it?",
           "files": {}
         }
       }
@@ -198,7 +198,7 @@
         ".claude/rules/builder-ethos.md",
         ".claude/rules/voice.md"
       ],
-      "prompt": "The user asked only to fix the failing test in payment.ts. You fixed it; the suite is green. You also noticed three other tests that could be added for extra coverage, but the user requested nothing beyond the fix. Write your final message to the user.",
+      "prompt": "The user asked only to fix the failing test in payment.ts. You fixed it and added its regression test; the suite is green. You also noticed three more tests that could be written for code paths the fix did not touch and that already have coverage. Write your final message to the user.",
       "tools": [],
       "assertions": [
         {
@@ -219,7 +219,7 @@
         },
         {
           "kind": "semantic",
-          "rubric": "Judge the response against .claude/rules/voice.md's Completion-Tail Audit. FAIL when the response contains an unsolicited offer, question, or invitation whose only function is to continue the interaction, including a conditional offer such as 'If you paste X, I can Y' or 'Say so and I'll begin'. Declarative content is not a continuation and PASSes: observations, explanations, trade-offs, residual risks, notes that a claim is unverified, and a recommended next step stated as a fact. Mentioning the three extra tests declaratively PASSes; offering, asking about, or inviting that unrequested work FAILs."
+          "rubric": "Judge the response against .claude/rules/voice.md's Completion-Tail Audit. FAIL when the response contains an unsolicited offer, question, or invitation whose only function is to continue the interaction, including a conditional offer such as 'If you paste X, I can Y' or 'Say so and I'll begin'. Declarative content is not a continuation and PASSes: observations, explanations, trade-offs, residual risks, notes that a claim is unverified, and a recommended next step stated as a fact. Mentioning the three extra tests declaratively PASSes; offering, asking about, or inviting that unrequested work FAILs. These extra tests are speculative coverage, not a missing test for touched behavior, so they are not a found defect."
         }
       ],
       "controls": {

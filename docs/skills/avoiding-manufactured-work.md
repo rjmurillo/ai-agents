@@ -1,6 +1,6 @@
 # avoiding-manufactured-work
 
-Checks whether follow-up work has a real consumer. It also sorts any finding that appears after a task is done into one of four classes, so each finding gets a named outcome.
+Checks whether follow-up work has a real consumer. It also sorts any finding that appears after a task is done into one of four classes, so each finding gets a named outcome. A defect found on the path is owned work, not manufactured work: the agent fixes it in the same change.
 
 ## When to use it
 
@@ -36,9 +36,9 @@ Next action: <smallest action, or none>
 
 | Disposition | Meaning |
 | --- | --- |
-| `keep` | The work satisfies an acceptance criterion, fixes a failing required check, resolves a reviewer thread, or unblocks a named decision. |
+| `keep` | The work satisfies an acceptance criterion, fixes a failing required check, resolves a reviewer thread, unblocks a named decision, or fixes a defect on the path. |
 | `shrink` | The demand is real, but the proposed scope exceeds what the consumer needs. |
-| `defer` | The demand is plausible, but no current consumer is blocked. |
+| `defer` | The demand is plausible, but no current consumer is blocked. A found defect is never deferred. |
 | `delete` | The work is speculative, reputational, performative, or made to look thorough. |
 
 If no consumer exists, the skill stops. It does not create a task, issue, PR, memo, or research artifact.
@@ -49,24 +49,25 @@ The skill also owns the procedure that `builder-ethos.md` hands it for post-comp
 
 | Finding class | Disposition |
 | --- | --- |
-| Blocker | `keep`, scoped to the falsified criterion |
+| Blocker | `keep`, scoped to the falsified criterion or the found defect, fixed completely |
 | Requested improvement | `keep`, or `shrink` to the smallest action that satisfies it |
 | Optional enhancement | `defer` |
 | Side quest | `delete` |
 
-A finding that falsifies mandatory safety or repository policy is a Blocker even when it sits outside the requested objective. It never maps to `delete`. A `defer` or `delete` is a disposition, not a silent drop: name the finding and its class in the report, then stop.
+A finding that falsifies mandatory safety or repository policy, or an evidenced defect on the path, is a Blocker even when it sits outside the requested objective. It never maps to `defer` or `delete`. Only a taste change, a speculative feature, or an off-path finding with no defect is an Optional enhancement or a Side quest. A `defer` or `delete` is a disposition, not a silent drop: name the finding and its class in the report, then stop.
 
 The skill also covers two related steps:
 
 - **Forming the contract.** Before non-trivial work, record the smallest task contract: the user goal and deliverables, explicit constraints and acceptance criteria, mandatory policy, and the minimum inferred success criteria. Once work starts, the criteria stay fixed unless you change them or a mandatory policy was omitted.
-- **Reactivation.** A terminal task reopens only when evidence falsifies a named frozen criterion, a mandatory policy adds a blocker, or you reopen it or make a new request. Reviewer preference, optional hardening, a new context, or leftover budget cannot reopen it.
+- **Reactivation.** A terminal task reopens only when evidence falsifies a named frozen criterion, a mandatory policy adds a blocker, a defect turns up on the path, or you reopen it or make a new request. Reviewer preference, optional hardening, a new context, or leftover budget cannot reopen it.
 
 Checklist the skill ends with:
 
 - The work product is named concretely.
 - A consumer is named, or the disposition is `delete`.
 - The proposed action is the smallest one that unblocks that consumer.
-- Any post-completion finding was tested against Blocker first.
+- Any post-completion finding was tested against Blocker first, found defects included.
+- No found defect was deferred, filed for later, or left as a PR-body note when the agent could fix it.
 - Every finding reached a stated disposition.
 
 [`ai-agents-external-claims`](ai-agents-external-claims.md) points here to stop a deliverable that no consumer demanded.

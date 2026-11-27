@@ -2,7 +2,7 @@
 
 SPEC-agent-backlog-provenance.md AC-12, verbatim:
   builder-ethos.md shall contain the phrases "task selection is not the agent's
-  to compress" and "may only flag, never file" (grep count 1 or more for each),
+  to compress" and "A found defect is fixed, not filed." (grep count 1 or more for each),
   and voice.md shall contain zero occurrences of "Worth a follow-up issue" and
   at least one occurrence of "PR body" inside its Ownership section.
 
@@ -27,7 +27,7 @@ _VOICE = (
 )
 _ETHOS_PHRASES = (
     "task selection is not the agent's to compress",
-    "may only flag, never file",
+    "A found defect is fixed, not filed.",
 )
 
 

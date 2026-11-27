@@ -425,7 +425,7 @@ backlog growth.
      yet satisfied
    - **Optional enhancement**: useful, but no criterion or consumer requires
      it. It does not reopen completed work.
-   - **Side quest**: outside the requested objective. It does not reopen
+   - **Side quest**: off the work's path with no defect, or a taste change. It does not reopen
      completed work.
 4. **Record each actionable item** in the `Findings for the owner` table with
    a `path:line` evidence reference. An empty table is valid.

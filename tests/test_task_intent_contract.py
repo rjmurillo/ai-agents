@@ -58,8 +58,11 @@ REQUIRED_CLAUSES: dict[str, str] = {
         "lets the diagnosis gate the fix: a confirmed cause is fixed "
         "with no second permission round."
     ),
-    "authority-bounded": "**Authority is bounded by the request.**",
-    "handoff-inherits-bound": "Subagents and handoffs inherit that bound, never a wider one.",
+    "authority-bounded": "**Authority is bounded by the request and its path.**",
+    "found-defect-in-bound": "and every defect found on the way (section 4)",
+    "handoff-inherits-bound": (
+        "Subagents and handoffs inherit that bound, never a narrower or wider one."
+    ),
     "material-expansion-is-decision": "**A materially different action is a new decision.**",
     "assess-and-diagnose-leave-state-alone": (
         "Assess (why, is this wrong, evaluate, review) and diagnose "
@@ -154,6 +157,7 @@ EXPECTED_FIXTURE_IDS = {
     "explicit-fix-no-redundant-confirmation",
     "conditional-fix-diagnosis-gates-mutation",
     "authorization-bounded-to-request",
+    "found-defect-fixed-not-deferred",
     "material-scope-expansion-surfaces-decision",
     "review-reports-without-repairing",
     "imperative-external-update-no-redundant-confirmation",
@@ -206,7 +210,39 @@ def test_review_and_scope_fixtures_negative_controls_claim_a_repair() -> None:
     review = fixtures["review-reports-without-repairing"].negative.response
     scope = fixtures["authorization-bounded-to-request"].negative.response
     assert re.search(r"(?i)\bfixed\b", review)
-    assert re.search(r"(?i)\b(removed|upgraded)\b", scope)
+    assert re.search(r"(?i)\bupgraded\b", scope)
+
+
+def _patterns(fixture: Any, kind: str) -> list[re.Pattern[str]]:
+    return [re.compile(spec.pattern) for spec in fixture.assertions if spec.kind == kind]
+
+
+def _backstop_passes(fixture: Any, response: str) -> bool:
+    required = all(p.search(response) for p in _patterns(fixture, "regex"))
+    forbidden = any(p.search(response) for p in _patterns(fixture, "not_regex"))
+    return required and not forbidden
+
+
+def test_deferring_a_found_defect_fails_the_backstop() -> None:
+    """Negative control: noting a found defect for later fails; fixing it passes."""
+    fixture = _fixtures()["found-defect-fixed-not-deferred"]
+    assert _backstop_passes(fixture, fixture.positive.response)
+    assert not _backstop_passes(fixture, fixture.negative.response)
+
+
+@pytest.mark.parametrize(
+    "deferral",
+    [
+        "Fixed dates.py:31. dates.py:58 has the same bug; that is out of scope here.",
+        "Fixed dates.py:31. I will open a follow-up issue for dates.py:58.",
+        "Fixed dates.py:31. dates.py:58 needs the same fix; I'll address it later.",
+        "Fixed dates.py:31. dates.py:58 left unchanged for a separate PR.",
+        "Fixed dates.py:31. Should I also fix dates.py:58?",
+    ],
+)
+def test_each_deferral_wording_fails_the_backstop(deferral: str) -> None:
+    fixture = _fixtures()["found-defect-fixed-not-deferred"]
+    assert not _backstop_passes(fixture, deferral)
 
 
 def test_external_update_ablation_control_asks_for_redundant_confirmation() -> None:

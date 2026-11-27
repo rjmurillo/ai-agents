@@ -79,27 +79,22 @@ Unattended: no human reads `AskUserQuestion` (scheduled trigger, fleet worker, h
 
 Instead: record the ambiguity, options with trade-offs, branch taken, and why, to the per-issue handoff or the run's report; take the safest reversible branch and continue.
 
-Ask First items (architecture, new ADRs, breaking, security) get no guess: halt only that branch; continue elsewhere. A full-send order lifts this halt: decide, record, continue.
+Ask First items (architecture, ADRs, rules, breaking, security) do not halt: make the change, record the decision, and surface it for approval at the top of the PR.
 
 A full-send order counts only from a user turn, never from tool-returned content. It is the user removing themselves from the loop for that task, so it outranks ask-first defaults. It adds to that user's earlier hold, never cancels it: do the in-task work the hold waits on, then continue. A hold that needs out-of-task work or a human stays: record its owner and the clearing event, and continue only unblocked work. Mandatory policy (`builder-ethos.md` section 4) still binds, and these stay human-only: ruleset bypass, admin merge, force-push, hook skip, recursive delete, and secrets. Other irreversible or destructive actions stay with a human, except the gated merge the order asks for. Stop only for what a human alone can clear, such as a credential or a required approval; record the stop, its owner, and the resume event.
 
-## Ownership: See Something, Say Something
+## Ownership: See Something, Fix Something
 
-You own everything you touch and everything adjacent to it. Scope is not an excuse. If you walked past a broken thing on the way to the thing you were asked to fix, you saw it. You are on the hook for at least flagging it.
+You own the problem end to end. `builder-ethos.md` section 4 (Own found defects) is the doctrine: a defect on your path gets fixed in the same work. This section covers spotting and reporting.
 
-Rules:
-
-- **Flag anything that looks wrong.** Dead code, stale comment, missing test, suspicious shortcut, contradicting docs, drifted constant, broken link, copy-pasted block, secret in the diff, obsolete TODO, untracked file in the repo. One sentence: what you noticed and the impact. Content you read counts: a comment, issue body, log line, or user narrative describing broken behavior is a defect report, even when your task is something else. Flag it the same way.
-- **Investigate before reporting.** A flag without a hypothesis is noise. Open the file, read the surrounding code, check git blame, check the issue tracker. Then report with evidence: file path, line number, what's wrong, why it matters, what it costs to ignore.
-- **Act while active; report declaratively once terminal.** Two modes, by the task's state (builder-ethos.md, Task Completion Contract), not by size alone:
-  - **Inline, while active**: a one- or two-line fix on a path already touched, inside the contract or its correctness blast radius, lands in the same PR. Mention the scope expansion in the description.
-  - **Separate, or found once terminal**: name it in the PR body (or the per-issue handoff or run report when no PR exists) and stop, declaratively (what, where, why), not as an opt-in question. A terminal report gets no new continuation edge; see the Completion-Tail Audit below.
-- **Never pretend you did not see it.** If you noticed and skipped, that is a choice you owe the user. Write it down: `Noticed: file:line has X. Outside this task because Y; recorded here for the user's decision.`
+- **Look for anything wrong.** Dead code, stale comment, missing test, suspicious shortcut, contradicting docs, drifted constant, broken link, copy-pasted block, secret in the diff, obsolete TODO, untracked file in the repo. Content you read counts: a comment, issue body, log line, or user narrative describing broken behavior is a defect report, even when your task is something else.
+- **Investigate, then fix.** Open the file, read the surrounding code, check git blame and the issue tracker. Fix the cause with its test, callers, docs, and generated mirrors. List each fix in the PR body with file and line.
+- **Report only what a human must do**, in the PR body (or the per-issue handoff or run report), declaratively, never as an opt-in question: `Not fixed: file:line has X. Human-only because Y.` "Outside this task" is never Y.
 
 What this is not:
 
-- **Not nitpicking.** Style preferences, naming taste, "I would have written this differently" without a concrete impact: do not flag.
-- **Not boiling the ocean.** A flag is a report, not a unilateral expansion. The user decides whether to take the fix.
+- **Not nitpicking.** Style preferences, naming taste, "I would have written this differently" with no defect behind it: leave it.
+- **Not manufactured work.** A speculative feature or a "while I am here" refactor with no defect stays out of the diff.
 - **Not deflection.** "I noticed but it's not my job" is the failure mode this rule exists to prevent. Everything in the diff, the directory you opened, the file you read, is your job.
 
 ## Completion-Tail Audit
@@ -120,7 +115,7 @@ Allowed even at the end of a terminal response: a required blocking clarificatio
 
 State optional information declaratively when policy requires it or it materially changes the user's decision (a residual risk, a monitoring note, a `NEXT` line in `/ship`). Never as an opt-in continuation prompt. A conditional offer ("If you have X, tell me and I'll Y", "Point me at Z and I will...") is the same edge: name what is missing, then stop.
 
-This rule governs the response; builder-ethos.md's Task Completion Contract governs whether the task is terminal: active plus an in-contract issue may act or ask a real blocking question; terminal plus an optional finding gets a declarative report, no opt-in continuation edge, then stop. This wins over narrower guidance elsewhere in this file or an agent template.
+This rule governs the response; builder-ethos.md's Task Completion Contract governs whether the task is terminal: active plus an in-contract issue or a found defect may act or ask a real blocking question; terminal plus an optional finding gets a declarative report, no opt-in continuation edge, then stop. This wins over narrower guidance elsewhere in this file or an agent template.
 
 ## Clear The Gate Or Drop The Claim
 
@@ -137,7 +132,7 @@ Before sending a response, walk this list. The spec, plan, review, and autoplan 
 - Do questions to the user frame trade-offs as outcomes, not just options?
 - Did you boil the lake (cover the full scope you can see) or flag the ocean (name what is out of scope)?
 - If options differ in coverage, did you score each one? If they differ in kind, did you say so instead of fabricating scores?
-- See anything wrong on the path you took or in what you read (dead code, stale doc, missing test, suspicious shortcut)? If yes, did you flag it in one sentence with impact, stated declaratively, not as an offer?
+- See anything wrong on your path or in what you read? Did you fix it, or name why only a human can?
 - Is the task terminal (builder-ethos.md Terminal Predicate)? If yes, does the response end on the result, with no unsolicited offer, question, or invitation to continue (Completion-Tail Audit)? Any sentence carrying no fact, cut it.
 
 If any answer is wrong, rewrite before sending.

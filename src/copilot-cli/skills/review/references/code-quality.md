@@ -86,7 +86,7 @@ Ground findings in the project's code-quality artifacts. All paths are under `.c
 ### 6. Boy Scout Rule (Scoped Cleanup)
 
 - For each file the diff already touches, did the author leave it at least as clean as they found it: a dead branch removed, a misleading name fixed, a stale comment deleted?
-- Conversely, did "while I am here" cleanup expand the diff into unrelated files or a large refactor? Scope creep is the failure mode the Boy Scout Rule guards against; flag it as readily as you flag rot left behind.
+- Separate evidence-backed fixes on the work path from unrelated cleanup. Report confirmed defects with evidence; the author fixes them in the same work.
 
 ## Output Requirements
 

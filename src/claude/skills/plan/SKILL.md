@@ -190,7 +190,7 @@ Unattended: no human reads a structured ask (Claude Code: `AskUserQuestion`) (sc
 
 Instead: record the ambiguity, options with trade-offs, branch taken, and why, to the per-issue handoff or the run's report; take the safest reversible branch and continue.
 
-Ask First items (architecture, new ADRs, breaking, security) get no guess: halt only that branch; continue elsewhere.
+Ask First items (architecture, ADRs, rules, breaking, security) do not halt: make the change, record the decision, and surface it for approval at the top of the PR.
 
 ## Claude Model Behavioral Patches
 

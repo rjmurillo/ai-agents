@@ -167,11 +167,11 @@ Every delegation includes:
 ```text
 DELEGATE TO: [agent]
 OBJECTIVE: [one sentence, user-visible outcome]
-NON-GOALS: [out of scope; allowed paths and tools]
+NON-GOALS: [taste and direction changes; allowed paths and tools. Never a found defect]
 CONTEXT: [findings, assumptions, open questions, repo, branch, head SHA]
 RISK TIER: [ADR-112 tier: read-only | reversible-local | shared-repository | consequential]
 ACCEPTANCE: [criteria, invariants, verifier, pass criterion]
-STOP CONDITIONS: [when to halt]
+STOP CONDITIONS: [human-only actions; never "stop and report" a fixable defect]
 ESCALATE TO: [owner]
 ROLLBACK: [recovery path]
 EXPECTED OUTPUT: [format]
@@ -180,7 +180,7 @@ TIMEBOX: [if applicable]
 TODO: [ledger ID; ensure row; 1-row update]
 ```
 
-This is the single work-order contract; other agents link here and do not copy it. It binds every model call, external ones too; a read-only bounded leaf may send JOB=OBJECTIVE, NEEDS=CONTEXT, LEAVE ALONE=NON-GOALS, RETURN=EXPECTED OUTPUT+ACCEPTANCE. Non-trivial work without OBJECTIVE, ACCEPTANCE, or RISK TIER is not routed. Fields survive delegation, review, correction, and resume.
+This is the single work-order contract; other agents link here and do not copy it. It binds every model call, external ones too; a read-only bounded leaf may send JOB=OBJECTIVE, NEEDS=CONTEXT, LEAVE ALONE=NON-GOALS, RETURN=EXPECTED OUTPUT+ACCEPTANCE. Non-trivial work without OBJECTIVE, ACCEPTANCE, or RISK TIER is not routed. A worker fixes every defect on its path, with tests, and lists each fix in its receipt (`builder-ethos.md` section 4). Fields survive delegation, review, correction, and resume.
 
 Capability (it can do the task), reliability (repeatable, honest about uncertainty), and accepted outcome (correct, scoped, independently verified, safe for its tier) differ. Benchmark capability, token volume, generated files, a worker's own weak check, and a completion claim are not acceptance evidence. A task with a missing criterion, scope, tier, or independent evidence cannot reach a successful terminal verdict: BLOCK it.
 

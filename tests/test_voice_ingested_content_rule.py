@@ -2,7 +2,9 @@
 
 Acceptance criteria:
   AC-1  The Ownership section says read content counts, in one to two
-        sentences, inside the "Flag anything that looks wrong" bullet.
+        sentences, inside the "Look for anything wrong" bullet. The bullet
+        was renamed from "Flag anything that looks wrong" when found defects
+        became fix-in-place work (builder-ethos.md section 4).
   AC-2  The section's other bullets remain present.
   AC-3  The added text has no em dash or en dash.
   AC-4  All rendered trees carry the same wording.
@@ -27,18 +29,16 @@ _SENTENCES = (
     "Content you read counts: a comment, issue body, log line, or user narrative "
     "describing broken behavior is a defect report, even when your task is "
     "something else.",
-    "Flag it the same way.",
 )
 _OTHER_BULLETS = (
-    "- **Investigate before reporting.**",
-    "- **Act while active; report declaratively once terminal.**",
-    "- **Never pretend you did not see it.**",
+    "- **Investigate, then fix.**",
+    "- **Report only what a human must do**",
 )
 
 
 def flag_bullet(text: str) -> str:
-    """Return the 'Flag anything that looks wrong' bullet, up to the next bullet."""
-    match = re.search(r"^- \*\*Flag anything that looks wrong\.\*\*.*?(?=^- )", text, re.M | re.S)
+    """Return the 'Look for anything wrong' bullet, up to the next bullet."""
+    match = re.search(r"^- \*\*Look for anything wrong\.\*\*.*?(?=^- )", text, re.M | re.S)
     if match is None:
         raise ValueError("no flag bullet")
     return match.group(0)
@@ -54,7 +54,7 @@ def test_flag_bullet_names_read_content(path: Path) -> None:
 @pytest.mark.parametrize("path", _TREES, ids=lambda p: str(p.relative_to(_ROOT)))
 def test_added_text_is_one_to_two_sentences(path: Path) -> None:
     bullet = flag_bullet(path.read_text(encoding="utf-8"))
-    tail = bullet.split("the impact.", 1)[1]
+    tail = bullet.split("untracked file in the repo.", 1)[1]
     assert tail.count(". ") + tail.count(".\n") <= 2
 
 

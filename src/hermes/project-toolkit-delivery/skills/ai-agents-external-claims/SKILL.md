@@ -78,8 +78,8 @@ A source with a stake in the framing is not disqualified, but its self-favorable
 - Advocacy quoting a competitor's unfavorable stat: find the competitor's own primary source; advocacy selects and rounds.
 - A named authority invoked second-hand ("Gartner says"): the primary source is the named authority's own publication, not the party invoking it.
 
-State the stake explicitly in the artifact when it is material, so a reader can weigh it too. This is the `.claude/rules/voice.md` "Ownership: See Something, Say Something" discipline applied to provenance: a flag with a hypothesis, not a silent pass.
-You own everything you touch and everything adjacent to it. Scope is not an excuse. If you walked past a broken thing on the way to the thing you were asked to fix, you saw it. You are on the hook for at least flagging it.
+State the stake explicitly in the artifact when it is material, so a reader can weigh it too. This is the `.claude/rules/voice.md` "Ownership: See Something, Fix Something" discipline applied to provenance: a flag with a hypothesis, not a silent pass.
+You own the problem end to end. `builder-ethos.md` section 4 (Own found defects) is the doctrine: a defect on your path gets fixed in the same work.
 
 ### Phase 4: Walk the gate, or file conservative
 
@@ -324,7 +324,7 @@ Grounding sources, verified against the working tree:
 |---------|--------|-----------|
 | Same-pass claim verification, stake-holding sources, round-number tells | gstack `claim-verification-before-ingest` skill | Read the skill's "When this skill fires" section |
 | Reporting-without-acting reward-bias root cause | `.claude/skills/avoiding-manufactured-work/SKILL.md` | `grep -n -e "Reporting" -e "reward" .claude/skills/avoiding-manufactured-work/SKILL.md` |
-| Flag-with-a-hypothesis provenance discipline | `.claude/rules/voice.md`, "Ownership: See Something, Say Something" | `grep -n "See Something" .claude/rules/voice.md` |
+| Flag-with-a-hypothesis provenance discipline | `.claude/rules/voice.md`, "Ownership: See Something, Fix Something" | `grep -n "See Something" .claude/rules/voice.md` |
 | Verbatim-quote requirement for mirrored claims (FM-9) | `.agents/governance/FAILURE-MODES.md` (enforced by `.claude/rules/canonical-source-mirror.md`) | `grep -n -e "character-for-character" -e "verbatim" .agents/governance/FAILURE-MODES.md` |
 | Vendor docs are not runtime truth | `.claude/skills/ai-agents-research-methodology/SKILL.md` | `grep -n -e "vendor docs" .claude/skills/ai-agents-research-methodology/SKILL.md` |
 
