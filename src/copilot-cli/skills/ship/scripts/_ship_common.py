@@ -20,10 +20,12 @@ loads this file by absolute path, leaving ``sys.path`` alone.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import importlib.util
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 import time
@@ -63,36 +65,6 @@ CONTROL_RE = re.compile("[\x00-\x1f\x7f-\x9f\u2028\u2029]")  # C0, DEL, C1, line
 _REF_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,199}")
 
 
-# A token ends only at ASCII whitespace. Unicode spaces and control
-# characters stay inside it, so a password holding one is still cut.
-_ASCII_SPACE = frozenset(" \t\n\r\v\f")
-
-
-def _strip_userinfo(text: str) -> str:
-    """Drop everything between ``://`` and the last ``@`` of the same token.
-
-    A token is the run of non-space characters after ``://``. Cutting to the
-    last ``@`` removes a password that itself holds ``@`` or ``/``, at any
-    length. A path segment holding ``@`` is over-redacted; that is the safe
-    side. One pass over the text, so a long value stays linear.
-    """
-    out: list[str] = []
-    start = 0
-    while True:
-        marker = text.find("://", start)
-        if marker < 0:
-            out.append(text[start:])
-            return "".join(out)
-        token_start = marker + 3
-        token_end = token_start
-        while token_end < len(text) and text[token_end] not in _ASCII_SPACE:
-            token_end += 1
-        token = text[token_start:token_end]
-        out.append(text[start:token_start])
-        out.append(token[token.rfind("@") + 1 :])
-        start = token_end
-
-
 def load_sibling(
     name: str,
 ) -> ModuleType:  # pragma: no cover - runs only in a fresh interpreter; see test_ship_edges.py::test_script_runs_under_isolated_mode
@@ -121,6 +93,7 @@ scratch_dir = _paths.scratch_dir
 write_private = _paths.write_private
 confine_body_file = _paths.confine_body_file
 stored_int = _paths.stored_int
+push_lock = _paths.push_lock
 remote_host = _remote.remote_host
 classify_host = _remote.classify_host
 cmd_rewrites = _windows.cmd_rewrites
@@ -129,7 +102,7 @@ on_windows = _windows.on_windows
 
 def clean(value: object) -> str:
     """Return ``value`` as one safe line: no userinfo, no control characters."""
-    text = _strip_userinfo(str(value))
+    text = _remote.strip_userinfo(str(value))
     text = CONTROL_RE.sub(" ", text)
     return " ".join(text.split())
 
@@ -335,8 +308,7 @@ def render(result: Result, output_format: str, repo_root: Path | None) -> str:
     lines = _capped_lines(result, repo_root)
     text = _format(result, lines, output_format)
     while len(text.encode("utf-8")) > MAX_BYTES:
-        # Defensive: _capped_lines charges each line its JSON size and reserves room for
-        # the doubled terminal line, so it has already spilled whenever this loop runs.
+        # Defensive: _capped_lines charges JSON size, so it has already spilled here.
         if not any(key == "DETAIL_FILE" for key, _value in lines):  # pragma: no cover
             body = [f"{key}: {value}" for key, value in result.lines]
             lines.append(("DETAIL_FILE", write_detail_file(body, repo_root)))
@@ -349,12 +321,9 @@ def render(result: Result, output_format: str, repo_root: Path | None) -> str:
 
 
 def emit(result: Result, output_format: str, repo_root: Path | None) -> int:
-    """Print ``result`` and return its exit code.
-
-    ``python3 -I`` ignores PYTHONIOENCODING, so a Windows pipe keeps its code
-    page. A character outside it is replaced, never raised, so the terminal
-    line always prints.
-    """
+    """Print ``result`` and return its exit code. ``python3 -I`` ignores
+    PYTHONIOENCODING, so a character outside a Windows pipe's code page is
+    replaced, never raised, and the terminal line always prints."""
     reconfigure = getattr(sys.stdout, "reconfigure", None)
     if reconfigure is not None:
         reconfigure(errors="replace")
@@ -424,45 +393,81 @@ def run(
     cwd: Path | None = None,
     timeout: float = 120,
     stdin_text: str | None = None,
+    env: dict[str, str] | None = None,
+    group: bool = False,
 ) -> Completed:
     """Run ``argv`` without a shell. A missing binary is 127; a timeout is 124.
 
-    On Windows, ``_ship_windows`` resolves a bare name, and an argument that
-    cmd.exe would rewrite for a ``.cmd`` target is refused as 126.
-
-    The timeout never exceeds the time left in the run's shared budget.
+    ``env`` adds variables on top of ``child_env()``. ``group`` (POSIX only) starts
+    the child in a new session; a timeout, an interrupt, or a SIGTERM, SIGHUP, or
+    SIGQUIT the caller does not ignore then kills its process group, hooks included,
+    before the call returns or the error propagates. On Windows, ``_ship_windows``
+    resolves a bare name and refuses (126) an argument cmd.exe would rewrite for a
+    ``.cmd`` target. The timeout never exceeds the time left in the shared budget.
     """
     timeout = min(timeout, remaining_seconds())
+    saved = _trap_exit_signals() if group else {}
     try:
         command = _windows.command(argv)
         if command is None:
             return Completed(126, "", f"{argv[0]}: refused an argument cmd.exe would rewrite")
-        done = subprocess.run(
+        with subprocess.Popen(
             command,
             cwd=str(cwd) if cwd is not None else None,
-            input=stdin_text,
-            capture_output=True,
+            stdin=subprocess.PIPE if stdin_text is not None else None,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=timeout,
-            check=False,
             shell=False,
-            env=child_env(),
-        )
+            env={**child_env(), **(env or {})},
+            start_new_session=group,
+        ) as child:
+            try:
+                out, err = child.communicate(stdin_text, timeout=timeout)
+            except subprocess.TimeoutExpired:
+                _kill(child, group)
+                return Completed(124, "", f"{argv[0]}: timed out after {timeout:g}s")
+            except BaseException:  # KeyboardInterrupt or a trapped signal: never orphan it
+                _kill(child, group)
+                raise
     except FileNotFoundError:
         return Completed(127, "", f"{argv[0]}: not found")
     except OSError as exc:
-        # A binary that exists but cannot run (no execute bit, bad format) is
-        # a failed call, never a crash, so the script still ends on STOP.
+        # A binary that cannot run is a failed call, never a crash: still STOP.
         return Completed(126, "", f"{argv[0]}: cannot run: {exc.strerror or exc}")
-    except subprocess.TimeoutExpired:
-        return Completed(124, "", f"{argv[0]}: timed out after {timeout:g}s")
-    return Completed(done.returncode, done.stdout or "", done.stderr or "")
+    finally:
+        for signum, handler in saved.items():
+            signal.signal(signum, handler)
+    return Completed(child.returncode, out or "", err or "")
 
 
-def git(args: list[str], cwd: Path | None = None, timeout: float = 60) -> Completed:
-    return run(["git", *args], cwd=cwd, timeout=timeout)
+def _exit_on_signal(signum: int, _frame: object) -> None:
+    raise SystemExit(128 + signum)
+
+
+def _trap_exit_signals() -> dict[int, Any]:
+    """Make SIGTERM, SIGHUP, and SIGQUIT raise, unless ignored (``nohup``), for ``_kill``."""
+    exits = (signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT)
+    live = [sig for sig in exits if signal.getsignal(sig) is not signal.SIG_IGN]
+    return {sig: signal.signal(sig, _exit_on_signal) for sig in live}
+
+
+def _kill(child: subprocess.Popen[str], group: bool) -> None:
+    """Kill ``child``, and with ``group`` its whole process group."""
+    if group:
+        with contextlib.suppress(OSError):  # ESRCH: gone; EPERM: only zombies left
+            os.killpg(child.pid, signal.SIGKILL)
+    child.kill()
+    if on_windows():  # pragma: no cover - join the reader threads, as subprocess.run does
+        child.communicate()
+
+
+def git(
+    args: list[str], cwd: Path | None = None, timeout: float = 60, group: bool = False
+) -> Completed:
+    return run(["git", *args], cwd=cwd, timeout=timeout, group=group)
 
 
 def repo_root(cwd: Path | None = None) -> Path | None:

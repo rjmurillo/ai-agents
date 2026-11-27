@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import os
+import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
+from types import CodeType
 from typing import Any
 
 import adr_docs
@@ -164,18 +168,110 @@ def test_a_literal_id_that_looks_like_a_suffix_never_collides(tmp_path: Path) ->
     assert len(ids) == len(set(ids)) == 3
 
 
+def _distinct_titles(count: int) -> list[str]:
+    return _entries(["D-1"] * count)
+
+
+def _one_title(count: int) -> list[str]:
+    """Twins: one id and one title, so every entry after the first needs a ``-N`` suffix."""
+    return ["## D-1 - the one decision about the build"] * count
+
+
+_SCRIPTS = str(Path(adr_log.__file__).parent) + os.sep
+# Twice the entries is twice the steps when numbering is linear, and four times when each twin
+# searches the suffixes again. Measured on 250 and 500 twins: 2.0 times as shipped, 3.7 times
+# with the search restarted from one, 2.5 times with it restarted on every sixteenth twin.
+_LINEAR_GROWTH = 2.2
+
+
+def _steps(run: Callable[[], object]) -> int:
+    """Bytecode instructions the skill's scripts execute during ``run()``.
+
+    A count, not a clock, so a loaded runner cannot change it. Work inside one C call, such as
+    a regex match or a scan of a list, is one instruction: a quadratic hidden there is not seen.
+    """
+    monitoring = sys.monitoring
+    # By convention ids 0, 1, 2 and 5 belong to debuggers, coverage, profilers and optimizers.
+    free = [i for i in (3, 4) if monitoring.get_tool(i) is None]
+    assert free, "monitoring tool ids 3 and 4 are both taken, so the step meter cannot run"
+    tool = free[0]
+    count = 0
+
+    def on_instruction(code: CodeType, _offset: int) -> None:
+        nonlocal count
+        if code.co_filename.startswith(_SCRIPTS):
+            count += 1
+
+    monitoring.use_tool_id(tool, "adr-step-meter")
+    try:
+        monitoring.register_callback(tool, monitoring.events.INSTRUCTION, on_instruction)
+        monitoring.set_events(tool, monitoring.events.INSTRUCTION)
+        run()
+    finally:
+        monitoring.set_events(tool, monitoring.events.NO_EVENTS)
+        monitoring.register_callback(tool, monitoring.events.INSTRUCTION, None)
+        monitoring.free_tool_id(tool)
+    return count
+
+
+def _numbering_steps(tmp_path: Path, entries: list[str]) -> int:
+    repo = _log(tmp_path, "decisions.md", entries)
+    found: list[dict[str, Any]] = []
+    steps = _steps(lambda: found.extend(_candidates(repo)[0]))
+    assert len({c["id"] for c in found}) == len(entries)
+    assert steps >= len(entries), "the meter counted nothing inside the skill's scripts"
+    return steps
+
+
+def _assert_steps_double(tmp_path: Path, corpus: Callable[[int], list[str]]) -> None:
+    small, large = (_numbering_steps(tmp_path, corpus(count)) for count in (250, 500))
+    assert large <= _LINEAR_GROWTH * small, (
+        f"numbering is not linear for {corpus.__name__}: {small} steps for 250 entries, "
+        f"{large} steps for 500, over the {_LINEAR_GROWTH} times bound"
+    )
+
+
+@pytest.mark.parametrize("corpus", [_distinct_titles, _one_title])
 def test_eight_thousand_entries_sharing_an_id_are_numbered_in_linear_time(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, corpus: Callable[[int], list[str]]
 ) -> None:
-    # The per-file cap would hide the quadratic search, so lift it where it exists.
+    # Two checks: all 8000 entries get distinct ids, and twice the entries cost twice the steps.
+    # The per-file caps would drop most of the 8000, so lift them. The step check runs on 250
+    # and 500 entries, which fit under both caps.
     monkeypatch.setattr(adr_log, "MAX_LOG_CANDIDATES", 10**6, raising=False)
     monkeypatch.setattr(adr_log, "MAX_LOG_ENTRIES", 10**6)
-    repo = _log(tmp_path, "decisions.md", _entries(["D-1"] * 8000))
-    started = time.perf_counter()
+    repo = _log(tmp_path, "decisions.md", corpus(8000))
     found, _ = _candidates(repo)
-    elapsed = time.perf_counter() - started
     assert len({c["id"] for c in found}) == len(found) == 8000
-    assert elapsed < 2.0
+    _assert_steps_double(tmp_path, corpus)
+
+
+def test_twins_of_one_id_and_title_are_numbered_in_file_order(tmp_path: Path) -> None:
+    repo = _log(tmp_path, "decisions.md", _one_title(4))
+    found, _ = _candidates(repo)
+    first = found[0]["id"]
+    assert first.startswith("log-D-1--")
+    assert [c["id"] for c in found] == [first, f"{first}-2", f"{first}-3", f"{first}-4"]
+
+
+def test_the_step_bound_fails_when_each_twin_searches_the_suffixes_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Negative control: the same check, on the shipped module with its counter removed."""
+    counter = "following.get(base.lower(), 1)"
+    source = Path(adr_log.__file__).read_text(encoding="utf-8")
+    assert source.count(counter) == 1, "the counter moved: point this control at it again"
+    # The mutant is this repository's own module with that one expression changed.
+    mutant: dict[str, Any] = {"__name__": adr_log.__name__, "__file__": adr_log.__file__}
+    exec(compile(source.replace(counter, "1"), adr_log.__file__, "exec"), mutant)
+    expected = [c["id"] for c in _candidates(_log(tmp_path, "decisions.md", _one_title(40)))[0]]
+    monkeypatch.setattr(adr_log, "log_candidates", mutant["log_candidates"])
+    slow = [c["id"] for c in _candidates(_log(tmp_path, "decisions.md", _one_title(40)))[0]]
+    assert slow == expected  # the mutant changes the cost of numbering, not the numbers
+    _assert_steps_double(tmp_path, _distinct_titles)  # distinct titles never search
+    # "DID NOT RAISE" below means the meter no longer sees the suffix search: the check is blind.
+    with pytest.raises(AssertionError, match="numbering is not linear"):
+        _assert_steps_double(tmp_path, _one_title)
 
 
 def test_a_log_file_keeps_at_most_the_cap_and_counts_the_rest(
