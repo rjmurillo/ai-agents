@@ -21,12 +21,13 @@ Only launch time state decides. A missing log directory at launch makes the shel
 - Launch with a missing log directory (2026-08-02): exit 1, and the marker file the command would create was never created.
 - Removing the log directory mid run: the process was still alive 2 seconds later and ran to normal completion.
 - Running `ps -p $!` through nohup and setsid printed the bash -c process, so `$!` is usable.
+- The recipe at `git/git-detached-push-dies-if-log-dir-vanishes.md:10-11` reopens the log by path with `echo REAL_EXIT=$? >> log` after the push ends. If the directory is gone by then, that append fails, so the `REAL_EXIT` line is lost even though the push finished. The claim here covers the process lifetime only, not the exit marker.
 - Limits: One Linux host, bash -c with output redirected to /dev/null. Log appends after the delete go to the unlinked inode, so the log path is unreadable even though the process lives. The 2026-08-02 incident cause is inferred to be a launch time missing directory.
 - State on main at 1be533c496 (2026-11-26): still wrong. `.serena/memories/git/git-detached-push-dies-if-log-dir-vanishes.md:14` describes a cleanup during the session. Line 15 says the redirect fails and the command never starts. The title says the process dies when the directory disappears.
 
 ## Decision
 
-When the log disappears, use `ps` to check whether the push is still running. Create the log directory with `mkdir -p` before launch. Stop if that command fails.
+When the log disappears, use `ps` to check whether the push is still running, and compare `git ls-remote` with `git rev-parse HEAD` for the result, because the `REAL_EXIT` line can be lost. Create the log directory with `mkdir -p` before launch. Stop if that command fails.
 
 The wrong state on main is tracked in the GitHub issue linked from the pull request that added this memory.
 

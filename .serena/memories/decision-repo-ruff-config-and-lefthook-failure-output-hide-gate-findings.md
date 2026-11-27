@@ -26,7 +26,7 @@ Both claims were false in fixtures. The repo ruff config (per-file-ignores and e
 
 ## Decision
 
-A gate that wraps a linter must pass --isolated, and its tests need one fixture per config path that could hide a finding. Do not put a warning on stdout of a passing job under failure only output.
+The evidence covers the unused-argument gate (`check_unused_arguments.py`), not every linter wrapper. For a gate shaped like it, consider `--isolated` and one test fixture per config path that could hide a finding. This memory records evidence from one gate, not mandatory policy for other wrappers. A warning on stdout of a passing job is dropped under lefthook failure only output (Lefthook 2.2.2 fixture), so place such a warning where failure output still shows it.
 
 ## Related
 

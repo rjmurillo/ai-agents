@@ -20,10 +20,10 @@ The prompt edit showed no measurable gain. Trial to trial noise was larger than 
 
 - E014, 102 jobs per arm in a held-out replay (2026-11-16): baseline caught 18 and treatment caught 21, with 9 caught by both, 9 by baseline only and 12 by treatment only.
 - E014: exact McNemar p = 0.6636, against a rule of p < 0.05. Two baseline trials of the same prompt disagreed on 14 of 81 defects.
-- E014: the io-portability gate caught 78 of 86 Bugbot class findings, where ruff plus existing checks caught 0 of 86.
+- E014: the io-portability gate caught 79 of 85 Bugbot class findings, where ruff plus existing checks caught 0 of 85. The 79 of 85 holds in whole file mode and in the shipped added-lines mode (`evals/third-party-review-gap/README.md:114-115`). An earlier whole file run scored 78 of 86 before two fixes (`README.md:139`).
 - E032: the prose claim check, bundled in one prompt, showed no gain. Running /review barely moved the finding count. 52 percent of findings need a file outside the diff.
 - E032: baseline noise (14 of 81 defects) was larger than the measured effect (21 vs 18).
-- Limits: A reviewer subagent recomputed p from committed results on 2026-11-15. The 78 of 86 figure scores whole file matches, but the shipped gate checks only added lines, so shipped recall is not measured. Two trials per arm, one prompt edit, replay without tools, one corpus of 237 revisions.
+- Limits: A reviewer subagent recomputed p from committed results on 2026-11-15. The deterministic replay also measured the shipped added-lines mode, so shipped recall is measured: 79 of 85 in both modes. Two trials per arm, one prompt edit, replay without tools, one corpus of 237 revisions.
 - State on main at 1be533c496 (2026-11-26): no repo artifact to fix. evals/third-party-review-gap/README.md matches: line 99 says /review barely moved the count, line 228 gives McNemar p = 0.66, line 232 gives the verdict of no measurable gain, line 238 gives the 14 of 81 disagreement, and line 339 gives the 52 percent figure.
 
 ## Decision

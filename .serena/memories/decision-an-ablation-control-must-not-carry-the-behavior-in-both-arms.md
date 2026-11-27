@@ -23,7 +23,7 @@ The old control used an implementer agent whose prompt asks for tests. Both arms
 - The grader passed a shorter wording whose replies still ended on the banned line. Reading the replies caught it.
 - Quote from the run: "Fisher's exact test, two-sided: p = 0.008."
 - Limits: One task, one model (claude-sonnet-5-5), one harness, 5 runs per arm. The Copilot harness did not run.
-- State on main at 1be533c496 (2026-11-26): fixed. `evals/recurrence-ablation/README.md:16` gives Fisher p = 0.008. Line 20 explains why both arms wrote tests. The pair now uses `neutral-editor`.
+- State on main at 1be533c496 (2026-11-26): fixed. `evals/recurrence-ablation/README.md:16` gives Fisher p = 0.008. Line 22 explains why both arms wrote tests. The pair now uses `neutral-editor`.
 
 ## Decision
 
