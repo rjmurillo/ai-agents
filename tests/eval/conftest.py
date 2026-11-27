@@ -109,9 +109,11 @@ def freeze_actionability_clock(monkeypatch: pytest.MonkeyPatch) -> None:
 
     frozen = datetime.fromisoformat(FROZEN_NOW)
 
-    class FrozenDateTime(datetime):
-        @classmethod
-        def now(cls, tz: tzinfo | None = None) -> datetime:
+    class FrozenDateTime:
+        fromisoformat = staticmethod(datetime.fromisoformat)
+
+        @staticmethod
+        def now(tz: tzinfo | None = None) -> datetime:
             if tz is None:
                 return frozen.astimezone(UTC).replace(tzinfo=None)
             return frozen.astimezone(tz)
