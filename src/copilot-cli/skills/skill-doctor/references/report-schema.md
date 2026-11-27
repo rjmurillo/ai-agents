@@ -19,7 +19,12 @@ go in `scores`.
     "notice": null,
     "per_harness": {
       "<harness>": {"scoreable": 0, "skill_candidates": 0, "sampled": 0}
-    }
+    },
+    "per_thread": {
+      "top_level": {"scoreable": 0, "sampled": 0},
+      "subagent": {"scoreable": 0, "sampled": 0}
+    },
+    "top_level_notice": null
   },
   "scores": {
     "efficiency": 0.0,
