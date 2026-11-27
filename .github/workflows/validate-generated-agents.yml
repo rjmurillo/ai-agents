@@ -87,8 +87,8 @@ jobs:
   # Whole-tree check, so no paths filter and no dependency on check-paths.
   # build_all.py --check compares every generator output against its source; a
   # filter on the diff cannot decide that, and a filtered skip would report
-  # success for a stale tree (.claude/rules/ci-scripts.md, "Path filters gate
-  # the diff, never the tree"). Same shape as instruction-budget.yml. Issue #5296.
+  # success for a stale tree (.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md,
+  # "Path filters gate the diff, never the tree"). Same shape as instruction-budget.yml. Issue #5296.
   build-all-staleness:
     name: Build-all Staleness
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
@@ -264,6 +264,8 @@ jobs:
           uv run python scripts/validation/validate_copilot_agent_frontmatter.py
           uv run python scripts/validation/validate_argument_hint.py
           uv run python scripts/validation/agent_registry.py
+          uv run python scripts/validation/check_agent_success_criterion.py
+          uv run python scripts/validation/check_orchestrator_vocabulary.py
 
       - name: Show diff on failure
         if: failure() && steps.should-run.outputs.skip != 'true'

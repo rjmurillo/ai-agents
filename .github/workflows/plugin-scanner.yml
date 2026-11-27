@@ -27,7 +27,8 @@
 # that lost points, on a pass too.
 #
 # No path filter: the score reads the whole tree, so any file can move it
-# (.claude/rules/ci-scripts.md, "Path filters gate the diff, never the tree").
+# (.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md, "Path filters gate the
+# diff, never the tree").
 #
 # Local twin: uv run --frozen python scripts/validation/check_plugin_scanner_score.py
 # (also the `plugin-scanner` pre-push job in lefthook.yml).
@@ -69,7 +70,7 @@ jobs:
           persist-credentials: false
 
       - name: Run HOL AI Plugin Scanner
-        uses: hashgraph-online/ai-plugin-scanner-action@9b169fc65d09b24726b66d70b3563ab563158b58 # v1.2.816
+        uses: hashgraph-online/ai-plugin-scanner-action@013b123a036a252a6d74ddb52836ee923498150c # v1.2.817
         with:
           plugin_dir: "."
           mode: scan

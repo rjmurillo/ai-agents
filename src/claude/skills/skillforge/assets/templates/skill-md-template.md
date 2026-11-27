@@ -71,6 +71,10 @@ metadata:
 
 ## Verification
 
+Checker: run `{{CHECKER_COMMAND}}`. It passes when {{PASS_CRITERIA}}. Fix and
+re-run at most {{ITERATIONS}} times (two or three), then report what still
+fails.
+
 After execution:
 
 - [ ] {{CHECK_1}}

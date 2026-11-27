@@ -9,7 +9,7 @@
 [Skip]
 |`scripts/ci/*_baseline.txt`: ratchet ceilings, paired with `*_ratchet.py`; us... (see: .project-toolkit/context/scripts/details/skip.md)
 [Constraints]
-|Subprocess text capture MUST pass `encoding="utf-8", errors="replace"` (`chec... (see: .project-toolkit/context/scripts/details/constraints.md)
+|Subprocess capture: use encoding="utf-8", errors="replace"; strict mode needs... (see: .project-toolkit/context/scripts/details/constraints.md)
 [Dangerous assumptions]
 |`stale_script_refs.py` matches only `.ps1`/`.psm1` command references. Becaus... (see: .project-toolkit/context/scripts/details/dangerous-assumptions.md)
 [Dependencies]

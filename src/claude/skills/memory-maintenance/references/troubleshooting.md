@@ -266,12 +266,11 @@ reads these fields:
 **Diagnosis**:
 
 ```bash
-# Verify skill location
-test -f "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" && echo "exists" || echo "not found"
-
-# List available skills
-find "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills" -name "*.py" -type f
+# Verify the skill resolves: exit 0 prints usage; exit 2 with a ptk_run: line means no plugin root holds it
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/memory/scripts/search_memory.py --help; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
 ```
+
+To list the available skill scripts, list the `.py` files under `skills/` in the plugin root that ran the command. That root is the first of `${CLAUDE_PLUGIN_ROOT}`, `${COPILOT_PLUGIN_ROOT}`, and `.claude` that holds `lib/ptk_run.py`. When that root lacks the script, the resolver runs it from a later root and names that root in a `ptk_run: note:` line on stderr.
 
 **Solutions**:
 
@@ -290,14 +289,13 @@ find "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills" -name "*.py
 
 **Diagnosis**:
 
-```bash
-# Check the module file
-test -f "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/memory_core/memory_router.py" && echo exists || echo missing
+Check that `skills/memory/memory_core/memory_router.py` exists under the root that ran the command above, then:
 
+```bash
 # Test the import the same way the tests do
 uv run python -c "
 import os, sys
-_root = os.environ.get('COPILOT_PLUGIN_ROOT') or os.environ.get('CLAUDE_PLUGIN_ROOT') or '.claude'
+_root = next((d for d in (os.environ.get('CLAUDE_PLUGIN_ROOT'), os.environ.get('COPILOT_PLUGIN_ROOT'), '.claude') if d and os.path.isfile(f'{d}/lib/ptk_run.py')), '.claude')
 sys.path.insert(0, f'{_root}/skills/memory')
 from memory_core.memory_router import search_memory
 print('OK')

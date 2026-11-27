@@ -1,7 +1,7 @@
 ---
 id: ADR-057
 status: accepted
-date: 2026-10-02
+date: 2026-11-25
 decision-makers: [architect, user]
 supersedes: []
 superseded-by: null
@@ -86,10 +86,10 @@ Each evaluation consists of:
 
 ### Acceptance Gate
 
-The acceptance gate returns FAIL on a regression. It does not mandate an improvement on every edit, and no CI check blocks a merge on its result (see Amendment 2026-10-02 and ADR-114). A prompt change passes behavioral evaluation when these criteria hold:
+The acceptance gate returns FAIL on a regression. It does not mandate an improvement on every edit, and no CI check blocks a merge on its result (see Amendment 2026-10-02 and ADR-114). The one exception is an ADR-127 gated skill change, where the deterministic evidence check blocks a recomputed FAIL and any missing or invalid evidence (Amendment 2026-11-25). A prompt change passes behavioral evaluation when these criteria hold:
 
 1. `after_score >= before_score` (no regression on existing scenarios). Both scores cover only scenarios with a stable base result; see criterion 4.
-2. No scenario with a stable base result flips from pass to fail. A scenario passes on its verdict alone (the controlled label the grader is told to emit); the free-text reason never decides pass or fail. Every such pass-to-fail flip is recorded in `regressions` and blocks the gate automatically; the gate has no mechanism to accept a "justified" regression. The gate returns FAIL, but no CI check blocks a merge on that result. The `/spec` eval in `.github/workflows/slash-command-quality.yml` runs only after a reviewer approves the `agent-claude` environment, and its check is non-blocking (see Amendment 2026-10-02). A deliberate behavior change still lands by updating the scenario expectations alongside the prompt in the same change, so the new expectations move with the intended behavior and the gate passes when it is run. A reviewer who sees a FAIL, or no eval run at all, carries the judgment at PR review (see Amendment 2026-07-22).
+2. No scenario with a stable base result flips from pass to fail. A scenario passes on its verdict alone (the controlled label the grader is told to emit); the free-text reason never decides pass or fail. Every such pass-to-fail flip is recorded in `regressions` and blocks the gate automatically; the gate has no mechanism to accept a "justified" regression. The gate returns FAIL, but no CI check blocks a merge on that result, except for an ADR-127 gated skill change (Amendment 2026-11-25). The `/spec` eval in `.github/workflows/slash-command-quality.yml` runs only after a reviewer approves the `agent-claude` environment, and its check is non-blocking (see Amendment 2026-10-02). A deliberate behavior change still lands by updating the scenario expectations alongside the prompt in the same change, so the new expectations move with the intended behavior and the gate passes when it is run. An ADR-127 gated skill change is the exception: scenarios, including any dropped through `retired.json`, land in a commit before the first commit that touches the skill (its `templates/skills/<name>.SKILL.md.tmpl` or any file under `src/claude/skills/<name>/` or `.claude/skills/<name>/`, `scripts/` included) and then stay frozen, and a kept scenario's `expected_verdict` may not change (Amendment 2026-11-25). A reviewer who sees a FAIL, or no eval run at all, carries the judgment at PR review (see Amendment 2026-07-22).
 3. Flakiness on any scenario stays at or below the 40% block threshold.
 4. A stable baseline exists. A base scenario is unstable when it meets the pass threshold without passing every scored run (`is_base_unstable`: `passed` and `flaky`), or when it was scored on fewer runs than the tier requires (3 non-security, 5 security; the constants behind `insufficient_scored_before`). Stability is judged on scored runs, not requested runs. The base prompt never changes, so a swing is sampling noise, and a base scored once says nothing about stability. A base that fails the threshold (for example 1 of 3) is not unstable: it satisfies the baseline and cannot regress, which is intended. An unstable scenario is excluded from `regressions` and from both scores, and is reported in `base_unstable_scenarios` (in `base_unstable_security_scenarios` on the security tier) with `excluded_count`. The comparison is conclusive only when `scored_scenario_count >= max(1, ceil(total_scenarios / 2))` (`has_stable_baseline`). Below that floor the verdict is FAIL with an `inconclusive_reason` naming the stable and total counts. A comparison that omits `scored_scenario_count` derives the stable count from the gate's own exclusion set, and a supplied count can only lower it. A base that passes every scored run while the after side misses the pass threshold is still a regression.
 
@@ -109,7 +109,7 @@ That outcome contradicts the gate's stated purpose: regression prevention (Decis
 
 Relaxation: `has_improvement` is dropped as a hard pass requirement in `eval-prompt-change.py acceptance_gate()`. The gate now passes when `no_regression AND no_unexplained_regressions AND no_high_flakiness` hold (plus the security-critical 100%-pass requirement when applicable). `has_improvement` is still computed and reported in the gate criteria for visibility.
 
-The FAIL verdict on a regression is preserved. Every pass-to-fail flip records the scenario in `regressions`, so `no_unexplained_regressions` fails and the gate returns FAIL when it runs. This holds even when an offsetting improvement keeps `after_score` flat (so `no_regression` stays true): the `regressions` list, not the score delta, is the authoritative verdict signal. The security-critical 100%-pass requirement is untouched: a security-critical run below 100% pass rate still returns FAIL regardless of improvement state. Returning FAIL does not block a merge; a reviewer acts on it (see Amendment 2026-10-02).
+The FAIL verdict on a regression is preserved. Every pass-to-fail flip records the scenario in `regressions`, so `no_unexplained_regressions` fails and the gate returns FAIL when it runs. This holds even when an offsetting improvement keeps `after_score` flat (so `no_regression` stays true): the `regressions` list, not the score delta, is the authoritative verdict signal. The security-critical 100%-pass requirement is untouched: a security-critical run below 100% pass rate still returns FAIL regardless of improvement state. Returning FAIL does not block a merge; a reviewer acts on it (see Amendment 2026-10-02). An ADR-127 gated skill change is the exception (Amendment 2026-11-25).
 
 #### Security-Critical Prompt Tier
 
@@ -132,9 +132,9 @@ For non-security prompts, when a scenario produces inconsistent results across r
 
 | Trigger | Level | Enforced By | Rationale |
 |---------|-------|-------------|-----------|
-| Prompt change alters instructions, thresholds, or decision logic | MUST (obligation to run) | Enforcement advisory: run eval-prompt-change.py before PR; PR review verifies. No commit-time auto-block, and no blocking CI leg; the `/spec` CI leg runs only after environment approval and is non-blocking (see Amendments 2026-07-22 and 2026-10-02) | Direct behavioral impact |
+| Prompt change alters instructions, thresholds, or decision logic | MUST (obligation to run) | Enforcement advisory: run eval-prompt-change.py before PR; PR review verifies. No commit-time auto-block, and no blocking CI leg except for ADR-127 gated skill changes; the `/spec` CI leg runs only after environment approval and is non-blocking (see Amendments 2026-07-22, 2026-10-02, and 2026-11-25) | Direct behavioral impact |
 | Prompt change alters text structure only | N/A | N/A (structural tests suffice) | No behavioral risk |
-| Ambiguous (rewording that may shift semantics) | MUST (obligation to run) | Enforcement advisory: run eval-prompt-change.py before PR; PR review verifies. No commit-time auto-block, and no blocking CI leg; the `/spec` CI leg runs only after environment approval and is non-blocking (see Amendments 2026-07-22 and 2026-10-02) | When in doubt, treat as behavioral |
+| Ambiguous (rewording that may shift semantics) | MUST (obligation to run) | Enforcement advisory: run eval-prompt-change.py before PR; PR review verifies. No commit-time auto-block, and no blocking CI leg except for ADR-127 gated skill changes; the `/spec` CI leg runs only after environment approval and is non-blocking (see Amendments 2026-07-22, 2026-10-02, and 2026-11-25) | When in doubt, treat as behavioral |
 | Monthly for prompts under active iteration | SHOULD | Not automated (manual cadence) | Detect model drift |
 | After Anthropic model version bump | SHOULD | Not automated (manual trigger) | Catch interpretation shifts |
 
@@ -215,7 +215,7 @@ Define targeted scenarios with expected verdicts. Run before/after comparison on
 
 ### Positive
 
-- Behavioral regressions are no longer caught automatically before merge. The `/spec` eval runs only when a human approves the `agent-claude` environment, and its check never blocks; for every in-scope prompt file the eval is advisory at PR review (see Amendments 2026-07-22 and 2026-10-02)
+- Behavioral regressions are no longer caught automatically before merge. The `/spec` eval runs only when a human approves the `agent-claude` environment, and its check never blocks; for every in-scope prompt file outside ADR-127 gated changes the eval is advisory at PR review (see Amendments 2026-07-22, 2026-10-02, and 2026-11-25)
 - Evaluation results are versioned and reproducible
 - Model drift is detectable through scheduled reruns
 - Completes the testing story that ADR-023 left open
@@ -254,7 +254,7 @@ These gates run inside `eval-prompt-change.py`. They fire whenever the eval runn
 
 | Rule | Why Not Automated | Mitigation |
 |------|-------------------|------------|
-| Prompt/skill/agent changes require eval evidence | No commit-time hook (deleted in #3184); no CI leg blocks (the `/spec` leg is approval-gated and non-blocking), broader CI automation deferred (below) | PR reviewer checks for eval evidence; advisory for every prompt, including the `/spec` CI leg |
+| Prompt/skill/agent changes require eval evidence | No commit-time hook (deleted in #3184); no CI leg blocks (the `/spec` leg is approval-gated and non-blocking), broader CI automation deferred (below). One exception: an ADR-127 gated skill change is blocked by `check_skill_rewrite_evidence.py` (Amendment 2026-11-25) | PR reviewer checks for eval evidence; advisory for every prompt outside ADR-127 gated changes, including the `/spec` CI leg |
 | >= 1 scenario per decision branch | Requires understanding prompt semantics | PR reviewer checks scenario adequacy |
 | >= 1 regression scenario | Same | PR reviewer checks |
 | Monthly drift reruns | Scheduling concern, not commit-time | Manual cadence, future cron job |
@@ -264,7 +264,7 @@ These gates run inside `eval-prompt-change.py`. They fire whenever the eval runn
 
 ### Enforcement Path
 
-- **Current**: No commit-time gate. The deleted PreToolUse hook that nominally blocked commits (`invoke_prompt_eval_gate.py`) was inert (it printed `{"decision":"deny"}` with exit 0, a payload the Claude Code harness ignores) and was removed in #3184. One CI leg runs the eval but does not block: `.github/workflows/slash-command-quality.yml` runs the `eval-prompt-change.py` acceptance gate against `.claude/skills/spec/SKILL.md` on same-repo PRs that change the `/spec` command, its scenario set (`tests/evals/spec-scenarios.json`), or the eval runner, only after a reviewer approves the `agent-claude` environment, and its workflow is listed in `advisory_agent_workflows` so its check never blocks a merge (Amendment 2026-10-02, ADR-114). That leg covers the `/spec` command only. For every other prompt, skill, and agent file the eval evidence requirement is advisory, verified at PR review. The `eval-prompt-change.py` acceptance gate enforces regression, flakiness, and security-critical rules only when it is run.
+- **Current**: No commit-time gate. The deleted PreToolUse hook that nominally blocked commits (`invoke_prompt_eval_gate.py`) was inert (it printed `{"decision":"deny"}` with exit 0, a payload the Claude Code harness ignores) and was removed in #3184. One CI leg runs the eval but does not block: `.github/workflows/slash-command-quality.yml` runs the `eval-prompt-change.py` acceptance gate against `.claude/skills/spec/SKILL.md` on same-repo PRs that change the `/spec` command, its scenario set (`tests/evals/spec-scenarios.json`), or the eval runner, only after a reviewer approves the `agent-claude` environment, and its workflow is listed in `advisory_agent_workflows` so its check never blocks a merge (Amendment 2026-10-02, ADR-114). That leg covers the `/spec` command only. For every other prompt, skill, and agent file the eval evidence requirement is advisory, verified at PR review, except an ADR-127 gated skill change, which `scripts/validation/check_skill_rewrite_evidence.py` blocks without committed evidence (Amendment 2026-11-25). The `eval-prompt-change.py` acceptance gate enforces regression, flakiness, and security-critical rules only when it is run.
 - **Not automated**: Scenario adequacy, monthly cadence, cost tracking. These require human judgment or scheduling infrastructure not yet built.
 - **Future**: Broader CI automation of eval runs, beyond the `/spec` leg that already ships. Deferred until the eval runner stabilizes and the cost model is validated.
 
@@ -274,7 +274,7 @@ The original ADR claimed a deleted Claude Code PreToolUse hook (`invoke_prompt_e
 
 #3184 deleted the inert hook. This amendment corrects the resulting torn references (the Acceptance Gate note, the "When to Run" and "Confirmation" tables, the Consequences list, the Enforcement Path, and the dependent-components table) so the ADR no longer points at a deleted file or asserts an automated block that never existed, and it scopes the one real block (the `/spec` CI leg) precisely.
 
-Decision (Deliverable B of #3185): keep **enforcement** of the eval evidence requirement advisory (PR review) for every prompt file, including the `/spec` CI leg after Amendment 2026-10-02; the contributor obligation to run the eval on a behavioral change stays MUST. Do not add a new blocking gate. (Written when the `/spec` leg blocked; it no longer does, see Amendment 2026-10-02.) Rationale:
+Decision (Deliverable B of #3185): keep **enforcement** of the eval evidence requirement advisory (PR review) for every prompt file, including the `/spec` CI leg after Amendment 2026-10-02; the contributor obligation to run the eval on a behavioral change stays MUST. Do not add a new blocking gate. (Written when the `/spec` leg blocked; it no longer does, see Amendment 2026-10-02. Amendment 2026-11-25 adds one deterministic gate, scoped to ADR-127 gated changes.) Rationale:
 
 - The hook-ROI reduction program (#3197) is removing gates and re-homing them into deterministic layers, not adding new blocking hooks.
 - Two distinct automation options exist, and they are not the same deliverable. Option 1 is Deliverable A of #3185: deterministic evidence enforcement (check that eval evidence exists for a changed prompt file) in `scripts/validation/pre_pr.py` plus a CI leg. It needs no LLM and no cost model, reusing changed-path detection (the paths-filter mechanism the `/spec` leg uses to trigger) and then checking for committed eval evidence; it is deferred only on ROI grounds. Option 2 is separate and out of scope for Deliverable A: running the behavioral evals themselves in CI on every prompt change, which spawns LLM calls per change and stays deferred until the cost model is validated.
@@ -307,11 +307,107 @@ Decision: a provider outage exits 3 (ADR-035 external failure) and prints `ERROR
 
 A billing error (`error=billing`) is checked first and exits 4. Any other execution fault exits 3 with `ERROR: eval failed`. The caller decides whether to tolerate exit 3. The `/spec` CI leg stays advisory under ADR-114, so a red outage leg does not block a merge.
 
+## Amendment 2026-11-25 (ADR-127 decision 9): a deterministic check blocks gated skill changes
+
+ADR-127 decision 7 makes this runner the acceptance gate for a skill rewrite, which it calls a gated change.
+Decision 9 requires a check that enforces that gate in code. The 2026-07-22 amendment said "Do not add a new blocking gate."
+It also named `pre_pr.py` plus a CI leg as the path for a later deterministic gate (Deliverable A of #3185).
+This amendment takes that path, for gated changes only.
+
+Decision:
+
+1. `scripts/validation/check_skill_rewrite_evidence.py` blocks a gated change that lacks valid evidence.
+   `pre_pr.py` runs it as the `Skill Rewrite Evidence (ADR-127)` gate.
+   `pr-validation.yml` runs it as the `Check ADR-127 skill rewrite evidence` step of `Validate PR`.
+   It is deterministic and calls no model. ADR-114 is unchanged: no agent verdict blocks a merge.
+2. Every other prompt file stays advisory. That includes a prose edit to an untagged or `reference` skill.
+   The MUST to run the eval stays with the author, read at review.
+3. The runner's `--output` gains an `identity` block. It records the prompt path and the sha256 of the exact after-side text the model read.
+   That text is the rendered `SKILL.md` plus every `references/*.md` beside it.
+   It also records the scenario path and sha256, the `--base-ref` name, the commit it resolved to, and the model.
+   A value the runner cannot resolve is written as `null`. The check fails closed on it.
+   Pass `--prompt` as the repository-relative rendered path, such as `src/claude/skills/ship/SKILL.md`. Any other form fails the path match.
+   This adds output fields only. The text sent to the model does not change.
+4. The check reads the diff from the merge base to the commit under test.
+   CI passes the PR head commit, so CI hashes the tree the author ran the eval on, not the synthetic merge commit.
+   A skill is gated when any of these holds:
+   its `metadata.shape` changes, except adding `reference` where none existed;
+   it is a `driver` on either side and its prompt surface changed;
+   the branch touches `evals/skill-rewrites/<name>/`, which is how an author declares a gap-audit row;
+   or at least 3 lines of 32 or more characters leave `SKILL.md` and reappear in `references/`.
+   Precision is inferred from 5 hits, and recall is unknown. A reworded or split move slips past it.
+5. A new skill has no base to hold against, and a deleted skill has nothing to run, so neither is gated.
+   A new skill that lands beside a deleted one may be a rename, so it is gated. Its eval uses the runner's `--renamed-from`.
+   This reads ADR-127 decision 7, trigger 1, as not covering a brand-new driver. Read literally, that trigger would block every new driver forever: the carried floor needs base runs that cannot exist.
+   The ADR-127 owner confirmed this reading on 2026-11-25, and ADR-127 decision 7 now states it. A new driver still owes the decision 8 tests.
+6. For a gated skill the check requires `tests/evals/<name>-scenarios.json` and a results file under `evals/skill-rewrites/<name>/`.
+   Candidates are the results files that record the head prompt-surface sha256.
+   The one committed first sets the verdict. A matching file already on the base ref counts as first, since that surface was evaluated before.
+   It must match the other three identities too.
+   Its base commit must be an ancestor of the base ref.
+   The check recomputes each run's pass from its verdict label and the scenario file. It never reads `gate.verdict` as truth.
+   It then calls the runner's own `acceptance_gate`. A file whose recorded verdict disagrees with its runs fails.
+7. It enforces the ADR-127 decision 7 floors the runner does not compute.
+   The file needs at least 8 scenarios, and at least 6 must pass every scored base run.
+   A scenario that fails or is unstable on base must pass every scored after run.
+8. It enforces the scenario rules of decision 7 items 8 and 10.
+   The scenario file may not change in or after the first commit that touches the skill. A merge's own edits count.
+   A kept scenario may not change its `expected_verdict` since the merge base.
+   A scenario dropped since the merge base needs a row in `retired.json` naming a test that exists at head.
+9. Results files are append-only on the branch (decision 7 item 9). An edit, a delete, or a second add of the same path fails.
+10. A gated branch may not also change the runner (`scripts/eval/eval-prompt-change.py` or `scripts/eval/_*`), the check's three modules, its `pre_pr` registration, or `pr-validation.yml`.
+
+Rollback: a false block is fixed by one PR that removes the CI step and the `pre_pr` registration.
+The check has no skip flag, so a revert is the only way past it.
+
+Security seat recommendation (ADR-127 review): adopted, as an allowlist. This rule goes past decision 9.
+A skill the branch touches that is tagged `reference` may hold only these tools: Read, Grep, Glob, LS, Skill, TodoWrite, WebFetch, WebSearch, AskUserQuestion, and the working-tree write tools.
+Delegation tools (Task, Agent) fail, since a subagent can hold any grant.
+It may also hold a read-only MCP tool, a read-only Bash command such as `git diff`, or a Bash grant that runs its own `scripts/`.
+A Bash grant fails when it holds `..`, a shell operator, or a git flag that writes or runs a program (`--output`, `--ext-diff`, `-O`).
+`git grep` is not on the list. A write tool beside any Bash grant fails. The model could write a script, or a git config that sets `diff.external`, and run it.
+Any other grant fails. A list-form `allowed-tools` is read the same way as a string.
+A wider grant lets the model act as a driver, so the tag would dodge the driver trigger.
+A reference skill whose own script pushes is still a driver. A reviewer owns that case.
+At `c0b72f8539` (2026-11-25) no template sets `metadata.shape`, so the rule blocks no current file.
+
+Limits, which stay with the reviewer:
+
+- The check cannot prove a model ran. A hand-built results file with matching hashes passes.
+- The branch history is the author's. A rebase can drop a failed run or reorder the scenario commit before the check reads it.
+- A PR that edits the check or the runner changes what the check does. Item 10 stops honest drift only. CODEOWNERS covers `scripts/validation/` but not `scripts/eval/`.
+- The results file states `security_critical`. Nothing records which skills are security-critical.
+- The base commit is only proved to be an ancestor of the base ref, not the exact fork point.
+- A `pull_request` run uses the PR's own copy of `pr-validation.yml`, so a PR can edit the step out. CODEOWNERS covers `.github/workflows/`.
+- The check reads the PR head. If `main` edits the same skill, the merged tree is never evaluated.
+- In CI the runner module loads from the merge-commit tree while blobs are read at the PR head. A `main` change to the runner's hashing would show as an identity mismatch.
+- In the merge queue, the check reads the queued tree. A second queued PR that edits the same skill fails, because no results file records the combined surface.
+- The checkout leaves its token in `.git/config` for the whole job. Earlier steps in the job run PR code the same way.
+- The grant rule reads the grant text. A `*` in a grant lets the model add flags when it runs, so `Bash(git diff:*)` can still take `--output`.
+- The own-script grant accepts any path prefix before `skills/<name>/scripts/`, so it does not prove the path is inside the plugin root.
+- A read-only MCP tool is judged by its name. A write tool with a read verb in its name and no write word passes.
+- A symlinked reference file hashes as its link text in the check, while the runner reads the target. The two then disagree and the check fails closed.
+
+What stays manual, because no mechanical test was found:
+
+- An untagged skill that ADR-127 decision 1 says must be a driver.
+- A step moved into a script. Prose and code share no lines to match.
+- A section moved and reworded in the same change.
+- A gap-audit row the author does not declare.
+- The three-first-runs cap, and the base-run output the scenario commit must carry (decision 7 items 8 and 9).
+
+Measurement behind item 4: an earlier draft gated any added `scripts/` or `references/` file plus a removed `SKILL.md` line.
+Over the 400 first-parent commits of `main` to `c0b72f8539` (2026-11-25), it fired on 51 skill changes, mostly feature adds.
+The verbatim-line rule fired on 5 skill changes in 4 commits over the same range at `c0b72f8539` (2026-11-25).
+In each, `SKILL.md` shrank and a reference file gained the removed lines. No labeled set of missed moves exists, so the miss rate is unknown.
+
+Debate log: `.project-toolkit/critique/ADR-057-debate-log-2.md`.
+
 ## Reversibility Assessment
 
 | Criterion | Assessment |
 |-----------|------------|
-| Rollback capability | Methodology can be dropped without affecting prompts or structural tests |
+| Rollback capability | Methodology can be dropped without affecting prompts or structural tests. The ADR-127 evidence gate (Amendment 2026-11-25) reverts with one PR that removes its CI step and `pre_pr` registration; it has no skip flag |
 | Vendor lock-in | Uses Anthropic API (already a project dependency) |
 | Exit strategy | Revert to manual testing or evolve to golden corpus |
 | Legacy impact | None. Additive to ADR-023. |
@@ -325,13 +421,15 @@ A billing error (`error=billing`) is checked first and exits 4. Any other execut
 |-----------|----------------|-----------------|------|
 | ADR-023 structural tests | Complementary | Add cross-reference to this ADR | Low |
 | PR template | Direct | Add eval score reporting fields | Low |
-| CI workflows | Indirect | `/spec` evals run as an approval-gated, non-blocking CI leg (`.github/workflows/slash-command-quality.yml`); other prompt files are not CI-enforced yet | Low |
+| CI workflows | Indirect | `/spec` evals run as an approval-gated, non-blocking CI leg (`.github/workflows/slash-command-quality.yml`). `Validate PR` (`.github/workflows/pr-validation.yml`) runs the deterministic ADR-127 evidence check, which blocks gated skill changes only. Other prompt files are not CI-enforced | Low |
+| `scripts/eval/eval-prompt-change.py` | Direct | `--output` carries an `identity` block (Amendment 2026-11-25) | Low |
 | `.project-toolkit/testing/prompt-eval-methodology.md` | Source document | Add ADR-057 back-reference | Low |
 
 ## Related Decisions
 
 - [ADR-023](ADR-023-quality-gate-prompt-testing.md): Structural validation for quality gate prompts. This ADR fills the behavioral gap ADR-023 explicitly deferred.
 - [ADR-010](ADR-010-quality-gates-evaluator-optimizer.md): Quality gate patterns. Behavioral evals extend the quality gate concept to prompt correctness.
+- [ADR-127](ADR-127-workflow-skills-are-script-drivers.md): Decision 7 makes this runner the gate for skill rewrites. Decision 9 requires the evidence check that Amendment 2026-11-25 records.
 
 ## References
 

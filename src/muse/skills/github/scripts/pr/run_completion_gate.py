@@ -4124,8 +4124,9 @@ def _resolve_or_none(path: Path) -> Path | None:
     3.14 returns the unresolved path without raising. ``RuntimeError`` is
     not an ``OSError``, so an ``except OSError`` guard lets the loop escape
     as an unhandled traceback on exactly the interpreters the repo's
-    hook-portability floor targets (``.claude/rules/python.md``: skill
-    scripts run under the host's ambient interpreter, floor 3.10).
+    hook-portability floor targets (the ``build`` skill's
+    ``references/rule-python.md``: skill scripts run under the host's
+    ambient interpreter, floor 3.10).
 
     Measured rather than assumed: grep of ``pathlib.py`` in the 3.10, 3.11
     and 3.12 stdlibs shows the raise; 3.14 returned the path for the same
