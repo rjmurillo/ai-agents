@@ -302,3 +302,69 @@ def test_gate_judges_a_quote_after_a_quote_inside_a_code_span(
     code, out = _run(root, capsys)
 
     assert code == expected, out
+
+
+# CommonMark pairs only equal-length backtick runs. An unmatched run is
+# literal text, so it must not hide a later quoted anchor (Sol WS2B round 2).
+
+
+def _unmatched_run_line(target_line: int) -> str:
+    return f'See `` then "return 1" \\` in {TARGET}:{target_line}.'
+
+
+def test_an_unmatched_backtick_run_does_not_hide_a_quoted_anchor() -> None:
+    line = _unmatched_run_line(4)
+    citation = f"{TARGET}:4"
+
+    anchors = _anchor_candidates([line], citation)
+
+    assert "return 1" in anchors
+
+
+@pytest.mark.parametrize(("target_line", "expected"), [(4, 0), (5, 1)])
+def test_gate_judges_a_quote_after_an_unmatched_backtick_run(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], target_line: int, expected: int
+) -> None:
+    root = _repo(tmp_path)
+    _add_doc(root, "docs/inventory.md", _unmatched_run_line(target_line) + "\n")
+
+    code, out = _run(root, capsys)
+
+    assert code == expected, out
+
+
+# A shorter run inside a longer valid span is code content. It must not close
+# the span or hide the later quoted anchor (Sol WS2B round 2).
+
+
+def _nested_run_line(target_line: int) -> str:
+    return f'See ``print(`"`` in {SOURCE}:1, then "return 1" in {TARGET}:{target_line}.'
+
+
+def test_a_nested_backtick_run_does_not_hide_the_later_quoted_anchor() -> None:
+    line = _nested_run_line(4)
+    matches = list(_CITATION.finditer(line))
+    second = len(matches) - 1
+
+    segment = _same_line_segment(line, matches, second)
+    anchors = _anchor_candidates([segment], matches[second].group(0))
+
+    assert "return 1" in anchors
+
+
+def _nested_run_repo(tmp_path: Path, target_line: int) -> Path:
+    root = _repo(tmp_path)
+    (root / SOURCE).write_text('print(`"\n', encoding="utf-8")
+    _add_doc(root, "docs/inventory.md", _nested_run_line(target_line) + "\n")
+    return root
+
+
+@pytest.mark.parametrize(("target_line", "expected"), [(4, 0), (5, 1)])
+def test_gate_judges_a_quote_after_a_nested_backtick_run(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], target_line: int, expected: int
+) -> None:
+    root = _nested_run_repo(tmp_path, target_line)
+
+    code, out = _run(root, capsys)
+
+    assert code == expected, out

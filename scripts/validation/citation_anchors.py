@@ -21,6 +21,11 @@ import re
 from pathlib import PurePosixPath
 
 from check_adr_links import ADR_BASENAME, adr_number
+from citation_code_spans import (
+    _BACKTICK_SPAN,
+    _mask_dquotes_in_backtick_spans,
+    _mask_escaped_backticks,
+)
 from citation_continuations import (
     _EXTENSIONS as _EXTENSIONS,
 )
@@ -56,7 +61,8 @@ _CITATION = re.compile(
 )
 
 _URL = re.compile(r"https?://\S+")
-_BACKTICK_SPAN = re.compile(r"`+([^`]+)`+")
+
+
 # Double-quoted phrases are anchors too: prose quotes the cited contract
 # ('a KEEP_PIN sweep must cover "at least 8 shared fixtures"'). Minimum 4
 # chars so quoted articles and flags stay out.
@@ -290,49 +296,6 @@ def _context_lines(
         if _indent_width(following) <= own_indent and not _blocks(line_index + 1):
             context.append(following)
     return context
-
-
-def _mask_escaped_backticks(text: str) -> str:
-    """Blank each backslash-escaped backtick outside a code span, keeping length.
-
-    Outside a span it is a literal, not a delimiter. Inside a span the
-    backslash is literal, so the backtick still closes the span.
-    """
-    if "\\`" not in text:
-        return text
-    out = list(text)
-    in_span = False
-    i = 0
-    while i < len(text):
-        char = text[i]
-        if char == "\\" and not in_span:
-            if text[i + 1 : i + 2] == "`":
-                out[i] = out[i + 1] = " "
-            i += 2
-            continue
-        if char == "`":
-            while i < len(text) and text[i] == "`":
-                i += 1
-            in_span = not in_span
-            continue
-        i += 1
-    return "".join(out)
-
-
-def _mask_dquotes_in_backtick_spans(text: str) -> str:
-    """Blank double quotes inside backtick spans, keeping length.
-
-    A quote inside a code span is code content, not a prose-quote delimiter.
-    Treating it as one pairs it with a later anchor quote and hides that anchor.
-    """
-    if '"' not in text or "`" not in text:
-        return text
-    out = list(text)
-    for match in _BACKTICK_SPAN.finditer(text):
-        for index in range(match.start(), match.end()):
-            if out[index] == '"':
-                out[index] = " "
-    return "".join(out)
 
 
 def _snap_out_of_tokens(text: str, point: int, low: int, high: int) -> int:

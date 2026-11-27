@@ -92,10 +92,34 @@ uv run pytest .project-toolkit/security/benchmarks/ -v
 The security agent workflow now fetches CodeQL alerts before manual review:
 
 ```bash
-# Fetch open CodeQL alerts for this checkout's current branch through the GitHub API
-env -u GH_REPO gh api --method GET repos/{owner}/{repo}/code-scanning/alerts \
-  -f "ref=refs/heads/$(git branch --show-current)" \
-  --jq '.[] | select(.state=="open")'
+# Resolve the repository from origin explicitly. GitHub CLI placeholders can
+# resolve a different remote when origin and upstream both exist.
+repo="$(uv run python -c 'from scripts.github_core.api import get_repo_info; i=get_repo_info(); print(f"{i.owner}/{i.repo}" if i else "")')"
+if [ -z "$repo" ]; then
+  echo "Could not resolve a GitHub repository from origin." >&2
+  exit 2
+fi
+
+# For a pull request scan, set scan_ref first:
+#   scan_ref=refs/pull/<number>/merge
+# On an attached branch, an empty scan_ref uses the current branch. A detached
+# checkout cannot identify its scan ref and must set scan_ref explicitly.
+scan_ref="${scan_ref:-}"
+if [ -z "$scan_ref" ]; then
+  branch="$(git branch --show-current)"
+  if [ -z "$branch" ]; then
+    echo "Set scan_ref explicitly, for example scan_ref=refs/pull/<number>/merge." >&2
+    exit 2
+  fi
+  scan_ref="refs/heads/$branch"
+fi
+
+# Fetch every open CodeQL alert for the scan ref through the GitHub API
+env -u GH_REPO gh api --method GET "repos/$repo/code-scanning/alerts" \
+  -f state=open \
+  -f "ref=$scan_ref" \
+  --paginate \
+  --jq '.[]'
 ```
 
 This ensures the agent reviews all automated findings before producing its assessment.
