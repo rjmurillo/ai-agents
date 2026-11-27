@@ -767,19 +767,40 @@ class TestMain:
         data = json.loads(capsys.readouterr().out)["Data"]
         assert "Validate PR" in data["FailingRequired"]
 
-    def test_pending_required_exits_1(self, capsys):
-        gql = _gql_pr(
-            merge_state_status="BLOCKED",
-            overall_state="PENDING",
-            check_nodes=[
+    @pytest.mark.parametrize(
+        ("merge_state", "overall_state", "check_node", "expected_field", "expected_value"),
+        [
+            pytest.param(
+                "BLOCKED",
+                "PENDING",
                 _check_run_node(
                     "Validate PR",
                     "",
                     required=True,
                     run_number=101,
                     status="IN_PROGRESS",
-                )
-            ],
+                ),
+                "PendingRequired",
+                ["Validate PR"],
+                id="pending-required",
+            ),
+            pytest.param(
+                "DIRTY",
+                "SUCCESS",
+                _check_run_node("Validate PR", "SUCCESS"),
+                "MergeStateStatus",
+                "DIRTY",
+                id="dirty-merge-state",
+            ),
+        ],
+    )
+    def test_pending_or_dirty_exits_1(
+        self, capsys, merge_state, overall_state, check_node, expected_field, expected_value
+    ):
+        gql = _gql_pr(
+            merge_state_status=merge_state,
+            overall_state=overall_state,
+            check_nodes=[check_node],
         )
         with (
             patch("why_pr_blocked.assert_gh_authenticated"),
@@ -798,7 +819,7 @@ class TestMain:
         assert rc == 1
         data = json.loads(capsys.readouterr().out)["Data"]
         assert data["HasBlocker"] is True
-        assert data["PendingRequired"] == ["Validate PR"]
+        assert data[expected_field] == expected_value
 
     def test_unresolved_threads_exits_1(self, capsys):
         gql = _gql_pr(
@@ -823,31 +844,6 @@ class TestMain:
         assert rc == 1
         data = json.loads(capsys.readouterr().out)["Data"]
         assert data["UnresolvedThreads"] == 2
-
-    def test_dirty_merge_state_exits_1(self, capsys):
-        gql = _gql_pr(
-            merge_state_status="DIRTY",
-            overall_state="SUCCESS",
-            check_nodes=[_check_run_node("Validate PR", "SUCCESS")],
-        )
-        with (
-            patch("why_pr_blocked.assert_gh_authenticated"),
-            patch(
-                "why_pr_blocked.resolve_repo_params",
-                return_value=RepoInfo(owner="o", repo="r"),
-            ),
-            patch("why_pr_blocked.gh_graphql", return_value=gql),
-            patch(
-                "why_pr_blocked.fetch_branch_rules",
-                return_value=_rules(["Validate PR"]),
-            ),
-        ):
-            rc = main(["--pull-request", "42", "--output-format", "json"])
-
-        assert rc == 1
-        data = json.loads(capsys.readouterr().out)["Data"]
-        assert data["HasBlocker"] is True
-        assert data["MergeStateStatus"] == "DIRTY"
 
     def test_uses_pr_base_branch_by_default(self, capsys):
         gql = _gql_pr(
