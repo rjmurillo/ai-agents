@@ -1,7 +1,7 @@
 ---
 name: context-gather
 version: 1.1.1
-description: Gather comprehensive context from Serena memory, Context7 docs, DeepWiki, and web sources before planning or implementation. Searches across all knowledge tiers and returns a focused summary ending in a CONTEXT_LOADED marker that this skill scans to skip a repeat fetch in the same conversation. Use when you say "gather context before planning", "what do we know before I start". Do NOT use for compressing or placing skill text (use context-optimizer).
+description: "Gather context from Serena memory, Context7, DeepWiki, and web before planning; returns a summary ending in a CONTEXT_LOADED marker. Use when you say \"gather context before planning\", \"what do we know before I start\". Do NOT use for compressing or placing skill text (use context-optimizer)."
 license: Apache-2.0
 ---
 
