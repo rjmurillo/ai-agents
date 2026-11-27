@@ -95,13 +95,13 @@ class TestFreshRoundFindings:
         common = scripts[0]
         monkeypatch.setattr(common, "_RUN_DEADLINE", common.time.monotonic() + 5)
         seen = []
-        real = common.subprocess.run
+        real = common.subprocess.Popen.communicate
 
-        def spy(argv, **kwargs):
-            seen.append(kwargs["timeout"])
-            return real(argv, **kwargs)
+        def spy(self, stdin_text=None, timeout=None):
+            seen.append(timeout)
+            return real(self, stdin_text, timeout)
 
-        monkeypatch.setattr(common.subprocess, "run", spy)
+        monkeypatch.setattr(common.subprocess.Popen, "communicate", spy)
         common.run([sys.executable, "-c", "pass"], timeout=600)
         assert seen and seen[0] <= 5
 
@@ -137,7 +137,13 @@ class TestFreshRoundTwoFindings:
             ["pr", "view"],
             {
                 "stdout": json.dumps(
-                    {"number": 7, "state": "OPEN", "author": {"login": author}, "url": "u"}
+                    {
+                        "number": 7,
+                        "state": "OPEN",
+                        "author": {"login": author},
+                        "url": "u",
+                        "baseRefName": "main",
+                    }
                 )
             },
         )
@@ -150,6 +156,7 @@ class TestFreshRoundTwoFindings:
                     {
                         "headRefName": "feat/ship-change",
                         "headRefOid": head or git(repo, "rev-parse", "HEAD"),
+                        "url": "https://github.com/o/r/pull/7",
                     }
                 )
             },
@@ -224,10 +231,10 @@ class TestFreshRoundThreeFindings:
         common = scripts[0]
         real_git = common.git
 
-        def failing(args, cwd=None, timeout=60):
+        def failing(args, cwd=None, timeout=60, **kw):
             if args[:1] == ["push"]:
                 return common.Completed(1, "", stderr)
-            return real_git(args, cwd=cwd, timeout=timeout)
+            return real_git(args, cwd=cwd, timeout=timeout, **kw)
 
         monkeypatch.setattr(common, "git", failing)
         code, lines = publish(scripts, capsys, body)
@@ -267,7 +274,13 @@ class TestFreshRoundFourFindings:
             ["pr", "view"],
             {
                 "stdout": json.dumps(
-                    {"number": 3, "state": "OPEN", "author": {"login": "me"}, "url": "u"}
+                    {
+                        "number": 3,
+                        "state": "OPEN",
+                        "author": {"login": "me"},
+                        "url": "u",
+                        "baseRefName": "main",
+                    }
                 )
             },
         )
@@ -285,7 +298,17 @@ class TestFreshRoundFourFindings:
         fakes.rule(
             "az",
             ["repos", "pr", "list"],
-            {"stdout": json.dumps([{"pullRequestId": 77, "createdBy": {"uniqueName": "me"}}])},
+            {
+                "stdout": json.dumps(
+                    [
+                        {
+                            "pullRequestId": 77,
+                            "targetRefName": "refs/heads/main",
+                            "createdBy": {"uniqueName": "me"},
+                        }
+                    ]
+                )
+            },
         )
         fakes.rule("az", ["account", "show"], {"stdout": "me\n"})
         head = git(repo, "rev-parse", "HEAD")
@@ -342,6 +365,7 @@ class TestFreshRoundFiveFindings:
                     {
                         "headRefName": "feat/ship-change",
                         "headRefOid": git(repo, "rev-parse", "HEAD"),
+                        "url": "https://github.com/o/r/pull/41",
                     }
                 )
             },

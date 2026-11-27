@@ -29,6 +29,7 @@ def _open_pr(author: str, state: str = "OPEN") -> dict:
                 "state": state,
                 "author": {"login": author},
                 "url": "https://github.com/o/r/pull/120",
+                "baseRefName": "main",
             }
         )
     }
@@ -213,6 +214,7 @@ def test_ado_open_pr_by_other_author_is_contributor(make_repo, fakes, scripts, c
                 [
                     {
                         "pullRequestId": 77,
+                        "targetRefName": "refs/heads/main",
                         "createdBy": {"uniqueName": "alice@contoso.com"},
                         "repository": {"webUrl": "https://dev.azure.com/c/p/_git/r"},
                     }
@@ -262,7 +264,17 @@ def test_ado_user_query_failure_stops(make_repo, fakes, scripts, capsys):
     fakes.rule(
         "az",
         ["repos", "pr", "list"],
-        {"stdout": json.dumps([{"pullRequestId": 5, "createdBy": {"uniqueName": "me"}}])},
+        {
+            "stdout": json.dumps(
+                [
+                    {
+                        "pullRequestId": 5,
+                        "targetRefName": "refs/heads/main",
+                        "createdBy": {"uniqueName": "me"},
+                    }
+                ]
+            )
+        },
     )
     fakes.rule("az", ["account", "show"], {"rc": 1, "stderr": "boom\n"})
     code, lines = _detect(scripts, capsys)
