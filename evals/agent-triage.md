@@ -77,7 +77,7 @@ Baseline target per spike (operator-tunable):
 - **6-10 fixtures total**
 - **Verdict bands**: 3-5 controlled labels appropriate to the agent's output
 - **Agent-discriminating ≥30%**: cases where the naive baseline cannot answer correctly without the agent's prompt-encoded knowledge (REQ-004 AC-5)
-- **Trials per fixture per condition**: 10 (binomial design, two-tailed Fisher's exact at p < 0.05; see reviewer-asymmetry-spike methodology)
+- **Trials per fixture per condition**: 10 (binomial design, one-sided Fisher's exact at p < 0.05, treatment > control; see reviewer-asymmetry-spike methodology)
 
 ## Cross-references
 
