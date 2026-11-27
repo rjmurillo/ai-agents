@@ -1,7 +1,7 @@
 """Parse and classify a git remote URL for the ship scripts (ADR-127 decision 3 item 4).
 
 Stdlib only, Python 3.10 floor. ``_ship_common`` loads this file by path and
-re-exports ``remote_host`` and ``classify_host``.
+re-exports ``remote_host`` and ``classify_host``; ``clean`` calls ``strip_userinfo``.
 """
 
 from __future__ import annotations
@@ -61,3 +61,33 @@ def classify_host(host: str) -> str:
     if host in _ADO_HOSTS or host.endswith(".visualstudio.com"):
         return "ado"
     return "github"
+
+
+# A token ends only at ASCII whitespace. Unicode spaces and control
+# characters stay inside it, so a password holding one is still cut.
+_ASCII_SPACE = frozenset(" \t\n\r\v\f")
+
+
+def strip_userinfo(text: str) -> str:
+    """Drop everything between ``://`` and the last ``@`` of the same token.
+
+    A token is the run of non-space characters after ``://``. Cutting to the
+    last ``@`` removes a password that itself holds ``@`` or ``/``, at any
+    length. A path segment holding ``@`` is over-redacted; that is the safe
+    side. One pass over the text, so a long value stays linear.
+    """
+    out: list[str] = []
+    start = 0
+    while True:
+        marker = text.find("://", start)
+        if marker < 0:
+            out.append(text[start:])
+            return "".join(out)
+        token_start = marker + 3
+        token_end = token_start
+        while token_end < len(text) and text[token_end] not in _ASCII_SPACE:
+            token_end += 1
+        token = text[token_start:token_end]
+        out.append(text[start:token_start])
+        out.append(token[token.rfind("@") + 1 :])
+        start = token_end

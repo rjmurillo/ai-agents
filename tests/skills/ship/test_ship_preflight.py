@@ -38,6 +38,7 @@ def _head(fakes, pr: int, *, branch: str | None = None, sha: str | None = None) 
                 {
                     "headRefName": branch or git(repo, "branch", "--show-current"),
                     "headRefOid": sha or git(repo, "rev-parse", "HEAD"),
+                    "url": f"https://github.com/o/r/pull/{pr}",
                 }
             )
         },
@@ -54,6 +55,10 @@ def _show(
         "merge": merge,
     }
     fakes.rule("az", ["repos", "pr", "show"], {"rc": rc, "stdout": json.dumps(state)})
+
+
+_OPEN_PR = {"number": 9, "state": "OPEN", "url": "u", "baseRefName": "main"}
+_ADO_ENTRY = {"targetRefName": "refs/heads/main", "createdBy": {"uniqueName": "me"}}
 
 
 def _preflight(scripts, capsys, *argv):
@@ -73,11 +78,7 @@ def github_pr(make_repo, fakes):
     fakes.rule(
         "gh",
         ["pr", "view"],
-        {
-            "stdout": json.dumps(
-                {"number": 9, "state": "OPEN", "author": {"login": "me"}, "url": "u"}
-            )
-        },
+        {"stdout": json.dumps({**_OPEN_PR, "author": {"login": "me"}})},
     )
     fakes.rule("gh", ["api", "user"], {"stdout": "me\n"})
     _head(fakes, 9)
@@ -141,11 +142,7 @@ def test_contributor_is_advisory_and_never_runs_the_validator(make_repo, fakes, 
     fakes.rule(
         "gh",
         ["pr", "view"],
-        {
-            "stdout": json.dumps(
-                {"number": 9, "state": "OPEN", "author": {"login": "alice"}, "url": "u"}
-            )
-        },
+        {"stdout": json.dumps({**_OPEN_PR, "author": {"login": "alice"}})},
     )
     fakes.rule("gh", ["api", "user"], {"stdout": "bob\n"})
     _head(fakes, 9)
@@ -181,7 +178,8 @@ def test_github_green_needs_success_and_all_passing(github_pr, fakes, scripts, c
     assert code == 0
     assert values(lines, "CHECK")[0].startswith("pipeline=PASS pr=9 head=")
     call = fakes.calls("get_pr_checks")[0]
-    assert call[1:] == [
+    assert call[1:5] == ["--owner", "o", "--repo", "r"]
+    assert call[5:] == [
         "--pull-request",
         "9",
         "--wait",
@@ -293,7 +291,7 @@ def _ado(make_repo, fakes, pr: int | None = 77):
     fakes.rule(
         "az",
         ["repos", "pr", "list"],
-        {"stdout": json.dumps([{"pullRequestId": pr, "createdBy": {"uniqueName": "me"}}])},
+        {"stdout": json.dumps([{"pullRequestId": pr, **_ADO_ENTRY}])},
     )
     fakes.rule("az", ["account", "show"], {"stdout": "me\n"})
 
@@ -455,10 +453,10 @@ def test_git_status_failure_stops(github, fakes, scripts, capsys, monkeypatch):
     common = scripts[0]
     real_git = common.git
 
-    def broken(args, cwd=None, timeout=60):
+    def broken(args, cwd=None, timeout=60, **kw):
         if args[:1] == ["status"]:
             return common.Completed(128, "", "fatal")
-        return real_git(args, cwd=cwd, timeout=timeout)
+        return real_git(args, cwd=cwd, timeout=timeout, **kw)
 
     monkeypatch.setattr(common, "git", broken)
     code, lines = _preflight(scripts, capsys, "--check", "tree")
