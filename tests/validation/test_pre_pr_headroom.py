@@ -194,6 +194,8 @@ def test_exhausted_slots_fail_closed_with_exit_3(
             stage, wait, load=lambda: 1.0, sleep=lambda _s: None, **kw
         ),
     )
+    sentinel_start = 1234.5
+    monkeypatch.setattr(pre_pr_headroom.check_generated_staleness, "_PROCESS_START", sentinel_start)
     ran: list[bool] = []
     with real.heavy_stage_slot("holder", 0, settings=settings, load=lambda: 1.0):
         with pytest.raises(real.HeadroomTimeoutError) as exc_info:
@@ -201,6 +203,7 @@ def test_exhausted_slots_fail_closed_with_exit_3(
                 ran.append(True)
     assert ran == []
     assert exc_info.value.code == 3
+    assert pre_pr_headroom.check_generated_staleness._PROCESS_START == sentinel_start
     err = capsys.readouterr().err
     assert "no free heavy-stage slot" in err
     assert "pre-pr-validation" in err
