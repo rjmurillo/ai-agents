@@ -85,7 +85,7 @@ Ground findings in the project's code-quality artifacts. All paths are under `.c
 
 ### 6. Boy Scout Rule (Scoped Cleanup)
 
-- Is each drive-by cleanup tiny, behavior-preserving, inside a function the diff already edits, in its own commit, and named in the PR body? The `avoiding-manufactured-work` skill's Drive-By Fixes section sets these limits.
+- Is each drive-by cleanup tiny, behavior-preserving, in code the diff already edits, in its own commit, and named in the PR body? The `avoiding-manufactured-work` skill's Drive-By Fixes section sets these limits.
 - Did "while I am here" cleanup expand the diff into unrelated files, cross-module renames, or a refactor with no named consumer? Flag that scope creep. A cleanup the author did not make is not a finding.
 
 ## Output Requirements

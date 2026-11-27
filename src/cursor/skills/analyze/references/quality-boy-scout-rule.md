@@ -16,10 +16,10 @@ Make small improvements continuously. Do not wait for dedicated refactoring spri
 
 ## Practical Application
 
-| While doing this... | Also do this... |
+| While doing this... | What fits the Drive-By Fixes classes |
 |---------------------|-----------------|
-| Fixing a bug | Fix a typo or dead local in the function you edit |
-| Adding a feature | Clarify a local name in the function you edit |
+| Fixing a bug | Optional tidy fix: remove a dead local from code you edit |
+| Adding a feature | Optional tidy fix: clarify a misleading local name in code you edit |
 | Reading code | Report a confirmed defect; leave taste alone |
 | Code review | Flag scope creep; do not ask for cleanup the change does not need |
 
@@ -35,7 +35,7 @@ Make small improvements continuously. Do not wait for dedicated refactoring spri
 ## During Analysis and PR Work
 
 1. Notice small improvements in touched files
-2. Include in the same PR only as a tidy fix in the function you edit, or as work the change needs
+2. Include in the same PR only as a tidy fix in code you edit, or as work the change needs
 3. Separate branch and PR only for a confirmed defect with a named impact, its own proof, and authority for that PR; never for a preference
 4. Name each tidy fix in the PR body
 
@@ -53,9 +53,9 @@ When reporting findings, classify improvements by scope:
 
 | Classification | Action | Example |
 |---------------|--------|---------|
-| Boy Scout fix | Include with current work | Clarify a local name in the function you edit |
+| Tidy fix | Optional; same PR, own commit, named in its body | Fix a typo in code you edit |
 | Refactor the change needs | Same PR, as part of the change | Extract a method the new code calls |
-| Large refactor | Name it in the PR body; the user decides | Restructure module boundaries |
+| Large refactor the change does not need | Name it in the PR body; the user decides | Restructure module boundaries |
 | Architecture change | ADR required | Change data flow pattern |
 
 ## Related Concepts

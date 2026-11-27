@@ -48,7 +48,7 @@ For a drive-by fix, the skill sorts it into one of four classes. The default ans
 
 | Class | Covers | Where it goes |
 | --- | --- | --- |
-| Tidy | A typo, missing type hint, dead local, or clearer local name in the function you edit | Same PR, its own commit, named in the PR body |
+| Tidy | A readability fix in code you edit that leaves behavior unchanged | Same PR, its own commit, named in the PR body |
 | Needed | Callers, tests, docs, or generated output the change needs to be correct | Same PR |
 | Defect | A confirmed defect with a named impact and its own proof | Separate branch and PR when you may open one, else named in the PR body |
 | Taste | Style, naming taste, whole-file formatting, cross-module renames | Not done, no issue, no branch |

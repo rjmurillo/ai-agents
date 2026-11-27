@@ -72,7 +72,7 @@ A confirmed defect found nearby is class 3 under Drive-By Fixes below, not a Sid
 
 ## Drive-By Fixes
 
-Use this when you find something to change that the request did not name. Work the user asked for is the task, not a drive-by: plan it directly and leave these classes out of it. This is the canonical statement; the builder-ethos and voice rules point here. The default answer is no. An exception needs evidence: what breaks, and how you will prove the fix. A sense that the code could be better is not evidence. Finish the lake you are in, and name the ocean as out of scope.
+Use this when you find something to change that the request did not name. Work the user asked for is the task, not a drive-by: plan it directly and leave these classes out of it. This is the canonical statement; the builder-ethos and voice rules point here. The default answer is no. An exception needs the evidence below. A preference is not evidence.
 
 | Class | What it covers | Where it goes |
 |---|---|---|
@@ -89,7 +89,7 @@ Stop conditions:
 - A drive-by fix never spawns another. Do not fix what the first fix revealed. If it is a confirmed defect, it is class 3; otherwise drop it.
 - Once the requested change is proven, stop. Do not sweep for more work, and do not offer follow-ups.
 
-If you cannot name what breaks and how you will prove the fix, do not start.
+For tidy fixes, name the readability gain and check that behavior stays the same. For defects and needed fixes, name what breaks and how you will prove the fix.
 
 Authority for class 3: a second PR is state the user did not name (builder-ethos section 6). It needs a user order or workflow contract that covers opening PRs for defects found along the way; an order to ship the requested change alone does not. One class 3 PR per task. A second confirmed defect is named in the PR body, not opened. In a question, review, or diagnosis, or once the task is terminal, name the defect, its impact, and its proof in the report instead (builder-ethos section 6). Filing an issue still follows the builder-ethos section 4 flag rule.
 

@@ -50,7 +50,7 @@ During decision critique, flag these patterns:
 
 When reaching verdict on improvement decisions:
 
-- **STAND**: Improvement clearly scoped to touched area, safe, and not blocking delivery
+- **STAND**: Improvement allowed by the Drive-By Fixes classes, safe, and not blocking delivery
 - **REVISE**: Scope unclear or trade-offs not addressed; needs boundary clarification
 - **ESCALATE**: Large refactoring masquerading as small improvement; requires separate planning
 
