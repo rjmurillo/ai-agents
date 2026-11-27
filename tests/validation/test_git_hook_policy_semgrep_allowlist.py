@@ -11,7 +11,6 @@ it exercises.
 
 from __future__ import annotations
 
-import io
 import json
 import subprocess
 from collections.abc import Callable
@@ -20,6 +19,13 @@ from pathlib import Path
 import pytest
 
 from scripts.validation import git_hook_policy as policy
+from tests.validation._suppression_gate_repo import (
+    ENTRY_IDS,
+    ENTRY_POINTS,
+    git,
+    init_repo,
+    write,
+)
 
 _ROOT = Path(__file__).resolve().parents[2]
 
@@ -152,6 +158,8 @@ def _tracked_ptk_run_copies() -> set[str]:
         cwd=_ROOT,
         check=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         capture_output=True,
     )
     copies = set()
@@ -195,16 +203,6 @@ def test_real_source_carries_both_rule_ids() -> None:
 # --- staged, push, and CI diff: end to end -----------------------------------
 
 
-def _git(repo: Path, *args: str) -> str:
-    return subprocess.run(
-        ["git", *args],
-        cwd=repo,
-        check=True,
-        text=True,
-        capture_output=True,
-    ).stdout.strip()
-
-
 BASE_BODY = "import os\n\n\ndef launch(command):\n    os.execv(command[0], command)\n"
 
 
@@ -217,42 +215,14 @@ def _body(directive_line: str) -> str:
 
 
 def _repo_with_change(tmp_path: Path, path: str, directive_line: str) -> tuple[Path, str]:
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    _git(repo, "init", "-q")
-    _git(repo, "config", "user.email", "test@example.com")
-    _git(repo, "config", "user.name", "Test User")
-    _git(repo, "config", "core.autocrlf", "false")
-    (repo / ".git" / "info" / "attributes").write_text("* -text\n", encoding="utf-8")
-    target = repo / path
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(BASE_BODY, encoding="utf-8")
-    _git(repo, "add", "-A")
-    _git(repo, "commit", "-q", "-m", "base")
-    base = _git(repo, "rev-parse", "HEAD")
-    target.write_text(_body(directive_line), encoding="utf-8")
-    _git(repo, "add", "-A")
+    repo = init_repo(tmp_path)
+    write(repo, path, BASE_BODY)
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "base")
+    base = git(repo, "rev-parse", "HEAD")
+    write(repo, path, _body(directive_line))
+    git(repo, "add", "-A")
     return repo, base
-
-
-def _staged(repo: Path, _base: str) -> int:
-    return policy.check_staged_suppressions(repo)
-
-
-def _pushed(repo: Path, base: str) -> int:
-    _git(repo, "commit", "-q", "-m", "head")
-    head = _git(repo, "rev-parse", "HEAD")
-    stream = io.StringIO(f"refs/heads/feature {head} refs/heads/feature {base}\n")
-    return policy.check_pushed_suppressions(stream, repo)
-
-
-def _ci_diff(repo: Path, base: str) -> int:
-    _git(repo, "commit", "-q", "-m", "head")
-    return policy.check_suppression_diff(base, repo)
-
-
-ENTRY_POINTS: list[Callable[[Path, str], int]] = [_staged, _pushed, _ci_diff]
-ENTRY_IDS = ["staged", "push", "ci-diff"]
 
 
 @pytest.mark.parametrize("entry_point", ENTRY_POINTS, ids=ENTRY_IDS)
@@ -329,19 +299,19 @@ def test_notebook_scan_applies_the_same_exact_entry_rule(monkeypatch: pytest.Mon
 def _repo_with_directive_base(tmp_path: Path, head_line: str) -> tuple[Path, str]:
     repo = tmp_path / "repo"
     repo.mkdir()
-    _git(repo, "init", "-q")
-    _git(repo, "config", "user.email", "test@example.com")
-    _git(repo, "config", "user.name", "Test User")
+    git(repo, "init", "-q")
+    git(repo, "config", "user.email", "test@example.com")
+    git(repo, "config", "user.name", "Test User")
     target = repo / SOURCE
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(_body(_allowed(EXEC_RULE)), encoding="utf-8")
-    _git(repo, "add", "-A")
-    _git(repo, "commit", "-q", "-m", "base")
-    base = _git(repo, "rev-parse", "HEAD")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "base")
+    base = git(repo, "rev-parse", "HEAD")
     target.write_text(
         BASE_BODY.replace("    os.execv", head_line + "\n    os.execv"), encoding="utf-8"
     )
-    _git(repo, "add", "-A")
+    git(repo, "add", "-A")
     return repo, base
 
 
@@ -404,7 +374,7 @@ def test_crlf_file_still_allows_the_listed_line(
     repo, base = _repo_with_change(tmp_path, SOURCE, _allowed(EXEC_RULE))
     target = repo / SOURCE
     target.write_bytes(target.read_bytes().replace(b"\n", b"\r\n"))
-    _git(repo, "add", "-A")
+    git(repo, "add", "-A")
     assert entry_point(repo, base) == 0
 
 
@@ -438,5 +408,5 @@ def test_diff_full_content_reads_exact_bytes(
     tmp_path: Path, line: str, expected: list[str]
 ) -> None:
     repo, _base = _repo_with_change(tmp_path, SOURCE, line)
-    _git(repo, "commit", "-q", "-m", "head")
+    git(repo, "commit", "-q", "-m", "head")
     assert policy._diff_full_content_suppression_violations([SOURCE], repo) == expected

@@ -297,89 +297,6 @@ SECURITY_SUPPRESSION_RE = re.compile(
     r")",
     re.IGNORECASE,
 )
-
-
-class AllowedSemgrepSuppression(NamedTuple):
-    """One exact exemption: a repository path, a Semgrep rule id, and why."""
-
-    path: str
-    rule_id: str
-    reason: str
-
-
-_PTK_RUN_EXEC_RULE = (
-    "python.lang.security.audit.dangerous-os-exec-tainted-env-args."
-    "dangerous-os-exec-tainted-env-args"
-)
-_PTK_RUN_SUBPROCESS_RULE = (
-    "python.lang.security.audit.dangerous-subprocess-use-tainted-env-args."
-    "dangerous-subprocess-use-tainted-env-args"
-)
-_PTK_RUN_REASON = (
-    "_launch passes an argv list with no shell. resolve_target admits only a "
-    "skills/<path>.py target with no part of two or more dots, under a root "
-    "that holds lib/ptk_run.py. ptk_run is not an authentication boundary "
-    "(ADR-121 decision 10). Owner ruling: issue #7591 comment 7175038778."
-)
-# The source and every generated or hand-pinned copy, one exact path each.
-# A test fails when a tracked copy is missing here.
-_PTK_RUN_COPIES = (
-    "src/claude/lib/ptk_run.py",
-    "src/codex/lib/ptk_run.py",
-    "src/copilot-cli/lib/ptk_run.py",
-    "src/cursor/lib/ptk_run.py",
-    "src/hermes/project-toolkit-authoring/lib/ptk_run.py",
-    "src/hermes/project-toolkit-azure-devops/lib/ptk_run.py",
-    "src/hermes/project-toolkit-delivery/lib/ptk_run.py",
-    "src/hermes/project-toolkit-knowledge/lib/ptk_run.py",
-    "src/hermes/project-toolkit-quality/lib/ptk_run.py",
-    "src/muse/lib/ptk_run.py",
-)
-ALLOWED_SEMGREP_SUPPRESSIONS: tuple[AllowedSemgrepSuppression, ...] = tuple(
-    AllowedSemgrepSuppression(path, rule_id, _PTK_RUN_REASON)
-    for path in _PTK_RUN_COPIES
-    for rule_id in (_PTK_RUN_EXEC_RULE, _PTK_RUN_SUBPROCESS_RULE)
-)
-# The only allowed form: a whole-line Python comment that names one rule id,
-# optionally followed by the exact line-length waiver. Case, spacing, and the
-# hash marker are exact, so a bare directive, the short form, a rule list, a
-# `//` marker, or any other trailing text never matches. The pattern is split
-# so this file does not trip its own gate.
-_ALLOWED_SEMGREP_LINE_RE = re.compile(
-    r"[ \t]*#" + r" nosem" + r"grep: (?P<rule_id>[A-Za-z0-9_.\-]+)(?:  # noqa: E501)?"
-)
-
-
-def is_blocked_suppression_line(path: str, line: str) -> bool:
-    """Return True when ``line`` carries a security suppression the gate blocks.
-
-    A line passes only when it is a whole-line Semgrep directive that names one
-    rule id listed against this exact path. Any other text on the line, except
-    the exact line-length waiver, blocks.
-    """
-    if SECURITY_SUPPRESSION_RE.search(line) is None:
-        return False
-    match = _ALLOWED_SEMGREP_LINE_RE.fullmatch(line)
-    if match is None:
-        return True
-    key = (PurePosixPath(path).as_posix(), match["rule_id"])
-    return not any((entry.path, entry.rule_id) == key for entry in ALLOWED_SEMGREP_SUPPRESSIONS)
-
-
-def suppression_scan_lines(text: str) -> list[str]:
-    """Split ``text`` into lines the way git counts them, on newline only.
-
-    ``str.splitlines`` also breaks on form feed, vertical tab, NEL, and other
-    separators. That would let an allowed directive hide trailing text, such
-    as a second rule id, in a piece with no suppression token. A trailing
-    carriage return is dropped so CRLF files scan the same as LF files.
-    """
-    lines = text.split("\n")
-    if lines and lines[-1] == "":
-        lines.pop()
-    return [line.removesuffix("\r") for line in lines]
-
-
 SEMGREP_SUFFIXES = frozenset({".js", ".ps1", ".psm1", ".py", ".ts", ".yaml", ".yml"})
 RUFF_COUNT_RATCHET = REPO_ROOT / "scripts" / "ci" / "ruff_count_ratchet.py"
 BANDIT_SUFFIXES = frozenset({".py", ".pyw"})
@@ -1333,21 +1250,6 @@ def _run_git_bytes(
     args: Sequence[str],
 ) -> subprocess.CompletedProcess[bytes]:
     return _run_command_bytes(_git_command(args), repo_root)
-
-
-def _run_git_exact_text(repo_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
-    """Run git and decode its output without newline translation.
-
-    Text mode turns a lone carriage return into a newline, which would split one
-    physical line in two before the suppression scan sees it.
-    """
-    result = _run_git_bytes(repo_root, args)
-    return subprocess.CompletedProcess(
-        result.args,
-        result.returncode,
-        result.stdout.decode("utf-8", errors="replace"),
-        result.stderr.decode("utf-8", errors="replace"),
-    )
 
 
 def _git_command(args: Sequence[str]) -> list[str]:
@@ -3272,6 +3174,102 @@ def check_github_bash_scripts(paths: Sequence[str], repo_root: Path) -> int:
     for violation in violations:
         print(f"  {violation}", file=sys.stderr)
     return 1
+
+
+def _run_git_exact_text(repo_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+    """Run git and decode its output without newline translation.
+
+    Text mode turns a lone carriage return into a newline, which would split one
+    physical line in two before the suppression scan sees it.
+    """
+    result = _run_git_bytes(repo_root, args)
+    return subprocess.CompletedProcess(
+        result.args,
+        result.returncode,
+        result.stdout.decode("utf-8", errors="replace"),
+        result.stderr.decode("utf-8", errors="replace"),
+    )
+
+
+class AllowedSemgrepSuppression(NamedTuple):
+    """One exact exemption: a repository path, a Semgrep rule id, and why."""
+
+    path: str
+    rule_id: str
+    reason: str
+
+
+_PTK_RUN_EXEC_RULE = (
+    "python.lang.security.audit.dangerous-os-exec-tainted-env-args."
+    "dangerous-os-exec-tainted-env-args"
+)
+_PTK_RUN_SUBPROCESS_RULE = (
+    "python.lang.security.audit.dangerous-subprocess-use-tainted-env-args."
+    "dangerous-subprocess-use-tainted-env-args"
+)
+_PTK_RUN_REASON = (
+    "_launch passes an argv list with no shell. resolve_target admits only a "
+    "skills/<path>.py target with no part of two or more dots, under a root "
+    "that holds lib/ptk_run.py. ptk_run is not an authentication boundary "
+    "(ADR-121 decision 10). Owner ruling: issue #7591 comment 7175038778."
+)
+# The source and every generated or hand-pinned copy, one exact path each.
+# A test fails when a tracked copy is missing here.
+_PTK_RUN_COPIES = (
+    "src/claude/lib/ptk_run.py",
+    "src/codex/lib/ptk_run.py",
+    "src/copilot-cli/lib/ptk_run.py",
+    "src/cursor/lib/ptk_run.py",
+    "src/hermes/project-toolkit-authoring/lib/ptk_run.py",
+    "src/hermes/project-toolkit-azure-devops/lib/ptk_run.py",
+    "src/hermes/project-toolkit-delivery/lib/ptk_run.py",
+    "src/hermes/project-toolkit-knowledge/lib/ptk_run.py",
+    "src/hermes/project-toolkit-quality/lib/ptk_run.py",
+    "src/muse/lib/ptk_run.py",
+)
+ALLOWED_SEMGREP_SUPPRESSIONS: tuple[AllowedSemgrepSuppression, ...] = tuple(
+    AllowedSemgrepSuppression(path, rule_id, _PTK_RUN_REASON)
+    for path in _PTK_RUN_COPIES
+    for rule_id in (_PTK_RUN_EXEC_RULE, _PTK_RUN_SUBPROCESS_RULE)
+)
+# The only allowed form: a whole-line Python comment that names one rule id,
+# optionally followed by the exact line-length waiver. Case, spacing, and the
+# hash marker are exact, so a bare directive, the short form, a rule list, a
+# `//` marker, or any other trailing text never matches. The pattern is split
+# so this file does not trip its own gate.
+_ALLOWED_SEMGREP_LINE_RE = re.compile(
+    r"[ \t]*#" + r" nosem" + r"grep: (?P<rule_id>[A-Za-z0-9_.\-]+)(?:  # noqa: E501)?"
+)
+
+
+def is_blocked_suppression_line(path: str, line: str) -> bool:
+    """Return True when ``line`` carries a security suppression the gate blocks.
+
+    A line passes only when it is a whole-line Semgrep directive that names one
+    rule id listed against this exact path. Any other text on the line, except
+    the exact line-length waiver, blocks.
+    """
+    if SECURITY_SUPPRESSION_RE.search(line) is None:
+        return False
+    match = _ALLOWED_SEMGREP_LINE_RE.fullmatch(line)
+    if match is None:
+        return True
+    key = (PurePosixPath(path).as_posix(), match["rule_id"])
+    return not any((entry.path, entry.rule_id) == key for entry in ALLOWED_SEMGREP_SUPPRESSIONS)
+
+
+def suppression_scan_lines(text: str) -> list[str]:
+    """Split ``text`` into lines the way git counts them, on newline only.
+
+    ``str.splitlines`` also breaks on form feed, vertical tab, NEL, and other
+    separators. That would let an allowed directive hide trailing text, such
+    as a second rule id, in a piece with no suppression token. A trailing
+    carriage return is dropped so CRLF files scan the same as LF files.
+    """
+    lines = text.split("\n")
+    if lines and lines[-1] == "":
+        lines.pop()
+    return [line.removesuffix("\r") for line in lines]
 
 
 def check_security_suppressions(paths: Sequence[str], repo_root: Path) -> int:
