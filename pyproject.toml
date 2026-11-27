@@ -350,7 +350,6 @@ max-complexity = 15
 "src/claude/skills/github/scripts/issue/set_issue_milestone.py" = ["C901"]
 "src/claude/skills/github/scripts/pr/detect_copilot_followup_pr.py" = ["C901"]
 "src/claude/skills/github/scripts/pr/get_pr_comments_by_reviewer.py" = ["C901"]
-"src/claude/skills/github/scripts/pr/get_pr_review_comments.py" = ["C901"]
 "src/claude/skills/github/scripts/pr/get_unaddressed_comments.py" = ["C901"]
 "src/claude/skills/github/scripts/pr/pr_validations.py" = ["C901"]
 "src/claude/skills/github/scripts/pr/run_completion_gate.py" = ["C901"]
