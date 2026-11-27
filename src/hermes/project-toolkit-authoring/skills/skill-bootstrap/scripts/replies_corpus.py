@@ -158,22 +158,22 @@ def split_content(content: Any) -> tuple[str, list[bool]]:
 
 class _Parser:
     def __init__(self, src: Source) -> None:
-        self.tr = Transcript(src)
-        self.span = _Span()
+        self._tr = Transcript(src)
+        self._span = _Span()
 
     def feed(self, rec: dict[str, Any]) -> None:
         kind = rec.get("type")
         if kind not in ("user", "assistant"):
             return
-        if rec.get("isSidechain") and not self.tr.src.child:
+        if rec.get("isSidechain") and not self._tr.src.child:
             return
         entry = rec.get("entrypoint")
-        if self.tr.entrypoint is None and isinstance(entry, str) and AGENT_TYPE.fullmatch(entry):
-            self.tr.entrypoint = entry
+        if self._tr.entrypoint is None and isinstance(entry, str) and AGENT_TYPE.fullmatch(entry):
+            self._tr.entrypoint = entry
         ts = rec["timestamp"] if isinstance(rec.get("timestamp"), str) else None
         if ts:
-            self.tr.first = self.tr.first or ts
-            self.tr.last = ts
+            self._tr.first = self._tr.first or ts
+            self._tr.last = ts
         msg = rec.get("message")
         msg = msg if isinstance(msg, dict) else {}
         if kind == "assistant":
@@ -182,7 +182,7 @@ class _Parser:
             self._user(rec, msg, ts)
 
     def _assistant(self, rec: dict[str, Any], msg: dict[str, Any], ts: str | None) -> None:
-        span = self.span
+        span = self._span
         span.last_ts = ts or span.last_ts
         if rec.get("isApiErrorMessage"):
             span.api_error = True
@@ -210,12 +210,12 @@ class _Parser:
     def _user(self, rec: dict[str, Any], msg: dict[str, Any], ts: str | None) -> None:
         text, results = split_content(msg.get("content"))
         for is_error in results:
-            self.span.tool_error = is_error
+            self._span.tool_error = is_error
         if results and not text.strip():
             return
         if INTERRUPT in text:
-            self.span = _Span()
-            self.tr.turns.append(Turn("interrupt", ts))
+            self._span = _Span()
+            self._tr.turns.append(Turn("interrupt", ts))
             return
         reason = _skip_reason(rec, text)
         human = TAG_BLOCK.sub("", text).strip()
@@ -223,25 +223,28 @@ class _Parser:
             # A paste with no typed words is still a turn the reader sent.
             human = PASTE_ONLY
         if reason or not human:
-            self.tr.skipped[reason or "empty"] += 1
+            self._tr.skipped[reason or "empty"] += 1
             return
         self._flush()
-        role, why = _classify(human, self.tr.src.child)
-        self.tr.turns.append(Turn(role, ts, human, why))
+        role, why = _classify(human, self._tr.src.child)
+        self._tr.turns.append(Turn(role, ts, human, why))
 
     def _flush(self) -> None:
-        span = self.span
+        span = self._span
         if span.pending:
-            self.tr.turns.append(Turn("reply", span.last_ts, "\n".join(span.pending)))
+            self._tr.turns.append(Turn("reply", span.last_ts, "\n".join(span.pending)))
         elif span.api_error:
-            self.tr.turns.append(Turn("error", span.last_ts, reason="api"))
+            self._tr.turns.append(Turn("error", span.last_ts, reason="api"))
         elif span.tool_error and span.tools:
-            self.tr.turns.append(Turn("error", span.last_ts, reason="tool"))
-        self.span = _Span()
+            self._tr.turns.append(Turn("error", span.last_ts, reason="tool"))
+        self._span = _Span()
+
+    def note_parse_error(self) -> None:
+        self._tr.parse_errors += 1
 
     def finish(self) -> Transcript:
         self._flush()
-        return self.tr
+        return self._tr
 
 
 def _skip_reason(rec: dict[str, Any], text: str) -> str:
@@ -284,7 +287,7 @@ def parse_transcript(src: Source) -> Transcript:
             try:
                 rec = json.loads(line)
             except (ValueError, RecursionError):
-                parser.tr.parse_errors += 1
+                parser.note_parse_error()
                 continue
             if isinstance(rec, dict):
                 parser.feed(rec)
