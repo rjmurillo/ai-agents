@@ -48,9 +48,16 @@ def make_claude_home(tmp_path: Path, name: str = "claude-home") -> Path:
     return home
 
 
-def make_t3_home(
-    tmp_path: Path, messages: list[tuple[Any, ...]], columns: str | None = None
-) -> Path:
+T3_FULL_SCHEMA = (
+    "CREATE TABLE orchestration_v2_projection_messages "
+    "(message_id TEXT, thread_id TEXT, role TEXT, created_at TEXT, payload_json TEXT)"
+)
+T3_PARTIAL_SCHEMA = (
+    "CREATE TABLE orchestration_v2_projection_messages (message_id TEXT, thread_id TEXT)"
+)
+
+
+def make_t3_home(tmp_path: Path, messages: list[tuple[Any, ...]], full_schema: bool = True) -> Path:
     home = tmp_path / "t3-home"
     db = home / "userdata" / "statev2.sqlite"
     db.parent.mkdir(parents=True)
@@ -61,11 +68,8 @@ def make_t3_home(
     connection.execute(
         "INSERT INTO orchestration_v2_projection_threads VALUES ('t1', 'Cache work')"
     )
-    cols = (
-        columns or "message_id TEXT, thread_id TEXT, role TEXT, created_at TEXT, payload_json TEXT"
-    )
-    connection.execute(f"CREATE TABLE orchestration_v2_projection_messages ({cols})")
-    if columns is None:
+    connection.execute(T3_FULL_SCHEMA if full_schema else T3_PARTIAL_SCHEMA)
+    if full_schema:
         connection.executemany(
             "INSERT INTO orchestration_v2_projection_messages VALUES (?, ?, ?, ?, ?)", messages
         )
@@ -346,7 +350,7 @@ def test_t3_skips_other_roles_malformed_payloads_and_old_messages(tmp_path: Path
 
 
 def test_t3_schema_mismatch_is_a_collection_issue_not_a_crash(tmp_path: Path) -> None:
-    t3 = make_t3_home(tmp_path, [], columns="message_id TEXT, thread_id TEXT")
+    t3 = make_t3_home(tmp_path, [], full_schema=False)
     result = run(
         tmp_path, "--harness", "t3", "--all-conversations", "--t3-home", str(t3),
         "--out", str(tmp_path / "report"), "--export-corpus", str(tmp_path / "c.jsonl"),
