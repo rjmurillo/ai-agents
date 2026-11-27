@@ -102,10 +102,10 @@ class TestPushLeavesTimeForThePrCreate:
         real_git = common.git
         seen: list[float] = []
 
-        def spy(args, cwd=None, timeout=60):
+        def spy(args, cwd=None, timeout=60, **kw):
             if args[:1] == ["push"]:
                 seen.append(timeout)
-            return real_git(args, cwd=cwd, timeout=timeout)
+            return real_git(args, cwd=cwd, timeout=timeout, **kw)
 
         monkeypatch.setattr(common, "remaining_seconds", lambda: remaining)
         monkeypatch.setattr(common, "git", spy)
