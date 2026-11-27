@@ -227,7 +227,7 @@
 |context engineering token optimization progressive disclosure just-in-time token: [memory/context-engineering-principles](memory/context-engineering-principles.md) (600), [memory/memory-token-efficiency](memory/memory-token-efficiency.md) (862)
 |agentic session cost token replay cached input exec output fanout phase threads: [cost/cost-optimization-observations](cost/cost-optimization-observations.md) (707)
 |passive context AGENTS.md skills decision-point retrieval-led compression research: [memory/passive-context-vs-skills-vercel-research](memory/passive-context-vs-skills-vercel-research.md) (516), [claude/claude-md-anthropic-best-practices](claude/claude-md-anthropic-best-practices.md) (759), [claude/claude-code-skills-official-guidance](claude/claude-code-skills-official-guidance.md) (625)
-|eureka docs index file map retrieval instruction AGENTS.md CLAUDE.md probe Vercel: [decision-the-retrieval-instruction-beats-the-docs-file-map](decision-the-retrieval-instruction-beats-the-docs-file-map.md) (807)
+|eureka docs index file map retrieval instruction AGENTS.md CLAUDE.md probe Vercel: [decision-the-retrieval-instruction-beats-the-docs-file-map](decision-the-retrieval-instruction-beats-the-docs-file-map.md) (812)
 |portability symlink TOCTOU scan_all refuse_symlinked_scan_root: [decision-portability-ratchet-symlink-toctou](decision-portability-ratchet-symlink-toctou.md) (314)
 |instruction budget always-on ceiling applyTo scope headroom rule: [decision-the-instruction-budget-gate-already-exists](decision-the-instruction-budget-gate-already-exists.md) (1858)
 |memory index validator one direction unindexed orphan check: [memory-index-validator-checks-one-direction-only](memory-index-validator-checks-one-direction-only.md) (992)

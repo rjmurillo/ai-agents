@@ -10,8 +10,8 @@ hub, tools Read, Glob, Grep. The probe and scorer were written by the same agent
 
 On this fixture, the line that tells the model to retrieve did the work. The
 map alone scored 22/30; the instruction alone scored 30/30, the same as map
-plus instruction. Lead with the instruction. Add a map only if a measurement
-on harder questions shows it helps.
+plus instruction. Skip the map for this fixture. This is not a general cost or
+accuracy claim: one model, one synthetic fixture.
 
 ## Question
 
