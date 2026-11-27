@@ -82,6 +82,7 @@ Warp, Hermes, Droid, and Copilot record no branch. Their sessions in a removed w
 A session whose branch was deleted also stays out.
 
 When the run covered exactly one repository (`conversation_scope` is `projects` and `repos` has one entry), you can pass the inventory to `skill-bootstrap` as an initial candidate seed. Bootstrap rejects all-conversations and multi-project inventories.
+Bootstrap also rejects the whole inventory when any session's cwd is outside the `--repo` path. Sessions from linked worktrees, live or removed, fail that check. For a seed, collect with `--no-worktrees`.
 In a bootstrap child run, return it to the caller instead of starting another run.
 Its discovery miner also accepts offline hosted PR, issue, and work-item observations.
 Use deterministic inventory counters, not the qualitative grades from Step 2.
