@@ -244,3 +244,33 @@ def test_main_reads_the_staged_index_in_repo_root(
     assert run.call_args.args[0][:3] == ["git", "--literal-pathspecs", "-C"]
     assert run.call_args.args[0][3] == str(tmp_path.resolve())
     assert json.loads(capsys.readouterr().out)["highest_risk"] == "none"
+
+
+def test_main_scopes_an_absolute_explicit_path_to_repo_root(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    file_path = repo_root / "scripts" / "validation" / "adr_debate_evidence.py"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "detect_infrastructure.py",
+            "--files",
+            str(file_path),
+            "--json",
+            "--repo-root",
+            str(repo_root),
+        ],
+    )
+
+    assert main() == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["highest_risk"] == "critical"
+    assert payload["findings"] == [
+        {"File": str(file_path), "RiskLevel": "critical"},
+    ]

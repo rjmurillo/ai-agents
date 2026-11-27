@@ -1,6 +1,6 @@
 ---
 name: Security Practices
-applyTo: "**/Auth/**,*.env*,**/*.secrets.*,.github/workflows/**,lefthook.*,scripts/validation/git_hook_policy.py"
+applyTo: "**/Auth/**,*.env*,**/*.secrets.*,.github/workflows/**,lefthook.*,scripts/validation/git_hook_policy.py,scripts/validation/adr_debate_evidence.py"
 priority: 10
 version: 1.0.0
 status: active
@@ -20,6 +20,7 @@ This steering file provides security guidance for security-sensitive code in the
 - `.github/workflows/**` - GitHub Actions workflows
 - `lefthook.*` - Local Git-event configuration
 - `scripts/validation/git_hook_policy.py` - Repository Git policy
+- `scripts/validation/adr_debate_evidence.py` - Extracted ADR debate evidence policy
 
 ## Guidelines
 

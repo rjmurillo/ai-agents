@@ -13,6 +13,8 @@ from scripts.validation.stale_script_refs import (
     main,
 )
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
 
 def test_existing_tracked_script_ref_passes(tmp_path: Path) -> None:
     doc = tmp_path / "docs" / "runbook.md"
@@ -101,3 +103,11 @@ def test_finding_format() -> None:
     assert Finding("docs/runbook.md", 2, "scripts/Missing.ps1").format() == (
         "docs/runbook.md:2:scripts/Missing.ps1"
     )
+
+
+def test_scripts_agents_does_not_call_missing_ps1_refs_inert() -> None:
+    """The docs must not infer no findings from the absence of tracked scripts."""
+    flat_text = " ".join((REPO_ROOT / "scripts/AGENTS.md").read_text(encoding="utf-8").split())
+
+    assert "none tracked, so it reports nothing" not in flat_text
+    assert "any non-allowlisted live command reference is stale" in flat_text

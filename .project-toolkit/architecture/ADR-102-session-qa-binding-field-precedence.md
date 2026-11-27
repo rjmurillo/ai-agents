@@ -109,7 +109,7 @@ Measured against `git ls-tree -r HEAD .project-toolkit/sessions/`:
 
 The 6-log third bucket is not inert. `session_qa_binding()` resolves an abbreviated `endingCommit` through the `resolve_commit` callable (`:167-175`), which `validate_qa_report_evidence()` supplies, so those logs reach the comparison too. An earlier draft of this ADR omitted the row and its table did not sum to the examined count.
 
-**This corpus does not measure how often the check engages, and an earlier draft wrongly said it engages on 35 of 1458 logs.** Only fresh validation can reach `validate_qa_report_evidence()` (`scripts/validate_session_json.py:1212-1219`). Pre-commit passes `--creation-mode` or `--pre-commit --existing-log` (`scripts/validation/git_hook_policy.py:2789`). The retired session protocol workflow used full validation for branch-new logs added before HEAD. The old equality check could run during such a mid-PR rebind. Commit e6c196d03 removed the workflow and its caller before this ADR landed.
+**This corpus does not measure how often the check engages, and an earlier draft wrongly said it engages on 35 of 1458 logs.** Only fresh validation can reach `validate_qa_report_evidence()` (`scripts/validate_session_json.py:1212-1219`). Pre-commit passes `--creation-mode` or `--pre-commit --existing-log` (`scripts/validation/git_hook_policy.py:2548-2549`). The retired session protocol workflow used full validation for branch-new logs added before HEAD. The old equality check could run during such a mid-PR rebind. Commit e6c196d03 removed the workflow and its caller before this ADR landed.
 
 Two session logs in the repository's whole history committed a genuine disagreement, both in one commit, `f7fc4ef88`:
 
@@ -218,7 +218,7 @@ The issue suggests reusing `post_qa_code_changes()` here the way ADR-096 did. Th
 
 Deleting the raise and returning silently is the smaller diff and is rejected. The former `ci-scripts` rule (now at `.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`) SHOULD 4 treats a repair to a silent failure as itself a silent-failure candidate, and a relaxation that removes the only signal on `comparison.head` is that shape. The warning keeps the observation the raise was making, in the one place that has a channel for it, while removing the blocking verdict the observation does not support. `result.warnings` is the established non-blocking channel in this file; `scripts/validate_session_json.py:693-696` already uses it for the adjacent `changesCommitted` and `endingCommit` case.
 
-Fresh validation emits the warning when the binding finds a disagreement. Pre-commit passes a mode flag (`git_hook_policy.py:2789`). With `--existing-log`, the validator skips the binding.
+Fresh validation emits the warning when the binding finds a disagreement. Pre-commit passes a mode flag (`git_hook_policy.py:2548-2549`). With `--existing-log`, the validator skips the binding.
 The warning preserves the signal under the former `ci-scripts` rule (now at `.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`) SHOULD 4.
 
 ### The laxer direction is bounded, not impossible
@@ -353,7 +353,7 @@ The design trades a hard verdict for an accurate one. The raise asserted that a 
 - `scripts/validate_session_json.py:950-989`. `validate_qa_report_evidence`, the only production caller.
 - `scripts/validate_session_json.py:1663-1665`. Live-`HEAD` resolution that makes `binding.commit` (`scripts/validate_session_json.py:1000-1016`) a fallback rather than the normal head.
 - `scripts/validate_session_json.py:691-728`. `endingCommit`'s independent reachability check.
-- `scripts/validation/git_hook_policy.py:2789`. The pre-commit mode flags that keep this check unreachable from pre-commit.
+- `scripts/validation/git_hook_policy.py:2548-2549`. The pre-commit mode flags that keep this check unreachable from pre-commit.
 - [`scripts/validation/session_scope.py`](https://github.com/rjmurillo/ai-agents/blob/a390f4d9778d4d599309d8a46457794cd3d837ce/scripts/validation/session_scope.py#L348-L373) and [`scripts/ci/validate_session_protocol.py`](https://github.com/rjmurillo/ai-agents/blob/a390f4d9778d4d599309d8a46457794cd3d837ce/scripts/ci/validate_session_protocol.py#L95-L108). In the retired CI workflow, `committed_session_validation_modes()` selected branch-new logs added before HEAD for full validation.
 - `.agents/schemas/session-log.schema.json:159-162`. `commitHead`, and its statement that QA rebinding advances `comparison.head`.
 - `src/claude/skills/memory/scripts/extract_session_episode.py:843-844`. The extractor comment carrying the same understanding.

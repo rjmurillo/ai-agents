@@ -30,6 +30,8 @@ argv = sys.argv[1:]
 spec_path = os.environ["SHIP_FAKE_SPEC"]
 with open(os.environ["SHIP_FAKE_LOG"], "a", encoding="utf-8") as log:
     log.write(json.dumps([prog, *argv]) + "\\n")
+with open(os.environ["SHIP_FAKE_LOG"] + ".env", "a", encoding="utf-8") as log:
+    log.write(json.dumps([prog, os.environ.get("GH_HOST")]) + "\\n")
 with open(spec_path, encoding="utf-8") as handle:
     rules = json.load(handle)
 for index, rule in enumerate(rules):
@@ -146,6 +148,8 @@ def fakes(tmp_path, monkeypatch, scripts) -> Fakes:
     log = root / "calls.jsonl"
     monkeypatch.setenv("SHIP_FAKE_SPEC", str(spec))
     monkeypatch.setenv("SHIP_FAKE_LOG", str(log))
+    # publish takes the shared push lock under HOME; keep it off the real one.
+    monkeypatch.setenv("HOME", str(root / "home"))
     monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}")
     # Each test gets a full run budget, as each real script run does.
     monkeypatch.setattr(
