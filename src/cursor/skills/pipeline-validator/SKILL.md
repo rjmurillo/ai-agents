@@ -1,7 +1,7 @@
 ---
 name: pipeline-validator
 version: 1.0.0
-description: Discovers, triggers, and monitors Azure DevOps pipelines (PR, Buddy Build, Buddy Release) for the current repo and branch. Auto-diagnoses failures from build logs, applies fixes, commits, pushes, and re-triggers until all pipelines pass or max retries reached. Validates PR existence and description completeness. Invoke explicitly; Azure DevOps only, not for GitHub PRs.
+description: "Discover, trigger, and monitor Azure DevOps pipelines (PR, Buddy Build, Buddy Release) for the current repo and branch; diagnose failures from logs, fix, push, and re-trigger until green or max retries. Invoke explicitly; Azure DevOps only, not for GitHub PRs."
 license: Apache-2.0
 metadata:
   capability:

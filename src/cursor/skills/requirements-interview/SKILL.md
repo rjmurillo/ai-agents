@@ -1,7 +1,7 @@
 ---
 name: requirements-interview
 version: 0.2.0
-description: Adversarial requirements interview that walks the design tree to elicit testable requirements before any code is written (the grill-me pattern), or audits an existing multi-section spec for ambiguity with source-anchored questions. Skip any question the codebase can already answer. Use when you say "interview me on this", "grill me on the requirements", "walk the design tree", or "audit this spec for ambiguity". Do NOT use to run the first-principles gate or write the PRD (use spec), or to emit REQ/DESIGN/TASK files (use spec-generator).
+description: "Adversarial requirements interview that walks the design tree (grill-me), or audits a multi-section spec for ambiguity. Use when you say \"interview me on this\", \"grill me on the requirements\", or \"walk the design tree\". Do NOT use for the first-principles gate or PRD (use spec) or REQ/DESIGN/TASK files (use spec-generator)."
 license: Apache-2.0
 metadata:
   routing:

@@ -2,13 +2,7 @@
 name: ai-agents-research-methodology
 version: 1.0.0
 license: Apache-2.0
-description: How a hunch becomes an accepted result in this repo. Covers the
-  evidence bar, hypothesis-predicts-numbers discipline, and the idea lifecycle
-  from contradiction log through probe, eval baseline, ADR debate, calibrated
-  gate, and post-ship monitoring. Use when you say `how do I prove this
-  idea`, `run the idea lifecycle`, `what is the evidence bar`. Do NOT use for
-  the open research programs (use ai-agents-research-frontier) or probe recipe
-  depth (use ai-agents-empirical-probe-toolkit).
+description: "How a hunch becomes an accepted result here: evidence bar and idea lifecycle from probe to ADR debate and monitoring. Use when you say `how do I prove this idea`, `run the idea lifecycle`, `what is the evidence bar`. Do NOT use for open research programs (use ai-agents-research-frontier) or probe recipes (use ai-agents-empirical-probe-toolkit)."
 metadata:
   distribution: repo-local
   routing:

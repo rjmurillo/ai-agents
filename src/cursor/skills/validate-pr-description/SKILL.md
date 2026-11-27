@@ -1,7 +1,7 @@
 ---
 name: validate-pr-description
 version: 1.0.0
-description: Validate a PR title and body against conventional commit format, issue-linking keywords, and template compliance before submission. Use when you say `validate my PR description`, `check my PR title`, or `is this PR body compliant`. Do NOT use to open, update, or push a PR (use the github skill or push-pr), and do NOT use to review the code diff (use review).
+description: "Validate a PR title and body for conventional commit format, issue-linking keywords, and template compliance. Use when you say `validate my PR description` or `check my PR title`. Do NOT use to open, update, or push a PR (use github or push-pr) or review the diff (use review)."
 license: Apache-2.0
 metadata:
   routing:

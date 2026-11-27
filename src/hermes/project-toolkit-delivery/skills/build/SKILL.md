@@ -1,7 +1,7 @@
 ---
 name: build
 version: 1.0.0
-description: Implement a planned change in thin vertical slices, test-first, with atomic commits and four mandatory exit gates. Use when you say `build this`, `implement this slice`, or `write the code for this task`, and run it after plan. Also use when editing a .py file, pyproject.toml, or requirements*.txt (typing, idioms, ruff and uv tooling, error handling, nullable JSON .get defaults, Python version syntax), PowerShell (.ps1), or C# (.cs). Do NOT use to decide what to build (use spec) or to sequence the work (use plan), and do NOT use to review a finished diff (use review).
+description: "Implement a planned change in test-first vertical slices. Use when you say `build this`, `implement this slice`, or `write the code for this task`, after plan, or when editing .py, pyproject.toml, requirements*.txt, .ps1, or .cs files. Do NOT use to decide what to build (use spec), sequence work (use plan), or review a diff (use review)."
 license: Apache-2.0
 argument-hint: plan-step-or-task-description
 user-invocable: true
