@@ -36,8 +36,8 @@ Make small improvements continuously. Do not wait for dedicated refactoring spri
 
 1. Notice small improvements in touched files
 2. Include in the same PR only as a tidy fix in the function you edit, or as work the change needs
-3. Separate branch and PR only for a confirmed defect with a named impact and its own proof; never for a preference
-4. Document rationale in commit message
+3. Separate branch and PR only for a confirmed defect with a named impact, its own proof, and authority for that PR; never for a preference
+4. Name each tidy fix in the PR body
 
 The `avoiding-manufactured-work` skill's Drive-By Fixes section is the canonical limit for this rule.
 

@@ -72,7 +72,7 @@ Use this when you find something to change that the request did not name. Work t
 |---|---|---|
 | 1. Tidy | Tiny, behavior-preserving cleanup in code the change already touches, when it makes the requested diff easier to read: a typo, a missing type hint, a dead local, a clearer local name in the function you edit. Renaming things elsewhere in the file does not qualify. | Same PR, its own commit, named in the PR body. |
 | 2. Needed | Anything the requested change needs to be correct: callers, tests, docs, generated output. | Same PR. This is the change itself, not a drive-by. |
-| 3. Defect | A confirmed defect with a named impact and its own proof (a reproduction or failing test), when it changes behavior, needs a different reviewer or code owner, or must be revertable alone. | Separate branch and PR with its own proof, only with authority for that extra PR (see below). Otherwise name it, its impact, and its proof in the PR body. If the main change depends on it, land it first and say so in both PRs. |
+| 3. Defect | A confirmed defect with a named impact and its own proof (a reproduction or failing test), when it changes behavior, needs a different reviewer or code owner, or must be revertable alone. | Separate branch and PR with its own proof, only with authority for that extra PR (see below). Otherwise name it, its impact, and its proof in the PR body. |
 | 4. Taste | Style or naming preference, whole-file formatting, cross-module renames, refactors with no named consumer. | Do not do it. No issue, no branch, no follow-up PR. |
 
 Classify in this order: class 2, then 3, then 1, then 4. If the requested change needs it to be correct, it is class 2 and stays in the PR, even when it is also a defect.
