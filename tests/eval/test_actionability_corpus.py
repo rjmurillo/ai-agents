@@ -5,6 +5,7 @@ Plan M1-T7 and M1-T9. Shared helpers: _actionability_corpus_test_support.py.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -211,8 +212,18 @@ class TestSecretScan:
     def test_secret_in_a_reply_fails_too(self, tmp_path: Path) -> None:
         """Plan M1-T9: replies feed arm C, so they are scanned."""
         token = "ghp_" + "Z9y8X7w6" * 5
-        opener = make_node("O1", f"{BAND_BODY} q", created_at="2026-11-20T00:00:00Z")
-        reply = make_node("R1", f"my token {token}", login="bob", created_at="2026-11-21T00:00:00Z")
+        now = datetime.now(UTC)
+        opener = make_node(
+            "O1",
+            f"{BAND_BODY} q",
+            created_at=(now - timedelta(hours=2)).isoformat(),
+        )
+        reply = make_node(
+            "R1",
+            f"my token {token}",
+            login="bob",
+            created_at=(now - timedelta(hours=1)).isoformat(),
+        )
         prs = write_prs(tmp_path / "prs.json", [make_pr(1, make_thread(opener, reply))])
         out = tmp_path / "corpus.jsonl"
 
