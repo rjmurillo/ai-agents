@@ -15,6 +15,7 @@ from pathlib import Path, PureWindowsPath
 from typing import Any
 
 from session_common import _recent_files, record_collection_issue
+from session_threads import add_subagent_argument, resolve_subagent_flags
 
 CLAUDE_DIRECTORY = ".claude"
 PROJECT_HARNESS_DIRS = (CLAUDE_DIRECTORY, ".codex", ".github", ".factory")
@@ -388,11 +389,9 @@ def parse_collector_args(description: str | None) -> argparse.Namespace:
         default=[],
         help="extra skills directory to scan (repeatable)",
     )
-    parser.add_argument(
-        "--include-subagents", action="store_true", help="include subagent/child sessions"
-    )
+    add_subagent_argument(parser)
     parser.add_argument("--out", default="./skill-doctor-report")
-    return parser.parse_args()
+    return resolve_subagent_flags(parser.parse_args())
 
 
 def _add_source_arguments(parser: argparse.ArgumentParser) -> None:
