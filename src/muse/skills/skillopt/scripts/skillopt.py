@@ -30,6 +30,9 @@ allowed to exist:
                           deployed copy; a directory hashes as a whole bundle
   - run                 : executes eval.json argv commands against a bundle and
                           writes the per-task results files (see _skillopt_runner)
+  - evidence checks     : weakness patterns, one manifesto entry per patch,
+                          prediction verification, read-only pins, and the
+                          proposer tier warning (see _skillopt_evidence)
 
 Pure stdlib, no third-party deps. It is harness-agnostic and runs under any
 Python 3.10+. Exit codes: 0 = success / accept, 1 = reject / mismatch,
@@ -66,6 +69,8 @@ from _skillopt_bundle import (
     path_sha256,
 )
 from _skillopt_efficiency import efficiency_gate
+from _skillopt_evidence import assert_declared_pins
+from _skillopt_evidence_cli import add_evidence_parsers
 from _skillopt_gates import (
     BAD_TASK_STATUSES,
     _split_task_ids,
@@ -183,6 +188,7 @@ def _cmd_gate(args: argparse.Namespace) -> int:
 
 def _cmd_pair_gate(args: argparse.Namespace) -> int:
     eval_set = _load_object(args.eval, "pair-gate eval input")
+    assert_declared_pins(Path(args.eval), eval_set)
     incumbent_results = _load_object(args.incumbent_results, "pair-gate incumbent results")
     candidate_results = _load_object(args.candidate_results, "pair-gate candidate results")
     null_results = (
@@ -202,8 +208,10 @@ def _cmd_pair_gate(args: argparse.Namespace) -> int:
 
 
 def _cmd_efficiency_gate(args: argparse.Namespace) -> int:
+    eval_set = _load_object(args.eval, "efficiency-gate eval input")
+    assert_declared_pins(Path(args.eval), eval_set)
     report = efficiency_gate(
-        _load_object(args.eval, "efficiency-gate eval input"),
+        eval_set,
         _load_object(args.incumbent_results, "efficiency-gate incumbent results"),
         _load_object(args.candidate_results, "efficiency-gate candidate results"),
         _load_object(args.measurements, "efficiency-gate measurements"),
@@ -424,7 +432,8 @@ examples:
 
 exit codes:
   0  success or accept
-  1  reject, mismatch, or run left a task unverified (buffer-check: NOVEL)
+  1  reject, mismatch, falsified prediction, lightweight or unknown proposer,
+     or run left a task unverified (buffer-check: NOVEL)
   2  usage or validation error
 """
 
@@ -467,6 +476,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=_cmd_hash)
 
     _add_buffer_parsers(sub)
+    add_evidence_parsers(sub)
 
     p = sub.add_parser("where", help="print the directory that holds this script")
     p.set_defaults(func=_cmd_where)

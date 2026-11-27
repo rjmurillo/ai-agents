@@ -1,0 +1,46 @@
+{
+ "scenarios": [
+  {
+   "id": "S1-python-test-subprocess",
+   "desc": "Writing a pytest that runs a subprocess routes to the Python and test conventions reference.",
+   "input": "You are about to add a pytest file under tests/ that calls subprocess.run with text=True and monkeypatches HOME. Before you write it, which single reference file under this skill do you read first? Answer with one label.",
+   "verdict_options": [
+    "READ_PYTHON_CONVENTIONS",
+    "READ_CI_SCRIPTS",
+    "READ_REVIEWER_GUIDANCE",
+    "READ_NONE"
+   ],
+   "expected_verdict": "READ_PYTHON_CONVENTIONS",
+   "expected_reason_contains": "python-and-test-conventions",
+   "rationale": "The Triggers section names python-and-test-conventions before writing Python or tests."
+  },
+  {
+   "id": "S2-pr-review-dismissals",
+   "desc": "Reviewing a pull request routes to the reviewer guidance reference.",
+   "input": "You are reviewing a pull request in this repo. The diff touches scripts/ci/diff_line_scope.py and files under .project-toolkit/memory/episodes/. Before you post findings, which single reference file under this skill do you read first? Answer with one label.",
+   "verdict_options": [
+    "READ_PYTHON_CONVENTIONS",
+    "READ_CI_SCRIPTS",
+    "READ_REVIEWER_GUIDANCE",
+    "READ_NONE"
+   ],
+   "expected_verdict": "READ_REVIEWER_GUIDANCE",
+   "expected_reason_contains": "reviewer-guidance",
+   "rationale": "The Triggers section names reviewer-guidance before reviewing a pull request."
+  },
+  {
+   "id": "S3-ci-workflow-control",
+   "desc": "Editing a CI workflow still routes to the CI scripts reference (regression control).",
+   "input": "You are about to edit .github/workflows/pr-validation.yml to add a new step. Before you edit it, which single reference file under this skill do you read first? Answer with one label.",
+   "verdict_options": [
+    "READ_PYTHON_CONVENTIONS",
+    "READ_CI_SCRIPTS",
+    "READ_REVIEWER_GUIDANCE",
+    "READ_NONE"
+   ],
+   "expected_verdict": "READ_CI_SCRIPTS",
+   "expected_reason_contains": "rule-ci-scripts",
+   "rationale": "The Triggers section names rule-ci-scripts before editing a CI workflow; the new lines must not displace it."
+  }
+ ]
+}

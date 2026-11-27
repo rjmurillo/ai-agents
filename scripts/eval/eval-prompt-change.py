@@ -60,6 +60,7 @@ Verdict matching contract:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -67,7 +68,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, NamedTuple
 
 from _anthropic_api import (
     DEFAULT_MODEL,
@@ -118,16 +119,33 @@ OPTIONAL_SCENARIO_FIELDS = {"expected_reason_contains", "rationale", "verdict_op
 DEFAULT_FALLBACK_VERDICT = "OTHER"
 
 
+def read_scenarios_file(path: str) -> bytes:
+    """The raw bytes of the scenario file, read once.
+
+    Raises RuntimeError when the file is missing.
+    """
+    try:
+        return Path(path).read_bytes()
+    except FileNotFoundError as exc:
+        raise RuntimeError(f"Scenario file not found: {path}") from exc
+
+
 def load_scenarios(path: str) -> list[dict[str, Any]]:
     """Load and validate scenario file.
 
     Raises RuntimeError with actionable message on invalid input.
     """
+    return parse_scenarios(read_scenarios_file(path), path)
+
+
+def parse_scenarios(raw: bytes, path: str) -> list[dict[str, Any]]:
+    """Validate scenario file bytes already read from *path*.
+
+    Decodes as strict UTF-8, as `open(path, encoding="utf-8")` did. The caller
+    hashes the same bytes, so the identity names the file this run judged.
+    """
     try:
-        with open(path, encoding="utf-8") as f:
-            data = json.load(f)
-    except FileNotFoundError as exc:
-        raise RuntimeError(f"Scenario file not found: {path}") from exc
+        data = json.loads(raw.decode("utf-8"))
     except json.JSONDecodeError as exc:
         raise RuntimeError(
             f"Invalid JSON in scenario file {path}: {exc.msg} at line {exc.lineno}. "
@@ -160,40 +178,46 @@ def load_scenarios(path: str) -> list[dict[str, Any]]:
                 f"Scenario {i} in {path} missing required fields: {missing}. "
                 f"Required: {REQUIRED_SCENARIO_FIELDS}"
             )
-        opts = s.get("verdict_options")
-        if opts is not None:
-            if not isinstance(opts, list) or not opts:
-                raise RuntimeError(
-                    f"Scenario {s['id']} in {path}: 'verdict_options' must be a "
-                    f"non-empty list when present."
-                )
-            opts_upper: list[str] = []
-            seen_opts: set[str] = set()
-            for opt in opts:
-                normalized_opt = str(opt).strip().upper()
-                if not normalized_opt:
-                    raise RuntimeError(
-                        f"Scenario {s['id']} in {path}: 'verdict_options' contains "
-                        f"an empty label after normalization. Remove blank or "
-                        f"whitespace-only entries."
-                    )
-                if normalized_opt in seen_opts:
-                    raise RuntimeError(
-                        f"Scenario {s['id']} in {path}: 'verdict_options' contains "
-                        f"duplicate label {normalized_opt!r} after normalization. "
-                        f"Ensure labels are unique ignoring case and surrounding "
-                        f"whitespace."
-                    )
-                seen_opts.add(normalized_opt)
-                opts_upper.append(normalized_opt)
-            if str(s["expected_verdict"]).strip().upper() not in opts_upper:
-                raise RuntimeError(
-                    f"Scenario {s['id']} in {path}: expected_verdict "
-                    f"{s['expected_verdict']!r} is not in verdict_options "
-                    f"{opts}. Add it or remove verdict_options."
-                )
+        _check_verdict_options(s, path)
 
     return scenarios
+
+
+def _check_verdict_options(s: dict[str, Any], path: str) -> None:
+    """Raise RuntimeError when a scenario's optional `verdict_options` is malformed."""
+    opts = s.get("verdict_options")
+    if opts is None:
+        return
+    if not isinstance(opts, list) or not opts:
+        raise RuntimeError(
+            f"Scenario {s['id']} in {path}: 'verdict_options' must be a "
+            f"non-empty list when present."
+        )
+    opts_upper: list[str] = []
+    seen_opts: set[str] = set()
+    for opt in opts:
+        normalized_opt = str(opt).strip().upper()
+        if not normalized_opt:
+            raise RuntimeError(
+                f"Scenario {s['id']} in {path}: 'verdict_options' contains "
+                f"an empty label after normalization. Remove blank or "
+                f"whitespace-only entries."
+            )
+        if normalized_opt in seen_opts:
+            raise RuntimeError(
+                f"Scenario {s['id']} in {path}: 'verdict_options' contains "
+                f"duplicate label {normalized_opt!r} after normalization. "
+                f"Ensure labels are unique ignoring case and surrounding "
+                f"whitespace."
+            )
+        seen_opts.add(normalized_opt)
+        opts_upper.append(normalized_opt)
+    if str(s["expected_verdict"]).strip().upper() not in opts_upper:
+        raise RuntimeError(
+            f"Scenario {s['id']} in {path}: expected_verdict "
+            f"{s['expected_verdict']!r} is not in verdict_options "
+            f"{opts}. Add it or remove verdict_options."
+        )
 
 
 def _verdict_options(scenario: dict[str, Any]) -> list[str]:
@@ -960,7 +984,11 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--model", type=str, default=DEFAULT_MODEL, help="Model for evaluation")
     parser.add_argument("--dry-run", action="store_true", help="Validate inputs, no API calls")
-    parser.add_argument("--output", type=str, help="Write results to file")
+    parser.add_argument(
+        "--output",
+        type=str,
+        help="Write results to file; missing parent folders are created before any API call",
+    )
     parser.add_argument(
         "--provider",
         type=str,
@@ -1019,22 +1047,30 @@ def _parse_args() -> argparse.Namespace:
     return args
 
 
-def _load_prompts(args: argparse.Namespace) -> tuple[str, str, str]:
-    """Load before/after prompt text and return (before_text, after_text, source)."""
+def _load_prompts(args: argparse.Namespace, base_commit: str | None = None) -> tuple[str, str, str]:
+    """Load before/after prompt text and return (before_text, after_text, source).
+
+    The before side reads from *base_commit* when given, so it is the commit
+    the identity records. Without one it reads `--base-ref` by name.
+    """
     has_explicit = args.before and args.after
     if has_explicit:
         before_text = load_prompt_from_file(args.before)
         after_text = load_prompt_from_file(args.after)
         source = f"explicit: {args.before} -> {args.after}"
     else:
-        before_path, before_text = _load_before_across_rename(args)
+        before_path, before_text = _load_before_across_rename(args, base_commit)
         after_text = load_prompt_surface_from_file(args.prompt)
         source = f"git: {args.base_ref}:{before_path} -> working copy"
     return before_text, after_text, source
 
 
-def _load_before_across_rename(args: argparse.Namespace) -> tuple[str, str]:
+def _load_before_across_rename(
+    args: argparse.Namespace, base_commit: str | None = None
+) -> tuple[str, str]:
     """Return (path_used, text) for the 'before' side, following a rename.
+
+    Reads at *base_commit* when given, else at `--base-ref`.
 
     A prompt that moved in the change under test does not exist at the base ref
     under its new path, and `git show <ref>:<new>` fails rather than returning
@@ -1049,8 +1085,9 @@ def _load_before_across_rename(args: argparse.Namespace) -> tuple[str, str]:
 
     Refs ADR-064 (issue #5632), which renames every lifecycle prompt.
     """
+    ref = base_commit or args.base_ref
     try:
-        return args.prompt, load_prompt_surface_from_ref(args.prompt, args.base_ref)
+        return args.prompt, load_prompt_surface_from_ref(args.prompt, ref)
     except RuntimeError:
         if not getattr(args, "renamed_from", None):
             raise
@@ -1059,7 +1096,147 @@ def _load_before_across_rename(args: argparse.Namespace) -> tuple[str, str]:
             f"reading the 'before' side from {args.renamed_from}",
             file=sys.stderr,
         )
-        return args.renamed_from, load_prompt_surface_from_ref(args.renamed_from, args.base_ref)
+        return args.renamed_from, load_prompt_surface_from_ref(args.renamed_from, ref)
+
+
+def _sha256_hex(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def resolve_base_commit(ref: str) -> str | None:
+    """Commit SHA *ref* names now, or None when git cannot resolve it."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    sha = result.stdout.strip()
+    return sha if result.returncode == 0 and re.fullmatch(r"[0-9a-f]{40}", sha) else None
+
+
+class PinnedInputs(NamedTuple):
+    """Inputs the run read once, before the model preflight.
+
+    `base_commit` is the commit `--base-ref` named when the before text was
+    read. `scenarios_sha256` hashes the scenario bytes the run loaded. A later
+    fetch or edit cannot change either, so the identity names what was judged.
+    None means no such input: never guessed, so the evidence check fails closed.
+    """
+
+    scenarios_sha256: str | None = None
+    base_commit: str | None = None
+
+
+def pin_inputs(args: argparse.Namespace, scenarios_data: bytes | None) -> PinnedInputs:
+    """Resolve `--base-ref` once and hash the scenario bytes already read.
+
+    `base_commit` is None in `--before/--after` mode, where no base commit
+    exists, and when git cannot resolve the ref.
+    """
+    prompt = getattr(args, "prompt", None)
+    base_ref = getattr(args, "base_ref", None)
+    return PinnedInputs(
+        scenarios_sha256=None if scenarios_data is None else _sha256_hex(scenarios_data),
+        base_commit=resolve_base_commit(base_ref) if prompt and base_ref else None,
+    )
+
+
+def _repo_root() -> Path | None:
+    """The checkout root git reports for the current directory, or None."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    top = result.stdout.strip()
+    return Path(top).resolve() if result.returncode == 0 and top else None
+
+
+def repo_relative_path(path: str | None, root: Path | None) -> str | None:
+    """*path* as the repository spells it: the real file, relative to *root*.
+
+    `./x` and a symlinked `.claude/skills/<n>` resolve to the path git tracks
+    (`src/claude/skills/<n>`), which is what the evidence check compares. A
+    path outside *root*, or no *root*, stays as typed.
+    """
+    if not path or root is None:
+        return path
+    try:
+        return Path(path).resolve().relative_to(root).as_posix()
+    except (ValueError, OSError, RuntimeError):
+        return path
+
+
+def run_identity(
+    args: argparse.Namespace, after_text: str, pinned: PinnedInputs | None = None
+) -> dict[str, Any]:
+    """Identities ADR-127 decision 9 requires in every `--output` file.
+
+    `prompt_surface_sha256` hashes the exact after-side text the model read:
+    the rendered prompt plus every `references/*.md` beside it, joined as
+    `load_prompt_surface_from_file` joins them. `base_commit` and
+    `scenarios_sha256` come from *pinned* and are never re-read here. Without
+    *pinned* both are None, so the evidence check can fail closed on them.
+    The two paths are written repository-relative (see `repo_relative_path`),
+    not as typed.
+    """
+    prompt = getattr(args, "prompt", None)
+    base_ref = getattr(args, "base_ref", None)
+    pinned = pinned or PinnedInputs()
+    root = _repo_root()
+    return {
+        "prompt_path": repo_relative_path(prompt, root),
+        "prompt_surface_sha256": _sha256_hex(after_text.encode("utf-8")),
+        "scenarios_path": repo_relative_path(getattr(args, "scenarios", None), root),
+        "scenarios_sha256": pinned.scenarios_sha256,
+        "base_ref": base_ref if prompt else None,
+        "base_commit": pinned.base_commit,
+        "model": args.model,
+    }
+
+
+def prepare_output_path(output: str | None) -> None:
+    """Create the parent folder of `--output` and check the path can be written.
+
+    `main` calls this before the first model call, so a bad path costs nothing.
+    It never opens, creates, or truncates the results file: a `--dry-run` must
+    leave an existing results file as it was. Raises RuntimeError naming the
+    path when the folder cannot be made or the path cannot be written.
+    """
+    if not output:
+        return
+    # The write follows symlinks, so check where the bytes will land: a link
+    # may point into a folder that does not exist yet.
+    target = Path(os.path.realpath(output))
+    parent = target.parent
+    try:
+        parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        reason = exc.strerror or exc.__class__.__name__
+        raise RuntimeError(f"--output {output}: cannot create folder {parent}: {reason}") from exc
+    # Without search permission on the folder the file cannot be reached, and
+    # `exists()` would report an existing file as absent. Test this first.
+    if not os.access(parent, os.X_OK):
+        raise RuntimeError(f"--output {output}: folder {parent} is not writable (no search access)")
+    if target.is_dir():
+        raise RuntimeError(f"--output {output}: is a folder, expected a file path")
+    probe = target if target.exists() else parent
+    if not os.access(probe, os.W_OK):
+        raise RuntimeError(f"--output {output}: {probe} is not writable")
 
 
 def _run_and_report(
@@ -1069,6 +1246,7 @@ def _run_and_report(
     scenarios: list[dict[str, Any]],
     args: argparse.Namespace,
     source: str,
+    pinned: PinnedInputs | None = None,
 ) -> None:
     """Run comparison, apply gate, and output results."""
     print(f"\n{'=' * 60}", file=sys.stderr)
@@ -1076,6 +1254,9 @@ def _run_and_report(
     print(msg, file=sys.stderr)
     print(f"{'=' * 60}", file=sys.stderr)
 
+    # `pinned` was resolved in `main` before the before side was read, so a
+    # fetch during the preflight or the run cannot move the recorded base.
+    identity = run_identity(args, after_text, pinned)
     comparison = run_comparison(
         api_key,
         before_text,
@@ -1094,6 +1275,7 @@ def _run_and_report(
         "eval_type": "prompt-change",
         "adr": "ADR-057",
         "model": args.model,
+        "identity": identity,
         "source": source,
         "runs_per_scenario": args.runs,
         "max_tokens": args.max_tokens,
@@ -1238,9 +1420,10 @@ def _run_or_exit(
     scenarios: list[dict[str, Any]],
     args: argparse.Namespace,
     source: str,
+    pinned: PinnedInputs | None = None,
 ) -> None:
     try:
-        _run_and_report(api_key, before_text, after_text, scenarios, args, source)
+        _run_and_report(api_key, before_text, after_text, scenarios, args, source, pinned)
     except RuntimeError as error:
         # Name the transport on a failed run too: a hub rejection and a direct
         # API failure read alike otherwise.
@@ -1277,10 +1460,15 @@ def main() -> None:
         sys.exit(2)
 
     try:
-        scenarios = load_scenarios(args.scenarios)
+        scenarios_data = read_scenarios_file(args.scenarios)
+        scenarios = parse_scenarios(scenarios_data, args.scenarios)
     except RuntimeError as e:
         print(f"ERROR: {e}", file=sys.stderr)
         sys.exit(2)
+
+    # Before any base blob is read: the identity records this commit, and the
+    # before text is read from it, not from a ref name that can move.
+    pinned = pin_inputs(args, scenarios_data)
 
     print(f"  Scenarios: {len(scenarios)} loaded from {args.scenarios}", file=sys.stderr)
     print(f"  Runs per scenario: {args.runs}", file=sys.stderr)
@@ -1288,7 +1476,7 @@ def main() -> None:
     print(f"  Model: {args.model}", file=sys.stderr)
 
     try:
-        before_text, after_text, source = _load_prompts(args)
+        before_text, after_text, source = _load_prompts(args, pinned.base_commit)
     except RuntimeError as e:
         print(f"ERROR: {e}", file=sys.stderr)
         sys.exit(2)
@@ -1298,6 +1486,14 @@ def main() -> None:
 
     if before_text == after_text:
         print("  WARNING: before and after prompt text are identical", file=sys.stderr)
+
+    # Last input check, shared with --dry-run: every model call would be lost
+    # if the results file could not be written at the end of the run.
+    try:
+        prepare_output_path(args.output)
+    except RuntimeError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(2)
 
     if args.dry_run:
         print("\n  DRY RUN: inputs validated, no API calls made", file=sys.stderr)
@@ -1334,7 +1530,7 @@ def main() -> None:
         print(f"ERROR: {e}", file=sys.stderr)
         sys.exit(2)
 
-    _run_or_exit(api_key, before_text, after_text, scenarios, args, source)
+    _run_or_exit(api_key, before_text, after_text, scenarios, args, source, pinned)
 
 
 if __name__ == "__main__":  # pragma: no cover

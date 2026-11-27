@@ -210,7 +210,6 @@ class TestRealCorpus:
 
         assert filtered == {
             "investigation-claim-backstop.yml",
-            "software-engineering-library-activation.yml",
             "synthesis-panel-gate.yml",
             "test-codeql-integration.yml",
         }

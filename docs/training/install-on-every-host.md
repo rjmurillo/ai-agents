@@ -17,7 +17,7 @@ We ran the commands on 2026-11-11 with main at `d34536c95c`. Counts come from th
 | Cursor | Agent CLI 2026.10.14-0f9edde | 105 | 28 | Local plugin directory | Partly |
 | Grok Build | 1.0.77 | 105 | 29 | Marketplace | Yes |
 | Pi | 1.5.0 | 105 | None | `pi install` from git | Yes |
-| Hermes | hermes-agent at `63d0b94` | 89, in four packs | None | `hermes plugins install` per pack | Yes |
+| Hermes | hermes-agent at `63d0b94` | 89, in five packs | None | `hermes plugins install` per pack | Yes |
 | Muse personal agent | Not run | 105 | None | Copy skill folders | No |
 | Muse Code | 1.4.15, at `fc91afcf2` | 105 | 25; a signed-in run spawned all 25 | Copy skill and agent folders | Partly |
 
@@ -277,18 +277,19 @@ pi remove git:github.com/rjmurillo/ai-agents
 
 ### Install on Hermes
 
-Hermes caps a plugin at 400 files. The toolkit does not fit in one plugin, so it ships as four packs ([ADR-115](../../.project-toolkit/architecture/ADR-115-native-plugin-support-per-host.md) Decision 6):
+Hermes caps a plugin at 400 files. The toolkit does not fit in one plugin, so it ships as five packs ([ADR-115](../../.project-toolkit/architecture/ADR-115-native-plugin-support-per-host.md) Decision 6):
 
 | Pack | Skills | Holds |
 |------|--------|-------|
-| `project-toolkit-delivery` | 35 | Pull request work, planning, build, test, review gates |
+| `project-toolkit-delivery` | 33 | Pull request work, planning, build, test, review gates |
 | `project-toolkit-knowledge` | 34 | Memory, context, decisions, requirements, strategy, documentation |
 | `project-toolkit-quality` | 14 | Security and reliability engineering, code and documentation standards, metrics, model review |
 | `project-toolkit-authoring` | 6 | Creating, measuring, and tuning skills, context placement, agent prose |
+| `project-toolkit-azure-devops` | 2 | Azure DevOps pipeline validation and OneBranch pipeline image updates |
 
-That is 89 skills. Another 15 skills ship in no pack. `skill-doctor` has a file over the 1 MiB limit. Seven are listed as rated dangerous by Hermes, and seven more refer to an excluded skill. [src/hermes/README.md](../../src/hermes/README.md) lists each one with its reason. No skill links to a script or reference file in another pack by path. Two `skillforge` scripts look in the other packs at run time when they are installed, and some skills name a skill or script from another pack in their text (for example, `retrospective` in knowledge names `distill_artifact.py` from `context-optimizer` in authoring, and `autoplan` in knowledge names a `github` script in delivery). Install all four packs for the full toolkit. No sign-in is needed.
+That is 89 skills. Another 15 skills ship in no pack. `skill-doctor` has a file over the 1 MiB limit. Seven are listed as rated dangerous by Hermes, and seven more refer to an excluded skill. [src/hermes/README.md](../../src/hermes/README.md) lists each one with its reason. No skill links to a script or reference file in another pack by path. Two `skillforge` scripts look in the other packs at run time when they are installed, and some skills name a skill or script from another pack in their text (for example, `retrospective` in knowledge names `distill_artifact.py` from `context-optimizer` in authoring, and `autoplan` in knowledge names a `github` script in delivery). Install all five packs for the full toolkit. No sign-in is needed.
 
-Hermes scans each pack before it installs it. At the pinned hermes-agent commit (`63d0b94120`) it rated `project-toolkit-quality` and `project-toolkit-knowledge` `SAFE`, and the other two `CAUTION`. A `CAUTION` pack needs `--force`.
+Hermes scans each pack before it installs it. At the pinned hermes-agent commit (`63d0b94120`) it rated `project-toolkit-quality`, `project-toolkit-knowledge`, and `project-toolkit-azure-devops` `SAFE`, and authoring and delivery `CAUTION`. A `CAUTION` pack needs `--force`.
 
 1. Install the quality and knowledge packs and enable them:
 
@@ -315,6 +316,14 @@ Hermes scans each pack before it installs it. At the pinned hermes-agent commit 
 
    The repository smoke uses `--force` only for a `CAUTION` pack whose every `HIGH` finding was reviewed, by file, line, and line content (`FORCE_ALLOWED_FINDINGS` in `tests/e2e/hermes_runtime.py`). It never forces a `DANGEROUS` pack.
 
+4. Install the Azure DevOps pack and enable it:
+
+   ```bash
+   hermes plugins install rjmurillo/ai-agents/src/hermes/project-toolkit-azure-devops --enable
+   ```
+
+   On 2026-11-25 the repository smoke installed it at the pinned commit (`63d0b94120`) without `--force`, so Hermes rated it `SAFE`. Treat that rating as weak evidence: in the same run the guard's negative control, a known-dangerous skill, was also rated `SAFE` (`test_guard_negative_control_flags_a_dangerous_skill` failed, and it failed the same way on 2026-11-25 on a branch without this pack). Read the skill files before you install.
+
 Update: see "Check Hermes" below. `hermes plugins check-updates` cannot tell for these packs. Reinstall each pack over itself. Run the install without `--force` first. For a `CAUTION` pack, Hermes prints its findings and `Decision: BLOCKED`. For a `SAFE` pack, it stops with `Plugin ... already exists`. Then run it again with `--force` and `--enable`. Hermes needs `--force` to replace any installed pack, even a `SAFE` one. For a `CAUTION` pack, do this only if you accept the findings, because `--force` also accepts every `CAUTION` finding, including a new one. We ran this at the pinned commit on 2026-11-19, from a local copy with `--no-enable` in place of `--enable`. Hermes printed `Replacement installed; plugin selection was not changed`.
 
 Moving from two or three packs: 20 skills moved into two new packs (`project-toolkit-quality` and `project-toolkit-authoring`). No command moves them for you.
@@ -325,8 +334,9 @@ Moving from two or three packs: 20 skills moved into two new packs (`project-too
 What to do depends on what you installed:
 
 - Both delivery and knowledge: reinstall delivery and knowledge over the old copies the way the Update step says, with `--force` after you read the findings. Then install quality and authoring with steps 1 to 3. The new delivery and knowledge packs no longer carry the moved skills, so skipping a new pack loses them. Count your skills afterwards (see "Check Hermes").
-- Only delivery: reinstall it the way the Update step says. Its remaining 35 skills keep working. Every skill that `/test` calls and Hermes ships stays in delivery; `security-scan` ships in no pack, as before. To keep the 14 moved skills, install the quality pack.
+- Only delivery: reinstall it the way the Update step says. Its remaining 33 skills keep working. Every skill that `/test` calls and Hermes ships stays in delivery; `security-scan` ships in no pack, as before. To keep the 14 moved skills, install the quality pack.
 - Only knowledge: reinstall it the way the Update step says. Replacing your old copy needs `--force`, though a fresh knowledge install no longer does. Its remaining 34 skills keep working. To keep the 6 moved skills, install the authoring pack. Without it, `retrospective` tells the agent to run `distill_artifact.py`, which you do not have.
+- Azure DevOps skills: `pipeline-validator` and `windows-image-updater` moved from delivery to their own pack, `project-toolkit-azure-devops`. To keep them, reinstall delivery the way the Update step says, then install the Azure DevOps pack (step 4). With an old delivery pack still installed, expect Hermes to list both skills twice. We did not measure the duplicate count for this move.
 - Order matters: reinstall delivery and knowledge before you install quality and authoring. With an old pack still installed, Hermes lists moved skills twice, once from each pack, until you reinstall the old pack. We measured this on 2026-11-24 against hermes-agent `63d0b94120` for the knowledge-to-authoring move: 95 skills listed with six duplicates, and 89 with none after reinstalling knowledge.
 
 Uninstall:
@@ -336,6 +346,7 @@ hermes plugins remove project-toolkit-delivery
 hermes plugins remove project-toolkit-knowledge
 hermes plugins remove project-toolkit-quality
 hermes plugins remove project-toolkit-authoring
+hermes plugins remove project-toolkit-azure-devops
 ```
 
 ### Install on Muse
@@ -729,6 +740,7 @@ hermes plugins doctor project-toolkit-knowledge
 hermes plugins doctor project-toolkit-delivery
 hermes plugins doctor project-toolkit-quality
 hermes plugins doctor project-toolkit-authoring
+hermes plugins doctor project-toolkit-azure-devops
 ```
 
 The list shows each pack with status `enabled` and source `user`. Each doctor run prints:
@@ -744,9 +756,10 @@ ls -d "${HERMES_HOME:-$HOME/.hermes}"/plugins/project-toolkit-delivery/skills/*/
 ls -d "${HERMES_HOME:-$HOME/.hermes}"/plugins/project-toolkit-knowledge/skills/*/ | wc -l
 ls -d "${HERMES_HOME:-$HOME/.hermes}"/plugins/project-toolkit-quality/skills/*/ | wc -l
 ls -d "${HERMES_HOME:-$HOME/.hermes}"/plugins/project-toolkit-authoring/skills/*/ | wc -l
+ls -d "${HERMES_HOME:-$HOME/.hermes}"/plugins/project-toolkit-azure-devops/skills/*/ | wc -l
 ```
 
-Expect `35`, `34`, `14`, and `6` (89 skills total). Hermes gets skills only.
+Expect `33`, `34`, `14`, `6`, and `2` (89 skills total). Hermes gets skills only.
 
 Not run: a Hermes model turn that uses a skill. `hermes skills list` showed no plugin skills in our run, so do not use it as your check.
 
@@ -757,6 +770,7 @@ hermes plugins install --force --enable rjmurillo/ai-agents/src/hermes/project-t
 hermes plugins install --force --enable rjmurillo/ai-agents/src/hermes/project-toolkit-delivery
 hermes plugins install --force --enable rjmurillo/ai-agents/src/hermes/project-toolkit-quality
 hermes plugins install --force --enable rjmurillo/ai-agents/src/hermes/project-toolkit-authoring
+hermes plugins install --force --enable rjmurillo/ai-agents/src/hermes/project-toolkit-azure-devops
 ```
 
 Hermes needs `--force` to replace an installed pack, even a `SAFE` one. `--force` also accepts every `CAUTION` finding on delivery and authoring, so read their findings first. We ran the forced reinstall from a local copy at the pinned commit on 2026-11-19, not from GitHub. The help says `--ref COMMIT_SHA` installs one exact 40-character commit. Not run: `--ref`.
