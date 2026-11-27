@@ -16,6 +16,7 @@ write the sampling part of the report.
 - `--include-subagents` - include child or sidechain sessions.
 - `--min-idle-minutes N` - skip sessions active within the last N minutes (default 15; 0 keeps every session).
 - `--timeline-supplement N` - add up to N no-skill sessions spaced across the window, tagged as their own stratum. The sample stays non-probability; the inventory says so.
+- `--export-corpus PATH` - also write every collected user and assistant message as full-text JSONL (no truncation, token shapes redacted) for panning-for-gold. It follows the same harness, repository, and time-window selection, and it refuses a path inside this skill's directory. It also reads the corpus-only `t3` and `gemini` sources, with `--t3-home` and `--gemini-home` overrides; see `supported-harnesses.md`. Without the flag, output is unchanged.
 - `--audit-manifest` - also write `audit_manifest.json`: declared inputs and caps, source revision, upstream identity evidence, scope, and the content-aware skill catalog. It exits 1 and writes no manifest when the evidence contradicts the declared scope.
 
 ## Sampling disclosure

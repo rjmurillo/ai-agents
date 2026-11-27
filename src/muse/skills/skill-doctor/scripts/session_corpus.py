@@ -14,6 +14,7 @@ Copyright (c) 2026 Denver Technologies, Inc. MIT license, see ../LICENSE.
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from collections.abc import Iterator
@@ -114,7 +115,10 @@ def corpus_export(args: Any) -> Iterator[CorpusExporter | None]:
     target = _checked_target(args.export_corpus)
     try:
         target.parent.mkdir(parents=True, exist_ok=True)
-        stream = target.open("w", encoding="utf-8", newline="\n")
+        fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        stream = os.fdopen(fd, "w", encoding="utf-8", newline="\n")
+    except FileExistsError:
+        _refuse(f"--export-corpus refuses to overwrite an existing file: {target}")
     except OSError as exc:
         _refuse(f"cannot write --export-corpus {target}: {exc}")
     capture = CorpusCapture()

@@ -34,9 +34,23 @@ Unencodable diagnostic characters are escaped when a legacy output encoding requ
 Known but unsupported, with no collector:
 
 - Devin CLI keeps history in `~/.local/share/devin/cli/sessions.db` (SQLite tables `sessions`, `message_nodes`, `tool_call_state`). The store held 0 rows on the machine that was inspected, so no parser could be tested against real data. A collector needs a populated fixture first.
-- Antigravity: no local conversation store was found under `~/.gemini`, `~/.cache/antigravity`, or `~/.local/share`.
+- Antigravity scoring: its text transcripts carry no tool calls, so they never reach scoring. They read as a corpus-only source, below.
 
 Sessions from these harnesses never reach the report. Do not read their stores by hand.
+
+## Corpus-only sources
+
+Two sources feed `--export-corpus` and nothing else. They hold conversation text with no tool calls, so the collector never scores them. With `--export-corpus` unset, the collector does not read them, and its output is unchanged.
+
+| Source | Collector ID | Local conversation source |
+| --- | --- | --- |
+| T3 Code | `t3` | Read-only, immutable SQLite `~/.t3/userdata/statev2.sqlite`: `orchestration_v2_projection_threads` and `orchestration_v2_projection_messages` |
+| Gemini antigravity | `gemini` | `~/.gemini/antigravity-cli/brain/<id>/.system_generated/logs/transcript_full.jsonl` |
+
+- `--t3-home PATH` (default `~/.t3`) and `--gemini-home PATH` (default `~/.gemini/antigravity-cli`) override the homes.
+- `--harness auto` and `--harness all` read a source when it exists and skip it when it does not. `--harness t3` or `--harness gemini` needs `--export-corpus` and exits 2 when the source is missing.
+- Neither source records a working directory, so the repository filter drops them. Pass `--all-conversations` to export them.
+- A T3 database that lacks a required table or column counts as `schema_mismatch` in `collection_issues`. An unreadable database counts as `database_failures`. Neither stops the run.
 
 At startup, identify the harness executing the skill from the runtime context. Do not infer it from conversation files found on disk.
 

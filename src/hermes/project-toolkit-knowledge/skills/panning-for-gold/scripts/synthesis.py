@@ -21,7 +21,7 @@ _THIS_DIR = Path(__file__).resolve().parent
 if str(_THIS_DIR) not in sys.path:
     sys.path.insert(0, str(_THIS_DIR))
 
-from inventory import Thread  # noqa: E402
+from inventory import Thread, optional_field_lines  # noqa: E402
 
 SIGNAL_ORDER: tuple[str, ...] = ("high", "medium", "low")
 SIGNAL_HEADER: dict[str, str] = {
@@ -129,6 +129,9 @@ def build_gold_found(
             for line in t.quote.splitlines() or [""]:
                 out.append(f"> {line}")
             out.append("")
+            lens_lines = optional_field_lines(t)
+            if lens_lines:
+                out.extend([*lens_lines, ""])
             out.append(evaluation)
             out.append("")
 

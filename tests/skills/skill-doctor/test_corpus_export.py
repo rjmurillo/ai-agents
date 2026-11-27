@@ -180,8 +180,8 @@ def test_repo_scope_admits_a_matching_session_and_drops_another(tmp_path: Path) 
     assert [r["text"] for r in read_rows(tmp_path / "corpus.jsonl")] == ["in scope"]
     other = tmp_path / "another-repo"
     other.mkdir()
-    run(tmp_path, *export_args(tmp_path, home), "--repo", str(other))
-    assert (tmp_path / "corpus.jsonl").read_text(encoding="utf-8") == ""
+    run(tmp_path, *export_args(tmp_path, home, "corpus2.jsonl"), "--repo", str(other))
+    assert (tmp_path / "corpus2.jsonl").read_text(encoding="utf-8") == ""
 
 
 def test_session_outside_time_window_is_not_exported(tmp_path: Path) -> None:
@@ -298,6 +298,16 @@ def test_export_refuses_a_directory_path(tmp_path: Path) -> None:
     )  # fmt: skip
     assert result.returncode == 2
     assert "directory" in result.stderr
+
+
+def test_export_refuses_to_overwrite_a_file(tmp_path: Path) -> None:
+    home = make_claude_home(tmp_path)
+    target = tmp_path / "corpus.jsonl"
+    target.write_text("keep this", encoding="utf-8")
+    result = run(tmp_path, *export_args(tmp_path, home))
+    assert result.returncode == 2
+    assert "refuses to overwrite" in result.stderr
+    assert target.read_text(encoding="utf-8") == "keep this"
 
 
 def test_corpus_only_harness_needs_the_flag(tmp_path: Path) -> None:

@@ -1,7 +1,7 @@
 ---
 name: panning-for-gold
 version: 1.0.0
-description: "Triage raw unstructured input (transcripts, brain dumps) into evaluated thread inventories and a synthesized gold-found file. Four phases: front-gate, extract, evaluate, synthesize. Use when you say \"pan for gold\", \"triage transcript\", \"synthesize gold-found\", or hand it a voice transcript or brain dump. Do NOT use for structured input like specs or ADRs (use analyst or spec-generator instead)."
+description: "Triage raw unstructured input (transcripts, brain dumps) into evaluated thread inventories and a synthesized gold-found file. Four phases: front-gate, extract, evaluate, synthesize. Also mines agent session corpora for measured results that contradicted guidance. Use when you say \"pan for gold\", \"triage transcript\", \"synthesize gold-found\", \"mine eureka moments\", or hand it a voice transcript or brain dump. Do NOT use for structured input like specs or ADRs (use analyst or spec-generator instead)."
 license: Apache-2.0
 ---
 
@@ -18,6 +18,7 @@ Turn raw, unstructured capture into an evaluated, actionable inventory of thread
 | `pan for gold` | Run the full extract -> evaluate -> synthesize procedure |
 | `triage transcript` | Build inventory of threads from a raw transcript |
 | `synthesize gold-found` | Generate the final gold-found file from evaluations |
+| `mine eureka moments` | Run session corpus mode: find measured results that contradicted a memory, ADR, skill, or doc |
 
 ## When to Use
 
@@ -31,6 +32,23 @@ Use a different skill when:
 
 - The input is already structured (specs, ADRs, code). Use the analyst agent or the spec-generator skill instead.
 - You only need a one-off summary. Use a generic summarizer.
+
+## Session Corpus Mode
+
+Use this mode to mine agent session history instead of one transcript. A eureka is a measured or observed result that contradicted a memory, ADR, skill, doc, or common guidance. Phase 0 still runs first.
+
+This skill analyzes. It does not read session stores. A separate producer writes the corpus as JSONL, described in `references/corpus-format.md`. The skill-doctor skill's `--export-corpus` flag is one producer. Any tool that writes the format works, so this mode runs alone where skill-doctor is not installed.
+
+1. **Feed**: get a corpus file. Never read whole transcripts; use bounded `grep` and `sed`.
+2. **Extract**: `pan.py prefilter --corpus <file> --lens contradiction --out <dir>` drops injected text, keeps windows with a surprise signal and a number, dedupes, and writes batches.
+3. **Evaluate**: judge each batch, then verify each candidate against a transcript proof line and the contradicted artifact on current main. A claim confirmed only by agreement is not verified.
+4. **Synthesize**: write each kept finding as a decision memory through the memory-gate skill's contradiction log. Artifacts still wrong on main become issue candidates listed in the gold-found file.
+
+Filing an issue or opening a pull request for a candidate is a separate step. It needs explicit user approval for each item.
+
+The procedures, record schemas, strength tiers, and drop-reason codes are in `references/contradiction-lens.md`. The inventory takes four optional lens fields: Claim, Conventional view, Evidence, and Strength.
+
+The workspace holds transcript-derived text, which can contain private content. Keep it out of version control, and keep corpus files out of any repository.
 
 ## Workspace Layout
 
@@ -113,6 +131,7 @@ pan.py init      --workspace <path>
 pan.py validate  --inventory <file>
 pan.py merge     --pass1 <file> --final <file> --output <file>
 pan.py synth     --inventory <file> --evaluations <dir> --output <file>
+pan.py prefilter --corpus <file> --lens contradiction --out <dir> [--max-batch-chars N]
 ```
 
 The script delegates to `inventory.py` for parsing and merging, and `synthesis.py` for gold-found generation.
@@ -121,7 +140,8 @@ The script delegates to `inventory.py` for parsing and merging, and `synthesis.p
 
 | Script | Purpose | Exit codes |
 |---|---|---|
-| `scripts/pan.py` | CLI entry point for `init`, `validate`, `merge`, and `synth` subcommands over the workspace. | `0` success; `1` validation failure (malformed inventory or evaluation); `2` usage or I/O error. |
+| `scripts/pan.py` | CLI entry point for `init`, `validate`, `merge`, `synth`, and `prefilter` subcommands over the workspace. | `0` success; `1` validation failure (malformed inventory or evaluation); `2` usage or I/O error. |
+| `scripts/prefilter.py` | Deterministic regex tiers, dedupe, and batching for the contradiction lens (called by `pan.py prefilter`). | Returns to caller; surfaced through `pan.py` exit codes. |
 | `scripts/inventory.py` | Parse, validate, and merge thread inventories (called by `pan.py`). | Returns to caller; surfaced through `pan.py` exit codes. |
 | `scripts/synthesis.py` | Generate the gold-found file from the merged inventory and evaluations (called by `pan.py synth`). | Returns to caller; surfaced through `pan.py` exit codes. |
 
@@ -132,9 +152,12 @@ The script delegates to `inventory.py` for parsing and merging, and `synthesis.p
 - [ ] Final inventory deduplicates threads from pass1 by title.
 - [ ] Gold-found file has a metadata block plus High-Signal, Medium-Signal, and Low-Signal sections in that order.
 - [ ] No threads from the inventory are silently dropped.
+- [ ] Session corpus mode: every kept finding has a transcript proof line and a checked state of the contradicted artifact on main.
 - [ ] Every High-Signal thread in the gold-found file has a `Connects to:` line pointing at a skill, ADR, Serena memory, open issue, or prior session log (elaboration gate).
 
 ## References
 
 - `references/inventory-template.md` - thread inventory skeleton.
 - `references/gold-found-template.md` - gold-found skeleton.
+- `references/corpus-format.md` - the session corpus JSONL contract.
+- `references/contradiction-lens.md` - judge, verify, and write procedures for session corpus mode.
