@@ -1,7 +1,7 @@
 """The gates behind issue #4494 are wired, and the harnesses reach them.
 
-# taste-lint: ignore file-size -- one wiring proof for the pre-push job, the
-# CI job, the required-context aggregation, and the mutation-harness
+# taste-lint: ignore file-size -- one wiring proof for the pre-push absence
+# guard, the CI job, the required-context aggregation, and the mutation-harness
 # routing; splitting these would let one gate's proof drift out of sync with
 # a sibling's while looking complete on its own.
 
@@ -12,9 +12,10 @@ and was named by no gate.
 
 Two claims are pinned here, one per gate:
 
-1. ``check_zero_collection_tests.py`` is invoked by a named lefthook pre-push
-   job and by a blocking step in an unconditional ``pytest.yml`` job (not
-   gated behind a path filter: it examines the whole tree, not the diff).
+1. ``check_zero_collection_tests.py`` is enforced by a blocking step in an
+   unconditional ``pytest.yml`` job (not gated behind a path filter: it examines
+   the whole tree, not the diff) and is intentionally absent from lefthook
+   ``pre-push`` (retired by ADR-104's 2026-11-26 amendment).
 2. The mutation harnesses are reachable by the ``pytest (split-N)`` matrix
    legs: the partitions exist in the workflow, the runner's split pool is
    rooted at ``tests/`` without ignoring ``tests/mutation``, and each harness
@@ -211,12 +212,20 @@ def _invokes_guard_script(run_value: object) -> bool:
     )
 
 
-def test_a_named_pre_push_job_runs_the_zero_collection_guard() -> None:
-    """Local pushes fail on a zero-collecting file before CI ever sees it."""
+def test_zero_collection_guard_is_not_scheduled_on_pre_push() -> None:
+    """ADR-104 (2026-11-26 amendment): whole-tree pytest collection belongs in CI.
+
+    ``zero-collection-guard`` runs unconditionally in ``.github/workflows/pytest.yml``
+    and blocks ``Run Python Tests``. Running a second full pytest collection
+    (~34s warm on 48 cores) on every local push adds host contention without
+    adding coverage.
+    """
     matching = [job for job in _pre_push_jobs() if _invokes_guard_script(job.get("run", ""))]
 
-    assert len(matching) == 1, f"expected one pre-push job running {GUARD_SCRIPT}"
-    assert matching[0]["name"] == "zero-collection-tests"
+    assert matching == [], (
+        f"expected no pre-push job running {GUARD_SCRIPT} after ADR-104 2026-11-26 amendment, "
+        f"found {[job.get('name') for job in matching]}"
+    )
 
 
 @pytest.mark.parametrize(
@@ -270,25 +279,6 @@ def test_invokes_guard_script_rejects_swallowed_failures_and_extra_commands(
 ) -> None:
     """The helper must accept only one blocking command line."""
     assert _invokes_guard_script(run_value) is False
-
-
-def test_the_pre_push_job_running_the_guard_has_no_path_filter() -> None:
-    """A ``glob`` here would silently narrow a whole-tree check to a diff.
-
-    Copilot review round 9 (PR #5344): ``lefthook.yml``'s comment above this
-    job makes the absence of a ``glob`` load-bearing (a lockfile-only or
-    interpreter-only push changes the pytest environment this script
-    measures), but nothing pinned that beyond the comment. A future edit
-    could re-add ``glob: ["**/*.py", "pyproject.toml"]`` and this test suite
-    would not notice.
-    """
-    matching = [job for job in _pre_push_jobs() if _invokes_guard_script(job.get("run", ""))]
-
-    assert len(matching) == 1, f"expected one pre-push job running {GUARD_SCRIPT}"
-    assert "glob" not in matching[0], (
-        "the zero-collection-tests pre-push job must not be gated behind a "
-        "path filter; it is a whole-tree check, not a diff-scoped one"
-    )
 
 
 def test_the_workflow_step_running_the_guard_is_unconditional_and_blocking() -> None:

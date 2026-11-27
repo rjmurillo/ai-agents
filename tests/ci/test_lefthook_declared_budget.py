@@ -28,11 +28,9 @@ Two guards, because neither alone is a ratchet:
   baseline is git history, which the branch under test cannot edit.
 
   Its normal enforcement point is CI. `pytest.yml` checks out with
-  `fetch-depth: 0`, so the base ref is there and this executes. Pre-push, on a
-  change to `lefthook.yml` alone, cannot narrow the import graph from a YAML
-  file and takes the collection stand-in, which imports this module without
-  running it, so the cap-only edit this ratchet exists for is caught in CI
-  rather than locally. An earlier version of this paragraph had that backwards.
+  `fetch-depth: 0`, so the base ref is there and this executes unconditionally.
+  Pre-push no longer runs pytest (ADR-104 2026-11-26 amendment), so a cap-only
+  edit to `lefthook.yml` is caught in CI (or via targeted local `uv run pytest`).
   Where no base ref is reachable it skips and the ceiling is the only guard.
 
 Coverage:
@@ -120,7 +118,7 @@ def _config_at_ref(ref: str) -> dict[str, Any] | None:
     A `git push` from a linked worktree exports `GIT_DIR` into the pre-push
     hook, and an exported `GIT_DIR` outranks `-C <root>`, so the ambient
     environment would read the pushing worktree's object store instead of this
-    checkout's (issue #4914). This test runs inside that hook.
+    checkout's (issue #4914) whenever invoked from a hook or worktree shell.
     """
     # No `except OSError`. It would turn "git could not be launched" into "the
     # ref is absent", and the caller's response to absence is to skip the
@@ -232,7 +230,7 @@ def test_declared_budget_does_not_rise_against_the_base_ref(hook: str) -> None:
     edit that would make this pass.
 
     Skips when no base ref is reachable, which is a shallow CI checkout rather
-    than a workstation or the pre-push hook. The ceiling still runs there.
+    than a full CI checkout or workstation. The ceiling still runs there.
     """
     found = _baseconfig()
     if found is None:

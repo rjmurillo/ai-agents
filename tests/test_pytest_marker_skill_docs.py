@@ -80,7 +80,8 @@ def test_skill_docs_do_not_cite_pyproject_by_absolute_line_number() -> None:
 def test_safe_push_transport_marker_has_behavioral_gloss() -> None:
     """The non-local transport marker needs enough context to prevent misuse."""
     pattern = re.compile(
-        r"safe_push_transport.*non-local transport.*excluded from pre-push",
+        r"safe_push_transport.*non-local transport"
+        r".*excluded from on-demand `git_hook_policy\.py pytest` runs",
         re.IGNORECASE,
     )
 

@@ -448,7 +448,7 @@ def _main(argv: list[str] | None) -> int:
     # When running as a lefthook job (SKIP_AUTOFIX=1), pre_pr.py is one parallel
     # job among several. Printing success guidance is false: this job only
     # validated its own subset and has no visibility into sibling jobs
-    # (python-tests, ratchets) that may still be running or may have failed.
+    # (count-ratchets, mypy, e2e smokes) that may still be running or may have failed.
     # Issue #4506.
     print_pass_guidance(summary, os.environ.get("SKIP_AUTOFIX") == "1")
     print()

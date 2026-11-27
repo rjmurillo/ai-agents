@@ -1,7 +1,7 @@
 ---
 name: threat-modeling
 version: 1.0.0
-description: Structured security analysis using OWASP Four-Question Framework and STRIDE methodology. Generates threat matrices with risk ratings, mitigations, and prioritization. Use for attack surface analysis, security architecture review, or when asking what can go wrong. Do NOT use for per-change diff or snippet risk review; use security-review instead.
+description: "Structured security analysis with the OWASP Four-Question Framework and STRIDE: threat matrices with risk ratings and mitigations. Use for attack surface analysis or \"what can go wrong\". Do NOT use for per-change diff or snippet review (use security-review)."
 license: Apache-2.0
 metadata:
   routing:
