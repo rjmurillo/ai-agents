@@ -22,10 +22,15 @@ Usage:
     python3 scripts/security/run_semgrep.py --dry-run  # Show findings without blocking
 
 File selection:
-    The scan set is the committed branch diff from the merge base with
-    origin/main through HEAD. Uncommitted and untracked working-tree files are
-    outside that diff. Commit them before scanning; otherwise the scanner can
-    print PASS: No files to scan without scanning those edits.
+    When a merge base with origin/main exists, the scan set is the committed
+    branch diff from that merge base through HEAD. Uncommitted and untracked
+    paths outside that diff are not selected. The scanner opens working-tree
+    files, so an uncommitted edit to a selected path blocks the scan; commit or
+    stash it first. That keeps the scanned contents equal to HEAD.
+    When no merge base is available, the scanner falls back to git ls-files and
+    scans currently present tracked working-tree contents. Untracked files stay
+    outside the scan. A clean branch with no committed diff can still print
+    PASS: No files to scan; the result names the scope that produced it.
 
 Exit Codes:
     0: Pass (no blocking findings)
@@ -72,6 +77,10 @@ class SemgrepScanError(Exception):
     means the scan did not run to completion and its result must not be treated
     as "no findings". ``run()`` maps it to exit code 3 (external tool failure).
     """
+
+
+class ScanScopeError(Exception):
+    """Raised when git cannot establish a trustworthy scan file set."""
 
 
 @dataclass
@@ -286,6 +295,7 @@ class SemgrepScanner:
         self.config = config
         self.severity = severity
         self.verbose = verbose
+        self.scan_scope = "scan scope not established"
         self.repo_root = self._find_repo_root()
 
     def _find_repo_root(self) -> Path:
@@ -315,6 +325,60 @@ class SemgrepScanner:
             logger.error("ERROR: semgrep resolution failed: %s", exc)
             return False
 
+    @staticmethod
+    def _split_nul_paths(output: str) -> list[str]:
+        return [path for path in output.split("\0") if path]
+
+    def _run_git_paths_command(
+        self,
+        args: list[str],
+        label: str,
+    ) -> subprocess.CompletedProcess[str]:
+        try:
+            result = subprocess.run(
+                ["git", *args],
+                capture_output=True,
+                encoding="utf-8",
+                errors="replace",
+                cwd=self.repo_root,
+                check=False,
+            )
+        except (subprocess.SubprocessError, OSError) as exc:
+            raise ScanScopeError(f"{label} failed: {exc}") from exc
+
+        if result.returncode != 0:
+            detail = result.stderr.strip() or result.stdout.strip() or "no output"
+            raise ScanScopeError(f"{label} exited {result.returncode}: {detail}")
+        return result
+
+    def _supported_existing_files(self, files: list[str]) -> list[Path]:
+        return [
+            self.repo_root / f
+            for f in files
+            if Path(f).suffix in self.SUPPORTED_EXTENSIONS and (self.repo_root / f).exists()
+        ]
+
+    def _ensure_selected_files_match_head(self, files: list[str]) -> None:
+        if not files:
+            return
+
+        result = self._run_git_paths_command(
+            ["diff", "--name-only", "-z", "HEAD", "--"],
+            "git diff HEAD",
+        )
+        dirty_files = set(self._split_nul_paths(result.stdout))
+        dirty_selected = sorted(set(files).intersection(dirty_files))
+        if not dirty_selected:
+            return
+
+        names = ", ".join(repr(name) for name in dirty_selected[:5])
+        if len(dirty_selected) > 5:
+            names = f"{names}, and {len(dirty_selected) - 5} more"
+        raise ScanScopeError(
+            "uncommitted changes affect selected scan files "
+            f"({names}); commit or stash those edits before scanning committed branch changes"
+        )
+
     def _get_changed_files(self) -> list[Path]:
         """Get files changed in the current branch vs main."""
         try:
@@ -323,41 +387,41 @@ class SemgrepScanner:
                 capture_output=True,
                 encoding="utf-8",
                 errors="replace",
+                cwd=self.repo_root,
                 check=False,
             )
+        except (subprocess.SubprocessError, OSError) as exc:
+            raise ScanScopeError(f"git merge-base failed: {exc}") from exc
 
-            if merge_base_result.returncode != 0:
-                logger.warning("Could not find merge-base with origin/main, scanning all files")
-                result = subprocess.run(
-                    ["git", "ls-files"],
-                    capture_output=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    check=True,
-                )
-            else:
-                merge_base = merge_base_result.stdout.strip()
-                result = subprocess.run(
-                    ["git", "diff", "--name-only", f"{merge_base}...HEAD"],
-                    capture_output=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    check=True,
-                )
+        if merge_base_result.returncode != 0 or not merge_base_result.stdout.strip():
+            self.scan_scope = (
+                "tracked working-tree files from git ls-files because no merge base with "
+                "origin/main is available; untracked files are excluded and tracked file "
+                "contents are scanned as they exist in the working tree"
+            )
+            logger.warning(
+                "Could not find merge-base with origin/main; falling back to tracked files"
+            )
+            result = self._run_git_paths_command(
+                ["ls-files", "-z", "--full-name"],
+                "git ls-files",
+            )
+            files = self._split_nul_paths(result.stdout)
+            return self._supported_existing_files(files)
 
-            files = result.stdout.strip().split("\n") if result.stdout.strip() else []
-
-            filtered = [
-                self.repo_root / f
-                for f in files
-                if Path(f).suffix in self.SUPPORTED_EXTENSIONS and (self.repo_root / f).exists()
-            ]
-
-            return filtered
-
-        except subprocess.SubprocessError as e:
-            logger.error("Failed to get changed files: %s", e)
-            return []
+        merge_base = merge_base_result.stdout.strip()
+        self.scan_scope = (
+            f"committed branch diff from merge base {merge_base} with origin/main through "
+            "HEAD; untracked files are outside the scan and uncommitted edits to selected "
+            "files block the scan"
+        )
+        result = self._run_git_paths_command(
+            ["diff", "--name-only", "-z", "--diff-filter=d", f"{merge_base}...HEAD"],
+            "git diff",
+        )
+        files = self._split_nul_paths(result.stdout)
+        self._ensure_selected_files_match_head(files)
+        return self._supported_existing_files(files)
 
     def _run_semgrep(self, files: list[Path]) -> list[SemgrepFinding]:
         """Run semgrep on the specified files using the pinned executable."""
@@ -492,10 +556,14 @@ class SemgrepScanner:
         if self.dry_run:
             logger.info("[DRY RUN] No blocking will occur")
 
-        changed_files = self._get_changed_files()
+        try:
+            changed_files = self._get_changed_files()
+        except ScanScopeError as e:
+            logger.error("FAIL: %s", e)
+            return 1
 
         if not changed_files:
-            logger.info("PASS: No files to scan")
+            logger.info("PASS: No files to scan (%s)", self.scan_scope)
             return 0
 
         logger.info("Scanning %d file(s)", len(changed_files))
@@ -553,6 +621,16 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Run semgrep security scan on changed files",
         formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "File selection:\n"
+            "  When a merge base with origin/main exists, paths come from the committed\n"
+            "  branch diff. Untracked files are outside the scan. Because semgrep opens\n"
+            "  working-tree files, uncommitted edits to selected files block the scan;\n"
+            "  commit or stash them first.\n"
+            "  Without a merge base, the scanner falls back to git ls-files and scans\n"
+            "  currently present tracked working-tree contents. Untracked files are\n"
+            "  still outside the scan."
+        ),
     )
 
     parser.add_argument(
