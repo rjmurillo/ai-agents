@@ -243,7 +243,9 @@ rule id must be listed for that exact path. The only text allowed after it is
 the exact line-length waiver `noqa: E501`, two spaces after the id. A bare
 directive, a rule list, a short id, or any other trailing text still blocks.
 Removing an allowed line earns no removal credit, so it cannot pay for a
-blocked form of the same directive.
+blocked form of the same directive. The scan splits lines on newline only and
+reads git output as raw bytes. So a form feed or a lone carriage return cannot
+hide a second rule id after an allowed directive.
 
 An entry grants a rule for its whole file, not for one line. Today the list
 covers the `_launch` calls in `ptk_run.py`, per the owner ruling on #7591, so a

@@ -317,12 +317,12 @@ _PTK_RUN_SUBPROCESS_RULE = (
 )
 _PTK_RUN_REASON = (
     "_launch passes an argv list with no shell. resolve_target admits only a "
-    "skills/<path>.py target with no dot-only part, under a root that holds "
-    "lib/ptk_run.py. ptk_run is not an authentication boundary (ADR-121 "
-    "decision 10). Owner ruling: issue #7591 comment 7175038778."
+    "skills/<path>.py target with no part of two or more dots, under a root "
+    "that holds lib/ptk_run.py. ptk_run is not an authentication boundary "
+    "(ADR-121 decision 10). Owner ruling: issue #7591 comment 7175038778."
 )
 # The source and every generated or hand-pinned copy, one exact path each.
-# A new copy fails closed until it is listed here.
+# A test fails when a tracked copy is missing here.
 _PTK_RUN_COPIES = (
     "src/claude/lib/ptk_run.py",
     "src/codex/lib/ptk_run.py",
@@ -364,6 +364,20 @@ def is_blocked_suppression_line(path: str, line: str) -> bool:
         return True
     key = (PurePosixPath(path).as_posix(), match["rule_id"])
     return not any((entry.path, entry.rule_id) == key for entry in ALLOWED_SEMGREP_SUPPRESSIONS)
+
+
+def suppression_scan_lines(text: str) -> list[str]:
+    """Split ``text`` into lines the way git counts them, on newline only.
+
+    ``str.splitlines`` also breaks on form feed, vertical tab, NEL, and other
+    separators. That would let an allowed directive hide trailing text, such
+    as a second rule id, in a piece with no suppression token. A trailing
+    carriage return is dropped so CRLF files scan the same as LF files.
+    """
+    lines = text.split("\n")
+    if lines and lines[-1] == "":
+        lines.pop()
+    return [line.removesuffix("\r") for line in lines]
 
 
 SEMGREP_SUFFIXES = frozenset({".js", ".ps1", ".psm1", ".py", ".ts", ".yaml", ".yml"})
@@ -1319,6 +1333,21 @@ def _run_git_bytes(
     args: Sequence[str],
 ) -> subprocess.CompletedProcess[bytes]:
     return _run_command_bytes(_git_command(args), repo_root)
+
+
+def _run_git_exact_text(repo_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+    """Run git and decode its output without newline translation.
+
+    Text mode turns a lone carriage return into a newline, which would split one
+    physical line in two before the suppression scan sees it.
+    """
+    result = _run_git_bytes(repo_root, args)
+    return subprocess.CompletedProcess(
+        result.args,
+        result.returncode,
+        result.stdout.decode("utf-8", errors="replace"),
+        result.stderr.decode("utf-8", errors="replace"),
+    )
 
 
 def _git_command(args: Sequence[str]) -> list[str]:
@@ -3267,7 +3296,7 @@ def check_security_suppressions(paths: Sequence[str], repo_root: Path) -> int:
 def _security_suppression_violations(path: str, full_path: Path) -> list[str]:
     violations: list[str] = []
     for line_number, line in enumerate(
-        full_path.read_text(encoding="utf-8", errors="replace").splitlines(),
+        suppression_scan_lines(full_path.read_bytes().decode("utf-8", errors="replace")),
         start=1,
     ):
         if is_blocked_suppression_line(path, line):
@@ -4245,7 +4274,7 @@ def _suppression_violations_in_diff(
 def _iter_diff_changes(diff_text: str) -> Iterator[tuple[str, str, int, str]]:
     current_path = None
     current_line: int | None = None
-    for line in diff_text.splitlines():
+    for line in suppression_scan_lines(diff_text):
         if line.startswith("diff --git "):
             current_path = None
             current_line = None
@@ -4310,7 +4339,7 @@ def _textual_suppression_violations(
             "--",
         )
     )
-    result = _run_git(repo_root, args)
+    result = _run_git_exact_text(repo_root, args)
     if result.returncode != 0:
         _print_process_output(result)
         return None
@@ -4519,7 +4548,7 @@ def _staged_full_content_suppression_violations(
 ) -> list[str] | None:
     violations: list[str] = []
     for path in paths:
-        text = _index_text_or_none(path, repo_root)
+        text = _suppression_text_or_none(f":{path}", repo_root)
         if text is None:
             return None
         violations.extend(_full_content_suppression_violations("staged", path, text))
@@ -4551,7 +4580,7 @@ def _diff_full_content_suppression_violations(
 ) -> list[str] | None:
     violations: list[str] = []
     for path in paths:
-        text = _commit_text_or_none("HEAD", path, repo_root)
+        text = _suppression_text_or_none(f"HEAD:{path}", repo_root)
         if text is None:
             return None
         violations.extend(_full_content_suppression_violations("HEAD", path, text))
@@ -4693,11 +4722,19 @@ def _commit_full_content_suppression_violations(
 ) -> list[str] | None:
     violations: list[str] = []
     for path in paths:
-        text = _commit_text_or_none(update.head, path, repo_root)
+        text = _suppression_text_or_none(f"{update.head}:{path}", repo_root)
         if text is None:
             return None
         violations.extend(_full_content_suppression_violations(update.head[:12], path, text))
     return violations
+
+
+def _suppression_text_or_none(object_spec: str, repo_root: Path) -> str | None:
+    result = _run_git_exact_text(repo_root, ["show", object_spec])
+    if result.returncode != 0:
+        _print_process_output(result)
+        return None
+    return result.stdout
 
 
 def _full_content_suppression_violations(
@@ -4706,7 +4743,9 @@ def _full_content_suppression_violations(
     text: str,
 ) -> list[str]:
     lines = (
-        _notebook_code_lines(text) if Path(path).suffix.lower() == ".ipynb" else text.splitlines()
+        _notebook_code_lines(text)
+        if Path(path).suffix.lower() == ".ipynb"
+        else suppression_scan_lines(text)
     )
     return [
         f"{head_label}:{path}:{line_number}"
@@ -4771,21 +4810,23 @@ def _notebook_code_lines(text: str) -> list[str]:
     try:
         parsed = json.loads(text)
     except json.JSONDecodeError:
-        return text.splitlines()
+        return suppression_scan_lines(text)
     if not isinstance(parsed, dict):
-        return text.splitlines()
+        return suppression_scan_lines(text)
     cells = parsed.get("cells")
     if not isinstance(cells, list):
-        return text.splitlines()
+        return suppression_scan_lines(text)
     lines: list[str] = []
     for cell in cells:
         if not isinstance(cell, dict) or cell.get("cell_type") != "code":
             continue
         source = cell.get("source", [])
         if isinstance(source, str):
-            lines.extend(source.splitlines())
+            lines.extend(suppression_scan_lines(source))
         elif isinstance(source, list):
-            lines.extend("".join(item for item in source if isinstance(item, str)).splitlines())
+            lines.extend(
+                suppression_scan_lines("".join(item for item in source if isinstance(item, str)))
+            )
     return lines
 
 

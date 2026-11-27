@@ -157,7 +157,7 @@ def _tracked_ptk_run_copies() -> set[str]:
     copies = set()
     for row in result.stdout.splitlines():
         meta, path = row.split("\t", 1)
-        if meta.split(" ", 1)[0] == "100644":
+        if meta.split(" ", 1)[0] in {"100644", "100755"}:
             copies.add(path)
     return copies
 
@@ -362,3 +362,45 @@ def test_removing_an_allowed_line_earns_no_credit(
 ) -> None:
     repo, base = _repo_with_directive_base(tmp_path, head_line)
     assert entry_point(repo, base) == expected
+
+
+# --- line separators other than newline ---------------------------------------
+
+SEPARATORS = ["\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029", "\r"]
+
+
+def test_scan_lines_split_on_newline_only() -> None:
+    assert policy.suppression_scan_lines("a\x0cb\r\nc\n") == ["a\x0cb", "c"]
+    assert policy.suppression_scan_lines("a\n\nb") == ["a", "", "b"]
+    assert policy.suppression_scan_lines("") == []
+
+
+@pytest.mark.parametrize("separator", SEPARATORS, ids=[f"U+{ord(c):04X}" for c in SEPARATORS])
+def test_separator_cannot_hide_a_rule_list(separator: str) -> None:
+    line = _allowed(EXEC_RULE) + separator + ", python.lang.other.other"
+    text = _body(line)
+    assert policy._full_content_suppression_violations("HEAD", SOURCE, text) == [f"HEAD:{SOURCE}:5"]
+
+
+@pytest.mark.parametrize("entry_point", ENTRY_POINTS, ids=ENTRY_IDS)
+@pytest.mark.parametrize("separator", ["\x0c", "\u2028", "\r"], ids=["U+000C", "U+2028", "U+000D"])
+def test_separator_bypass_blocks_at_every_entry_point(
+    tmp_path: Path,
+    entry_point: Callable[[Path, str], int],
+    separator: str,
+) -> None:
+    line = _allowed(EXEC_RULE) + separator + ", " + SUBPROCESS_RULE
+    repo, base = _repo_with_change(tmp_path, SOURCE, line)
+    assert entry_point(repo, base) == 1
+
+
+@pytest.mark.parametrize("entry_point", ENTRY_POINTS, ids=ENTRY_IDS)
+def test_crlf_file_still_allows_the_listed_line(
+    tmp_path: Path,
+    entry_point: Callable[[Path, str], int],
+) -> None:
+    repo, base = _repo_with_change(tmp_path, SOURCE, _allowed(EXEC_RULE))
+    target = repo / SOURCE
+    target.write_bytes(target.read_bytes().replace(b"\n", b"\r\n"))
+    _git(repo, "add", "-A")
+    assert entry_point(repo, base) == 0

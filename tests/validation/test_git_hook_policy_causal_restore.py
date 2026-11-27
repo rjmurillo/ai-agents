@@ -101,6 +101,8 @@ def _run_suppression_push(
         raise AssertionError(f"unexpected git call: {args!r}")
 
     monkeypatch.setattr(policy, "_run_git", _run_git)
+
+    monkeypatch.setattr(policy, "_run_git_exact_text", _run_git)
     stdin = io.StringIO(f"refs/heads/topic {head} refs/heads/topic {remote_sha}\n")
     return policy.check_pushed_suppressions(stdin, repo_root)
 
@@ -741,16 +743,14 @@ class TestStagedSuppressionPolicy:
         rename_status_output: str = "",
     ) -> int:
         monkeypatch.setattr(policy, "_staged_suppression_base", lambda root: "HEAD")
-        monkeypatch.setattr(
-            policy,
-            "_run_git",
-            _GitStub(
-                diff_output,
-                returncode=git_returncode,
-                paths=paths,
-                rename_status_output=rename_status_output,
-            ),
+        stub = _GitStub(
+            diff_output,
+            returncode=git_returncode,
+            paths=paths,
+            rename_status_output=rename_status_output,
         )
+        monkeypatch.setattr(policy, "_run_git", stub)
+        monkeypatch.setattr(policy, "_run_git_exact_text", stub)
         return policy.check_staged_suppressions(repo_root)
 
     def test_staged_security_noqa_is_blocked(self, tmp_path, monkeypatch, capsys):
@@ -3094,6 +3094,8 @@ def _run_suppression_diff(
         raise AssertionError(f"unexpected git call: {args!r}")
 
     monkeypatch.setattr(policy, "_run_git", _run_git)
+
+    monkeypatch.setattr(policy, "_run_git_exact_text", _run_git)
     return policy.check_suppression_diff(base_ref, repo_root)
 
 
@@ -3158,6 +3160,8 @@ class TestSuppressionDiff:
             raise AssertionError(f"unexpected git call: {args!r}")
 
         monkeypatch.setattr(policy, "_run_git", _run_git)
+
+        monkeypatch.setattr(policy, "_run_git_exact_text", _run_git)
         assert policy.check_suppression_diff("c" * 40, tmp_path) == 0
 
     def test_git_error_on_initial_diff_returns_3(self, tmp_path, monkeypatch):
@@ -3167,6 +3171,8 @@ class TestSuppressionDiff:
             return subprocess.CompletedProcess(["git"], 128, "", "fatal: not a git repo")
 
         monkeypatch.setattr(policy, "_run_git", _run_git)
+
+        monkeypatch.setattr(policy, "_run_git_exact_text", _run_git)
         assert policy.check_suppression_diff("c" * 40, tmp_path) == 3
 
     def test_git_error_on_renames_returns_3(self, tmp_path, monkeypatch):
@@ -3182,6 +3188,8 @@ class TestSuppressionDiff:
             raise AssertionError(f"unexpected git call: {args!r}")
 
         monkeypatch.setattr(policy, "_run_git", _run_git)
+
+        monkeypatch.setattr(policy, "_run_git_exact_text", _run_git)
         assert policy.check_suppression_diff(base_ref, tmp_path) == 3
 
     def test_pure_rename_suppression_is_allowed(self, tmp_path, monkeypatch):
@@ -3209,6 +3217,8 @@ class TestSuppressionDiff:
             raise AssertionError(f"unexpected git call: {args!r}")
 
         monkeypatch.setattr(policy, "_run_git", _run_git)
+
+        monkeypatch.setattr(policy, "_run_git_exact_text", _run_git)
         assert policy.check_suppression_diff("c" * 40, tmp_path) == 0
 
     def test_invalid_base_ref_for_notebook_returns_rc3(self, tmp_path, monkeypatch):
@@ -3238,6 +3248,8 @@ class TestSuppressionDiff:
             raise AssertionError(f"unexpected git call: {args!r}")
 
         monkeypatch.setattr(policy, "_run_git", _run_git)
+
+        monkeypatch.setattr(policy, "_run_git_exact_text", _run_git)
         assert policy.check_suppression_diff(base_ref, tmp_path) == 3
 
     def test_new_notebook_file_missing_from_base_is_treated_as_empty(self, tmp_path, monkeypatch):
@@ -3272,6 +3284,8 @@ class TestSuppressionDiff:
             raise AssertionError(f"unexpected git call: {args!r}")
 
         monkeypatch.setattr(policy, "_run_git", _run_git)
+
+        monkeypatch.setattr(policy, "_run_git_exact_text", _run_git)
         assert policy.check_suppression_diff(base_ref, tmp_path) == 0
 
 
@@ -3288,6 +3302,8 @@ def test_commit_text_for_base_returns_empty_for_new_file(tmp_path, monkeypatch):
         )
 
     monkeypatch.setattr(policy, "_run_git", _run_git)
+
+    monkeypatch.setattr(policy, "_run_git_exact_text", _run_git)
     result = policy._commit_text_for_base("abc123", "pkg/new.py", tmp_path)
     assert result == ""
 
@@ -3302,6 +3318,8 @@ def test_commit_text_for_base_returns_none_on_git_error(tmp_path, monkeypatch, c
         )
 
     monkeypatch.setattr(policy, "_run_git", _run_git)
+
+    monkeypatch.setattr(policy, "_run_git_exact_text", _run_git)
     result = policy._commit_text_for_base("invalid_ref", "pkg/new.py", tmp_path)
     assert result is None
     # Should print the git error so CI logs are diagnosable
