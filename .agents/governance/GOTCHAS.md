@@ -922,25 +922,18 @@ seconds. The same two tests passed in 27.92 seconds under `RUN_CLI_E2E=1` with
 `COPILOT_GITHUB_TOKEN` set, and skipped silently with the token set but
 `RUN_CLI_E2E` unset. Those four durations are author-reported from the push
 console; no log artifact is committed.
-## Editing any `.claude/rules/*.md` file changes a number the doctrine asserts
+## Changing a rule's scope changes the always-on membership the doctrine lists
 
 `model-context-doctrine.md` lists which rules load on every turn, and
 `tests/validation/test_always_on_corpus_claims.py` asserts that the list
-matches the generated trees. It also fails when the doctrine states a byte
-count. Changing a rule's `paths:` scope changes that membership, so a small
-scope edit to an unrelated rule turns the guard red.
+matches the generated trees. It also fails when the doctrine mentions bytes,
+`instruction_budget`, or 8KB. Changing a rule's `paths:` scope can change that
+membership, so a small scope edit to an unrelated rule turns the guard red.
 
-The trap is where it fires. The guard is a pytest test, and pre-push no
-longer runs the full pytest suite (ADR-104 amendment, 2026-11-26), so CI `pytest.yml` is the
-first gate to catch it. Nothing in the pre-commit set catches it, and the edit
-itself looks unrelated to any figure. Run the test file yourself before you
-push.
-
-Four rules are narrowly scoped in `.github/instructions` and always-on in the
-plugin tree: `governance`, `push-lock`, `secret-redaction`, and `session-logs`.
-Editing one of those moves the plugin figure while leaving the
-`.github/instructions` figure alone, which is why the two numbers in that
-paragraph drift independently.
+The trap is where it fires. Nothing in the pre-commit set catches it, and the
+edit looks unrelated to the doctrine. Pre-push catches it: the pre-PR
+`Always-on Corpus Claims` gate runs this test file on every push, even though
+pre-push no longer runs the full pytest suite (ADR-104 amendment, 2026-11-26).
 
 Check it in under a second before pushing:
 
