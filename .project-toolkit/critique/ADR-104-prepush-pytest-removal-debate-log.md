@@ -54,7 +54,7 @@ Target ADR: `.project-toolkit/architecture/ADR-104-gate-tier-placement-and-budge
 | Dimension | Verdict | Evidence |
 |-----------|---------|----------|
 | Chesterton's Fence | Pass | Historical pre-push pytest rationale preserved; Fix A (`.venv` poisoning) cleanly separated from Fix B (structural contention) with live measurements; CI backstop and ADR-101 limits stated honestly. |
-| Path Dependence | Pass | File-enumerated Revert Path preserves `--isolated` unconditionally; parallel headroom files untouched (`git_hook_policy.py`, `host_headroom.py`, `pre_pr_headroom.py`); 2026-12-26 review bounds `testmon-seed` drag. |
+| Path Dependence | Pass | File-enumerated Revert Path preserves `--isolated` unconditionally; parallel headroom files untouched (`host_headroom.py`, `pre_pr_headroom.py`); `git_hook_policy.py` gets comment and diagnostic edits only; 2026-12-26 review bounds `testmon-seed` drag. |
 | Core vs Context | Pass | Local pre-push test execution/collection is Context duplicating unconditional CI `pytest.yml` (`zero-collection-guard` + 8-leg `pytest-split` -> `Run Python Tests`). |
 | Second-System Effect | Pass | Strictly subtractive hook removal plus one `--isolated` flag (`2.21s-2.45s` warm); zero new daemons, schedulers, or local telemetry frameworks. |
 
@@ -62,3 +62,19 @@ Target ADR: `.project-toolkit/architecture/ADR-104-gate-tier-placement-and-budge
 
 - **Decision**: Accepted (6-0 unanimous `Accept` across all 6 review seats).
 - **Status**: `ADR-104` Amendment 2026-11-26 is approved for commit and PR merge.
+
+## Post-Accept Clarifications (2026-11-27)
+
+The `/review` decision-rigor and analyst axes flagged evidence gaps. These
+edits answer them. None changes the decision or a binding rule.
+
+| Finding | Edit |
+|---------|------|
+| Incident numbers reused as steady-state evidence | Labeled as incident-window figures in Causal Diagnosis item 1 and Positive Consequences. |
+| Fix B case is estimated, not measured after Fix A | Stated that Fix B rests on owner direction plus an estimate. |
+| CI round-trip trigger had no threshold or source | Set it to more than 3 failing `pull_request` runs per week, read from Actions history. |
+| Reversibility not stated | Revert Path now says job removal is reversible and `--isolated` is one-way. |
+| "`git_hook_policy.py` untouched" was false | Corrected in Binding Changes, Impact table, ledger C10, and this log. |
+
+Reduced panel: architect and critic scope, applied through the `/review`
+analyst, architect, and decision-rigor axes. No executable rule changed.
