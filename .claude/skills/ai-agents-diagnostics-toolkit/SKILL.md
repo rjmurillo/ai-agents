@@ -2,7 +2,7 @@
 name: ai-agents-diagnostics-toolkit
 version: 1.0.0
 license: Apache-2.0
-description: Catalog of this repo's measurement instruments, each with command, current baseline, and interpretation guide. Covers skill size and description budgets, orphan-ref and golden-principles scans, drift gates as signals, coverage pins, and the eval harness. Use when you say `measure this`, `read the drift signal`, `check skill budgets`. Do NOT use to fix what you measure (use `ai-agents-debugging-playbook`) or for evidence standards (use `ai-agents-validation-and-qa`).
+description: "Catalog of measurement instruments with command, baseline, and interpretation. Use when you say `measure this`, `read the drift signal`, `check skill budgets`. Do NOT use to fix what you measure (use `ai-agents-debugging-playbook`) or for evidence standards (use `ai-agents-validation-and-qa`)."
 metadata:
   distribution: repo-local
   routing:

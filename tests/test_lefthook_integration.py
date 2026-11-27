@@ -582,7 +582,6 @@ def test_configuration_uses_named_native_jobs() -> None:
         "repair-packed-refs",
         "push-ref-policy",
         "pre-pr-validation",
-        "python-tests",
         "python-lint-advisory",
         "python-type-check",
         "security-scan",
@@ -597,7 +596,11 @@ def test_configuration_uses_named_native_jobs() -> None:
         "bot-cascade-advisory",
     }
     assert expected_pre_commit <= set(_job_map(config, "pre-commit"))
-    assert expected_pre_push <= set(_job_map(config, "pre-push"))
+    pre_push_names = set(_job_map(config, "pre-push"))
+    assert expected_pre_push <= pre_push_names
+    # ADR-104 (2026-11-26 amendment): pytest and zero-collection-guard are CI-only.
+    assert "python-tests" not in pre_push_names
+    assert "zero-collection-tests" not in pre_push_names
     pre_commit = _job_map(config, "pre-commit")
     assert str(pre_commit["adr-review-policy"]["run"]).endswith(
         "git_hook_policy.py adr-review {staged_files}"
@@ -633,10 +636,6 @@ def test_configuration_bounds_every_job() -> None:
         assert all(isinstance(job.get("timeout"), str) for job in jobs)
 
     pre_push = _job_map(config, "pre-push")
-    # `python-tests` was 30m and was resized from in-hook measurement (ADR-104
-    # rule 7): the cap is the ceiling for the opt-in local-execution path, and
-    # its inner budget sits under it so the inner timeout fires first.
-    assert pre_push["python-tests"]["timeout"] == "15m"
     # `workflow-local-run` stays at 30m and is pinned so a future cut has to
     # come with a measurement. It was cut to 10m on the branch that resized
     # `python-tests` and restored in review (PR #5319): rule 7 sizes a cap from
@@ -834,7 +833,8 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         assert isinstance(skip, list)
         assert "merge" not in skip
     assert "glob" not in pre_push_jobs["pre-pr-validation"]
-    assert "glob" not in pre_push_jobs["python-tests"]
+    assert "python-tests" not in pre_push_jobs
+    assert "zero-collection-tests" not in pre_push_jobs
     assert pre_push_jobs["pre-pr-validation"]["env"] == {
         "AI_AGENTS_PRE_PR_FAST_STAGE_RAN": "1",
         "SKIP_AUTOFIX": "1",
@@ -843,16 +843,6 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         # against the actual timeout lives in
         # tests/validation/test_check_generated_staleness.py.
         "PRE_PR_OUTER_CAP_SECONDS": "240",
-    }
-    # Issue #5383: python-tests shares the machine with every other CPU-bound
-    # job that runs on a Python push. Each one holds one CPU, so the reserve
-    # equals their count and a four-CPU container runs one worker beside them.
-    cpu_bound_siblings = ("pre-pr-validation", "zero-collection-tests", "python-type-check")
-    for sibling in cpu_bound_siblings:
-        assert sibling in pre_push_jobs
-    assert pre_push_jobs["python-tests"]["env"] == {
-        "AI_AGENTS_PYTEST_WORKER_CAP": "scaled",
-        "AI_AGENTS_PYTEST_CPU_RESERVE": str(len(cpu_bound_siblings)),
     }
     assert pre_push_jobs["push-ref-policy"]["use_stdin"] is True
     assert pre_push_jobs["security-scan"]["use_stdin"] is True

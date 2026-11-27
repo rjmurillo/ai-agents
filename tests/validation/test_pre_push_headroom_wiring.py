@@ -48,23 +48,28 @@ def _recording_slot(events: list[Any]) -> Any:
     return fake
 
 
-def _lefthook_job_timeout(name: str) -> str:
+def _pre_push_jobs() -> list[dict[str, Any]]:
+    """Every pre-push job in lefthook.yml, with nested groups flattened."""
     config = yaml.safe_load((_REPO_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
 
-    def walk(jobs: list[dict[str, Any]]) -> str | None:
-        for job in jobs:
-            if job.get("name") == name:
-                return str(job["timeout"])
-            nested = job.get("group", {}).get("jobs")
-            if nested:
-                found = walk(nested)
-                if found is not None:
-                    return found
-        return None
+    def walk(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        flat: list[dict[str, Any]] = []
+        for entry in entries:
+            if "name" in entry:
+                flat.append(entry)
+            nested = entry.get("group", {}).get("jobs")
+            if isinstance(nested, list):
+                flat.extend(walk(nested))
+        return flat
 
-    found = walk(config["pre-push"]["jobs"])
-    assert found is not None, f"lefthook.yml pre-push has no job named {name}"
-    return found
+    return walk(config["pre-push"]["jobs"])
+
+
+def _lefthook_job_timeout(name: str) -> str:
+    for job in _pre_push_jobs():
+        if job.get("name") == name:
+            return str(job["timeout"])
+    raise AssertionError(f"lefthook.yml pre-push has no job named {name}")
 
 
 def _seconds(duration: str) -> int:
@@ -75,10 +80,22 @@ def _seconds(duration: str) -> int:
 # --- pytest ---------------------------------------------------------------
 
 
-def test_python_tests_job_cap_matches_lefthook() -> None:
-    """The wait budget is carved from this cap, so it must be the real one."""
-    cap = _seconds(_lefthook_job_timeout("python-tests"))
-    assert cap == policy.PYTHON_TESTS_JOB_CAP_SECONDS
+def test_python_tests_is_not_a_pre_push_job() -> None:
+    """ADR-104 (2026-11-26 amendment): python-tests is absent from pre-push."""
+    names = [str(job["name"]) for job in _pre_push_jobs()]
+    assert "python-tests" not in names
+
+
+def test_on_demand_cap_leaves_room_above_budget_and_margin() -> None:
+    """On-demand ``git_hook_policy.py pytest`` derives its headroom wait from the cap.
+
+    ``PYTHON_TESTS_JOB_CAP_SECONDS`` must stay above
+    ``TEST_SUITE_TIMEOUT_SECONDS + HEADROOM_MARGIN_SECONDS``.
+    """
+    assert (
+        policy.PYTHON_TESTS_JOB_CAP_SECONDS
+        > policy.TEST_SUITE_TIMEOUT_SECONDS + policy.HEADROOM_MARGIN_SECONDS
+    )
 
 
 def test_pytest_takes_a_slot_before_its_budget_starts(
