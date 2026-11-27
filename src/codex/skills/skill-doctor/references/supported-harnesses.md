@@ -44,7 +44,7 @@ Two sources feed `--export-corpus` and nothing else. They hold conversation text
 
 | Source | Collector ID | Local conversation source |
 | --- | --- | --- |
-| T3 Code | `t3` | Read-only, immutable SQLite `~/.t3/userdata/statev2.sqlite`: `orchestration_v2_projection_threads` and `orchestration_v2_projection_messages` |
+| T3 Code | `t3` | Read-only SQLite (`mode=ro`, `query_only`) `~/.t3/userdata/statev2.sqlite`: `orchestration_v2_projection_threads` and `orchestration_v2_projection_messages` |
 | Gemini antigravity | `gemini` | `~/.gemini/antigravity-cli/brain/<id>/.system_generated/logs/transcript_full.jsonl` |
 
 - `--t3-home PATH` (default `~/.t3`) and `--gemini-home PATH` (default `~/.gemini/antigravity-cli`) override the homes.

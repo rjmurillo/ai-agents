@@ -58,7 +58,7 @@ from session_common import (
     skill_variants,
     truncate,
 )
-from session_corpus import corpus_export
+from session_corpus import corpus_export, discard_partial
 from session_corpus_sources import collect_corpus_sources
 from session_databases import (
     MAX_WARP_CONVERSATION_BYTES,
@@ -452,6 +452,8 @@ def _run() -> None:
     with corpus_export(args) as collection.exporter:
         _collect(collection, homes, datetime.now(timezone.utc) - timedelta(days=args.days))
     if not collection.sources:
+        if collection.exporter is not None:
+            discard_partial(collection.exporter.target)
         _fatal(
             "no supported session source found "
             "(Copilot, Claude Code, Codex, Warp, Pi, Grok, ZCode, Droid, Hermes, Muse, T3, or Gemini)"

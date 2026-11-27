@@ -11,7 +11,7 @@ One JSON object per line, UTF-8, `\n` line ends. Blank lines are skipped.
 | `source` | string | Harness name, such as `claude`, `codex`, `copilot`, `t3`, or `gemini`. |
 | `session` | string | Session or thread id. |
 | `path` | string | Where the message came from: a file path, or a label such as `t3:<thread-id>`. |
-| `line` | integer or string | Physical line in `path` for file sources. A message id for database sources. Never assume an integer. |
+| `line` | integer or string | Physical line in `path` for JSONL file sources. A message id for T3. A 1-based message index for Warp, Hermes, and ZCode. Never assume an integer. |
 | `ts` | string | ISO 8601 timestamp, or `""` when the source has none. |
 | `role` | string | `user` or `assistant`. The prefilter ignores other roles. |
 | `text` | string | The full message text. No truncation. |
@@ -30,7 +30,7 @@ python3 collect_sessions.py --all-conversations --days 90 --export-corpus <corpu
 
 - It writes user and assistant messages of every collected session, selected by its usual harness, repository, and time-window flags.
 - Text is whole: no per-message truncation and no head and tail buffer.
-- Token-shaped strings (API keys, GitHub tokens, JWTs, bearer headers) are replaced with `[REDACTED]`.
+- Token-shaped strings are replaced with `[REDACTED]`: `sk-` keys, GitHub tokens (`ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, `github_pat_`), AWS key ids, JWTs, Slack tokens, and bearer or `Authorization: token` headers.
 - T3 and Gemini antigravity sessions record no repository path, so they export only with `--all-conversations`.
 - Run it outside any git repository, or point `--export-corpus` at a path your VCS ignores. The file holds the full text of your conversations.
 

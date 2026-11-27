@@ -167,6 +167,31 @@ def test_secret_in_a_window_is_redacted(tmp_path: Path) -> None:
     assert "[REDACTED]" in result[0]["text"]
 
 
+def test_long_context_does_not_push_the_signal_out_of_the_window(tmp_path: Path) -> None:
+    text = "\n\n".join(["before " * 300, STRONG_TEXT, "after " * 300])
+    result = kept(tmp_path, [row(text)])
+    assert len(result) == 1
+    assert STRONG_TEXT in result[0]["text"]
+    assert len(result[0]["text"]) <= prefilter.WINDOW_MAX_CHARS
+
+
+def test_fit_window_keeps_short_windows_whole() -> None:
+    assert prefilter.fit_window("a", "b", "c") == "a\nb\nc"
+
+
+def test_fit_window_truncates_an_oversized_signal_paragraph() -> None:
+    paragraph = "x" * (prefilter.WINDOW_MAX_CHARS + 50)
+    window = prefilter.fit_window("before", paragraph, "after")
+    assert window == "x" * prefilter.WINDOW_MAX_CHARS
+
+
+@pytest.mark.parametrize("prefix", ["gho_", "ghu_", "ghs_", "ghr_"])
+def test_other_github_token_shapes_are_redacted(tmp_path: Path, prefix: str) -> None:
+    token = prefix + "q" * 36
+    result = kept(tmp_path, [row(f"{STRONG_TEXT} Used {token} for it.")])
+    assert token not in result[0]["text"]
+
+
 # ---- dedupe ----
 
 

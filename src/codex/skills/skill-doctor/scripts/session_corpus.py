@@ -28,11 +28,11 @@ SKILL_ROOT = Path(__file__).resolve().parents[1]
 REDACTION = "[REDACTED]"
 
 # Token shapes that must not reach a corpus file: OpenAI-style keys, GitHub tokens,
-# AWS access key ids, JWTs, Slack tokens, and bearer headers.
+# AWS access key ids, JWTs, Slack tokens, and bearer or token auth headers.
 SECRET = re.compile(
-    r"(?:sk-[A-Za-z0-9_-]{16,}|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}"
-    r"|AKIA[0-9A-Z]{16}|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}"
-    r"|xox[abps]-[A-Za-z0-9-]{10,}|Bearer\s+[A-Za-z0-9._-]{20,})"
+    r"(?:(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}"
+    r"|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}"
+    r"|xox[abps]-[A-Za-z0-9-]{10,}|(?i:bearer\s+|authorization:\s*token\s+)[A-Za-z0-9._-]{20,})"
 )
 
 
@@ -56,6 +56,8 @@ class CorpusCapture:
         if role not in CORPUS_ROLES or not text.strip():
             return
         line = self.line or len(self.rows) + 1
+        if hasattr(ts, "isoformat"):
+            ts = ts.isoformat()
         self.rows.append({"role": role, "text": text, "ts": ts, "line": line})
 
 
@@ -69,8 +71,9 @@ def current_capture() -> CorpusCapture | None:
 class CorpusExporter:
     """Stream redacted corpus rows to one JSONL file."""
 
-    def __init__(self, stream: TextIO, capture: CorpusCapture) -> None:
+    def __init__(self, stream: TextIO, capture: CorpusCapture, target: Path) -> None:
         self._stream, self._capture = stream, capture
+        self.target = target
         self.rows_written = 0
 
     def write_session(self, harness: str, meta: Any, file: str) -> None:
@@ -125,6 +128,17 @@ def corpus_export(args: Any) -> Iterator[CorpusExporter | None]:
     token = _CAPTURE.set(capture)
     try:
         with stream:
-            yield CorpusExporter(stream, capture)
+            yield CorpusExporter(stream, capture, target)
+    except BaseException:
+        discard_partial(target)
+        raise
     finally:
         _CAPTURE.reset(token)
+
+
+def discard_partial(target: Path) -> None:
+    """Remove a corpus file this run created, so a failed run does not block the next."""
+    try:
+        target.unlink()
+    except OSError:
+        pass

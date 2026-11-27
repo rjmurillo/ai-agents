@@ -87,8 +87,9 @@ INJECTED = re.compile(
 )
 # Token shapes redacted again here, so a corpus from any producer is safe to batch.
 SECRET = re.compile(
-    r"(?:sk-[A-Za-z0-9_-]{16,}|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|"
-    r"eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}|xox[abps]-[A-Za-z0-9-]{10,}|Bearer\s+[A-Za-z0-9._-]{20,})"
+    r"(?:(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}"
+    r"|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}"
+    r"|xox[abps]-[A-Za-z0-9-]{10,}|(?i:bearer\s+|authorization:\s*token\s+)[A-Za-z0-9._-]{20,})"
 )
 
 
@@ -150,10 +151,28 @@ def extract_windows(text: str) -> list[str]:
     for index, paragraph in enumerate(paragraphs):
         if len(paragraph) < MIN_PARAGRAPH_CHARS or not SIG.search(paragraph):
             continue
-        window = "\n".join(paragraphs[max(0, index - 1) : index + 2])
+        before = paragraphs[index - 1] if index > 0 else ""
+        after = paragraphs[index + 1] if index + 1 < len(paragraphs) else ""
+        window = fit_window(
+            SECRET.sub("[REDACTED]", before),
+            SECRET.sub("[REDACTED]", paragraph),
+            SECRET.sub("[REDACTED]", after),
+        )
         if NUM.search(window):
-            windows.append(SECRET.sub("[REDACTED]", window)[:WINDOW_MAX_CHARS])
+            windows.append(window)
     return windows
+
+
+def fit_window(before: str, paragraph: str, after: str) -> str:
+    """Join context around the signal paragraph and keep that paragraph inside the cap."""
+    window = "\n".join(part for part in (before, paragraph, after) if part)
+    if len(window) <= WINDOW_MAX_CHARS:
+        return window
+    core = paragraph[:WINDOW_MAX_CHARS]
+    room = WINDOW_MAX_CHARS - len(core)
+    lead = before[len(before) - room // 2 :] if room // 2 and before else ""
+    tail = after[: max(0, room - len(lead) - 2)] if after else ""
+    return "\n".join(part for part in (lead, core, tail) if part)[:WINDOW_MAX_CHARS]
 
 
 def tier_of(window: str, role: str) -> int | None:

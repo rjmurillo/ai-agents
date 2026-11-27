@@ -49,8 +49,8 @@ def t3_database(home: Path) -> Path:
 
 
 def open_t3_database(path: Path) -> sqlite3.Connection:
-    """Open read-only and immutable, so a running T3 server is never touched."""
-    connection = sqlite3.connect(f"{path.as_uri()}?mode=ro&immutable=1", uri=True, timeout=2)
+    """Open read-only. Not immutable: a running T3 server keeps writing its WAL."""
+    connection = sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True, timeout=2)
     connection.execute("PRAGMA query_only = ON")
     return connection
 
