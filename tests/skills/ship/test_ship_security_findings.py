@@ -23,7 +23,13 @@ MERGE = "m" * 40
 
 
 def _open_pr(fakes, *, number=9, author="me", draft=None, me="me"):
-    payload = {"number": number, "state": "OPEN", "author": {"login": author}, "url": "u"}
+    payload = {
+        "number": number,
+        "state": "OPEN",
+        "author": {"login": author},
+        "url": "u",
+        "baseRefName": "main",
+    }
     if draft is not None:
         payload["isDraft"] = draft
     fakes.rule("gh", ["pr", "view"], {"stdout": json.dumps(payload)})
@@ -40,6 +46,7 @@ def _head(fakes, pr, *, branch=None, sha=None):
                 {
                     "headRefName": branch or git(repo, "branch", "--show-current"),
                     "headRefOid": sha or git(repo, "rev-parse", "HEAD"),
+                    "url": f"https://github.com/o/r/pull/{pr}",
                 }
             )
         },
@@ -313,8 +320,24 @@ class TestCiBinding:
         fakes.rule(
             "gh",
             ["pr", "view", "41"],
-            {"stdout": json.dumps({"headRefName": "feat/ship-change", "headRefOid": head})},
-            {"stdout": json.dumps({"headRefName": "feat/ship-change", "headRefOid": "1" * 40})},
+            {
+                "stdout": json.dumps(
+                    {
+                        "headRefName": "feat/ship-change",
+                        "headRefOid": head,
+                        "url": "https://github.com/o/r/pull/41",
+                    }
+                )
+            },
+            {
+                "stdout": json.dumps(
+                    {
+                        "headRefName": "feat/ship-change",
+                        "headRefOid": "1" * 40,
+                        "url": "https://github.com/o/r/pull/41",
+                    }
+                )
+            },
         )
         fakes.rule(
             "get_pr_checks",
@@ -349,7 +372,17 @@ class TestCiBinding:
         fakes.rule(
             "az",
             ["repos", "pr", "list"],
-            {"stdout": json.dumps([{"pullRequestId": 77, "createdBy": {"uniqueName": "me"}}])},
+            {
+                "stdout": json.dumps(
+                    [
+                        {
+                            "pullRequestId": 77,
+                            "targetRefName": "refs/heads/main",
+                            "createdBy": {"uniqueName": "me"},
+                        }
+                    ]
+                )
+            },
         )
         fakes.rule("az", ["account", "show"], {"stdout": "me\n"})
         state = {
@@ -411,7 +444,7 @@ class TestMissingAuthor:
     @pytest.mark.parametrize("author", [{}, {"login": None}, {"login": ""}, None, "not-an-object"])
     def test_github_open_pr_without_author_stops(self, make_repo, fakes, scripts, capsys, author):
         make_repo(GITHUB)
-        payload = {"number": 9, "state": "OPEN", "url": "u"}
+        payload = {"number": 9, "state": "OPEN", "url": "u", "baseRefName": "main"}
         if author is not None:
             payload["author"] = author
         fakes.rule("gh", ["pr", "view"], {"stdout": json.dumps(payload)})
@@ -424,7 +457,7 @@ class TestMissingAuthor:
     @pytest.mark.parametrize("created_by", [None, {}, {"uniqueName": ""}])
     def test_ado_open_pr_without_author_stops(self, make_repo, fakes, scripts, capsys, created_by):
         make_repo(ADO)
-        entry = {"pullRequestId": 77}
+        entry = {"pullRequestId": 77, "targetRefName": "refs/heads/main"}
         if created_by is not None:
             entry["createdBy"] = created_by
         fakes.rule("az", ["repos", "pr", "list"], {"stdout": json.dumps([entry])})
@@ -437,7 +470,13 @@ class TestMissingAuthor:
     ):
         repo = make_repo(GITHUB)
         fakes.rule(
-            "gh", ["pr", "view"], {"stdout": json.dumps({"number": 9, "state": "OPEN", "url": "u"})}
+            "gh",
+            ["pr", "view"],
+            {
+                "stdout": json.dumps(
+                    {"number": 9, "state": "OPEN", "url": "u", "baseRefName": "main"}
+                )
+            },
         )
         code, lines = invoke(
             scripts[3],

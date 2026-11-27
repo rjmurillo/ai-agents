@@ -65,18 +65,21 @@ REASONS = preflight_mod.REASONS | frozenset(
         "head-not-reviewed",
         "push-rejected",
         "push-failed",
+        "push-interrupted",
+        "push-locked",
         "pr-create-failed",
         "description-upload-failed",
         "paths-not-checked",
     }
 )
 BODY_MARKER = checks_mod.BODY_MARKER
-# The shared run budget (common.RUN_BUDGET_SECONDS) caps the push: a slow
-# pre-push hook ends on a STOP, and PR_RESERVE_SECONDS stay for the PR create.
+# The run budget caps the push, less the PR create's reserve. A timeout kills its hooks.
 PUSH_TIMEOUT_SECONDS = 540
 PR_RESERVE_SECONDS = 120
 _EXTERNAL_RETURN_CODES = (124, 126, 127)  # timeout, cannot run, not found
 _RERUN_NOTE = "rerun publish; it detects an existing PR"
+_UNSURE_PUSH_NOTE = "check the remote, then rerun publish"
+_LOCK_BUSY = "another push of this branch holds the shared push lock; rerun publish after it ends"
 _BRANCH_RE = re.compile(
     r"^(feat|fix|docs|refactor|test|chore|ci|build|perf|style|revert)/[a-z0-9][a-z0-9-]{1,60}$"
 )
@@ -224,9 +227,25 @@ def cmd_check(args: argparse.Namespace, result: common.Result, _root: Path) -> c
 
 
 def _push(ctx: Context, result: common.Result) -> bool:
-    refspec = f"refs/heads/{ctx.branch}:refs/heads/{ctx.branch}"
+    """Push under the shared per-branch push lock, so the commit guard sees the push."""
+    with common.push_lock(ctx.branch) as lock:
+        if lock == "busy":
+            result.stop("push-locked", common.EXIT_EXTERNAL, _LOCK_BUSY)
+            return False
+        result.add("PUSH_LOCK", lock)
+        return _push_now(ctx, result)
+
+
+def _push_now(ctx: Context, result: common.Result) -> bool:
     timeout = max(1, min(PUSH_TIMEOUT_SECONDS, common.remaining_seconds() - PR_RESERVE_SECONDS))
-    done = common.git(["push", "--set-upstream", "origin", refspec], cwd=ctx.root, timeout=timeout)
+    ref = f"refs/heads/{ctx.branch}"
+    push = ["push", "--set-upstream", "origin", f"{ref}:{ref}"]
+    try:
+        done = common.git(push, cwd=ctx.root, timeout=timeout, group=not common.on_windows())
+    except (KeyboardInterrupt, SystemExit) as exc:  # run killed it (process group off Windows)
+        cause = "interrupted" if isinstance(exc, KeyboardInterrupt) else f"signal exit {exc.code}"
+        result.stop("push-interrupted", common.EXIT_EXTERNAL, f"{cause}; {_UNSURE_PUSH_NOTE}")
+        return False
     if done.returncode == 0:
         result.add("PUSH", "pushed")
         return True
@@ -240,17 +259,11 @@ def _push(ctx: Context, result: common.Result) -> bool:
     elif any(signal in lowered for signal in _PUSH_AUTH_SIGNALS):
         result.stop("auth-failed", common.EXIT_AUTH, "push was not authorized")
     elif done.returncode == 124:
-        result.stop(
-            "push-failed",
-            common.EXIT_EXTERNAL,
-            f"{common.cause_line(done.stderr, 'push timed out')}; check the remote, then rerun publish",
-        )
+        cause = common.cause_line(done.stderr, "push timed out")
+        result.stop("push-failed", common.EXIT_EXTERNAL, f"{cause}; {_UNSURE_PUSH_NOTE}")
     else:
-        result.stop(
-            "push-failed",
-            common.EXIT_EXTERNAL,
-            common.cause_line(done.stderr, f"exit {done.returncode}"),
-        )
+        cause = common.cause_line(done.stderr, f"exit {done.returncode}")
+        result.stop("push-failed", common.EXIT_EXTERNAL, cause)
     return False
 
 
@@ -465,17 +478,9 @@ def run(argv: list[str]) -> tuple[common.Result, str, Path | None]:
             fmt,
             None,
         )
-    for axis in getattr(args, "require_axis", []):
-        if not preflight_mod.AXIS_RE.fullmatch(axis):
-            return (
-                result.stop(
-                    "bad-arguments",
-                    common.EXIT_CONFIG,
-                    "--require-axis must be a lowercase axis name",
-                ),
-                fmt,
-                None,
-            )
+    if not all(preflight_mod.AXIS_RE.fullmatch(axis) for axis in getattr(args, "require_axis", [])):
+        message = "--require-axis must be a lowercase axis name"
+        return result.stop("bad-arguments", common.EXIT_CONFIG, message), fmt, None
     root = common.repo_root()
     if root is None:
         return result.stop("no-repo", common.EXIT_CONFIG, "not inside a git work tree"), fmt, None
