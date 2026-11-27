@@ -1,4 +1,4 @@
-# Ship eval scenarios passed on model priors because the evaluated text never held the judgment
+# Ship eval scenarios passed while the evaluated text held none of the judgment terms
 
 **Atomicity**: 90%
 **Category**: Eval design, skill rewrites
