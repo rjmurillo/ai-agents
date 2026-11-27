@@ -1,40 +1,20 @@
 """Host-wide headroom for heavy pre-push stages (issue #6609).
 
-About 16 agents ran pre-push on one host at the same time. Clean pushes failed
-on a testmon SQLite lock, on the 180s pytest budget, and on a semgrep-core
-target failure. The same pushes passed unchanged once load fell. The hook
-reported each failure as a defect in the diff, so an agent could not tell load
-from a broken change.
-
-This module caps how many heavy stages run on one host at once. A stage takes
-one of ``slots`` lock files before it starts its clock, whatever the load. While
-it holds the slot it also waits for the 1-minute load average to fall below
-``max_load``. Holding the slot during that wait keeps the cap honest: a stage
-whose wait runs out still counts toward the cap, so overdue stages cannot all
-start together.
-
-The wait is bounded by the caller, which knows its lefthook cap. When the wait
-runs out, the stage still runs: a skipped gate looks green and proves nothing.
-The warning it prints names load, so a timeout that follows reads as load. A
-stage that never got a slot in its whole wait runs without one. That happens
-only when every slot stayed busy for that long.
-
-Slots are ``fcntl.flock`` locks. The kernel drops a lock when its holder dies,
-so a crashed push never leaks a slot. The slot files live under the user's
-cache directory, not ``/tmp``, for the reason ``rule-push-lock.md`` gives: a ``/tmp``
-wipe splits one lock name into two inodes. This is a concurrency cap across
-branches. It does not replace the per-branch push lock, which serializes one
-branch's ref update.
-
-Where ``fcntl`` is missing (Windows), or the slot directory cannot be created,
-the stage runs without a slot. A cap that can block the push it protects is
-worse than no cap.
+Caps concurrent heavy stages via ``fcntl.flock`` lock files under the user's
+cache directory (not ``/tmp``). A stage waits for host CPU pressure to drop
+BEFORE claiming a slot so sleeping waiters never hoard slots, polls with
+bounded jitter to avoid lockstep wakeups, prefers Linux ``/proc/pressure/cpu``
+(``some avg10``) and ``/proc/stat`` (``procs_running``) over ``loadavg`` so
+D-state ``in_iowait`` threads cannot falsely peg the gate, and raises
+``HeadroomTimeoutError`` (``SystemExit(3)``) if every slot stays occupied for
+``wait_budget`` instead of running uncapped.
 """
 
 from __future__ import annotations
 
 import math
 import os
+import random
 import sys
 import time
 from collections.abc import Callable, Iterator, Mapping
@@ -49,31 +29,28 @@ if _HAS_FLOCK:
 
 SLOTS_ENV = "AI_AGENTS_HEAVY_STAGE_SLOTS"
 MAX_LOAD_ENV = "AI_AGENTS_HEAVY_STAGE_MAX_LOAD"
+MAX_PSI_ENV = "AI_AGENTS_HEAVY_STAGE_MAX_PSI"
 SLOT_DIR_ENV = "AI_AGENTS_HEAVY_STAGE_SLOT_DIR"
-# Issue #6609 asks for 3 to 4 slots. Three is the figure the operator memory
-# `ci-concurrent-pre-push-gates-must-wait-not-skip` uses for heavy pushes today.
 DEFAULT_SLOTS = 3
-# The default load threshold is this many times the CPU count. A 1-minute load
-# at or above the CPU count means more runnable work than CPUs, so a new heavy
-# stage only slows every stage. An absolute figure would mean a quiet host on 48
-# CPUs and a saturated one on 4. The slots, not this threshold, set the cap:
-# issue #6609 reports load 10 to 13 from the operator's session (the logs do not
-# record load) while about 16 uncapped pushes ran.
 DEFAULT_MAX_LOAD_PER_CPU = 1.0
+DEFAULT_MAX_CPU_PSI = 25.0
 POLL_SECONDS = 5.0
+POLL_JITTER_RATIO = 0.5
+_CPU_PSI_PATH = Path("/proc/pressure/cpu")
+_PROC_STAT_PATH = Path("/proc/stat")
+
+# Slot files this process holds; `other_stages` skips them.
+_OWN_SLOTS: set[Path] = set()
 
 
 @dataclass(frozen=True)
 class Settings:
-    """How many heavy stages may run at once, and the load they wait below.
-
-    ``slots`` of 0 turns the slot cap off. ``max_load`` of 0 turns the load
-    wait off.
-    """
+    """Concurrency cap and host CPU pressure limits (0 disables a knob)."""
 
     slots: int
     max_load: float
     slot_dir: Path
+    max_psi: float = DEFAULT_MAX_CPU_PSI
 
 
 @dataclass(frozen=True)
@@ -85,12 +62,8 @@ class Grant:
     waited: float
 
 
-def _default_slot_dir(env: Mapping[str, str]) -> Path:
-    cache = env.get("XDG_CACHE_HOME")
-    if cache:
-        return Path(cache) / "ai-agents" / "heavy-stage-slots"
-    home = env.get("HOME") or str(Path.home())
-    return Path(home) / ".cache" / "ai-agents" / "heavy-stage-slots"
+class HeadroomTimeoutError(SystemExit):
+    """Raised with exit code 3 when every slot stays occupied for ``wait_budget``."""
 
 
 def default_max_load(cpus: int | None = None) -> float:
@@ -100,14 +73,7 @@ def default_max_load(cpus: int | None = None) -> float:
 
 
 def read_settings(env: Mapping[str, str] | None = None, *, cpus: int | None = None) -> Settings:
-    """Read the gate's settings from ``env``.
-
-    ``cpus`` sizes the default load threshold; it defaults to ``os.cpu_count()``.
-
-    Raises:
-        ValueError: a setting is not a nonnegative number. The message names
-            the variable.
-    """
+    """Read gate settings from ``env``; raise ``ValueError`` naming any bad variable."""
     source = os.environ if env is None else env
     raw_slots = source.get(SLOTS_ENV, "").strip()
     if not raw_slots:
@@ -116,19 +82,36 @@ def read_settings(env: Mapping[str, str] | None = None, *, cpus: int | None = No
         slots = int(raw_slots)
     else:
         raise ValueError(f"{SLOTS_ENV} must be a nonnegative integer, got {raw_slots!r}")
-    raw_load = source.get(MAX_LOAD_ENV, "").strip()
-    if not raw_load:
-        max_load = default_max_load(cpus)
-    else:
+    parsed: dict[str, float] = {}
+    for env_name, default in (
+        (MAX_LOAD_ENV, default_max_load(cpus)),
+        (MAX_PSI_ENV, DEFAULT_MAX_CPU_PSI),
+    ):
+        raw = source.get(env_name, "").strip()
+        if not raw:
+            parsed[env_name] = default
+            continue
         try:
-            max_load = float(raw_load)
+            value = float(raw)
         except ValueError:
-            max_load = -1.0
-        if not math.isfinite(max_load) or max_load < 0:
-            raise ValueError(f"{MAX_LOAD_ENV} must be a nonnegative number, got {raw_load!r}")
+            value = -1.0
+        if not math.isfinite(value) or value < 0:
+            raise ValueError(f"{env_name} must be a nonnegative number, got {raw!r}")
+        parsed[env_name] = value
     raw_dir = source.get(SLOT_DIR_ENV, "").strip()
-    slot_dir = Path(raw_dir) if raw_dir else _default_slot_dir(source)
-    return Settings(slots=slots, max_load=max_load, slot_dir=slot_dir)
+    if raw_dir:
+        slot_dir = Path(raw_dir)
+    elif cache := source.get("XDG_CACHE_HOME"):
+        slot_dir = Path(cache) / "ai-agents" / "heavy-stage-slots"
+    else:
+        home = source.get("HOME") or str(Path.home())
+        slot_dir = Path(home) / ".cache" / "ai-agents" / "heavy-stage-slots"
+    return Settings(
+        slots=slots,
+        max_load=parsed[MAX_LOAD_ENV],
+        slot_dir=slot_dir,
+        max_psi=parsed[MAX_PSI_ENV],
+    )
 
 
 def load_average() -> float | None:
@@ -141,11 +124,68 @@ def load_average() -> float | None:
         return None
 
 
-def _configured_max_load(cpus: int) -> float:
+def cpu_psi_avg10(path: Path | None = None) -> float | None:
+    """Linux CPU PSI ``some avg10`` percentage from ``/proc/pressure/cpu``, or None."""
+    target = _CPU_PSI_PATH if path is None else path
     try:
-        return read_settings(cpus=cpus).max_load
-    except ValueError:
-        return default_max_load(cpus)
+        text = target.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    for line in text.splitlines():
+        fields = line.split()
+        if not fields or fields[0] != "some":
+            continue
+        for token in fields[1:]:
+            if not token.startswith("avg10="):
+                continue
+            try:
+                value = float(token.partition("=")[2])
+            except ValueError:
+                return None
+            return value if math.isfinite(value) and value >= 0 else None
+    return None
+
+
+def procs_running(path: Path | None = None) -> int | None:
+    """Runnable task count from ``/proc/stat`` (excludes D-state ``procs_blocked``)."""
+    target = _PROC_STAT_PATH if path is None else path
+    try:
+        text = target.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    for line in text.splitlines():
+        fields = line.split()
+        if len(fields) >= 2 and fields[0] == "procs_running":
+            return int(fields[1]) if fields[1].isdecimal() else None
+    return None
+
+
+def _check_pressure(
+    config: Settings, load: Callable[[], float | None] | None
+) -> tuple[bool, str | None]:
+    """Return ``(has_headroom, description)`` for current host CPU pressure."""
+    if config.max_load <= 0:
+        return True, None
+    if load is None:
+        psi = cpu_psi_avg10() if config.max_psi > 0 else None
+        running = procs_running()
+        if psi is not None or running is not None:
+            parts: list[str] = []
+            ok = True
+            if psi is not None:
+                ok = ok and psi < config.max_psi
+                parts.append(f"cpu psi avg10 {psi:.1f}% (threshold {config.max_psi:.1f}%)")
+            if running is not None:
+                other_runnable = max(0, running - 1)
+                ok = ok and other_runnable < config.max_load
+                parts.append(f"runnable tasks {other_runnable} (threshold {config.max_load:.1f})")
+            return ok, ", ".join(parts)
+    current = (load_average if load is None else load)()
+    if current is None:
+        return True, "load average unavailable"
+    ok = current < config.max_load
+    relation = "below" if ok else "is at or above"
+    return ok, f"load average {current:.1f} {relation} {config.max_load:.1f}"
 
 
 def load_note(
@@ -156,27 +196,24 @@ def load_note(
     cpus: int | None = None,
     settings: Settings | None = None,
 ) -> str:
-    """One line that says whether host load likely caused a stage failure.
-
-    Load is the likely cause when the load average is at or above the
-    threshold, or when another push holds a heavy-stage slot. The second test
-    matters on a large host: issue #6609 reports load 10 to 13 from the
-    operator's session, well under saturation on a 48-CPU host, while about 16
-    pushes ran heavy stages.
-    """
+    """One line that says whether host load likely caused a stage failure."""
     count = cpus if cpus is not None else (os.cpu_count() or 1)
-    threshold = _configured_max_load(count) if max_load is None else max_load
+    if settings is None:
+        try:
+            settings = read_settings(cpus=count)
+        except ValueError:
+            settings = None
+    threshold = (
+        max_load
+        if max_load is not None
+        else (default_max_load(count) if settings is None else settings.max_load)
+    )
     current = (load_average if load is None else load)()
     if current is None:
         return (
             f"NOTE: {stage}: host load average is unavailable here, so load "
             "cannot be ruled in or out as the cause."
         )
-    if settings is None:
-        try:
-            settings = read_settings(cpus=count)
-        except ValueError:
-            settings = None
     others = 0 if settings is None else other_stages(settings)
     measured = f"host load average is {current:.1f} on {count} CPUs"
     if others:
@@ -199,27 +236,13 @@ def load_note(
     )
 
 
-# Slot files this process holds. `other_stages` skips them: a
-# probe from a new descriptor would see the caller's own lock as a rival.
-_OWN_SLOTS: set[Path] = set()
-
-
-def _slot_path(settings: Settings, index: int) -> Path:
-    return settings.slot_dir / f"slot-{index}.lock"
-
-
 def other_stages(settings: Settings) -> int:
-    """How many heavy-stage slots other processes hold right now.
-
-    A free slot is locked and unlocked at once, so a rival that polls in that
-    instant waits one more poll. Never creates the slot directory. Returns 0
-    when slots are off, flock is missing, or a slot file cannot be read.
-    """
+    """How many heavy-stage slots other processes hold right now."""
     if settings.slots <= 0 or not _HAS_FLOCK:
         return 0
     held = 0
     for index in range(settings.slots):
-        path = _slot_path(settings, index)
+        path = settings.slot_dir / f"slot-{index}.lock"
         if path in _OWN_SLOTS:
             continue
         try:
@@ -239,32 +262,31 @@ def other_stages(settings: Settings) -> int:
     return held
 
 
-def _try_slot(settings: Settings) -> tuple[int, int] | None:
-    """Lock the first free slot file; return (index, fd), or None when all are held.
-
-    Raises:
-        OSError: the slot directory or a slot file cannot be opened.
-    """
-    settings.slot_dir.mkdir(parents=True, exist_ok=True)
-    for index in range(settings.slots):
-        fd = os.open(_slot_path(settings, index), os.O_RDWR | os.O_CREAT, 0o600)
-        try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            os.close(fd)
-            continue
-        except OSError:
-            os.close(fd)
-            raise
-        return index, fd
-    return None
-
-
-def _release(fd: int) -> None:
+def _claim_slot(stage: str, config: Settings, out: TextIO) -> tuple[tuple[int, int] | None, bool]:
+    """Lock the first free slot file; disable slots with a warning on OS errors."""
     try:
-        fcntl.flock(fd, fcntl.LOCK_UN)
-    finally:
-        os.close(fd)
+        config.slot_dir.mkdir(parents=True, exist_ok=True)
+        for index in range(config.slots):
+            path = config.slot_dir / f"slot-{index}.lock"
+            fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                os.close(fd)
+                continue
+            except OSError:
+                os.close(fd)
+                raise
+            _OWN_SLOTS.add(path)
+            return (index, fd), True
+    except OSError as error:
+        print(
+            f"WARNING: {stage}: cannot use heavy-stage slots in "
+            f"{config.slot_dir} ({error}); running without the host-wide cap.",
+            file=out,
+        )
+        return None, False
+    return None, True
 
 
 @contextmanager
@@ -275,82 +297,80 @@ def heavy_stage_slot(
     settings: Settings | None = None,
     clock: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
-    load: Callable[[], float | None] = load_average,
+    load: Callable[[], float | None] | None = None,
+    jitter: Callable[[float, float], float] = random.uniform,
     stream: TextIO | None = None,
 ) -> Iterator[Grant]:
     """Hold a heavy-stage slot for the ``with`` body, waiting up to ``wait_budget``.
 
-    The body always runs. ``Grant.headroom`` is False when the wait ran out,
-    and a warning naming load was printed.
-
-    Raises:
-        ValueError: ``settings`` is None and the environment holds a bad value.
+    Slots are never hoarded while waiting on CPU pressure. If ``wait_budget``
+    expires with all configured slots occupied, raises ``HeadroomTimeoutError``
+    (exit 3) instead of running uncapped.
     """
     out = sys.stderr if stream is None else stream
     config = read_settings() if settings is None else settings
     use_slots = config.slots > 0 and _HAS_FLOCK
     start = clock()
     announced = False
-    fd: int | None = None
-    index: int | None = None
+    taken: tuple[int, int] | None = None
     headroom = False
-    while True:
-        # The slot comes first and is kept, so a stage waiting on load still
-        # counts toward the cap (issue #6609 review: overdue stages must not
-        # all run uncapped when their waits run out together).
-        if use_slots and fd is None:
-            try:
-                taken = _try_slot(config)
-            except OSError as error:
+    low = POLL_SECONDS * (1.0 - POLL_JITTER_RATIO)
+    high = POLL_SECONDS * (1.0 + POLL_JITTER_RATIO)
+    try:
+        while True:
+            pressure_ok, summary = _check_pressure(config, load)
+            if pressure_ok:
+                if use_slots:
+                    taken, use_slots = _claim_slot(stage, config, out)
+                if not use_slots or taken is not None:
+                    headroom = True
+                    break
+            remaining = wait_budget - (clock() - start)
+            if remaining <= 0:
+                break
+            if not announced:
+                reason = (
+                    summary
+                    if not pressure_ok and summary
+                    else f"all {config.slots} heavy-stage slots are in use"
+                )
                 print(
-                    f"WARNING: {stage}: cannot use heavy-stage slots in "
-                    f"{config.slot_dir} ({error}); running without the host-wide cap.",
+                    f"{stage}: waiting up to {wait_budget:g}s for host headroom: {reason}.",
                     file=out,
                 )
-                use_slots = False
-                taken = None
-            if taken is not None:
-                index, fd = taken
-                _OWN_SLOTS.add(_slot_path(config, index))
-        slot_ok = not use_slots or fd is not None
-        current = load()
-        load_ok = config.max_load <= 0 or current is None or current < config.max_load
-        if slot_ok and load_ok:
-            headroom = True
-            break
-        remaining = wait_budget - (clock() - start)
-        if remaining <= 0:
-            break
-        if not announced:
-            reasons = []
-            if not slot_ok:
-                reasons.append(f"all {config.slots} heavy-stage slots are in use")
-            if not load_ok:
-                reasons.append(f"load average {current:.1f} is at or above {config.max_load:.1f}")
+                announced = True
+            delay = jitter(low, high)
+            sleep(min(delay if math.isfinite(delay) and delay > 0 else low, remaining))
+        waited = clock() - start
+        if not headroom:
+            if use_slots and taken is None:
+                taken, use_slots = _claim_slot(stage, config, out)
+            _, final_summary = _check_pressure(config, load)
+            detail = final_summary or "host pressure unavailable"
+            if use_slots and taken is None:
+                print(
+                    f"ERROR: {stage}: no free heavy-stage slot after {waited:g}s "
+                    f"(all {config.slots} slots in use; {detail}). Refusing to run "
+                    f"{stage} uncapped to prevent a host contention stampede; "
+                    "retry when host load drops.",
+                    file=out,
+                )
+                raise HeadroomTimeoutError(3)
+            slot_note = f"holding slot {taken[0]}" if taken is not None else "slots disabled"
             print(
-                f"{stage}: waiting up to {wait_budget:g}s for host headroom: {'; '.join(reasons)}.",
+                f"WARNING: {stage}: no host headroom after {waited:g}s ({detail}, "
+                f"{config.slots} slots, {slot_note}); running {stage} anyway, since "
+                "a gate is never skipped. A timeout or crash below is likely load, "
+                "not this diff.",
                 file=out,
             )
-            announced = True
-        sleep(min(POLL_SECONDS, remaining))
-    waited = clock() - start
-    if not headroom:
-        current = load()
-        shown = "unavailable" if current is None else f"{current:.1f}"
-        print(
-            f"WARNING: {stage}: no host headroom after {waited:g}s (load average "
-            f"{shown}, threshold {config.max_load:.1f}, {config.slots} slots, "
-            f"{'holding slot ' + str(index) if index is not None else 'no free slot'}); "
-            f"running {stage} anyway, since a gate is never skipped. A timeout or "
-            "crash below is likely load, not this diff.",
-            file=out,
-        )
-    elif announced:
-        print(f"{stage}: host headroom after {waited:g}s; starting.", file=out)
-    try:
-        yield Grant(slot=index, headroom=headroom, waited=waited)
+        elif announced:
+            print(f"{stage}: host headroom after {waited:g}s; starting.", file=out)
+        yield Grant(slot=None if taken is None else taken[0], headroom=headroom, waited=waited)
     finally:
-        if fd is not None:
-            if index is not None:
-                _OWN_SLOTS.discard(_slot_path(config, index))
-            _release(fd)
+        if taken is not None:
+            _OWN_SLOTS.discard(config.slot_dir / f"slot-{taken[0]}.lock")
+            try:
+                fcntl.flock(taken[1], fcntl.LOCK_UN)
+            finally:
+                os.close(taken[1])
