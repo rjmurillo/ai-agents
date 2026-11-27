@@ -925,10 +925,11 @@ console; no log artifact is committed.
 ## Changing a rule's scope changes the always-on membership the doctrine lists
 
 `model-context-doctrine.md` lists which rules load on every turn, and
-`tests/validation/test_always_on_corpus_claims.py` asserts that the list
-matches the generated `.github/instructions` tree. It also fails when the doctrine mentions bytes,
-`instruction_budget`, or 8KB. Changing a rule's `paths:` scope can change that
-membership, so a small scope edit to an unrelated rule turns the guard red.
+`tests/validation/test_always_on_corpus_claims.py` asserts that the
+list matches the generated `.github/instructions` tree. It also fails when
+the doctrine mentions bytes, `instruction_budget`, or 8KB. Changing a rule's
+`paths:` scope can change that membership, so a small scope edit to an
+unrelated rule turns the guard red.
 
 The trap is where it fires. Nothing in the pre-commit set catches it, and the
 edit looks unrelated to the doctrine. Pre-push catches it: the pre-PR
@@ -941,12 +942,14 @@ Check it in under a second before pushing:
 uv run --frozen python -m pytest tests/validation/test_always_on_corpus_claims.py -q
 ```
 
-When it fails, update every membership statement the test reads:
+When it fails, update the source of every membership statement the test
+reads:
 
 - the table in `.claude/skills/context-optimizer/references/model-context-doctrine.md`;
 - the membership table in `templates/rules/canonical-source-mirror.md`;
 - `.serena/memories/architecture/always-on-membership-lives-in-the-mirror.md`;
-- the loading sentence in `templates/skills/software-engineering-library.SKILL.md.tmpl`.
+- the loading sentence in `templates/skills/software-engineering-library.SKILL.md.tmpl`
+  (the test reads its rendered `SKILL.md`).
 
 Then run `uv run python build/scripts/build_all.py` to regenerate the rule and
 skill mirrors. Write no byte or budget figure in the doctrine; the test
