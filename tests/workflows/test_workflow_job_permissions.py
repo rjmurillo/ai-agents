@@ -1,8 +1,8 @@
 """A job with no ``permissions:`` block silently inherits the workflow-level one.
 
-24 jobs hold a write scope they never asked for. A ``debounce`` job that only
-computes an output carries ``pull-requests: write``; ``claude.yml``'s
-authorization check carries seven write scopes including ``id-token``. Nothing
+24 jobs held a write scope they never asked for when this gate was written. A
+``debounce`` job that only computed an output carried ``pull-requests: write``; the
+deleted ``claude.yml``'s authorization check carried seven, ``id-token`` included. Nothing
 in the job body says so, so a reviewer reading the job cannot see it (CWE-269).
 
 ``scripts/validate_workflows.py`` ``validate_permissions`` does not close this.

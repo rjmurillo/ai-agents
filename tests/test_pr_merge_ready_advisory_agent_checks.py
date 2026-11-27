@@ -35,14 +35,16 @@ CONFIG_PATH = "src/claude/skills/pr-review/pr-review-config.yaml"
 LISTED = ".github/workflows/ai-spec-validation.yml"
 # Listed on purpose (owner decision, issue 6182) but holds no model job: the
 # deterministic Validate Spec Coverage check. The test pins that it stays so.
-DETERMINISTIC_LISTED = ".github/workflows/ai-spec-validation.yml"
+# It is the same workflow as LISTED: no listed workflow holds a model job now.
+DETERMINISTIC_LISTED = LISTED
 # Listed workflows with no provider-gated job: the deterministic spec check and the
 # CLI smoke, whose Claude and Copilot legs were deleted with their agent-* approvals.
 LISTED_WITHOUT_GATED_JOBS = frozenset(
     {DETERMINISTIC_LISTED, ".github/workflows/plugin-cli-smoke.yml"}
 )
 UNLISTED = ".github/workflows/pytest.yml"
-AGENT_CHECK = "Review Spec Coverage (Advisory)"
+# The check name of the one job LISTED still runs.
+AGENT_CHECK = "Validate Spec Coverage"
 
 
 def _resource(workflow_file: str, owner: str = "o", repo: str = "r") -> str:
