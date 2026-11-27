@@ -151,8 +151,8 @@ def artifact_lock_path(artifact: Path) -> Path:
     path = Path(os.path.realpath(artifact))
     # The directory anchors the lock. Case folding also covers case aliases
     # on filesystems where Python's normcase does not fold (such as APFS).
-    key = hashlib.sha256(os.fsencode(path.name.casefold())).hexdigest()
-    return path.with_name(f".eval-controller-{key}.lock")
+    digest = hashlib.sha256(os.fsencode(path.name.casefold())).hexdigest()
+    return path.with_name(f".eval-controller-{digest}.lock")
 
 
 @contextlib.contextmanager
