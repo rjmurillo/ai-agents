@@ -132,6 +132,8 @@ Baseline prompt is fixed: "Review the following input." plus OUTPUT_SHAPE_SUFFIX
 - This baseline report (3rd revision).
 - Reviewer-asymmetry-spike retained as historical reference (today's run shows saturation; May-9 final.json captures pre-merge state where critic and implementer showed +0.5 and +0.85 lift respectively).
 
+  > **Correction (2026-11-26)**: Two claims here and in the critic and implementer rows are wrong. First, `final.json` is the 2026-05-06 run (commit `99120ffe77`), not May 9. Its +0.5 and +0.85 deltas are correct. Second, the 2026-05-27 run did not show saturation. It used `base_ref: main`, and `main` already held the treatment templates. Control and treatment were the same template, so any delta could only be noise. The zero delta says nothing about the treatment. See `evals/reviewer-asymmetry-spike/README.md`.
+
 ## Followups (ranked by leverage)
 
 1. **Fix the verdict-vocabulary confound.** Single biggest source of measurement noise. Lean-negative on 6 of 18 agents most likely traces here.
