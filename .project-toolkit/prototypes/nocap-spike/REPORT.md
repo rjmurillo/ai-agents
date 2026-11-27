@@ -29,6 +29,8 @@ Round 4 checked the round 3 core against every upstream claim on 2026-11-25, on 
 The real-run numbers come from one labeler, not two raters with adjudication. That labeler also wrote the fixes.
 Upstream's real runs are public SWE-rebench trajectories. These are this repo's Claude Code sessions.
 So the comparison is like for like in method, not in population.
+The miss rate is the share of sampled unstamped completion replies that hold an unsupported claim.
+It is not recall: it does not measure what share of all unsupported claims the checker misses.
 Contradicted (CAP) stamps are unvalidated on real data. None appeared in 678 runs, and the round 1 missed CAP stays missed.
 
 ## Round 4: upstream parity and a fresh blind sample
@@ -297,7 +299,8 @@ A Phase 1 decision needs a re-measure after Fixes 1 and 2, on a fresh sample.
 ## What ran
 
 The round 1 numbers are from branch `spike/nocap-checker-core`, run on 2026-11-23.
-The adapter was committed at `50b3045e2d` (2026-11-23) before the measured run and was not changed afterwards.
+The adapter was committed on 2026-11-23, before the measured run, and was not changed afterwards.
+A later history rewrite replaced that commit. The branch holds the same adapter file at `fb25b1364b` (2026-11-25).
 
 - Core: six files vendored from `jedbrnth-eng/no-cap` at `a683c857` (2026-11-21, Apache-2.0). See `VENDORED.md`.
 - Adapter: `adapter.py` maps Claude Code JSONL to the core's `extract` and `judge` calls.
@@ -371,7 +374,7 @@ Every disagreement traced to the vendored core, not the adapter:
 
 ## Runtime against the Stop budget
 
-`src/claude/hooks/hooks.json:10` sets `"timeout": 15` on the Stop group, which today runs the reflect
+[`src/claude/hooks/hooks.json`](../../../src/claude/hooks/hooks.json) line 10 (2026-11-27) sets `"timeout": 15` on the Stop group, which today runs the reflect
 nudge. A checker added to that group shares the 15 s with it. `time_stop.py` runs one fresh `python3 -I`
 process per transcript: interpreter start, imports, full JSONL parse, history rebuild, and judging.
 Host load average was about 10 on 48 cores.
@@ -400,7 +403,7 @@ Fix 1 and part of Fix 2 were applied in round 2. See above.
 
 ## Scope and limits
 
-- On the spike branch only, files outside the spike directory: `pyproject.toml` gained a ruff `per-file-ignores` entry and a
+- On the spike branch only, files outside the spike directory: [`pyproject.toml`](https://github.com/rjmurillo/ai-agents/blob/263984e0791cbb00ac9ac8c7337f508929bd37cb/pyproject.toml) gained a ruff `per-file-ignores` entry and a
   format exclude for `vendor/**`. Mypy is silenced by a comment in each vendored file instead.
   No hook, dispatcher, skill, or other file changed.
 - Replay reads the filesystem for some subset decisions. Removed worktrees can change those.
