@@ -42,6 +42,7 @@ def test_loader_writes_no_bytecode(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     hook.write_text(NEW, encoding="utf-8")
     prefix = tmp_path / "pyc-prefix"
     monkeypatch.setattr(sys, "pycache_prefix", str(prefix))
+    monkeypatch.setattr(sys, "dont_write_bytecode", False)
     load_source_module("plain_hook_probe", hook)
     sys.modules.pop("plain_hook_probe", None)
     assert not (tmp_path / "__pycache__").exists()
@@ -56,6 +57,7 @@ def test_standard_loader_writes_prefixed_bytecode_control(
     hook.write_text(NEW, encoding="utf-8")
     prefix = tmp_path / "pyc-prefix"
     monkeypatch.setattr(sys, "pycache_prefix", str(prefix))
+    monkeypatch.setattr(sys, "dont_write_bytecode", False)
     spec = util.spec_from_file_location("control_hook_probe", hook)
     assert spec is not None and spec.loader is not None
     module = util.module_from_spec(spec)

@@ -363,6 +363,59 @@ def test_removes_a_symlink_even_when_its_name_looks_valid(tmp_path: Path) -> Non
     assert valid.is_file()
 
 
+def test_a_hardlinked_cache_entry_is_removed_without_touching_the_other_name(
+    tmp_path: Path,
+) -> None:
+    workspace, cache_root = _paths(tmp_path)
+    pyc = _write_pyc(workspace, cache_root, "pkg/module.py", PYTEST_TAG)
+    outside = tmp_path / "outside-hardlink.pyc"
+    os.link(pyc, outside)
+
+    assert _run(workspace, cache_root) == 0
+
+    assert not pyc.exists()
+    assert outside.is_file()
+    assert outside.read_bytes() == _pytest_pyc_bytes(workspace / "pkg" / "module.py")
+
+
+def test_an_open_parent_descriptor_tracks_the_original_directory_across_rename(
+    tmp_path: Path,
+) -> None:
+    workspace, cache_root = _paths(tmp_path)
+    cache_dir = cache_root / "pkg"
+    cache_dir.mkdir()
+    original = cache_dir / f"module.{PYTEST_TAG}.pyc"
+    original.write_bytes(b"original")
+
+    with prune._opened_root_directory(cache_root) as root_fd:
+        with prune._opened_parent_directory(cache_root, original, root_fd) as parent_fd:
+            moved = tmp_path / "moved-cache-dir"
+            cache_dir.rename(moved)
+            replacement = cache_dir
+            replacement.mkdir()
+            (replacement / original.name).write_bytes(b"replacement")
+
+            assert prune._read_pyc_from_parent(original.name, parent_fd) == b"original"
+
+
+def test_the_scan_fails_closed_at_a_filesystem_boundary(tmp_path: Path, monkeypatch) -> None:
+    workspace, cache_root = _paths(tmp_path)
+    (cache_root / "mounted").mkdir()
+    real_stat = prune.os.stat
+
+    def cross_device_stat(path, **kwargs):
+        result = real_stat(path, **kwargs)
+        if path == "mounted":
+            return SimpleNamespace(st_mode=result.st_mode, st_dev=result.st_dev + 1)
+        return result
+
+    monkeypatch.setattr(prune.os, "stat", cross_device_stat)
+
+    with prune._opened_root_directory(cache_root) as root_fd:
+        with pytest.raises(RuntimeError, match="filesystem boundary"):
+            prune._scan(cache_root, root_fd)
+
+
 def test_a_missing_cache_root_is_a_configuration_error(tmp_path: Path) -> None:
     workspace = tmp_path / "checkout"
     workspace.mkdir()
@@ -559,7 +612,7 @@ def test_a_midrun_directory_symlink_swap_cannot_delete_outside(tmp_path: Path, m
     victim.write_text("keep", encoding="utf-8")
     swapped = False
 
-    def swap_during_validation(path, _cache_root, _workspace, _tags) -> bool:
+    def swap_during_validation(path, _cache_root, _workspace, _tags, *, parent_fd) -> bool:
         nonlocal swapped
         if path == stale and not swapped:
             swapped = True
@@ -590,7 +643,7 @@ def test_a_midrun_ancestor_symlink_swap_cannot_delete_outside(tmp_path: Path, mo
     original_stale = moved_parent / cache_root.name / victim_name
     swapped = False
 
-    def swap_during_validation(path, _cache_root, _workspace, _tags) -> bool:
+    def swap_during_validation(path, _cache_root, _workspace, _tags, *, parent_fd) -> bool:
         nonlocal swapped
         if path == stale and not swapped:
             swapped = True
@@ -646,8 +699,10 @@ def test_a_pyc_read_error_marks_the_file_invalid(tmp_path: Path) -> None:
     workspace, cache_root = _paths(tmp_path)
     pyc = _write_pyc(workspace, cache_root, "pkg/module.py", PYTEST_TAG)
 
-    with mock.patch.object(Path, "open", side_effect=PermissionError("denied")):
-        assert prune._read_pyc(pyc) is None
+    with prune._opened_root_directory(cache_root) as root_fd:
+        with prune._opened_parent_directory(cache_root, pyc, root_fd) as parent_fd:
+            with mock.patch.object(prune.os, "open", side_effect=PermissionError("denied")):
+                assert prune._read_pyc_from_parent(pyc.name, parent_fd) is None
 
 
 def test_a_file_that_disappears_before_removal_is_not_an_error(tmp_path: Path) -> None:

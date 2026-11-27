@@ -174,6 +174,7 @@ def _opened_root_directory(path: Path) -> Iterator[int]:
 def _scan(cache_root: Path, root_fd: int) -> CacheEntries:
     files: list[Path] = []
     directories: list[Path] = []
+    root_device = os.stat(".", dir_fd=root_fd, follow_symlinks=False).st_dev
 
     def visit(fd: int, base: Path) -> None:
         for name in os.listdir(fd):
@@ -182,6 +183,8 @@ def _scan(cache_root: Path, root_fd: int) -> CacheEntries:
                 entry_stat = os.stat(name, dir_fd=fd, follow_symlinks=False)
             except FileNotFoundError:
                 continue
+            if entry_stat.st_dev != root_device:
+                raise RuntimeError("cache scan crosses a filesystem boundary")
             if stat.S_ISDIR(entry_stat.st_mode):
                 directories.append(path)
                 with _opened_directory(name, dir_fd=fd) as child_fd:
@@ -214,9 +217,26 @@ def _source_for(path: Path, cache_root: Path, workspace: Path, tags: frozenset[s
     return workspace / relative.parent / f"{stem}.py"
 
 
-def _read_pyc(path: Path) -> bytes | None:
+def _file_open_flags() -> int:
     try:
-        return path.read_bytes()
+        return os.O_RDONLY | os.O_NOFOLLOW
+    except AttributeError as exc:
+        raise RuntimeError("cache pruning requires O_NOFOLLOW for file opens") from exc
+
+
+def _read_pyc_from_parent(name: str, parent_fd: int) -> bytes | None:
+    try:
+        file_fd = os.open(name, _file_open_flags(), dir_fd=parent_fd)
+    except OSError:
+        return None
+    try:
+        stream = os.fdopen(file_fd, "rb")
+    except OSError:
+        os.close(file_fd)
+        return None
+    try:
+        with stream:
+            return stream.read()
     except OSError:
         return None
 
@@ -245,8 +265,19 @@ def _consumer_accepts(data: bytes, source: Path) -> bool:
     return metadata_matches and _payload_is_code(data)
 
 
-def _is_current_pyc(path: Path, cache_root: Path, workspace: Path, tags: frozenset[str]) -> bool:
-    if path.is_symlink() or not path.is_file():
+def _is_current_pyc(
+    path: Path,
+    cache_root: Path,
+    workspace: Path,
+    tags: frozenset[str],
+    *,
+    parent_fd: int,
+) -> bool:
+    try:
+        entry_stat = os.stat(path.name, dir_fd=parent_fd, follow_symlinks=False)
+    except OSError:
+        return False
+    if not stat.S_ISREG(entry_stat.st_mode) or entry_stat.st_nlink != 1:
         return False
     tag = _matching_tag(path.name, tags)
     if tag is None:
@@ -254,7 +285,7 @@ def _is_current_pyc(path: Path, cache_root: Path, workspace: Path, tags: frozens
     source = _source_for(path, cache_root, workspace, tags)
     if source is None or not source.is_file():
         return False
-    data = _read_pyc(path)
+    data = _read_pyc_from_parent(path.name, parent_fd)
     if data is None:
         return False
     return _consumer_accepts(data, source)
@@ -287,10 +318,10 @@ def _remove_invalid_entries(
     removed = 0
     errors: list[str] = []
     for path in entries.files:
-        if _is_current_pyc(path, cache_root, workspace, tags):
-            continue
         try:
             with _opened_parent_directory(cache_root, path, root_fd) as parent_fd:
+                if _is_current_pyc(path, cache_root, workspace, tags, parent_fd=parent_fd):
+                    continue
                 os.unlink(path.name, dir_fd=parent_fd)
         except FileNotFoundError:
             continue

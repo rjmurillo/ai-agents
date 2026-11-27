@@ -32,11 +32,7 @@ PREFIX = f"{RUNNER_TEMP}/pytest-bytecode-cache"
 WORKSPACE = "${{ github.workspace }}"
 PYTHON_VERSION_OUTPUT = "steps.setup-code-env.outputs.python-version"
 UNIQUE_SUFFIX = "${{ github.run_id }}-${{ github.run_attempt }}"
-PYTEST_CONFIG_PATTERNS = (
-    "'pytest.toml', '.pytest.toml', 'pytest.ini', '.pytest.ini', "
-    "'pyproject.toml', 'tox.ini', 'setup.cfg'"
-)
-PYTEST_CONFIG_HASH = f"hashFiles({PYTEST_CONFIG_PATTERNS})"
+PYTEST_CONFIG_FINGERPRINT = "steps.pytest-bytecode-config.outputs.fingerprint"
 HASH_FILES = re.compile(r"hashFiles\(([^)]*)\)")
 PINNED_USES = re.compile(r"^\s*(?:-\s*)?uses:\s+\S+@[0-9a-f]{40}\s+#\s+\S+")
 
@@ -208,20 +204,49 @@ class TestRestoreOnEveryLeg:
         assert restore_keys.startswith(KEY_PREFIX)
         assert restore_keys.endswith("-")
         assert PYTHON_VERSION_OUTPUT in restore_keys
-        assert PYTEST_CONFIG_HASH in restore_keys
+        assert PYTEST_CONFIG_FINGERPRINT in restore_keys
         assert "run_id" not in restore_keys
-        assert "uv.lock" not in restore_keys
+        assert "hashFiles" not in restore_keys
         assert _restore()["with"]["key"].startswith(restore_keys)
 
 
+class TestPytestConfigurationFingerprint:
+    @staticmethod
+    def _fingerprint() -> dict[str, Any]:
+        return _step("Fingerprint pytest bytecode cache configuration")
+
+    def test_exactly_one_fingerprint_step_exists(self) -> None:
+        assert _names().count("Fingerprint pytest bytecode cache configuration") == 1
+
+    def test_the_fingerprint_script_is_checked_in(self) -> None:
+        assert (REPO_ROOT / "scripts" / "ci" / "pytest_bytecode_cache_fingerprint.py").is_file()
+
+    def test_the_step_writes_the_output_the_key_reads(self) -> None:
+        assert self._fingerprint()["id"] == "pytest-bytecode-config"
+        assert "fingerprint" in PYTEST_CONFIG_FINGERPRINT
+
+    def test_the_fingerprint_runs_before_the_restore_on_every_leg(self) -> None:
+        names = _names()
+        assert names.index("Fingerprint pytest bytecode cache configuration") < names.index(
+            "Restore pytest bytecode cache"
+        )
+        assert "if" not in self._fingerprint()
+
+    def test_the_fingerprint_uses_the_same_launcher_as_run_pytest(self) -> None:
+        command = " ".join(str(self._fingerprint()["run"]).split())
+        assert command.startswith(
+            "uv run --frozen python scripts/ci/pytest_bytecode_cache_fingerprint.py"
+        )
+
+
 class TestKeyDesign:
-    def test_the_key_tracks_os_arch_interpreter_pytest_config_and_lock_file(self) -> None:
+    def test_the_key_tracks_os_arch_interpreter_and_the_pytest_fingerprint(self) -> None:
         key = _restore()["with"]["key"]
         assert "runner.os" in key
         assert "runner.arch" in key
         assert _key_tracks_python(key)
-        assert PYTEST_CONFIG_HASH in key
-        assert HASH_FILES.findall(key) == [PYTEST_CONFIG_PATTERNS, "'uv.lock'"]
+        assert PYTEST_CONFIG_FINGERPRINT in key
+        assert HASH_FILES.findall(key) == []
 
     def test_the_key_ignores_test_sources_because_pytest_validates_source_hashes(self) -> None:
         """A test edit must not rotate the key.
@@ -284,6 +309,31 @@ class TestSaveFromThePrimaryLegOnMain:
     def test_the_save_runs_after_pytest_and_uses_the_pinned_action(self) -> None:
         assert _names().index("Run pytest") < _names().index("Save pytest bytecode cache")
         assert _save()["uses"] == f"actions/cache/save@{CACHE_SHA}"
+
+
+class TestExcludedCollectionBeforePrune:
+    @staticmethod
+    def _collect() -> dict[str, Any]:
+        return _step("Collect excluded tests for bytecode cache")
+
+    def test_exactly_one_excluded_collection_step_exists(self) -> None:
+        assert _names().count("Collect excluded tests for bytecode cache") == 1
+
+    def test_the_collection_script_is_checked_in(self) -> None:
+        assert (REPO_ROOT / "scripts" / "ci" / "collect_excluded_test_bytecode.py").is_file()
+
+    def test_the_collection_condition_matches_the_save_condition_exactly(self) -> None:
+        assert self._collect()["if"] == _save()["if"]
+
+    def test_the_collection_uses_the_same_bytecode_prefix_as_run_pytest(self) -> None:
+        assert self._collect()["env"]["PYTHONPYCACHEPREFIX"] == PREFIX
+        assert self._collect()["env"]["PYTEST_NON_TMP_ROOT"].startswith(RUNNER_TEMP)
+
+    def test_the_collection_runs_before_prune_so_invalid_files_never_save(self) -> None:
+        names = _names()
+        assert names.index("Collect excluded tests for bytecode cache") < names.index(
+            "Prune pytest bytecode cache"
+        )
 
 
 class TestPruneBeforeCacheSave:
