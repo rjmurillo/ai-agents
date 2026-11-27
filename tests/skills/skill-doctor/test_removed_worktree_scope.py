@@ -16,8 +16,9 @@ OTHER_UPSTREAM = "https://example.invalid/someone-else/widgets.git"
 
 @pytest.fixture
 def repo(tmp_path):
-    """A main clone and one worktree removed with ``git worktree remove``."""
+    """A main clone, a live worktree, and a sibling removed with ``git worktree remove``."""
     main = make_clone(tmp_path / "clones" / "widgets", UPSTREAM)
+    add_worktree(main, tmp_path / "trees" / "widgets" / "live", "live")
     tree = add_worktree(main, tmp_path / "trees" / "widgets" / "t3-abc", "t3/abc")
     git(main, "worktree", "remove", str(tree))
     assert not tree.exists()
@@ -41,6 +42,8 @@ def test_unregistered_removed_worktree_keeps_parent_and_subagent(repo):
     assert threads(inventory) == ["subagent", "top_level"]
     assert {s["meta"]["git_branch"] for s in inventory["sessions"]} == {"t3/abc"}
     assert inventory["scope_resolution"]["removed_checkout_sessions"] == 2
+    assert inventory["scope_resolution"]["removed_checkout_branch_rule"] == "on"
+    assert {s["meta"]["scope_via"] for s in inventory["sessions"]} == {"removed_checkout_branch"}
 
 
 def test_deleted_branch_drops_the_session(repo):
@@ -127,3 +130,43 @@ def test_matches_ignores_copilot_and_non_string_branches(repo):
     assert not scope.matches("claude", {**meta, "git_branch": ["t3/abc"]})
     assert not scope.matches("claude", {**meta, "cwd": None})
     assert not RepositoryScope().matches("claude", meta)
+
+
+def test_shared_branch_name_in_an_unrelated_directory_is_not_admitted(repo):
+    unrelated = repo["tmp"] / "someone-elses-trees" / "t3-abc"
+    write_claude(repo["home"], "parent", unrelated, branch="t3/abc")
+    assert run(repo)["sessions"] == []
+
+
+def test_nested_path_in_a_removed_sibling_is_admitted(repo):
+    write_claude(repo["home"], "parent", repo["tree"] / "src" / "pkg", branch="t3/abc")
+    assert threads(run(repo)) == ["subagent", "top_level"]
+
+
+def test_count_covers_scoreable_sessions_only(repo):
+    write_claude(repo["home"], "parent", repo["tree"], branch="t3/abc", child=False)
+    idle = repo["home"] / "projects" / "-repo" / "idle.jsonl"
+    write_jsonl(
+        idle,
+        [
+            {
+                "sessionId": "idle",
+                "cwd": str(repo["tree"]),
+                "gitBranch": "t3/abc",
+                "timestamp": "2026-10-01T10:00:00Z",
+                "type": "user",
+                "message": {"role": "user", "content": "hi"},
+            }
+        ],
+    )
+    inventory = run(repo)
+    assert inventory["stats"]["sessions_in_scope"] == 2
+    assert inventory["scope_resolution"]["removed_checkout_sessions"] == 1
+
+
+def test_reftable_repository_reports_the_rule_unavailable(repo):
+    git(repo["main"], "config", "extensions.refStorage", "reftable")
+    write_claude(repo["home"], "parent", repo["tree"], branch="t3/abc")
+    inventory = run(repo)
+    assert inventory["sessions"] == []
+    assert inventory["scope_resolution"]["removed_checkout_branch_rule"].startswith("unavailable")

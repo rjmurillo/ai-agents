@@ -13,7 +13,10 @@ included root contains it.
 
 Linked worktrees are often short lived. A session whose working directory no
 longer exists stays in scope when it recorded a branch this repository still
-has, other than the default branch, and no other checkout now owns that path.
+has, other than the default branch, and its nearest existing ancestor is a
+checkout of this repository or the parent directory of one. A shared branch
+name alone never admits a session from an unrelated checkout. Repositories
+with reftable ref storage get no branch rule, and the report says so.
 Claude Code records ``gitBranch`` and Codex records ``git.branch``. The other
 harnesses record no branch, so their sessions in a removed worktree stay out.
 
@@ -41,6 +44,7 @@ _REMOVED = (
     "recorded a branch this repository still has, pass --repo PATH to include the others"
 )
 _DEFAULT_BRANCHES = frozenset({"main", "master"})
+SCOPE_VIA_BRANCH = "removed_checkout_branch"
 _NOT_POINTING_BACK = "directory exists but its .git does not point back to the registration"
 _BAD_REGISTRATION = "registration gitdir file is empty, unreadable, or not a valid path"
 _UNREADABLE = "registered worktree directory is unreadable (permission or I/O error)"
@@ -66,7 +70,8 @@ class RepositoryScope:
     _fenced: dict[str, bool] = field(default_factory=dict, repr=False)
     commons: set[Path] = field(default_factory=set)
     branches: set[str] = field(default_factory=set)
-    branch_admitted: int = 0
+    checkout_parents: set[Path] = field(default_factory=set)
+    reftable: list[Path] = field(default_factory=list)
 
     @property
     def paths(self) -> list[Path]:
@@ -95,7 +100,7 @@ class RepositoryScope:
         if admitted and not any(self._fenced_off(cwd) for cwd in cwds):
             return True
         if harness != "copilot" and self._removed_checkout_on_branch(meta):
-            self.branch_admitted += 1
+            meta["scope_via"] = SCOPE_VIA_BRANCH
             return True
         return False
 
@@ -111,10 +116,17 @@ class RepositoryScope:
         try:
             if not path.is_absolute() or path.exists():
                 return False
-            owner = _enclosing_common_dir(path)
+            anchor, owner = _nearest_existing(path)
         except OSError:
             return False
-        return owner is None or owner in self.commons
+        if owner is not None:
+            return owner in self.commons
+        return anchor in self.checkout_parents
+
+    def branch_rule(self) -> str:
+        if self.reftable:
+            return "unavailable: reftable ref storage is not read"
+        return "on" if self.commons else "off"
 
     def _fenced_off(self, cwd: Any) -> bool:
         key = cwd if isinstance(cwd, str) else ""
@@ -147,7 +159,10 @@ class RepositoryScope:
                 for root in self.included
             ],
             "rejected": [{"path": str(item.path), "reason": item.reason} for item in self.rejected],
-            "removed_checkout_sessions": self.branch_admitted,
+            "removed_checkout_branch_rule": self.branch_rule(),
+            "removed_checkout_sessions": sum(
+                1 for session in sessions if session["meta"].get("scope_via") == SCOPE_VIA_BRANCH
+            ),
         }
 
 
@@ -160,14 +175,20 @@ def session_branch(meta: Any) -> str | None:
     return branch if isinstance(branch, str) and branch else None
 
 
-def _enclosing_common_dir(path: Path) -> Path | None:
-    """Common directory of the checkout holding the nearest existing ancestor, if any."""
+def _nearest_existing(path: Path) -> tuple[Path | None, Path | None]:
+    """The nearest existing ancestor, and the common directory of a checkout holding it."""
     ancestors = [parent for parent in path.parents if parent.exists()]
     for ancestor in ancestors:
         if (ancestor / ".git").exists():
             git_dir = git_dir_of(ancestor)
-            return common_dir_of(git_dir) if git_dir is not None else ancestor
-    return None
+            owner = common_dir_of(git_dir) if git_dir is not None else ancestor
+            return (ancestors[0] if ancestors else None), owner
+    return (ancestors[0] if ancestors else None), None
+
+
+def _uses_reftable(common: Path) -> bool:
+    config = (_read_text(common / "config") or "").lower().replace(" ", "")
+    return (common / "reftable").is_dir() or "refstorage=reftable" in config
 
 
 def _ref_names(common: Path) -> set[str]:
@@ -303,10 +324,18 @@ def _expand(scope: RepositoryScope, selected: Path, expanded: set[Path]) -> None
     if common in expanded:
         return
     expanded.add(common)
-    scope.commons.add(common)
-    scope.branches |= branch_names(common)
+    if _uses_reftable(common):
+        scope.reftable.append(common)
+    else:
+        scope.commons.add(common)
+        scope.branches |= branch_names(common)
+    scope.checkout_parents.add(selected.absolute().parent)
+    if common.name == ".git":
+        scope.checkout_parents.add(common.parent.parent)
     _admit_main(scope, common)
     for registration, worktree in _registrations(common):
+        if worktree is not None:
+            scope.checkout_parents.add(worktree.parent)
         _admit_worktree(scope, registration, worktree)
 
 

@@ -52,11 +52,14 @@ A child in a registered linked worktree of `--repo` is in scope.
 
 Worktrees are often short lived, so many sessions ran in a directory that no longer exists.
 Such a session stays in scope when it recorded a branch this repository still has.
+Its nearest existing folder must also be a checkout of this repository, or the parent folder of one.
+So a shared branch name in an unrelated folder never admits a session.
 Claude Code records `gitBranch`. Codex records `git.branch`.
 The default branch (`main`, `master`, or the remote `HEAD` target) never admits a session.
 A path now inside a checkout of another repository is not admitted.
 `--no-worktrees` turns this rule off.
-`scope_resolution.removed_checkout_sessions` counts the sessions admitted this way.
+`scope_resolution.removed_checkout_sessions` counts the scoreable sessions admitted this way. Each one carries `meta.scope_via: removed_checkout_branch`.
+`scope_resolution.removed_checkout_branch_rule` says whether the rule ran. Reftable repositories report it unavailable.
 Warp, Hermes, Droid, and Copilot record no branch. Their sessions in a removed worktree stay out unless you pass that path with `--repo`.
 A session whose branch was deleted also stays out.
 
