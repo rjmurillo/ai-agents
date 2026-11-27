@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from scripts.ci import ruff_ratchet
+from scripts.cli_exec import resolve_executable
 
 
 class RunRecorder:
@@ -194,6 +195,89 @@ def test_run_ruff_separates_options_from_dash_prefixed_paths(
         "--",
         "--config.py",
     ]
+
+
+def test_windows_git_exe_resolution_bypasses_a_cmd_shim(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The explicit native name resolves exactly even when PATHEXT prefers .cmd."""
+    monkeypatch.setattr(ruff_ratchet.os, "name", "nt")
+    (tmp_path / "git.cmd").write_text("@echo off\n", encoding="utf-8")
+    (tmp_path / "git.exe").write_text("native\n", encoding="utf-8")
+    env = {"PATH": str(tmp_path), "PATHEXT": ".CMD;.EXE"}
+
+    resolved = resolve_executable(ruff_ratchet._native_program("git"), windows=True, env=env)
+
+    assert resolved.lower().endswith("git.exe")
+
+
+def test_run_ruff_uses_a_standalone_native_binary_when_the_module_is_absent(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    recorder = RunRecorder([completed(0, "[]")])
+    monkeypatch.setattr(ruff_ratchet, "_run_subprocess", recorder)
+    monkeypatch.setattr(ruff_ratchet.importlib.util, "find_spec", lambda _name: None)
+
+    exit_code = ruff_ratchet.run_ruff(["scripts/a.py"], tmp_path, {})
+
+    assert exit_code == ruff_ratchet.EXIT_OK
+    assert recorder.commands[0][:2] == ["ruff", "check"]
+
+
+def test_windows_commands_name_native_executables_not_batch_shims(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    recorder = RunRecorder([completed(0, ""), completed(0, "[]")])
+    monkeypatch.setattr(ruff_ratchet, "_run_subprocess", recorder)
+    monkeypatch.setattr(ruff_ratchet.os, "name", "nt")
+    monkeypatch.setattr(ruff_ratchet.importlib.util, "find_spec", lambda _name: None)
+
+    status, files, _base = ruff_ratchet.changed_python_files("origin/main", tmp_path)
+    assert status == ruff_ratchet.EXIT_OK
+    if files:
+        ruff_ratchet.run_ruff(files, tmp_path, {})
+
+    assert recorder.commands[0][0] == "git.exe"
+
+
+def test_run_ruff_windows_standalone_names_the_native_executable(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    recorder = RunRecorder([completed(0, "[]")])
+    monkeypatch.setattr(ruff_ratchet, "_run_subprocess", recorder)
+    monkeypatch.setattr(ruff_ratchet.os, "name", "nt")
+    monkeypatch.setattr(ruff_ratchet.importlib.util, "find_spec", lambda _name: None)
+
+    ruff_ratchet.run_ruff(["scripts/a.py"], tmp_path, {})
+
+    assert recorder.commands[0][0] == "ruff.exe"
+
+
+def test_ruff_signal_death_prints_a_diagnostic_when_stderr_is_empty(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    recorder = RunRecorder([completed(-15, stderr="")])
+    monkeypatch.setattr(ruff_ratchet, "_run_subprocess", recorder)
+
+    exit_code = ruff_ratchet.run_ruff(["scripts/a.py"], tmp_path, {})
+    captured = capsys.readouterr()
+
+    assert exit_code == ruff_ratchet.EXIT_EXTERNAL
+    assert "ruff terminated by signal 15" in captured.err
+
+
+def test_windows_job_setup_failure_is_not_reported_as_signal_one(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    recorder = RunRecorder([completed(-1, stderr="Windows job setup failed: denied")])
+    monkeypatch.setattr(ruff_ratchet, "_run_subprocess", recorder)
+
+    exit_code = ruff_ratchet.run_ruff(["scripts/a.py"], tmp_path, {})
+    captured = capsys.readouterr()
+
+    assert exit_code == ruff_ratchet.EXIT_EXTERNAL
+    assert "Windows job setup failed" in captured.err
+    assert "signal 1" not in captured.err
 
 
 def test_blocks_finding_on_an_added_line(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -796,10 +880,12 @@ class _HungPopen:
 
     pid = 1
     returncode = None
+    _handle = 1
 
     def __init__(self, partial_stdout: bytes, partial_stderr: bytes) -> None:
         self._partial = (partial_stdout, partial_stderr)
         self.timeouts: list[float | None] = []
+        self.killed = False
 
     def __enter__(self) -> _HungPopen:
         return self
@@ -813,6 +899,38 @@ class _HungPopen:
             raise subprocess.TimeoutExpired("ruff", timeout or 0, *self._partial)
         return self._partial
 
+    def kill(self) -> None:
+        self.killed = True
+
+    def wait(self, timeout: float | None = None) -> int:
+        return self.returncode if self.returncode is not None else 0
+
+
+def _install_noop_windows_job(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep runner-contract fakes out of real Windows job assignment.
+
+    These tests replace ``Popen`` with an object that has no real process
+    handle. They exercise timeout and output plumbing, not job assignment, so
+    the Windows branch needs the same seam the POSIX tests already get from
+    the absent job-object path.
+    """
+    from scripts.validation import subprocess_runner
+
+    class _NoopJob:
+        def __init__(self, _process: object) -> None:
+            pass
+
+        def resume(self, _process: object) -> None:
+            pass
+
+        def terminate(self) -> None:
+            pass
+
+        def close(self) -> None:
+            pass
+
+    monkeypatch.setattr(subprocess_runner, "_WindowsJob", _NoopJob, raising=False)
+
 
 def _install_hung_popen(
     monkeypatch: pytest.MonkeyPatch, partial_stdout: bytes, partial_stderr: bytes
@@ -820,12 +938,14 @@ def _install_hung_popen(
     from scripts.validation import subprocess_runner
 
     child = _HungPopen(partial_stdout, partial_stderr)
+    _install_noop_windows_job(monkeypatch)
     monkeypatch.setattr(subprocess_runner.subprocess, "Popen", lambda *_a, **_k: child)
     # The stand-in has no real pid; never signal a process group for it.
     monkeypatch.setattr(subprocess_runner, "_terminate", lambda _proc, _job=None: None)
     return child
 
 
+@pytest.mark.windows_path
 def test_real_runner_ruff_timeout_exits_external_with_partial_output(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -841,6 +961,7 @@ def test_real_runner_ruff_timeout_exits_external_with_partial_output(
     assert '[{"code": "E5' in captured.err
 
 
+@pytest.mark.windows_path
 def test_real_runner_git_timeout_exits_external_with_partial_output(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -860,6 +981,25 @@ def test_real_runner_git_timeout_exits_external_with_partial_output(
     assert "scripts/partial.py" in captured.err
 
 
+@pytest.mark.windows_path
+def test_hung_popen_fixture_reaches_communicate_under_simulated_windows(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The Windows branch must not kill the runner-contract fake before use."""
+    from scripts.validation import subprocess_runner
+
+    child = _install_hung_popen(monkeypatch, b"", b"")
+    monkeypatch.setattr(subprocess_runner.os, "name", "nt")
+    monkeypatch.setattr(subprocess_runner.sys, "platform", "win32")
+    monkeypatch.setattr(subprocess_runner, "_SUPPORTS_PGROUP", False)
+
+    exit_code = ruff_ratchet.run_ruff(["scripts/a.py"], tmp_path, {})
+
+    assert exit_code == ruff_ratchet.EXIT_EXTERNAL
+    assert child.timeouts, "the Windows setup path never reached communicate"
+
+
+@pytest.mark.windows_path
 def test_real_runner_missing_ruff_module_exits_external(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -868,9 +1008,16 @@ def test_real_runner_missing_ruff_module_exits_external(
     class _MissingModulePopen:
         pid = 1
         returncode = 1
+        _handle = 1
 
         def communicate(self, timeout: float | None = None) -> tuple[str, str]:
             return "", "No module named ruff\n"
+
+        def kill(self) -> None:
+            return None
+
+        def wait(self, timeout: float | None = None) -> int:
+            return self.returncode
 
         def __enter__(self) -> _MissingModulePopen:
             return self
@@ -878,6 +1025,7 @@ def test_real_runner_missing_ruff_module_exits_external(
         def __exit__(self, *_exc: object) -> None:
             return None
 
+    _install_noop_windows_job(monkeypatch)
     monkeypatch.setattr(
         subprocess_runner.subprocess,
         "Popen",

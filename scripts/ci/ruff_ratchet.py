@@ -39,6 +39,7 @@ Exit codes (AGENTS.md contract):
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import re
@@ -54,7 +55,10 @@ from scripts.ci.diff_line_scope import (
     intersects_changed_lines,
     normalize_path,
 )
-from scripts.validation.subprocess_runner import _run_subprocess
+from scripts.validation.subprocess_runner import (
+    _WINDOWS_JOB_SETUP_FAILED,
+    _run_subprocess,
+)
 
 EXIT_OK = 0
 EXIT_VIOLATIONS = 1
@@ -87,6 +91,25 @@ def _print_partial_stdout(tool: str, stdout: str) -> None:
         )
 
 
+def _native_program(name: str) -> str:
+    """Name the native executable, never a Windows batch shim."""
+    return f"{name}.exe" if os.name == "nt" else name
+
+
+def _print_signal_diagnostic(tool: str, returncode: int, stderr: str) -> None:
+    """Explain a signal death that produced no runner diagnostic of its own."""
+    runner_markers = (
+        "Command timed out after",
+        "Command not found:",
+        _WINDOWS_JOB_SETUP_FAILED,
+    )
+    if returncode < 0 and not any(marker in stderr for marker in runner_markers):
+        print(
+            f"error: {tool} terminated by signal {-returncode}; no result was produced",
+            file=sys.stderr,
+        )
+
+
 def default_base_ref() -> str:
     if os.environ.get("GITHUB_EVENT_NAME") == "push":
         return _FALLBACK_BASE_REF
@@ -102,7 +125,7 @@ def git_diff_name_only(base_ref: str, repo_root: Path) -> subprocess.CompletedPr
     # holding a quote, a backslash, or a control character, and the quoted form
     # never matches the path ruff reports, so the file silently left the scope.
     command = [
-        "git",
+        _native_program("git"),
         "-C",
         str(repo_root),
         "diff",
@@ -133,16 +156,7 @@ def changed_python_files(base_ref: str, repo_root: Path) -> tuple[int, list[str]
         result = git_diff_name_only(_FALLBACK_BASE_REF, repo_root)
     if result.returncode != 0:
         print(result.stderr.strip(), file=sys.stderr)
-        if (
-            result.returncode < 0
-            and "Command timed out after" not in result.stderr
-            and "Command not found:" not in result.stderr
-        ):
-            signal_number = -result.returncode
-            print(
-                f"error: git diff terminated by signal {signal_number}; no result was produced",
-                file=sys.stderr,
-            )
+        _print_signal_diagnostic("git diff", result.returncode, result.stderr)
         _print_partial_stdout("git", result.stdout)
         return EXIT_EXTERNAL, [], resolved
 
@@ -245,12 +259,17 @@ def run_ruff(
         print("No changed Python files found. Ruff ratchet passed.")
         return EXIT_OK
 
-    # Invoke the installed module through the current Python executable. A
-    # bare ``ruff`` can resolve to a .cmd or .bat shim on Windows, and Windows
-    # may parse list-form batch arguments as shell input (CPython security
-    # considerations). Git-controlled filenames are in this argument list.
+    # Prefer the installed module through the current Python executable. When
+    # that interpreter does not ship ruff, use the native standalone binary. A
+    # .cmd or .bat shim is never selected: Windows may parse list-form batch
+    # arguments as shell input, and Git-controlled filenames are in this list.
+    if importlib.util.find_spec("ruff") is not None:
+        program = [sys.executable, "-P", "-m", "ruff"]
+    else:
+        program = [_native_program("ruff")]
+    command = [*program, "check", "--output-format=json", "--", *files]
     returncode, stdout, stderr = _run_subprocess(
-        [sys.executable, "-P", "-m", "ruff", "check", "--output-format=json", "--", *files],
+        command,
         timeout=_RUFF_TIMEOUT_SECONDS,
         cwd=repo_root,
     )
@@ -261,6 +280,7 @@ def run_ruff(
     if returncode not in (0, 1):
         # Timeout (-1 plus the marker), missing ruff, a signal death, or a
         # ruff usage error. Show what ruff wrote so the failure is diagnosable.
+        _print_signal_diagnostic("ruff", returncode, stderr)
         if stdout.strip():
             print(
                 f"ruff partial stdout (first {_PARTIAL_OUTPUT_LIMIT} chars):\n"
