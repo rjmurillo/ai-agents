@@ -13,6 +13,7 @@ indented fence, a bibliography heading scoping every cell, a leading pipe.
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -92,6 +93,21 @@ def test_an_indented_fence_in_a_tracked_file_does_not_fail_the_run(tmp_path: Pat
     assert _run(repo, _baseline(tmp_path, [])) == EXIT_OK
 
 
+def test_an_indented_marker_inside_a_column_zero_fence_stays_code() -> None:
+    """Edge: a fence opened at column zero closes at column zero only."""
+    text = (
+        "```markdown\n1. item\n   ```text\n   ADR-999\n   ```\n```\n\n"
+        "Authors MUST comply with ADR-080.\n"
+    )
+    assert _found(text) == [(80, BINDING, 8)]
+    assert gate.unterminated_fence_line(text) is None
+
+
+def test_an_indented_fence_closes_at_a_shallower_indent() -> None:
+    text = "   ```text\n   ADR-999\n```\n\nAuthors MUST comply with ADR-080.\n"
+    assert _found(text) == [(80, BINDING, 5)]
+
+
 # --------------------------------------------------------------------------
 # A compliance verb covers a coordinated list
 # --------------------------------------------------------------------------
@@ -132,6 +148,22 @@ def test_every_non_accepted_item_of_a_compliance_list_is_binding() -> None:
 def test_a_negated_verb_does_not_reach_later_list_items(text: str) -> None:
     """The negation window is read off the verb, never widened for the list."""
     assert _kinds(text) == [(80, UNCLASSIFIED, 1)]
+
+
+def test_the_list_strip_stops_at_its_item_cap() -> None:
+    """Edge: the verb reaches `_COMPLY_LIST_MAX` earlier items and no further."""
+    at_cap = "pass " + ", ".join(["ADR-042"] * gate._COMPLY_LIST_MAX) + ", "
+    assert gate._complies(at_cap)
+    assert not gate._complies(at_cap + "ADR-042, ")
+
+
+def test_a_very_long_adr_list_costs_bounded_work_per_mention() -> None:
+    """A 3,000 item list ran unbounded passes per mention before the cap."""
+    before = "Pin changes pass " + ", ".join(["ADR-042"] * 3_000) + ", "
+    started = time.process_time()
+    for _ in range(200):
+        assert not gate._complies(before)
+    assert time.process_time() - started < 5.0
 
 
 def test_another_word_between_the_verb_and_the_item_ends_the_list() -> None:

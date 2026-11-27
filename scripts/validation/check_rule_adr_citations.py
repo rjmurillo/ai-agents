@@ -211,8 +211,12 @@ _MENTION_RE = re.compile(r"(?<![/\w-])ADR-(\d{1,4})\b(?![-\w]*\.md)")
 #: A fence may be indented: a list item holds its fenced example at the item's content
 #: column (`1. ` adds three spaces, a nested item more), so the open and close lines
 #: allow leading blanks. A line with other text before the backticks is not a fence.
+#: A fence that opens at column zero closes at column zero only, so an indented
+#: marker inside it stays code. An indented fence closes at any indent.
 _FENCE_RE = re.compile(
-    r"^[ \t]*(```|~~~)[^\n]*\n.*?(?:^[ \t]*\1[^\n]*$|\Z)", re.DOTALL | re.MULTILINE
+    r"^(?P<indent>[ \t]+)?(?P<mark>```|~~~)[^\n]*\n"
+    r".*?(?:^(?(indent)[ \t]*|)(?P=mark)[^\n]*$|\Z)",
+    re.DOTALL | re.MULTILINE,
 )
 _COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 _CODE_SPAN_RE = re.compile(r"(?<!`)(`+)(?!`)[^\n]*?(?<!`)\1(?!`)")
@@ -267,7 +271,11 @@ _COMPLY_NEGATED_RE = re.compile(
 _COMPLY_NEGATION_WINDOW = 3
 # One earlier item of a coordinated list that ends `before`: "pass ADR-042 and ADR-080"
 # reads ADR-042 and the joiner off ADR-080's prefix so the verb ends it. The item is
-# matched at the end only and one at a time, so a long run cannot backtrack.
+# matched at the end only and one at a time, inside a short tail window, and at most
+# `_COMPLY_LIST_MAX` times, so a long run costs a bounded amount per mention. A list
+# longer than the cap, or an item wider than the window, ends the list there.
+_COMPLY_LIST_MAX = 64
+_COMPLY_LIST_WINDOW = 64
 _COMPLY_LIST_ITEM_RE = re.compile(
     r"ADR-\d+\s*(?:,\s*(?:and|or)\b|,|\band\b|\bor\b|/|\+)(?:\s+(?:an?|the)\b)?\s*$",
     re.IGNORECASE,
@@ -324,7 +332,7 @@ def unterminated_fence_line(text: str) -> int | None:
     body = _blank_frontmatter(text)
     for match in _FENCE_RE.finditer(body):
         lines = match.group(0).split("\n")
-        if len(lines) < 2 or not lines[-1].lstrip().startswith(match.group(1)):
+        if len(lines) < 2 or not lines[-1].lstrip().startswith(match.group("mark")):
             return body.count("\n", 0, match.start()) + 1
     return None
 
@@ -423,8 +431,13 @@ def _complies(before: str) -> bool:
     the same verb and the same negation window. Only ADR items are stripped: any
     other word between the verb and the mention still ends the match.
     """
-    while (item := _COMPLY_LIST_ITEM_RE.search(before)) is not None:
-        before = before[: item.start()]
+    end = len(before)
+    for _ in range(_COMPLY_LIST_MAX):
+        item = _COMPLY_LIST_ITEM_RE.search(before, max(0, end - _COMPLY_LIST_WINDOW), end)
+        if item is None:
+            break
+        end = item.start()
+    before = before[:end]
     verb = _COMPLY_BEFORE_RE.search(before)
     if verb is None:
         return False
