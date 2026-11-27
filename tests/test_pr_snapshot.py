@@ -81,6 +81,42 @@ def _fixture_git_env(tmp_path: Path) -> dict[str, str]:
     return env
 
 
+def _init_work_repo(tmp_path: Path) -> tuple[Path, dict[str, str]]:
+    """Initialize a disposable ``work`` git repo with test identity and sanitized env."""
+    env = _fixture_git_env(tmp_path)
+    work = tmp_path / "work"
+    work.mkdir()
+    subprocess.run(["git", "init", str(work)], check=True, capture_output=True, env=env)
+    subprocess.run(
+        ["git", "config", "user.email", "t@t.com"],
+        cwd=work,
+        check=True,
+        capture_output=True,
+        env=env,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "T"], cwd=work, check=True, capture_output=True, env=env
+    )
+    return work, env
+
+
+def _commit_all(work: Path, env: dict[str, str], message: str) -> str:
+    """Stage all changes in ``work``, commit with ``message``, and return HEAD SHA."""
+    subprocess.run(["git", "add", "."], cwd=work, check=True, capture_output=True, env=env)
+    subprocess.run(
+        ["git", "commit", "-m", message], cwd=work, check=True, capture_output=True, env=env
+    )
+    return subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=work,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+        env=env,
+    ).stdout.strip()
+
+
 def _run_git_allow_file(
     args: list[str],
     *,
@@ -512,21 +548,7 @@ class TestIntegrationCapture:
 
         Returns (bare_path, base_sha, head_sha).
         """
-        env = _fixture_git_env(tmp_path)
-
-        work = tmp_path / "work"
-        work.mkdir()
-        subprocess.run(["git", "init", str(work)], check=True, capture_output=True, env=env)
-        subprocess.run(
-            ["git", "config", "user.email", "t@t.com"],
-            cwd=work,
-            check=True,
-            capture_output=True,
-            env=env,
-        )
-        subprocess.run(
-            ["git", "config", "user.name", "T"], cwd=work, check=True, capture_output=True, env=env
-        )
+        work, env = _init_work_repo(tmp_path)
 
         # Base commit
         (work / "base.txt").write_text("base\n", encoding="utf-8")
@@ -614,21 +636,7 @@ class TestIntegrationCapture:
 
     def test_capture_rename(self, tmp_path: Path) -> None:
         """Renamed files appear in changed paths."""
-        env = _fixture_git_env(tmp_path)
-
-        work = tmp_path / "work"
-        work.mkdir()
-        subprocess.run(["git", "init", str(work)], check=True, capture_output=True, env=env)
-        subprocess.run(
-            ["git", "config", "user.email", "t@t.com"],
-            cwd=work,
-            check=True,
-            capture_output=True,
-            env=env,
-        )
-        subprocess.run(
-            ["git", "config", "user.name", "T"], cwd=work, check=True, capture_output=True, env=env
-        )
+        work, env = _init_work_repo(tmp_path)
 
         (work / "old_name.py").write_text("content\n", encoding="utf-8")
         subprocess.run(["git", "add", "."], cwd=work, check=True, capture_output=True, env=env)
@@ -677,21 +685,7 @@ class TestIntegrationCapture:
 
     def test_capture_delete(self, tmp_path: Path) -> None:
         """Deleted files appear in changed paths."""
-        env = _fixture_git_env(tmp_path)
-
-        work = tmp_path / "work"
-        work.mkdir()
-        subprocess.run(["git", "init", str(work)], check=True, capture_output=True, env=env)
-        subprocess.run(
-            ["git", "config", "user.email", "t@t.com"],
-            cwd=work,
-            check=True,
-            capture_output=True,
-            env=env,
-        )
-        subprocess.run(
-            ["git", "config", "user.name", "T"], cwd=work, check=True, capture_output=True, env=env
-        )
+        work, env = _init_work_repo(tmp_path)
 
         (work / "to_delete.py").write_text("x\n", encoding="utf-8")
         subprocess.run(["git", "add", "."], cwd=work, check=True, capture_output=True, env=env)
@@ -734,21 +728,7 @@ class TestIntegrationCapture:
 
     def test_capture_binary_file(self, tmp_path: Path) -> None:
         """Binary files appear in changed paths."""
-        env = _fixture_git_env(tmp_path)
-
-        work = tmp_path / "work"
-        work.mkdir()
-        subprocess.run(["git", "init", str(work)], check=True, capture_output=True, env=env)
-        subprocess.run(
-            ["git", "config", "user.email", "t@t.com"],
-            cwd=work,
-            check=True,
-            capture_output=True,
-            env=env,
-        )
-        subprocess.run(
-            ["git", "config", "user.name", "T"], cwd=work, check=True, capture_output=True, env=env
-        )
+        work, env = _init_work_repo(tmp_path)
 
         (work / "readme.md").write_text("x\n", encoding="utf-8")
         subprocess.run(["git", "add", "."], cwd=work, check=True, capture_output=True, env=env)
@@ -795,50 +775,14 @@ class TestIntegrationCapture:
 
     def test_capture_unicode_path(self, tmp_path: Path) -> None:
         """Unicode filenames handled via NUL-delimited output."""
-        env = _fixture_git_env(tmp_path)
-
-        work = tmp_path / "work"
-        work.mkdir()
-        subprocess.run(["git", "init", str(work)], check=True, capture_output=True, env=env)
-        subprocess.run(
-            ["git", "config", "user.email", "t@t.com"],
-            cwd=work,
-            check=True,
-            capture_output=True,
-            env=env,
-        )
-        subprocess.run(
-            ["git", "config", "user.name", "T"], cwd=work, check=True, capture_output=True, env=env
-        )
+        work, env = _init_work_repo(tmp_path)
 
         (work / "base.txt").write_text("x\n", encoding="utf-8")
-        subprocess.run(["git", "add", "."], cwd=work, check=True, capture_output=True, env=env)
-        subprocess.run(
-            ["git", "commit", "-m", "base"], cwd=work, check=True, capture_output=True, env=env
-        )
-        base_sha = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=work,
-            capture_output=True,
-            text=True,
-            check=True,
-            env=env,
-        ).stdout.strip()
+        base_sha = _commit_all(work, env, "base")
 
         unicode_name = "ñoño_日本語.txt"
         (work / unicode_name).write_text("unicode content\n", encoding="utf-8")
-        subprocess.run(["git", "add", "."], cwd=work, check=True, capture_output=True, env=env)
-        subprocess.run(
-            ["git", "commit", "-m", "unicode"], cwd=work, check=True, capture_output=True, env=env
-        )
-        head_sha = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=work,
-            capture_output=True,
-            text=True,
-            check=True,
-            env=env,
-        ).stdout.strip()
+        head_sha = _commit_all(work, env, "unicode")
 
         bare = tmp_path / "bare.git"
         subprocess.run(
@@ -853,54 +797,14 @@ class TestIntegrationCapture:
 
     def test_capture_newline_path(self, tmp_path: Path) -> None:
         """Paths with newlines handled via NUL delimiter."""
-        env = _fixture_git_env(tmp_path)
-
-        work = tmp_path / "work"
-        work.mkdir()
-        subprocess.run(["git", "init", str(work)], check=True, capture_output=True, env=env)
-        subprocess.run(
-            ["git", "config", "user.email", "t@t.com"],
-            cwd=work,
-            check=True,
-            capture_output=True,
-            env=env,
-        )
-        subprocess.run(
-            ["git", "config", "user.name", "T"], cwd=work, check=True, capture_output=True, env=env
-        )
+        work, env = _init_work_repo(tmp_path)
 
         (work / "base.txt").write_text("x\n", encoding="utf-8")
-        subprocess.run(["git", "add", "."], cwd=work, check=True, capture_output=True, env=env)
-        subprocess.run(
-            ["git", "commit", "-m", "base"], cwd=work, check=True, capture_output=True, env=env
-        )
-        base_sha = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=work,
-            capture_output=True,
-            text=True,
-            check=True,
-            env=env,
-        ).stdout.strip()
+        base_sha = _commit_all(work, env, "base")
 
         newline_name = "file\nwith\nnewlines.txt"
         (work / newline_name).write_text("content\n", encoding="utf-8")
-        subprocess.run(["git", "add", "."], cwd=work, check=True, capture_output=True, env=env)
-        subprocess.run(
-            ["git", "commit", "-m", "newline path"],
-            cwd=work,
-            check=True,
-            capture_output=True,
-            env=env,
-        )
-        head_sha = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=work,
-            capture_output=True,
-            text=True,
-            check=True,
-            env=env,
-        ).stdout.strip()
+        head_sha = _commit_all(work, env, "newline path")
 
         bare = tmp_path / "bare.git"
         subprocess.run(
@@ -915,21 +819,7 @@ class TestIntegrationCapture:
 
     def test_reject_shallow_repository(self, tmp_path: Path) -> None:
         """Shallow clones are rejected with VerifyError."""
-        env = _fixture_git_env(tmp_path)
-
-        work = tmp_path / "work"
-        work.mkdir()
-        subprocess.run(["git", "init", str(work)], check=True, capture_output=True, env=env)
-        subprocess.run(
-            ["git", "config", "user.email", "t@t.com"],
-            cwd=work,
-            check=True,
-            capture_output=True,
-            env=env,
-        )
-        subprocess.run(
-            ["git", "config", "user.name", "T"], cwd=work, check=True, capture_output=True, env=env
-        )
+        work, env = _init_work_repo(tmp_path)
 
         (work / "a.txt").write_text("1\n", encoding="utf-8")
         subprocess.run(["git", "add", "."], cwd=work, check=True, capture_output=True, env=env)
@@ -977,21 +867,7 @@ class TestIntegrationCapture:
 
     def test_no_hooks_execution(self, tmp_path: Path) -> None:
         """Hooks in target repo are never executed."""
-        env = _fixture_git_env(tmp_path)
-
-        work = tmp_path / "work"
-        work.mkdir()
-        subprocess.run(["git", "init", str(work)], check=True, capture_output=True, env=env)
-        subprocess.run(
-            ["git", "config", "user.email", "t@t.com"],
-            cwd=work,
-            check=True,
-            capture_output=True,
-            env=env,
-        )
-        subprocess.run(
-            ["git", "config", "user.name", "T"], cwd=work, check=True, capture_output=True, env=env
-        )
+        work, env = _init_work_repo(tmp_path)
 
         # Install a post-checkout hook that would create a marker file
         hooks_dir = work / ".git" / "hooks"
@@ -1034,21 +910,7 @@ class TestIntegrationCapture:
 
     def test_no_submodule_init(self, tmp_path: Path) -> None:
         """Submodules in target are never initialized."""
-        env = _fixture_git_env(tmp_path)
-
-        work = tmp_path / "work"
-        work.mkdir()
-        subprocess.run(["git", "init", str(work)], check=True, capture_output=True, env=env)
-        subprocess.run(
-            ["git", "config", "user.email", "t@t.com"],
-            cwd=work,
-            check=True,
-            capture_output=True,
-            env=env,
-        )
-        subprocess.run(
-            ["git", "config", "user.name", "T"], cwd=work, check=True, capture_output=True, env=env
-        )
+        work, env = _init_work_repo(tmp_path)
 
         # Create a .gitmodules file (simulating submodule config)
         (work / ".gitmodules").write_text(
@@ -1129,21 +991,7 @@ class TestFullCaptureIntegration:
 
     def _setup_local_pr(self, tmp_path: Path) -> tuple[PrIdentity, Path]:
         """Create local repos simulating a same-repo PR."""
-        env = _fixture_git_env(tmp_path)
-
-        work = tmp_path / "work"
-        work.mkdir()
-        subprocess.run(["git", "init", str(work)], check=True, capture_output=True, env=env)
-        subprocess.run(
-            ["git", "config", "user.email", "t@t.com"],
-            cwd=work,
-            check=True,
-            capture_output=True,
-            env=env,
-        )
-        subprocess.run(
-            ["git", "config", "user.name", "T"], cwd=work, check=True, capture_output=True, env=env
-        )
+        work, env = _init_work_repo(tmp_path)
 
         # Base commit
         (work / "existing.py").write_text("x = 1\n", encoding="utf-8")
