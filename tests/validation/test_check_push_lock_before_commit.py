@@ -35,7 +35,7 @@ _posix_only = pytest.mark.skipif(
 # Copilot review, PR #5287: the Windows msvcrt.locking branch of
 # _push_is_in_flight had zero test execution anywhere in CI. The main
 # python-tests job never imports msvcrt (sys.platform != "win32" on that
-# runner). The Windows job at .github/workflows/pytest.yml:1209-1249 uses
+# runner). The Windows job at .github/workflows/pytest.yml:1292-1332 uses
 # run_pytest_windows.py to select windows_path tests on windows-latest.
 # This module previously lacked that marker, so a
 # regression in the Windows branch could make the guard silently allow every

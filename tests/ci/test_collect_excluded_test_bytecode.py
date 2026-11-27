@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from scripts.ci import collect_excluded_test_bytecode as collector
+from scripts.ci import run_pytest_non_tmp
 from scripts.ci import run_pytest_partition as runner
 
 EXPECTED_EXCLUDED = [
@@ -18,11 +19,12 @@ EXPECTED_EXCLUDED = [
 
 def test_collects_exactly_the_files_outside_the_split_pool(monkeypatch) -> None:
     calls = []
-    monkeypatch.setattr(
-        collector.run_pytest_non_tmp,
-        "main",
-        lambda args: calls.append(list(args)) or 0,
-    )
+
+    def collect(args) -> int:
+        calls.append(list(args))
+        return 0
+
+    monkeypatch.setattr(run_pytest_non_tmp, "main", collect)
 
     assert collector.main([]) == 0
 
@@ -30,6 +32,6 @@ def test_collects_exactly_the_files_outside_the_split_pool(monkeypatch) -> None:
 
 
 def test_a_collection_failure_is_returned(monkeypatch) -> None:
-    monkeypatch.setattr(collector.run_pytest_non_tmp, "main", lambda _args: 5)
+    monkeypatch.setattr(run_pytest_non_tmp, "main", lambda _args: 5)
 
     assert collector.main([]) == 5

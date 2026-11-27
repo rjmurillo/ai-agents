@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import importlib.util
 import re
+import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -136,7 +137,7 @@ class TestPytestChildInheritsThePrefix:
         monkeypatch.setenv("PYTHONPYCACHEPREFIX", str(prefix))
         completed = SimpleNamespace(returncode=0)
 
-        with mock.patch.object(run_pytest_non_tmp.subprocess, "run", return_value=completed) as run:
+        with mock.patch.object(subprocess, "run", return_value=completed) as run:
             assert run_pytest_non_tmp.main(["--version"]) == 0
 
         assert run.call_args.kwargs["env"]["PYTHONPYCACHEPREFIX"] == str(prefix)
@@ -146,7 +147,7 @@ class TestPytestChildInheritsThePrefix:
         monkeypatch.setenv("PYTHONPYCACHEPREFIX", prefix)
         completed = SimpleNamespace(stdout="", stderr="", returncode=0)
 
-        with mock.patch.object(collect_helpers.subprocess, "run", return_value=completed) as run:
+        with mock.patch.object(subprocess, "run", return_value=completed) as run:
             collect_helpers.collect_with_code([])
 
         assert run.call_args.kwargs["env"]["PYTHONPYCACHEPREFIX"] == prefix
@@ -157,9 +158,11 @@ class TestPytestChildInheritsThePrefix:
         prefix = tmp_path / "bytecode-cache"
         suite = tmp_path / "suite"
         suite.mkdir()
-        (suite / "test_probe.py").write_text("def test_probe():\n    assert 1 + 1 == 2\n")
+        (suite / "test_probe.py").write_text(
+            "def test_probe():\n    assert 1 + 1 == 2\n", encoding="utf-8"
+        )
         empty_ini = tmp_path / "pytest.ini"
-        empty_ini.write_text("[pytest]\n")
+        empty_ini.write_text("[pytest]\n", encoding="utf-8")
         monkeypatch.setenv("PYTEST_NON_TMP_ROOT", str(tmp_path / "pytest-root"))
         monkeypatch.setenv("PYTHONPYCACHEPREFIX", str(prefix))
         monkeypatch.delenv("PYTHONDONTWRITEBYTECODE", raising=False)
