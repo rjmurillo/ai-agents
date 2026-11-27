@@ -1,7 +1,7 @@
 ---
 id: ADR-084
 status: accepted
-date: 2026-11-04
+date: 2026-11-25
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -40,9 +40,16 @@ The debate record is
 `.project-toolkit/critique/ADR-084-debate-log-2.md`. Rules 1, 3, 4, and 6 and
 the security carve-out are unchanged.
 
+Amendment proposed 2026-11-25 (requested by repo-owner @rjmurillo for
+REQ-050, owner decision D10). It adds rule 2b, which covers the two `receipts`
+Stop hook registrations and names the rule 2a conditions each one departs
+from. Rule 2b does not bind until the owner accepts it. The debate record is
+`.project-toolkit/critique/ADR-084-debate-log-3.md`. Rules 1, 2, 2a, 3, 4, 5,
+and 6 and the security carve-out are unchanged.
+
 ## Date
 
-2026-07-20; amended 2026-08-18; amendment proposed 2026-10-31, accepted 2026-11-04
+2026-07-20; amended 2026-08-18; amendment proposed 2026-10-31, accepted 2026-11-04; rule 2b proposed 2026-11-25
 
 ## Context
 
@@ -166,6 +173,59 @@ hooks. Concretely, the bar is six rules:
    The hook also records a fresh runtime contract in ADR-071. ADR-071's
    recorded contracts describe deleted code, and `tool-use-hook-bar.md` "What
    a first re-add owes" names that duty.
+
+   **2b. The receipts Stop hook (proposed 2026-11-25, not yet binding).**
+   Rule 2b covers one capability only: the REQ-050 `receipts` hook. It checks
+   claims in the agent's final reply against that session's own tool results.
+   It reads no rule of this repository and demands no artifact, so it is not
+   protocol enforcement under rule 2. It has two registrations. Each meets
+   every rule 2a condition except the ones named below. Rule 2a's sentence "A
+   hook that fails any of a to g is enforcement under rule 2" does not reach
+   these named departures. Any other departure is enforcement. Any further
+   hook still needs its own amendment.
+
+   Claude Code registration. It is advisory and meets conditions a, b, d, e,
+   f, and g. It departs from condition c in two ways. Its message repeats at
+   most 80 characters of claim text per stamp, taken from the agent's own
+   final reply. Each receipt also names the tool, and that name must match
+   `^[A-Za-z0-9_.-]{1,48}$` or it prints as `tool`. It echoes no tool output
+   and reads no repository file. Its dispatch group sets
+   `copilotExclude: true`, because the Claude hook's advisory output has no
+   documented Copilot channel. ADR-128 owns that exclusion.
+
+   Copilot CLI registration. It meets conditions b, d, and e, reading
+   `transcriptPath` where condition e says `transcript_path`. It meets
+   condition g's off switch. Its firing bound under g is one block per claim
+   per session; rule 2b sets no cap on blocks per session. It departs from
+   conditions a, c, and f: it emits `{"decision": "block", "reason": ...}`,
+   the reason enters model context, and the reason names a tool from the
+   transcript. The departure holds only inside these bounds, which ADR-128
+   decides:
+
+   - It blocks only when a tool result contradicts a claim in the final
+     reply.
+   - It blocks at most once per claim per session. Its own digest-only marker
+     enforces that, in per-user storage under condition b. When the marker
+     cannot be read or written, the hook does not block.
+   - The reason is a fixed template plus the claim kind, the call index, and
+     a tool name that matches `^[A-Za-z0-9_.-]{1,48}$`. It never echoes
+     reply or tool-output text.
+   - It registers only after ADR-128's measured gate passes. Until then a
+     generator test MUST show that `src/copilot-cli/hooks/hooks.json` carries
+     no entry for it.
+
+   The PR that adds either registration MUST update the pinned tests it
+   trips in `tests/hooks/test_plugin_stop_registration.py` in the same
+   change, and rule 5's customer-value tests MUST cover the new hook.
+
+   Rule 2a is unchanged. The reflect nudge stays out of the Copilot tree.
+   Rule 2b does not reopen the hook PR #3372 deleted: that hook blocked until
+   an artifact existed, and receipts blocks once on a contradicted statement.
+
+   Sunset: rule 2b lapses when ADR-128 is rejected or superseded, or when
+   both registrations leave the vendored surface. If ADR-128's gate is unmet
+   on 2027-02-25, the Copilot half is reviewed again with ADR-128. The
+   removing PR records the lapse in this ADR.
 3. **Prefer zero-spawn host-native surfaces.** When the host provides a
    declarative surface that achieves the same effect without spawning a process,
    use it. `permissions.allow` and `permissions.deny` in settings and static
@@ -342,137 +402,61 @@ hooks. Concretely, the bar is six rules:
 
 ## Amendment Record
 
-**2026-08-18, rule 3, tool-use events only.** The original rule 3 treated
-"the host cannot express this declaratively" as sufficient warrant for a
-spawning hook. Two measured properties of the Copilot surface show that is too
-weak for `PreToolUse` and `PostToolUse`.
+The 2026-08-18 entry (rule 3, tool-use events) and the 2026-10-31 entry (rule 2a
+and the rule 5 correction) moved verbatim on 2026-11-25 to
+`.project-toolkit/critique/ADR-084-amendment-record-archive.md`. The move keeps
+this record under the 500-line cap. No rule text changed.
 
-Copilot's native matcher targets are tool names. For `preToolUse` and
-`postToolUse` the target is `toolName`, per the hook reference recorded in
-`.claude/skills/agent-harness-reference/references/official-hook-contracts.md`.
-There is no argument-scoped form, so a Claude-side `Bash(git push*)` matcher
-has no Copilot equivalent and degrades to bare `Bash`. The generated matcher
-shim re-reads the payload and skips, after the interpreter has already started.
+**2026-11-25, rule 2b (proposed, owner decision D10).** REQ-050 adds
+`receipts`, a Stop hook that checks claims in the agent's final reply against
+tool results. Rule 2a covers one hook and says any other advisory hook needs
+its own amendment. It also calls a hook that fails any of conditions a to g
+enforcement. The Claude receipts hook echoes up to 80 characters of claim
+text and a tool name, which condition c bars. The Copilot receipts hook emits
+a block decision whose reason enters model context and names a tool, which
+conditions a, c, and f bar. The first
+ADR-128 review round blocked on that conflict (3 Block, 3
+Disagree-and-Commit). The owner chose to amend this record over a silent
+exception in ADR-128.
 
-Copilot also registers one command per event, so the host matcher is the union
-of every registered group's matcher. Measured on `origin/main` before the issue
-#5154 retirements, `src/copilot-cli/hooks/hooks.json` carried
-`"PreToolUse" -> "Bash|Agent|Task"` and `"PostToolUse" -> "Write|Edit"`. One
-markdownlint guard scoped to `Bash(git push*)` therefore put bare `Bash` into
-that union and cost a consumer a process spawn on every Bash call in the
-session. A badly scoped tool-use hook does not only cost what it does; it taxes
-every unrelated call that shares its event.
+Why a block can sit outside rule 2. Rule 2 bars enforcing this repository's
+protocol on a consumer. The deleted hook wrote files and held the turn open
+until a retro existed (#3140, PR #3372). Receipts enforces no protocol. It
+tells the agent once that its own tool output contradicts its own statement.
+The once-per-claim marker bounds the cost at one turn per claim per session.
+It does not cap blocks per session: each distinct contradicted claim can
+block once.
 
-**The primary evidence is blast radius, not latency.** ADR-085 lines 428 to 431
-record issue #5013: `push_pr_script_identity_guard` on a bare `Bash` matcher,
-combined with the Copilot dispatcher's timed child-process deny (#4706), denied
-127 unrelated Bash commands over more than 21 minutes before the owner contained
-it. A wrong deny on a hot tool takes out unrelated work; that is the failure
-mode rule 6 exists to price.
+Why the marker and not `stop_hook_active`. Measured 2026-11-25 over all
+11,160 `~/.copilot/session-state/*/events.jsonl` files on the owner's
+machine: 3,897 logged `agentStop` blocks, and the next stop in the same file
+had the flag false 378 times of 3,889. Scope: one operator, Copilot 1.0.37 to
+1.0.105, and the next-stop pairing is an inference. No block was logged on
+1.0.87 or later.
 
-A third mechanism sets the ceiling above union widening.
-`event_matcher_union` (`build/scripts/generate_dispatcher.py:556`) returns
-`None` when ANY registered matcher fails to reduce to a known tool name, and its
-docstring states the consequence: "emit no matcher; the dispatcher fires on
-every call and filters in-process". One unreducible matcher, such as an MCP tool
-name, therefore deletes the matcher for every hook on that event.
+What rule 2a's Copilot exclusion rested on, and what changed. Its two reasons
+were no documented advisory field and no `transcript_path`. The first still
+holds, so the reflect nudge stays excluded. The second changed: the same logs
+show `transcriptPath` set in 10,977 of 19,518 runs, and in all 436 runs on
+1.0.87 and later.
 
-The latency figures are supporting evidence and are weaker than they look. The
-owner's stated platform cost is 50 to 100 ms per spawn on Windows, worse on
-a loaded machine. That figure is owner-recalled and is measured nowhere in this
-repository. The one Windows figure on record is not the same measurement:
-ADR-068 line 150 records a "HISTORICAL Windows cold start of about 246 ms for
-`py -3 -u <shim>`", a cold start of the older per-shim launcher rather than a
-warm per-spawn cost under the current dispatcher. Measured clean-path dispatcher
-cost on Linux under Python 3.14.6, median of 3 to 5 runs (issue #5154): 102 ms
-for a bare-`Bash` guard, 74 ms on `Write|Edit`, 71 ms on `Agent|Task`, 498 ms on
-`Bash(git push*)`. Quote the platform and the measurement basis with any figure;
-none of these are interchangeable. Two caveats the #5154 debate log records and
-this ADR carries forward: the three retired figures are not reproducible from
-the tree once their dispatch groups are deleted, and the 498 ms figure is not a
-spawn cost at all. It is 4.9x the bare-`Bash` figure for a strictly narrower
-matcher, so it measures the guard's own work (subprocess, git, markdownlint),
-not interpreter start. An independent run on other Linux hardware measured the
-surviving dispatcher at 132 ms against the 71 ms recorded here, a 1.9x spread on
-one platform.
+Evidence limits. The spike behind REQ-050 found zero contradicted stamps in
+678 runs (draft PR #7631, 2026-11-25), so the false-block rate is unmeasured.
+ADR-128 Decision 7 gates registration on 30 hand-judged contradictions with
+none false, drawn by offline replay of the owner's logs. The figures show no
+consumer demand, and this amendment claims none.
 
-The amendment does not rest on the Windows figure. The Linux measurements and
-the matcher-union mechanism above are sufficient on their own.
+Alternatives considered. Stretching rule 2a to cover receipts was rejected:
+rule 2a names one hook and its conditions bar a block. Deciding the exception
+in ADR-128 alone was rejected: the rule and its pinned tests would then
+contradict a later record. Shipping Claude-only was rejected by the owner
+(REQ-050 Open questions, decisions D4 and D6).
 
-What the amendment does not change: rules 1, 2, 4, and 5; the security
-carve-out; and rule 3's original reading for every event other than the two
-tool-use events.
+Rollback: remove both dispatch entries and cut a release. The Copilot marker
+directory stays in per-user storage until the user deletes it.
 
-**2026-10-31, rule 2a and the rule 5 correction (accepted 2026-11-04).** REQ-048 asks for
-a Stop hook that suggests `/retrospective` when a session shows heavy tool-side
-friction. Rule 2 as written listed "retros" as internal, so any such hook was
-barred, even one that only advises. The word was meant for this repository's
-retro protocol, not for a consumer's own sessions. The hook that motivated the
-word was the since-deleted `invoke_auto_retrospective.py`. It wrote skeleton files at Stop and
-returned `decision: "block"`, which dirtied the tree and kept turns alive
-(#3140). PR #3372 (issue #3349) deleted it in `b862e14e9`. Rule 2a draws the
-line at that behavior. Writing, blocking, demanding, or instructing the agent
-is enforcement. A fixed-text, counts-only, non-blocking line to the user about
-their own session is not.
-
-Why condition d names `Stop` alone (round 1, critic P0-1). An earlier draft
-allowed any per-turn event. `UserPromptSubmit` and `SessionStart` output
-enters model context, so a fixed line there could steer the agent and still
-pass every other condition. Conditions d and f close that path together.
-
-Evidence that the gap exists, measured 2026-10-31 (REQ-048 Q5): 8,305
-Claude Code transcripts from 30 days held 550 errored tool results. 11
-sessions had 10 or more errors plus repeated identical calls. The existing correction
-nudge stayed silent on all 11. Scope: every transcript is from this
-repository's own projects (`~/.claude/projects/*ai-agents*`), one operator,
-and many errors come from this repository's validators. The same person labels
-the REQ-048 held-out sample. The figures show the gap exists here. They show no
-consumer demand, and this amendment does not claim any. REQ-048 AC-19 owns
-the ship gate (amended 2026-11-03 under owner decision D19: cross-validation 12 of 16, 75 percent, Wilson lower bound 0.505) and REQ-048's Observability section owns the kill criterion.
-Both are judged on the owner's own transcripts only, because the hook sends
-no telemetry and consumer sessions cannot be seen. The default is calibrated
-on one operator's corpus, and consumers' friction sources are unmeasured.
-
-Alternatives considered (REQ-048 Q-1). Narrowing rule 2 alone was rejected:
-the narrowed word draws no line, so a later hook could call any behavior
-advisory. An exception alone was rejected: rule 2 would still list "retros"
-and contradict it. Keeping the hook dogfood-only until consumer evidence
-exists was rejected by the owner, who chose the vendored route on 2026-10-31
-(REQ-048 D3). That decision, not consumer demand, is the reason on record.
-
-Rollback: remove the hook's dispatch group and cut a release. If that
-empties the vendored surface, the same PR deletes both rule 5 tests, as
-`f79e70c01` did, and the restoration duty passes to the next vendored hook.
-Rule 2a lapses under its sunset clause. Consumers keep the hook until they
-upgrade the plugin, and its off switch covers that gap. Their marker directory (`ai-agents-reflect-nudge` under the
-per-user state root) stays until they delete it.
-
-Rule 6 is not engaged, since `Stop` is outside its four events. The Stop
-output channel is undocumented on both harnesses, which is why REQ-048 AC-17
-and the Copilot exclusion exist. The full reasoning for both is in
-`.project-toolkit/critique/ADR-084-debate-log-2.md` ("Rationale moved from
-ADR-084").
-
-The rule 5 correction is a fact repair, not a policy change. The two enforcing
-tests went with the vendored surface in `f79e70c01`. The rule still binds, so
-the next vendored hook restores them. `tool-use-hook-bar.md` "What a first
-re-add owes" lists that restoration for tool-use hooks. The correction extends
-it to every vendored hook.
-
-Open items this amendment left, both closed 2026-11-04 by REQ-048 TASK-006:
-
-- Rule 5 bound through review only, since no guard test saw a new `surface: "plugin"` group. TASK-006 restores both rule 5 tests in
-  `tests/hooks/test_dispatch_groups_parity.py`: `test_every_vendored_hook_states_its_customer_value` and
-  `test_the_customer_value_check_examines_a_nonempty_surface`. The Copilot exclusion test is
-  `test_copilot_plugin_has_no_entry_for_the_hook` in `tests/hooks/test_plugin_stop_registration.py`.
-- `tool-use-hook-bar.md` "What a first re-add owes" scoped the rule 5 restoration to tool-use hooks. It now says
-  the check binds every vendored hook. Neither closure changes a rule; the owner
-  accepted rule 2a and the rule 5 duties on 2026-11-04.
-
-What this amendment does not change: rules 1, 3, 4, 5's presence
-requirement, and 6;
-the security carve-out; ADR-097's retirement of the tool-use surface; and the
-deletion in PR #3372.
+What this amendment does not change: rules 1, 2, 2a, 3, 4, 5, and 6; the
+security carve-out; and the reflect nudge's Copilot exclusion.
 
 ## References
 

@@ -999,17 +999,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.check:
             return _run_check(adr_dir, output_path)
 
-        # .claude/rules/ci-scripts.md MUST 7: a script that resolves the
-        # repository root and then writes to it must confirm the caller's cwd
-        # sits inside that root before the first write. Relative --adr-dir is
-        # anchored to _REPO_ROOT by _resolve() above; relative --output is
-        # anchored the same way by _resolve_output(), which additionally
-        # leaves a leaf symlink unresolved (see its docstring). Neither
-        # anchors to Path.cwd(); without this check, running the
-        # script from a different worktree (or via a symlink into this one)
-        # writes into _REPO_ROOT silently, with no signal that the write
-        # landed outside the caller's own checkout. Mirrors
-        # the project-root check in main() of scripts/generate_third_party_notices.py verbatim:
+        # .claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md
+        # MUST 7: a script that resolves the repository root and then writes to it must
+        # confirm the caller's cwd sits inside that root before the first write.
+        # Relative --adr-dir is anchored to _REPO_ROOT by _resolve() above; relative
+        # --output is anchored the same way by _resolve_output(), which additionally
+        # leaves a leaf symlink unresolved (see its docstring). Neither anchors to
+        # Path.cwd(); without this check, running the script from a different worktree
+        # (or via a symlink into this one) writes into _REPO_ROOT silently, with no
+        # signal that the write landed outside the caller's own checkout. Mirrors the
+        # project-root check in main() of scripts/generate_third_party_notices.py
+        # verbatim:
         #   project_root = PROJECT_ROOT
         #   if not Path.cwd().resolve().is_relative_to(project_root.resolve()):
         #       print(f"ERROR: current directory is outside project root: {Path.cwd()}", ...)

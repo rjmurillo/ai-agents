@@ -16,8 +16,8 @@ You run rollouts and reflect on failures. The bundled scripts decide whether
 an edit may exist: the edit budget, the patch applier, the protected-section
 guard, the rejected-edit buffer, and the acceptance gate are deterministic.
 Do not edit the target by hand. Route every edit through the scripts so the
-gate is real. Method: Yang et al., arXiv:2605.23904. The paper's reported
-gains are its claims; this skill does not reproduce them.
+gate is real. Method: Yang et al., arXiv:2605.23904; this skill does not
+reproduce its reported gains.
 
 ## Triggers
 
@@ -36,7 +36,7 @@ gains are its claims; this skill does not reproduce them.
 | Create a skill, find one, or route a request to one | `skillforge` |
 | Decide skill vs passive context, or compress markdown with no eval | `context-optimizer` |
 | Measured improvement of an existing skill, agent file, or prompt | this skill |
-| Held-out optimization of agents, rules, and hooks inside the `rjmurillo/ai-agents` checkout | `optimize-artifact.py` in that repository's eval tooling (not shipped) |
+| Held-out optimization of agents, rules, and hooks inside the `rjmurillo/ai-agents` checkout | `optimize-artifact.py` in that repo's eval tooling (not shipped) |
 
 ## Preconditions (hard stop if unmet)
 
@@ -56,6 +56,10 @@ gains are its claims; this skill does not reproduce them.
    back. If the harness cannot provide both, do not run skillopt. Report that the gate cannot be
    independent. Replacement holdouts written by the same agent are still
    exposed.
+5. **Right container.** For a skill, run `context-optimizer`
+   placement analysis on SKILL.md before any rollout. On Passive
+   Context and no script actions, stop and report. Never in
+   loop or gates.
 
 Freeze the `train` and `sel` task lists before authoring any candidate. Keep
 `sel` prompts, verifiers, and outcomes away from the candidate author for the
@@ -77,8 +81,8 @@ after baseline, anchor rules, and library-wide passes.
 
 ## Scripts
 
-Every subcommand takes explicit file paths, so it runs from any working
-directory and needs no clone of the source repository. Pure standard library.
+Every subcommand takes explicit file paths, so it runs from any directory
+with no clone of the source repo. Pure standard library.
 
 ```bash
 ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillopt/scripts/skillopt.py --help; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
@@ -87,17 +91,17 @@ SKILLOPT_FOUND="$( ( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .
 : "${SKILLOPT_DIR:?no plugin root holds skillopt.py; set SKILLOPT_DIR to the scripts folder beside this SKILL.md}"
 ```
 
-The `where` command prints the scripts folder of the same plugin root the other
-commands use. When no plugin root holds it (for example Codex, or a plain
-checkout under PowerShell), set `SKILLOPT_DIR` first to the `scripts` folder
-beside this SKILL.md, then run the block above; a found root still wins:
+`where` prints the scripts folder the commands use.
+With no plugin root (Codex, or a plain checkout under PowerShell), set
+`SKILLOPT_DIR` to the `scripts` folder beside this SKILL.md before the block
+above; a found root wins:
 
 ```bash
 SKILLOPT_DIR="<folder that holds this SKILL.md>/scripts"
 python3 "${SKILLOPT_DIR:?}/skillopt.py" --help
 ```
 
-On Windows PowerShell, no Bash required:
+Windows PowerShell, no Bash:
 
 ```powershell
 $Found = @($env:CLAUDE_PLUGIN_ROOT, $env:COPILOT_PLUGIN_ROOT, '.claude') | Where-Object {
@@ -128,8 +132,8 @@ Below, `skillopt.py` means that resolved path. References use `$SKILLOPT_DIR`
 `buffer-check` is inverted on purpose: exit 0 means the edit was already
 rejected. Branch on the printed word or the exact code, never on `&&`.
 
-Modules named `_skillopt_*.py` and `_mine_*.py` are internal helpers the
-two entry scripts import. Do not call them directly.
+`_skillopt_*.py` and `_mine_*.py` are internal helpers of the two entry
+scripts. Do not call them directly.
 
 ## Process
 
@@ -141,7 +145,8 @@ One optimization step:
    subagent or another session (Precondition 4), holds the `sel` prompts,
    verifiers, and results in every step, and reports only the verdict back.
    Each runner preflights its own tasks: prompt, verifier, inputs, fixtures,
-   and permitted scope. Run the rollout under exactly the scope the task grants.
+   and permitted scope, then rolls out under exactly that scope. The `sel`
+   runner runs `pin` before any rollout.
    A rollout with the wrong artifact or a scope change is invalid, not a pass
    or a fail; mark the task `"status": "invalid"` and replace it. Grade the
    complete persisted output against every clause of the verifier. A runner's
@@ -151,21 +156,19 @@ One optimization step:
    incumbent: `skillopt.py hash target.md`. For tasks with an argv `command`,
    `skillopt.py run --eval eval.json --bundle DIR --role incumbent --out-dir
    results/` runs them and writes `results/incumbent_results.json`. It
-   replaces the whole file, so run it first and add your grades for tasks with
-   no `command` after it finishes. Read the security note in
-   `references/eval-set-format.md` first, because `eval.json` commands run any
-   binary on `PATH`. When the target is a skill directory with scripts, pass
-   the directory to `hash` and `apply`; it hashes as one whole bundle. When the
-   manifest sets
-   `"scorer": "nondeterministic"`, the `sel` runner also reruns the
-   byte-identical incumbent into `null_results.json` now (see Before
-   promotion, step 2).
+   replaces the whole file; run it first, then grade tasks with no `command`.
+   Read the security note in `references/eval-set-format.md` first:
+   `eval.json` commands run any binary on `PATH`. For a skill directory with
+   scripts, pass the directory to `hash` and `apply`; it hashes as one bundle.
+   For `"scorer": "nondeterministic"` the `sel` runner also reruns the
+   byte-identical incumbent into `null_results.json` (see Before promotion,
+   step 2).
 2. **Budget.** `skillopt.py budget --step T --total N` prints L_t, the
    cosine-decayed cap on atomic patches this step. T is 0-based, from 0 to
    N-1; `--step N` exits 2 with `out of range`.
-3. **Reflect.** Failures become corrective rules; successes become behaviors
-   to preserve. Write at most L_t patches to `patches.json`. Use only `train`
-   evidence.
+3. **Reflect.** Follow `references/evidence-manifesto.md`. Failures become
+   corrective rules; successes become behaviors to preserve. Write at most
+   L_t patches to `patches.json`. Use only `train` evidence.
    Read train traces and train-split reviewer notes, not only outputs. Propose
    `delete` patches for instructions that cause wasted work or when the gate
    plateaus. Helper code every rollout rewrites becomes a bundled script; hash
@@ -183,11 +186,12 @@ One optimization step:
 6. **Re-roll** every task on `candidate.md` into `candidate_results.json`.
    For a bundle, `apply` writes a new directory. Finish every edit to its
    scripts first, then run the command tasks, then `hash` the final
-   `CANDIDATE_DIR`. That digest is the candidate's identity, so results from
-   an earlier state of the bundle would gate a different candidate. The `sel`
-   runner does the `sel` half. For command tasks, run
+   `CANDIDATE_DIR`. That digest is the candidate's identity; results from an
+   earlier bundle state gate a different candidate. The `sel` runner does the
+   `sel` half. For command tasks, run
    `skillopt.py run --eval eval.json --bundle CANDIDATE_DIR --role candidate
-   --out-dir results/`, then add your grades for tasks with no `command`.
+   --out-dir results/`, then grade tasks with no `command`.
+   For an accuracy edit, run `manifesto-verify`.
 7. **Gate.** `skillopt.py pair-gate --eval eval.json --incumbent-results
    incumbent_results.json --candidate-results candidate_results.json`. If you
    used `run --out-dir results/`, pass the files under `results/`. For a
@@ -349,13 +353,13 @@ class-level guidance; do not add an incident-named reference.
 ## References
 
 - `references/eval-set-format.md`: eval manifest, patch, and results schemas.
-- `references/eval-authoring.md`: read when you draft tasks and verifiers, lay
-  out a step's artifacts, or act on a report signal.
+- `references/eval-authoring.md`: tasks, verifiers, artifacts, report signals.
+- `references/judge-grading-discipline.md`: how a model judge grades.
 - `references/description-optimization.md`: trigger-rate eval for `description` edits.
 - `references/rollout-validity.md`: preflight, grading, and audit rules for rollouts.
 - `references/target-selection.md`: defect confirmation, split timing, anchors, cohorts.
 - `references/slow-section-convention.md`: protected-fence contract.
-- `references/mechanism.md`: the training analogy and paper citation.
-- `references/cross-machine-mining.md`: session sources and the handoff.
+- `references/mechanism.md`: training analogy, paper citation.
+- `references/cross-machine-mining.md`: session sources, the handoff.
 - `references/example-eval.json` with `example-incumbent-results.json` and
   `example-candidate-results.json`: a runnable `pair-gate` example.

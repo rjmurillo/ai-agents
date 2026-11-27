@@ -20,8 +20,8 @@ found, ``2`` a configuration error (repo root is not a directory, or git
 could not list the tracked files).
 
 The scan reads tracked files at ``HEAD`` plus the index, per
-``.claude/rules/ci-scripts.md`` MUST 9: an untracked scratch file is not
-shipped, while a staged one must fail because the next commit ships it.
+``.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`` MUST 9: an untracked
+scratch file is not shipped, while a staged one must fail because the next commit ships it.
 """
 
 from __future__ import annotations

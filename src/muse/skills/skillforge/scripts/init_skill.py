@@ -93,6 +93,10 @@ TODO: Describe what happens in this phase.
 
 ## Verification
 
+Checker: run `TODO: test, validator, or screenshot command`. It passes when
+TODO: pass criteria. Fix and re-run at most three times, then report what
+still fails.
+
 After execution:
 
 - [ ] TODO: Check 1

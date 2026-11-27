@@ -1,30 +1,29 @@
 ---
 # taste-lint: ignore file-size, ten numbered rules cited by number from the debate log and from tests; splitting renumbers them and the linter's suggested split into helpers, types, and constants has no meaning for a decision record.
 id: ADR-104
-status: proposed
+status: accepted
 date: 2026-08-25
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
 explainer: null
-implemented: false
+implemented: true
 ---
 
 # ADR-104: Gate Tier Placement
 
 ## Status
 
-Proposed. Six-seat adr-review debate held 2026-08-25; log at
+Accepted 2026-11-25 by owner direction (issue #7636). Six-seat adr-review debate held 2026-08-25; log at
 `.project-toolkit/critique/ADR-104-debate-log.md`. The first revision was blocked by two
-seats and this record is the rewrite. `implemented` stays false until the
-branch merges, per ADR-073's definition of that field.
+seats and this record is the rewrite. The branch merged as PR #5319 (`107205cf7`,
+2026-08-26), so `implemented` is true, per ADR-073's definition of that field.
 
 Acceptance was gated on an end-to-end wall-clock measurement of the hook during
 a real push, because `ci-scripts.md` MUST-16 forbids sizing a pre-push budget
 from a standalone run. That measurement now exists and is in Consequences
 below: 142.39s, against 679s recorded for a comparable push. The gate is
-cleared. The remaining reason this stays `proposed` is that the branch has not
-merged.
+cleared.
 
 Amended 2026-10-08 (PR #6239): the import-graph test selector is deleted.
 Until 2026-10-09, pre-push by default ran pytest collection only over

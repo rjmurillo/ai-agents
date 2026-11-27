@@ -400,8 +400,8 @@ def _preflight(for_write: bool) -> int:
 def _report_check(drift: Drift) -> int:
     """Print the three counts and return the exit status.
 
-    `.claude/rules/ci-scripts.md` MUST 12: the examined count is printed on
-    every run, so a clean tree and an empty tree do not read the same.
+    `.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md` MUST 12: the
+    examined count is printed on every run, so a clean tree and an empty tree do not read the same.
     """
     print(
         f"sync-slim-agents: examined {drift.examined} destination files:"
@@ -431,14 +431,14 @@ def _run(args: argparse.Namespace) -> int:
     total = len(SLIMMED_AGENTS) * len(DESTINATIONS)
 
     if args.write:
-        # .claude/rules/ci-scripts.md MUST 7: a script that resolves the
-        # repository root and then writes to it must confirm the caller's cwd
-        # sits inside that root before the first write. REPO_ROOT comes from
-        # __file__, so without this check, running the script from another
-        # checkout silently rewrites the checkout that holds the script, with
-        # no signal that the write landed somewhere the caller is not standing.
-        # Scoped to this branch, following build/scripts/generate_adr_index.py:
-        # the default check run is read-only and has nothing to protect.
+        # .claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md
+        # MUST 7: a script that resolves the repository root and then writes to it
+        # must confirm the caller's cwd sits inside that root before the first write.
+        # REPO_ROOT comes from __file__, so without this check, running the script
+        # from another checkout silently rewrites the checkout that holds the script,
+        # with no signal that the write landed somewhere the caller is not standing.
+        # Scoped to this branch, following build/scripts/generate_adr_index.py: the
+        # default check run is read-only and has nothing to protect.
         if not Path.cwd().resolve().is_relative_to(REPO_ROOT.resolve()):
             print(
                 f"sync-slim-agents: current directory is outside the repository root: {Path.cwd()}",

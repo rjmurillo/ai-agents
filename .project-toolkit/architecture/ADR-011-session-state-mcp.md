@@ -1,7 +1,7 @@
 ---
 id: ADR-011
-status: proposed
-date: 2025-12-21
+status: rejected
+date: 2026-11-26
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -10,6 +10,16 @@ implemented: false
 ---
 
 # ADR-011: Session State MCP
+
+## Status
+
+Rejected (2026-11-26). Retired by issue #7637.
+
+This record never left proposed, and no Session State MCP was built. Issue #219 closed as not planned on 2026-03-01. Its close comment says Claude Code hooks and `validate_session_json.py` already enforce the session protocol through blocking gates. Session log creation has since been discontinued as well.
+
+At ffc759356, 2026-11-26, `.mcp.json` lists only `serena` and `deepwiki`, and no `mcp/` tree exists. Debate log: [ADR-011-012-013-020-022-027-048-status-debate-log.md](../critique/ADR-011-012-013-020-022-027-048-status-debate-log.md).
+
+The record is kept so the proposal stays findable.
 
 ## Date
 

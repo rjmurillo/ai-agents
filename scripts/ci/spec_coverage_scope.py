@@ -48,7 +48,7 @@ polarity of the path filter this replaces (a filter error there read as "no
 code changes").
 
 Uses only the standard library: the workflow runs it with bare `python3`
-(`.claude/rules/ci-scripts.md` MUST 18).
+(`.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md` MUST 18).
 
 ENV:
   EVENT_NAME        - github.event_name

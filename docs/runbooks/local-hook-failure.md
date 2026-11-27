@@ -140,16 +140,14 @@ PATH="/snap/bin:$PATH" git push
 ```
 
 The lasting fix is a machine change, and the machine owner picks it. Only the
-two `pytest` prefixes above and the `~/.zshenv` fix below were measured. The
-other profile or install changes were not tested:
+two `pytest` prefixes above and the `~/.zshenv` fix below were measured. That
+fix exports `DOTNET_ROOT` so the shim finds the runtimes it already has. The
+`export` matters: without it, child processes such as the shim do not see the
+value. These other changes were not tested:
 
 - Put `/snap/bin` before `~/.dotnet/tools` on `PATH` in the shell profile.
 - Remove the shim with `dotnet tool uninstall -g PowerShell`. Other tools that
   call `~/.dotnet/tools/pwsh` by full path would then break.
-- Add `export DOTNET_ROOT="$HOME/.dotnet"` to the shell profile, so the shim
-  finds the runtimes it already has. The `export` matters: without it, child
-  processes such as the shim do not see the value. Pick the file by shell
-  mode, as the next section shows.
 - Install the .NET 10 runtime where the shim looks (`/usr/share/dotnet`), for
   example from the system package manager.
 
