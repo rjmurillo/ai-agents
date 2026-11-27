@@ -69,7 +69,10 @@ def add_subagent_counts(
         entry["sampled_subagent"] = sum(1 for s in children if s["_key"] in sampled)
 
 
-DEFAULT_CAP_ADVICE = "Pass --no-include-subagents or raise --max-sessions to cover top-level work."
+DEFAULT_CAP_ADVICE = (
+    "Raise --top-level-quota, pass --no-include-subagents, or raise --max-sessions to cover "
+    "top-level work."
+)
 
 
 def cap_advice(sessions: Any, sampled: set[str], per_harness: Any) -> str:
@@ -87,10 +90,14 @@ def cap_advice(sessions: Any, sampled: set[str], per_harness: Any) -> str:
     slack = any(e["sampled"] - e.get("supplemented", 0) < e.get("quota", 0) for e in entries)
     full = any(e["sampled"] - e.get("supplemented", 0) >= e.get("quota", 0) for e in entries)
     if slack and not full:
-        return "Pass --no-include-subagents or raise --per-skill or --no-skill to cover top-level work."
+        return (
+            "Raise --top-level-quota, pass --no-include-subagents, or raise --per-skill or "
+            "--no-skill to cover top-level work."
+        )
     if slack and full:
         return (
-            "Pass --no-include-subagents or raise --max-sessions, --per-skill, or --no-skill "
+            "Raise --top-level-quota, pass --no-include-subagents, or raise --max-sessions, "
+            "--per-skill, or --no-skill "
             "to cover top-level work."
         )
     return DEFAULT_CAP_ADVICE

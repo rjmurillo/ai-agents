@@ -411,14 +411,14 @@ def test_scanner_project_lock_pins_the_action_wheel() -> None:
     """
     lock = (REPO_ROOT / gate.SCANNER_PROJECT / "uv.lock").read_text(encoding="utf-8")
     # Upstream scanner-version.txt and scanner-sha256.txt at the action SHA:
-    # https://github.com/hashgraph-online/ai-plugin-scanner-action/tree/013b123a036a252a6d74ddb52836ee923498150c
-    assert 'name = "plugin-scanner"\nversion = "3.59.0"' in lock
-    assert "bac49f5f55f0f09f3a134c6fbc096b5216e07911b41be99a64f1dd73bb21fd53" in lock
+    # https://github.com/hashgraph-online/ai-plugin-scanner-action/tree/fe3a28696ed8316792c076c495482f602a59205d
+    assert 'name = "plugin-scanner"\nversion = "3.60.0"' in lock
+    assert "62544c59abf05336ec42f00f33bfa4d94a4b1f454226c2dc2d4547c334f1130f" in lock
     # A waiver must stay a dated cutoff, never `false`, so later scanner
     # releases stay under the 7-day exclude-newer cooldown.
     assert "plugin-scanner = false" not in lock
     workflow = (REPO_ROOT / ".github" / "workflows" / "plugin-scanner.yml").read_text(
         encoding="utf-8"
     )
-    assert "ai-plugin-scanner-action@013b123a036a252a6d74ddb52836ee923498150c" in workflow
+    assert "ai-plugin-scanner-action@fe3a28696ed8316792c076c495482f602a59205d" in workflow
     assert "min_score: 80" in workflow
