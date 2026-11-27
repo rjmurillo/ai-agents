@@ -1,0 +1,25 @@
+{
+  "author_family": "unknown",
+  "branch": "t3/ws2b-retire-invoke-precommit-security",
+  "counts": {
+    "dropped": 0,
+    "kept": 0,
+    "overlap": 0,
+    "raw": 0,
+    "sol_only": 0
+  },
+  "critic_sha256": "38ff47cc81034e53779e5ae3e0e7d0ce1ba22ffa08aba6c86a59067c4459ef16",
+  "dropped": [],
+  "failure_class": "rate-limit",
+  "findings": [],
+  "head_sha": "f6143b99364f5d3828872d7900cabf178e832f7c",
+  "key": "t3/ws2b-retire-invoke-precommit-security",
+  "model": "gpt-6.2-sol",
+  "overlap_rule": "same file and line within 3 of a critic path:line or range",
+  "pr": "",
+  "round": 1,
+  "schema_version": 2,
+  "status": "unavailable",
+  "timestamp": "2026-11-26T06:04:17Z",
+  "verdict": ""
+}
