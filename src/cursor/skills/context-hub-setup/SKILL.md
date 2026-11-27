@@ -1,7 +1,7 @@
 ---
 name: context-hub-setup
 version: 1.0.0
-description: Check the Serena and Context7 plugin prerequisites and report what is missing, with the install command for each. Use when you say `set up context hub`, `check my plugin prerequisites`, or `troubleshoot MCP connectivity`. Do NOT use to actually gather context for a task (use context-gather), and do NOT use to search memory (use memory-search).
+description: "Check Serena and Context7 plugin prerequisites and report what is missing with install commands. Use when you say `set up context hub` or `troubleshoot MCP connectivity`. Do NOT use to gather context (use context-gather) or search memory (use memory-search)."
 license: Apache-2.0
 metadata:
   routing:

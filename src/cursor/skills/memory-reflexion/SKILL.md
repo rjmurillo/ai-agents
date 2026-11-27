@@ -1,12 +1,7 @@
 ---
 name: memory-reflexion
 version: 0.2.0
-description: Tier 2 episode extraction, the reflexion write path split out of the
-  memory router per ADR-063. Extracts an episode from a completed session log so
-  later sessions can replay what was tried and what it cost. Use when you say
-  `extract episode from session`, `record what happened this session`, or
-  `re-extract this episode`. Do NOT use for Tier 1 lookups (use memory-search),
-  for adding citations (use memory-enhancement), or to capture a correction or lesson (use reflect).
+description: "Tier 2 episode extraction: turns a completed session log into an episode for later replay. Use when you say `extract episode from session`, `record what happened this session`, or `re-extract this episode`. Do NOT use for Tier 1 lookups (use memory-search), citations (use memory-enhancement), or capturing a lesson (use reflect)."
 license: Apache-2.0
 metadata:
   adr: ADR-038, ADR-063, ADR-089, ADR-103, ADR-106

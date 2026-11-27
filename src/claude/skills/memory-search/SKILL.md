@@ -1,12 +1,7 @@
 ---
 name: memory-search
 version: 0.1.0
-description: Recall scoped project memory from available tools or repository files with
-  progressive disclosure and token-budget warnings. The focused search operation
-  split out of the memory router per ADR-063. Use when you say `search memory`,
-  `what do we know about X`, or `recall prior context`. Do NOT use to extract
-  session episodes (use memory-reflexion) or add citations (use
-  memory-enhancement).
+description: "Recall scoped project memory from tools or repository files with token-budget warnings. Use when you say `search memory`, `what do we know about X`, or `recall prior context`. Do NOT use to extract session episodes (use memory-reflexion) or add citations (use memory-enhancement)."
 license: Apache-2.0
 metadata:
   adr: ADR-038, ADR-063, ADR-103, ADR-106

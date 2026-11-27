@@ -1,6 +1,6 @@
 ---
 name: code-qualities-assessment
-description: Assess maintainability of code through 5 foundational qualities (cohesion, coupling, encapsulation, testability, non-redundancy) with quantifiable scoring rubrics. assess.py scores source code only; rules, skills, and agents are assessed manually against the same qualities per references/executable-nl-artifacts.md. Works at method/class/module levels across multiple languages. Produces markdown reports with remediation guidance. Use when you ask to "assess maintainability", "score cohesion/coupling/testability" on specific code. Do NOT use for a full pre-merge review (use review) or repo-wide domain grading (use quality-grades).
+description: "Score maintainability with rubrics; assess.py covers source code only. Use when you ask to \"assess maintainability\" or \"score cohesion/coupling/testability\" on specific code. Do NOT use for a full pre-merge review (use review) or repo-wide grading (use quality-grades)."
 version: 1.2.0
 license: Apache-2.0
 ---
