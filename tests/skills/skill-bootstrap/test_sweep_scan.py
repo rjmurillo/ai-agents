@@ -175,6 +175,9 @@ def test_scan_is_cut_to_the_documented_cap():
 
 
 def test_pathological_input_scans_in_bounded_time():
+    # This keeps a clock on purpose. A bounded repeat nested in another one passes the
+    # quantifier test below and still backtracks for minutes here, inside the regex engine
+    # where no count sees it. A loaded runner can fail this with correct code.
     nasty = "eyJ" + "a" * 200000 + " Bearer " + "b" * 200000 + " password:" + " " * 100000
     started = time.perf_counter()
 
