@@ -131,7 +131,13 @@ class TestPublishGitHub:
             ["pr", "view"],
             {
                 "stdout": json.dumps(
-                    {"number": 3, "state": "OPEN", "author": {"login": "alice"}, "url": "u"}
+                    {
+                        "number": 3,
+                        "state": "OPEN",
+                        "author": {"login": "alice"},
+                        "url": "u",
+                        "baseRefName": "main",
+                    }
                 )
             },
         )
@@ -163,6 +169,7 @@ class TestPublishGitHub:
                         "state": "OPEN",
                         "author": {"login": "me"},
                         "url": "https://x/pull/7",
+                        "baseRefName": "main",
                     }
                 )
             },
@@ -219,9 +226,9 @@ class TestPublishGitHub:
         seen: list[list[str]] = []
         real_git = common.git
 
-        def spy(args, cwd=None, timeout=60):
+        def spy(args, cwd=None, timeout=60, **kw):
             seen.append(list(args))
-            return real_git(args, cwd=cwd, timeout=timeout)
+            return real_git(args, cwd=cwd, timeout=timeout, **kw)
 
         monkeypatch.setattr(common, "git", spy)
         publish(
