@@ -4,7 +4,7 @@
 # Customer-Facing Generated Artifacts
 
 <!-- vendor-portability: upstream build scope glob and lib trees (issue #5298). Paths:
-     build/scripts, .claude/lib Folded-rule paths: build/scripts/build_all.py, build/scripts/lib_mirror.py, build/scripts/plugin_run_launcher.py. -->
+     build/scripts, .claude/lib Folded-rule paths: build/scripts/build_all.py, build/scripts/lib_mirror.py, build/scripts/plugin_run_launcher.py, build/scripts/hermes_packs.py, templates/platforms/hermes.yaml, templates/platforms/binplace.yaml, scripts/hook_utilities/bootstrap.py, scripts/<pkg>. -->
 
 This rule exists because of a P0 incident. A generator produced the Copilot CLI
 plugin's `hooks.json` with a bare `./hooks/...` command path and explicit
@@ -187,6 +187,27 @@ exception to "edit the template": they are hand-maintained, never under
 so either path edits the same file. A repo-local skill keeps them in its
 real `.claude/skills/<name>/` directory. `build_all.py` mirrors shipped
 skills into `src/copilot-cli/skills/<name>/`; an edit there is overwritten.
+
+The same holds for every other vendor tree. `build_all.py` renders skill
+copies into `src/codex/skills/`, `src/cursor/skills/`, `src/muse/skills/`,
+and each Hermes pack under `src/hermes/<pack>/skills/`.
+`build/scripts/hermes_packs.py` picks the pack for each skill from
+`templates/platforms/hermes.yaml`, so a skill can move between packs.
+
+Each lib package named in `PACKAGES` in `build/scripts/lib_mirror.py` has
+its source in `scripts/<pkg>/`, not in `src/claude/lib/`. `lib_mirror.py`
+renders the packages into the `lib/` trees under `src/` (claude,
+copilot-cli, codex, cursor, and muse), and each Hermes pack carries its own
+`lib/` copy. Not every package lands in every tree. `bootstrap.py` is
+generated too: `templates/platforms/binplace.yaml` names its source as
+`scripts/hook_utilities/bootstrap.py`. Other top-level modules in
+`.claude/lib/`, such as `claude_hook_dispatch.py`, are hand-maintained and
+have no `scripts/` source.
+
+Fix the source, run `build_all.py`, and commit every regenerated tree
+together. Do not patch a rendered copy by hand. Do inspect the rendered
+copies after you regenerate. For agents, `.claude/rules/templates.md`
+SHOULD 2 names the two outputs to read.
 
 ## Quick Self-Review
 

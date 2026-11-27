@@ -21,6 +21,8 @@ from tests.eval._actionability_corpus_test_support import (
     write_corpus,
 )
 
+pytestmark = pytest.mark.usefixtures("freeze_actionability_clock")
+
 _TOKEN = "ghp_" + "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8"
 
 

@@ -37,6 +37,22 @@ Aggregated from 305 PRs over last 28 days.
 | rjmurillo | 2 | 7 | 1 | 14% | → |
 ## Per-PR Breakdown
 
+### PR #7691 (2026-11-26 UTC)
+
+**PR**: chore(adr): accept 17 shipped ADRs and empty implemented-implies-decided. Merged 2026-11-26T07:10:23Z as `67899d52d`.
+
+| Reviewer | Comments | Actionable | Rate | Outcomes |
+|----------|----------|------------|------|----------|
+| devin-ai-integration | 5 | 3 | 60% | 3 fixed in `a55764024` (2026-11-26): ADR-067 amendment, ADR-049 retired checks, ADR-078 orchestrator links. 2 WONTFIX with rationale: ADR-038, ADR-114 |
+
+Counts read 2026-11-26 from `get_pr_review_threads.py --pull-request 7691 --include-comments`. Actionable here means the finding led to an edit.
+
+**Session Notes**:
+
+- **ADR-038 WONTFIX**: the record is amended by reference to ADR-089, and the index row comes from its preserved Decision sentence.
+- **ADR-114 WONTFIX**: the 2026-11-05 amendment already makes the smoke advisory; retitling an accepted record is a separate decision.
+- **Resolved before replied**: all 5 threads were resolved by 05:06:22Z, at least 13 seconds before the first reply posted at 05:06:35Z. See the learning below.
+
 ### PR #987 (2026-01-23)
 
 **PR**: feat(github-skill): add stale comment detection to Get-PRReviewComments.ps1
@@ -425,11 +441,12 @@ $pr = $data.repository.pullRequest  # NO .data prefix needed
 
 | Metric | Value |
 |--------|-------|
-| Total PRs Processed | 10 |
-| Total Comments Triaged | 35 |
-| Total Comments Implemented | 24 |
+| Total PRs Processed | 11 |
+| Total Comments Triaged | 40 |
+| Total Comments Implemented | 27 |
 | Total Comments Already Fixed | 9 |
-| Total Comments Resolved | 35 |
+| Total Comments Declined With Rationale | 2 |
+| Total Comments Resolved | 40 |
 | Security Vulnerabilities Found | 11 |
 | Critical Workflow Bugs Found | 2 |
 | Performance Improvements | 1 (88% faster reactions) |
@@ -657,6 +674,20 @@ This can be addressed in a follow-up PR focused on [specific improvement].
 **Learning 3**: Format: `"timestamp": "2026-01-23T09:30:00Z", "action": "Session 1 Round 1: {action}"`
 
 **Learning 4**: Ending commit should reflect the final commit in the session, not just the first round.
+
+### Learning: A Resolve Chained After a Failed Reply Still Resolves (PR #7691, 2026-11-26)
+
+**Context**: One shell loop ran `post_pr_comment_reply.py` then `resolve_pr_review_thread.py` for each of 5 threads. The resolve did not depend on the reply's exit code.
+
+**Observed** (session transcript, UTC):
+
+1. Loop issued 05:06:13Z, output at 05:06:22Z: every reply failed with `body file is group-writable outside an owner-only directory`. Every resolve printed `[PASS] Resolved thread`.
+2. 05:06:33Z: `chmod 700` on `.project-toolkit/scratch/replies/` and `chmod 600` on its files, then the 5 replies posted (05:06:35Z to 05:06:44Z per the GitHub API).
+3. 05:06:53Z: GraphQL showed 5 resolved threads, each with 2 comments, last author `rjmurillo`.
+
+**Cause**: `umask` printed `0002` and `stat` showed `.project-toolkit/scratch/` at mode 775 in a fresh worktree on 2026-11-26. New files land as 664 in an open directory, and the reader refuses that pair (`scripts/github_core/body_file.py` lines 259 to 270). File details: [body-file-readers-refuse-open-directories-and-world-writable-files](../github-skill/body-file-readers-refuse-open-directories-and-world-writable-files.md).
+
+**Gap**: the skill's Anti-Patterns row already says "verify before resolve" (`SKILL.md` line 357, read 2026-11-26). The loop resolved on its own schedule, not on the reply's exit code, so that check never ran before the resolve.
 
 ## Next Session TODO
 

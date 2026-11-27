@@ -101,15 +101,10 @@ class ReportRendererTests(unittest.TestCase):
             skill_text,
         )
         self.assertIn("Project skills only", skill_text)
-        self.assertIn(
-            "Process datasets of 50 transcripts or fewer in a single batch",
-            skill_text,
-        )
-        self.assertIn(
-            "For datasets with more than 50 transcripts, use parallel batches "
-            "(20 transcripts per batch recommended)",
-            skill_text,
-        )
+        self.assertIn("Batch by bytes: at most 150 KB per scorer", skill_text)
+        self.assertIn("--max-batch-bytes 150000", skill_text)
+        self.assertNotIn("20 transcripts per batch", skill_text)
+        self.assertIn("that session's own `cwd` rule files", skill_text)
         self.assertNotIn("--harness claude|codex|warp", skill_text)
         self.assertNotIn("--claude-home PATH", skill_text)
         self.assertIn("| Warp | `warp` |", harness_text)
@@ -130,8 +125,11 @@ class ReportRendererTests(unittest.TestCase):
             skill_text,
         )
         self.assertIn("$SKILL_ROOT/scorers/verbosity.md", skill_text)
-        self.assertIn("raw_procedure_compliance", skill_text)
-        self.assertIn("raw_verbosity", skill_text)
+        workflow_text = (skill_root / "references" / "audit-workflow.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("raw_procedure_compliance", workflow_text)
+        self.assertIn("raw_verbosity", workflow_text)
         self.assertIn(
             "A conversation fails when at least one applicable efficiency, "
             "code-quality, procedure-compliance, or verbosity score is below "
@@ -403,20 +401,24 @@ class ReportRendererTests(unittest.TestCase):
     def test_skill_edits_use_failed_conversations_and_cut_only_passing(self):
         skill_path = SKILL_ROOT / "SKILL.md"
         skill_text = skill_path.read_text(encoding="utf-8")
+        workflow_text = (SKILL_ROOT / "references" / "audit-workflow.md").read_text(
+            encoding="utf-8"
+        )
 
+        self.assertIn("the aggregate formulas the script computes", skill_text)
         self.assertIn(
             "`raw_efficiency` = mean of efficiency scores, excluding `insufficient_evidence`",
-            skill_text,
+            workflow_text,
         )
         self.assertIn(
             "`curve(score) = 0.5 + 0.5 * score`",
-            skill_text,
+            workflow_text,
         )
         self.assertIn(
             "`overall = 0.25 * efficiency + 0.25 * code_quality + "
             "0.2 * procedure_compliance + 0.15 * verbosity + "
             "0.15 * skill_coverage.`",
-            skill_text,
+            workflow_text,
         )
         self.assertIn(
             "from each conversation's raw, uncurved scorer results",

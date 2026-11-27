@@ -7,12 +7,18 @@ Output (next to report.json):
                 self-contained page, with a Share button that draws a
                 1200x675 share card at 2x (2400x1350 pixels) client-side and downloads it.
 
+An ADR-only report (`"mode": "adr_only"` plus an adr_drift section) renders the
+ADR drift section alone, with no scorecard. adr_drift entries name scan files by
+path, resolved inside the report directory.
+
 python3, stdlib only. Uses system fonts so the page and the exported PNG
 render the same everywhere.
 
 Exit codes: 0 report.html was written; 1 report.json has no numeric
-scores.overall or makes an unsupported claim; 2 bad arguments, or report.json
-is unreadable or not JSON.
+scores.overall, makes an unsupported claim, carries an adr_drift finding with
+an empty suggested_fix, or is adr_only with no adr_drift object; 2 bad arguments, report.json is unreadable or not
+JSON, an adr_drift scan or decisions file cannot be read, or report.html cannot
+be written.
 """
 
 import argparse
@@ -23,66 +29,22 @@ import re
 import subprocess
 import sys
 import tempfile
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import report_adr
 import report_audit
 import report_evaluation
 import report_script
 import report_style
-
-GRADES = [
-    (0.97, "A+"),
-    (0.93, "A"),
-    (0.90, "A-"),
-    (0.87, "B+"),
-    (0.83, "B"),
-    (0.80, "B-"),
-    (0.77, "C+"),
-    (0.73, "C"),
-    (0.70, "C-"),
-    (0.60, "D"),
-    (0.0, "F"),
-]
+import report_threads
+from report_format import format_generated_at, grade_for, pct
 
 DIFFS_BUNDLE_PATH = Path(__file__).resolve().parent.parent / "assets" / "pierre-diffs.js"
 
 # Collapsed height of a diff before the "show more" toggle takes over.
 DIFF_CLAMP_PX = 320
 BROWSER_TIMEOUT_SECONDS = 5
-
-
-def grade_for(score: float) -> str:
-    for threshold, letter in GRADES:
-        if score >= threshold:
-            return letter
-    return "F"
-
-
-def pct(score: Any) -> int:
-    return round(float(score) * 100)
-
-
-def format_generated_at(value: Any) -> str:
-    if not value:
-        return ""
-    raw = str(value)
-    normalized = raw[:-1] + "+00:00" if raw.endswith("Z") else raw
-    if re.search(r"[+-]\d{2}$", normalized):
-        normalized += ":00"
-    try:
-        generated_at = datetime.fromisoformat(normalized)
-    except ValueError:
-        return raw
-    suffix = ""
-    if generated_at.tzinfo is not None:
-        generated_at = generated_at.astimezone(timezone.utc)
-        suffix = " UTC"
-    time = generated_at.strftime("%I:%M %p").lstrip("0")
-    return (
-        f"{generated_at.strftime('%B')} {generated_at.day}, {generated_at.year} at {time}{suffix}"
-    )
 
 
 def open_report(report_path: Path) -> bool:
@@ -162,28 +124,32 @@ SECTION_NOTE = {
 
 
 def render_sampling(sampling: Any) -> str:
-    """Per-harness candidate and sampled counts, and the cap notice when coverage was partial."""
+    """Per-harness and per-session-type counts, and the cap notice when coverage was partial."""
     per_harness = (sampling or {}).get("per_harness") or {}
-    if not per_harness:
+    thread_table = report_threads.thread_table_html(esc, pct, (sampling or {}).get("per_thread"))
+    if not per_harness and not thread_table:
         return ""
     notice = sampling.get("notice")
+    top_notice = sampling.get("top_level_notice")
     rows = "".join(
         f"<tr><td>{esc(harness)}</td><td>{esc(c.get('scoreable', 0))}</td>"
         f"<td>{esc(c.get('skill_candidates', 0))}</td><td>{esc(c.get('sampled', 0))}</td>"
         f"<td>{pct(c['overall']) if c.get('overall') is not None else '-'}</td></tr>"
         for harness, c in per_harness.items()
     )
-    body = (
-        (f'<p class="notice">{esc(notice)}</p>' if notice else "")
-        + '<p class="muted">Selection is skill-first within each harness, so each row grades '
+    harness_table = (
+        '<p class="muted">Selection is skill-first within each harness, so each row grades '
         "sessions that exercise skills first, not the whole harness.</p>"
         '<div class="table-scroll" role="region" aria-label="Sampling by harness" tabindex="0">'
         "<table><caption>Sampling by harness</caption>"
         '<thead><tr><th scope="col">Harness</th><th scope="col">Scoreable</th>'
         '<th scope="col">Used a skill</th><th scope="col">Sampled</th>'
         f'<th scope="col">Overall</th></tr></thead><tbody>{rows}</tbody></table></div>'
+        if per_harness
+        else ""
     )
-    return report_audit.details_html(esc, "Sampling", body, open_=bool(notice))
+    body = report_threads.notices_html(esc, notice, top_notice) + harness_table + thread_table
+    return report_audit.details_html(esc, "Sampling", body, open_=bool(notice or top_notice))
 
 
 def empty_suggestions_text(r: Any) -> str:
@@ -385,11 +351,8 @@ def card_data_json(r: Any, grade: str) -> str:
     )
 
 
-def render_page(r: Any) -> str:
-    scores = r["scores"]
-    grade = r.get("grade") or grade_for(scores["overall"])
-    generated_at = format_generated_at(r.get("generated_at"))
-    title = esc(r.get("title", "Agent Skill Report"))
+def page_shell(title: str, header: str, main: str, scripts: str = "") -> str:
+    """The self-contained page around HEADER and MAIN. TITLE is already escaped."""
     css = report_style.PAGE_CSS.replace("__CLAMP__", str(DIFF_CLAMP_PX))
     return f"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -398,17 +361,42 @@ def render_page(r: Any) -> str:
 <style>{css}</style></head><body>
 <a class="skip" href="#main">Skip to report</a>
 <div class="page">
-{render_header(r, generated_at)}
+{header}
 <main id="main">
-{render_summary(r, grade)}
-{render_findings(r)}
-{render_candidates(r)}
-{render_evidence(r)}
+{main}
 </main>
-</div>
-<script>{embedded_diffs_script()}</script>
-<script>{page_script(card_data_json(r, grade))}</script>
+</div>{scripts}
 </body></html>"""
+
+
+def render_page(r: Any) -> str:
+    scores = r["scores"]
+    grade = r.get("grade") or grade_for(scores["overall"])
+    generated_at = format_generated_at(r.get("generated_at"))
+    sections = [render_summary(r, grade), render_findings(r), render_candidates(r)]
+    adr_section = report_adr.render_adr_drift(r, esc)
+    adr_block = f"\n{adr_section}" if adr_section else ""
+    scripts = (
+        f"\n<script>{embedded_diffs_script()}</script>"
+        f"\n<script>{page_script(card_data_json(r, grade))}</script>"
+    )
+    return page_shell(
+        esc(r.get("title", "Agent Skill Report")),
+        render_header(r, generated_at),
+        "\n".join([*sections, render_evidence(r)]) + adr_block,
+        scripts,
+    )
+
+
+def render_adr_page(r: Any) -> str:
+    """The ADR-only page: a title, when it was generated, and the ADR drift section."""
+    title = esc(r.get("title", "ADR Drift Report"))
+    generated_at = format_generated_at(r.get("generated_at"))
+    meta = f'<ul class="meta"><li>Generated {esc(generated_at)}</li></ul>' if generated_at else ""
+    header = (
+        f'<header class="page-head"><div class="title-row"><h1>{title}</h1></div>{meta}</header>'
+    )
+    return page_shell(title, header, report_adr.render_adr_drift(r, esc))
 
 
 def page_script(card_data: str) -> str:
@@ -416,17 +404,32 @@ def page_script(card_data: str) -> str:
 
 
 def load_report(report_path: Path) -> dict[str, Any]:
-    """Read report.json; exit 2 when unreadable or not JSON, 1 when it has no overall score."""
+    """Read report.json and resolve its adr_drift files.
+
+    Exits 2 when the report or an adr_drift file is unreadable, and 1 when a scored report has no
+    overall score or an ADR-only report has no adr_drift section.
+    """
     try:
         report = json.loads(report_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, ValueError) as exc:
         print(f"error: cannot read {report_path}: {exc}", file=sys.stderr)
         sys.exit(2)
-    scores = report.get("scores") if isinstance(report, dict) else None
-    if not isinstance(scores, dict) or not isinstance(scores.get("overall"), (int, float)):
-        print(f"error: {report_path} needs a numeric scores.overall", file=sys.stderr)
-        sys.exit(1)
-    return report
+    if report_adr.is_adr_only(report):
+        if not isinstance(report.get("adr_drift"), dict):
+            print(
+                f"error: {report_path} is adr_only and needs an adr_drift object", file=sys.stderr
+            )
+            sys.exit(1)
+    else:
+        scores = report.get("scores") if isinstance(report, dict) else None
+        if not isinstance(scores, dict) or not isinstance(scores.get("overall"), (int, float)):
+            print(f"error: {report_path} needs a numeric scores.overall", file=sys.stderr)
+            sys.exit(1)
+    try:
+        return report_adr.resolve_adr_drift(report, report_path.parent)
+    except report_adr.AdrInputError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        sys.exit(2)
 
 
 def parse_args(argv: Any = None) -> Any:
@@ -446,21 +449,40 @@ def parse_args(argv: Any = None) -> Any:
     return parser.parse_args(argv)
 
 
-def main(argv: Any = None) -> None:
-    args = parse_args(argv)
-    report_path = Path(args.report_path).expanduser()
-    r = load_report(report_path)
-    r.setdefault("grade", grade_for(r["scores"]["overall"]))
-    errors = report_evaluation.validate_report(r) + report_audit.validate_audit(r)
+def write_report(out_path: Path, html: str) -> None:
+    """Write report.html, or exit 2 when it cannot be written."""
+    try:
+        out_path.write_text(html, encoding="utf-8")
+    except OSError as exc:
+        print(f"error: cannot write {out_path}: {exc}", file=sys.stderr)
+        sys.exit(2)
+    print(f"report: {out_path.absolute().as_uri()}")
+
+
+def exit_on_claim_errors(errors: list[str]) -> None:
     if errors:
         for error in errors:
             print(f"error: unsupported claim: {error}", file=sys.stderr)
         sys.exit(1)
 
+
+def main(argv: Any = None) -> None:
+    args = parse_args(argv)
+    report_path = Path(args.report_path).expanduser()
+    r = load_report(report_path)
     out_path = report_path.parent / "report.html"
-    out_path.write_text(render_page(r), encoding="utf-8")
-    print(f"report: {out_path.absolute().as_uri()}")
-    print(f"evaluation: {report_evaluation.evaluation_summary(r)}")
+    if report_adr.is_adr_only(r):
+        exit_on_claim_errors(report_adr.validate_adr_drift(r))
+        write_report(out_path, render_adr_page(r))
+    else:
+        r.setdefault("grade", grade_for(r["scores"]["overall"]))
+        exit_on_claim_errors(
+            report_evaluation.validate_report(r)
+            + report_audit.validate_audit(r)
+            + report_adr.validate_adr_drift(r)
+        )
+        write_report(out_path, render_page(r))
+        print(f"evaluation: {report_evaluation.evaluation_summary(r)}")
     if args.open_browser:
         if open_report(out_path):
             print("        opened in the default browser")
@@ -469,7 +491,8 @@ def main(argv: Any = None) -> None:
                 "warning: could not open the report in the default browser",
                 file=sys.stderr,
             )
-    print("        use the Share button to save a 2400x1350 PNG")
+    if not report_adr.is_adr_only(r):
+        print("        use the Share button to save a 2400x1350 PNG")
 
 
 if __name__ == "__main__":

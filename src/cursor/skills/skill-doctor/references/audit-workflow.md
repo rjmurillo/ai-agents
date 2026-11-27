@@ -14,6 +14,7 @@ One record per scored session:
 ```
 
 Set `session_id` to `<harness>:<id>`, the harness name and the session's `meta.id` from `inventory.json`, for example `copilot:3f2a9c`. Batched reviews assign the same form, and the report lists records by it.
+Set `thread` to the session's `thread` from `inventory.json`: `top_level` or `subagent`. A batch assignment carries it in `session_threads`, and the import fills it in for rows that leave it out. A row that names a different thread fails the import.
 
 ```bash
 python3 "$SKILL_ROOT/scripts/audit_scores.py" "$REPORT_DIR/scores.json" --out "$REPORT_DIR/score_artifact.json"
@@ -21,6 +22,25 @@ python3 "$SKILL_ROOT/scripts/audit_scores.py" "$REPORT_DIR/scores.json" --out "$
 
 It exits 1 and writes nothing when a label does not match its rubric value, a reason is missing, or a session id repeats. Fix the scores and rerun.
 When `terminated_by` is set, give every result an explicit `pre_cutoff`: `true` when the score rests on evidence from before the provider cutoff, `false` when it judges only the cut-off ending. A missing `pre_cutoff` on a terminated session counts as `false`, so that session leaves `failed_conversations`.
+
+## Aggregate formulas
+
+Step 3 of `SKILL.md` runs `audit_scores.py`. These formulas define what it computes:
+
+- `raw_efficiency` = mean of efficiency scores, excluding `insufficient_evidence` (0.5 if none, noted in findings).
+- `raw_code_quality` = mean of code-quality scores, excluding `insufficient_evidence`. If no session had enough evidence, set it to 0.5 and say so in the findings.
+- `raw_procedure_compliance` = mean of procedure-compliance scores, excluding `insufficient_evidence` (0.5 if none, noted in findings).
+- `raw_verbosity` = mean of verbosity scores, excluding `insufficient_evidence` (0.5 if none, noted in findings).
+- Curve qualitative rubric means into letter-grade report scores with `curve(score) = 0.5 + 0.5 * score`.
+- `efficiency = curve(raw_efficiency)`.
+- `code_quality = curve(raw_code_quality)`.
+- `procedure_compliance = curve(raw_procedure_compliance)`.
+- `verbosity = curve(raw_verbosity)`.
+- `skill_coverage` = fraction of sampled sessions where at least one installed skill was detected. If `skills_found` is 0, coverage is 0.
+- `overall = 0.25 * efficiency + 0.25 * code_quality + 0.2 * procedure_compliance + 0.15 * verbosity + 0.15 * skill_coverage.`
+
+For each harness in `stats.per_harness` that has scored sessions, the script also computes that harness's `overall` by applying the formulas above to its sessions only. Report these next to the combined `overall`; they are never averaged back into it.
+When records carry `thread`, the artifact also holds `per_thread` with each type's own `overall`, computed the same way.
 
 ## Assemble report.json
 
@@ -32,16 +52,18 @@ python3 "$SKILL_ROOT/scripts/assemble_report.py" "$REPORT_DIR/report.json" \
   --manifest "$REPORT_DIR/audit_manifest.json" --out "$REPORT_DIR/report.json"
 ```
 
-It recomputes the score artifact from `scores.json` and sets `scores`, `stats.sessions_analyzed`, each `sampling.per_harness.<harness>.overall`, and the `audit` object (`scores` and `records`, plus `catalog` from the manifest). Leave out `--manifest` when the collector ran without `--audit-manifest`. It drops `grade` so the renderer derives it. It exits 1 and writes nothing when the scores are invalid, a harness's `sampled` count differs from its scored sessions (import every batch first), `--artifact` does not match the recomputation, or the result fails the renderer's checks; it exits 2 on an unreadable file. Writing over the draft is safe: a failed run leaves it unchanged.
+It recomputes the score artifact from `scores.json` and sets `scores`, `stats.sessions_analyzed`, each `sampling.per_harness.<harness>.overall`, each `sampling.per_thread.<thread>.overall` when records carry `thread` (and its `sampled` count when the draft left it out), and the `audit` object (`scores` and `records`, plus `catalog` from the manifest). Leave out `--manifest` when the collector ran without `--audit-manifest`. It drops `grade` so the renderer derives it. It exits 1 and writes nothing when the scores are invalid, a harness's or a session type's `sampled` count differs from its scored sessions (import every batch first), `--artifact` does not match the recomputation, or the result fails the renderer's checks; it exits 2 on an unreadable file. Writing over the draft is safe: a failed run leaves it unchanged.
 
 ## Batched reviews
 
-For a long review, split the work into batches instead of scoring in one pass:
+For a long review, split the work into batches instead of scoring in one pass. Size each batch by transcript bytes. `--max-batch-bytes` closes a batch before its transcripts pass the cap. The script finds each transcript in the `transcripts` folder beside the inventory file, so it works from any directory. A sampled transcript it cannot read counts as 0 bytes: the script warns on stderr and lists the ids under `unreadable_transcripts` in `assignment.json`. A transcript over the cap gets its own batch, and `--batch-size` still caps the count:
 
 ```bash
-python3 "$SKILL_ROOT/scripts/audit_batches.py" assign "$REPORT_DIR/inventory.json" --batch-size 20 --out "$REPORT_DIR/batches"
+python3 "$SKILL_ROOT/scripts/audit_batches.py" assign "$REPORT_DIR/inventory.json" --batch-size 20 --max-batch-bytes 150000 --out "$REPORT_DIR/batches"
 python3 "$SKILL_ROOT/scripts/audit_batches.py" import "$REPORT_DIR/batches/<batch file>" <rows.json> --accepted "$REPORT_DIR/scores.json"
 ```
+
+Why bytes: one Sonnet scorer starts near 120k tokens of context once it holds the rubrics, the system prompt, and the repository rule files. Each transcript byte adds about 0.45 tokens. In calibration on 2026-11-26, 12 scorers ran batches of 63 KB to 342 KB. Batches up to 259 KB finished without compaction, at a 136k to 237k token peak. The 292 KB and 342 KB batches each compacted twice. The 292 KB scorer wrote all its rows after compacting, so its early scores came from a summary. Top-level transcripts run about 56 KB each and subagent transcripts about 10 KB, so a count rule is wrong for one type. A 20-transcript batch of top-level sessions is over 1 MB. Keep batches at or under 150 KB. Treat 200 KB as the ceiling, and set it lower when a repository's rule files are large.
 
 Each score row carries its `batch_id` and `source_digest`. An import that has missing, extra, duplicate, malformed, or foreign rows, or a batch file stripped of its selection rule, counts, or non-probability note, exits 1 and leaves the accepted file unchanged. A changed inventory needs a new assignment.
 

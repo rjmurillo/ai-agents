@@ -4,19 +4,8 @@ on:
   schedule:
     - cron: "30 6 * * 1"
   workflow_dispatch:
-  pull_request:
-    branches:
-      - main
-    paths:
-      - ".claude/skills/software-engineering-library/**"
-      - "src/claude/skills/software-engineering-library/**"
-      - "src/copilot-cli/skills/software-engineering-library/**"
-      - "tests/evals/rule-scenarios/*.json"
-      - "scripts/eval/eval-rule-activation.py"
-      - "scripts/eval/software_engineering_library_activation_gate.py"
-      - "scripts/eval/software_engineering_library_activation_ci.py"
-      - "scripts/eval/README.md"
-      - ".github/workflows/software-engineering-library-activation.yml"
+  # No pull_request trigger: the agent-claude environment approval is never
+  # given, so a PR run only waited and blocked auto-merge.
 
 permissions:
   contents: read
@@ -47,7 +36,7 @@ jobs:
           python-version: "3.15"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
         with:
           enable-cache: true
 
