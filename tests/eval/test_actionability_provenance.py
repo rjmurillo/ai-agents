@@ -25,6 +25,8 @@ from tests.eval._actionability_corpus_test_support import cc, corpus_prs, read_r
 
 io_module = __import__("scripts.eval.actionability_io", fromlist=["x"])
 
+pytestmark = pytest.mark.usefixtures("freeze_actionability_clock")
+
 _HEAD = "0123456789abcdef0123456789abcdef01234567"
 _NOW = "2026-11-24T12:00:00+00:00"
 
