@@ -28,6 +28,8 @@ from tests.eval._actionability_corpus_test_support import (
     write_prs,
 )
 
+pytestmark = pytest.mark.usefixtures("freeze_actionability_clock")
+
 _REVIEWERS = ["alice", "bob", "carol"]
 _SHEET_KEYS = {"id", "path", "diff_hunk", "body", "label"}
 _BAND_COUNT, _OUTSIDE_COUNT, _DEV_COUNT = 30, 10, 10
