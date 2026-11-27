@@ -16,6 +16,8 @@ import re
 import subprocess
 from collections import defaultdict
 from datetime import datetime, timezone
+from typing import Any
+from urllib.parse import quote
 
 # A GitHub Actions check-run details URL carries the workflow run identity:
 #   https://github.com/OWNER/REPO/actions/runs/<runId>/job/<jobId>
@@ -179,13 +181,28 @@ def extract_required_check_lists(
     return pending_required, failed_required
 
 
-def _fetch_branch_rules(owner: str, repo: str, branch: str) -> list | None:
+def _branch_rules_endpoint(owner: str, repo: str, branch: str) -> str | None:
+    """Return the branch rules endpoint, or None when the branch path is unsafe.
+
+    An empty branch, or any ``/`` separated segment that is empty, ``.`` or
+    ``..``, could redirect the request to another API path (CWE-20). Other
+    characters are percent-encoded, and the ``/`` separators are kept.
+    """
+    if not branch or any(segment in ("", ".", "..") for segment in branch.split("/")):
+        return None
+    return f"repos/{owner}/{repo}/rules/branches/{quote(branch, safe='/')}?per_page=100"
+
+
+def fetch_branch_rules(owner: str, repo: str, branch: str) -> list[Any] | None:
     """Return the flattened ruleset rules that apply to a branch, or None.
 
-    Returns None when the API call fails, times out, ``gh`` cannot be started,
-    the output is not JSON, or the payload is not a list.
+    Returns None when the branch path is unsafe (``gh`` is not run), the API
+    call fails, times out, ``gh`` cannot be started, the output is not JSON, or
+    the payload is not a list.
     """
-    endpoint = f"repos/{owner}/{repo}/rules/branches/{branch}?per_page=100"
+    endpoint = _branch_rules_endpoint(owner, repo, branch)
+    if endpoint is None:
+        return None
     try:
         result = subprocess.run(
             ["gh", "api", "--paginate", "--slurp", endpoint],
@@ -204,30 +221,15 @@ def _fetch_branch_rules(owner: str, repo: str, branch: str) -> list | None:
         return None
     if not isinstance(payload, list):
         return None
-    rules = (
+    return (
         [rule for page in payload for rule in page]
         if payload and all(isinstance(page, list) for page in payload)
         else payload
     )
-    return rules
 
 
-def fetch_ruleset_required_contexts(
-    owner: str, repo: str, branch: str = "main"
-) -> list[str] | None:
-    """Return the required status check context names from the branch ruleset.
-    Uses ``gh api repos/{owner}/{repo}/rules/branches/{branch}`` (not the
-    legacy ``/branches/{branch}/protection`` endpoint, which returns 404 for
-    repos that use rulesets instead of branch protection).
-
-    Returns a sorted list of context strings, or None if the API call fails,
-    times out, or ``gh`` cannot be started
-    (callers should treat None as unknown rather than empty). Refs issue #4359.
-    """
-    rules = _fetch_branch_rules(owner, repo, branch)
-    if rules is None:
-        return None
-
+def required_contexts_from_rules(rules: list[Any]) -> list[str]:
+    """Return the sorted required status check contexts found in ruleset rules."""
     contexts: list[str] = []
     for rule in rules:
         if not isinstance(rule, dict):
@@ -245,19 +247,31 @@ def fetch_ruleset_required_contexts(
     return sorted(set(contexts))
 
 
-def fetch_ruleset_requires_pull_request(owner: str, repo: str, branch: str = "main") -> bool | None:
-    """Return whether a ruleset rule of type ``pull_request`` covers the branch.
+def rules_require_pull_request(rules: list[Any]) -> bool:
+    """Return True when any ruleset rule has ``type == "pull_request"``.
 
-    Reads ``repos/{owner}/{repo}/rules/branches/{branch}``, so it sees rulesets
-    only. Classic branch protection is not visible here. Returns True when any
-    rule has ``type == "pull_request"``, False when the rules were read and none
-    has it, and None when the read failed. Callers must treat None as unknown,
-    not as False.
+    This sees ruleset rules only. Classic branch protection is not visible here.
+    It counts rule presence, not ``required_approving_review_count``.
     """
-    rules = _fetch_branch_rules(owner, repo, branch)
+    return any(isinstance(rule, dict) and rule.get("type") == "pull_request" for rule in rules)
+
+
+def fetch_ruleset_required_contexts(
+    owner: str, repo: str, branch: str = "main"
+) -> list[str] | None:
+    """Return the required status check context names from the branch ruleset.
+    Uses ``gh api repos/{owner}/{repo}/rules/branches/{branch}`` (not the
+    legacy ``/branches/{branch}/protection`` endpoint, which returns 404 for
+    repos that use rulesets instead of branch protection).
+
+    Returns a sorted list of context strings, or None if the API call fails,
+    times out, or ``gh`` cannot be started
+    (callers should treat None as unknown rather than empty). Refs issue #4359.
+    """
+    rules = fetch_branch_rules(owner, repo, branch)
     if rules is None:
         return None
-    return any(isinstance(rule, dict) and rule.get("type") == "pull_request" for rule in rules)
+    return required_contexts_from_rules(rules)
 
 
 def find_missing_required(

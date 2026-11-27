@@ -2805,32 +2805,46 @@ _STATUS_RULE = {
 }
 
 
-class TestFetchRulesetRequiresPullRequest:
-    """Unit tests for fetch_ruleset_requires_pull_request and the shared rules read."""
+class TestRulesRequirePullRequest:
+    """Unit tests for the pure rules_require_pull_request extractor."""
 
     @staticmethod
-    def _call(**run_kwargs):
-        from github_core.checks_rollup import fetch_ruleset_requires_pull_request
+    def _check(rules):
+        from github_core.checks_rollup import rules_require_pull_request
 
-        with patch("github_core.checks_rollup.subprocess.run", **run_kwargs) as mock_run:
-            result = fetch_ruleset_requires_pull_request("o", "r", "main")
-        return result, mock_run
+        return rules_require_pull_request(rules)
 
     def test_pull_request_rule_present_returns_true(self):
-        result, _ = self._call(return_value=_rules_result([[_STATUS_RULE, _PULL_REQUEST_RULE]]))
-        assert result is True
+        assert self._check([_STATUS_RULE, _PULL_REQUEST_RULE]) is True
 
     def test_rules_without_pull_request_returns_false(self):
-        result, _ = self._call(return_value=_rules_result([[_STATUS_RULE]]))
-        assert result is False
+        assert self._check([_STATUS_RULE, {"type": "deletion"}]) is False
 
     def test_empty_rule_list_returns_false(self):
-        result, _ = self._call(return_value=_rules_result([]))
-        assert result is False
+        assert self._check([]) is False
 
-    def test_empty_page_returns_false(self):
-        result, _ = self._call(return_value=_rules_result([[]]))
-        assert result is False
+    def test_non_dict_entries_are_ignored(self):
+        assert self._check(["pull_request", 3, None, _PULL_REQUEST_RULE]) is True
+
+    def test_only_non_dict_entries_returns_false(self):
+        assert self._check(["pull_request", 3, None]) is False
+
+    def test_zero_approving_review_count_still_returns_true(self):
+        """Pins the script's policy (rule presence counts), not a claim about GitHub."""
+        rule = {"type": "pull_request", "parameters": {"required_approving_review_count": 0}}
+        assert self._check([rule]) is True
+
+
+class TestFetchBranchRules:
+    """Unit tests for fetch_branch_rules and its branch path safety."""
+
+    @staticmethod
+    def _call(branch="main", **run_kwargs):
+        from github_core.checks_rollup import fetch_branch_rules
+
+        with patch("github_core.checks_rollup.subprocess.run", **run_kwargs) as mock_run:
+            result = fetch_branch_rules("o", "r", branch)
+        return result, mock_run
 
     def test_non_zero_exit_returns_none(self):
         result, _ = self._call(return_value=_rules_result([[_PULL_REQUEST_RULE]], returncode=1))
@@ -2862,36 +2876,69 @@ class TestFetchRulesetRequiresPullRequest:
     def test_slurped_pages_are_flattened(self):
         pages = [[_STATUS_RULE], [{"type": "deletion"}], [_PULL_REQUEST_RULE]]
         result, _ = self._call(return_value=_rules_result(pages))
-        assert result is True
+        assert result == [_STATUS_RULE, {"type": "deletion"}, _PULL_REQUEST_RULE]
 
     def test_flat_list_payload_is_accepted(self):
         result, _ = self._call(return_value=_rules_result([_STATUS_RULE, _PULL_REQUEST_RULE]))
-        assert result is True
+        assert result == [_STATUS_RULE, _PULL_REQUEST_RULE]
 
-    def test_non_dict_entries_are_skipped(self):
-        result, _ = self._call(
-            return_value=_rules_result([["pull_request", 3, None, _PULL_REQUEST_RULE]])
-        )
-        assert result is True
-
-    def test_only_non_dict_entries_returns_false(self):
-        result, _ = self._call(return_value=_rules_result([["pull_request", 3, None]]))
-        assert result is False
+    def test_empty_page_flattens_to_empty_list(self):
+        result, _ = self._call(return_value=_rules_result([[]]))
+        assert result == []
 
     def test_uses_the_branch_rules_endpoint(self):
         _, mock_run = self._call(return_value=_rules_result([[]]))
         command = mock_run.call_args.args[0]
-        assert command[:5] == ["gh", "api", "--paginate", "--slurp", command[4]]
-        assert command[-1] == "repos/o/r/rules/branches/main?per_page=100"
+        assert command == [
+            "gh",
+            "api",
+            "--paginate",
+            "--slurp",
+            "repos/o/r/rules/branches/main?per_page=100",
+        ]
 
     def test_other_errors_are_not_swallowed(self):
-        from github_core.checks_rollup import fetch_ruleset_requires_pull_request
+        from github_core.checks_rollup import fetch_branch_rules
 
         with (
             patch("github_core.checks_rollup.subprocess.run", side_effect=ValueError("bug")),
             pytest.raises(ValueError),
         ):
-            fetch_ruleset_requires_pull_request("o", "r", "main")
+            fetch_branch_rules("o", "r", "main")
+
+    def test_slash_in_branch_is_kept(self):
+        _, mock_run = self._call("release/1.2", return_value=_rules_result([[]]))
+        assert mock_run.call_args.args[0][-1] == "repos/o/r/rules/branches/release/1.2?per_page=100"
+
+    @pytest.mark.parametrize(
+        ("branch", "encoded"),
+        [("a#b", "a%23b"), ("a?b", "a%3Fb"), ("a b", "a%20b")],
+    )
+    def test_reserved_characters_are_percent_encoded(self, branch, encoded):
+        _, mock_run = self._call(branch, return_value=_rules_result([[]]))
+        endpoint = mock_run.call_args.args[0][-1]
+        assert endpoint == f"repos/o/r/rules/branches/{encoded}?per_page=100"
+
+    @pytest.mark.parametrize("branch", ["..", "x/../y", "", "x//y", ".", "./x", "x/"])
+    def test_unsafe_branch_returns_none_without_running_gh(self, branch):
+        result, mock_run = self._call(branch, return_value=_rules_result([[]]))
+        assert result is None
+        mock_run.assert_not_called()
+
+
+class TestRequiredContextsFromRules:
+    """Unit tests for the pure extractor and the contexts contract it backs."""
+
+    def test_extracts_sorted_unique_contexts(self):
+        from github_core.checks_rollup import required_contexts_from_rules
+
+        rules = [_STATUS_RULE, "junk", _STATUS_RULE, {"type": "required_status_checks"}]
+        assert required_contexts_from_rules(rules) == ["Validate PR"]
+
+    def test_empty_rules_return_empty_list(self):
+        from github_core.checks_rollup import required_contexts_from_rules
+
+        assert required_contexts_from_rules([]) == []
 
     def test_required_contexts_unchanged_for_mixed_payload(self):
         """Regression guard: the shared helper keeps the contexts contract."""
