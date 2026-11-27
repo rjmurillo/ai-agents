@@ -36,7 +36,8 @@ python3 "$SCRIPTS_DIR/test_pr_merged.py" --pull-request "$PR_NUMBER" | jq -e '.m
 
 A missing PR exits 3, and its JSON envelope has no `merged` field, so the
 `jq` check above reads it as "not merged". Exit 3 also covers API failures.
-To tell the cases apart, capture the output and read `.Error.Type`:
+To tell the cases apart, capture the JSON output (the default when piped, or
+pass `--output-format json`) and read `.Error.Type`:
 `NotFound` means fix the PR number, and anything else means retry later.
 
 To restore the legacy skip-review sentinel (only for callers that already

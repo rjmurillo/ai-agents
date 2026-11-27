@@ -121,7 +121,7 @@ def _human_summary(output: dict[str, Any]) -> str:
 def _exit_not_found(pull_request: int, owner: str, repo: str, fmt: str = "json") -> int:
     """Report a missing PR: stderr message, JSON envelope on stdout, exit 3.
 
-    Human mode gets the stderr message only, like the success path.
+    Human mode prints the stderr message and nothing on stdout.
 
     Exit 3 also covers API failures, so ``Error.Type`` ``NotFound`` is the
     signal that tells a deleted PR from an outage. The envelope is built
