@@ -18,11 +18,46 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import run_with_receipt as receipt_module
 import run_with_receipt_child as child_module
 from run_with_receipt import (
-    EXIT_EXTERNAL,  # noqa: F401
-    EXIT_USAGE,  # noqa: F401
+    EXIT_EXTERNAL,
+    EXIT_USAGE,
     main,
-    resolve_out_dir,  # noqa: F401
+    resolve_out_dir,
 )
+
+__all__ = [
+    "ARTIFACT_NAME",
+    "BEARER",
+    "EARLY_EXIT_SCRIPT",
+    "EXIT_EXTERNAL",
+    "EXIT_USAGE",
+    "GITHUB_TOKEN",
+    "POSIX_ONLY",
+    "SIGCHLD_REAPING_LAUNCHER",
+    "TREE_SCRIPT",
+    "WRAPPER_LAUNCHER",
+    "_FakePopen",
+    "artifact_from",
+    "artifacts",
+    "child_module",
+    "default_cancel_signals",
+    "default_sighup",
+    "default_sigterm",
+    "install_fake_popen",
+    "install_group_fakes",
+    "install_stubborn_group",
+    "kill_tree",
+    "main",
+    "pid_alive",
+    "pid_reaped",
+    "py",
+    "receipt_module",
+    "resolve_out_dir",
+    "run",
+    "start_wrapper",
+    "tree_pids",
+    "tree_ready",
+    "wait_until",
+]
 
 GITHUB_TOKEN = "ghp_" + "A1b2C3d4E5" * 4  # 40 chars after prefix, matches github-token rule
 ARTIFACT_NAME = "20260101T000000-deadbeef.log"

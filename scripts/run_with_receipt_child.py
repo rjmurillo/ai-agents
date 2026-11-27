@@ -22,7 +22,7 @@ import time
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from io import BufferedReader
-from typing import Protocol
+from typing import Protocol, cast
 
 EXIT_TIMEOUT = 124
 READ_CHUNK = 65536
@@ -354,12 +354,12 @@ def _spawn_and_collect(
     def pump_stdout() -> None:
         pipes_ready.wait()
         if not pumps_cancelled.is_set():
-            _pump(proc.stdout, "out", capture)
+            _pump(cast(BufferedReader, proc.stdout), "out", capture)
 
     def pump_stderr() -> None:
         pipes_ready.wait()
         if not pumps_cancelled.is_set():
-            _pump(proc.stderr, "err", capture)
+            _pump(cast(BufferedReader, proc.stderr), "err", capture)
 
     threads = [
         threading.Thread(target=pump_stdout, daemon=True),

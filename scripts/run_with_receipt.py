@@ -286,6 +286,7 @@ def run_command(
     timeout_seconds: int | None = None,
 ) -> int:
     started = time.monotonic()
+    exit_code: int
     try:
         exit_code, capture, timed_out = run_child(argv, timeout_seconds)
     except OSError as exc:

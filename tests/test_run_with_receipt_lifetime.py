@@ -13,7 +13,6 @@ import pytest
 from tests.run_with_receipt_helpers import (
     POSIX_ONLY,
     TREE_SCRIPT,
-    WRAPPER_LAUNCHER,
     _FakePopen,
     child_module,
     default_cancel_signals,  # noqa: F401
@@ -25,6 +24,7 @@ from tests.run_with_receipt_helpers import (
     pid_alive,
     py,
     receipt_module,
+    start_wrapper,
     tree_pids,
     tree_ready,
     wait_until,
@@ -37,28 +37,7 @@ class TestTimedChildLifetime:
     @POSIX_ONLY
     @pytest.mark.parametrize("sig", [signal.SIGTERM, signal.SIGINT], ids=["sigterm", "sigint"])
     def test_cancelled_wrapper_stops_the_timed_child_tree(self, tmp_path, sig):
-        (tmp_path / "tree.py").write_text(TREE_SCRIPT, encoding="utf-8")
-        wrapper = subprocess.Popen(
-            [
-                sys.executable,
-                "-c",
-                WRAPPER_LAUNCHER,
-                receipt_module.__file__,
-                "run",
-                "--timeout-seconds",
-                "30",
-                "--out-dir",
-                str(tmp_path / "out"),
-                "--",
-                sys.executable,
-                str(tmp_path / "tree.py"),
-                str(tmp_path),
-                "plain",
-            ],
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        wrapper = start_wrapper(tmp_path, TREE_SCRIPT, "plain")
         try:
             assert wait_until(lambda: tree_ready(tmp_path)), "child tree never became ready"
             child, grand = tree_pids(tmp_path)
@@ -75,28 +54,7 @@ class TestTimedChildLifetime:
 
     @POSIX_ONLY
     def test_sigterm_to_wrapper_exits_with_128_plus_signal(self, tmp_path):
-        (tmp_path / "tree.py").write_text(TREE_SCRIPT, encoding="utf-8")
-        wrapper = subprocess.Popen(
-            [
-                sys.executable,
-                "-c",
-                WRAPPER_LAUNCHER,
-                receipt_module.__file__,
-                "run",
-                "--timeout-seconds",
-                "30",
-                "--out-dir",
-                str(tmp_path / "out"),
-                "--",
-                sys.executable,
-                str(tmp_path / "tree.py"),
-                str(tmp_path),
-                "plain",
-            ],
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        wrapper = start_wrapper(tmp_path, TREE_SCRIPT, "plain")
         try:
             assert wait_until(lambda: tree_ready(tmp_path)), "child tree never became ready"
             wrapper.send_signal(signal.SIGTERM)
