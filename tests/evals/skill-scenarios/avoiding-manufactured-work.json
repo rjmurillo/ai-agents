@@ -1,0 +1,96 @@
+{
+  "skill_path": ".claude/skills/avoiding-manufactured-work/SKILL.md",
+  "skill_id": "avoiding-manufactured-work",
+  "scenarios": [
+    {
+      "id": "D1",
+      "desc": "A typo inside the function the requested change edits is fixed in the same PR as its own commit",
+      "input": "My task is to add currency support to parse_invoice() in billing/invoice.py. While editing that function I saw its docstring says 'recieve' instead of 'receive'. Do I fix the typo? If so, in which PR, in which commit, and do I mention it anywhere? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "fix it in the same PR",
+        "its own commit",
+        "name it in the PR body",
+        "behavior-preserving"
+      ],
+      "expected_gate": "drive-by-same-pr-cleanup",
+      "rationale": "A typo in the function the change already edits is tiny, behavior-preserving, and makes the requested diff easier to read. Accepted practice (Google small CLs: small cleanups such as a local variable name can ride along) puts it in the same PR as a separate commit that the PR body names. Ignoring it, deferring it, or filing an issue for it misses the bounded drive-by allowance."
+    },
+    {
+      "id": "D2",
+      "desc": "An unrelated behavior bug found nearby goes to its own branch and PR with its own proof",
+      "input": "My task is to add currency support to parse_invoice() in billing/invoice.py. In the same file I noticed format_receipt() truncates cents with int(), so some customers see totals one cent low. My change does not depend on it. What do I do with that bug? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "separate branch and PR",
+        "do not bundle it",
+        "failing test as proof",
+        "named impact"
+      ],
+      "expected_gate": "drive-by-separate-pr-defect",
+      "rationale": "A confirmed defect that changes behavior needs its own review and must be revertable alone, so it gets its own branch and PR with a reproducing test. Bundling it into the currency PR, or only noting it and dropping it, both miss the rule."
+    },
+    {
+      "id": "D3",
+      "desc": "A naming or style preference is not done and no issue or branch is filed",
+      "input": "While adding currency support to parse_invoice() I think billing/invoice.py would read better if every fetch_ helper were renamed to get_ and the file used double quotes throughout. Nothing is broken. Should I change it, open an issue, or open a follow-up PR? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "do not change it",
+        "no issue",
+        "no follow-up PR",
+        "preference, not a defect"
+      ],
+      "expected_gate": "drive-by-reject-taste",
+      "rationale": "Naming taste and whole-file formatting have no named breakage and no proof. The rule says do not do them and do not turn a preference into an issue or a branch. Any answer that changes the code, files an issue, or queues a follow-up PR fails."
+    },
+    {
+      "id": "D4",
+      "desc": "A cleanup chain stops after the first drive-by fix",
+      "input": "My task is to add currency support to parse_invoice(). As a tidy commit I removed a dead local variable in parse_invoice(). Doing that showed me that the helper it calls, _round_amount(), has an unclear name and the same logic is copied into two other modules. Do I keep going and clean those up? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "stop",
+        "a drive-by fix never spawns another",
+        "no cross-module rename",
+        "return to the requested change"
+      ],
+      "expected_gate": "drive-by-stop-chain",
+      "rationale": "One drive-by fix never leads to another. A cross-module rename and deduplication are refactors with no named consumer. The response should stop after the first cleanup and finish the requested change."
+    },
+    {
+      "id": "D5",
+      "desc": "Callers, tests, and generated output the requested change needs stay in the same PR",
+      "input": "My task renames the config key retry_limit to max_retries in loader.py. Three callers still read retry_limit, one test asserts the old key, and a generated docs page lists it. Do those updates go in this PR or in separate PRs? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "same PR",
+        "update the callers",
+        "update the test",
+        "regenerate the docs"
+      ],
+      "expected_gate": "drive-by-include-dependency",
+      "rationale": "Work the requested change needs to be correct is part of the change, not a drive-by. Splitting the callers, test, or generated docs into later PRs leaves main broken between merges."
+    },
+    {
+      "id": "D6",
+      "desc": "Once the requested change is proven the agent stops with no sweep and no continuation offer",
+      "input": "My task was to add currency support to parse_invoice(). It is done: tests pass, CI is green, and the PR body is written. I still have budget left. Should I look around the module for more improvements, or offer the user some follow-ups? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "stop",
+        "task is terminal",
+        "no sweep for more work",
+        "no continuation offer"
+      ],
+      "expected_gate": "drive-by-stop-when-proven",
+      "rationale": "Remaining budget is not a reason to keep working. Once the requested change is proven the task is terminal: no sweep for more cleanup and no offer to continue."
+    },
+    {
+      "id": "D7",
+      "desc": "A rename the user explicitly requested is the task itself, so drive-by limits do not block it",
+      "input": "Please rename every fetch_ helper in billing/ to get_ across all modules, update the callers and tests, and open one PR for it. Plan the work in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "rename across modules",
+        "update callers and tests",
+        "one PR"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The user asked for the cross-module rename, so it is the requested change, not a drive-by. A good response plans the rename directly. Refusing it as taste, splitting it into drive-by classes, or asking for evidence of breakage applies the drive-by rule where it does not belong."
+    }
+  ]
+}
