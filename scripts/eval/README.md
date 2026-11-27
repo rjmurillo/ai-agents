@@ -842,6 +842,10 @@ framing in the new critic/qa/implementer templates produces a statistically
 significant behavioral delta vs the origin/main control versions.
 
 - **Control**: agent template at the chosen git ref (default: `main`).
+  `main` has carried the treatment since `76b7a7257a` (2026-05-07), so the
+  default compares a template with itself. Pass `--base-ref 76b7a7257a^` for
+  the pre-treatment control.
+- **Model**: one `--model` for every agent (default `claude-sonnet-4-5`).
 - **Treatment**: agent template at HEAD (working copy).
 - **Trials**: configurable, default 5; production runs use 10.
 - **Tests**: Fisher's exact (one-sided) on verdict-pass rate; Mann-Whitney U
@@ -853,7 +857,8 @@ Fixtures live in `evals/reviewer-asymmetry-spike/fixtures/` and follow a
 schema that pairs `verdict_options` with optional `min_findings_count` for
 continuous metrics. See `evals/reviewer-asymmetry-spike/README.md`.
 
-Cost: ~$0.60 USD for 10 trials × 6 fixtures × 2 conditions = 120 calls.
+Calls: 10 trials × 7 fixtures × 2 conditions = 140. The 2026-05-06 run used
+6 fixtures and 120 calls for ~$0.60 USD.
 
 ## adr-review Catch-Rate Eval
 
