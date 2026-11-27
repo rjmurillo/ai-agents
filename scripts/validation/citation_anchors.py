@@ -117,7 +117,10 @@ def _anchor_candidates(context_lines: list[str], citation_text: str) -> list[str
         # quote of a real anchor and swallow it.
         masked = masked.replace('"""', " ").replace("'''", " ")
         quote_masked = _mask_dquotes_in_backtick_spans(masked)
-        for span in _BACKTICK_SPAN.findall(masked) + _DQUOTE_SPAN.findall(quote_masked):
+        quote_spans = [
+            masked[match.start(1) : match.end(1)] for match in _DQUOTE_SPAN.finditer(quote_masked)
+        ]
+        for span in _BACKTICK_SPAN.findall(masked) + quote_spans:
             candidate = _span_anchor(span, citation_text)
             if candidate is not None:
                 anchors.append(candidate)

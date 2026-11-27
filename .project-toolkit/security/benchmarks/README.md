@@ -92,37 +92,38 @@ uv run pytest .project-toolkit/security/benchmarks/ -v
 The security agent workflow now fetches CodeQL alerts before manual review:
 
 ```bash
-# Resolve the repository from origin explicitly. GitHub CLI placeholders can
-# resolve a different remote when origin and upstream both exist.
-repo="$(uv run python -c 'from scripts.github_core.api import get_repo_info; i=get_repo_info(); print(f"{i.owner}/{i.repo}" if i else "")')"
-if [ -z "$repo" ]; then
-  echo "Could not resolve a GitHub repository from origin." >&2
+# Set these from the PR's base repository, never from the fork's origin.
+# Example: base_owner=rjmurillo base_repo=ai-agents pull_request=7762
+# Set review_base_ref to a fetched local base ref, for example upstream/main.
+if [ -z "${base_owner:-}" ] || [ -z "${base_repo:-}" ] ||
+   [ -z "${pull_request:-}" ] || [ -z "${review_base_ref:-}" ]; then
+  echo "Set base_owner, base_repo, pull_request, and review_base_ref explicitly." >&2
   exit 2
 fi
-
-# For a pull request scan, set scan_ref first:
-#   scan_ref=refs/pull/<number>/merge
-# On an attached branch, an empty scan_ref uses the current branch. A detached
-# checkout cannot identify its scan ref and must set scan_ref explicitly.
-scan_ref="${scan_ref:-}"
-if [ -z "$scan_ref" ]; then
-  branch="$(git branch --show-current)"
-  if [ -z "$branch" ]; then
-    echo "Set scan_ref explicitly, for example scan_ref=refs/pull/<number>/merge." >&2
-    exit 2
-  fi
-  scan_ref="refs/heads/$branch"
+head_sha="$(git rev-parse HEAD)" || exit 2
+changed_files="$(git diff --name-only --merge-base "$review_base_ref" HEAD)" || exit 2
+tree_state=dirty
+status="$(git status --porcelain)" || exit 2
+if [ -z "$status" ]; then
+  tree_state=clean
 fi
 
-# Fetch every open CodeQL alert for the scan ref through the GitHub API
-env -u GH_REPO gh api --method GET "repos/$repo/code-scanning/alerts" \
-  -f state=open \
-  -f "ref=$scan_ref" \
-  --paginate \
-  --jq '.[]'
+# The GitHub skill reads every open alert and verifies PR merge-ref freshness.
+printf '%s\n' "$changed_files" |
+  python3 .claude/lib/ptk_run.py skills/github/scripts/pr/get_pr_code_scanning_alerts.py \
+    --owner "$base_owner" --repo "$base_repo" --pull-request "$pull_request" \
+    --head-sha "$head_sha" --tree-state "$tree_state" \
+    --changed-files-from - --output-format json
 ```
 
-This ensures the agent reviews all automated findings before producing its assessment.
+Use the `github` skill's transport preflight before running this block.
+PR scans require explicit base-repository parameters, including in detached checkouts.
+Exit 0 alone is not a clean scan; inspect `Data.outcome`.
+Only `CURRENT` carries alerts, including counts for findings outside the diff.
+Report `STALE`, `NOT ANALYZED`, and `SKIPPED` without claiming a clean scan.
+For a branch without a PR, use `codeql-scan` for a local scan.
+The PR reader does not support branch refs.
+Keep any branch-repository inference scoped to origin, not PR base selection.
 
 ## Test Case Format
 
@@ -162,7 +163,7 @@ vulnerable_code_here
 
 ## Verification Procedure
 
-1. Fetch CodeQL alerts through the GitHub API (automated detection)
+1. Read CodeQL alerts through the GitHub skill and record analysis freshness.
 2. Run security agent on `vulnerable_samples/` directory (interpretation)
 3. Collect agent review in `.project-toolkit/security/SR-benchmark-*.md`
 4. Evaluate interpretation quality:
