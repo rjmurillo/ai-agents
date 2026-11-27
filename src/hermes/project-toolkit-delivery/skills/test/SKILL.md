@@ -1,7 +1,7 @@
 ---
 name: test
 version: 1.0.0
-description: Prove a change works across six gates covering functional, non-functional, security, DevOps, developer experience, and observability quality. Use when you say `prove this works`, `run the test gates`, or `validate this change`, and run it after build. Also use when writing or editing tests under tests/ or *.Tests.ps1, a mutation harness, test fixtures or baselines, coverage targets, or a CI-only guard in a test. Do NOT use to write the implementation or its first tests (use build), and do NOT use to run pre-flight and open a PR (use ship).
+description: "Prove a change works across six quality gates. Use when you say `prove this works`, `run the test gates`, or `validate this change`, after build, or when editing tests under tests/ or *.Tests.ps1. Do NOT use to write the implementation or its first tests (use build) or open a PR (use ship)."
 license: Apache-2.0
 argument-hint: component-or-failure-description
 user-invocable: true

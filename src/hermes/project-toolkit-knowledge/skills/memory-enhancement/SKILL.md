@@ -1,10 +1,7 @@
 ---
 name: memory-enhancement
 version: 1.0.0
-description: >
-  Manage memory citations, verify code references, and track confidence scores. Use when adding citations to memories, checking citation health, or verifying code references are still valid.
-  Use when you say "add a citation", "verify this memory's code refs", "check citation health".
-  Do NOT use for searching or creating memories (use memory), for documentary reports (use memory-documentary), or for tier availability, token, or size checks (use memory-maintenance).
+description: "Manage memory citations: add, verify code references, track confidence. Use when you say \"add a citation\", \"verify this memory's code refs\", \"check citation health\". Do NOT use for searching or creating memories (use memory), documentary reports (use memory-documentary), or tier, token, or size checks (use memory-maintenance)."
 license: Apache-2.0
 ---
 

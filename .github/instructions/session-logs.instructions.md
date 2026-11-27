@@ -47,11 +47,11 @@ destination-dependent behavior.
    `commits: 0` and `files_changed > 0`. That shape trips the episode-store
    ratchet in
    `tests/skills/memory/test_extract_session_episode.py::TestValidateModeRejectsUnusableEventIds::test_the_committed_episode_store_is_clean`,
-   which runs inside the `python-tests` pre-push job and rejects the ref only
-   after the full suite has burned ~18 minutes. Standalone
-   `validate_session_json.py` is seconds and catches nothing here; the ratchet
-   costs the whole suite. After setting the SHA, regenerate the episode with
-   `extract_session_episode.py <log> --preserve` and commit both.
+   which runs in CI `Run Python Tests` and rejects the PR after the pytest
+   matrix runs. Standalone `validate_session_json.py` is seconds and catches
+   nothing here; run the episode-store test directly. After setting the SHA,
+   regenerate the episode with `extract_session_episode.py <log> --preserve`
+   and commit both.
 
 3. **Re-point `endingCommit` after any rebase of a branch that carries a session
    log.** Rebasing rewrites every commit on the branch, so it orphans a recorded

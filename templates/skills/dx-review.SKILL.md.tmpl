@@ -1,16 +1,7 @@
 ---
 name: dx-review
 version: 1.0.0
-description: >
-  Evidence-based developer experience audit. Discovers the target, tests
-  onboarding and setup flows, evaluates API/CLI ergonomics, error messages,
-  documentation, upgrade paths, developer environment, community health, and
-  DX measurement practices. Produces a scorecard where every score cites
-  evidence labeled TESTED, PARTIAL, or INFERRED. Measures Time-to-Hello-World
-  when the target supports it. Compares against a prior dx-review result when
-  one exists (boomerang). Use when asked to "run a DX audit", "test the
-  developer experience", "measure onboarding friction", "DX scorecard", or
-  "evaluate developer ergonomics". Do NOT use for a full pre-merge review (use review).
+description: "Evidence-based developer experience audit: onboarding, API/CLI ergonomics, error messages, docs, upgrade paths, scored with TESTED, PARTIAL, or INFERRED evidence. Use when asked to \"run a DX audit\", \"measure onboarding friction\", or \"DX scorecard\". Do NOT use for a full pre-merge review (use review)."
 license: MIT
 user-invocable: true
 allowed-tools:
