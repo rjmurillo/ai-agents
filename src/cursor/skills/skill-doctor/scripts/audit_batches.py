@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 import audit_scores
+from audit_batch_sizes import transcript_bytes
 from session_common import THREADS, session_thread
 
 ASSIGNMENT_VERSION = 1
@@ -112,7 +113,8 @@ def _stratum_details(inventory: Mapping[str, Any], stratum: str) -> dict[str, An
             "cap": cap if stratum == "timeline_supplement" else sampling.get("max_sessions"),
             "selection_rule": declared["rule"],
         }
-    rule = f"{sampling.get('rule', '')} {sampling.get('within_harness', '')}".strip()
+    parts = (sampling.get(key, "") for key in ("rule", "within_harness", "top_level_rule"))
+    rule = " ".join(part for part in parts if part)
     return {
         "candidate_count": inventory.get("stats", {}).get("sessions_considered"),
         "cap": sampling.get("max_sessions"),
@@ -124,21 +126,55 @@ def _batch_id(digest: str, stratum: str, ids: Sequence[str], number: int) -> str
     return f"batch-{number:03d}-{_digest([digest, stratum, list(ids)])[:12]}"
 
 
+def _chunks(
+    ids: Sequence[str], batch_size: int, max_bytes: int | None, sizes: Mapping[str, int]
+) -> list[list[str]]:
+    """Cut ``ids`` in order. A batch closes at ``batch_size`` ids or before passing ``max_bytes``.
+
+    A transcript larger than ``max_bytes`` gets a batch of its own.
+    """
+    chunks: list[list[str]] = []
+    current: list[str] = []
+    total = 0
+    for key in ids:
+        size = sizes.get(key, 0)
+        full = len(current) >= batch_size
+        over = max_bytes is not None and current and total + size > max_bytes
+        if full or over:
+            chunks.append(current)
+            current, total = [], 0
+        current.append(key)
+        total += size
+    if current:
+        chunks.append(current)
+    return chunks
+
+
 def build_assignment(
     inventory: Mapping[str, Any],
     batch_size: int,
     audit_manifest: Mapping[str, Any] | None = None,
+    max_batch_bytes: int | None = None,
+    base_dir: Path | None = None,
 ) -> dict[str, Any]:
-    """Split the sampled sessions into immutable batches. Same inputs give the same output."""
+    """Split the sampled sessions into immutable batches. Same inputs give the same output.
+
+    ``base_dir`` is the inventory's folder, where its ``transcripts`` folder is looked up.
+    """
     if batch_size < 1:
         raise ValueError("batch_size must be at least 1")
+    if max_batch_bytes is not None and max_batch_bytes < 1:
+        raise ValueError("max_batch_bytes must be at least 1")
     digest = source_digest(inventory, audit_manifest)
     strata = _sampled_by_stratum(inventory)
+    sizes, unreadable = (
+        transcript_bytes(inventory, session_key, base_dir)
+        if max_batch_bytes is not None
+        else ({}, [])
+    )
     batches: list[dict[str, Any]] = []
     for stratum in _ordered_strata(list(strata)):
-        ids = strata[stratum]
-        for start in range(0, len(ids), batch_size):
-            chunk = ids[start : start + batch_size]
+        for chunk in _chunks(strata[stratum], batch_size, max_batch_bytes, sizes):
             batches.append(
                 {
                     "assignment_version": ASSIGNMENT_VERSION,
@@ -152,13 +188,19 @@ def build_assignment(
                     "session_threads": _threads_of(inventory, chunk),
                 }
             )
-    return {
+            if max_batch_bytes is not None:
+                batches[-1]["transcript_bytes"] = sum(sizes.get(key, 0) for key in chunk)
+    assignment = {
         "assignment_version": ASSIGNMENT_VERSION,
         "source_digest": digest,
         "batch_size": batch_size,
         "total_sessions": sum(len(ids) for ids in strata.values()),
         "batches": batches,
     }
+    if max_batch_bytes is not None:
+        assignment["max_batch_bytes"] = max_batch_bytes
+        assignment["unreadable_transcripts"] = unreadable
+    return assignment
 
 
 def _dump(data: Mapping[str, Any]) -> str:
@@ -375,6 +417,13 @@ def _parser() -> argparse.ArgumentParser:
     assign = sub.add_parser("assign", help="write assignment manifests from an inventory")
     assign.add_argument("inventory", type=Path)
     assign.add_argument("--batch-size", type=int, required=True)
+    assign.add_argument(
+        "--max-batch-bytes",
+        type=int,
+        default=None,
+        help="also close a batch before its transcripts pass N bytes; "
+        "a larger transcript gets its own batch",
+    )
     assign.add_argument("--out", type=Path, required=True)
     assign.add_argument("--audit-manifest", type=Path, default=None)
     imp = sub.add_parser("import", help="validate and accept one batch of score rows")
@@ -392,10 +441,23 @@ def _run_assign(args: argparse.Namespace) -> int:
     if args.batch_size < 1:
         print("error: --batch-size must be at least 1", file=sys.stderr)
         return 2
+    if args.max_batch_bytes is not None and args.max_batch_bytes < 1:
+        print("error: --max-batch-bytes must be at least 1", file=sys.stderr)
+        return 2
     inventory = _read_json(args.inventory)
     manifest = _read_json(args.audit_manifest) if args.audit_manifest else None
-    assignment = build_assignment(inventory, args.batch_size, manifest)
+    assignment = build_assignment(
+        inventory, args.batch_size, manifest, args.max_batch_bytes, args.inventory.parent
+    )
     write_assignment_dir(assignment, args.out)
+    if assignment.get("unreadable_transcripts"):
+        missing = assignment["unreadable_transcripts"]
+        print(
+            f"warning: {len(missing)} sampled transcripts were unreadable and counted as 0 "
+            f"bytes, so batches may pass --max-batch-bytes: {', '.join(missing[:5])}"
+            + (", ..." if len(missing) > 5 else ""),
+            file=sys.stderr,
+        )
     print(f"{len(assignment['batches'])} batches, {assignment['total_sessions']} sessions")
     return 0
 
