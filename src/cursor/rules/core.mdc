@@ -61,13 +61,9 @@ Clause 5 and Task Completion Contract own sovereignty and completion.
 - **Authority is bounded by the request.** "Fix the failing test" means the smallest change that makes it pass for the intended behavior, not cleanup, refactors, or upgrades. Subagents and handoffs inherit that bound, never a wider one.
 - **A materially different action is a new decision.** If the only remedy is broader, destructive, or in state the user did not name, surface it before acting, unless an active workflow covers it.
 
----
-
 ## Unattended Runs
 
-No human reads questions in a scheduled, headless, or explicit full-send run. Never end such a run on a question. Record the ambiguity and the choice, take the safest reversible branch, and continue. Force-push, hook skip, recursive delete, secrets, and admin merge stay human-only.
-
----
+No human reads questions in scheduled, headless, or full-send runs. Never end on a question. Log ambiguity and choice, take the safest reversible path, continue. Force-push, hook skip, recursive delete, secrets, admin merge: human-only.
 
 ## Completion-Tail Audit
 
