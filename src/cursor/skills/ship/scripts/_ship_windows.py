@@ -45,16 +45,25 @@ def _pathext_suffixes() -> list[str]:
     return [s for s in (os.environ.get("PATHEXT") or _DEFAULT_PATHEXT).split(";") if s]
 
 
+def _planted_suffixes() -> list[str]:
+    """PATHEXT plus ``.EXE``: CreateProcess appends ``.exe`` to a bare name whatever PATHEXT says."""
+    suffixes = _pathext_suffixes()
+    if not any(suffix.lower() == ".exe" for suffix in suffixes):
+        suffixes.append(".EXE")
+    return suffixes
+
+
 def planted_programs(root: Path) -> list[str]:
-    """Return the files in ``root`` named like a spawned program plus a PATHEXT suffix.
+    """Return the files in ``root`` named like a spawned program plus a run suffix.
 
     Each entry is ``<name><suffix>``, such as ``git.EXE``, for a name in
-    ``SPAWNED_PROGRAMS``. An empty list means the root holds none.
+    ``SPAWNED_PROGRAMS``. The suffixes are PATHEXT plus ``.EXE``. An empty
+    list means the root holds none.
     """
     return [
         name + suffix
         for name in SPAWNED_PROGRAMS
-        for suffix in _pathext_suffixes()
+        for suffix in _planted_suffixes()
         if (root / (name + suffix)).is_file()
     ]
 
@@ -73,7 +82,7 @@ def find_program(name: str) -> str | None:
 
 
 def command(argv: list[str]) -> list[str] | str | None:
-    """Return what to pass to ``subprocess.run``, or None when cmd.exe would rewrite it.
+    """Return what to pass to ``subprocess.Popen``, or None when cmd.exe would rewrite it.
 
     Off Windows, and for a name with a directory part, ``argv`` is unchanged.
     An unfound name raises FileNotFoundError, which ``run`` reports as 127: a

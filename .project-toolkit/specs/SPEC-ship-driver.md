@@ -64,16 +64,20 @@ Replaces both host-detection blocks and the PR ownership prose.
 | `HOST:` | `github` or `ado` |
 | `MODE:` | `owner` or `contributor` |
 | `PR:` | `none` or the PR number or `pullRequestId` |
-| `BASE:` | the target branch |
+| `BASE:` | the target branch: an open PR's own target, else `--base`, else the origin default |
 | `HEAD:` | the full HEAD SHA |
 
 - No origin remote: `STOP: no-origin`, exit 2. A remote that is not `https`, `ssh`, or scp-style: `STOP: unsupported-remote`, exit 2.
 - A failed `gh` or `az` query: `STOP: pr-query-failed`, exit 3, or `STOP: auth-failed`, exit 4.
 - An open PR with no author in the host reply: `STOP: pr-author-unknown`, exit 3.
+- An open PR sets `BASE` to its own target branch, so the paths check reads the PR's real diff.
+  A host reply with no usable target is `STOP: pr-query-failed`, exit 3.
+  A `--base` that names another branch is `STOP: base-mismatch`, exit 2.
   It never prints `PR: none` after a failed query.
 - In owner mode with no open PR, a base branch (`main`, `master`, the origin default, or `--base`) is `STOP: on-base-branch`, exit 1.
-- On Windows, a checkout root or current directory that holds a file named `git`, `gh`, or `az` with a `PATHEXT` suffix, such as `git.exe`, is `STOP: unsafe-checkout`, exit 2.
+- On Windows, a checkout root or current directory that holds a file named `git`, `gh`, or `az` with a `PATHEXT` suffix or `.exe`, such as `git.exe`, is `STOP: unsafe-checkout`, exit 2.
   CreateProcess searches the current directory before `PATH`, so that file would run in place of the installed program (CWE-427).
+  `.exe` is always checked, because CreateProcess adds it to a bare name whatever `PATHEXT` says.
   Helpers run in the checkout root and may spawn a bare `git` themselves. The current-directory check is defense in depth for a helper run without a working directory.
 - Host rule: match the parsed URL host, not a substring.
   This fixes finding LOW-1 from the 2026-11-25 security review.
@@ -89,6 +93,9 @@ Runs the checks that have one right answer.
 | `--check pipeline` | `CHECK: pipeline=PASS`, `FAIL`, `PENDING`, or `DEFERRED` |
 
 - `pipeline` on GitHub wraps `get_pr_checks.py`. It keeps today's rules.
+  The PR's own URL names its host, owner, and repository. The helper gets them as `--owner`, `--repo`, and `GH_HOST`.
+  The second head read names the same repository, so a fork's PR with the same number is never read there.
+  The first read uses gh's default repository; its branch and SHA must still match the local HEAD.
   PASS needs exit 0, `RequiredState == SUCCESS`, and `AllPassing == true`.
 - `pipeline` on ADO moves today's bash policy block into Python.
   Each blocking build policy must be approved on the current merge commit.
@@ -115,7 +122,7 @@ Owns everything `/push-pr` did after the body is written.
 | `branch --name <type>/<slug>` | creates and switches to a feature branch | `BRANCH:` |
 | `prepare [--base <ref>]` | allocates the body file and seeds the template | `BODY_FILE: <path>` |
 | `check --title --body-file [--base <ref>]` | title, body, paths-in-diff, ADO description rules | `CHECK: title=`, `CHECK: body=`, `CHECK: paths=` |
-| `publish --title --body-file [--base <ref>] [--draft] [--require-axis A] [--paths-checked-by-hand]` | push, then create the PR | `PUSH:`, `PR:`, `NEXT:` |
+| `publish --title --body-file [--base <ref>] [--draft] [--require-axis A] [--paths-checked-by-hand]` | push, then create the PR | `PUSH_LOCK:`, `PUSH:`, `PR:`, `NEXT:` |
 
 `publish` rules, all enforced in code:
 
@@ -127,6 +134,20 @@ Owns everything `/push-pr` did after the body is written.
 - It refuses `MODE: contributor`: `STOP: contributor-mode`, exit 1.
 - It never creates a commit.
 - It reruns `check` and stops on any failure before the push.
+- It holds the shared push lock, `$HOME/src/scratch/locks/push-lock-<slug>.lock`, for the whole push. It prints `PUSH_LOCK: held`.
+  The commit guard reads that lock, so a commit cannot land while the pre-push suite runs.
+  The lock stays in the script process; children never inherit it.
+  So a daemon that git or a hook starts, such as `git credential-cache`, cannot keep it after the push.
+  Off Windows the push runs in a new session, so it gets no signal sent to the caller's process group.
+  A push timeout, a Ctrl-C, or a SIGTERM, SIGHUP, or SIGQUIT to the script kills the push's process group, hooks included, before the lock is released.
+  A signal kill ends `STOP: push-interrupted`, exit 3; the remote may or may not hold the push, so the note says to check it.
+  A signal the caller ignores stays ignored, so a push under `nohup` survives a hangup.
+  A hook child that moves to its own process group or session escapes that kill and runs on unlocked.
+  So does every child when the script dies from any other signal, such as SIGKILL.
+  The push has no terminal there, so git cannot prompt for a password; that push ends `STOP: auth-failed`.
+  A lock another push holds is `STOP: push-locked`, exit 3, and nothing is pushed.
+  With no flock (Windows), no `HOME`, an unwritable lock directory, or a failed lock call, it pushes and prints `PUSH_LOCK: unavailable`.
+  It pushes rather than stops there, because a stop would block every publish on that host. The cost is no serialization with the commit guard there.
 - GitHub create calls `new_pr.py` as today.
 - ADO create builds a fixed argument list and runs it without a shell.
 - On Windows, `az` is `az.cmd`, which runs through cmd.exe. The scripts find it on absolute `PATH` entries only, never the current directory.
@@ -164,7 +185,7 @@ A STOP detail is at most 500 characters.
 |---|---|---|---|
 | `ship_detect.py` | `HOST`, `REMOTE_HOST`, `BRANCH`, `BASE`, `HEAD`, `PR`, `PR_URL`, `PR_AUTHOR`, `PR_DRAFT`, `MODE` | `preflight`, `validate-only` | `--base` |
 | `ship_preflight.py` | the detect keys, `CHECK`, `PIPELINE_DEADLINE` | `write-body`, `report`, `publish-then-discharge`, `rerun-pipeline` | `--check` (repeatable), `--base`, `--pr`, `--draft`, `--require-axis`, `--deadline`, `--wait-seconds` (0 to 540) |
-| `ship_pr.py` | `BRANCH`, `BODY_FILE`, `CHECK`, `FINDING`, `PUSH`, `PR`, and the detect keys with `PR_AT_PREFLIGHT` in place of `PR` | `commit-then-review`, `write-body`, `compare-paths-by-hand`, `publish`, `discharge` | per subcommand, in the table above |
+| `ship_pr.py` | `BRANCH`, `BODY_FILE`, `CHECK`, `FINDING`, `PUSH_LOCK`, `PUSH`, `PR`, and the detect keys with `PR_AT_PREFLIGHT` in place of `PR` | `commit-then-review`, `write-body`, `compare-paths-by-hand`, `publish`, `discharge` | per subcommand, in the table above |
 
 `--wait-seconds` defaults to 480 and takes at most 540. These are upper bounds, not the wait you get.
 Each wait is clamped to the run budget (540 seconds, `RUN_BUDGET_SECONDS` in `_ship_common.py`) less a 120-second reserve for the calls after it.
@@ -179,9 +200,9 @@ STOP reasons, by the script that first declares them. A later script also uses t
 
 | Script | STOP reasons |
 |---|---|
-| `ship_detect.py` | `bad-arguments`, `no-repo`, `no-origin`, `unsupported-remote`, `detached-head`, `on-base-branch`, `pr-query-failed`, `user-query-failed`, `auth-failed`, `pr-author-unknown`, `unsafe-checkout` |
+| `ship_detect.py` | `bad-arguments`, `no-repo`, `no-origin`, `unsupported-remote`, `detached-head`, `on-base-branch`, `pr-query-failed`, `user-query-failed`, `auth-failed`, `pr-author-unknown`, `unsafe-checkout`, `base-mismatch` |
 | `ship_preflight.py` | `check-failed`, `validator-missing`, `validator-config`, `checks-query-failed`, `pipeline-query-failed`, `deadline-unstored` |
-| `ship_pr.py` | `bad-branch-name`, `branch-create-failed`, `prepare-failed`, `bad-body-file`, `contributor-mode`, `tree-dirty`, `head-not-reviewed`, `paths-not-checked`, `push-rejected`, `push-failed`, `pr-create-failed`, `description-upload-failed` |
+| `ship_pr.py` | `bad-branch-name`, `branch-create-failed`, `prepare-failed`, `bad-body-file`, `contributor-mode`, `tree-dirty`, `head-not-reviewed`, `paths-not-checked`, `push-rejected`, `push-failed`, `push-interrupted`, `push-locked`, `pr-create-failed`, `description-upload-failed` |
 
 ## Permissions
 
