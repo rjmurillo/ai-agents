@@ -297,20 +297,12 @@ def test_notebook_scan_applies_the_same_exact_entry_rule(monkeypatch: pytest.Mon
 
 
 def _repo_with_directive_base(tmp_path: Path, head_line: str) -> tuple[Path, str]:
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    git(repo, "init", "-q")
-    git(repo, "config", "user.email", "test@example.com")
-    git(repo, "config", "user.name", "Test User")
-    target = repo / SOURCE
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(_body(_allowed(EXEC_RULE)), encoding="utf-8")
+    repo = init_repo(tmp_path)
+    write(repo, SOURCE, _body(_allowed(EXEC_RULE)))
     git(repo, "add", "-A")
     git(repo, "commit", "-q", "-m", "base")
     base = git(repo, "rev-parse", "HEAD")
-    target.write_text(
-        BASE_BODY.replace("    os.execv", head_line + "\n    os.execv"), encoding="utf-8"
-    )
+    write(repo, SOURCE, BASE_BODY.replace("    os.execv", head_line + "\n    os.execv"))
     git(repo, "add", "-A")
     return repo, base
 
