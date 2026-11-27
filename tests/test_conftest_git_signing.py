@@ -21,3 +21,23 @@ def test_subprocess_git_sees_signing_disabled() -> None:
         check=False,
     )
     assert result.stdout.strip() == "false"
+
+
+@pytest.mark.parametrize(
+    ("config_key", "expected"),
+    [
+        ("gc.auto", "0"),
+        ("maintenance.auto", "false"),
+    ],
+)
+def test_subprocess_git_sees_auto_maintenance_disabled(config_key: str, expected: str) -> None:
+    """The autouse session fixture disables gc.auto and maintenance.auto suite-wide."""
+    result = subprocess.run(
+        ["git", "config", "--get", config_key],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        env={**os.environ, "LC_ALL": "C"},
+        check=False,
+    )
+    assert result.stdout.strip() == expected

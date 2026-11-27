@@ -1,15 +1,7 @@
 ---
 name: memory-consolidate
 version: 0.1.0
-description: Reflective consolidation pass over Serena memory files. Separates
-  durable context (preferences, working style, key relationships, recurring
-  workflows) from dated context (projects, deadlines, one-off tasks), merges
-  duplicate topic files onto the richer path, converts relative dates to
-  absolute ones, and tidies memory-index.md so a future session orients fast
-  without re-asking. Use when you say `consolidate memory`, `consolidate
-  Serena memory`, `merge memory files`, or `tidy the memory index`. Do NOT use
-  for in-file supersession markers (use curating-memories) or health, token, or
-  size checks (use memory-maintenance).
+description: "Consolidate Serena memory files: separate durable from dated context, merge duplicate topics, make dates absolute, tidy memory-index.md. Use when you say `consolidate memory`, `merge memory files`, or `tidy the memory index`. Do NOT use for in-file supersession markers (use curating-memories) or health, token, or size checks (use memory-maintenance)."
 license: Apache-2.0
 metadata:
   routing:
