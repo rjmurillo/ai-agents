@@ -103,7 +103,7 @@ def main(argv: list[str] | None = None) -> int:
         data = gh_graphql(_QUERY, {"threadId": args.thread_id})
     except RuntimeError as exc:
         msg = str(exc)
-        if "Could not resolve" in msg or "not found" in msg:
+        if "could not resolve to a node" in msg.lower() or "not found" in msg:
             error_and_exit(f"Thread {args.thread_id} not found.", 3)
         error_and_exit(f"Failed to query thread: {msg}", 3)
 

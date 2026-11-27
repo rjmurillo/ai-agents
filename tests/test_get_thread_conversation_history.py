@@ -236,7 +236,10 @@ class TestMain:
         assert exc.value.code == 3
         assert "not found" in capsys.readouterr().err
 
-    def test_gh_server_error_exits_3_without_not_found_message(self, capsys):
+    @pytest.mark.parametrize(
+        "stderr", ["HTTP 502 Bad Gateway", "Could not resolve host: api.github.com"]
+    )
+    def test_gh_server_error_exits_3_without_not_found_message(self, capsys, stderr):
         with (
             patch("get_thread_conversation_history.assert_gh_authenticated"),
             patch(
@@ -245,7 +248,7 @@ class TestMain:
             ),
             patch(
                 "subprocess.run",
-                return_value=_completed(stderr="HTTP 502 Bad Gateway", rc=1),
+                return_value=_completed(stderr=stderr, rc=1),
             ),
         ):
             with pytest.raises(SystemExit) as exc:

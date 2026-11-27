@@ -91,41 +91,6 @@ class TestGetLatestSemanticMilestone:
         assert result["Data"]["title"] == "v0.5.0"
         assert result["Data"]["number"] == 3
 
-    def test_no_milestones(self, capsys):
-        mod = self._import()
-        with (
-            patch("get_latest_semantic_milestone.assert_gh_authenticated"),
-            patch("get_latest_semantic_milestone.resolve_repo_params", return_value=_mock_repo()),
-            patch("get_latest_semantic_milestone.gh_api_paginated", return_value=[]),
-        ):
-            rc = mod.main([])
-        assert rc == 3
-        result = json.loads(capsys.readouterr().out)
-        assert result["Success"] is False
-        assert result["Error"]["Code"] == 3
-        assert result["Error"]["Type"] == "NotFound"
-        assert result["Data"]["found"] is False
-        assert result["Data"]["title"] == ""
-
-    def test_no_semantic_milestones(self, capsys):
-        mod = self._import()
-        milestones = [
-            {"title": "sprint-1", "number": 1},
-            {"title": "release-x", "number": 2},
-        ]
-        with (
-            patch("get_latest_semantic_milestone.assert_gh_authenticated"),
-            patch("get_latest_semantic_milestone.resolve_repo_params", return_value=_mock_repo()),
-            patch("get_latest_semantic_milestone.gh_api_paginated", return_value=milestones),
-        ):
-            rc = mod.main([])
-        assert rc == 3
-        result = json.loads(capsys.readouterr().out)
-        assert result["Success"] is False
-        assert result["Error"]["Code"] == 3
-        assert result["Error"]["Type"] == "NotFound"
-        assert result["Data"]["found"] is False
-
     def test_version_comparison(self, capsys):
         mod = self._import()
         milestones = [

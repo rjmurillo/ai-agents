@@ -99,15 +99,19 @@ def test_no_semantic_milestones(mock_run, capsys):
 
 @patch("subprocess.run")
 def test_api_failure_is_not_notfound(mock_run, capsys):
-    """Negative control: a failed milestones read exits 3 with no NotFound envelope."""
+    """Negative control: a failed milestones read exits 3 with no NotFound envelope.
+
+    The gh call itself fails, so the script's own read path runs and must not
+    mistake an outage for an empty milestone list.
+    """
     mock_run.side_effect = [
         _completed(rc=0),
         _completed(stdout="https://github.com/o/r\n"),
+        _completed(stderr="gh: Bad Request (HTTP 400)", rc=1),
     ]
 
-    with patch.object(_mod, "gh_api_paginated", side_effect=SystemExit(3)):
-        with pytest.raises(SystemExit) as exc_info:
-            main([])
+    with pytest.raises(SystemExit) as exc_info:
+        main([])
     assert exc_info.value.code == 3
     assert "NotFound" not in capsys.readouterr().out
 

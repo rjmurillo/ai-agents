@@ -1,16 +1,9 @@
 #!/usr/bin/env python3
 """Detect a stale bot CHANGES_REQUESTED review that blocks merge (issue #5950).
 
-After every thread is fixed and resolved and required CI checks pass, a PR can stay blocked
-because a bot such as CodeRabbit left a ``CHANGES_REQUESTED`` review on an
-older commit. A later bot pass posts ``COMMENTED``, which does not supersede it.
-Only an ``APPROVED`` review or a dismissal clears it, and dismissal is a human
-action. This script classifies that state and emits the handoff text. It never
-dismisses a review and never posts a comment.
-
-It reads three sibling scripts: ``get_pr_context.py`` (head SHA, merge state,
-unresolved thread count), ``get_pr_checks.py`` (CI verdict), and
-``get_pr_reviews.py`` (review id, state, commit).
+A stale bot review can block a PR after required checks pass and threads close.
+A later COMMENTED review leaves it active. Approval or human dismissal clears it.
+This script reads context, checks, and reviews. It emits advice without writing.
 
 Verdicts in ``Data.verdict``:
 
@@ -34,9 +27,6 @@ Verdicts in ``Data.verdict``:
 A bot re-review that posts ``COMMENTED`` at head leaves the old review active,
 so it moves the verdict to DISMISSAL_HANDOFF. An ``APPROVED`` review at head
 supersedes the old one and the bot drops out of the active list.
-
-The repeated re-review rounds that a bot starts on every push are the fixed
-point ``check_pr_round_cap.py`` already bounds. See the pr-autofix skill.
 
 Exit codes follow ADR-035:
     0 - Classified (read ``Data.verdict``)
@@ -322,8 +312,16 @@ def classify(
     return data
 
 
+class _PrNotFoundError(RuntimeError):
+    """A sibling reported Error.Type NotFound: the PR does not exist."""
+
+
 def _run_sibling(script: str, args: list[str]) -> tuple[int, dict[str, Any] | None]:
-    """Run a sibling skill script with JSON output. Return (exit code, Data or None)."""
+    """Run a sibling skill script with JSON output. Return (exit code, Data or None).
+
+    Raises _PrNotFoundError when the sibling's envelope has Error.Type NotFound,
+    so main() can report a missing PR apart from an outage (both exit 3).
+    """
     result = subprocess.run(
         [sys.executable, os.path.join(_SCRIPT_DIR, script), *args, "--output-format", "json"],
         capture_output=True,
@@ -336,7 +334,12 @@ def _run_sibling(script: str, args: list[str]) -> tuple[int, dict[str, Any] | No
         envelope = json.loads(result.stdout)
     except json.JSONDecodeError:
         return result.returncode, None
-    data = envelope.get("Data") if isinstance(envelope, dict) else None
+    if not isinstance(envelope, dict):
+        return result.returncode, None
+    error = envelope.get("Error")
+    if isinstance(error, dict) and error.get("Type") == "NotFound":
+        raise _PrNotFoundError(f"{script}: {error.get('Message') or 'PR not found'}")
+    data = envelope.get("Data")
     return result.returncode, data if isinstance(data, dict) else None
 
 
@@ -464,7 +467,7 @@ def main(argv: list[str] | None = None) -> int:
         write_skill_error(
             str(exc) or "sibling script timed out",
             3,
-            error_type="ApiError",
+            error_type="NotFound" if isinstance(exc, _PrNotFoundError) else "ApiError",
             output_format=fmt,
             script_name=_SCRIPT,
             extra={"pull_request": pr},

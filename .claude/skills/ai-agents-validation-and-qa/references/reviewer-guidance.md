@@ -43,8 +43,8 @@ The repo verified each reason against the code on 2026-11-26.
 8. **`sys.exit(2)` for a config or environment error.**
    ADR-035 defines exit 2 as a usage, config, or environment error.
    ADR-035 maps a missing remote object (PR, issue, milestone) to 3, not 2.
-   GitHub skill scripts mark that case with `Error.Type` `NotFound` in the envelope.
-   One example is `src/claude/skills/github/scripts/pr/get_pr_comments_by_reviewer.py`.
+   A script that prints a JSON envelope marks that case with `Error.Type` `NotFound`.
+   One example is `src/claude/skills/github/scripts/pr/get_pr_review_threads.py`.
    Flag a new script that exits 2 for a missing remote object.
 9. **Negative directives in agent and prompt files.**
    "Do not X" and "Never X" are normal prompt style here.

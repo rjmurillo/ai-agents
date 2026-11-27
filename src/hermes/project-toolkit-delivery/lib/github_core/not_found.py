@@ -11,7 +11,7 @@ copy of that text match, and the copies disagreed: ``close_pr.py`` and
 through to the generic API-failure path. ``check_pr_live_state.py``
 matched the bare prefix ``Could not resolve``, which also fires on a network
 fault such as ``Could not resolve host`` and reported a transport failure as a
-missing PR. This module is the one place the marker list lives.
+missing PR. This module is the one place the PR marker list lives.
 """
 
 from __future__ import annotations

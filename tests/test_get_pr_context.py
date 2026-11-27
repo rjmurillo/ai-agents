@@ -1731,9 +1731,9 @@ class TestFocusedFieldMode:
         gh_graphql.assert_not_called()
 
 
-@pytest.mark.parametrize(("stdout", "stderr", "code"), PR_VIEW_FAILURE_CASES)
-def test_failed_pr_view_exit_code(stdout, stderr, code):
-    """A failed PR lookup maps to the ADR-035 code."""
+@pytest.mark.parametrize(("stdout", "stderr", "not_found"), PR_VIEW_FAILURE_CASES)
+def test_failed_pr_view_exit_code(capsys, stdout, stderr, not_found):
+    """A failed PR lookup exits 3; only a missing PR carries Type NotFound."""
     auth_patch, repo_patch = _patch_auth_and_repo()
     with (
         auth_patch,
@@ -1744,5 +1744,6 @@ def test_failed_pr_view_exit_code(stdout, stderr, code):
         ),
     ):
         with pytest.raises(SystemExit) as exc:
-            main(["--pull-request", "999999"])
-    assert exc.value.code == code
+            main(["--pull-request", "999999", "--output-format", "json"])
+    assert exc.value.code == 3
+    assert ('"NotFound"' in capsys.readouterr().out) is not_found

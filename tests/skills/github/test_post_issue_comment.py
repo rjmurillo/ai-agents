@@ -204,34 +204,19 @@ class TestPostIssueComment:
                 mod.main(["--issue", "1", "--body", "body"])
         assert exc.value.code == 4
 
-    def test_api_error_exits_3(self, _import_module):
+    @pytest.mark.parametrize(
+        "stderr",
+        # ADR-035: a missing issue and a server error both exit 3, not 2.
+        ["Internal Server Error", "GraphQL: Could not resolve to an Issue (HTTP 404)"],
+    )
+    def test_api_error_or_missing_issue_exits_3(self, _import_module, stderr):
         mod = _import_module
         with (
             patch("post_issue_comment.assert_gh_authenticated"),
             patch("post_issue_comment.resolve_repo_params", return_value=_mock_repo()),
             patch(
                 "subprocess.run",
-                return_value=make_completed_process(
-                    stderr="Internal Server Error",
-                    returncode=1,
-                ),
-            ),
-        ):
-            with pytest.raises(SystemExit) as exc:
-                mod.main(["--issue", "1", "--body", "body"])
-        assert exc.value.code == 3
-
-    def test_issue_not_found_exits_3(self, _import_module):
-        mod = _import_module
-        with (
-            patch("post_issue_comment.assert_gh_authenticated"),
-            patch("post_issue_comment.resolve_repo_params", return_value=_mock_repo()),
-            patch(
-                "subprocess.run",
-                return_value=make_completed_process(
-                    stderr="GraphQL: Could not resolve to an Issue (HTTP 404)",
-                    returncode=1,
-                ),
+                return_value=make_completed_process(stderr=stderr, returncode=1),
             ),
         ):
             with pytest.raises(SystemExit) as exc:

@@ -148,7 +148,7 @@ warning instead of a false clean bill.
 
 Parameters: `--branch` (default main), `--owner`, `--repo`.
 
-Exit 0 success; 2 usage error; 3 API failure; 4 auth.
+Exit 0 success; 2 usage error (blank `--branch`); 3 API failure, or the branch does not exist (`Error.Type` `NotFound`); 4 auth.
 
 ## get_workflow_runs.py (actions/)
 

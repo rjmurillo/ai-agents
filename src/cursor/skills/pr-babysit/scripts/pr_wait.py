@@ -5,26 +5,15 @@ Usage:
     pr_wait.py <pr> [--repo owner/name] [--until ready|green|any-change]
                [--interval SECONDS]
 
-<pr> is a PR number or a PR URL. Without --repo, the repository comes from the
-URL or from the current checkout. Stdout carries only events, one line each, so
-a host monitor (for example Claude Code's Monitor tool) wakes the agent once
-per real event. Progress and transient errors go to stderr.
+The PR can be a number or URL. The repo defaults to the URL or current checkout.
+Stdout carries events. Stderr carries progress and transient faults.
+Polls read a GraphQL snapshot and the ``why_pr_blocked.py`` merge gate.
+The interval uses ``gh event listen`` when available and sleeps otherwise.
 
-Each poll reads one GraphQL snapshot through ``github_core.api.gh_graphql``
-and the merge gate from the github skill's ``why_pr_blocked.py``. Between polls
-it waits on ``gh event listen`` when available, else sleeps (github_core.api).
-
---until
-  ready       required checks pass on the current head, no unresolved review
-              thread, and the branch is not BEHIND, DIRTY, or a draft (default)
-  green       required checks pass on the current head
-  any-change  ready, but also stop after the first poll that prints an event
-
-Events: head, check (a required check failed), green, comment, review,
-thread, activity (more arrived than one poll lists), base, merge-state
-(BEHIND or DIRTY), ready (precedes a ready exit 0), blocked (precedes
-exit 1), merged, closed, and unreachable (precedes exit 3).
-Comments, reviews, and threads by the PR author or by you are skipped.
+--until ready (default) requires green checks, no unresolved threads,
+and a branch that is current, clean, and not a draft. ``green`` only checks CI.
+``any-change`` also stops at the first poll that emits an event.
+Activity from the PR author or current viewer is skipped.
 
 Exit codes (ADR-035):
   0  the --until condition is met, or the PR merged
@@ -43,12 +32,9 @@ Exit codes (ADR-035):
      retried; do not retry it.
   4  gh is not authenticated
 
-State lives in the user state directory under ``pr-babysit``. A lock makes a
-second watcher for the same PR exit at once. A state file lets a watcher
-restarted within STALE_STATE_SECONDS report what arrived while none ran.
-A first run, or a run after a longer gap, records the existing comments,
-reviews, and threads and reports only newer ones. It reports the current
-check and merge state at once.
+A per-PR lock and state file live under ``pr-babysit`` in user state.
+A restart within STALE_STATE_SECONDS resumes; otherwise it records a new baseline.
+The first poll always reports current check and merge state.
 """
 
 from __future__ import annotations
@@ -336,11 +322,7 @@ def why_pr_blocked_path() -> Path:
 
 
 def _is_not_found_envelope(stdout: str) -> bool:
-    """True when why_pr_blocked.py printed an error envelope with Type NotFound.
-
-    Exit 3 also covers API failures, which retry. Only ``Error.Type`` tells a
-    deleted PR from an outage.
-    """
+    """Distinguish a missing PR from a retryable exit 3."""
     try:
         payload = json.loads(stdout)
     except ValueError:

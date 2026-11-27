@@ -106,7 +106,7 @@ def fetch_thread_comments(thread_id: str) -> tuple[dict, list[dict]]:
 
         if result.returncode != 0:
             error_text = result.stderr.strip() or result.stdout.strip()
-            if "Could not resolve" in error_text or "not found" in error_text:
+            if "could not resolve to a node" in error_text.lower() or "not found" in error_text:
                 error_and_exit(f"Thread {thread_id} not found.", 3)
             error_and_exit(f"Failed to query thread: {error_text}", 3)
 

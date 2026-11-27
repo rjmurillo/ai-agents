@@ -9,7 +9,7 @@ Reference documentation for the GitHub skill. For usage, see `../SKILL.md`.
 | 0 | Success | Parse JSON output |
 | 1 | Logic error | Read the error; some scripts give 1 a documented meaning |
 | 2 | Config or usage error | Fix the arguments, a local file path, or the environment |
-| 3 | External error, including a PR, issue, or milestone that does not exist | Read `Error.Type`: `NotFound` means fix the number, do not retry; `ApiError` or `Timeout` may be transient |
+| 3 | External error, including a PR, issue, or milestone that does not exist | If the script prints an envelope, read `Error.Type`: `NotFound` means fix the number, do not retry; `ApiError` or `Timeout` may be transient. Scripts that print only to stderr carry no type; read the message |
 | 4 | gh CLI not authenticated | Run `gh auth login` |
 | 100 | Not mergeable (`merge_pr.py`, script-specific) | PR has conflicts or checks failing |
 
