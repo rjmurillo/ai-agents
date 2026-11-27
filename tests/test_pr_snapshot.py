@@ -67,6 +67,20 @@ from pr_snapshot import (  # noqa: E402
 )
 
 
+def _fixture_git_env(tmp_path: Path) -> dict[str, str]:
+    """Build a sanitized git env for disposable test repos with auto-maintenance off."""
+    env = _git_env()
+    env["HOME"] = str(tmp_path)
+    env["GIT_CONFIG_COUNT"] = "3"
+    env["GIT_CONFIG_KEY_0"] = "commit.gpgsign"
+    env["GIT_CONFIG_VALUE_0"] = "false"
+    env["GIT_CONFIG_KEY_1"] = "gc.auto"
+    env["GIT_CONFIG_VALUE_1"] = "0"
+    env["GIT_CONFIG_KEY_2"] = "maintenance.auto"
+    env["GIT_CONFIG_VALUE_2"] = "false"
+    return env
+
+
 def _run_git_allow_file(
     args: list[str],
     *,
@@ -82,6 +96,10 @@ def _run_git_allow_file(
         "core.hooksPath=/dev/null",
         "-c",
         "core.fsmonitor=false",
+        "-c",
+        "gc.auto=0",
+        "-c",
+        "maintenance.auto=false",
         "-c",
         "protocol.file.allow=always",
         "-c",
@@ -126,8 +144,7 @@ def sample_identity() -> PrIdentity:
 @pytest.fixture
 def real_git_repo(tmp_path: Path):
     """Create a real git repo with commits for integration tests."""
-    env = _git_env()
-    env["HOME"] = str(tmp_path)
+    env = _fixture_git_env(tmp_path)
 
     def git(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
@@ -495,8 +512,7 @@ class TestIntegrationCapture:
 
         Returns (bare_path, base_sha, head_sha).
         """
-        env = _git_env()
-        env["HOME"] = str(tmp_path)
+        env = _fixture_git_env(tmp_path)
 
         work = tmp_path / "work"
         work.mkdir()
@@ -598,8 +614,7 @@ class TestIntegrationCapture:
 
     def test_capture_rename(self, tmp_path: Path) -> None:
         """Renamed files appear in changed paths."""
-        env = _git_env()
-        env["HOME"] = str(tmp_path)
+        env = _fixture_git_env(tmp_path)
 
         work = tmp_path / "work"
         work.mkdir()
@@ -662,8 +677,7 @@ class TestIntegrationCapture:
 
     def test_capture_delete(self, tmp_path: Path) -> None:
         """Deleted files appear in changed paths."""
-        env = _git_env()
-        env["HOME"] = str(tmp_path)
+        env = _fixture_git_env(tmp_path)
 
         work = tmp_path / "work"
         work.mkdir()
@@ -720,8 +734,7 @@ class TestIntegrationCapture:
 
     def test_capture_binary_file(self, tmp_path: Path) -> None:
         """Binary files appear in changed paths."""
-        env = _git_env()
-        env["HOME"] = str(tmp_path)
+        env = _fixture_git_env(tmp_path)
 
         work = tmp_path / "work"
         work.mkdir()
@@ -782,8 +795,7 @@ class TestIntegrationCapture:
 
     def test_capture_unicode_path(self, tmp_path: Path) -> None:
         """Unicode filenames handled via NUL-delimited output."""
-        env = _git_env()
-        env["HOME"] = str(tmp_path)
+        env = _fixture_git_env(tmp_path)
 
         work = tmp_path / "work"
         work.mkdir()
@@ -841,8 +853,7 @@ class TestIntegrationCapture:
 
     def test_capture_newline_path(self, tmp_path: Path) -> None:
         """Paths with newlines handled via NUL delimiter."""
-        env = _git_env()
-        env["HOME"] = str(tmp_path)
+        env = _fixture_git_env(tmp_path)
 
         work = tmp_path / "work"
         work.mkdir()
@@ -904,8 +915,7 @@ class TestIntegrationCapture:
 
     def test_reject_shallow_repository(self, tmp_path: Path) -> None:
         """Shallow clones are rejected with VerifyError."""
-        env = _git_env()
-        env["HOME"] = str(tmp_path)
+        env = _fixture_git_env(tmp_path)
 
         work = tmp_path / "work"
         work.mkdir()
@@ -967,8 +977,7 @@ class TestIntegrationCapture:
 
     def test_no_hooks_execution(self, tmp_path: Path) -> None:
         """Hooks in target repo are never executed."""
-        env = _git_env()
-        env["HOME"] = str(tmp_path)
+        env = _fixture_git_env(tmp_path)
 
         work = tmp_path / "work"
         work.mkdir()
@@ -1025,8 +1034,7 @@ class TestIntegrationCapture:
 
     def test_no_submodule_init(self, tmp_path: Path) -> None:
         """Submodules in target are never initialized."""
-        env = _git_env()
-        env["HOME"] = str(tmp_path)
+        env = _fixture_git_env(tmp_path)
 
         work = tmp_path / "work"
         work.mkdir()
@@ -1121,8 +1129,7 @@ class TestFullCaptureIntegration:
 
     def _setup_local_pr(self, tmp_path: Path) -> tuple[PrIdentity, Path]:
         """Create local repos simulating a same-repo PR."""
-        env = _git_env()
-        env["HOME"] = str(tmp_path)
+        env = _fixture_git_env(tmp_path)
 
         work = tmp_path / "work"
         work.mkdir()
