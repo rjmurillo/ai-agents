@@ -180,8 +180,8 @@ def _one_title(count: int) -> list[str]:
 _SCRIPTS = str(Path(adr_log.__file__).parent) + os.sep
 # Twice the entries is twice the steps when numbering is linear, and four times when each twin
 # searches the suffixes again. Measured on 250 and 500 twins: 2.0 times as shipped, 3.7 times
-# with the search restarted from one.
-_LINEAR_GROWTH = 2.5
+# with the search restarted from one, 2.5 times with it restarted on every sixteenth twin.
+_LINEAR_GROWTH = 2.2
 
 
 def _steps(run: Callable[[], object]) -> int:
@@ -191,7 +191,10 @@ def _steps(run: Callable[[], object]) -> int:
     a regex match or a scan of a list, is one instruction: a quadratic hidden there is not seen.
     """
     monitoring = sys.monitoring
-    tool = next(i for i in (3, 4) if monitoring.get_tool(i) is None)  # the rest are reserved
+    # By convention ids 0, 1, 2 and 5 belong to debuggers, coverage, profilers and optimizers.
+    free = [i for i in (3, 4) if monitoring.get_tool(i) is None]
+    assert free, "monitoring tool ids 3 and 4 are both taken, so the step meter cannot run"
+    tool = free[0]
     count = 0
 
     def on_instruction(code: CodeType, _offset: int) -> None:
@@ -200,9 +203,9 @@ def _steps(run: Callable[[], object]) -> int:
             count += 1
 
     monitoring.use_tool_id(tool, "adr-step-meter")
-    monitoring.register_callback(tool, monitoring.events.INSTRUCTION, on_instruction)
-    monitoring.set_events(tool, monitoring.events.INSTRUCTION)
     try:
+        monitoring.register_callback(tool, monitoring.events.INSTRUCTION, on_instruction)
+        monitoring.set_events(tool, monitoring.events.INSTRUCTION)
         run()
     finally:
         monitoring.set_events(tool, monitoring.events.NO_EVENTS)
@@ -223,7 +226,8 @@ def _numbering_steps(tmp_path: Path, entries: list[str]) -> int:
 def _assert_steps_double(tmp_path: Path, corpus: Callable[[int], list[str]]) -> None:
     small, large = (_numbering_steps(tmp_path, corpus(count)) for count in (250, 500))
     assert large <= _LINEAR_GROWTH * small, (
-        f"numbering is not linear: {small} steps for 250 entries, {large} steps for 500"
+        f"numbering is not linear for {corpus.__name__}: {small} steps for 250 entries, "
+        f"{large} steps for 500, over the {_LINEAR_GROWTH} times bound"
     )
 
 
@@ -231,7 +235,9 @@ def _assert_steps_double(tmp_path: Path, corpus: Callable[[int], list[str]]) -> 
 def test_eight_thousand_entries_sharing_an_id_are_numbered_in_linear_time(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, corpus: Callable[[int], list[str]]
 ) -> None:
-    # The per-file cap would hide the quadratic search, so lift it where it exists.
+    # Two checks: all 8000 entries get distinct ids, and twice the entries cost twice the steps.
+    # The per-file caps would drop most of the 8000, so lift them. The step check runs on 250
+    # and 500 entries, which fit under both caps.
     monkeypatch.setattr(adr_log, "MAX_LOG_CANDIDATES", 10**6, raising=False)
     monkeypatch.setattr(adr_log, "MAX_LOG_ENTRIES", 10**6)
     repo = _log(tmp_path, "decisions.md", corpus(8000))
@@ -255,6 +261,7 @@ def test_the_step_bound_fails_when_each_twin_searches_the_suffixes_again(
     counter = "following.get(base.lower(), 1)"
     source = Path(adr_log.__file__).read_text(encoding="utf-8")
     assert source.count(counter) == 1, "the counter moved: point this control at it again"
+    # The mutant is this repository's own module with that one expression changed.
     mutant: dict[str, Any] = {"__name__": adr_log.__name__, "__file__": adr_log.__file__}
     exec(compile(source.replace(counter, "1"), adr_log.__file__, "exec"), mutant)
     expected = [c["id"] for c in _candidates(_log(tmp_path, "decisions.md", _one_title(40)))[0]]
@@ -262,6 +269,7 @@ def test_the_step_bound_fails_when_each_twin_searches_the_suffixes_again(
     slow = [c["id"] for c in _candidates(_log(tmp_path, "decisions.md", _one_title(40)))[0]]
     assert slow == expected  # the mutant changes the cost of numbering, not the numbers
     _assert_steps_double(tmp_path, _distinct_titles)  # distinct titles never search
+    # "DID NOT RAISE" below means the meter no longer sees the suffix search: the check is blind.
     with pytest.raises(AssertionError, match="numbering is not linear"):
         _assert_steps_double(tmp_path, _one_title)
 
