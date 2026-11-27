@@ -8,6 +8,7 @@ only outside a span.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterator
 
 
@@ -45,6 +46,9 @@ class _BacktickMatch:
 
     def span(self) -> tuple[int, int]:
         return (self._start, self._end)
+
+    def content_span(self) -> tuple[int, int]:
+        return (self._content_start, self._content_end)
 
     def group(self, index: int = 0) -> str:
         if index == 0:
@@ -97,6 +101,27 @@ class _BacktickSpanPattern:
 
 
 _BACKTICK_SPAN = _BacktickSpanPattern()
+
+_UNEQUAL_BACKTICK_SPAN = re.compile(r"(?P<open>`+)(?P<content>[^`\n]+?)(?P<close>`+)")
+
+
+def _blank_valid_backtick_spans(text: str) -> str:
+    """Blank valid spans, keeping length, so malformed-run fallback skips them."""
+    out = list(text)
+    for match in _BACKTICK_SPAN.finditer(text):
+        for index in range(match.start(), match.end()):
+            out[index] = " "
+    return "".join(out)
+
+
+def _unequal_backtick_span_contents(text: str) -> list[str]:
+    """Return contents of unequal backtick runs outside valid code spans."""
+    masked = _blank_valid_backtick_spans(text)
+    return [
+        match.group("content")
+        for match in _UNEQUAL_BACKTICK_SPAN.finditer(masked)
+        if len(match.group("open")) != len(match.group("close"))
+    ]
 
 
 def _mask_escaped_backticks(text: str) -> str:

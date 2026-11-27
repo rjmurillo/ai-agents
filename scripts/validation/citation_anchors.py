@@ -25,6 +25,7 @@ from citation_code_spans import (
     _BACKTICK_SPAN,
     _mask_dquotes_in_backtick_spans,
     _mask_escaped_backticks,
+    _unequal_backtick_span_contents,
 )
 from citation_continuations import (
     _EXTENSIONS as _EXTENSIONS,
@@ -101,6 +102,30 @@ def _span_anchor(span: str, citation_text: str) -> str | None:
     return candidate
 
 
+def _code_span_anchor_texts(
+    masked: str, citation_text: str, prose_quote_ranges: list[tuple[int, int]]
+) -> list[str]:
+    """Return code-span contents, with orphaned quoted arguments as anchors."""
+    spans: list[str] = []
+    for match in _BACKTICK_SPAN.finditer(masked):
+        span = match.group(1)
+        spans.append(span)
+        if _span_anchor(span, citation_text) is not None:
+            continue
+        content_start, _ = match.content_span()
+        for quote in _DQUOTE_SPAN.finditer(span):
+            quote_start = content_start + quote.start(1)
+            quote_end = content_start + quote.end(1)
+            if any(
+                prose_start <= quote_start and quote_end <= prose_end
+                for prose_start, prose_end in prose_quote_ranges
+            ):
+                continue
+            spans.append(quote.group(1))
+    spans.extend(_unequal_backtick_span_contents(masked))
+    return spans
+
+
 def _anchor_candidates(context_lines: list[str], citation_text: str) -> list[str]:
     """Extract anchor strings the citing text names near a citation.
 
@@ -117,10 +142,12 @@ def _anchor_candidates(context_lines: list[str], citation_text: str) -> list[str
         # quote of a real anchor and swallow it.
         masked = masked.replace('"""', " ").replace("'''", " ")
         quote_masked = _mask_dquotes_in_backtick_spans(masked)
-        quote_spans = [
-            masked[match.start(1) : match.end(1)] for match in _DQUOTE_SPAN.finditer(quote_masked)
-        ]
-        for span in _BACKTICK_SPAN.findall(masked) + quote_spans:
+        quote_matches = list(_DQUOTE_SPAN.finditer(quote_masked))
+        quote_spans = [masked[match.start(1) : match.end(1)] for match in quote_matches]
+        prose_quote_ranges = [(match.start(1), match.end(1)) for match in quote_matches]
+        for span in (
+            _code_span_anchor_texts(masked, citation_text, prose_quote_ranges) + quote_spans
+        ):
             candidate = _span_anchor(span, citation_text)
             if candidate is not None:
                 anchors.append(candidate)
