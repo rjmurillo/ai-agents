@@ -53,7 +53,7 @@ Target ADR: `.project-toolkit/architecture/ADR-104-gate-tier-placement-and-budge
 
 | Dimension | Verdict | Evidence |
 |-----------|---------|----------|
-| Chesterton's Fence | Pass | Historical pre-push pytest rationale preserved; Fix A (`.venv` poisoning) cleanly separated from Fix B (structural contention) with live measurements; CI backstop and ADR-101 limits stated honestly. |
+| Chesterton's Fence | Pass | Historical pre-push pytest rationale preserved; Fix A (`.venv` poisoning) cleanly separated from Fix B (structural contention) with live measurements; CI backstop and ADR-101 limits stated honestly. (2026-11-27: Fix B has no post-Fix-A measurement; see Post-Accept Clarifications.) |
 | Path Dependence | Pass | File-enumerated Revert Path preserves `--isolated` unconditionally; parallel headroom files untouched (`host_headroom.py`, `pre_pr_headroom.py`); `git_hook_policy.py` gets comment and diagnostic edits only; 2026-12-26 review bounds `testmon-seed` drag. |
 | Core vs Context | Pass | Local pre-push test execution/collection is Context duplicating unconditional CI `pytest.yml` (`zero-collection-guard` + 8-leg `pytest-split` -> `Run Python Tests`). |
 | Second-System Effect | Pass | Strictly subtractive hook removal plus one `--isolated` flag (`2.21s-2.45s` warm); zero new daemons, schedulers, or local telemetry frameworks. |

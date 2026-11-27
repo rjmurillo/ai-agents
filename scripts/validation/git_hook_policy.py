@@ -666,10 +666,10 @@ CONTAINER_PROCESS_CEILING_SECONDS = CONTAINER_SUBPROCESS_CEILING_SECONDS + 15.0
 # the smaller budget below.
 TEST_SUITE_TIMEOUT_SECONDS = 780
 # Issue #6200: budget for the default on-demand pytest run, the tests testmon
-# selects. ADR-104 targets 300s for a whole push. Measured in-hook on 2026-10-13
+# selects. Sized when pre-push ran pytest (300s push target). Measured 2026-10-13
 # (a 48-thread host shared with other sessions): the stages before the expensive
 # group took about 26s, and the group's longest job, pre-pr-validation, took 170s.
-# So 26 + 180 = 206s keeps a push under 300s even when pytest becomes the longest
+# So 26 + 180 = 206s kept a push under 300s even when pytest was the longest
 # job. That is arithmetic from one run; pytest at 180s beside the siblings and
 # hosts under 48 threads were not measured. Measured selections: 0 tests in
 # 4.4s, 808 tests in 49.9s (a seed 73 files behind), and 31.1s in-hook. The
@@ -679,7 +679,7 @@ TEST_SUITE_TIMEOUT_SECONDS = 780
 # passes 180s, for example after a lock change, stops and fails the run.
 PRE_PUSH_SELECTION_TIMEOUT_SECONDS = 180
 # Job cap (15m) for an on-demand hook pytest run; a test pins cap above budget.
-# Issue #6609: a pytest push waits for host headroom before its budget clock
+# Issue #6609: a pytest run waits for host headroom before its budget clock
 # starts, so the wait is what this cap leaves above the budget, less a margin
 # for setup and teardown that the budget does not cover.
 PYTHON_TESTS_JOB_CAP_SECONDS = 900
@@ -8170,17 +8170,17 @@ def _testmon_stand_in(repo_root: Path) -> list[list[str]]:
         "in-process,\n"
         "  so a test that reaches code only through a subprocess is not "
         "re-selected when\n"
-        "  that code changes. With no .testmondata the hook first tries main's "
+        "  that code changes. With no .testmondata this run first tries main's "
         "CI seed\n"
         "  (push runs on main only); if that fails it collects the suite, "
         "which checks\n"
         "  imports, and leaves execution to CI.\n"
         "  The pytest header and summary below show what testmon selected and ran.\n"
-        "  Pre-push does not run pytest. See ADR-104.\n"
-        "  CI runs the full suite via .github/workflows/pytest.yml\n"
-        "  for pull requests, merge groups, and pushes to main.\n"
-        "  See the workflow for its triggers and "
-        "matrix.",
+        "  Pre-push does not run pytest. CI runs every test: "
+        ".github/workflows/pytest.yml\n"
+        "  runs every pytest leg in full on every push, pull request, and "
+        "merge-queue event\n"
+        "  (issue #6239).",
         file=sys.stderr,
     )
     return _testmon_commands(repo_root)

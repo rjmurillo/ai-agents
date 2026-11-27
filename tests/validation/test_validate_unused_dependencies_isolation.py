@@ -96,7 +96,8 @@ def test_validate_unused_dependencies_fails_when_script_missing_with_workflows(
 def test_uv_run_supports_isolated_flag() -> None:
     """Edge: confirm the installed uv binary supports ``uv run --isolated``."""
     uv_bin = shutil.which("uv")
-    assert uv_bin is not None, "uv must be on PATH in this environment"
+    if uv_bin is None:
+        pytest.skip("uv is not on PATH")
     result = subprocess.run(
         [uv_bin, "run", "--help"],
         capture_output=True,

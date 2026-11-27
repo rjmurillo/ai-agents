@@ -567,6 +567,13 @@ active **only** for on-demand `git_hook_policy.py pytest` and CI's
   Database portability across checkout paths is pinned by
   `tests/validation/test_testmon_database_portable.py`; testmon conservatively
   rejects mismatched Python/package versions.
+- **Seed trust**: anything that pushes to `main` can produce a seed, including
+  an administrator who bypasses review and any code that runs inside the
+  `testmon-seed` job. A poisoned database can suppress local selection, so an
+  on-demand run skips tests it should run; CI still runs them. It can also
+  exercise SQLite's parser, which has no code-execution path from a data file.
+  testmon reads it with SQLite queries and has no pickle, marshal, or exec path.
+  The worst case is a false local pass that CI catches.
 - **Step budget & cold deferral (2026-10-13, issue #6200)**: On-demand default
   runs enforce a 180s selection budget (`780s` with
   `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1`; 150s inside containers) and defer to
@@ -747,7 +754,7 @@ mechanism: issue #5315 (or dedicated follow-up issue for `testmon-seed`).
 - A real push measures pre-push above 300s after `python-tests` and
   `zero-collection-tests` are removed.
 - More than 3 `pull_request` runs in one week fail `zero-collection-guard`
-  or fail pytest collection in `Run Python Tests`. Source: the Actions run
+  or fail pytest collection in a `test` matrix leg. Source: the Actions run
   history for `pytest.yml`, read at the 2026-12-26 review.
 - Any proposal seeks to re-introduce pytest execution or collection into
   `pre-commit` or `pre-push`, or add a new pre-push job.
