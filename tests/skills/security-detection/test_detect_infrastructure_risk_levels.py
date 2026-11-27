@@ -33,6 +33,11 @@ class TestGetSecurityRiskLevel:
             pytest.param("certs/server.pem", "critical", id="pem-file"),
             pytest.param("config/database.json", "high", id="config-json"),
             pytest.param("scripts/validation/git_hook_policy.py", "critical", id="git-hook-policy"),
+            pytest.param(
+                "scripts/validation/adr_debate_evidence.py",
+                "critical",
+                id="adr-debate-evidence-policy-module",
+            ),
             pytest.param("scripts/validation/pre_pr.py", "none", id="pre-pr-not-policy"),
             pytest.param(".githooks/pre-commit", "none", id="githooks-not-policy"),
         ],
@@ -120,3 +125,55 @@ class TestAuthFilenamePattern:
 
     def test_non_code_extension_does_not_match_auth_pattern(self) -> None:
         assert get_security_risk_level("docs/auth-notes.md") == "none"
+
+
+class TestExplicitPathNormalization:
+    """Explicit path spellings are matched as repo-relative paths."""
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "./scripts/validation/adr_debate_evidence.py",
+            "././scripts/validation/adr_debate_evidence.py",
+        ],
+    )
+    def test_dot_relative_repo_path_stays_critical(self, path: str) -> None:
+        assert get_security_risk_level(path) == "critical"
+
+    def test_absolute_path_inside_repo_root_is_critical(self, tmp_path: Path) -> None:
+        repo_root = tmp_path / "repo"
+        file_path = repo_root / "scripts" / "validation" / "adr_debate_evidence.py"
+
+        assert get_security_risk_level(str(file_path), repo_root=repo_root) == "critical"
+
+    def test_absolute_path_outside_repo_root_is_not_critical(self, tmp_path: Path) -> None:
+        repo_root = tmp_path / "repo"
+        outside = tmp_path / "outside" / "scripts" / "validation" / "adr_debate_evidence.py"
+
+        assert get_security_risk_level(str(outside), repo_root=repo_root) == "none"
+
+    def test_absolute_path_without_repo_root_is_not_critical(self, tmp_path: Path) -> None:
+        outside = tmp_path / "scripts" / "validation" / "adr_debate_evidence.py"
+
+        assert get_security_risk_level(str(outside)) == "none"
+
+    def test_empty_path_is_none(self) -> None:
+        assert get_security_risk_level("") == "none"
+
+
+class TestRootSecurityDirectories:
+    """A root-level security directory is critical without a parent path prefix."""
+
+    @pytest.mark.parametrize(
+        "directory",
+        ["Auth", "Authentication", "Authorization", "Security", "Identity"],
+    )
+    @pytest.mark.parametrize("prefix", ["", "./"])
+    def test_root_level_critical_directory(self, directory: str, prefix: str) -> None:
+        assert get_security_risk_level(f"{prefix}{directory}/Policy.cs") == "critical"
+
+    def test_absolute_root_level_critical_directory(self, tmp_path: Path) -> None:
+        repo_root = tmp_path / "repo"
+        file_path = repo_root / "Security" / "Policy.cs"
+
+        assert get_security_risk_level(str(file_path), repo_root=repo_root) == "critical"
