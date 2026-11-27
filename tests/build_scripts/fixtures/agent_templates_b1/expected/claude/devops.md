@@ -1,6 +1,9 @@
 ---
 name: devops
 description: DevOps specialist fluent in CI/CD pipelines, build automation, and deployment workflows. Thinks in reliability, security, and developer experience. Designs GitHub Actions, configures build systems, manages secrets. Use for pipeline configuration, infrastructure automation, and anything involving environments, artifacts, caching, or runners.
+success_criterion:
+  kind: human-judgment
+  rationale: Pipeline changes are proven by a run on the target CI system, which this agent cannot name in advance.
 metadata:
   role: executor
 argument-hint: Describe the CI/CD workflow, pipeline, or infrastructure task

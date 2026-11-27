@@ -1,6 +1,10 @@
 ---
 name: critic
 description: Constructive reviewer who stress-tests plans before implementation, validates completeness, identifies gaps, catches ambiguity. Challenges assumptions, checks alignment, and blocks approval when risks aren't mitigated. Use when you say "review this plan", "stress-test this plan", "is this plan ready", "poke holes in this", or hand it a plan file or planning artifact and need a clear ready-or-revise verdict. Do NOT use to stress-test a single decision's reasoning (use decision-critic).
+success_criterion:
+  kind: regex
+  value: '(?m)^(APPROVED|APPROVED_WITH_CONCERNS|NEEDS_REVISION|BLOCKED) - Confidence: (HIGH|MEDIUM|LOW)\s*$'
+  rationale: The critique must carry the verdict and confidence line its Verdict Rules define, which proves the format and not the soundness.
 metadata:
   role: coordinator
 # Needs fresh context so it can challenge a plan without the planner's assumptions.
@@ -244,7 +248,7 @@ If a tool or service is unavailable, do not halt on first failure or retry indef
 
 You cannot delegate. Return to orchestrator with (fields per the orchestrator Handoff Contract):
 
-1. Verdict and confidence
+1. Verdict and confidence as one line, `<VERDICT> - Confidence: <HIGH|MEDIUM|LOW>`, using a verdict from Verdict Rules
 2. Path to critique document
 3. Critical findings count
 4. Recommended next step (only when an orchestrator delegated this task; when you report to the user directly, omit this item and end on the result):

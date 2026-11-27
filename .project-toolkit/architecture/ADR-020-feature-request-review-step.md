@@ -1,12 +1,12 @@
 ---
 id: ADR-020
-status: proposed
-date: 2025-12-19
+status: deprecated
+date: 2026-11-26
 decision-makers: [architect, user]
 supersedes: []
 superseded-by: null
 explainer: null
-implemented: false
+implemented: true
 consulted:
 - analyst
 - roadmap
@@ -18,6 +18,16 @@ informed:
 <!-- # taste-lint: ignore file-size (long-form prose ADR at 502 lines; the 500-line limit targets code cohesion and does not apply to a decision record, cf. ADR-035 which carries the same exemption) -->
 
 # ADR-020: Feature Request Review Step in Issue Triage Workflow
+
+## Status
+
+Deprecated (2026-11-26). Retired by issue #7637.
+
+The feature review step shipped in PR #1316 (57b36c1e9, 2026-02-24) as a step in `ai-issue-triage.yml`. PR #5134 (a390f4d97, 2026-08-16) deleted that workflow when automatic issue triage was retired. No successor decision exists, so `superseded-by` stays null.
+
+The `issue-feature-review` agent remains for manual use. Debate log: [ADR-011-012-013-020-022-027-048-status-debate-log.md](../critique/ADR-011-012-013-020-022-027-048-status-debate-log.md).
+
+The record is kept as history of the retired workflow step.
 
 ## Context and Problem Statement
 

@@ -1,6 +1,6 @@
 ---
 id: ADR-112
-status: proposed
+status: accepted
 date: 2026-09-28
 decision-makers: [rjmurillo]
 supersedes: []
@@ -14,7 +14,7 @@ review-by: 2027-03-28
 
 ## Status
 
-Proposed. The record was filed on 2026-09-28 for issue #5767, a child of
+Accepted 2026-11-25 by owner direction (issue #7636). The record was filed on 2026-09-28 for issue #5767, a child of
 epic #5456. It is implemented in the same change. Requirement: REQ-043.
 Tasks: TASK-052.
 

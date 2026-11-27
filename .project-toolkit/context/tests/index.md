@@ -15,6 +15,6 @@
 [Dependencies]
 |Feeds `pytest.yml`'s `zero-collection-guard` (blocking, no `needs:`/`if:`) an... (see: .project-toolkit/context/tests/details/dependencies.md)
 [Architecture]
-|`tests/evals/` is ADR-057 prompt-regression corpora plus tests of its `script... (see: .project-toolkit/context/tests/details/architecture.md)
+|`tests/evals/`: ADR-057 corpora and `scripts/eval/` runner tests. `evals/`: A... (see: .project-toolkit/context/tests/details/architecture.md)
 [Commands]
 |(see detail file) (see: .project-toolkit/context/tests/details/commands.md)

@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "project-toolkit-azure-devops",
+  "description": "Project Toolkit skills for Azure DevOps pipeline validation and OneBranch pipeline image updates.",
+  "author": {
+    "name": "rjmurillo"
+  },
+  "license": "Apache-2.0"
+}

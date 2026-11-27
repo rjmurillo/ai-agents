@@ -2,9 +2,9 @@
 # Plugin CLI Smoke (issue #6069, REQ-047; supersedes the nightly smoke of issue #2231
 # items 3-4, ADR-071, issue #2736)
 #
-# Gates a pull request on proof that the shipped plugin loads in Claude,
-# Copilot, and Codex on Ubuntu, macOS, and Windows, and that the repo root loads
-# as a Pi package on Ubuntu. A path filter
+# Gates a pull request on proof that the shipped plugin loads in Codex on
+# Ubuntu, macOS, and Windows, and that the repo root loads as a Pi package on
+# Ubuntu. The Claude and Copilot legs run on dispatch only. A path filter
 # (scripts/validation/cli_smoke_paths.py, ADR-006: decision in Python, not YAML)
 # runs the legs only when a change can affect plugin loading. The "CLI Smoke
 # Result" job always runs, so it is the one check to require.
@@ -62,7 +62,9 @@
 #     only, never written to the repo. Only the Copilot legs read the Copilot
 #     token (REQ-047 AC3). The Claude legs use the subscription OAuth token.
 #
-# Loud, not silent (.claude/rules/generated-artifacts.md, issue #2231 item 4):
+# Loud, not silent
+# (.claude/skills/ai-agents-generation-and-release/references/rule-generated-artifacts.md, issue
+# #2231 item 4):
 #   The smoke tests skip without RUN_CLI_E2E=1 and the CLIs, and a skip reads as
 #   a pass in a green summary. scripts/validation/assert_smoke_ran.py parses the
 #   JUnit report and fails the job if the smoke was skipped or not collected, so
@@ -193,7 +195,9 @@ jobs:
   smoke:
     name: Smoke (${{ matrix.cli }}, ${{ matrix.os }})
     needs: [changes, authorize]
-    if: needs.changes.outputs.run == 'true' && needs.authorize.outputs.trusted == 'true'
+    # Dispatch only. The agent-claude and agent-copilot approvals are never
+    # given, so a PR run only waited and blocked auto-merge.
+    if: github.event_name != 'pull_request' && needs.changes.outputs.run == 'true' && needs.authorize.outputs.trusted == 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     environment: agent-${{ matrix.cli }}
@@ -718,6 +722,7 @@ jobs:
           RUN: ${{ needs.changes.outputs.run }}
           AUTHORIZE_RESULT: ${{ needs.authorize.result }}
           TRUSTED: ${{ needs.authorize.outputs.trusted }}
+          EVENT_NAME: ${{ github.event_name }}
           SMOKE_RESULT: ${{ needs.smoke.result }}
           CODEX_RESULT: ${{ needs.smoke-codex.result }}
           HOOKS_RESULT: ${{ needs.smoke-claude-hooks.result }}

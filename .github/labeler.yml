@@ -36,7 +36,7 @@ area-infrastructure:
           - ".github/labeler.yml"
           - ".github/FUNDING.yml"
           - ".markdownlint-cli2.yaml"
-          - ".coderabbit.yaml"
+          - ".coderabbit.config.ts"
           - ".gitignore"
 
 area-skills:

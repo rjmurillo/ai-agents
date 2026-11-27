@@ -1,6 +1,9 @@
 ---
 name: dependency-auditor
 description: Audit dependencies for vulnerabilities, outdated versions, and deprecations. C#/.NET first (dotnet list package), with extensible patterns for npm, pip, and cargo. Use on a schedule or before releases to surface supply-chain risk before it reaches production.
+success_criterion:
+  kind: human-judgment
+  rationale: Audit output differs by ecosystem tool, so a reviewer checks that each flagged vulnerable package cites its advisory.
 role: executor
 argument-hint: Specify the solution/project path or language ecosystem to audit (e.g. "src/MyApp.sln" or "npm")
 disallowedTools: Agent

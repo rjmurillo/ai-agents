@@ -1,7 +1,7 @@
 ---
 id: ADR-067
-status: proposed
-date: 2026-06-02
+status: accepted
+date: 2026-11-25
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -151,7 +151,7 @@ Confidence: MEDIUM. Sample size is small enough that rare false-positive shapes 
 - Removes the #2252 recurrence and the entire class. PR #2214 / #2225 / similar narrative-prose citations stop tripping the gate.
 - Eliminates the "expand the strip list" treadmill (issues #1874, #1881, #1923, #2113, #2252) for the inline-backtick / markdown-link shape.
 - Aligns the validator with the actual PR-template contract: `## Changes` is where change claims live.
-- Failure message authored in Part A now has a single rule to reference: "Move the path under `## Changes`, or use a bullet/bold, or wrap in a code fence."
+- Failure message authored in Part A now has a single rule to reference. Original text: "Move the path under `## Changes`, or use a bullet/bold, or wrap in a code fence." Superseded by the 2026-11-25 amendment: when a change heading exists, a path outside it is not a claim whatever its format, so the bullet/bold advice no longer applies. The live Check 1 message in `validate_pr_description` includes: "Remove the path, move it out of that heading, or wrap it in a code fence."
 
 ### Negative
 
@@ -185,14 +185,14 @@ The follow-up implementer task (spawned as a child of this kanban task) MUST:
 2. Add `_change_claim_regions(cleaned: str) -> list[tuple[int, int]]` that returns the spans of each matching H2 section, using the same terminator regex as the existing stripper (`(?=^#{1,2}(?!#)|\Z)`).
 3. In `extract_mentioned_files`, after `_strip_informational_sections`, compute regions once. In the per-pattern loop, accept matches for `FILE_MENTION_PATTERNS[0]` (inline-backtick) and `FILE_MENTION_PATTERNS[3]` (markdown-link) only when `match.start()` is inside a region. Patterns 1 and 2 unchanged.
 4. Tests MUST cover:
-   - PR #2214 body shape (inline-backtick `.claude/commands/spec.md` in `## Per-file changes` narrative). Asserts: not flagged.
+   - PR #2214 body shape (an inline-backtick .claude/commands/spec.md path in `## Per-file changes` narrative). Asserts: not flagged.
    - PR #2225 body shape (inline-backtick under `## Testing`). Asserts: not flagged.
    - PR #1873 body shape (inline-backtick `.gemini/styleguide.md` in `## Author Pre-flight`). Asserts: not flagged.
    - "Inline-backtick `foo.py` IS still a claim when it appears under `## Changes`." Asserts: flagged if not in diff.
    - "Bold `**foo.py**` in `## Summary` IS still a claim." Asserts: flagged if not in diff.
    - "Bullet-list `- bar.py` in `## Summary` IS still a claim." Asserts: flagged if not in diff.
    - All four `_CHANGE_CLAIM_SECTION_NAMES` variants accepted case-insensitively.
-5. The failure-message text from Part A MUST be amended to name the rule: "Inline-backtick file paths outside `## Changes` / `## Per-file changes` / `## Files Changed` / `## Changed Files` are informational. Move the path under one of those headings, use a bullet (`- path.ext`) or bold (`**path.ext**`), or wrap in a code fence."
+5. Superseded by the 2026-11-25 amendment, kept as history. The live Check 1 message says that when the body has a change heading, "only paths under it are change claims; paths elsewhere are informational." Original item: the failure-message text from Part A MUST be amended to name the rule: "Inline-backtick file paths outside `## Changes` / `## Per-file changes` / `## Files Changed` / `## Changed Files` are informational. Move the path under one of those headings, use a bullet (`- path.ext`) or bold (`**path.ext**`), or wrap in a code fence."
 6. The implementer MUST run the regression simulator at `.project-toolkit/analysis/2252-pr-description-default-flip-regression-sim.py` (sample-of-40 PRs) after the change and confirm baseline -> hybrid totals match this ADR.
 
 ### Rollback Plan
@@ -220,6 +220,14 @@ Detection signal: any merged PR whose post-merge `gh pr view --json files` shows
 - `.github/PULL_REQUEST_TEMPLATE.md` (canonical PR-body template)
 - `.claude/commands/push-pr.md` (autonomous PR-body author)
 - Regression simulator: `.project-toolkit/analysis/2252-pr-description-default-flip-regression-sim.py` (40-PR sample, seed 2252)
+
+## Amendment 2026-11-25: change headings scope every pattern
+
+PR #6414 (`294ce6aec`, 2026-10-12) went further than Option (c). When a body has a change heading,
+bold and bullet paths outside it no longer count as change claims either.
+`extract_mentioned_files` in `scripts/validation/pr_description.py` applies that rule.
+The hybrid split above still holds for a body with no change heading.
+This note records shipped behavior, found when this record was accepted (issue #7636).
 
 ---
 

@@ -16,7 +16,7 @@ supersedes: []
 superseded-by: null
 explainer: null
 implemented: false
-review-by: null           # optional: YYYY-MM-DD this record must be revisited, also stated in the prose; null when the decision carries no deadline
+review-by: YYYY-MM-DD     # required while proposed: the date the decision must be made, also stated in the prose; null allowed once decided
 ---
 
 # ADR-NNN: [Title]
@@ -148,30 +148,39 @@ depend on the changed file and describe the required updates.]
 - [External references, documentation, or standards]
 ```
 
-## `review-by` Frontmatter Field (Optional)
+## `review-by` Frontmatter Field (Required While Proposed)
 
-Set `review-by` when the ADR's prose commits to a revisit date: a provisional
-window, a trial period, a re-review checkpoint, a sunset date. Use `null`
-(the default) when the decision carries no deadline, including when the revisit
-is condition-triggered rather than calendar-triggered.
+A `proposed` record MUST carry a `review-by` date: the day the decision must be
+made. Without one the record never comes due and can sit undecided forever. The
+lifecycle gate reports `proposed-needs-review-by` for a `proposed` record whose
+`review-by` is absent or `null` (ADR-073, amendment 2026-11-26).
+
+Once the record is decided, the field is optional again. Set it when the prose
+commits to a revisit date: a provisional window, a trial period, a re-review
+checkpoint, a sunset date. Use `null` when the decision carries no deadline,
+including when the revisit is condition-triggered rather than calendar-triggered.
 
 | Value | Meaning |
 |-------|---------|
-| `null` | No calendar deadline. The default. |
-| `YYYY-MM-DD` | The date by which this record must be revisited. |
+| `YYYY-MM-DD` | The date by which this record must be decided or revisited. Required while `proposed`. |
+| `null` | No calendar deadline. Allowed only once the status is not `proposed`. |
 
-The field is optional, matching the `explainer` and `implemented` precedent in
-ADR-073. It records the deadline the prose already states; it does not create
-one. State the same date as `YYYY-MM-DD` in the prose, since the prose is what a
+State the same date as `YYYY-MM-DD` in the prose, since the prose is what a
 reader sees and the two must not drift.
 
 The lifecycle gate reads it. It reports `review-by-format` for a value that is
 not a real `YYYY-MM-DD` date, `review-by-prose-date` for a `proposed` or
 `accepted` record whose prose does not state the date, and `review-by-past-due`
-for a `proposed` or `accepted` record whose date has passed. A past-due record
-stops being a violation when you hold the review, record its outcome in the
-prose, and set a new date, set `null`, or change the status. A `superseded`,
-`deprecated`, or `rejected` record is history, and only the format check reads it.
+for a `proposed` or `accepted` record whose date has passed. `review-by-past-due`
+is zero-tolerance: the baseline cannot hold it, so an overdue record fails every
+run. Holding the review alone does not clear it, and `accepted` is still
+checked. It stops failing on any of these edits: a `review-by` of today or later
+that the prose also states; `accepted` with `review-by: null`; or a move to
+`rejected`, `deprecated`, or `superseded`. A `proposed` record set to `null`
+fails `proposed-needs-review-by` instead. Record the review outcome in the prose.
+Each of these edits changes the prose, so it also needs a debate log entry. A
+`superseded`, `deprecated`, or `rejected` record is history, and only the format
+check reads it.
 
 ## Coded Consequences Convention (Optional)
 

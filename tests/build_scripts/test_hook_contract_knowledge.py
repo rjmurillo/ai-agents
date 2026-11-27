@@ -1306,7 +1306,7 @@ def test_adr_085_decision_eight_records_the_owner_classification_and_gate() -> N
 def test_adr_085_decision_eight_complies_with_the_adr_084_carve_out() -> None:
     """The carve-out must be quoted and complied with, not argued away.
 
-    ADR-084 lines 145 to 148 forbid using its ROI bar to retire a security
+    ADR-084 "What this ADR does NOT do" forbids using its ROI bar to retire a security
     control. Round 1 used that bar as the driver anyway. The fix is to change
     the warrant, so the section has to name the carve-out, quote it, and say
     it is not invoking the bar. The quote is checked against the live ADR-084
