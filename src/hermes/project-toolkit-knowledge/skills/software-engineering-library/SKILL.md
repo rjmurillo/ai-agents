@@ -27,6 +27,7 @@ For the everyday default, none loads on every turn and unified-software-engineer
 - Use `references/enterprise-patterns.md` when persistence, repositories, unit-of-work, transactions, or application service orchestration are central.
 - Use `references/refactoring.md` when changing internal structure, addressing code smells, or preserving behavior while improving shape.
 - Use `references/working-with-legacy-code.md` when the code is hard to test, poorly covered, or needs seams and characterization tests before change.
+- Use `references/version-uplift.md` when moving working code to a newer runtime or framework version with identical behavior: preflight, breaking-change catalog, baseline, pilot, and dual-run proof.
 - Use `references/data-intensive-applications.md` when state, storage, schema evolution, consistency, ordering, or delivery semantics are central.
 - Use `references/release-it.md` when production resilience, timeouts, circuit breakers, bulkheads, retries, and operational failure modes are central.
 - Use `references/pragmatic-programmer.md` when DRY at the knowledge level, orthogonality, tracer-bullet delivery, automation, feedback loops, broken windows, or design by contract drive the decision.
@@ -41,6 +42,7 @@ For the everyday default, none loads on every turn and unified-software-engineer
 | Persistence / repository / unit-of-work | `references/enterprise-patterns.md` |
 | Refactoring / code smells | `references/refactoring.md` |
 | Legacy code / seams / characterization tests | `references/working-with-legacy-code.md` |
+| Runtime or framework version uplift / breaking-change catalog / dual-run proof | `references/version-uplift.md` |
 | Data systems / consistency / schema evolution | `references/data-intensive-applications.md` |
 | Production resilience / timeouts / bulkheads | `references/release-it.md` |
 | DRY at the knowledge level / orthogonality / tracer bullets / automation / feedback loops / broken windows / design by contract | `references/pragmatic-programmer.md` |

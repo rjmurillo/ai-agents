@@ -17,7 +17,7 @@ Decision table (SPEC-6182):
 
 The parser is ``scripts/external_signals/acceptance_criteria.py``, which uses
 only the standard library, so this script runs under bare ``python3``
-(``.claude/rules/ci-scripts.md`` MUST 18).
+(``.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`` MUST 18).
 
 ENV:
   HAS_SPECS            - "true" or "false", from the Extract Spec References step

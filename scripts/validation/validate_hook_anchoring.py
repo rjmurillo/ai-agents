@@ -33,7 +33,7 @@ tool-call hook, leaving both manifests with ``"hooks": {}``). The invariant
 this gate enforces, "every hook command anchors to the plugin root", is
 satisfied over an empty set, so an empty mapping exits 0 and reports zero
 entries examined rather than passing silently
-(``.claude/rules/ci-scripts.md`` MUST 11 and MUST 12).
+(``.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`` MUST 11 and MUST 12).
 
 What stays fail-closed, so a BROKEN manifest is still distinguishable from a
 deliberately empty one: a missing file, unparseable JSON, and a ``hooks`` key
@@ -214,7 +214,8 @@ def _check_copilot(
         # Deliberately zero registered hooks (ADR-097). The invariant this gate
         # enforces, "every hook command anchors to the plugin root", is
         # satisfied over an empty set. Report zero examined rather than passing
-        # silently, per .claude/rules/ci-scripts.md MUST 11 and MUST 12.
+        # silently, per .claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md
+        # MUST 11 and MUST 12.
         return 0, [], 0
     try:
         generate_hooks, generate_dispatcher = _load_generators(repo_root)

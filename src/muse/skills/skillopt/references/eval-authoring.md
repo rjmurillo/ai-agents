@@ -27,6 +27,14 @@ tasks away from the author. The baseline is the incumbent.
   request, or a spot where the skill's instructions are ambiguous.
 - Use realistic context: file paths, column names, personal context.
 - Avoid vague prompts such as "process this data". They test nothing.
+- Score the run the skill is written for. When the skill names a checker (a
+  test suite, a validator, a screenshot), give the eval run that tool and let
+  it iterate. A single-shot score misses the self-check loop.
+- For a skill that explores a repository, codebase Q&A is a cheap family that
+  tells versions apart: questions with one known answer in the files or git
+  history, such as "which commit first added this rule". Derive the gold
+  yourself with git before any run, and plant a trap answer, such as a
+  rename or mirror commit that a shallow probe returns.
 
 ## Verifier quality
 
@@ -89,4 +97,4 @@ Feedback is diagnostic. The gate still decides.
 
 Blind comparison (an LLM judge sees two outputs without knowing which is
 which) may serve as a train-side diagnostic for holistic quality. Never gate
-on it.
+on it. See `references/judge-grading-discipline.md` for how a judge must grade.

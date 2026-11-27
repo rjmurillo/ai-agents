@@ -7,7 +7,7 @@ requires-python = ">=3.14"
 license = {text = "Apache-2.0"}
 
 dependencies = [
-    "anthropic==2.10.0",
+    "anthropic==2.11.0",
     "jsonschema>=4.25.1",
     "markdown-it-py>=4.2.0",
     "python-frontmatter==1.3.0",
@@ -845,11 +845,11 @@ dev = [
 #
 # The first two budgets are roughly four times the sum this branch measures
 # locally (31.57s and 8.96s, serial, no coverage). The multiplier absorbs a
-# slower or loaded runner, per `.claude/rules/ci-scripts.md` item 16: a
-# standalone wall clock does not predict the same work under contention. What
-# survives that headroom is the regression each fix prevents: a suite that goes
-# back to rediscovering the whole repository per test, or to re-sorting the
-# surface manifest once per file, and lands several times over.
+# slower or loaded runner, per
+# `.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md` item 16: a standalone
+# wall clock does not predict the same work under contention. What survives that headroom is the
+# regression each fix prevents: a suite that goes back to rediscovering the whole repository per
+# test, or to re-sorting the surface manifest once per file, and lands several times over.
 #
 # The portability budget is set against the CI report, which runs with
 # coverage, not against the local serial sum. In CI the suite sums 25.12s (run

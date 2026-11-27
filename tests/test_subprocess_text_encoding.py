@@ -14,9 +14,11 @@ accepts the result, so the corruption reaches the caller silently.
 This module is the standing guard. It walks the AST rather than the text so a
 reformatted call site cannot slip past.
 
-It checks ``encoding`` only. ``errors`` is deliberately left to each call site:
-the default is ``strict``, which fails loudly, and a lenient handler would
-reintroduce the silent corruption this guard exists to prevent.
+This guard checks only the UTF-8 encoding. ``check_subprocess_encoding.py``
+checks for the exact literal ``errors="replace"``. Together they require UTF-8
+with replacement for the call shapes both model; the known gaps are pinned in
+``tests/validation/test_subprocess_decoding_policy_conformance.py``. Mark
+intentional strict decoding with ``# subprocess-encoding: strict-ok``.
 
 The checks below are deliberately conservative, because a guard meant to hold
 forever is worth more than any single call site it protects. Four rounds of

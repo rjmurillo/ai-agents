@@ -68,10 +68,16 @@ must also cover its trigger intents.
 
 ## Procedure
 
-All commands run
-`${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skillify/scripts/skillify.py`
-with `python3`. That form is POSIX shell. In PowerShell, use
-`$env:COPILOT_PLUGIN_ROOT` or `$env:CLAUDE_PLUGIN_ROOT`, else `.claude`, and
+All commands run the `skillify` skill's `skillify.py` through the
+plugin-root locator. In POSIX shell, the `gate` step reads:
+
+```bash
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/skillify/scripts/skillify.py gate --audit audit.json; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+```
+
+The other steps swap in their own arguments. In PowerShell, take the first of
+`$env:CLAUDE_PLUGIN_ROOT`, `$env:COPILOT_PLUGIN_ROOT`, and `.claude` that holds
+`lib/ptk_run.py`, run `<root>/lib/ptk_run.py skills/skillify/scripts/skillify.py <step args>`, and use
 `python` when `python3` is absent. Each prints one JSON object. Exit codes: `0` ok, `1` logic or
 verification failure, `2` no destination or invalid path. Harness tool names:
 [harness-mapping.md](references/harness-mapping.md).

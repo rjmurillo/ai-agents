@@ -262,7 +262,7 @@ def check_skill_size(
             f"(within the first {RATIONALE_SEARCH_LINES} lines) mentioning "
             "'size-exception' and stating what the check wants, why the "
             "progressive-disclosure fix does not apply here, and what would "
-            "retire the exception. See .claude/rules/code-quality.md, "
+            "retire the exception. See src/claude/skills/build/references/rule-code-quality.md, "
             "'Suppressions Are a Last Resort'."
         )
 
@@ -465,6 +465,19 @@ def read_staged_blob_bytes(path: Path) -> bytes:
     return result.stdout
 
 
+def _put_project_root_on_path() -> None:
+    """Make ``scripts.validation`` importable when this file runs by path.
+
+    lefthook runs this file by path, where only ``scripts/validation`` is on
+    ``sys.path``. Callers import lazily so the module-top lines stay where
+    other documents cite them.
+    """
+    import sys
+
+    if str(_PROJECT_ROOT) not in sys.path:
+        sys.path.insert(0, str(_PROJECT_ROOT))
+
+
 def default_corpus_files() -> list[Path]:
     """Return every SKILL.md under the trees named in ``_SKILL_TREE_PREFIXES``.
 
@@ -474,32 +487,21 @@ def default_corpus_files() -> list[Path]:
     ``.claude/skills`` and measured 98 of 209 bodies, then printed "All skill
     files within size limits", a sentence about a corpus it never opened.
 
-    Roots are anchored on ``_PROJECT_ROOT`` rather than the working directory so
-    the audit reports the same corpus from any subdirectory
-    (``.claude/rules/ci-scripts.md`` MUST-8). An absent tree is skipped, not an
-    error: a vendored install legitimately ships one tree and not the other.
+    Discovery lives in ``skill_corpus.corpus_files``. Module globals are read
+    at call time so tests can repoint ``_PROJECT_ROOT``.
     """
-    files: list[Path] = []
-    for prefix in _SKILL_TREE_PREFIXES:
-        root = _PROJECT_ROOT / prefix
-        if root.is_dir():
-            files.extend(root.rglob("SKILL.md"))
-    return sorted(files)
+    _put_project_root_on_path()
+    from scripts.validation.skill_corpus import corpus_files
+
+    return corpus_files(_PROJECT_ROOT, _SKILL_TREE_PREFIXES)
 
 
 def default_corpus_summary() -> str:
-    """One line naming the trees a default full scan measures, and any absent.
+    """One line naming the trees a default full scan measures, and any absent."""
+    _put_project_root_on_path()
+    from scripts.validation.skill_corpus import corpus_summary
 
-    Printed so the corpus behind the summary sentence is stated rather than
-    assumed. An absent tree is named too: silence there is what let the
-    single-tree scan read as a whole-repository result.
-    """
-    present = [p for p in _SKILL_TREE_PREFIXES if (_PROJECT_ROOT / p).is_dir()]
-    absent = [p for p in _SKILL_TREE_PREFIXES if p not in present]
-    line = f"Scanning skill trees: {', '.join(present) if present else '(none present)'}"
-    if absent:
-        line += f"; absent, not scanned: {', '.join(absent)}"
-    return line
+    return corpus_summary(_PROJECT_ROOT, _SKILL_TREE_PREFIXES)
 
 
 def get_skill_files(

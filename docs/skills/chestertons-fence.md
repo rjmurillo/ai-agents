@@ -43,7 +43,7 @@ The report ends in one of four decisions:
 
 ## Advanced use
 
-The process has six steps: identify the structure, run git archaeology (`git log --follow` and `git blame` for the origin commit, author, and date), search for the originating PR and related ADRs, analyze dependencies, fill the report template, and decide. The skill reads ADRs from `${AWESOME_AI_ARCHITECTURE_DIR:-.project-toolkit/architecture}`. When that directory is absent in a vendored install, the search returns nothing.
+The process has six steps: identify the structure, run git archaeology (`git log --follow` for a file, `git log -S` for a text span such as a section or rule line, for the origin commit, author, and date), confirm the origin with a second probe and `git show` (at most three rounds, then report every candidate), search for the originating PR and related ADRs, analyze dependencies, fill the report template, and decide. The skill reads ADRs from `${AWESOME_AI_ARCHITECTURE_DIR:-.project-toolkit/architecture}`. When that directory is absent in a vendored install, the search returns nothing.
 
 Run the script directly from the root of a checkout of this repository:
 
@@ -73,6 +73,15 @@ Agents use the report as follows:
 | [`architect`](../agents/architect.md) | ADRs that deprecate or replace a pattern include a "Prior Art Investigation" section. Generate it here. |
 | [`implementer`](../agents/implementer.md) | Before deletions or major refactors, verify a report exists. If not, route to the analyst. |
 | [`critic`](../agents/critic.md) | When a plan removes or replaces an existing system, check for investigation evidence. |
+
+Anti-patterns to avoid:
+
+| Avoid | Why | Instead |
+| --- | --- | --- |
+| Removing code you do not understand | May break hidden invariants | Investigate first, then decide |
+| Assuming dead code is unused | Hyrum's Law: someone depends on it | Run dependency analysis |
+| Skipping PR/ADR search | Loses original design rationale | Always check git history and PRs |
+| Proposing replacement without evidence | Cannot compare tradeoffs | Document original constraints first |
 
 [`memory-gate`](memory-gate.md) points here for the full four-phase investigation.
 
