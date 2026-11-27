@@ -313,3 +313,67 @@ def test_a_backslash_inside_a_code_span_still_closes_it() -> None:
     (_first, _a), (_second, second_anchors) = _segments(line)
 
     assert second_anchors == ["return 1"]
+
+
+def test_an_escaped_backtick_stays_atomic_when_the_gap_splits() -> None:
+    """Splitting inside the two-character escape must not revive it as a delimiter."""
+    line = "`a.py:1` \\`, b.py:2 gives `return 0`."
+    matches = list(_CITATION.finditer(line))
+    escape = line.index("\\`")
+
+    point = _gap_split(line, matches[0].end(), matches[1].start())
+    (_first, _first_anchors), (_second, second_anchors) = _segments(line)
+
+    assert point != escape + 1
+    assert second_anchors == ["return 0"]
+
+
+@pytest.mark.parametrize(
+    ("b_text", "expected"),
+    [
+        pytest.param("def result(): return 0\nVALUE = 1\n", 1, id="stale-second-line"),
+        pytest.param("def result():\n    return 0\n", 0, id="correct-second-line"),
+    ],
+)
+def test_gate_judges_a_citation_after_an_escaped_backtick_in_the_gap(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], b_text: str, expected: int
+) -> None:
+    root = _repo(tmp_path)
+    (root / "a.py").write_text("VALUE = 0\n", encoding="utf-8")
+    (root / "b.py").write_text(b_text, encoding="utf-8")
+    row = "`a.py:1` \\`, b.py:2 gives `return 0`."
+    _add_doc(root, "docs/inventory.md", f"| A |\n|---|\n{row}\n")
+
+    code, out = _run(root, capsys)
+
+    assert code == expected, out
+
+
+def test_unequal_backtick_runs_do_not_pair_as_one_span() -> None:
+    """A single backtick inside a double-delimited span is content, not its close."""
+    line = "| `a.py:1` | ``rewrite \\` marker`` | `return 0` | `b.py:2` |"
+
+    (_first, _first_anchors), (_second, second_anchors) = _segments(line)
+
+    assert second_anchors == ["return 0"]
+
+
+@pytest.mark.parametrize(
+    ("b_text", "expected"),
+    [
+        pytest.param("def result(): return 0\nVALUE = 1\n", 1, id="stale-second-line"),
+        pytest.param("def result():\n    return 0\n", 0, id="correct-second-line"),
+    ],
+)
+def test_gate_judges_a_citation_after_unequal_backtick_runs(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], b_text: str, expected: int
+) -> None:
+    root = _repo(tmp_path)
+    (root / "a.py").write_text('DATA = r"rewrite \\` marker"\n', encoding="utf-8")
+    (root / "b.py").write_text(b_text, encoding="utf-8")
+    row = "| `a.py:1` | ``rewrite \\` marker`` | `return 0` | `b.py:2` |"
+    _add_doc(root, "docs/inventory.md", f"| A |\n|---|\n{row}\n")
+
+    code, out = _run(root, capsys)
+
+    assert code == expected, out

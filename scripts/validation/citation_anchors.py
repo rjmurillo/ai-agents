@@ -56,7 +56,7 @@ _CITATION = re.compile(
 )
 
 _URL = re.compile(r"https?://\S+")
-_BACKTICK_SPAN = re.compile(r"`+([^`]+)`+")
+_BACKTICK_SPAN = re.compile(r"(?<!`)(`+)(?!`)(.+?)(?<!`)\1(?!`)")
 # Double-quoted phrases are anchors too: prose quotes the cited contract
 # ('a KEEP_PIN sweep must cover "at least 8 shared fixtures"'). Minimum 4
 # chars so quoted articles and flags stay out.
@@ -111,7 +111,8 @@ def _anchor_candidates(context_lines: list[str], citation_text: str) -> list[str
         # quote of a real anchor and swallow it.
         masked = masked.replace('"""', " ").replace("'''", " ")
         backtick_masked = _mask_escaped_backticks(masked)
-        for span in _BACKTICK_SPAN.findall(backtick_masked) + _DQUOTE_SPAN.findall(masked):
+        backtick_spans = [match.group(2) for match in _BACKTICK_SPAN.finditer(backtick_masked)]
+        for span in backtick_spans + _DQUOTE_SPAN.findall(masked):
             candidate = _span_anchor(span, citation_text)
             if candidate is not None:
                 anchors.append(candidate)
@@ -292,6 +293,26 @@ def _context_lines(
     return context
 
 
+def _backtick_run_end(text: str, start: int) -> int:
+    end = start
+    while end < len(text) and text[end] == "`":
+        end += 1
+    return end
+
+
+def _matching_backtick_run(text: str, start: int, length: int) -> int | None:
+    index = start
+    while index < len(text):
+        if text[index] != "`":
+            index += 1
+            continue
+        end = _backtick_run_end(text, index)
+        if end - index == length:
+            return index
+        index = end
+    return None
+
+
 def _mask_escaped_backticks(text: str) -> str:
     """Blank each backslash-escaped backtick outside a code span, keeping length.
 
@@ -301,22 +322,26 @@ def _mask_escaped_backticks(text: str) -> str:
     if "\\`" not in text:
         return text
     out = list(text)
-    in_span = False
     i = 0
     while i < len(text):
-        char = text[i]
-        if char == "\\" and not in_span:
-            if text[i + 1 : i + 2] == "`":
-                out[i] = out[i + 1] = " "
+        if text.startswith("\\`", i):
+            out[i] = out[i + 1] = " "
             i += 2
             continue
-        if char == "`":
-            while i < len(text) and text[i] == "`":
-                i += 1
-            in_span = not in_span
+        if text[i] == "`":
+            opening_end = _backtick_run_end(text, i)
+            length = opening_end - i
+            close = _matching_backtick_run(text, opening_end, length)
+            i = opening_end if close is None else close + length
             continue
         i += 1
     return "".join(out)
+
+
+def _snap_out_of_escaped_backtick(line: str, point: int) -> int:
+    if 0 < point < len(line) and line[point - 1] == "\\" and line[point] == "`":
+        return point - 1
+    return point
 
 
 def _snap_out_of_tokens(text: str, point: int, low: int, high: int) -> int:
@@ -354,6 +379,7 @@ def _gap_split(line: str, prev_end: int, next_start: int) -> int:
     point = prev_end + (next_start - prev_end) // 2
     for _ in range(3):
         snapped = _snap_out_of_tokens(text, point, prev_end, next_start)
+        snapped = _snap_out_of_escaped_backtick(line, snapped)
         if snapped == point:
             break
         point = snapped
