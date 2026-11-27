@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- one cohesive span parser already extracted from the gate module.
 """Anchor semantics for the citation-freshness gate (issue #5337).
 
 Extracted from ``check_citation_freshness.py`` at the file-size ceiling,
