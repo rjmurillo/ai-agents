@@ -113,6 +113,17 @@ def workflow_url() -> str:
     return f"{server}/{repository}/actions/runs/{run_id()}"
 
 
+def run_source() -> str:
+    """Name where the failing run happened, for the alert body.
+
+    No workflow runs this gate since 2026-11-25, so a run is usually manual and
+    has no run page. A link is printed only when a numeric run id exists.
+    """
+    if run_id() == "unknown":
+        return "Run: manual, outside GitHub Actions. No workflow run page exists."
+    return f"Workflow run: {workflow_url()}"
+
+
 def open_issue_number() -> str:
     result = subprocess.run(
         [
@@ -145,9 +156,9 @@ def create_issue() -> int:
     body = f"""
         ## Software Engineering Library Activation Threshold
 
-        The ADR-088 activation gate failed. Review the uploaded
-        `activation-gate-report.md` artifact and open a restoration PR if any
-        reference reached the consecutive activation failure threshold.
+        The ADR-088 activation gate failed. Review `activation-gate-report.md`,
+        which the run wrote to the directory it started in, and open a restoration
+        PR if any reference reached the consecutive activation failure threshold.
 
         Restoration PR policy:
         - Restore the failing book reference to the always-on rule surface, or
@@ -155,7 +166,7 @@ def create_issue() -> int:
         - Include the latest activation gate report in the PR body.
         - The PR must include a passing run of this gate (see `scripts/eval/README.md`).
 
-        Workflow run: {workflow_url()}
+        {run_source()}
         """
     with tempfile.TemporaryDirectory() as scratch:
         issue_body = Path(scratch) / "issue-body.md"
@@ -179,10 +190,10 @@ def comment_issue(issue_number: str) -> int:
     body = f"""
         The ADR-088 activation gate failed again.
 
-        Review the latest uploaded activation artifacts and keep or open the
-        restoration PR until this gate passes.
+        Review the latest `activation-gate-report.md` from that run and keep or
+        open the restoration PR until this gate passes.
 
-        Workflow run: {workflow_url()}
+        {run_source()}
         """
     with tempfile.TemporaryDirectory() as scratch:
         comment_body = Path(scratch) / "comment-body.md"

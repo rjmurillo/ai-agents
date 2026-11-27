@@ -302,6 +302,66 @@ class TestTheAlertBodyIsScratchAndNotRepositoryState:
         assert paths and not paths[0].exists()
 
 
+class TestTheAlertBodyNamesWhereTheRunHappened:
+    """No workflow runs this gate since 2026-11-25, so most runs are manual.
+
+    A manual run has no run page and uploads nothing. The body must not print a
+    dead `actions/runs/unknown` link or send the reader to an uploaded artifact.
+    """
+
+    @staticmethod
+    def _bodies(monkeypatch, tmp_path: Path, open_issue: str) -> list[str]:
+        ci = _load_ci_module()
+        seen: list[str] = []
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(ci, "open_issue_number", lambda: open_issue)
+        monkeypatch.setattr(
+            ci,
+            "run",
+            lambda command, **kwargs: _record(
+                seen, Path(command[command.index("--body-file") + 1]).read_text(encoding="utf-8")
+            ),
+        )
+        ci.alert_issue()
+        return seen
+
+    @pytest.mark.parametrize("open_issue", ["", "3701"], ids=["create", "comment"])
+    def test_a_manual_run_prints_no_run_link(self, monkeypatch, tmp_path: Path, open_issue: str):
+        monkeypatch.delenv("GITHUB_RUN_ID", raising=False)
+
+        (body,) = self._bodies(monkeypatch, tmp_path, open_issue)
+
+        assert "Run: manual, outside GitHub Actions." in body
+        assert "actions/runs/" not in body
+        assert "uploaded" not in body
+        assert "`activation-gate-report.md`" in body
+
+    @pytest.mark.parametrize("open_issue", ["", "3701"], ids=["create", "comment"])
+    def test_a_numeric_run_id_still_prints_the_run_link(
+        self, monkeypatch, tmp_path: Path, open_issue: str
+    ):
+        """Negative control: a run inside Actions keeps its link."""
+        monkeypatch.setenv("GITHUB_RUN_ID", "30416078819")
+        monkeypatch.setenv("GITHUB_SERVER_URL", "https://github.com")
+        monkeypatch.setenv("GITHUB_REPOSITORY", "rjmurillo/ai-agents")
+
+        (body,) = self._bodies(monkeypatch, tmp_path, open_issue)
+
+        expected = "https://github.com/rjmurillo/ai-agents/actions/runs/30416078819"
+        assert f"Workflow run: {expected}" in body
+        assert "Run: manual" not in body
+
+    @pytest.mark.parametrize("hostile", ["--repo", "12 34", "", "١٢٣"])
+    def test_a_run_id_that_is_not_a_number_reads_as_manual(self, monkeypatch, hostile: str):
+        """Edge: a refused run id must not reach the body as a link."""
+        monkeypatch.setenv("GITHUB_RUN_ID", hostile)
+
+        source = _load_ci_module().run_source()
+
+        assert source.startswith("Run: manual")
+        assert "unknown" not in source
+
+
 class TestAMeasurementFailureDoesNotCountAsRuleUnderperformance:
     """Only a verdict about the rule may advance the rollback streak.
 

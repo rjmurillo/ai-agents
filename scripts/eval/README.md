@@ -1121,7 +1121,9 @@ directory you run from. The Actions cache that carried it between weekly runs we
 away with the workflow, so separate checkouts do not share a rollback streak. Run
 from one checkout to accumulate one. The state records
 one entry per moved reference with `consecutive_activation_failures`,
-`last_verdict`, `last_run_id`, and `last_checked_at`. `FAIL_THRESHOLD`,
+`last_verdict`, `last_run_id`, and `last_checked_at`. A manual run has no workflow
+run id, so it records `last_run_id` as `unknown`; `last_checked_at` tells manual runs
+apart, and the alert body says the run was manual instead of linking a run page. `FAIL_THRESHOLD`,
 `FAIL_NO_DELTA`, `NO_POSITIVE_CASES`, and `NO_RESULT` increment the rollback streak.
 `FAIL_JUDGE_ERRORS` is treated as an external eval failure and does not increment
 the activation rollback streak.
