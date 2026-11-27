@@ -173,7 +173,7 @@ These bind today.
 | [ADR-117](ADR-117-state-conflation-failure-mode.md) | Add FM-13, State Conflation in a Boolean Guard, to the Failure Taxonomy | 2026-10-13 | Add one class to `FAILURE-MODES.md`, FM-13, State Conflation in a Boolean Guard. |
 | [ADR-118](ADR-118-widen-fm-11-to-hand-authored-cross-harness-instructions.md) | Widen FM-11 to Cover Hand-Authored Cross-Harness Instructions | 2026-10-13 | Widen FM-11. |
 | [ADR-119](ADR-119-symlinked-dogfood-agents-and-skills.md) | Symlink the Agent and Skill Dogfood Trees to the Plugin Tree | 2026-11-04 | A binplace manifest row may set `link: true` (`templates/platforms/binplace.yaml`). |
-| [ADR-120](ADR-120-completion-gate-unknown-verdict.md) | The Completion Gate Reports a Refused Session as Unknown | 2026-11-04 | `fail_open` stays false. |
+| [ADR-120](ADR-120-completion-gate-unknown-verdict.md) | The Completion Gate Reports a Refused Session as Unknown | 2026-11-27 | `fail_open` stays false. |
 | [ADR-122](ADR-122-scoped-parser-dependency-admission.md) | Admit the C# Parser Dependencies Without Hiding Their Coupling | 2026-11-22 | Add one fixed `csharpParserDependencyAdmission` record to `.qualityrc.json`. |
 | [ADR-123](ADR-123-skill-artifact-flow-declarations.md) | Skills Declare the Artifacts They Read and Write | 2026-11-19 | `metadata.outputs` and `metadata.inputs` become mappings keyed by artifact name. |
 | [ADR-125](ADR-125-exact-code-quality-review-approvals.md) | Require Exact Approval of Code-Quality Review Findings | 2026-11-24 | Keep the assessor's scores, output, configuration, and exit behavior. |
