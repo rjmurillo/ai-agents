@@ -2657,7 +2657,7 @@ class TestChecksRollupRulesetHelpers:
             stdout=_json.dumps(payload),
             stderr="",
         )
-        with patch("github_core.checks_rollup.subprocess.run", return_value=mock_result):
+        with patch("github_core.branch_rules.subprocess.run", return_value=mock_result):
             contexts = fetch_ruleset_required_contexts("o", "r", "main")
 
         assert contexts == ["Run Python Tests", "Validate PR"]
@@ -2689,7 +2689,7 @@ class TestChecksRollupRulesetHelpers:
             stderr="",
         )
         with patch(
-            "github_core.checks_rollup.subprocess.run",
+            "github_core.branch_rules.subprocess.run",
             return_value=mock_result,
         ) as mock_run:
             contexts = fetch_ruleset_required_contexts("o", "r", "main")
@@ -2712,7 +2712,7 @@ class TestChecksRollupRulesetHelpers:
             stdout="",
             stderr="Not Found",
         )
-        with patch("github_core.checks_rollup.subprocess.run", return_value=mock_result):
+        with patch("github_core.branch_rules.subprocess.run", return_value=mock_result):
             result = fetch_ruleset_required_contexts("o", "r", "main")
 
         assert result is None
@@ -2730,7 +2730,7 @@ class TestChecksRollupRulesetHelpers:
         """A timeout or unlaunchable gh is an unknown result, not an exception."""
         from github_core.checks_rollup import fetch_ruleset_required_contexts
 
-        with patch("github_core.checks_rollup.subprocess.run", side_effect=error):
+        with patch("github_core.branch_rules.subprocess.run", side_effect=error):
             result = fetch_ruleset_required_contexts("o", "r", "main")
 
         assert result is None
@@ -2740,7 +2740,7 @@ class TestChecksRollupRulesetHelpers:
         from github_core.checks_rollup import fetch_ruleset_required_contexts
 
         with (
-            patch("github_core.checks_rollup.subprocess.run", side_effect=ValueError("bug")),
+            patch("github_core.branch_rules.subprocess.run", side_effect=ValueError("bug")),
             pytest.raises(ValueError),
         ):
             fetch_ruleset_required_contexts("o", "r", "main")
@@ -2757,7 +2757,7 @@ class TestChecksRollupRulesetHelpers:
             stdout="not-json",
             stderr="",
         )
-        with patch("github_core.checks_rollup.subprocess.run", return_value=mock_result):
+        with patch("github_core.branch_rules.subprocess.run", return_value=mock_result):
             result = fetch_ruleset_required_contexts("o", "r", "main")
 
         assert result is None
@@ -2786,7 +2786,7 @@ class TestChecksRollupRulesetHelpers:
             stdout=_json.dumps(payload),
             stderr="",
         )
-        with patch("github_core.checks_rollup.subprocess.run", return_value=mock_result):
+        with patch("github_core.branch_rules.subprocess.run", return_value=mock_result):
             contexts = fetch_ruleset_required_contexts("o", "r", "main")
 
         assert contexts == ["Run Python Tests"]
@@ -2810,7 +2810,7 @@ class TestRulesRequirePullRequest:
 
     @staticmethod
     def _check(rules):
-        from github_core.checks_rollup import rules_require_pull_request
+        from github_core.branch_rules import rules_require_pull_request
 
         return rules_require_pull_request(rules)
 
@@ -2840,9 +2840,9 @@ class TestFetchBranchRules:
 
     @staticmethod
     def _call(branch="main", **run_kwargs):
-        from github_core.checks_rollup import fetch_branch_rules
+        from github_core.branch_rules import fetch_branch_rules
 
-        with patch("github_core.checks_rollup.subprocess.run", **run_kwargs) as mock_run:
+        with patch("github_core.branch_rules.subprocess.run", **run_kwargs) as mock_run:
             result = fetch_branch_rules("o", "r", branch)
         return result, mock_run
 
@@ -2898,10 +2898,10 @@ class TestFetchBranchRules:
         ]
 
     def test_other_errors_are_not_swallowed(self):
-        from github_core.checks_rollup import fetch_branch_rules
+        from github_core.branch_rules import fetch_branch_rules
 
         with (
-            patch("github_core.checks_rollup.subprocess.run", side_effect=ValueError("bug")),
+            patch("github_core.branch_rules.subprocess.run", side_effect=ValueError("bug")),
             pytest.raises(ValueError),
         ):
             fetch_branch_rules("o", "r", "main")
@@ -2930,13 +2930,13 @@ class TestRequiredContextsFromRules:
     """Unit tests for the pure extractor and the contexts contract it backs."""
 
     def test_extracts_sorted_unique_contexts(self):
-        from github_core.checks_rollup import required_contexts_from_rules
+        from github_core.branch_rules import required_contexts_from_rules
 
         rules = [_STATUS_RULE, "junk", _STATUS_RULE, {"type": "required_status_checks"}]
         assert required_contexts_from_rules(rules) == ["Validate PR"]
 
     def test_empty_rules_return_empty_list(self):
-        from github_core.checks_rollup import required_contexts_from_rules
+        from github_core.branch_rules import required_contexts_from_rules
 
         assert required_contexts_from_rules([]) == []
 
@@ -2963,7 +2963,7 @@ class TestRequiredContextsFromRules:
             ],
             [_STATUS_RULE, {"type": "required_status_checks"}],
         ]
-        with patch("github_core.checks_rollup.subprocess.run", return_value=_rules_result(pages)):
+        with patch("github_core.branch_rules.subprocess.run", return_value=_rules_result(pages)):
             contexts = fetch_ruleset_required_contexts("o", "r", "main")
         assert contexts == ["Validate PR", "a", "b"]
 
@@ -2971,7 +2971,7 @@ class TestRequiredContextsFromRules:
     def test_required_contexts_none_for_non_list_payload(self, payload):
         from github_core.checks_rollup import fetch_ruleset_required_contexts
 
-        with patch("github_core.checks_rollup.subprocess.run", return_value=_rules_result(payload)):
+        with patch("github_core.branch_rules.subprocess.run", return_value=_rules_result(payload)):
             assert fetch_ruleset_required_contexts("o", "r", "main") is None
 
 

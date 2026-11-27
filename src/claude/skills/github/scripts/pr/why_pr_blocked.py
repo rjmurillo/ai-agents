@@ -22,7 +22,7 @@ Exit codes (ADR-035):
     0 - No blocking cause found (PR may be mergeable)
     1 - Blocking cause found (missing, failing, pending, unresolved threads, or an
         enforced review requesting changes)
-    2 - PR not found or config error
+    2 - PR not found or config error (such as an unsafe --base-branch)
     3 - API error
 """
 
@@ -43,16 +43,19 @@ from github_core.api import (
     gh_graphql,
     resolve_repo_params,
 )
+from github_core.branch_rules import (
+    branch_rules_endpoint,
+    fetch_branch_rules,
+    required_contexts_from_rules,
+    rules_require_pull_request,
+)
 from github_core.checks_rollup import (
     MISSING_GRACE_SECONDS,
     current_run_keys,
     extract_workflow_run_number,
-    fetch_branch_rules,
     find_missing_required,
     missing_checks_queued,
     partition_rows_by_run,
-    required_contexts_from_rules,
-    rules_require_pull_request,
 )
 from github_core.not_found import is_pr_not_found
 from github_core.output import (
@@ -607,7 +610,7 @@ exit codes:
   0  no blocking cause found (PR may be mergeable)
   1  blocking cause found (missing, failing, pending, unresolved threads, or an
      enforced review requesting changes)
-  2  PR not found or config error
+  2  PR not found or config error (such as an unsafe --base-branch)
   3  API error
   4  not authenticated with gh
 """
@@ -715,6 +718,17 @@ def main(argv: list[str] | None = None) -> int:
         if args.base_branch is not None
         else str(pr_data.get("BaseBranch") or "")
     )
+    if base_branch and branch_rules_endpoint(owner, repo, base_branch) is None:
+        write_skill_error(
+            f"Invalid base branch {base_branch!r}: empty, '.' or '..' path segment",
+            2,
+            error_type="InvalidParams",
+            output_format=fmt,
+            script_name="why_pr_blocked.py",
+            extra={"Number": args.pull_request},
+        )
+        return 2
+
     rules = fetch_branch_rules(owner, repo, base_branch) if base_branch else None
 
     if base_branch and rules is None:

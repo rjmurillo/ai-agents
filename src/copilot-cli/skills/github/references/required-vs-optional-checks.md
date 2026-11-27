@@ -21,7 +21,8 @@ Never copy check names into prose, because a copied list drifts.
 | Can this PR merge? | `test_pr_merge_ready.py --pull-request N` and read `CanMerge` and `CIPassing` |
 | Why is this PR blocked? | `why_pr_blocked.py --pull-request N` |
 
-All three read the ruleset through `github_core.checks_rollup`. They mark each
+All three read the ruleset: `why_pr_blocked.py` through `github_core.branch_rules`,
+the other two through `github_core.checks_rollup`, which wraps it. They mark each
 check required or not, and they list a required check that never reported.
 
 GitHub reports `mergeStateStatus: UNSTABLE` when every required check passed

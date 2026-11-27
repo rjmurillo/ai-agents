@@ -3191,7 +3191,7 @@ class TestMissingRulesetRequiredChecks:
         timeout = subprocess.TimeoutExpired(cmd=["gh", "api"], timeout=30)
         with (
             patch("test_pr_merge_ready.gh_graphql", return_value=_OPEN_PR),
-            patch("github_core.checks_rollup.subprocess.run", side_effect=timeout),
+            patch("github_core.branch_rules.subprocess.run", side_effect=timeout),
         ):
             result = check_merge_readiness("o", "r", 42)
 

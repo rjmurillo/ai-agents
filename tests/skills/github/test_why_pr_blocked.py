@@ -1310,6 +1310,27 @@ class TestReviewDecisionMain:
         )
         assert rules_mock.call_count == 1
 
+    @pytest.mark.parametrize("branch", ["..", "x//y", "a/./b"])
+    def test_unsafe_base_branch_exits_2_without_reading_rules(self, capsys, branch):
+        rc, out, _, rules_mock = self._run(
+            capsys, decision="CHANGES_REQUESTED", rule=True, args=("--base-branch", branch)
+        )
+        error = json.loads(out)["Error"]
+        assert rc == 2
+        assert error["Type"] == "InvalidParams"
+        assert f"Invalid base branch {branch!r}" in error["Message"]
+        rules_mock.assert_not_called()
+
+    def test_slash_base_branch_still_reads_rules(self, capsys):
+        rc, _, _, rules_mock = self._run(
+            capsys,
+            decision="CHANGES_REQUESTED",
+            rule=True,
+            args=("--base-branch", "release/1.2"),
+        )
+        assert rc == 1
+        rules_mock.assert_called_once_with("o", "r", "release/1.2")
+
     def test_changes_requested_makes_exactly_one_rules_read(self, capsys):
         _, _, _, rules_mock = self._run(capsys, decision="CHANGES_REQUESTED", rule=True)
         assert rules_mock.call_count == 1
