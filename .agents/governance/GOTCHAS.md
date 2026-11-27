@@ -245,7 +245,9 @@ directive, a rule list, a short id, or any other trailing text still blocks.
 Removing an allowed line earns no removal credit, so it cannot pay for a
 blocked form of the same directive. The scan splits lines on newline only and
 reads git output as raw bytes. So a form feed or a lone carriage return cannot
-hide a second rule id after an allowed directive.
+hide a second rule id after an allowed directive. The diff scan keys each line
+on the file name exactly as git reports it. A decoy name with a leading space
+does not match a listed path.
 
 An entry grants a rule for its whole file, not for one line. Today the list
 covers the `_launch` calls in `ptk_run.py`, per the owner ruling on #7591, so a

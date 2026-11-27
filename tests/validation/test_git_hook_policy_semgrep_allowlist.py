@@ -222,6 +222,8 @@ def _repo_with_change(tmp_path: Path, path: str, directive_line: str) -> tuple[P
     _git(repo, "init", "-q")
     _git(repo, "config", "user.email", "test@example.com")
     _git(repo, "config", "user.name", "Test User")
+    _git(repo, "config", "core.autocrlf", "false")
+    (repo / ".git" / "info" / "attributes").write_text("* -text\n", encoding="utf-8")
     target = repo / path
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(BASE_BODY, encoding="utf-8")

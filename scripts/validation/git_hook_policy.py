@@ -3672,10 +3672,9 @@ DIFF_HUNK_RE = diff_line_scope.DIFF_HUNK_RE
 _normalize_ratchet_path = diff_line_scope.normalize_path
 _parse_changed_lines = diff_line_scope.parse_changed_lines
 # DIFF_ADDED_FILE_RE deliberately keeps the ``b/`` prefix, because git quotes
-# the prefix together with the path (``+++ "b/od\"d.py"``). Every consumer of
-# the header must go through this helper, which unquotes, then strips, and
-# returns None for the ``/dev/null`` post-image of a deletion.
-_file_header_path = diff_line_scope.file_header_path
+# the prefix together with the path (``+++ "b/od\"d.py"``). The suppression
+# scan reads the header through ``_exact_diff_header_path``, which unquotes,
+# then strips the prefix, and returns None for a deletion's ``/dev/null``.
 
 
 def _mypy_ratchet_base_ref() -> str:
@@ -4271,6 +4270,20 @@ def _suppression_violations_in_diff(
     return violations
 
 
+def _exact_diff_header_path(raw: str) -> str | None:
+    """Return a ``+++`` header path exactly as git names the file.
+
+    ``diff_line_scope.file_header_path`` strips spaces and turns backslashes
+    into slashes. Here that would key a decoy such as `` src/claude/lib/ptk_run.py``
+    to a listed path. Git appends one tab when a name holds a space, so only
+    that tab is dropped.
+    """
+    unquoted = diff_line_scope.unquote_diff_path(raw.removesuffix("\t"))
+    if unquoted == "/dev/null":
+        return None
+    return unquoted.removeprefix("b/")
+
+
 def _iter_diff_changes(diff_text: str) -> Iterator[tuple[str, str, int, str]]:
     current_path = None
     current_line: int | None = None
@@ -4282,7 +4295,7 @@ def _iter_diff_changes(diff_text: str) -> Iterator[tuple[str, str, int, str]]:
         if current_line is None:
             file_match = DIFF_ADDED_FILE_RE.match(line)
             if file_match is not None:
-                header_path = _file_header_path(file_match.group("path"))
+                header_path = _exact_diff_header_path(file_match.group("path"))
                 if header_path is not None:
                     current_path = header_path
                     continue
@@ -4730,6 +4743,7 @@ def _commit_full_content_suppression_violations(
 
 
 def _suppression_text_or_none(object_spec: str, repo_root: Path) -> str | None:
+    """Return a blob's exact text for a suppression scan, or None on a git failure."""
     result = _run_git_exact_text(repo_root, ["show", object_spec])
     if result.returncode != 0:
         _print_process_output(result)
@@ -4770,23 +4784,15 @@ def _notebook_suppression_violations_for_text(
 
 
 def _index_text_or_none(path: str, repo_root: Path) -> str | None:
-    result = _run_git(repo_root, ["show", f":{path}"])
-    if result.returncode != 0:
-        _print_process_output(result)
-        return None
-    return result.stdout
+    return _suppression_text_or_none(f":{path}", repo_root)
 
 
 def _commit_text_or_none(head: str, path: str, repo_root: Path) -> str | None:
-    result = _run_git(repo_root, ["show", f"{head}:{path}"])
-    if result.returncode != 0:
-        _print_process_output(result)
-        return None
-    return result.stdout
+    return _suppression_text_or_none(f"{head}:{path}", repo_root)
 
 
 def _commit_text_or_empty(head: str, path: str, repo_root: Path) -> str:
-    result = _run_git(repo_root, ["show", f"{head}:{path}"])
+    result = _run_git_exact_text(repo_root, ["show", f"{head}:{path}"])
     return result.stdout if result.returncode == 0 else ""
 
 
@@ -4794,7 +4800,7 @@ def _commit_text_for_base(base_ref: str, path: str, repo_root: Path) -> str | No
     """Return the text of a file at ``base_ref``, or ``""`` when the file is
     absent at that ref (new file), or ``None`` when ``base_ref`` itself is
     invalid so the caller can propagate rc=3 rather than rc=1."""
-    result = _run_git(repo_root, ["show", f"{base_ref}:{path}"])
+    result = _run_git_exact_text(repo_root, ["show", f"{base_ref}:{path}"])
     if result.returncode == 0:
         return result.stdout
     # Distinguish "file not in tree" (new file, treat as empty) from any
