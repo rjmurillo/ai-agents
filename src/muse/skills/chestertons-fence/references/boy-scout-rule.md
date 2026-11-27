@@ -29,10 +29,10 @@ When running a Chesterton's Fence investigation:
 
 1. Notice small improvements in files you examine
 2. Include in same PR if related to the change under investigation
-3. Separate branch and PR only for a confirmed defect with a named impact and its own proof; never for a preference
+3. A confirmed defect the investigation proves, with its impact named, gets its own branch and PR; a preference gets nothing
 4. Document rationale in commit message
 
-The `avoiding-manufactured-work` skill's Drive-By Fixes section is the canonical limit for this rule.
+Limits for any change this investigation suggests: see Drive-By Fixes in the `avoiding-manufactured-work` skill.
 
 ## Warning Signs of Overreach
 
