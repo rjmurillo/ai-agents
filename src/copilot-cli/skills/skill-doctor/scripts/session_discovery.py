@@ -14,7 +14,9 @@ from datetime import datetime, timezone
 from pathlib import Path, PureWindowsPath
 from typing import Any
 
+from session_args import add_sampling_arguments
 from session_common import _recent_files, record_collection_issue
+from session_threads import add_subagent_argument, resolve_subagent_flags
 
 CLAUDE_DIRECTORY = ".claude"
 PROJECT_HARNESS_DIRS = (CLAUDE_DIRECTORY, ".codex", ".github", ".factory")
@@ -381,18 +383,16 @@ def parse_collector_args(description: str | None) -> argparse.Namespace:
         action="store_true",
         help="also discover skills in the supported harnesses' global skill directories",
     )
-    _add_sampling_arguments(parser)
+    add_sampling_arguments(parser)
     parser.add_argument(
         "--skills-dir",
         action="append",
         default=[],
         help="extra skills directory to scan (repeatable)",
     )
-    parser.add_argument(
-        "--include-subagents", action="store_true", help="include subagent/child sessions"
-    )
+    add_subagent_argument(parser)
     parser.add_argument("--out", default="./skill-doctor-report")
-    return parser.parse_args()
+    return resolve_subagent_flags(parser.parse_args())
 
 
 def _add_source_arguments(parser: argparse.ArgumentParser) -> None:
@@ -458,42 +458,4 @@ def _add_source_arguments(parser: argparse.ArgumentParser) -> None:
         "--warp-data-dir",
         default=os.environ.get("WARP_DATA_DIR"),
         help="directory containing Warp channel data directories",
-    )
-
-
-def _non_negative_minutes(value: str) -> float:
-    try:
-        minutes = float(value)
-    except ValueError:
-        raise argparse.ArgumentTypeError(f"not a number: {value!r}") from None
-    if minutes < 0 or minutes != minutes:
-        raise argparse.ArgumentTypeError("must be 0 or greater")
-    return minutes
-
-
-def _add_sampling_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--min-idle-minutes",
-        type=_non_negative_minutes,
-        default=15.0,
-        help="skip sessions whose last record is newer than N minutes, because they may "
-        "still be running (default: 15; 0 keeps every session)",
-    )
-    parser.add_argument(
-        "--days", type=int, default=45, help="only consider sessions modified in the last N days"
-    )
-    parser.add_argument(
-        "--max-sessions", type=int, default=12, help="max sessions to sample for scoring"
-    )
-    parser.add_argument("--per-skill", type=int, default=3, help="max sampled sessions per skill")
-    parser.add_argument(
-        "--no-skill", type=int, default=4, help="max sampled sessions that used no skill"
-    )
-    parser.add_argument(
-        "--timeline-supplement",
-        type=int,
-        default=0,
-        metavar="N",
-        help="opt-in: add up to N no-skill sessions spaced evenly over the window, tagged "
-        "stratum timeline_supplement (default: 0, off; the sample is not representative)",
     )
