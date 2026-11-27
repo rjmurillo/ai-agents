@@ -26,6 +26,8 @@ from tests.eval._actionability_corpus_test_support import (
     write_prs,
 )
 
+pytestmark = pytest.mark.usefixtures("freeze_actionability_clock")
+
 
 @pytest.fixture(autouse=True)
 def _frozen(monkeypatch: pytest.MonkeyPatch) -> None:
