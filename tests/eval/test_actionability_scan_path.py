@@ -20,13 +20,7 @@ from tests.eval._actionability_arms_test_support import (
     provider_argv,
     write_corpus_file,
 )
-from tests.eval._actionability_corpus_test_support import (
-    cc,
-    make_node,
-    make_pr,
-    make_thread,
-    write_prs,
-)
+from tests.eval._actionability_corpus_test_support import cc, make_pr, make_thread, write_prs
 
 pytestmark = pytest.mark.usefixtures("freeze_actionability_clock")
 
@@ -79,11 +73,13 @@ class TestSamplePath:
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """Plan M1-T9: sample stores the path in the corpus and the sheet, so it blocks."""
-        node = make_node(
-            "PRRC_PATH",
-            "Consider a helper here",
-            path=f"src/{_ANT_TOKEN}/a.py",
-        )
+        node = {
+            "id": "PRRC_PATH",
+            "body": "Consider a helper here",
+            "author": {"login": "alice"},
+            "createdAt": "2026-11-20T00:00:00Z",
+            "path": f"src/{_ANT_TOKEN}/a.py",
+        }
         prs = write_prs(tmp_path / "prs.json", [make_pr(1, make_thread(node))])
         out = tmp_path / "corpus.jsonl"
         argv = ["sample", "--prs", str(prs), "--output", str(out)]

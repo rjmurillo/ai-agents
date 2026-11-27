@@ -5,13 +5,11 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 _SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "eval" / "actionability_corpus.py"
 FROZEN_NOW = "2026-11-24T12:00:00+00:00"
-RECENT_CREATED_AT = datetime.now(UTC).isoformat()
 SHA40 = "a" * 40
 
 
@@ -31,15 +29,14 @@ def make_node(
     node_id: str,
     body: str,
     login: str = "alice",
-    created_at: str = RECENT_CREATED_AT,
-    path: str = "src/a.py",
+    created_at: str = "2026-11-20T00:00:00Z",
 ) -> dict[str, Any]:
     return {
         "id": node_id,
         "body": body,
         "author": {"login": login},
         "createdAt": created_at,
-        "path": path,
+        "path": "src/a.py",
     }
 
 
