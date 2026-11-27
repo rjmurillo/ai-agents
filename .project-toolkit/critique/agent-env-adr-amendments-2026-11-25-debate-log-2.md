@@ -125,7 +125,7 @@ Both seats read the wording diff. Architect vote: Accept. Critic vote: Accept. N
 
 ## Merge resolution, 2026-11-26
 
-Pull request #7629 (`4d459a2206`, 2026-11-26) added a second ADR-057 amendment with the heading date 2026-11-25: "ADR-127 decision 9". Its debate log is `ADR-057-debate-log-2.md`. Pull request #7691 (`67899d52d4`, 2026-11-25) flipped ADR-088 to `implemented: true`. Both reached `main` before this branch did. Merging that content conflicted in ADR-057, ADR-088, and the ADR-057 claims ledger. The author resolved the conflicts by hand against `6c0a0fc5db` (2026-11-26). Squash commit `dff887317c` (2026-11-26) on `main` holds the same tree.
+Pull request #7629 (`4d459a2206`, 2026-11-26) added a second ADR-057 amendment with the heading date 2026-11-25: "ADR-127 decision 9". Its debate log is `ADR-057-debate-log-2.md`. Pull request #7691 (`67899d52d4`, 2026-11-25) flipped ADR-088 to `implemented: true`. Both reached `main` before this branch did. Merging that content conflicted in ADR-057, ADR-088, and the ADR-057 claims ledger. The author resolved the conflicts by hand against `6c0a0fc5db` (2026-11-26), a local merge of `main` (`4d104e9a8f`, 2026-11-26) into the pull request #7630 head `f4557cc4f2` (2026-11-25). That merge commit was never pushed. Squash commit `dff887317c` (2026-11-26) on `main` holds the same tree.
 
 - **ADR-088**: exact union. It keeps the frontmatter from `main` and this branch's amendment section. One pointer changed: line 270 now names "the `/spec` CI leg amendment" of ADR-057, because two ADR-057 amendments share that date. The file stays at 311 lines.
 - **ADR-057, order**: the ADR-127 amendment comes first, at lines 310 to 404. Lines 1 to 405 keep the numbering on `main`, so the line cites in that amendment's ledger still hold. This branch's amendment follows at lines 406 to 412.
@@ -167,3 +167,9 @@ Both seats read the wording diff and the ADR-088 change. Architect vote: Accept.
 
 - ADR-127:248 and `scripts/validation/checks_ci_parity.py`:348 cite "ADR-057 Amendment 2026-11-25" by date only. Both came from `main`, and the text around each names the deterministic check.
 - ADR-114:132 and REQ-047:64 still describe the earlier approval and smoke contracts. Both records are outside this change by owner decision.
+
+## Evidence correction, 2026-11-27
+
+The ledger's Fourth pass called `6c0a0fc5db` the last tip of the pull request #7630 branch. That was wrong. `git ls-remote origin refs/pull/7630/head` prints `f4557cc4f2`. `6c0a0fc5db` is a local merge of `main` into that head, and it was never pushed. The merge commit `715828e46f` (2026-11-26) repeats the wrong phrase in its message. The message stays, because the branch history is not rewritten.
+
+The ledger intro and the Merge resolution section above now say what `6c0a0fc5db` is. A new ledger row checks the tree identity from pushed commits only: `git merge-tree --write-tree f4557cc4f2 4d104e9a8f` and `git rev-parse dff887317c^{tree}` both print `984f58ed058c`. No ADR text changed. The seats did not re-vote on this correction, because it changes no record they reviewed.

@@ -73,7 +73,7 @@ Rows for the text the reduced panel added on 2026-11-26: the decision-maker line
 
 ## Fourth pass, 2026-11-26
 
-Rows for the two sentences reworded when `main` content was merged into branch `ci/delete-agent-env-jobs` (head `17db22a931`, 2026-11-26). The conflicts were resolved against `6c0a0fc5db` (2026-11-26), the last tip of the pull request #7630 branch. Squash commit `dff887317c` (2026-11-26) on `main` holds the same tree. That tree carries the ADR-127 amendment from pull request #7629 (`4d459a2206`, 2026-11-26), whose check calls the runner's `acceptance_gate` in CI. The sentences "no CI job invokes them" and "No CI job runs `eval-prompt-change.py` now" were narrowed to match. Commands ran on 2026-11-26 in the merged working tree before the merge commit.
+Rows for the two sentences reworded when `main` content was merged into branch `ci/delete-agent-env-jobs` (head `17db22a931`, 2026-11-26). The conflicts were resolved against `6c0a0fc5db` (2026-11-26), a local merge of `main` (`4d104e9a8f`, 2026-11-26) into the pull request #7630 head `f4557cc4f2` (2026-11-25). That merge commit was never pushed. Squash commit `dff887317c` (2026-11-26) on `main` holds the same tree. That tree carries the ADR-127 amendment from pull request #7629 (`4d459a2206`, 2026-11-26), whose check calls the runner's `acceptance_gate` in CI. The sentences "no CI job invokes them" and "No CI job runs `eval-prompt-change.py` now" were narrowed to match. Commands ran on 2026-11-26 in the merged working tree before the merge commit.
 
 | Claim | Kind | Command | Result |
 |---|---|---|---|
@@ -84,4 +84,7 @@ Rows for the two sentences reworded when `main` content was merged into branch `
 | The merged ADR cites no deleted workflow path | absence | `grep -c 'slash-command-quality.yml' .project-toolkit/architecture/ADR-057-prompt-behavioral-evaluation.md` | VERIFIED: 0 |
 | Line 277 still holds "Do not add a new blocking gate." | quote | `sed -n '277p' .project-toolkit/architecture/ADR-057-prompt-behavioral-evaluation.md \| grep -c 'Do not add a new blocking gate.'` | VERIFIED: 1 |
 | `6c0a0fc5db` and `dff887317c` hold the same tree | behavior | `git diff --quiet 6c0a0fc5db dff887317c; echo $?` | VERIFIED: 0 |
+| Merging `main` into the pull request #7630 head gives the tree of `dff887317c`, from pushed commits only | behavior | `git merge-tree --write-tree f4557cc4f2 4d104e9a8f \| cut -c1-12; git rev-parse dff887317c^{tree} \| cut -c1-12` | VERIFIED: 984f58ed058c both times, run 2026-11-27 |
 | The check calls no model | quote | none: the ADR-127 amendment states it ("It is deterministic and calls no model") and the first ledger section above verifies it | NOT RUN: cited from the amendment and the row "The check calls no model." above |
+
+Correction, 2026-11-27: an earlier draft of this pass called `6c0a0fc5db` the last tip of the pull request #7630 branch. `git ls-remote origin refs/pull/7630/head` prints `f4557cc4f2`. The intro above now says what `6c0a0fc5db` is, and the last row gives a check that needs no local-only commit.
