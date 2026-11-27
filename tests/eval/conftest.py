@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import importlib
 import sys
+from datetime import UTC, datetime, tzinfo
 from pathlib import Path
 from types import ModuleType
 
@@ -36,6 +37,11 @@ def _hermetic_credential_sources(monkeypatch: pytest.MonkeyPatch):
     """
     from tests.eval._credential_test_support import install_inert_sources
 
+    # The Claude CLI child inherits the parent environment, and an exported
+    # gateway pair preempts every other step. A developer's hub session must
+    # not change what a test resolves or what reaches a fake child.
+    for name in ("ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_CUSTOM_HEADERS"):
+        monkeypatch.delenv(name, raising=False)
     install_inert_sources(monkeypatch)
     yield
     from tests.eval._credential_test_support import reset_cache
@@ -93,3 +99,24 @@ def _ancestry_scan_stops_at_pytest_base_temp(
         return [path for path in found if path.is_relative_to(base)]
 
     monkeypatch.setattr(harness, "ancestor_instructions", scan_below_base_temp)
+
+
+@pytest.fixture
+def freeze_actionability_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Score and sample dated corpus fixtures against the same clock."""
+    from scripts import update_reviewer_signal_stats
+    from tests.eval._actionability_corpus_test_support import FROZEN_NOW, cc
+
+    frozen = datetime.fromisoformat(FROZEN_NOW)
+
+    class FrozenDateTime:
+        fromisoformat = staticmethod(datetime.fromisoformat)
+
+        @staticmethod
+        def now(tz: tzinfo | None = None) -> datetime:
+            if tz is None:
+                return frozen.astimezone(UTC).replace(tzinfo=None)
+            return frozen.astimezone(tz)
+
+    monkeypatch.setattr(update_reviewer_signal_stats, "datetime", FrozenDateTime)
+    monkeypatch.setattr(cc, "utc_now_iso", lambda: FROZEN_NOW)

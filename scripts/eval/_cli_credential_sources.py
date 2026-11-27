@@ -13,7 +13,11 @@ Sources, each read on 2026-10-03:
   confirmed against a live login on Linux. On macOS the login sits in the
   Keychain, so the file is absent and the order falls to `existing-login`.
   `claude auth status` prints JSON with `loggedIn` and `authMethod`;
-  `claude.ai` is the subscription method.
+  `claude.ai` is the subscription method. `oauth_token` is not accepted: the
+  CLI reports it when `ANTHROPIC_AUTH_TOKEN` comes from a settings file, and
+  the cell drops settings files, so that login fails in the child (checked
+  2026-11-25 on a hub profile: "Not logged in"). An exported gateway pair is
+  handled before this probe runs; see `_claude_cli`.
 - Codex: `$CODEX_HOME/auth.json`, default `~/.codex/auth.json`, shaped as
   `AuthDotJson` (`auth_mode`, `OPENAI_API_KEY`, `tokens.access_token`) in
   `codex-rs/login/src/auth/storage.rs` of github.com/openai/codex. A file that

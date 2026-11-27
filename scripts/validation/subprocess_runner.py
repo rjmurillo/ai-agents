@@ -439,8 +439,8 @@ def classify_subprocess_failure(exit_code: int, stderr: str, *, default: str) ->
     findings with different remedies, and ``_run_subprocess`` reports both as
     exit ``-1`` versus a real code. Collapsing them into one reason costs the
     reader the first diagnostic step, which is the defect
-    ``.claude/rules/ci-scripts.md`` MUST 14 records for the count ratchets and
-    the reason ``evidence.py`` keeps BLOCKED and UNKNOWN apart.
+    ``.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`` MUST 14 records
+    for the count ratchets and the reason ``evidence.py`` keeps BLOCKED and UNKNOWN apart.
 
     The timeout, missing-command, and job-setup markers are
     :func:`_run_subprocess`'s documented contract, quoted from the source above:

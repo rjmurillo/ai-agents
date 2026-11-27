@@ -9,6 +9,12 @@ declares a `CredentialSpec` with its variability and calls
 
 The order, first hit wins:
 
+0. `preempt`: a spec may name one source the CLI itself ranks above every
+   step below. Claude uses it for a gateway (`STEP_GATEWAY`):
+   `ANTHROPIC_AUTH_TOKEN` outranks `CLAUDE_CODE_OAUTH_TOKEN` in Claude Code,
+   so when the gateway pair is exported, the gateway is what authenticates,
+   and recording any other step would misstate the run. Codex and Copilot
+   set none.
 1. `env`: the transport's subscription variables, then dotenv files. The file
    list is `EVAL_DOTENV_FILES` (`os.pathsep`-separated: `:` on POSIX, `;` on
    Windows; `~` and globs expanded) and defaults to the repository-root `.env`.
@@ -50,17 +56,20 @@ from pathlib import Path
 __all__ = [
     "DOTENV_FILES_ENV",
     "EXISTING_LOGIN_NOTE",
+    "GATEWAY_NOTE",
     "STEP_DISK",
     "STEP_DISK_GH_FALLBACK",
     "STEP_DOTENV",
     "STEP_ENV",
     "STEP_EXISTING_LOGIN",
+    "STEP_GATEWAY",
     "STEP_PROMPT",
     "CredentialNotFoundError",
     "CredentialSpec",
     "ResolvedCredential",
     "parse_dotenv",
     "recorded_steps",
+    "remember_resolution",
     "reset_credential_cache",
     "resolve_cached",
     "resolve_credential",
@@ -76,10 +85,14 @@ STEP_DOTENV = "dotenv"
 STEP_DISK = "disk"
 STEP_DISK_GH_FALLBACK = "disk-gh-fallback"
 STEP_EXISTING_LOGIN = "existing-login"
+#: A gateway reached through `ANTHROPIC_BASE_URL` with `ANTHROPIC_AUTH_TOKEN`.
+STEP_GATEWAY = "gateway"
 STEP_PROMPT = "prompt"
 
 #: What a report header says when the CLI ran on its own login.
 EXISTING_LOGIN_NOTE = "existing login: user config may load"
+#: What a report header says when the CLI ran through a gateway.
+GATEWAY_NOTE = "gateway: the host at ANTHROPIC_BASE_URL decides the account and the bill"
 
 #: Seconds to wait on a named pipe before treating it as not found.
 FIFO_TIMEOUT_SECONDS = 5.0
@@ -110,6 +123,9 @@ class CredentialSpec:
     own_login_first: bool = False
     #: The step name recorded when the disk source hits.
     disk_step: str = STEP_DISK
+    #: Step 0: a source the CLI ranks above every other step, or None. Must
+    #: never raise. Its result carries its own step name.
+    preempt: Callable[[Mapping[str, str]], ResolvedCredential | None] | None = None
 
 
 @dataclass(frozen=True)
@@ -251,9 +267,11 @@ def resolve_credential(
     stdin_is_tty: bool | None = None,
     fifo_timeout: float | None = None,
 ) -> ResolvedCredential:
-    """Walk the four steps and return the first hit. See the module docstring."""
+    """Walk the steps and return the first hit. See the module docstring."""
     env = os.environ if environ is None else environ
     wait = FIFO_TIMEOUT_SECONDS if fifo_timeout is None else fifo_timeout
+    if spec.preempt is not None and (preempted := spec.preempt(env)) is not None:
+        return preempted
     if (token := _from_environment(spec.env_names, env)) is not None:
         return ResolvedCredential(STEP_ENV, token)
     if (token := _from_dotenv(spec.env_names, env, wait)) is not None:
@@ -282,6 +300,16 @@ def resolve_cached(spec: CredentialSpec, *, executable: str) -> ResolvedCredenti
     return cached
 
 
+def remember_resolution(transport: str, resolved: ResolvedCredential) -> None:
+    """Record a step chosen outside `resolve_cached`, so the report still lists it.
+
+    For a transport path that picks its credential without the shared order
+    (the Claude real-HOME opt-in). The first record per key wins, as in
+    `resolve_cached`.
+    """
+    _RESOLVED.setdefault(transport, resolved)
+
+
 def reset_credential_cache() -> None:
     _RESOLVED.clear()
 
@@ -293,4 +321,4 @@ def recorded_steps() -> list[str]:
 
 def step_label(step: str) -> str:
     """Human wording for a report header."""
-    return EXISTING_LOGIN_NOTE if step == STEP_EXISTING_LOGIN else step
+    return {STEP_EXISTING_LOGIN: EXISTING_LOGIN_NOTE, STEP_GATEWAY: GATEWAY_NOTE}.get(step, step)

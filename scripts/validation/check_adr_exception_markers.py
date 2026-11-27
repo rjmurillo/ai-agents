@@ -284,7 +284,8 @@ def validate_adr_exception_markers(repo_root: Path) -> bool:
 
     A config error (exit 2) returns False. A gate that could not read its inputs
     has not run, and reporting that as a pass is the silent-pass failure
-    `.claude/rules/ci-scripts.md` MUST 11 and 12 exist to stop.
+    `.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md` MUST 11 and 12 exist
+    to stop.
     """
     return run(repo_root) == EXIT_OK
 

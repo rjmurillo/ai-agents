@@ -1,6 +1,6 @@
 # ship
 
-Runs four pre-flight checks, then opens the PR. If you are pushing onto someone else's branch, it validates the branch and leaves it untouched. It works on GitHub and Azure DevOps.
+Runs four pre-flight checks, then hands PR creation to [`push-pr`](push-pr.md). If you are pushing onto someone else's branch, it validates the branch and leaves it untouched. It works on GitHub and Azure DevOps.
 
 ## When to use it
 
@@ -71,9 +71,11 @@ In contributor mode, the skill never writes a marker commit, never creates a PR,
 3. **Reviewed on this SHA.** In owner mode, the review-marker validator must exit `0`. That means `HEAD` is a `/review` marker commit whose `Reviewed-By` trailer binds the reviewed tip. If the working tree is dirty, this check fails: commit, re-run `/review`, then re-run `/ship`. The report lists only the axes the marker declares, and any axis it omits is `NOT RUN`. Use `--require-axis <axis>` when policy requires one. In contributor mode, this check is advisory: a logged `/review` run or a PR comment counts as the attestation.
 4. **Tests passing.** All tests green, with no unjustified skips.
 
-**After the checks.** In owner mode on GitHub, the skill runs [`validate-pr-description`](validate-pr-description.md), then [`push-pr`](push-pr.md). On Azure DevOps, it validates the description, pushes, and runs `az repos pr create --output json`. It then discharges any deferred pipeline check against the new PR, waiting up to 30 minutes on Azure DevOps. A finished report never carries a bare `Pipeline: DEFERRED`.
+**After the checks.** In owner mode on both hosts, the skill runs [`push-pr`](push-pr.md). `push-pr` detects the host and owns the title, the body, its validation, and the create, so `ship` does not validate PR metadata. On Azure DevOps it reads the `pullRequestId` from the `push-pr` output. It then discharges any deferred pipeline check against the new PR, waiting up to 30 minutes on Azure DevOps. A finished report never carries a bare `Pipeline: DEFERRED`.
 
 **References.** `ado-policy-wait.md` holds the Azure DevOps wait block. `review-marker-resolution.md` holds the validator resolution steps and exit-code table.
+
+**Scripts.** The skill directory holds the ADR-127 driver scripts: `ship_detect.py`, `ship_preflight.py`, and `ship_pr.py`, with the shared `_ship_common.py`, `_ship_paths.py`, and `_ship_remote.py`, the pipeline readers in `_ship_pipeline.py`, the Windows program lookup in `_ship_windows.py`, and the body checks in `ship_pr_checks.py`. Each prints `KEY: value` lines and ends on one `NEXT:` or `STOP:` line, with exit codes 0 to 4. `ship_pr.py check` runs the base branch's copy of the paths-in-diff validator from a private temporary directory, never the copy on the branch being shipped. A PR that edits that validator is checked by the base version until it merges. On Windows, `ship_detect.py` stops with `unsafe-checkout` when the checkout root or the current directory holds a file such as `git.exe`, `gh.cmd`, or `az.bat`, because Windows would run it in place of the installed program. In a checkout of this repository, the review marker validator and the checks helper are the branch's own copies (the skill directories are symlinks), unlike the paths validator, which runs from the base branch. Plugin installs run them from the install cache. The current `SKILL.md` does not call the scripts yet. Issue #7586 wires them in.
 
 ## Where it runs
 

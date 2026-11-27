@@ -239,7 +239,7 @@ def _filter_internal_globs(value: str) -> tuple[str, list[str]]:
 
     Source rules under `.claude/rules/` declare ``applyTo``/``paths`` with
     repo-local globs like
-    ``.project-toolkit/security/**,**/Auth/**,*.env*,.claude/rules/security.md``.
+    ``.project-toolkit/sessions/**,*.env*,.claude/rules/secret-redaction.md``.
     Some of those entries (`.agents/`, `.claude/`, `.serena/` prefixes) only
     exist in the source repository; for any downstream consumer they are
     dead references that match nothing and add noise. Drop them and keep
