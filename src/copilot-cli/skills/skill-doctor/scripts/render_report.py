@@ -37,6 +37,7 @@ import report_audit
 import report_evaluation
 import report_script
 import report_style
+import report_threads
 from report_format import format_generated_at, grade_for, pct
 
 DIFFS_BUNDLE_PATH = Path(__file__).resolve().parent.parent / "assets" / "pierre-diffs.js"
@@ -123,28 +124,32 @@ SECTION_NOTE = {
 
 
 def render_sampling(sampling: Any) -> str:
-    """Per-harness candidate and sampled counts, and the cap notice when coverage was partial."""
+    """Per-harness and per-session-type counts, and the cap notice when coverage was partial."""
     per_harness = (sampling or {}).get("per_harness") or {}
-    if not per_harness:
+    thread_table = report_threads.thread_table_html(esc, pct, (sampling or {}).get("per_thread"))
+    if not per_harness and not thread_table:
         return ""
     notice = sampling.get("notice")
+    top_notice = sampling.get("top_level_notice")
     rows = "".join(
         f"<tr><td>{esc(harness)}</td><td>{esc(c.get('scoreable', 0))}</td>"
         f"<td>{esc(c.get('skill_candidates', 0))}</td><td>{esc(c.get('sampled', 0))}</td>"
         f"<td>{pct(c['overall']) if c.get('overall') is not None else '-'}</td></tr>"
         for harness, c in per_harness.items()
     )
-    body = (
-        (f'<p class="notice">{esc(notice)}</p>' if notice else "")
-        + '<p class="muted">Selection is skill-first within each harness, so each row grades '
+    harness_table = (
+        '<p class="muted">Selection is skill-first within each harness, so each row grades '
         "sessions that exercise skills first, not the whole harness.</p>"
         '<div class="table-scroll" role="region" aria-label="Sampling by harness" tabindex="0">'
         "<table><caption>Sampling by harness</caption>"
         '<thead><tr><th scope="col">Harness</th><th scope="col">Scoreable</th>'
         '<th scope="col">Used a skill</th><th scope="col">Sampled</th>'
         f'<th scope="col">Overall</th></tr></thead><tbody>{rows}</tbody></table></div>'
+        if per_harness
+        else ""
     )
-    return report_audit.details_html(esc, "Sampling", body, open_=bool(notice))
+    body = report_threads.notices_html(esc, notice, top_notice) + harness_table + thread_table
+    return report_audit.details_html(esc, "Sampling", body, open_=bool(notice or top_notice))
 
 
 def empty_suggestions_text(r: Any) -> str:
