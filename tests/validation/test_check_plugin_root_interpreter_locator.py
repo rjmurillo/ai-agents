@@ -405,7 +405,17 @@ def test_a_scan_of_another_root_is_not_held_to_this_checkouts_baseline(
 
 @pytest.mark.parametrize(
     "after",
-    [' --head "$BRANCH"', " -x", " somefile.txt", ' "$VAR"', " $VAR", " --flag value"],
+    [
+        ' --head "$BRANCH"',
+        " -x",
+        " somefile.txt",
+        ' "$VAR"',
+        " $VAR",
+        " --flag value",
+        " ../input.json",
+        " .env",
+        " > out.txt --flag",
+    ],
 )
 def test_arguments_after_the_closing_parenthesis_are_reported(tmp_path: Path, after: str) -> None:
     [offense] = _scan(tmp_path, {"README.md": f"Run `{render_locator(_BAR)}{after}` now.\n"})
@@ -443,6 +453,11 @@ def test_arguments_after_the_closing_parenthesis_are_reported_in_a_fenced_block(
         '"{loc}"',
         "'{loc}'",
         "<!-- {loc} -->",
+        "<!-- {loc} --!>",
+        "if {loc} then echo ok; fi",
+        "for f in a b; do {loc} done",
+        "bash -c '{loc} ' --",
+        "{loc} > out.txt 2>&1",
     ],
 )
 def test_text_that_is_not_arguments_after_the_tail_is_clean(tmp_path: Path, template: str) -> None:

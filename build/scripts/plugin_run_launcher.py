@@ -130,27 +130,46 @@ class LocatorMatch:
     trailing: str | None = None
 
 
-# Text right after the closing `)` that reads as an argument: a word, a path, a
-# `$VAR`, or a flag, or a quote that follows whitespace. Operators, redirects,
-# comments, a closing `)`, a backtick, `|`, and punctuation are not arguments.
-_ARGUMENT_START_RE = re.compile(r"[A-Za-z0-9_$~/-]|\./")
-_NOT_ARGUMENT_RE = re.compile(r"\d+[<>]|-->")
+# Text right after the closing `)` that reads as an argument: a word, a path
+# (`./x`, `../x`, `.env`), a `$VAR`, or a flag, or a quote that follows
+# whitespace. Operators, comments, a closing `)`, a backtick, `|`, and
+# punctuation are not arguments.
+_ARGUMENT_START_RE = re.compile(r"[A-Za-z0-9_$~/-]|\.{1,2}[A-Za-z0-9_/]")
+# One redirect and its target, such as `> out.txt`, `2>&1`, or `< in.txt`. A
+# subshell may carry redirects, so the scan steps over each one and reads on.
+_REDIRECT_RE = re.compile(r"(?:\d*(?:>>?|<<?)&?|&>>?)[ \t]*[^\s;&|()`<>]+[ \t]*")
+# The end of an HTML comment that wraps the locator in Markdown.
+_COMMENT_ENDS = ("-->", "--!>")
+# A shell word that closes or continues a compound command. A subshell needs no
+# `;` before it: `if ( ... ) then`, `do ( ... ) done`.
+_RESERVED_WORD_RE = re.compile(r"(?:then|do|done|fi|else|elif|esac)(?![A-Za-z0-9_./$-])")
 _QUOTES = "\"'"
 _TRAILING_LIMIT = 60
 
 
-def _stray_arguments(rest: str) -> str | None:
+def _stray_arguments(rest: str, before: str = "") -> str | None:
     """Return the argument-like text at the start of ``rest``, else ``None``.
 
     ``rest`` is the line after the locator's closing ``)``. Arguments belong inside
     the subshell, right after the script path. Placed here they are a shell syntax
-    error, or they never reach the script.
+    error, or they never reach the script. ``before`` is the line up to the
+    locator. A quote in ``rest`` that closes a quote left open in ``before`` ends
+    a wrapper such as ``bash -c '...'``. It is not an argument.
     """
     body = rest.lstrip(" \t")
-    if not body or _NOT_ARGUMENT_RE.match(body):
-        return None
     spaced = len(body) != len(rest)
-    if _ARGUMENT_START_RE.match(body) or (spaced and body[0] in _QUOTES):
+    while body and not body.startswith(_COMMENT_ENDS):
+        redirect = _REDIRECT_RE.match(body)
+        if redirect is None:
+            break
+        body = body[redirect.end() :]
+        spaced = True
+    if not body or body.startswith(_COMMENT_ENDS) or _RESERVED_WORD_RE.match(body):
+        return None
+    if _ARGUMENT_START_RE.match(body):
+        return body[:_TRAILING_LIMIT]
+    closes_wrapper = before.count(body[0]) % 2 == 1
+    if spaced and body[0] in _QUOTES and not closes_wrapper:
         return body[:_TRAILING_LIMIT]
     return None
 
@@ -187,6 +206,6 @@ def find_locators(line: str) -> Iterator[LocatorMatch]:
         except LauncherError as exc:
             yield LocatorMatch(start, end, None, "", str(exc), interpreter)
         else:
-            trailing = _stray_arguments(line[end:])
+            trailing = _stray_arguments(line[end:], line[:start])
             yield LocatorMatch(start, end, script_rel, args, None, interpreter, trailing)
         pos = end

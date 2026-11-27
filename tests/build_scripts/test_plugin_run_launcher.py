@@ -346,6 +346,20 @@ _STRAY_ARGUMENTS = [
     ' "quoted"',
     " 'quoted'",
     " 5",
+    " ../input.json",
+    " .env",
+    " ..hidden",
+    " thenable",
+    " done.txt",
+]
+
+# A redirect is legal after a subshell. Text after its target is still stray.
+_STRAY_AFTER_REDIRECT = [
+    (" > out.txt --flag", "--flag"),
+    (" 2>&1 --flag", "--flag"),
+    (" >> out.txt 2> err.log somefile.txt", "somefile.txt"),
+    (' < in.txt "$VAR"', '"$VAR"'),
+    (">out.txt ../input.json", "../input.json"),
 ]
 
 _NOT_ARGUMENTS = [
@@ -371,8 +385,30 @@ _NOT_ARGUMENTS = [
     " < in.txt",
     " # a comment",
     " -->",
+    " --!>",
     ".",
+    "...",
+    ". Then read the output.",
     ", then more",
+    " > out.txt 2>&1",
+    " > out.txt && echo ok",
+    " 2>&1 | head -n 5",
+    " then echo ok; fi",
+    " then",
+    " do",
+    " done",
+    " fi",
+    " else echo no; fi",
+    " elif true; then echo ok; fi",
+    " esac",
+]
+
+# The locator sits inside a quoted wrapper. The quote after it closes the wrapper.
+_WRAPPERS = [
+    ("bash -c '", " ' --"),
+    ("bash -c '", "' --"),
+    ('sh -c "', ' "'),
+    ("x=' ", " '"),
 ]
 
 
@@ -388,6 +424,50 @@ def test_find_locators_flags_arguments_after_the_closing_parenthesis(after: str)
 def test_find_locators_accepts_text_that_is_not_arguments_after_the_tail(after: str) -> None:
     [match] = plugin_run_launcher.find_locators(render_locator(SCRIPT) + after)
     assert match.trailing is None
+
+
+@pytest.mark.parametrize(("after", "stray"), _STRAY_AFTER_REDIRECT)
+def test_find_locators_reads_past_a_redirect_to_the_stray_argument(after: str, stray: str) -> None:
+    [match] = plugin_run_launcher.find_locators(render_locator(SCRIPT) + after)
+    assert match.trailing == stray
+
+
+@pytest.mark.parametrize(("before", "after"), _WRAPPERS)
+def test_find_locators_accepts_the_quote_that_closes_a_wrapper(before: str, after: str) -> None:
+    [match] = plugin_run_launcher.find_locators(before + render_locator(SCRIPT) + after)
+    assert match.trailing is None
+
+
+@pytest.mark.parametrize("after", [" 'quoted'", ' "quoted"'])
+def test_find_locators_flags_a_quoted_argument_after_a_closed_wrapper(after: str) -> None:
+    line = "echo 'done' && " + render_locator(SCRIPT) + after
+    [match] = plugin_run_launcher.find_locators(line)
+    assert match.trailing == after.strip()
+
+
+@pytest.mark.parametrize(
+    "template",
+    [
+        "if {loc} then echo ok; fi",
+        "if {loc} then echo ok; else echo no; fi",
+        "for f in a b; do {loc} done",
+        "while {loc} do sleep 1; done",
+        "bash -c '{loc} ' --",
+    ],
+)
+def test_the_accepted_shell_forms_parse(template: str) -> None:
+    """The shapes the scan accepts are shell a POSIX parser accepts too."""
+    line = template.replace("{loc}", render_locator(SCRIPT))
+    assert [m.trailing for m in plugin_run_launcher.find_locators(line)] == [None]
+    parsed = subprocess.run(["sh", "-n", "-c", line], capture_output=True, text=True, check=False)
+    assert parsed.returncode == 0, parsed.stderr
+
+
+@pytest.mark.parametrize("after", [" > out.txt --flag", " ../input.json", " .env"])
+def test_the_flagged_shell_forms_do_not_parse(after: str) -> None:
+    line = render_locator(SCRIPT) + after
+    parsed = subprocess.run(["sh", "-n", "-c", line], capture_output=True, text=True, check=False)
+    assert parsed.returncode != 0
 
 
 def test_find_locators_flags_the_whole_rest_of_the_line_with_a_limit() -> None:
