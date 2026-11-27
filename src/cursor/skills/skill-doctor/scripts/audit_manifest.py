@@ -67,6 +67,7 @@ _REQUIRED_KEYS = (
 )
 _CAP_KEYS = (
     "max_sessions",
+    "top_level_quota",
     "per_skill",
     "no_skill",
     "min_idle_minutes",
@@ -90,6 +91,7 @@ def inputs_from_args(args: Any) -> dict[str, Any]:
         "no_worktrees": bool(args.no_worktrees),
         "explicit_repos": list(args.repo or []),
         "max_sessions": args.max_sessions,
+        "top_level_quota": int(getattr(args, "top_level_quota", 0) or 0),
         "per_skill": args.per_skill,
         "no_skill": args.no_skill,
         "min_idle_minutes": args.min_idle_minutes,
