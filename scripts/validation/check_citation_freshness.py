@@ -55,16 +55,15 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 from checks_common import _resolve_default_base_ref  # noqa: E402
+from citation_adr_aliases import _citation_aliases, _expand_adr_citations  # noqa: E402
 from citation_anchors import (  # noqa: E402
     _CITATION,
     _URL,
     _anchor_candidates,
     _anchor_matches,
     _basename_index,
-    _citation_aliases,
     _context_lines,
     _continuation_quote,
-    _expand_adr_citations,
     _expand_continuations,
     _markdown_unit,
     _range_misses_distinctive_anchors,
