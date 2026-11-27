@@ -18,10 +18,10 @@ Make small improvements continuously. Do not wait for dedicated refactoring spri
 
 | While doing this... | Also do this... |
 |---------------------|-----------------|
-| Fixing a bug | Rename confusing variable |
-| Adding a feature | Extract method for clarity |
-| Reading code | Update outdated comment |
-| Code review | Suggest small improvement |
+| Fixing a bug | Fix a typo or dead local in the function you edit |
+| Adding a feature | Clarify a local name in the function you edit |
+| Reading code | Report a confirmed defect; leave taste alone |
+| Code review | Flag scope creep; do not ask for cleanup the change does not need |
 
 ## Boundaries
 
@@ -35,7 +35,7 @@ Make small improvements continuously. Do not wait for dedicated refactoring spri
 ## During Analysis and PR Work
 
 1. Notice small improvements in touched files
-2. Include in same PR if related to the change
+2. Include in the same PR only as a tidy fix in the function you edit, or as work the change needs
 3. Separate branch and PR only for a confirmed defect with a named impact and its own proof; never for a preference
 4. Document rationale in commit message
 
@@ -54,7 +54,7 @@ When reporting findings, classify improvements by scope:
 | Classification | Action | Example |
 |---------------|--------|---------|
 | Boy Scout fix | Include with current work | Rename misleading variable |
-| Small refactor with a named consumer | Separate PR | Extract method a pending change needs |
+| Refactor the change needs | Same PR, as part of the change | Extract a method the new code calls |
 | Large refactor | Dedicated task with plan | Restructure module boundaries |
 | Architecture change | ADR required | Change data flow pattern |
 

@@ -27,10 +27,10 @@ The Boy Scout Rule applies ONLY to code you touch for the current task. Do not e
 
 When running a Chesterton's Fence investigation:
 
-1. Notice small improvements in files you examine
-2. Include in same PR if related to the change under investigation
-3. A confirmed defect the investigation proves, with its impact named, gets its own branch and PR; a preference gets nothing
-4. Document rationale in commit message
+1. Keep the investigation read-only; it authorizes no edit
+2. Report a confirmed defect you find, with its impact and proof
+3. Leave preferences out of the report
+4. A later change that acts on the finding applies the limits below
 
 Limits for any change this investigation suggests: see Drive-By Fixes in the `avoiding-manufactured-work` skill.
 

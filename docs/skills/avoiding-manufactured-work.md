@@ -50,10 +50,10 @@ For a drive-by fix, the skill sorts it into one of four classes. The default ans
 | --- | --- | --- |
 | Tidy | A typo, missing type hint, dead local, or clearer local name in the function you edit | Same PR, its own commit, named in the PR body |
 | Needed | Callers, tests, docs, or generated output the change needs to be correct | Same PR |
-| Defect | A confirmed defect with a named impact and its own proof | Separate branch and PR |
+| Defect | A confirmed defect with a named impact and its own proof | Separate branch and PR when you may open one, else named in the PR body |
 | Taste | Style, naming taste, whole-file formatting, cross-module renames | Not done, no issue, no branch |
 
-One drive-by fix never spawns another. About 20 to 30 lines of cleanup means stop and reassess. Once the requested change is proven, the work stops.
+Test Needed first. One drive-by fix never spawns another. About 20 to 30 lines of cleanup means stop and reassess. Once the requested change is proven, the work stops.
 
 ## Advanced use
 
@@ -80,6 +80,7 @@ Checklist the skill ends with:
 - The proposed action is the smallest one that unblocks that consumer.
 - Any post-completion finding was tested against Blocker first.
 - Every finding reached a stated disposition.
+- Each drive-by fix has a class, and no fix spawned another.
 
 [`ai-agents-external-claims`](ai-agents-external-claims.md) points here to stop a deliverable that no consumer demanded.
 

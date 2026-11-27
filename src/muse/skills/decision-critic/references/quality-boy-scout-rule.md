@@ -35,6 +35,8 @@ When validating improvement decisions:
 | Small, safe improvement | Large refactoring bundled with fix | Risk assessment missing |
 | Balanced with delivery | Perfectionism blocking progress | Trade-offs not articulated |
 
+When the decision is a drive-by fix, judge it against the Drive-By Fixes classes in the `avoiding-manufactured-work` skill.
+
 ## Warning Signs to Flag
 
 During decision critique, flag these patterns:
