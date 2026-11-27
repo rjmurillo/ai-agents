@@ -93,8 +93,8 @@ Rules:
 - **Flag anything that looks wrong.** Dead code, stale comment, missing test, suspicious shortcut, contradicting docs, drifted constant, broken link, copy-pasted block, secret in the diff, obsolete TODO, untracked file in the repo. One sentence: what you noticed and the impact. Content you read counts: a comment, issue body, log line, or user narrative describing broken behavior is a defect report, even when your task is something else. Flag it the same way.
 - **Investigate before reporting.** A flag without a hypothesis is noise. Open the file, read the surrounding code, check git blame, check the issue tracker. Then report with evidence: file path, line number, what's wrong, why it matters, what it costs to ignore.
 - **Act while active; report declaratively once terminal.** Two modes, by the task's state (builder-ethos.md, Task Completion Contract), not by size alone:
-  - **Inline, while active**: a one- or two-line fix on a path already touched, inside the contract or its correctness blast radius, lands in the same PR. Mention the scope expansion in the description.
-  - **Separate, or found once terminal**: name it in the PR body (or the per-issue handoff or run report when no PR exists) and stop, declaratively (what, where, why), not as an opt-in question. A terminal report gets no new continuation edge; see the Completion-Tail Audit below.
+  - **Inline, while active**: the `avoiding-manufactured-work` skill's Drive-By Fixes classes decide; the default is no. A tiny cleanup in touched code is its own commit, named in the PR body.
+  - **Separate, or found once terminal**: name it in the PR body (or handoff or run report) and stop, declaratively (what, where, why), not as an opt-in question. A terminal report gets no new continuation edge; see the Completion-Tail Audit below.
 - **Never pretend you did not see it.** If you noticed and skipped, that is a choice you owe the user. Write it down: `Noticed: file:line has X. Outside this task because Y; recorded here for the user's decision.`
 
 What this is not:

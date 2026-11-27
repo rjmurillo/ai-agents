@@ -36,8 +36,10 @@ Make small improvements continuously. Do not wait for dedicated refactoring spri
 
 1. Notice small improvements in touched files
 2. Include in same PR if related to the change
-3. Separate PR if unrelated but valuable
+3. Separate branch and PR only for a confirmed defect with a named impact and its own proof; never for a preference
 4. Document rationale in commit message
+
+The `avoiding-manufactured-work` skill's Drive-By Fixes section is the canonical limit for this rule.
 
 ## Warning Signs of Overreach
 
@@ -52,7 +54,7 @@ When reporting findings, classify improvements by scope:
 | Classification | Action | Example |
 |---------------|--------|---------|
 | Boy Scout fix | Include with current work | Rename misleading variable |
-| Small refactor | Separate PR, same sprint | Extract method from 40-line function |
+| Small refactor with a named consumer | Separate PR | Extract method a pending change needs |
 | Large refactor | Dedicated task with plan | Restructure module boundaries |
 | Architecture change | ADR required | Change data flow pattern |
 

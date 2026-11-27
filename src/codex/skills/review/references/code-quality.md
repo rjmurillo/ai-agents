@@ -85,8 +85,8 @@ Ground findings in the project's code-quality artifacts. All paths are under `.c
 
 ### 6. Boy Scout Rule (Scoped Cleanup)
 
-- For each file the diff already touches, did the author leave it at least as clean as they found it: a dead branch removed, a misleading name fixed, a stale comment deleted?
-- Conversely, did "while I am here" cleanup expand the diff into unrelated files or a large refactor? Scope creep is the failure mode the Boy Scout Rule guards against; flag it as readily as you flag rot left behind.
+- Is each drive-by cleanup tiny, behavior-preserving, inside a function the diff already edits, in its own commit, and named in the PR body? The `avoiding-manufactured-work` skill's Drive-By Fixes section sets these limits.
+- Did "while I am here" cleanup expand the diff into unrelated files, cross-module renames, or a refactor with no named consumer? Flag that scope creep. A cleanup the author did not make is not a finding.
 
 ## Output Requirements
 

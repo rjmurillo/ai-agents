@@ -1,12 +1,13 @@
 # avoiding-manufactured-work
 
-Checks whether follow-up work has a real consumer. It also sorts any finding that appears after a task is done into one of four classes, so each finding gets a named outcome.
+Checks whether follow-up work has a real consumer. It also sorts any finding that appears after a task is done into one of four classes, so each finding gets a named outcome. It also bounds drive-by fixes: what you may fix while you are in the code, and what you must leave alone.
 
 ## When to use it
 
 - A worker produced a plan, issue, PR, backlog item, research artifact, or follow-up task, and you need to know if a user, acceptance criterion, or blocked decision asked for it.
 - You hold a finding that surfaced after the task was terminal and need to classify it.
-- Trigger phrases: `is this work manufactured`, `does this follow-up have a consumer`, `classify this post-completion finding`, `should I file this follow-up`.
+- You found something to fix that the request did not name, and need to know whether it goes in this PR, its own PR, or nowhere.
+- Trigger phrases: `is this work manufactured`, `does this follow-up have a consumer`, `classify this post-completion finding`, `should I file this follow-up`, `should I fix this while I am here`.
 
 ## When not to use it
 
@@ -42,6 +43,17 @@ Next action: <smallest action, or none>
 | `delete` | The work is speculative, reputational, performative, or made to look thorough. |
 
 If no consumer exists, the skill stops. It does not create a task, issue, PR, memo, or research artifact.
+
+For a drive-by fix, the skill sorts it into one of four classes. The default answer is no.
+
+| Class | Covers | Where it goes |
+| --- | --- | --- |
+| Tidy | A typo, missing type hint, dead local, or clearer local name in the function you edit | Same PR, its own commit, named in the PR body |
+| Needed | Callers, tests, docs, or generated output the change needs to be correct | Same PR |
+| Defect | A confirmed defect with a named impact and its own proof | Separate branch and PR |
+| Taste | Style, naming taste, whole-file formatting, cross-module renames | Not done, no issue, no branch |
+
+One drive-by fix never spawns another. About 20 to 30 lines of cleanup means stop and reassess. Once the requested change is proven, the work stops.
 
 ## Advanced use
 
