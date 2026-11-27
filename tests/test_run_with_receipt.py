@@ -1,42 +1,27 @@
-"""Tests for scripts/run_with_receipt.py (issue #5851)."""
+"""Tests for scripts/run_with_receipt.py: output, secrets, and retrieval (issue #5851)."""
 
 from __future__ import annotations
 
+import runpy
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-
-from run_with_receipt import (
+from tests.run_with_receipt_helpers import (
+    ARTIFACT_NAME,
+    BEARER,
     EXIT_EXTERNAL,
     EXIT_USAGE,
+    GITHUB_TOKEN,
+    artifact_from,
+    artifacts,
     main,
+    py,
     resolve_out_dir,
+    run,
 )
-
-GITHUB_TOKEN = "ghp_" + "A1b2C3d4E5" * 4  # 40 chars after prefix, matches github-token rule
-ARTIFACT_NAME = "20260101T000000-deadbeef.log"
-BEARER = "Bearer abcDEF123456xyz+/="
-
-
-def py(code: str) -> list[str]:
-    return [sys.executable, "-c", code]
-
-
-def run(args: list[str], out_dir: Path, *, inline: int = 16384) -> int:
-    return main(["run", "--max-inline-bytes", str(inline), "--out-dir", str(out_dir), "--", *args])
-
-
-def artifacts(out_dir: Path) -> list[Path]:
-    return sorted(out_dir.glob("*.log")) if out_dir.exists() else []
-
-
-def artifact_from(stdout: str) -> Path:
-    line = next(item for item in stdout.splitlines() if item.startswith("artifact: "))
-    return Path(line.removeprefix("artifact: "))
 
 
 class TestSmallOutput:
@@ -335,6 +320,17 @@ class TestFailureAndEntryPoint:
         )
         assert result.returncode == 5
         assert result.stdout == "hi\n"
+
+    def test_module_executes_as_script(self, tmp_path, monkeypatch):
+        script = Path(__file__).resolve().parents[1] / "scripts" / "run_with_receipt.py"
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [str(script), "run", "--out-dir", str(tmp_path), "--"] + py("pass"),
+        )
+        with pytest.raises(SystemExit) as exc:
+            runpy.run_path(str(script), run_name="__main__")
+        assert exc.value.code == 0
 
 
 class TestRedactionBypasses:
