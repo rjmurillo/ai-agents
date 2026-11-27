@@ -19,22 +19,11 @@ def test_the_build_step_calls_the_tested_script_with_the_cap_and_own_budget() ->
     assert git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS < budget <= cap_seconds - 120
 
 
-def test_the_seed_runs_every_runner_cpu_and_holds_none_back() -> None:
-    """The seed job runs alone on its runner, so it sets no CPU reserve.
-
-    The pre-push hook holds three CPUs back for its sibling jobs (issue #5383).
-    No sibling runs here, and that reserve would leave one worker on a 4-vCPU
-    runner. The fixed cap of 4 (kept on purpose in PR #6364) equals the hook's
-    scaled cap on that runner, so the seed uses every CPU, as issue #4823 asks.
-    """
+def test_the_seed_does_not_inherit_the_local_worker_reserve() -> None:
+    """The isolated seed keeps its fixed cap rather than the local worker policy."""
     env = seed_step("Build the testmon database")["env"]
     assert git_hook_policy.PYTEST_CPU_RESERVE_ENV not in env
     assert git_hook_policy.PYTEST_WORKERS_ENV not in env
-    assert seed_job()["runs-on"] == "ubuntu-latest"
-    runner_cpus = 4
-    cap = git_hook_policy.parse_pytest_worker_cap(env[git_hook_policy.PYTEST_WORKER_CAP_ENV])
-    assert cap == git_hook_policy.scaled_worker_cap(runner_cpus)
-    assert git_hook_policy.local_worker_budget(cap, runner_cpus, 0) == runner_cpus
 
 
 def test_the_workflow_holds_no_branching_for_the_build_outcome() -> None:

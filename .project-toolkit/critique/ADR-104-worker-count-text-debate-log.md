@@ -11,7 +11,7 @@ Prior debate logs for ADR-104 stay closed: `ADR-104-debate-log.md`, `ADR-104-tes
 ## Summary
 
 - **Rounds**: 2
-- **Outcome**: Consensus. Round 2 votes were Accept from both seats, with no P0 and no P1 open.
+- **Outcome**: Consensus. The architect accepted in round 1 and the critic accepted in round 2, with no P0 and no P1 open.
 - **Final Status**: ADR-104 stays accepted (amended, text only).
 
 ## Decision under review
@@ -51,7 +51,7 @@ This amendment fixes text only. No decision changes. Three passages are correcte
 
 | Agent | Position | Main finding |
 |-------|----------|--------------|
-| architect | Accept | No new finding. The round 1 position stands, and both of its P2 items were fixed |
+| architect | Not rerun | Accepted in round 1. The editor addressed both P2 items |
 | critic | Accept | The formula matches `git_hook_policy.py:7913-7968`. The counts were recomputed by hand. The runner claim is scoped. No P0 or P1 remains |
 
 ## Outcome

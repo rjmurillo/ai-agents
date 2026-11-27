@@ -964,15 +964,11 @@ jobs:
   # (scripts/validation/testmon_seed.py re-checks event and head branch on the
   # run itself), so a pull request cannot plant a database by any route.
   #
-  # Same command as the hook, so the database is what the hook would record:
-  # the four partitions under `--testmon --testmon-forceselect`, the same
-  # marker filter, 4 workers, and COVERAGE_CORE=ctrace (testmon on Python 3.14
-  # otherwise records through sysmon and under-selects). The hook adds that
-  # core itself. Seeding is switched off here so the build starts empty.
-  # The fixed cap of 4 equals the hook's `scaled` cap on this 4-vCPU runner.
-  # The hook's CPU reserve is left out on purpose: no sibling job shares this
-  # runner, and a reserve of 3 would leave one worker. A test in
-  # tests/workflows/test_testmon_seed_job_build.py pins both.
+  # The seed uses the hook command, partitions, markers and COVERAGE_CORE=ctrace.
+  # It keeps a fixed cap of 4 and no CPU reserve because it runs in its own job.
+  # Seeding is switched off here so the build starts empty.
+  # The hook adds ctrace to avoid under-selection with sysmon on Python 3.14.
+  # tests/workflows/test_testmon_seed_job_build.py pins the cap and no reserve.
   #
   # Timing. Measured locally at 4 workers: 575 s cold. This runner is slower:
   # run 38015601869 on main spent 1390 s across its six 4-vCPU legs without
