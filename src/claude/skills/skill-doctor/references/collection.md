@@ -13,7 +13,8 @@ write the sampling part of the report.
 - `--days N` - lookback window (default 45).
 - `--max-sessions N` - cap on sampled sessions across all harnesses (default 12).
 - `--skills-dir PATH` - nonstandard skill locations.
-- `--include-subagents` - include child or sidechain sessions.
+- `--no-include-subagents` - drop child and sidechain sessions. They are included by default and tagged `thread: subagent`.
+- `--include-subagents` - the default for separate child records. Passed explicitly, it also folds Copilot's inline child events into the parent session, which pools child work into that top-level grade.
 - `--min-idle-minutes N` - skip sessions active within the last N minutes (default 15; 0 keeps every session).
 - `--timeline-supplement N` - add up to N no-skill sessions spaced across the window, tagged as their own stratum. The sample stays non-probability; the inventory says so.
 - `--export-corpus PATH` - also write every collected user and assistant message as full-text JSONL (no truncation, token shapes redacted) for panning-for-gold. It follows the same harness, repository, and time-window selection, and it refuses a path inside this skill's directory. It also reads the corpus-only `t3` and `gemini` sources, with `--t3-home` and `--gemini-home` overrides; see `supported-harnesses.md`. Without the flag, output is unchanged.
@@ -30,6 +31,25 @@ Inside each harness, sessions that used an installed skill are taken first, newe
 Read `stats.per_harness` and `sampling` in `inventory.json`. Each harness entry holds `scoreable` (candidates), `skill_candidates`, `quota`, `sampled`, and `sampled_with_skills`. Report candidate and sampled counts for every harness separately.
 When `sampling.harness_coverage_complete` is false, state in the report that the cap prevented full harness coverage. Name each entry of `sampling.omitted_harnesses` with its `scoreable` count, and quote `sampling.notice`.
 Disclose that selection is skill-first within each harness. Harness balance alone does not make the sample representative.
+
+### Top-level and subagent sessions
+
+Each session in `inventory.json` carries `thread`: `top_level` or `subagent`.
+Claude Code, Codex, Warp, Hermes, and Droid store child sessions as their own records.
+The collector includes them by default.
+Copilot keeps child events inside the parent file.
+The collector leaves them out unless you pass `--include-subagents`.
+Pi, Grok, ZCode, and Muse record no child concept.
+
+Read `stats.per_thread` for `scoreable` and `sampled` counts per type.
+Each harness entry also holds `scoreable_subagent` and `sampled_subagent`.
+Report the two types apart. Subagent sessions usually outnumber top-level ones, so a pooled grade hides weak top-level work.
+When `sampling.top_level_notice` is set, the sample holds no top-level session. Quote it in the report.
+
+Scope is decided per session, from that session's own cwd. The parent is never consulted.
+A child whose cwd is in scope is kept even when its parent ran elsewhere.
+A child whose cwd is out of scope is dropped even when its parent is in scope.
+A child in a registered linked worktree of `--repo` is in scope. One in a worktree removed since is not, unless you pass that path with `--repo`.
 
 When the run covered exactly one repository (`conversation_scope` is `projects` and `repos` has one entry), you can pass the inventory to `skill-bootstrap` as an initial candidate seed. Bootstrap rejects all-conversations and multi-project inventories.
 In a bootstrap child run, return it to the caller instead of starting another run.

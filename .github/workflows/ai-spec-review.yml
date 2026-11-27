@@ -7,14 +7,14 @@ name: Spec Review (Advisory)
 # check lives in ai-spec-validation.yml and holds no secret (issue #6182).
 
 on:
-  pull_request:
-    branches: [main]
-    # `edited` is left out on purpose: every body edit would queue another
-    # approval prompt for agent-claude. A reviewer can run workflow_dispatch.
-    types: [opened, synchronize, reopened]
-    # No path filter. The review-spec job decides its own scope in its
-    # "Decide scope" step (scripts/ci/spec_coverage_scope.py).
-
+  # No pull_request trigger. The agent-claude environment needs a manual
+  # approval that nobody gives. GitHub's deployment records for the 90
+  # minutes up to 2026-11-25 16:45 UTC showed 100 agent deployments and 0
+  # approvals. A PR run waited forever, left the PR UNSTABLE, and blocked
+  # auto-merge. Run this review by hand with a PR number instead:
+  # Actions, Spec Review (Advisory), Run workflow, then enter the number.
+  # The deterministic Validate Spec Coverage check still runs on every PR.
+  #
   # merge_group is not a trigger: the job needs a pull request, and
   # environment approval cannot happen in a queue run.
   workflow_dispatch:

@@ -110,6 +110,7 @@ from session_json import (
 from session_muse import find_muse_session_files, parse_muse_session
 from session_sampling import apply_strata, sample_sessions
 from session_summary import print_summary
+from session_threads import child_flag, summarize_threads
 
 __all__ = [
     "CLAUDE_CODE_EDIT_TOOLS",
@@ -194,6 +195,7 @@ class Collection:
         self.in_scope = self.skipped_idle = 0
         self.warp_databases: list[Path] = []
         self.exporter: Any = None
+        self.per_thread: dict[str, Any] = {}
 
     def add(self, harness: str, parsed: Any, file: str, modified_at: str) -> None:
         if parsed is None:
@@ -237,7 +239,7 @@ class Collection:
         self.sources[name] = {"home": str(home), "records_in_window": len(paths)}
         self.scanned += len(paths)
         for mtime, path in paths:
-            parsed = parser(path, self.skills.keys(), self.args.include_subagents)
+            parsed = parser(path, self.skills.keys(), child_flag(self.args, name))
             self.add(name, parsed, str(path), mtime.isoformat())
 
     def warp(self, cutoff: datetime) -> None:
@@ -257,7 +259,7 @@ class Collection:
         self.scanned += scanned
         for record in records:
             parsed = parse_warp_conversation(
-                record, self.skills.keys(), self.args.include_subagents
+                record, self.skills.keys(), child_flag(self.args, "warp")
             )
             file = f"{record['database']}#agent_conversations/{record['conversation_id']}"
             self.add("warp", parsed, file, record["modified_at"].isoformat())
@@ -281,7 +283,7 @@ class Collection:
                 connection = open_warp_database(database)
                 try:
                     parsed = parse_hermes_session(
-                        connection, row, self.skills.keys(), self.args.include_subagents
+                        connection, row, self.skills.keys(), child_flag(self.args, "hermes")
                     )
                 finally:
                     connection.close()
@@ -414,6 +416,7 @@ def _inventory(
             "sessions_skipped_idle": collection.skipped_idle,
             "sessions_sampled": len(sampled),
             "per_harness": per_harness,
+            "per_thread": collection.per_thread,
             "skills_found": len(skills),
             "ambiguous_skills": len(variants),
             "skills_used": sum(1 for count in usage.values() if count > 0),
@@ -462,6 +465,7 @@ def _run() -> None:
     collection.sessions.sort(key=lambda session: session["modified_at"], reverse=True)
     sampled, per_harness, sampling = sample_sessions(collection.sessions, collection.skills, args)
     apply_strata(collection.sessions, sampling)
+    collection.per_thread = summarize_threads(collection.sessions, sampled, per_harness, sampling)
     _write_transcripts(collection.sessions, sampled, out / "transcripts")
     inventory = _inventory(collection, homes, sampled, per_harness, sampling)
     (out / "inventory.json").write_text(json.dumps(inventory, indent=2), encoding="utf-8")

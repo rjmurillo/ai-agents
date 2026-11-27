@@ -1,6 +1,6 @@
 # Python and Test Conventions
 
-<!-- vendor-portability: contributor-facing reference for the rjmurillo/ai-agents repo itself. It names upstream-only paths under scripts, tests, src/claude, .claude/hooks, and .github because its audience is repo contributors, not plugin consumers. Declared paths: scripts/AGENTS.md, scripts/ai_review_outputs.py, scripts/ci/adr101_publisher_execute.py, scripts/github_core/not_found.py, scripts/validate_pr_review_config.py, scripts/validation/check_plugin_frontmatter_self_containment.py, scripts/validation/check_subprocess_encoding.py, src/claude/skills/github/scripts/issue/get_issue_comments.py -->
+<!-- vendor-portability: contributor-facing reference for the rjmurillo/ai-agents repo itself. It names upstream-only paths under scripts, tests, src/claude, .claude/hooks, and .github because its audience is repo contributors, not plugin consumers. Declared paths: scripts/AGENTS.md, scripts/ai_review_outputs.py, scripts/ci/adr101_publisher_execute.py, scripts/github_core/not_found.py, scripts/validate_pr_review_config.py, scripts/validation/check_plugin_frontmatter_self_containment.py, scripts/validation/check_subprocess_encoding.py, src/claude/skills/github/scripts/issue/get_issue_comments.py, scripts/validation/check_tmp_worktrees.py -->
 
 Read this before you write or review Python under `scripts/`, `build/`, `.github/scripts/`, or `tests/`.
 Each item names a site that does it right, so you can copy a working pattern.
@@ -90,3 +90,8 @@ The repo verified each item against the code on 2026-11-26.
     Build the child env from an explicit allowlist, not `os.environ` minus a denylist.
     A denylist misses the next secret someone adds.
     Copy `_child_env` and `_CHILD_ENV_ALLOWLIST` in `scripts/ci/adr101_publisher_execute.py`.
+17. **Stat a path when an unreadable directory must differ from a missing one.**
+    On Python 3.14, `Path.is_dir()` returns False for every `OSError`, so an `except` around it never runs.
+    Call `path.stat()`, treat `FileNotFoundError` and `NotADirectoryError` as absent, and other errors as unreadable.
+    In tests, patch `Path.stat`, not `Path.is_dir`.
+    Copy `directory_state` in `scripts/validation/check_tmp_worktrees.py`.

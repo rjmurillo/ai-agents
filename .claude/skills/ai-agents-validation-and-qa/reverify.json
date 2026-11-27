@@ -354,6 +354,83 @@
    "path": ".github/workflows/pytest.yml",
    "text": "- name: Run pip-audit",
    "id": "R62"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".markdownlint-cli2.yaml",
+   "id": "R63"
+  },
+  {
+   "kind": "contains",
+   "path": "src/claude/agents/qa.md",
+   "text": "````markdown",
+   "id": "R64"
+  },
+  {
+   "kind": "contains",
+   "path": ".project-toolkit/architecture/ADR-035-exit-code-standardization.md",
+   "text": "| 2 | Config Error |",
+   "id": "R65"
+  },
+  {
+   "kind": "contains",
+   "path": "src/claude/skills/github/scripts/pr/get_pr_comments_by_reviewer.py",
+   "text": "2 - Not found",
+   "id": "R66"
+  },
+  {
+   "kind": "contains",
+   "path": "src/vs-code-agents/negotiation.agent.md",
+   "text": "serena/*",
+   "id": "R67"
+  },
+  {
+   "kind": "contains",
+   "path": ".claude/rules/claude-agents.md",
+   "text": "frontmatter fields `name`, `version`, `description`",
+   "id": "R68"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/validation/skill_frontmatter.py",
+   "text": "DESCRIPTION_MAX_LENGTH = 1024",
+   "id": "R69"
+  },
+  {
+   "kind": "contains",
+   "path": "tests/validation/test_check_serena_memory_worktree_scope_failure_modes.py",
+   "text": "[\"git\", \"init\", \"-q\", str(path)]",
+   "id": "R70"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/validation/check_tmp_worktrees.py",
+   "text": "def directory_state",
+   "id": "R71"
+  },
+  {
+   "kind": "contains",
+   "path": "src/claude/skills/github/scripts/pr/get_pr_comments_by_reviewer.py",
+   "text": "not found\", 2)",
+   "id": "R72"
+  },
+  {
+   "kind": "contains",
+   "path": "src/claude/skills/prompt-engineer/references/prompt-engineering-single-turn.md",
+   "text": "| **Behavioral**     | Affirmative Directives",
+   "id": "R73"
+  },
+  {
+   "kind": "contains",
+   "path": "docs/SKILL-AUTHORING.md",
+   "text": "| `version` | string |",
+   "id": "R74"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/validation/check_tmp_worktrees.py",
+   "text": "mode = path.stat().st_mode",
+   "id": "R75"
   }
  ]
 }

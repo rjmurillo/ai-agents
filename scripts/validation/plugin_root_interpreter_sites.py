@@ -164,7 +164,10 @@ def find_locator_invocations(line: str) -> Iterator[Invocation]:
     """Yield every locator on one logical line, with its target read out of the text.
 
     A locator that no longer reads back (a bad target, a missing end) is yielded
-    with ``problem`` set, so the validator reports it instead of skipping it.
+    with ``problem`` set, so the validator reports it instead of skipping it. So is
+    a locator with argument-like text after its closing ``)``. That case sets only
+    the invocation's ``problem``, never ``LocatorMatch.problem``, so the drift scan
+    still reads the locator's arguments as before.
     """
     for match in plugin_run_launcher.find_locators(line):
         yield Invocation(
@@ -172,8 +175,18 @@ def find_locator_invocations(line: str) -> Iterator[Invocation]:
             interp=match.interpreter,
             tail=lookup_path(match.script_rel) if match.script_rel else "",
             form=LOCATOR,
-            problem=match.problem,
+            problem=match.problem or _trailing_problem(match.trailing),
         )
+
+
+def _trailing_problem(trailing: str | None) -> str | None:
+    """Return the offense text for arguments after the closing ``)``, or ``None``."""
+    if trailing is None:
+        return None
+    return (
+        f"{trailing!r} follows the closing parenthesis and never reaches the script; "
+        "put arguments after the script path, before '; fi; done'"
+    )
 
 
 def find_invocations(line: str) -> Iterator[Invocation]:

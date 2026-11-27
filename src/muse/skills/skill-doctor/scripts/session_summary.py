@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from repository_scope import print_scope_roots
+from session_threads import print_thread_summary
 
 
 def print_summary(inventory: Any, args: Any, repos: Any, out: Path) -> None:
@@ -31,11 +32,7 @@ def print_summary(inventory: Any, args: Any, repos: Any, out: Path) -> None:
         f"{stats['sessions_in_scope']} in scope, {stats['sessions_considered']} scoreable"
     )
     print(f"sessions sampled:  {stats['sessions_sampled']} -> {out / 'transcripts'}")
-    for harness, counts in stats["per_harness"].items():
-        print(
-            f"  {harness}: {counts['sampled']} sampled of {counts['scoreable']} scoreable "
-            f"({counts['skill_candidates']} used a skill)"
-        )
+    print_thread_summary(inventory)
     if inventory["sampling"]["notice"]:
         print(f"warning: {inventory['sampling']['notice']}", file=sys.stderr)
     print(f"inventory:         {out / 'inventory.json'}")
