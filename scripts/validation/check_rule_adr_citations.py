@@ -215,7 +215,7 @@ _MENTION_RE = re.compile(r"(?<![/\w-])ADR-(\d{1,4})\b(?![-\w]*\.md)")
 #: marker inside it stays code. An indented fence closes at any indent.
 _FENCE_RE = re.compile(
     r"^(?P<indent>[ \t]+)?(?P<mark>```|~~~)[^\n]*\n"
-    r".*?(?:^(?(indent)[ \t]*|)(?P=mark)[^\n]*$|\Z)",
+    r".*?(?:^(?(indent)[ \t]*|)(?P<close>(?P=mark))[^\n]*$|\Z)",
     re.DOTALL | re.MULTILINE,
 )
 _COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
@@ -331,8 +331,7 @@ def unterminated_fence_line(text: str) -> int | None:
     """
     body = _blank_frontmatter(text)
     for match in _FENCE_RE.finditer(body):
-        lines = match.group(0).split("\n")
-        if len(lines) < 2 or not lines[-1].lstrip().startswith(match.group("mark")):
+        if match.group("close") is None:
             return body.count("\n", 0, match.start()) + 1
     return None
 

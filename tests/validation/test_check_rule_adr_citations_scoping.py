@@ -103,6 +103,11 @@ def test_an_indented_marker_inside_a_column_zero_fence_stays_code() -> None:
     assert gate.unterminated_fence_line(text) is None
 
 
+def test_an_indented_last_line_does_not_close_a_column_zero_fence() -> None:
+    """Edge: the unterminated check follows the closer rule, not the last line."""
+    assert gate.unterminated_fence_line("intro\n\n```text\nopen\n   ```") == 3
+
+
 def test_an_indented_fence_closes_at_a_shallower_indent() -> None:
     text = "   ```text\n   ADR-999\n```\n\nAuthors MUST comply with ADR-080.\n"
     assert _found(text) == [(80, BINDING, 5)]
