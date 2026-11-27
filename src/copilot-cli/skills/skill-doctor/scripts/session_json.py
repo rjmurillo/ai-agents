@@ -234,6 +234,8 @@ def parse_codex_session(path: Path, _skill_names: Any, include_subagents: bool) 
             )
             if child and not include_subagents:
                 return None
+            if child:
+                meta["thread_source"] = "subagent"
         elif kind == "event_msg":
             _codex_event(state, payload, events)
         elif kind == "response_item":
