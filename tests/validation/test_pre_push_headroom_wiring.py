@@ -75,10 +75,30 @@ def _seconds(duration: str) -> int:
 # --- pytest ---------------------------------------------------------------
 
 
-def test_python_tests_job_cap_matches_lefthook() -> None:
-    """The wait budget is carved from this cap, so it must be the real one."""
-    cap = _seconds(_lefthook_job_timeout("python-tests"))
-    assert cap == policy.PYTHON_TESTS_JOB_CAP_SECONDS
+def test_python_tests_removed_from_lefthook_and_on_demand_cap_holds() -> None:
+    """ADR-104 (2026-11-26 amendment): python-tests is absent from pre-push.
+
+    On-demand ``git_hook_policy.py pytest`` runs still derive their headroom
+    wait budget from ``PYTHON_TESTS_JOB_CAP_SECONDS``, so the constant must
+    keep enough room above ``TEST_SUITE_TIMEOUT_SECONDS + HEADROOM_MARGIN_SECONDS``.
+    """
+    config = yaml.safe_load((_REPO_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
+
+    def walk_names(entries: list[dict[str, Any]]) -> list[str]:
+        names: list[str] = []
+        for entry in entries:
+            if "name" in entry:
+                names.append(str(entry["name"]))
+            nested = entry.get("group", {}).get("jobs")
+            if isinstance(nested, list):
+                names.extend(walk_names(nested))
+        return names
+
+    assert "python-tests" not in walk_names(config["pre-push"]["jobs"])
+    assert (
+        policy.PYTHON_TESTS_JOB_CAP_SECONDS
+        > policy.TEST_SUITE_TIMEOUT_SECONDS + policy.HEADROOM_MARGIN_SECONDS
+    )
 
 
 def test_pytest_takes_a_slot_before_its_budget_starts(

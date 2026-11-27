@@ -623,7 +623,7 @@ WORKFLOW_LOCAL_TIMEOUT_SECONDS = 1_740
 # delta. Override the base ref for tests or non-standard remotes.
 WORKFLOW_LOCAL_BASE_REF_ENV = "WORKFLOW_LOCAL_BASE_REF"
 WORKFLOW_LOCAL_DEFAULT_BASE = "origin/main"
-# Kept below the `python-tests` lefthook cap (15m) so this fires first and the
+# Kept below PYTHON_TESTS_JOB_CAP_SECONDS (15m) so this fires first and the
 # reader gets a diagnostic instead of a bare kill (ADR-086 Decision item 9).
 # Hard ceiling on any subprocess this module spawns while running inside a
 # managed remote container. A container is reclaimed after a period without
@@ -634,7 +634,7 @@ WORKFLOW_LOCAL_DEFAULT_BASE = "origin/main"
 # bound, so this clamp applies only where the environment can end the process.
 #
 # 150s is well above every measured in-hook cost of a job that routes through
-# here (the largest is python-tests at 38.84s, a 3.9x margin; semgrep is 13.43s)
+# here (historical max: python-tests at 38.84s before its 2026-11-26 removal)
 # and far below the roughly 679s at which a container reclamation was observed.
 # pre-pr-validation does not route through here and keeps its own cap, which is
 # why that cap is the expensive group's cost rather than this number.
@@ -665,7 +665,7 @@ CONTAINER_PROCESS_CEILING_SECONDS = CONTAINER_SUBPROCESS_CEILING_SECONDS + 15.0
 # Budget for the whole-suite paths: the opt-in full run. The default path has
 # the smaller budget below.
 TEST_SUITE_TIMEOUT_SECONDS = 780
-# Issue #6200: budget for the default pre-push pytest step, the tests testmon
+# Issue #6200: budget for the default on-demand pytest run, the tests testmon
 # selects. ADR-104 targets 300s for a whole push. Measured in-hook on 2026-10-13
 # (a 48-thread host shared with other sessions): the stages before the expensive
 # group took about 26s, and the group's longest job, pre-pr-validation, took 170s.
@@ -676,9 +676,9 @@ TEST_SUITE_TIMEOUT_SECONDS = 780
 # 2026-10-08 replay trial selected 1 to 877 tests in 4.9s to 35.6s. Measured
 # whole-suite runs: 462s cold at the scaled cap, 575s at a cap of 4. The
 # no-database case never starts (see `_should_defer_cold_selection`); a run that still
-# passes 180s, for example after a lock change, stops and fails the push.
+# passes 180s, for example after a lock change, stops and fails the run.
 PRE_PUSH_SELECTION_TIMEOUT_SECONDS = 180
-# The `python-tests` job's lefthook timeout (15m); a test pins the two values.
+# Job cap (15m) for an on-demand hook pytest run; a test pins cap above budget.
 # Issue #6609: a pytest push waits for host headroom before its budget clock
 # starts, so the wait is what this cap leaves above the budget, less a margin
 # for setup and teardown that the budget does not cover.
@@ -686,10 +686,10 @@ PYTHON_TESTS_JOB_CAP_SECONDS = 900
 HEADROOM_MARGIN_SECONDS = 60
 # pytest exits 5 when a collect-only run finds no tests; a partition can be empty.
 _PYTEST_NO_TESTS_COLLECTED = 5
-# Opt into executing the whole suite inside pre-push, with no testmon selection.
-# Unset is the default: pre-push runs only the tests pytest-testmon selects,
-# because the whole suite duplicates CI's `pytest.yml` partition matrix on the
-# same commit while costing the push minutes it does not have; see ADR-104.
+# Opt into executing the whole suite in an on-demand run, with no testmon selection.
+# Unset is the default: an on-demand run executes only the tests
+# pytest-testmon selects. Pre-push does not run pytest; CI's `pytest.yml`
+# partition matrix is the gate (ADR-104 amendment, 2026-11-26).
 PYTEST_FULL_SUITE_LOCALLY_ENV = "AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY"
 # The third flag loads `testmon_scoped_sync` (issue #6406): without it a partition
 # that shares a database and collects after a sibling saved deletes the sibling's
@@ -8176,11 +8176,11 @@ def _testmon_stand_in(repo_root: Path) -> list[list[str]]:
         "which checks\n"
         "  imports, and leaves execution to CI.\n"
         "  The pytest header and summary below show what testmon selected and ran.\n"
-        "  A failure here blocks the push. CI runs every test: "
-        ".github/workflows/pytest.yml\n"
-        "  runs every pytest leg in full on every push, pull request, and "
-        "merge-queue event\n"
-        "  (issue #6239).",
+        "  Pre-push does not run pytest. See ADR-104.\n"
+        "  CI runs the full suite via .github/workflows/pytest.yml\n"
+        "  for pull requests, merge groups, and pushes to main.\n"
+        "  See the workflow for its triggers and "
+        "matrix.",
         file=sys.stderr,
     )
     return _testmon_commands(repo_root)

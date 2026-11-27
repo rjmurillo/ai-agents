@@ -311,12 +311,12 @@ This is a different mechanism from the per-file case above. That one is about
 errors you added to one file; this one is about a repo-wide number your branch
 never touched.
 
-The cost is the wait, not the ordering. These ratchets sit in the same
-`parallel: true` pre-push group as `python-tests` (`lefthook.yml`), so they do
-not run after the suite, but `git push` does not return until every job in the
-group finishes. A measured run put `python-tests` at 946 seconds against 2.6
-seconds for `taste-count-ratchet`, so you wait out the suite to be told your
-branch is behind.
+The cost is the wait, not the ordering. These ratchets sit in a
+`parallel: true` pre-push group (`lefthook.yml`), and `git push` does not
+return until every job in the group finishes. Pre-push no longer runs pytest
+(ADR-104 amendment, 2026-11-26), so the slowest sibling is now
+`pre-pr-validation`. Before that change, a measured run put `python-tests` at
+946 seconds against 2.6 seconds for `taste-count-ratchet`.
 
 Rebase before you push, or run the gates yourself first. They take about
 2 seconds:
@@ -862,11 +862,11 @@ each invocation exits 1 with an authentication message and the job finishes in
 roughly 13 to 17 seconds. A run that actually reaches the CLI takes about 28
 seconds or more for two tests.
 
-Both jobs are siblings of `python-tests` inside one `parallel: true` group, so
-they race it rather than follow it. That does not make the failure cheap: the
-group only returns when its slowest member does, and `python-tests` takes about
-18 minutes. A 13-second auth failure still costs the full suite's wall time
-before the ref is rejected. Provision the token on the push instead:
+Both jobs sit inside one `parallel: true` group, so they race their siblings
+rather than follow them. That does not make the failure cheap: the group only
+returns when its slowest member does. A 13-second auth failure still costs the
+slowest sibling's wall time before the ref is rejected. Provision the token on
+the push instead:
 
 ```bash
 COPILOT_GITHUB_TOKEN="$(gh auth token)" git push origin HEAD:"$(git branch --show-current)"
@@ -930,9 +930,11 @@ measures the tree and asserts the prose matches. Editing a rule changes that
 measurement, so a one-paragraph clarification to an unrelated rule turns the
 guard red.
 
-The trap is where it fires. The guard lives in `python-tests`, so it costs the
-full suite before the ref is rejected. Nothing in the pre-commit set catches
-it, and the edit itself looks unrelated to any figure.
+The trap is where it fires. The guard is a pytest test, and pre-push no
+longer runs pytest (ADR-104 amendment, 2026-11-26), so CI `pytest.yml` is the
+first gate to catch it. Nothing in the pre-commit set catches it, and the edit
+itself looks unrelated to any figure. Run the test file yourself before you
+push.
 
 Four rules are narrowly scoped in `.github/instructions` and always-on in the
 plugin tree: `governance`, `push-lock`, `secret-redaction`, and `session-logs`.
