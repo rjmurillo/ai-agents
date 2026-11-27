@@ -29,12 +29,13 @@ Round 4 checked the round 3 core against every upstream claim on 2026-11-25, on 
 The real-run numbers come from one labeler, not two raters with adjudication. That labeler also wrote the fixes.
 Upstream's real runs are public SWE-rebench trajectories. These are this repo's Claude Code sessions.
 So the comparison is like for like in method, not in population.
+Contradicted (CAP) stamps are unvalidated on real data. None appeared in 678 runs, and the round 1 missed CAP stays missed.
 
 ## Round 4: upstream parity and a fresh blind sample
 
 ### Upstream's own evals on this core
 
-The three modified core files were swapped into a scratch copy of upstream at `a683c857`. A pristine copy ran beside it.
+The three modified core files were swapped into a scratch copy of upstream at `a683c857` (2026-11-21). A pristine copy ran beside it.
 
 - `eval/run_eval.py --split all`: identical tables on both copies. Every metric has precision 1.000,
   recall 1.000, 0 FP and 0 FN, on dev (40 cases) and holdout (30 cases).
@@ -54,7 +55,7 @@ The three modified core files were swapped into a scratch copy of upstream at `a
 - Miss sample: one reply per run that has a completion word and no visible stamp, until 60. Completion words are
   done, fixed, complete, pass, merged, pushed, green, verified, implemented, landed, shipped and resolved.
 - **One change after drawing.** The first miss draw had 38 of 60 replies from turns with no tool call at all.
-  These were "do not reply DONE" probe sessions with nothing to check. Scoring them as no-claim would flatter the
+  These were probe sessions whose prompt forbade a completion reply, with nothing to check. Scoring them as no-claim would flatter the
   miss rate, so the miss sample was redrawn with a rule that the turn makes at least one tool call.
   Upstream's SWE-rebench runs always make calls. The precision sample was not redrawn.
 - 678 runs scanned. No CAP stamp appeared in any of them.
@@ -295,10 +296,10 @@ A Phase 1 decision needs a re-measure after Fixes 1 and 2, on a fresh sample.
 
 ## What ran
 
-All numbers are from branch `spike/nocap-checker-core`, run on 2026-11-23.
-The adapter was committed at `50b3045e2d` before the measured run and was not changed afterwards.
+The round 1 numbers are from branch `spike/nocap-checker-core`, run on 2026-11-23.
+The adapter was committed at `50b3045e2d` (2026-11-23) before the measured run and was not changed afterwards.
 
-- Core: six files vendored from `jedbrnth-eng/no-cap` at `a683c857` (Apache-2.0). See `VENDORED.md`.
+- Core: six files vendored from `jedbrnth-eng/no-cap` at `a683c857` (2026-11-21, Apache-2.0). See `VENDORED.md`.
 - Adapter: `adapter.py` maps Claude Code JSONL to the core's `extract` and `judge` calls.
   It carries session history across turns the way upstream `engine.py` does.
 - Turns: a turn opens at each main-thread user text record. Of 73 replies, 47 follow a human prompt,
@@ -363,8 +364,8 @@ Every disagreement traced to the vendored core, not the adapter:
 
   15 of 15 adapter tests pass. Tamper detection works through the adapter on these shapes.
 - Real-data freshness: all four "code changed after" stamps were false. The core read these as code edits:
-  `git merge-tree` (matches its `git merge\b` pattern), `->$2` inside a quoted Python string (read as a
-  redirect), `> $P` to a temp file, and two writes into scratch directories outside the tested repo.
+  `git merge-tree` (matches its `git merge\b` pattern), an arrow before a shell variable inside a quoted Python
+  string (read as a redirect), a redirect to a temp file, and two writes into scratch directories outside the tested repo.
   A fifth stamp, "no run of that scope after the last code edit", came from a scope mismatch. I did not
   find its cause.
 
@@ -394,8 +395,8 @@ Fix 1 and part of Fix 2 were applied in round 2. See above.
    missed CAP. Route check counts to `ci`, and parse the repo's `get_pr_checks.py` JSON.
 4. **Freshness sees edits that are not edits.** See the causes above. The error is on the safe side, but
    false stale stamps teach users to ignore real ones.
-5. **Repo GitHub script output is not parsed.** `merge_pr.py` returned `"state":"MERGED"`, and a PR list
-   showed `7282 OPEN`. The core still found no `gh` output for the PR.
+5. **Repo GitHub script output is not parsed.** `merge_pr.py` returned a merged state in JSON, and a PR list
+   showed one PR as open. The core still found no `gh` output for the PR.
 
 ## Scope and limits
 
