@@ -454,14 +454,14 @@ def test_the_accepted_shell_forms_parse(template: str) -> None:
     """The shapes the scan accepts are shell a POSIX parser accepts too."""
     line = template.replace("{loc}", render_locator(SCRIPT))
     assert [m.trailing for m in plugin_run_launcher.find_locators(line)] == [None]
-    parsed = subprocess.run(["sh", "-n", "-c", line], capture_output=True, text=True, check=False)
+    parsed = subprocess.run(["sh", "-n", "-c", line], capture_output=True, check=False)
     assert parsed.returncode == 0, parsed.stderr
 
 
 @pytest.mark.parametrize("after", [" > out.txt --flag", " ../input.json", " .env"])
 def test_the_flagged_shell_forms_do_not_parse(after: str) -> None:
     line = render_locator(SCRIPT) + after
-    parsed = subprocess.run(["sh", "-n", "-c", line], capture_output=True, text=True, check=False)
+    parsed = subprocess.run(["sh", "-n", "-c", line], capture_output=True, check=False)
     assert parsed.returncode != 0
 
 
