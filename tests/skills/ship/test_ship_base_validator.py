@@ -106,10 +106,10 @@ def test_copy_failure_reports_not_run(owner, base_validator, scripts, capsys, mo
     common = scripts[0]
     real_git = common.git
 
-    def failing_show(args, cwd=None, timeout=60):
+    def failing_show(args, cwd=None, timeout=60, **kw):
         if args[:1] == ["show"]:
             return common.Completed(128, "", "fatal")
-        return real_git(args, cwd=cwd, timeout=timeout)
+        return real_git(args, cwd=cwd, timeout=timeout, **kw)
 
     monkeypatch.setattr(common, "git", failing_show)
     code, lines = _check(scripts, capsys, body)
