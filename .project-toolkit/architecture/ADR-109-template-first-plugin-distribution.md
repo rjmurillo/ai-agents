@@ -325,7 +325,7 @@ Consumers drop the hook at their next plugin update.
 
 Decision-maker: rjmurillo. Panel: reduced (architect, critic); see `.project-toolkit/critique/agent-env-adr-amendments-2026-11-25-debate-log-2.md`.
 
-The owner deleted `ai-metrics-analysis.yml` on 2026-11-25, with every other job gated by an `agent-*` environment (ADR-057, amendment of that date).
+The owner deleted `ai-metrics-analysis.yml` on 2026-11-25, with every other job gated by an `agent-*` environment (ADR-057, the `/spec` CI leg amendment of that date).
 The 2026-11-19 amendment says `metrics-analysis.prompt.md` "stays as an input the `ai-metrics-analysis.yml` workflow reads".
 That sentence describes the state before 2026-11-25.
 The file is still at `.github/prompts/metrics-analysis.prompt.md`, and no workflow reads it now.

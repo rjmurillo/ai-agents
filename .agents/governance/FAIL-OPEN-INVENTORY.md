@@ -367,7 +367,7 @@ Update 2026-10-11: issue #6182 moved two A rows to B and resolved one B row; cou
 
 Update 2026-11-01: each scoped `continue-on-error` in `semantic-pr-title-check.yml` and `ai-spec-review.yml` now has a one-line comment naming the artifact that shows it stayed advisory (the typed `[STATE]` log line, or the classify step's `Result:` line). The five rows cite the current line of each `continue-on-error: true`, and the two Group 2 `ai-spec-review.yml` rows that read `UNDOCUMENTED` are now `DELIBERATE`. The `pr-validation.yml:144` row stays `UNDOCUMENTED` because a comment in that file cannot take the comment-only exemption from the security review marker gate: its existing text `*schema*` at line 182 matches the YAML alias check, so any edit to the file needs a marker. Counts not recomputed.
 
-Update 2026-11-25: the owner deleted every job gated by an agent-* environment (ADR-057, amendment of that date). The five rows for `ai-spec-review.yml`, `post-pr-retrospective.yml`, and `software-engineering-library-activation.yml` are now `RESOLVED` by deletion. The `check_spec_failures.py` row was reworded on 2026-11-26 to say the model review no longer runs. Counts are not recomputed.
+Update 2026-11-25: the owner deleted every job gated by an agent-* environment (ADR-057, the `/spec` CI leg amendment of that date). The five rows for `ai-spec-review.yml`, `post-pr-retrospective.yml`, and `software-engineering-library-activation.yml` are now `RESOLVED` by deletion. The `check_spec_failures.py` row was reworded on 2026-11-26 to say the model review no longer runs. Counts are not recomputed.
 
 A `B` row that reaches its expiry without a re-read is a defect in this file,
 not permission to keep the path open. Validate Spec Coverage has been

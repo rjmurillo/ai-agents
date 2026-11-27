@@ -128,7 +128,7 @@ Debate log: `.project-toolkit/critique/ADR-083-debate-log-2.md`.
 
 ## Amendment 2026-11-25: the Copilot legs are deleted
 
-Status of this amendment: records a deletion. The decision is unchanged. Commit `3f145f26fd` (2026-11-25) deleted the `smoke` job from `.github/workflows/plugin-cli-smoke.yml`, and with it the Claude and Copilot legs. ADR-057, amendment of 2026-11-25, holds the reason. No workflow runs the Copilot base-alone e2e now. The pre-push job `plugin-load-e2e` in `lefthook.yml` runs `tests/e2e/test_plugin_load_smoke.py` with `-m "not copilot"`, so no local gate runs it either. Criterion 1 cannot be measured in CI while no Copilot leg exists. The choice between the two exits in Review Date stays with the owner at the 2027-01-17 review. Where the 2026-10-08 amendment says the test runs in `plugin-cli-smoke.yml`, read that as history. Review record: `.project-toolkit/critique/agent-env-adr-amendments-2026-11-25-debate-log-2.md`.
+Status of this amendment: records a deletion. The decision is unchanged. Commit `3f145f26fd` (2026-11-25) deleted the `smoke` job from `.github/workflows/plugin-cli-smoke.yml`, and with it the Claude and Copilot legs. ADR-057, the `/spec` CI leg amendment of 2026-11-25, holds the reason. No workflow runs the Copilot base-alone e2e now. The pre-push job `plugin-load-e2e` in `lefthook.yml` runs `tests/e2e/test_plugin_load_smoke.py` with `-m "not copilot"`, so no local gate runs it either. Criterion 1 cannot be measured in CI while no Copilot leg exists. The choice between the two exits in Review Date stays with the owner at the 2027-01-17 review. Where the 2026-10-08 amendment says the test runs in `plugin-cli-smoke.yml`, read that as history. Review record: `.project-toolkit/critique/agent-env-adr-amendments-2026-11-25-debate-log-2.md`.
 
 ## Date
 
@@ -475,7 +475,7 @@ Since 2026-11-25 no Copilot leg exists, so the first exit now means restoring on
   retired the version half of the parity gate.
 - ADR-114 (agent workflows approval): Decision 13 moved the base-alone e2e into
   `plugin-cli-smoke.yml`. Its Copilot legs were deleted on 2026-11-25 (ADR-057,
-  amendment of 2026-11-25), so no workflow runs the legs Criterion 1 counts.
+  `/spec` CI leg amendment), so no workflow runs the legs Criterion 1 counts.
 - ADR-079 (plugin version bump stays at PR time): bounded the overlay's version
   handling. Moot since the overlay was retired.
 - ADR-042 (Python migration): the install script is Python.

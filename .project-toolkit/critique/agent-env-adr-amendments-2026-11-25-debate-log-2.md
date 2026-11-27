@@ -147,3 +147,23 @@ The critic's P1: the Fourth pass intro said `main` (`dff887317c`) was merged, wh
 - ADR-057:282 lists the `/spec` leg and contributors as users of the acceptance gate. The ADR-127 check also calls it. Lines 239 and 410 say so.
 - ADR-088:218 describes the weekly gate in the present tense. Both sides carried it. The amendment in the same record covers it.
 - Three line cites in the ledger from `main` are stale on `main` itself. They are outside this merge.
+
+## Pointer clarification, 2026-11-27
+
+After the merge, ADR-057 holds two amendments with the heading date 2026-11-25. Line 310 is the ADR-127 decision 9 amendment from `main`. Line 406 is this branch's `/spec` CI leg amendment, which holds the owner's reason for the deletion. A pointer that said "ADR-057, amendment of 2026-11-25" or "amendment of that date" matched both headings.
+
+Each pointer now names the `/spec` CI leg amendment. The sites:
+
+- ADR-071:637, ADR-083:131, ADR-083:477 to 478, ADR-101:478, and ADR-109:328.
+- `claude-workflow-authorization-pattern.md`:7.
+- `.agents/governance/FAIL-OPEN-INVENTORY.md`:370, `CONTRIBUTING.md`:468, and `gate-ladder.md`:16 in the `ai-agents-change-control` skill references.
+- ADR-088:269 to 273, changed in the merge resolution above.
+
+No decision text changed. No line count changed: ADR-071 stays at 850 lines, ADR-083 and ADR-101 at 500, ADR-109 at 390, and ADR-088 at 311. The quotes of the old wording earlier in this log are dated history and stay.
+
+Both seats read the wording diff and the ADR-088 change. Architect vote: Accept. Critic vote: Accept. Neither seat raised a P0 or a P1.
+
+### P2, not changed
+
+- ADR-127:248 and `scripts/validation/checks_ci_parity.py`:348 cite "ADR-057 Amendment 2026-11-25" by date only. Both came from `main`, and the text around each names the deterministic check.
+- ADR-114:132 and REQ-047:64 still describe the earlier approval and smoke contracts. Both records are outside this change by owner decision.
