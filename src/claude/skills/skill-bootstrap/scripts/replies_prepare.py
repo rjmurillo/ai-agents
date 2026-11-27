@@ -369,7 +369,8 @@ def run_prepare(cfg: Config) -> dict[str, Any]:
     recs = [rec for sm in used for rec in sm.replies]
     if not recs:
         raise ConfigError("no_replies_in_population")
-    # A marker hit is a positive control: always sampled, never part of a rate.
+    # A marker hit is a positive control: sampled and kept out of every rate,
+    # up to MAX_CONTROLS. Hits past the cap stay in the rate strata.
     controls = sorted((r for r in recs if r.marker_hit), key=lambda r: r.key)[:MAX_CONTROLS]
     if cfg.markers and not controls:
         raise ConfigError("control_not_found")

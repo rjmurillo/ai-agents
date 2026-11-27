@@ -49,6 +49,8 @@ TAG_BLOCK = re.compile(
     r"command-name|command-message|command-args)(?:\s[^>]*)?>.*?</\1>",
     re.S,
 )
+PASTE_OPENER = re.compile(r"<pasted_content(?:\s[^>]*)?>")
+PASTE_ONLY = "[pasted content]"
 AGENT_TYPE = re.compile(r"[\w.\-]{1,40}")
 
 
@@ -217,6 +219,9 @@ class _Parser:
             return
         reason = _skip_reason(rec, text)
         human = TAG_BLOCK.sub("", text).strip()
+        if not reason and not human and PASTE_OPENER.search(text):
+            # A paste with no typed words is still a turn the reader sent.
+            human = PASTE_ONLY
         if reason or not human:
             self.tr.skipped[reason or "empty"] += 1
             return

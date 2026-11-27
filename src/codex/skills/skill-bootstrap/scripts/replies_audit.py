@@ -17,7 +17,8 @@ Privacy boundary:
   created 0700 with 0600 files. There is no full corpus export.
 - `--marker` names a reply already known to be bad, the positive control. Each
   hit is sampled and kept out of every rate, up to 20 controls (`MAX_CONTROLS`
-  in `replies_prepare.py`). `tally` exits 1 unless its label is `friction`.
+  in `replies_prepare.py`). Hits past 20 stay in the rate strata as ordinary
+  replies. `tally` exits 1 unless each control label is `friction`.
   Only the hit count is printed.
 - `--entrypoint` keeps only sessions started from that client. `--machine-first`
   drops a session whose first prompt a harness or another agent wrote.

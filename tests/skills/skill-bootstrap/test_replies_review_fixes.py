@@ -63,7 +63,7 @@ def test_attributed_paste_before_typed_words_is_a_typed_followup(
     assert payload["turns"]["typed_followup"] == 1
 
 
-def test_a_paste_only_turn_is_skipped_not_a_followup(
+def test_a_paste_only_turn_ends_the_reply_before_it(
     store: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     pasted = '<pasted_content id="1">synthetic pasted log line</pasted_content>'
@@ -72,8 +72,10 @@ def test_a_paste_only_turn_is_skipped_not_a_followup(
     write_session(store, "main-a", recs)
     plant_control(store)
     payload, _ = prepare_ok(capsys, store, tmp_path / "run")
-    assert payload["machine"] == {"empty": 1}
-    assert payload["turns"].get("typed_followup", 0) == 0
+    assert "empty" not in payload["machine"]
+    assert payload["turns"]["typed_followup"] == 1
+    # Both replies in the session plus the planted control reply.
+    assert sum(kind["total"] for kind in payload["replies"]["by_kind"].values()) == 3
 
 
 def test_marker_hits_over_the_cap_stay_in_the_strata(

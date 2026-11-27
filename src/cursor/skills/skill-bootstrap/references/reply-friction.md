@@ -79,6 +79,7 @@ Transcripts hold the reader's prompts, code, and pasted content.
    Pass a phrase from it as `--marker <regex>`. `replies.marker_hits` must be
    1 or more. Preparation exits 2 if it finds no match.
    The script adds up to 20 control rows outside the rate sample.
+   Hits past 20 stay in the rate sample as ordinary replies.
    Validation exits 1 if a control lacks a `friction` label.
 5. **Label.** Give [reply-friction-judge.md](reply-friction-judge.md)
    and `evidence.jsonl` to an independent classifier. A spawned model sends
