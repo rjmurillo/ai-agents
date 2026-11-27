@@ -941,18 +941,10 @@ Check it in under a second before pushing:
 uv run --frozen python -m pytest tests/validation/test_always_on_corpus_claims.py -q
 ```
 
-When it fails, take the measured value from the assertion message, update the
-sentence in `.claude/skills/context-optimizer/references/model-context-doctrine.md`,
-and rerun `build/scripts/generate_skills.py` so the `src/copilot-cli/` mirror
-matches. Update the vendor-cost figure in the same sentence: it is the plugin
-count minus the `.github/instructions` count, and no test checks it.
-
-Two details the failure output does not explain. The at-source total is larger
-than the shipped total because `generate_rules.py` strips the `priority:` key on
-the way out, so the same rule is smaller in the plugin tree than on disk. And the
-two 8KB multipliers move independently: the `.py`-edit multiplier can hold steady
-while the always-on one shifts, so re-measure both rather than assuming one
-tracks the other.
+When it fails, fix the membership table in
+`.claude/skills/context-optimizer/references/model-context-doctrine.md` and
+rerun `build/scripts/generate_skills.py` so the `src/copilot-cli/` mirror
+matches. Write no byte or budget figure there; the test rejects one.
 ## An empty `endingCommit` breaks the episode store on the next push
 
 The pre-commit hook extracts an episode from every staged session log. It reads
