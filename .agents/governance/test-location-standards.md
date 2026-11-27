@@ -90,7 +90,7 @@ Same first six letters, unrelated content, unrelated consumers:
 | `python_files` | `["test_*.py"]` |
 | `import-mode` | `importlib` (lets same-named modules coexist across dirs with and without `__init__.py`) |
 | `timeout` | 120s per test |
-| `markers` | `unit`, `integration`, `safe_push_transport` (non-local transport, excluded from pre-push), `security`, `smoke` (real-CLI, nightly only), `windows_path` (Windows-runner only) |
+| `markers` | `unit`, `integration`, `safe_push_transport` (non-local transport, excluded from on-demand local pytest runs), `security`, `smoke` (real-CLI, nightly only), `windows_path` (Windows-runner only) |
 
 Source: `pyproject.toml` `[tool.pytest.ini_options]`.
 
