@@ -71,6 +71,7 @@ _CAP_KEYS = (
     "no_skill",
     "min_idle_minutes",
     "include_subagents",
+    "copilot_fold_child_events",
     "timeline_supplement",
 )
 _REMOTE_HEADER = re.compile(r'^\s*\[\s*remote\s+"([^"]*)"\s*\]')
@@ -93,6 +94,7 @@ def inputs_from_args(args: Any) -> dict[str, Any]:
         "no_skill": args.no_skill,
         "min_idle_minutes": args.min_idle_minutes,
         "include_subagents": bool(args.include_subagents),
+        "copilot_fold_child_events": bool(getattr(args, "copilot_fold_child_events", False)),
         "timeline_supplement": max(int(getattr(args, "timeline_supplement", 0) or 0), 0),
     }
 
