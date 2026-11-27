@@ -462,7 +462,8 @@ class TestValidateSkillFile:
         skill_file.parent.mkdir()
         skill_file.write_text(
             "---\nname: test-skill\ndescription: A test skill\n"
-            "version: 1.0.0\nlicense: MIT\n---\n# Body"
+            "version: 1.0.0\nlicense: MIT\n---\n# Body",
+            encoding="utf-8",
         )
         result = validate_skill_file(skill_file)
         assert result.passed is True
@@ -504,7 +505,8 @@ class TestValidateSkillFile:
             "model: claude-sonnet-4-6\n"
             "allowed-tools:\n  - bash\n  - edit\n"
             "compatibility: Requires git\n"
-            "version: 1.0.0\nlicense: MIT\n---"
+            "version: 1.0.0\nlicense: MIT\n---",
+            encoding="utf-8",
         )
         result = validate_skill_file(skill_file)
         assert result.passed is True
@@ -525,7 +527,8 @@ class TestValidateSkillFile:
         skill_file.parent.mkdir()
         skill_file.write_text(
             "---\nname: no-content\ndescription: Skill with no content after frontmatter\n"
-            "version: 1.0.0\nlicense: MIT\n---"
+            "version: 1.0.0\nlicense: MIT\n---",
+            encoding="utf-8",
         )
         result = validate_skill_file(skill_file)
         assert result.passed is True
@@ -550,7 +553,8 @@ class TestMain:
         skill_dir = tmp_path / ".claude" / "skills" / "ok-skill"
         skill_dir.mkdir(parents=True)
         (skill_dir / "SKILL.md").write_text(
-            "---\nname: ok-skill\ndescription: Valid\nversion: 1.0.0\nlicense: MIT\n---"
+            "---\nname: ok-skill\ndescription: Valid\nversion: 1.0.0\nlicense: MIT\n---",
+            encoding="utf-8",
         )
         exit_code = main(
             [
@@ -593,7 +597,8 @@ class TestMain:
             skill_dir = tmp_path / ".claude" / "skills" / name
             skill_dir.mkdir(parents=True)
             (skill_dir / "SKILL.md").write_text(
-                f"---\nname: {name}\ndescription: Skill {name}\nversion: 1.0.0\nlicense: MIT\n---"
+                f"---\nname: {name}\ndescription: Skill {name}\nversion: 1.0.0\nlicense: MIT\n---",
+                encoding="utf-8",
             )
         exit_code = main(
             [
@@ -614,7 +619,8 @@ class TestMain:
         valid_dir.mkdir(parents=True)
         (valid_dir / "SKILL.md").write_text(
             "---\nname: valid-skill\ndescription: Valid test skill\n"
-            "version: 1.0.0\nlicense: MIT\n---"
+            "version: 1.0.0\nlicense: MIT\n---",
+            encoding="utf-8",
         )
         invalid_dir = tmp_path / ".claude" / "skills" / "invalid"
         invalid_dir.mkdir(parents=True)
@@ -638,7 +644,8 @@ class TestMain:
         skill_dir.mkdir(parents=True)
         skill_file = skill_dir / "SKILL.md"
         skill_file.write_text(
-            "---\nname: ok-skill\ndescription: Valid\nversion: 1.0.0\nlicense: MIT\n---"
+            "---\nname: ok-skill\ndescription: Valid\nversion: 1.0.0\nlicense: MIT\n---",
+            encoding="utf-8",
         )
         exit_code = main(
             [

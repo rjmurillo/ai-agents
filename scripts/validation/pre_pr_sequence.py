@@ -184,7 +184,6 @@ from checks_tooling import (
     validate_yaml_style,
 )
 from citation_reverse_pass import validate_citation_reverse_pass
-from skill_frontmatter import validate_skill_frontmatter
 from stale_script_refs import validate_stale_script_refs
 from validate_argument_hint import validate_argument_hint
 from validate_design_review import validate_design_review_frontmatter
@@ -202,6 +201,7 @@ from scripts.validation.evidence import (
     CheckOutcome,
     GateResult,
 )
+from scripts.validation.skill_frontmatter import validate_skill_frontmatter
 
 if TYPE_CHECKING:
     import argparse
