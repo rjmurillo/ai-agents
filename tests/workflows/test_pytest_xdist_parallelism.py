@@ -174,13 +174,19 @@ class TestMatrixStructure:
     def test_safe_push_runs_process_sensitive_files(self) -> None:
         args = _partition_args("safe-push")
         assert args == [
+            "-c",
+            "pyproject.toml",
             "tests/test_safe_push_pr_branch.py",
             "tests/test_mutation_workspace_signals.py",
         ]
 
     def test_pr_autofix_runs_only_its_file(self) -> None:
         args = _partition_args("pr-autofix")
-        assert args == ["tests/test_pr_autofix_late_live_state_gate.py"]
+        assert args == [
+            "-c",
+            "pyproject.toml",
+            "tests/test_pr_autofix_late_live_state_gate.py",
+        ]
 
 
 class TestXdistParallelism:

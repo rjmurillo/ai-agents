@@ -8,8 +8,15 @@ save one complete bytecode cache while remaining the only cache writer.
 
 from __future__ import annotations
 
-from scripts.ci import run_pytest_non_tmp
-from scripts.ci import run_pytest_partition as runner
+import sys
+from pathlib import Path
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.ci import run_pytest_non_tmp  # noqa: E402
+from scripts.ci import run_pytest_partition as runner  # noqa: E402
 
 
 def excluded_test_paths() -> list[str]:
