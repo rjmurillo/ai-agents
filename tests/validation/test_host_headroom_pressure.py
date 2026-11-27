@@ -346,11 +346,11 @@ def _run_contenders(
     active = 0
     peak_active = 0
     entered: list[int | None] = []
-    timed_out = 0
+    timeout_codes: list[int | str | None] = []
     errors: list[BaseException] = []
 
     def worker() -> None:
-        nonlocal active, peak_active, timed_out
+        nonlocal active, peak_active
         try:
             gate.wait(timeout=5.0)
             with host_headroom.heavy_stage_slot(
@@ -369,14 +369,9 @@ def _run_contenders(
                 with state_lock:
                     active -= 1
         except host_headroom.HeadroomTimeoutError as exc:
-            if exc.code != 3:
-                with state_lock:
-                    errors.append(AssertionError(f"expected exit 3, got {exc.code}"))
-                release_holders.set()
-                return
             with state_lock:
-                timed_out += 1
-                if timed_out == expected_timeouts:
+                timeout_codes.append(exc.code)
+                if len(timeout_codes) == expected_timeouts:
                     release_holders.set()
         except BaseException as exc:  # pragma: no cover - surfaced to main thread
             with state_lock:
@@ -391,7 +386,8 @@ def _run_contenders(
         assert not thread.is_alive()
 
     assert errors == []
-    return peak_active, entered, timed_out
+    assert timeout_codes == [3] * len(timeout_codes)
+    return peak_active, entered, len(timeout_codes)
 
 
 def test_bounded_concurrency_under_slot_contention_no_stampede(tmp_path: Path) -> None:
