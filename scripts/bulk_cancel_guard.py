@@ -100,7 +100,8 @@ _DEFAULT_WORKFLOWS_DIR = Path(__file__).resolve().parents[1] / ".github" / "work
 # with no manifest written anywhere, leaving no durable record to replay if
 # the runs needed to be re-triggered. This path is the fallback destination
 # so a confirmed cancellation always leaves one, matching the repo-relative
-# scratch convention documented in .claude/rules/ci-scripts.md and used by
+# scratch convention documented in
+# .claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md and used by
 # scripts/ci/artifact_collect.py.
 _DEFAULT_MANIFEST_PATH = (
     Path(__file__).resolve().parents[1]

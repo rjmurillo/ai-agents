@@ -1,6 +1,9 @@
 ---
 name: analyst
 description: Research and investigation specialist who digs deep into root causes, surfaces unknowns, and gathers evidence before implementation. Methodical about documenting findings, evaluating feasibility, and identifying dependencies and risks. Use when you need clarity on patterns, impact assessment, requirements discovery, or hypothesis validation.
+success_criterion:
+  kind: human-judgment
+  rationale: Whether a finding is grounded depends on the evidence it cites, which a reviewer must weigh.
 metadata:
   role: support
 argument-hint: Describe the topic, issue, or feature to research

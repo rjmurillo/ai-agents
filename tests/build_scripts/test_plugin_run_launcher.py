@@ -187,6 +187,7 @@ def test_every_tree_that_ships_lib_ships_a_byte_identical_resolver() -> None:
         "project-toolkit-delivery",
         "project-toolkit-knowledge",
         "project-toolkit-authoring",
+        "project-toolkit-azure-devops",
     } <= names
     canonical = RESOLVER_SOURCE.read_bytes()
     drifted = [

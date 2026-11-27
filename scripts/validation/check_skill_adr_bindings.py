@@ -52,10 +52,10 @@ enum verbatim::
 
     status: proposed | accepted | rejected | deprecated | superseded   # enum, no prose
 
-`scripts/validation/check_adr_lifecycle.py:152-155` carries the same list as the
-set it validates against, with the same attribution::
+`scripts/validation/check_adr_lifecycle.py:232-236` carries the same list as the
+set it validates against, `LIFECYCLE_STATUSES`::
 
-    # ADR-073 Decision section, verbatim: "status: proposed | accepted | rejected |
+    # The ADR-073 status enum. `test_lifecycle_statuses_conform_to_adr_073` fails when
     ...
     {"proposed", "accepted", "rejected", "deprecated", "superseded"}
 
@@ -92,12 +92,12 @@ filesystem walk was the first implementation and is wrong for a ratchet.
     happens to have on disk, which inflated a local ruff run to 767 against a real
     tracked count of 361 and made that gate report a phantom regression outside CI.
 
-`.claude/rules/ci-scripts.md` MUST 9 binds it: a ratchet baseline is a claim
-about a ref, so the measurement behind it must not read untracked state, or the
-same commit scores differently on two machines. Measured on this gate before the
-change: one untracked `SKILL.md` declaring ADR-007, on a tree byte-identical at
-HEAD and in the index, took the count from 16 to 17 and exited 1, and the remedy
-it printed sent the reader to repoint a file the repository does not contain.
+`.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md` MUST 9 binds
+it: a ratchet baseline is a claim about a ref, so the measurement behind it must not
+read untracked state, or the same commit scores differently on two machines. Measured on
+this gate before the change: one untracked `SKILL.md` declaring ADR-007, on a tree
+byte-identical at HEAD and in the index, took the count from 16 to 17 and exited 1, and
+the remedy it printed sent the reader to repoint a file the repository does not contain.
 
 Reading each path's content off disk rather than out of the ref is deliberate,
 and matches the same sibling: a staged or unstaged edit to a tracked `SKILL.md`
@@ -167,11 +167,15 @@ directory holding no records, a run that examined nothing,
 and a ``--write-baseline`` that would raise the ceiling or was measured from a
 partial tree. A gate that cannot read its own baseline, cannot enumerate what it
 is meant to scan, or examined nothing has not run, and reporting any of those as
-a pass is the silent-pass failure `.claude/rules/ci-scripts.md` exists to stop.
+a pass is the silent-pass failure
+`.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md` exists to stop.
 
 Every terminal line carries the examined count beside the violation count, which
 MUST 12 requires in as many words: "0 violations in 381 files" is verifiable,
-"OK" is not. `check_adr_lifecycle.py:1195` prints the same pairing.
+"OK" is not.
+
+The lifecycle gate prints the same pairing at `check_adr_lifecycle.py:1824`:
+`violation(s) across {examined} ADR record(s)`.
 """
 
 from __future__ import annotations
@@ -362,11 +366,11 @@ def _escapes_repo(skill: Path, repo_root: Path) -> bool:
 class ScanResult:
     """What a scan found, and as importantly what it managed to look at.
 
-    `.claude/rules/ci-scripts.md` MUST 12 requires a run that examined nothing to
-    be distinguishable from a run that examined everything and found nothing. The
-    counts therefore travel together, so no caller can render one without the
-    other. ``candidates`` is what the index offered, ``examined`` is what was
-    actually read, and ``absent`` names the difference.
+    `.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md` MUST 12
+    requires a run that examined nothing to be distinguishable from a run that
+    examined everything and found nothing. The counts therefore travel together, so no
+    caller can render one without the other. ``candidates`` is what the index offered,
+    ``examined`` is what was actually read, and ``absent`` names the difference.
     """
 
     violations: list[Violation]
@@ -611,7 +615,7 @@ def _report_absent(result: ScanResult) -> None:
 def _corpus_is_empty(adr_dir: Path) -> bool:
     """True when no `ADR-NNN-*.md` is present, so no status can resolve.
 
-    Mirrors the corpus-presence half of `check_adr_lifecycle.py:1261`, quoted
+    Mirrors the corpus-presence half of `check_adr_lifecycle.py:1888`, quoted
     verbatim::
 
         if not any(ADR_FILENAME_RE.match(md.name) for md in adr_dir.glob("ADR-*.md")):
@@ -741,17 +745,17 @@ def _write_baseline_command(repo_root: Path, adr_dir: Path, baseline_path: Path)
     every later full run a permanent regression against a number no tree ever
     held. So any absent path refuses the write.
 
-    A ratchet may only fall. `.claude/rules/ci-scripts.md` MUST NOT 4 forbids
-    raising a count baseline, and the shared `scripts/ci/count_ratchet.py:1016`
-    enforces it by reaching its writer only inside ``if count < baseline:``.
-    Without this, the remedy line this gate itself prints is a one-command way to
-    legalise a new violation.
+    A ratchet may only fall.
+    `.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md` MUST NOT 4
+    forbids raising a count baseline, and the shared `scripts/ci/count_ratchet.py:1016`
+    enforces it by reaching its writer only inside ``if count < baseline:``. Without this,
+    the remedy line this gate itself prints is a one-command way to legalise a new violation.
 
     Weaker than the sibling, deliberately and for now. An earlier revision of this
     docstring claimed `check_adr_lifecycle.py` "refuses the same way". That was
     false: it resolves a base ref and compares against the value recorded there
-    (`_resolve_default_base_ref`, `baseline_absent_at_ref` and `_counts_at_ref`,
-    wired at `scripts/validation/check_adr_lifecycle.py:1146-1150`), while this
+    (`_resolve_default_base_ref`, `baseline_absent_at_ref` and `_baseline_at_ref`,
+    wired at `scripts/validation/check_adr_lifecycle.py:1484-1498`), while this
     gate reads the ceiling only from the working-tree file. The gap that leaves is
     real and was reproduced in three ordinary commits: add a violation, `git rm`
     the baseline, then run the remedy line above, which sees no ceiling, treats it

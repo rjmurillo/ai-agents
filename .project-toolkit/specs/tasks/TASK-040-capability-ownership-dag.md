@@ -2,13 +2,13 @@
 type: task
 id: TASK-040
 title: Ship the capability frontmatter contract, its validator, and one real conversion
-status: draft
+status: done
 priority: P1
 related:
   - REQ-031
   - DESIGN-029
 created: 2026-09-22
-updated: 2026-09-22
+updated: 2026-11-25
 author: spec
 tags:
   - governance
@@ -60,7 +60,7 @@ debate log existing at `.project-toolkit/critique/ADR-110-debate-log.md`.
 5. Add the determinism test: render one fixture tree twice and assert byte
    equality.
 6. Register the gate in the `_SEQUENCE` table at
-   `scripts/validation/pre_pr_sequence.py:317`.
+   `scripts/validation/pre_pr_sequence.py:321`.
 7. Enforce the one copied-policy class that can be proven: a consumer that
    repeats three or more consecutive lines of the owner it declares a
    dependency on.

@@ -25,15 +25,18 @@
    • Verification criteria
    • Deep Dive sections (in <details> tags)
 
-3. Generate reference documents (if needed)
+3. Run the Placement Check in SKILL.md before moving detail to references.
+   Follow its result before continuing. Skip it for mechanics-only edits.
+
+4. Generate reference documents (if needed)
    • Deep documentation for complex topics
    • Templates for generated artifacts
    • Checklists for validation
 
-4. Create assets (if needed)
+5. Create assets (if needed)
    • Templates for skill outputs
 
-5. Create scripts (if needed)
+6. Create scripts (if needed)
    • Use script-template.py as base
    • Include Result dataclass pattern
    • Add a fast-fail check, and plan an independent postcondition check
@@ -45,7 +48,7 @@
    • In SKILL.md, invoke scripts through the plugin-root locator, never a bare
      .claude/skills path (see ADR-121)
 
-6. Write the reference page (only when the repository has docs/skills/README.md
+7. Write the reference page (only when the repository has docs/skills/README.md
    and --path is a folder named skills)
    • init_skill.py writes docs/skills/{skill-name}.md with the seven sibling
      sections: When to use it, When not to use it, Quick start, What you get,

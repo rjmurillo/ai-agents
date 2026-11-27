@@ -475,13 +475,13 @@ def validate_git_hook_health(repo_root: Path) -> bool:
         A dead pre-push hook or an unverifiable Git state fails loud rather than
         warning. The repair is bounded, and refusing an unverifiable push avoids
         silently recreating the incident this gate exists to catch
-        (.claude/rules/ci-scripts.md MUST 11).
+        (.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md MUST 11).
 
         Prints what was probed and where it resolved on the healthy path, so a
         caller can tell "checked and found hooks live" from "did nothing"
-        (.claude/rules/ci-scripts.md MUST 12). The silence-when-healthy contract
-        of the original SessionStart design does not apply here: that output landed
-        in every session's context, this lands in one pre-PR report.
+        (.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md MUST 12).
+        The silence-when-healthy contract of the original SessionStart design does not apply
+        here: that output landed in every session's context, this lands in one pre-PR report.
     """
     return _evaluate(repo_root) == 0
 

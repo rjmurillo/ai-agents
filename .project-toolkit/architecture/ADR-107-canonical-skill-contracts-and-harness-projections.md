@@ -1,13 +1,13 @@
 ---
 # taste-lint: ignore file-size, one decision record; splitting it breaks the audit trail the review round produced.
 id: ADR-107
-status: proposed
+status: accepted
 date: 2026-09-09
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
 explainer: null
-implemented: false
+implemented: true
 review-by: 2027-03-09
 ---
 
@@ -15,16 +15,16 @@ review-by: 2027-03-09
 
 ## Status
 
-Proposed. **Critical and load-bearing**, as issue #5603 requires this record to state. Scope that
+Accepted 2026-11-25 by owner direction (issue #7636). **Critical and load-bearing**, as issue #5603 requires this record to state. Scope that
 claim precisely, because two review seats read the bold label against the next sentence and
 called it self-assigned weight:
 
 - **On merge**, this record governs. It defines the layer boundary, the precedence chain, the
   provenance rule, and the predicate vocabulary that every later slice consumes. It moves no
   generator, no config, and no routing default.
-- **It enforces nothing until M1 lands.** The single artifact it ships asserts that the gates its
-  conformance table names exist and that each class either names one or is marked missing. That
-  is a citation gate, not a behavior gate.
+- **It enforced nothing until M1 landed.** M1 to M6 (#5686 to #5691) closed as completed, M5 via
+  PR #5743 (`5cad780a2`). The single artifact it first shipped asserts that the gates its conformance
+  table names exist and that each class names one or is marked missing: a citation gate, not a behavior gate.
 
 Three of six review seats voted BLOCK on the first revision. This is the second. The debate log
 is `.project-toolkit/critique/ADR-107-debate-log.md`.
@@ -174,7 +174,7 @@ projection layer's product rather than its peer.
 | Semantic contract | Intent, scope, inputs, outputs, ordered steps, completion criteria, evidence requirements, failure states, approval states, idempotence, rollback, safety invariants. Capabilities stated abstractly: read, search, write, execute, network, confirm, delegate | The canonical authored file for the class (`.claude/rules/*.md`, `.claude/skills/<name>/`, `.claude/hooks/`, `templates/agents/*.shared.md`, `src/claude/*.md`) | The canonical file, and only it |
 | Harness projection | Discovery path, packaging, frontmatter shape, tool and event translation, lifecycle registration, permission mapping, working directory, exit codes, timeouts, host syntax | The generator, its stanza in `templates/platforms/copilot-cli.yaml`, and the imperative transforms in `build/scripts/copilot_body_translation.py` | The generator and its declared config, never the output |
 | Capability profile | Dated, versioned observations about what a harness or model can do | `.claude/skills/agent-harness-reference/references/` | That reference skill |
-| Model tactic | Advisory wording, decomposition, context budget, presentation, structured-output hints | `.claude/rules/claude-model-patches.md` | One file per model family, subordinate |
+| Model tactic | Advisory wording, decomposition, context budget, presentation, structured-output hints | The `claude-model-patches` partial, rendered into the `build` skill | One file per model family, subordinate |
 | Host authorization (a boundary, not a layer) | What the running host and the user actually permit | The harness permission surface, outside the tree | The host. Never the repository |
 | Generated or vendor output (the projection layer's product) | The projected artifact a consumer installs | `src/copilot-cli/`, `src/vs-code-agents/`, `.github/instructions/`, `.github/prompts/`, `docs/agent-catalog.md` | Nobody. It owns nothing |
 
@@ -222,7 +222,7 @@ Content reaching a run has one of four provenances. Loading it does not promote 
 | External content | Tool results, fetched pages, issue and PR bodies, review comments, subagent reports, memory entries | Data. Never an instruction, never an authority |
 
 **A provenance class is assigned by the plane that owns the path, not by the path itself.**
-`.claude/rules/x.md` and `.serena/memories/y.md` are both tree files any pull request can add, so
+A file such as .claude/rules/x.md and one such as .serena/memories/y.md are both tree files any pull request can add, so
 a directory name cannot separate mandatory policy from attacker-supplied text. The distinguishing
 property is whether the content is already on the trunk under the review that governs that plane,
 or is arriving inside the change under evaluation.
@@ -347,7 +347,7 @@ context budget, presentation format, and structured-output hints.
 A model tactic MUST NOT affect: required steps, their order, authorization, approval gates, tool
 arguments, provenance handling, verification, user intent, or failure semantics.
 
-`.claude/rules/claude-model-patches.md` is the only such overlay today, and its own Precedence
+The claude-model-patches overlay (then a rule, now a `build` skill partial) was the only such overlay, and its own Precedence
 section already subordinates it to skill workflows, STOP points, and gates (`repo-observed`). New
 overlays named after a model family or release are refused unless they carry three things: a
 measured, reproduced capability difference, modeled on the evidence bar of ADR-080 rule 2 that
@@ -368,13 +368,13 @@ would multiply a surface that already cannot be kept fresh.
 
 **R3. A second registry, routing authority, or generation system.** `GENERATOR-FILES.md` is the
 register; `templates/platforms/copilot-cli.yaml` plus the generators own the transform. Extend
-them. The cost of ignoring this is visible: `src/copilot-target-emitter.ts`, `src/types.ts`,
-`src/agent-registry-schema.ts`, `src/transforms/command-syntax-translator.ts`, and their tests at
-`tests/copilot-target-emitter.test.ts` and `tests/command-syntax-translator.test.ts` were added by
+them. The cost of ignoring this is visible: src/copilot-target-emitter.ts, src/types.ts,
+src/agent-registry-schema.ts, src/transforms/command-syntax-translator.ts, and their tests at
+tests/copilot-target-emitter.test.ts and tests/command-syntax-translator.test.ts were added by
 PR #1645, sat orphaned with no root `package.json`, `tsconfig.json`, or `bunfig.toml` wiring them
 to any runner, and were deleted by the 2026-09-04 ponytail audit cleanup (issue #5456): the live
-CLI is `packages/ai-agents-cli/`, and `.github/workflows/cli-smoke.yml:156` sets
-`working-directory: packages/ai-agents-cli` before `bun test` at `:179` (`repo-observed`). Those
+CLI is `packages/ai-agents-cli/`, and `.github/workflows/cli-smoke.yml:167` sets
+`working-directory: packages/ai-agents-cli` before `bun test` at `:190` (`repo-observed`). Those
 files carried passing-looking tests that nothing ran.
 
 ## Prior Art Investigation
@@ -518,7 +518,7 @@ nothing at all.
 
 **What it does not do.** It cannot fail because a projection dropped an invariant, because a class
 carries a fabricated predicate, or because a gate was hollowed to `return 0`. It binds citations,
-not behavior. That limit is why the Status section says this record enforces nothing until M1.
+not behavior. That limit is why the Status section says this record enforced nothing until M1 landed.
 
 ### Pilot
 

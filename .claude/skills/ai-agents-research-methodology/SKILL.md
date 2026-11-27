@@ -88,7 +88,7 @@ made after seeing the data is a description, not a test. Concretely:
    fixture; `ls tests/evals/` lists what is available.)
 
    `--dry-run` validates inputs and makes no API calls
-   (scripts/eval/eval-prompt-change.py:961, `Validate inputs, no API calls`).
+   (scripts/eval/eval-prompt-change.py:986, `Validate inputs, no API calls`).
    It is the only no-spend path; there is no `--mock`.
 3. Run the real eval, compare against the written prediction, and record both
    in the write-up. A miss is a finding, not an embarrassment.
@@ -277,10 +277,10 @@ volatile facts:
 |---|---|---|
 | Recursive-failure false premise, calibration rule, M4 numbers | `.project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md:20` (`misdiagnosed root cause`); the same retro's lines 72 to 73 give the M4 numbers and lines 149 to 157 state the calibration rule | `grep -n "calibrat" .project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md` |
 | Fail-open wrapper rejection record | `.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:297` and `:393` (`addressed-by-prevention`) | `grep -n 2230 .project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md` |
-| adr-review debate log required | `AGENTS.md:13` (`ADR review: debate log required`); `.claude/skills/adr-review/SKILL.md` | `grep -n "debate" .claude/skills/adr-review/SKILL.md` |
-| buy-vs-build gate for new capabilities | `AGENTS.md:13` (`new cap buy-vs-build`) | `grep -n "buy-vs-build" AGENTS.md` |
+| adr-review debate log required | `AGENTS.md:14` (`ADR review: debate log required`); `.claude/skills/adr-review/SKILL.md` | `grep -n "debate" .claude/skills/adr-review/SKILL.md` |
+| buy-vs-build gate for new capabilities | `AGENTS.md:14` (`new cap buy-vs-build`) | `grep -n "buy-vs-build" AGENTS.md` |
 | buy-vs-build Quick tier ends in a Go/No-go | `.claude/skills/buy-vs-build-framework/SKILL.md:92` (`Go/No-go`) | verified directly against the cited line; no command needed that would read a sibling skill's directory <!-- citation-freshness: ignore -- symlinked shipped skill; tracked at src/claude/skills/buy-vs-build-framework/SKILL.md --> |
-| eval scripts and `--dry-run` | `scripts/eval/eval-prompt-change.py:961` (`Validate inputs, no API calls`); `scripts/eval/` listing | `ls scripts/eval/ && grep -n "dry-run" scripts/eval/eval-prompt-change.py` |
+| eval scripts and `--dry-run` | `scripts/eval/eval-prompt-change.py:986` (`Validate inputs, no API calls`); `scripts/eval/` listing | `ls scripts/eval/ && grep -n "dry-run" scripts/eval/eval-prompt-change.py` |
 | Contradiction log format | `.claude/skills/memory-gate/references/contradiction-log.md` | `grep -n "decision-" .claude/skills/memory-gate/references/contradiction-log.md` |
 | ADR-069 accepted, effect not established | `.project-toolkit/architecture/ADR-069-context-corpus-is-the-product.md:3` (`status: accepted`) | `head -5 .project-toolkit/architecture/ADR-069-context-corpus-is-the-product.md` |
 | Retro corpus size | `.project-toolkit/retrospective/` | `( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/ai-agents-failure-archaeology/scripts/corpus_index.py --repo .; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )` (`retro_files`; exits 1 while INDEX.md covers 11 of 241 retros at 42e409325, so read the JSON, not the exit code) |

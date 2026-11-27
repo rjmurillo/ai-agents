@@ -38,6 +38,13 @@ Run these in order. A failure at an earlier gate stops the later ones.
   fixed count of creations per source.
 - When two local candidates are close, compare them directly (pairwise) rather
   than guessing by name.
+- Compare techniques, not skill names. A source skill whose headline capability
+  has a local owner can still carry a method that owner lacks. List the source
+  skill's transferable techniques, then search the owner for each one. A
+  technique the owner lacks is an augmentation of that owner, never a new skill.
+  It also needs a present consumer: something in the local repository that the
+  technique would act on today. Rewrite the technique in your own words, and
+  check its factual claims against a primary source, before it enters the owner.
 
 ### Gate 3: Reject product coupling
 
@@ -70,6 +77,16 @@ test) and were routed to the existing owner under Gate 2. None cleared the bar
 for a new skill. The single local change was this guardrail itself: an
 augmentation of the existing router rather than a new external-review framework.
 
+A second pass read the same catalog at pinned commit
+`91f866a32580ad77b7b467581a5c2b561c402ebc` (2026-11-26), by then 26 skills. It
+asked the technique question from Gate 2 instead of "does this deserve a new
+skill". One source file passed: a playbook for testing a change to CI itself.
+The local `review` skill's devops axis asked open questions about workflow
+changes and had no method for answering them. The method was rewritten without
+product commands, checked row by row against the CI platform's own
+documentation, and added to that axis as a resource. Still no new skill.
+
 The lesson generalizes: an external catalog is mostly product-coupled operations
 plus a few generic ideas that already have a local home. The value is in the
-routing discipline, not in copying skills across.
+routing discipline, not in copying skills across. When a source idea does land,
+it lands as a technique inside an existing owner.

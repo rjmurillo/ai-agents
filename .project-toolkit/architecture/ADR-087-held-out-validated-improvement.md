@@ -1,7 +1,7 @@
 ---
 id: ADR-087
 status: proposed
-date: 2026-07-26
+date: 2026-11-25
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -107,11 +107,11 @@ existing shape of the practice rather than as settled authority.
 ADR-022's split criteria are the reason this is filed as an ADR: it constrains
 what the evaluation machinery is structurally allowed to observe at decision
 time, and it changes the shape of every future evaluator, rather than adding a
-compliance step to an existing one. Two caveats a reader deserves. ADR-022 is
-also `proposed`. And its own matrix calls for an ADR *plus* a governance
-document when a decision carries an enforcement obligation, which this one
-does. The governance half is not written; that gap is named under Open
-Requirements below rather than papered over.
+compliance step to an existing one. Two caveats a reader deserves. ADR-022 was
+`proposed` when this was written; it was accepted on 2026-11-26. And its own
+matrix calls for an ADR *plus* a governance document when a decision carries
+an enforcement obligation, which this one does. The governance half is not
+written; that gap is named under Open Requirements below rather than papered over.
 
 ### Why this is not solved by discipline
 
@@ -433,7 +433,8 @@ first call. What closed is the version an ordinary invocation could reach by
 accident.
 
 Making this a real boundary needs a controller the optimizing agent cannot
-write to. That is named under Open Requirements rather than claimed here.
+write to. That is named under Open Requirements rather than claimed here. The
+2026-11-25 amendment records the controller built for it, and its condition.
 
 ### What this does not require
 
@@ -592,7 +593,9 @@ first for that reason.
    the optimizer still runs `extract` itself under the documented workflow,
    task definitions still resolve to readable grading criteria, and `split`
    still publishes `opt`. A trusted controller owning those surfaces remains
-   the prerequisite for the Decision statement's stronger form. The second carries a real tension:
+   the prerequisite for the Decision statement's stronger form. The 2026-11-25
+   amendment below records the controller that now exists and the condition
+   it still depends on. The second carries a real tension:
    reporting `p` always and never enforcing it is load-bearing elsewhere in
    this ADR, and a `--diagnostics` flag the loop passes itself would be the
    same caller-supplied-restriction defect this document catalogs five times
@@ -790,11 +793,12 @@ Honest statement of what has and has not been exercised against real data.
 - **Agent path**: validated against a real report,
   `evals/analyst-spike/reports/20260528T050708Z-91be1106/report.json`, 24
   fixtures. Baseline 15/24 against agent 13/24; the decision correctly refused
-  a real regression. **No null control has been run on this path.** One was
-  claimed on 2026-07-27 and retracted the same day: the two architect-spike
-  runs it used disagree on `fixture_set_sha`, so the corpus was a second changed
-  variable. A valid control needs two runs agreeing on both `fixture_set_sha`
-  and `agent_prompt_sha`, and no committed pair does.
+  a real regression. One null control was claimed on 2026-07-27 and retracted
+  the same day: the two architect-spike runs it used disagree on
+  `fixture_set_sha`, so the corpus was a second changed variable. A valid
+  control needs two runs agreeing on both `fixture_set_sha` and
+  `agent_prompt_sha`. The first such pair ran on 2026-11-25; see the amendment
+  of that date.
 - **Hook path**: validated against real `pytest tests/hooks` JUnit output, 532
   node ids extracted. No null control has been run on the hook path, and none
   is needed for the same reason: `pytest_results` is deterministic, so a
@@ -882,7 +886,8 @@ The corrected state of the evidence is one measured path, not three:
   artifact fixed. Both held-out gains that earned the ACCEPT reproduced under
   the no-op.
 - **Agent path, unmeasured.** A control needs two runs agreeing on both
-  `fixture_set_sha` and `agent_prompt_sha`. No committed pair does.
+  `fixture_set_sha` and `agent_prompt_sha`. No committed pair did at the time.
+  The 2026-11-25 amendment records the first such pair.
 - **Hook path, deterministic by construction.**
 
 The error is more useful than the claim would have been, and it belongs in this
@@ -927,8 +932,8 @@ on two, one of which was not measuring what it said.
 - ADR-058: Agent Eval Discipline. Between-subjects; complementary rather than
   overlapping. Status `proposed`, cited as existing practice not as authority.
 - ADR-022: Architecture vs Governance Decision Split Criteria. Basis for filing
-  this as an ADR. Status `proposed`, and its matrix also asks for a governance
-  document here; see Open Requirements.
+  this as an ADR. Status `accepted` (2026-11-26), and its matrix also asks
+  for a governance document here; see Open Requirements.
 - Dwork, Feldman, Hardt, Pitassi, Reingold, and Roth, "The reusable holdout:
   Preserving validity in adaptive data analysis," Science 348(6248):636-638,
   2015, and the technical companion "Generalization in Adaptive Data Analysis
@@ -949,3 +954,47 @@ ADR-088 moved the book-derived rule cited above into the `software-engineering-l
 
 - Current guidance now lives at `.claude/skills/software-engineering-library/references/working-with-legacy-code.md`.
 
+## Amendment 2026-11-25
+
+Issue #7642 asked the owner whether this ADR is still wanted. The owner said
+yes. The status stays `proposed`.
+
+### Tracking
+
+Sub-issues of #7642 track each Open Requirement: #7678 (1) through #7689 (12).
+#7679 (2) and #7682 (5) are closed as already discharged. The full table is
+in the analysis file linked below.
+
+### Open Requirement 1: the controller
+
+`scripts/eval/eval_controller.py` inverts the loop. The launcher runs the
+controller, which runs the scorer, `extract`, `split`, and `gate`. The agent
+runs as a child proposer. Each step it gets optimize-group results, step and
+budget counts, optional optimize-group task files, and the last decision, so a
+gated candidate teaches it one bit. Everything else stays in a controller state
+directory. The cap and ledger root come from launcher config. The owner chose
+this over a separate OS user or a protected CI job (#7642, decision D2).
+
+**The boundary is conditional.** Python cannot stop a same-user process from
+reading a file. The held-out group is withheld only under the rule
+`eval_controller.py policy` prints: no proposer read or write on the state
+directory, the config, `deny_paths`, or `collect` paths, and no write on the
+eval code or `trusted_paths`. `deny_paths` must cover the whole task directory
+and earlier reports, or the held-out group is the complement of the opt ids.
+Under that rule the three surfaces this requirement names are closed. The
+controller cannot check the rule. For `hook`, candidate code runs in the scorer
+and can forge its own results. The stronger Decision form holds only for a
+controller-run loop under the rule; a direct `optimize-artifact.py` loop keeps
+the weaker bound.
+
+The noise threat stays open (`max_p` is optional; Open Requirement 6 covers
+rules only). Detail: `.project-toolkit/analysis/7678-adr-087-trusted-controller-and-null-control.md`.
+
+### First valid agent-path null control
+
+Two architect-spike runs agree on `fixture_set_sha` (`f6310eb016cb`) and
+`agent_prompt_sha` (`dfcb7790a0e8`). Gated against each other on three held-out
+tasks, the gate returned REJECT on a tie at 0/3, p = 1.0. Both reports flag
+`halt-due-to-flakiness`, and three all-failing tasks tie almost by construction.
+This is a low-power noise-floor observation, not a false-accept rate. Numbers
+are in the analysis file.

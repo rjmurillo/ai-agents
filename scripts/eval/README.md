@@ -120,6 +120,11 @@ way. `scripts/eval/_cli_credentials.py` owns the order; each transport only
 names its variables, its on-disk login, and how to ask its CLI whether it is
 signed in. First hit wins:
 
+0. **A gateway** (Claude only). `ANTHROPIC_BASE_URL` plus
+   `ANTHROPIC_AUTH_TOKEN`, both set. Claude Code ranks that token above
+   `CLAUDE_CODE_OAUTH_TOKEN`, so when the pair is exported the gateway is what
+   authenticates, and it is resolved first. No OAuth token is injected next to
+   it. Recorded as `gateway`. See "Running an eval through a local hub" below.
 1. **Environment, then dotenv.** The matrix's Credential column lists the
    variables, in the CLI's own precedence. Codex takes `CODEX_ACCESS_TOKEN`.
    If none is exported, dotenv files are read. `EVAL_DOTENV_FILES` is a list
@@ -140,13 +145,29 @@ signed in. First hit wins:
    `codex login status` reports a ChatGPT login, or the Copilot config records
    a logged-in user. No config directory is relocated and no token is
    injected, so user config may load. Every other isolation flag stays.
+   A `claude auth status` of `oauth_token` is not taken. The CLI reports it
+   when a settings file sets `ANTHROPIC_AUTH_TOKEN`, and the cell drops
+   settings files, so that login fails in the child ("Not logged in").
 4. **A prompt**, only when stdin is a terminal. Otherwise the run exits with
    the transport's message naming what to set.
 
-Every step strips the metered variables (`ANTHROPIC_API_KEY`,
-`ANTHROPIC_AUTH_TOKEN`, `OPENAI_API_KEY`, `CODEX_API_KEY`, and the Copilot
-BYOK set), so no path bills a paid key. `report.json` records which steps ran
-as `credential_steps` (`env`, `dotenv`, `disk`, `disk-gh-fallback`, `existing-login`, `prompt`)
+The `codex-cli` and `copilot-cli` children get an allowlisted environment, and
+every step strips the metered variables (`OPENAI_API_KEY`, `CODEX_API_KEY`,
+and the Copilot BYOK set). The `claude-cli` child inherits the parent
+environment instead, so a proxy, CA bundle, or gateway the operator exported
+reaches it. It denies only what breaks the cell: every `CLAUDE*` name (the
+config directory, the parent session's plumbing, and the `CLAUDE_CODE_USE_*`
+cloud switches), `ANTHROPIC_API_KEY`, and `ANTHROPIC_BASE_URL`,
+`ANTHROPIC_AUTH_TOKEN`, and `ANTHROPIC_CUSTOM_HEADERS` on every step except
+`gateway`. Isolation does not
+come from the environment: the config directory is relocated, and settings,
+MCP, tools (`--tools ""`), and slash commands are off. The skill harness
+(`_claude_skill_harness.py`) is the exception: its child loads the skill under
+test with slash commands on, so it gets the allowlist, plus the gateway pair and
+`ANTHROPIC_CUSTOM_HEADERS` on the `gateway` step, and never inherits other
+parent secrets. Proxy variables such as `HTTPS_PROXY` do not reach it.
+`report.json` records which steps ran
+as `credential_steps` (`gateway`, `env`, `dotenv`, `disk`, `disk-gh-fallback`, `existing-login`, `prompt`)
 and `REPORT.md` prints a `Credential step` line. `existing-login` reads
 `existing login: user config may load`. A `settings.json` env block in that user config can also set `ANTHROPIC_API_KEY` or a base URL, which moves billing off the subscription. The value is never recorded.
 
@@ -155,6 +176,45 @@ plain-text file under `COPILOT_HOME` whose layout is undocumented). Step 3
 covers it, because the CLI reads that store itself. The runtime-parity harness
 (`_runtime_harness.py`) and its isolated profile keep their own environment
 checks.
+
+### Running an eval through a local hub
+
+A machine that reaches Claude through a gateway, such as a local CLIProxy hub,
+needs no key. A session on that machine already exports the pair:
+
+```bash
+# ANTHROPIC_BASE_URL and ANTHROPIC_AUTH_TOKEN: already exported by the hub session
+uv run python scripts/eval/eval-prompt-change.py \
+  --provider claude-subscription \
+  --before old.md --after new.md --scenarios tests/evals/<name>-scenarios.json --runs 3
+```
+
+Before and after both run on this one cell, and the judge does too (ADR-058).
+Leave `CLAUDE_CLI_BIN` unset and `EVAL_RUNTIME_REAL_HOME` off: the plain
+`claude` binary under the isolated profile is the measured transport. The
+default model is `claude-sonnet-5-5`. The hub rejects some ids with
+`400 unknown provider for model` (for example `claude-sonnet-5`).
+
+A gateway run is not a direct subscription run: the gateway decides which
+account pays. `result.json` says so in its `transport` block, for example
+`{"provider": "claude-cli", "payer": "gateway", "credential_steps": ["gateway"],
+"endpoint_host": "127.0.0.1:8319"}`, and stderr prints a `Transport:` line.
+The host is recorded without the token, the userinfo, or the URL path. Do not
+compare a gateway score with a direct OAuth score from another run.
+
+The base URL and the auth token reach the child only as a pair. A base URL
+exported without the token is stripped, so the OAuth token on any other step
+only ever goes to api.anthropic.com.
+`ANTHROPIC_CUSTOM_HEADERS` follows the auth token: it reaches only a gateway
+run, because a header can carry another credential. Only `eval-prompt-change.py`
+writes the `transport` block today (`_transport_record.py`). Other runners on
+the `claude-cli` cell still label the run by cell alone.
+
+The isolated runners (`eval_runtime_parity.py`, `eval_control_ablation.py`)
+build their own child environment and inject one token, so they skip the
+gateway step and use the stored login as before. The `claude-api` cell does
+not reach a gateway either. It posts to `https://api.anthropic.com` with
+`x-api-key` (`_anthropic_api.py`), so a hub token there gets HTTP 401.
 
 ### Do not compare across cells
 
@@ -238,6 +298,7 @@ Copilot equivalent.
 | `eval_harness_capability.py` | Run fail-closed live capability probes from a shell-free JSON plan and derive the #5422 arm matrix. | #5423 |
 | `eval_recorded_capabilities.py` | Classify recorded Codex rollouts and Copilot event files offline for `concurrency_limit` and `context_reset_observability`. | #5423 |
 | `optimize-artifact.py` | Held-out-gated edit loop for agents, rules, and hooks. Splits tasks, bounds how many times an edit may be measured against the held-out group, and applies patches. A budgeted comparison, not an access boundary; see the seam section below. Core in `_optimizer_core.py`, scorer adapters in `_optimizer_adapters.py`. | #3422 |
+| `eval_controller.py` | Trusted controller for `optimize-artifact.py` (ADR-087 Open Requirement 1). The launcher runs it; it runs the scorer and the gate, and runs the optimizing agent as a child that sees only optimize-group results and the last decision. A boundary only when the launcher applies the rule `policy` prints. Helpers in `_controller_config.py` and `_controller_io.py`. | #7678 |
 | `eval_billing_matrix.py` | Print the harness x billing matrix and report which cells this machine can reach. `--json` for a machine-readable form, `--require-ready` to exit 3 as a precondition step. | Complementary |
 | `_anthropic_api.py` | Shared API utilities (key loading, API calls). | N/A |
 | `_billing_matrix.py` | The 3x2 table itself: cells, aliases, credentials, cost basis, and selection precedence. Read by `_providers` and by `_eval_common.cost_basis`. | Complementary |
@@ -2215,7 +2276,8 @@ Four further refusals close holes that open once a loop runs many steps:
   the budget bounds is how many times an edit may be compared against the
   held-out group through the gate, which is the loop's own **gate comparisons**
   against that group. It is not a bound on total selection pressure. Closing
-  that needs the trusted controller in ADR-087 Open Requirement 1.
+  that needs the trusted controller in ADR-087 Open Requirement 1; see
+  "Running the loop under the trusted controller" below.
 
   Three things this does not cover, stated rather than implied. The cap is
   whatever positive integer the first call names, so the budget is only as tight
@@ -2238,6 +2300,79 @@ Four further refusals close holes that open once a loop runs many steps:
   `<!-- SLOW_UPDATE_END -->` is off limits, markers included. Patches carrying a
   fence marker in their text are rejected too, since one could otherwise open a
   fence over the rest of the file or close an existing one.
+
+### Running the loop under the trusted controller
+
+`eval_controller.py` removes the cooperating-optimizer assumption from the
+loop above. The optimizing agent stops calling `extract`, `split`, and `gate`.
+The launcher runs the controller, and the controller runs the agent as a child
+proposer, once per step. ADR-087's 2026-11-25 amendment records the decision;
+`.project-toolkit/analysis/7678-adr-087-trusted-controller-and-null-control.md`
+records every guard and its limits.
+
+```bash
+uv run python scripts/eval/eval_controller.py policy --config loop.json
+uv run python scripts/eval/eval_controller.py run --config loop.json
+```
+
+The config is launcher-owned JSON:
+
+| Key | Meaning |
+| --- | --- |
+| `kind` | `agent`, `rule`, or `hook`, passed to `extract --kind`. |
+| `artifact` | The file the proposer edits. |
+| `state_dir` | Controller-only. Holds scorer output, results, split, ledger, log, and bytecode caches. Must not hold an earlier session (`split.json`). The consultation ledger lives here, so a new `state_dir` starts a new budget, even over the same held-out tasks. Reuse the cap across runs by launcher policy, not by this directory. |
+| `workspace_dir` | The proposer's only input. Must be absent or empty at start, and must not contain the artifact. Emptied each step, then given `feedback.json` and optional `tasks/`. |
+| `scorer` | argv. `{run_id}`, `{run_dir}`, and `{artifact}` are filled in. |
+| `scorer_exit_codes` | Exit codes that count as a completed scoring run (default `[0]`). pytest and the rule scorer exit 1 on failures, so use `[0, 1]` there. |
+| `collect` | Paths the scorer writes outside `{run_dir}`. Each is moved to `{run_dir}/<index>`, every one attempted even if another is missing. A report already at a `collect` path before scoring stops the run, so include `{run_id}` in fixed paths. The proposer must not read them meanwhile: `policy` prints them as `deny_read_write_collect`; deny the directory each names. |
+| `inputs` | `extract --input` paths. Each must start with `{run_dir}`; a report written elsewhere is named in `collect` and read from `{run_dir}/<index>`. |
+| `extract_args` | Extra `extract` flags, such as `--variant agent`. |
+| `proposer` | argv. `{feedback}`, `{artifact}`, `{workspace}`, and `{step}` are filled in. |
+| `proposer_env` | Required allowlist of environment variable names for the proposer (`[]` for none), plus `PATH`. Scorer credentials never pass unless named. `EVAL_LEDGER_DIR` never passes. |
+| `seed`, `sel_ratio` | Passed to `split`. |
+| `max_consultations` | The gate cap. It comes from the launcher, not from the proposer. |
+| `max_p` | Optional `gate --max-p`, a number in `[0, 1]`, checked at load. |
+| `steps` | Proposer calls at most. The loop also stops when the cap is spent. |
+| `opt_task_files` | Optional path template with `{task_id}` or `{task_name}`. Optimize-group files are copied into `tasks/`; a missing one stops the run. |
+| `deny_paths` | Required. Paths the proposer must not reach. Name the whole task directory, or the held-out group is the complement of the optimize ids. Name earlier report directories for the same tasks too, since they hold held-out outcomes. |
+| `trusted_paths` | Optional. Extra code the controller runs with its own authority, such as the scorer's files. Digested and denied write, like `scripts/eval/*.py`. |
+| `timeout_seconds` | Per scorer, proposer, or optimizer call (default 3600). On POSIX the child's process group is killed when the call ends; on Windows only the direct child. |
+
+Each step, `feedback.json` carries the step, the artifact path, the
+optimize-group results of the current incumbent and their pass fraction, the
+consultations left, and `last_decision`: `ACCEPT`, `REJECT`, or `NO_CHANGE`.
+An unchanged artifact spends no consultation. A gate refusal (split drift,
+corpus mismatch, a guard) spends none either and stops the run with exit 3.
+
+The full gate payload, a 400-character tail of a failed child's output, and an
+`abort` event on early exit go to `state_dir/log.jsonl` only. Successful child
+output is discarded. Every exit from a step restores the incumbent
+before the gate, including a failed proposer or scorer and SIGTERM. Only an
+ACCEPT writes the candidate back.
+
+The controller refuses to gate when the artifact changed while it was scored.
+It refuses an artifact replaced by a symlink, a hard link, or a directory.
+Restores keep the artifact's mode and never follow a link. It digests
+`deny_paths`, `trusted_paths`, and every entry under `scripts/eval/` before the
+loop and again around every scoring run and step. The optimizer runs with
+`PYTHONPYCACHEPREFIX` under `state_dir`, so a planted bytecode cache in
+`scripts/eval/__pycache__` is never read. It also checks that scoring changed
+nothing in `state_dir` outside the new run's directory.
+
+Run one controller per artifact at a time. Two runs with different
+`state_dir`s on the same artifact can restore over each other's accepted bytes;
+the controller does not lock the artifact across processes.
+
+**The boundary is conditional.** Python cannot stop a same-user process from
+reading a file. The held-out group is withheld only when the launcher applies
+the rule `policy` prints. That means no proposer read or write on
+`deny_read_write`, and no proposer write on `deny_write`. Use a sandbox or a
+harness deny rule. Without it, a proposer that goes looking can read
+`state_dir`. For the `hook` kind, the scorer runs candidate code with the
+scorer's access; the controller detects tampering with earlier state, not a
+forged result. Exit codes: 0 finished, 2 config or integrity refusal,
+3 scorer, proposer, optimizer, or I/O failure.
 
 ### What the numbers can and cannot show
 

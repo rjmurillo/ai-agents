@@ -11,9 +11,9 @@ delimiter (CWE-1427, prompt injection).
 
 Records are appended to ``--output`` one line at a time, so a crash keeps every
 finished call. A rerun on the same output skips rows already ``ok`` and retries
-the rest. The calls send no ``temperature``: the default model rejects it
-(``scripts/eval/_anthropic_api.py``, comment on ``DEFAULT_MODEL``), and sending it
-makes ``call_api`` retry without it, which doubles the requests.
+the rest. The calls send no ``temperature``: current Claude models may reject it,
+and a rejected field makes ``call_api`` retry without it, which doubles the
+requests (``scripts/eval/_anthropic_api.py``, ``call_api``).
 """
 
 from __future__ import annotations

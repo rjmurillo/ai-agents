@@ -80,7 +80,7 @@ blocked, red, or unmergeable because the API was unreachable.
 Which transport? → check_github_transport.py (run once, before the rest)
 
 Need GitHub data?
-├─ List PRs (filtered) → get_pull_requests.py
+├─ List PRs (filtered), or find the PR number for a branch → get_pull_requests.py --head <branch>
 ├─ PR info/diff → get_pr_context.py
 ├─ CI check status → get_pr_checks.py
 ├─ Failing check also red on main? → triage_red_check.py
@@ -99,6 +99,9 @@ Need GitHub data?
 ├─ Merge readiness check → test_pr_merge_ready.py
 ├─ PR reports blocked/dirty and cause is unclear → why_pr_blocked.py
 ├─ Latest milestone → get_latest_semantic_milestone.py
+├─ Branch protection, rulesets, required check contexts → get_branch_protection.py
+├─ Workflow runs (list, filter; runs not tied to a PR) → actions/get_workflow_runs.py
+├─ One workflow run: jobs, failed steps, environment-approval wait → actions/get_workflow_run.py
 ├─ Actionable backlog → get_actionable_items.py
 └─ Need to take action?
    ├─ Create issue → new_issue.py
@@ -121,6 +124,8 @@ Need GitHub data?
    ├─ Update PR branch with its base (server side) → update_pr_branch.py
    ├─ Rerun failed CI jobs on a PR or run → rerun_failed_jobs.py
    ├─ Draft PR ready or back → set_pr_ready.py
+   ├─ Edit PR title (squash-merge commit subject) → edit_pr_title.py
+   ├─ Dismiss a stale CHANGES_REQUESTED review (human runs this) → dismiss_pr_review.py
    ├─ Close PR → close_pr.py
    └─ Merge PR → merge_pr.py
 ```
@@ -194,6 +199,8 @@ PR scripts and `github_core` import with the SDK blocked.
 | `merge_pr.py` | Merge pinned to the reviewed head, then read back and audited (ADR-112) | `--pull-request`, `--expected-head-sha`, `--strategy`, `--delete-branch`, `--auto`, `--dry-run` |
 | `audit_closing_claims.py` | Fleet audit of open-PR closing claims; exit 1 on an unsupported claim, exit 3 without an administration-read token (full text: `references/script-catalog.md`) | `--state open`, `--artifact`, `--resume-from`, `--output-format {json,human,auto}` |
 | `edit_pr_body.py` | PR body edit, SHA-256 guard | `--pull-request`, `--body`/`--body-file`, `--expected-hash`, `--dry-run` |
+| `edit_pr_title.py` | PR title edit (the squash-merge commit subject), stale-write guard | `--pull-request`, `--title`, `--expected-title`, `--dry-run` |
+| `dismiss_pr_review.py` | Dismiss a stale `CHANGES_REQUESTED` review: verifies state and unresolved-thread count first. The execution path the `detect_stale_bot_review.py` handoff points a human at | `--pull-request`, `--review-id`, `--message`, `--skip-thread-check`, `--dry-run` |
 
 ### Issue Operations (`scripts/issue/`)
 
@@ -224,7 +231,15 @@ PR scripts and `github_core` import with the SDK blocked.
 
 | Script | Purpose | Key Parameters |
 |--------|---------|----------------|
+| `get_branch_protection.py` | Branch protection plus ruleset rules: required check contexts, required approvals, signature/admin rules. Read-only | `--branch`, `--output-format {json,human,auto}` |
 | `manage_squash_merge_message.py` | Read or update `squash_merge_commit_message` behind an expected-value guard (full text: `references/script-catalog.md`) | `--set`, `--expected-current`, `--dry-run`, `--output-format {json,human,auto}` |
+
+### Actions Runs
+
+| Script | Purpose | Key Parameters |
+|--------|---------|----------------|
+| `get_workflow_runs.py` | List workflow runs: CI not tied to a PR, approval-waiting runs, failure history | `--workflow`, `--branch`, `--event`, `--status`, `--pull-request`, `--limit` |
+| `get_workflow_run.py` | One run: job conclusions, failed steps, pending environment approvals | `--run-id` |
 
 ### Reactions (`scripts/reactions/`)
 

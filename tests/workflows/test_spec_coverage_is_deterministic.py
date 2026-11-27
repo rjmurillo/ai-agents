@@ -113,16 +113,13 @@ class TestReviewSpecIsAdvisory:
         assert concurrency["cancel-in-progress"] is True
         assert "pull_request.number" in concurrency["group"]
 
-    def test_review_types_are_the_validation_types_minus_edited(self) -> None:
-        """`edited` is dropped from the review: each body edit would queue another
-        agent-claude approval prompt. Reviewers can use workflow_dispatch instead."""
-        review = _load(_REVIEW)[True]["pull_request"]
-        validation = _load(_VALIDATION)[True]["pull_request"]
+    def test_review_has_no_pull_request_trigger(self) -> None:
+        """The agent-claude approval is never given, so a pull request run only
+        waited and blocked auto-merge. Reviewers dispatch it with a PR number."""
+        review = _load(_REVIEW)[True]
 
-        assert "edited" in validation["types"]
-        assert "edited" not in review["types"]
-        assert review["types"] == [t for t in validation["types"] if t != "edited"]
-        assert review["branches"] == validation["branches"]
+        assert "pull_request" not in review
+        assert "pull_request_target" not in review
 
     def test_workflow_triggers_include_dispatch_and_no_merge_group(self) -> None:
         review = _load(_REVIEW)[True]

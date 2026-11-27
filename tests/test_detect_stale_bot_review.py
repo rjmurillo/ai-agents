@@ -103,8 +103,8 @@ class TestStaleClassification:
         handoff = _classify([_stale_cr(), rereview])["handoff"]
         assert "review 100" in handoff
         assert f"commit {OLD}" in handoff
-        assert "gh api -X PUT repos/o/r/pulls/7/reviews/100/dismissals" in handoff
-        assert "-f event=DISMISS" in handoff
+        assert "dismiss_pr_review.py" in handoff and "--review-id 100" in handoff
+        assert "dismiss_pr_review.py" in handoff
         assert "Every review thread is resolved and required CI checks pass" in handoff
         assert "does not check that the later commits fixed each finding" in handoff
         assert "The agent does not dismiss reviews" in handoff
@@ -126,7 +126,7 @@ class TestStaleClassification:
         out = _classify([review])
         assert out["verdict"] == "DISMISSAL_HANDOFF"
         assert out["bots"][0]["rereview_trigger"] is None
-        assert "reviews/100/dismissals" in out["handoff"]
+        assert "dismiss_pr_review.py" in out["handoff"] and "--review-id 100" in out["handoff"]
 
     def test_copilot_aliases_collapse_to_one_reviewer(self):
         old = _stale_cr(login="Copilot", review_id=100, canonical="github-copilot[bot]")
@@ -297,10 +297,14 @@ class TestMixedBots:
         rereview = _review(101, CODERABBIT, "COMMENTED", HEAD, "2026-09-02T00:00:00Z")
         out = _classify([_stale_cr(), rereview, copilot])
         assert out["verdict"] == "DISMISSAL_HANDOFF"
-        assert "reviews/100/dismissals" in out["handoff"]
-        assert "reviews/200/dismissals" in out["handoff"]
+        assert "dismiss_pr_review.py" in out["handoff"] and "--review-id 100" in out["handoff"]
+        assert "--review-id 200" in out["handoff"]
 
 
-def test_dismissal_command_is_a_single_put_to_the_dismissals_endpoint():
-    command = build_dismissal_command("o", "r", 7, 100)
-    assert command.startswith("gh api -X PUT repos/o/r/pulls/7/reviews/100/dismissals")
+def test_dismissal_command_points_at_the_dismiss_script():
+    command = build_dismissal_command(7, 100)
+    assert (
+        "dismiss_pr_review.py" in command
+        and "--pull-request 7" in command
+        and "--review-id 100" in command
+    )

@@ -100,13 +100,13 @@ def test_a_200_kb_title_never_reaches_the_recalled_block(
 
 
 @pytest.mark.parametrize("count", [1, 3, 10])
-def test_the_block_is_at_most_8000_characters_and_ends_with_the_sentinel(count: int) -> None:
+def test_the_block_is_at_most_1600_characters_and_ends_with_the_sentinel(count: int) -> None:
     results = [_result("t" * 200_000, "x" * 5000) for _ in range(count)]
 
     out = hook._format_memory_context(results)
 
-    assert hook.MAX_BLOCK_CHARS == 8000
-    assert len(out) <= 8000
+    assert hook.MAX_BLOCK_CHARS == 1600
+    assert len(out) <= 1600
     assert out.startswith("<memory-context>\n")
     assert out.endswith("\n</memory-context>")
     assert out.count("</memory-context>") == 1
@@ -117,10 +117,10 @@ def test_the_last_entry_is_cut_cleanly_and_marked(capsys: pytest.CaptureFixture[
 
     out = hook._format_memory_context(results)
 
-    assert len(out) <= 8000
+    assert len(out) <= 1600
     assert "[truncated]" in out
-    assert "### a " in out and "### b " in out
-    assert "recalled block cut at 8000 characters" in capsys.readouterr().err
+    assert "### a " in out and "### b " not in out
+    assert "recalled block cut at 1600 characters" in capsys.readouterr().err
 
 
 def test_a_small_block_is_unchanged_and_silent(capsys: pytest.CaptureFixture[str]) -> None:
