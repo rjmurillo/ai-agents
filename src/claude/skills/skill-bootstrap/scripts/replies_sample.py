@@ -78,6 +78,39 @@ def _repo_root(start: Path) -> Path | None:
     return None
 
 
+def _same_dir(left: Path, right: Path) -> bool:
+    try:
+        return os.path.samefile(left, right)
+    except OSError:
+        return False
+
+
+def _inside_forbidden(target: Path, forbidden: list[Path]) -> bool:
+    """True when target is a forbidden root or sits under one.
+
+    The path test is case sensitive. `samefile` on each existing ancestor also
+    covers case-insensitive file systems and symlinked parents.
+    """
+    if any(target == bad or bad in target.parents for bad in forbidden):
+        return True
+    ancestors = [p for p in target.parents if p.exists()]
+    return any(_same_dir(p, bad) for p in ancestors for bad in forbidden)
+
+
+def discard_run_dir(run_dir: Path) -> None:
+    """Remove the two files a run writes and the directory, never anything else.
+
+    Used after a failed write so a retry does not meet `run_dir_exists`. A leftover
+    foreign file keeps the directory, and the caller still re-raises its own error.
+    """
+    try:
+        (run_dir / EVIDENCE_NAME).unlink(missing_ok=True)
+        (run_dir / MANIFEST_NAME).unlink(missing_ok=True)
+        run_dir.rmdir()
+    except OSError:
+        return
+
+
 def make_run_dir(raw: str, stores: list[Path], cwd: Path) -> Path:
     """Create the run directory. It must not exist and must sit outside stores and the cwd repo."""
     target = Path(raw).expanduser().resolve()
@@ -87,7 +120,7 @@ def make_run_dir(raw: str, stores: list[Path], cwd: Path) -> Path:
     root = _repo_root(cwd.resolve())
     if root is not None:
         forbidden.append(root)
-    if any(target == bad or bad in target.parents for bad in forbidden):
+    if _inside_forbidden(target, forbidden):
         raise ConfigError("run_dir_inside_source_or_repo")
     if not target.parent.is_dir():
         raise ConfigError("run_dir_parent_missing")

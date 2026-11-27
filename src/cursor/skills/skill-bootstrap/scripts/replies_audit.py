@@ -15,16 +15,18 @@ Privacy boundary:
   every store and outside the repository of the current directory, and is
   created 0700 with 0600 files. There is no full corpus export.
 - `--marker` names a reply already known to be bad, the positive control. Each
-  hit is always sampled and kept out of every rate. `tally` exits 1 unless
-  its label is `friction`. Only the hit count is printed.
+  hit is sampled and kept out of every rate, up to 20 controls (`MAX_CONTROLS`
+  in `replies_prepare.py`). `tally` exits 1 unless its label is `friction`.
+  Only the hit count is printed.
 - `--entrypoint` keeps only sessions started from that client. `--machine-first`
   drops a session whose first prompt a harness or another agent wrote.
 - `--machine-turn` names the opening text of a turn another agent or the host
   writes in your setup. A matching turn counts as machine, not as a typed
-  follow-up. A turn that opens with a tag always counts as machine.
+  follow-up. A turn that opens with a tag (`<name>` or `</name>`) always counts
+  as machine.
 
 Exit codes: 0 ok, 1 labels failed validation, 2 usage or configuration error,
-3 a read or write failure.
+3 a read or write failure or an unexpected internal error.
 """
 
 from __future__ import annotations
@@ -143,6 +145,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     except OSError:
         _emit({"error": "io", "message": "read_or_write_failed"})
+        return 3
+    except Exception:
+        _emit({"error": "internal", "message": "unexpected_failure"})
         return 3
     return 0
 

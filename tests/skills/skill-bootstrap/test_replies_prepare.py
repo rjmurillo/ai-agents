@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import stat
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +20,9 @@ from replies_helpers import (
     plant_control,
     prepare_args,
     prepare_ok,
+    replies_corpus,
     replies_prepare,
+    replies_sample,
     run_cli,
     simple_session,
     tool_result,
@@ -447,3 +450,74 @@ def test_last_message_id_and_cutoff_limit_evidence(
     row = next(row for row in evidence_rows(run_dir) if "Final." in row["reply"])
     assert row["reply"] == "Final.\nNext sentence."
     assert row["next_human"] is None
+
+
+def test_angle_bracket_text_is_typed_unless_it_opens_with_a_tag(
+    store: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    recs = [user("synthetic prompt wording pi for tag test", 1), assistant_text("one", 2)]
+    recs += [user("<3 thanks, now also do the second part", 3), assistant_text("two", 4)]
+    write_session(store, "main-a", recs)
+    plant_control(store)
+    payload, _ = prepare_ok(capsys, store, tmp_path / "run")
+    assert "relay" not in payload["machine"]
+    assert payload["turns"]["typed_followup"] == 1
+
+
+def test_mark_relays_reclasses_only_real_tag_openers(tmp_path: Path) -> None:
+    cfg = replies_prepare.Config(
+        stores=[],
+        before=datetime(2026, 12, 1, tzinfo=timezone.utc),
+        since=None,
+        exclude=set(),
+        limit=1,
+        run_dir=str(tmp_path / "r"),
+        seed=1,
+        per_kind=1,
+        replay_min=3,
+        markers=[],
+        cwd=tmp_path,
+    )
+    expected = {
+        "<task-notification>x</task-notification>": "machine",
+        "  <task-notification> after space": "machine",
+        "</div> closing tag first": "machine",
+        "<b>bold</b> typed": "machine",
+        "<3 thanks, now also do the second part": "human",
+        "<foo": "human",
+        "<": "human",
+        "plain typed text": "human",
+    }
+    turns = [replies_corpus.Turn("human", None, text) for text in expected]
+    replies_prepare._mark_relays(turns, cfg)
+    assert [t.role for t in turns] == list(expected.values())
+
+
+def test_run_dir_behind_a_symlinked_parent_is_refused_and_creates_nothing(
+    store: Path, tmp_path: Path
+) -> None:
+    store.mkdir(parents=True)
+    link = tmp_path / "alias"
+    try:
+        link.symlink_to(store, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation unavailable")
+    with pytest.raises(replies_corpus.ConfigError, match="run_dir_inside_source_or_repo"):
+        replies_sample.make_run_dir(str(link / "run"), [store], tmp_path)
+    assert list(store.iterdir()) == []
+
+
+def test_inside_forbidden_checks_existing_ancestors_with_samefile(tmp_path: Path) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    other = tmp_path / "other"
+    other.mkdir()
+    link = tmp_path / "alias"
+    try:
+        link.symlink_to(root, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation unavailable")
+    assert replies_sample._inside_forbidden(link / "run", [root]) is True
+    assert replies_sample._inside_forbidden(root / "run", [root]) is True
+    assert replies_sample._inside_forbidden(other / "run", [root]) is False
+    assert replies_sample._inside_forbidden(other / "missing" / "deeper" / "run", [root]) is False

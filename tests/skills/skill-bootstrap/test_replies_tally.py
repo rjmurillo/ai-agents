@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,7 @@ from replies_helpers import (
     plant_control,
     prepare_ok,
     replies_sample,
+    replies_tally,
     run_cli,
     simple_session,
     write_session,
@@ -116,7 +118,14 @@ def test_weighted_estimate_matches_hand_computation(
     assert payload["overall"]["rate"] == 0.1
     assert payload["overall"]["estimated_friction"] == 10.0
     assert payload["overall"]["coverage"] == 1.0
-    assert payload["overall"]["ci95"] == [0.1, 0.1]
+    # Hand computation. Flagged stratum: N=10, m=2, x=2 (all friction), so the variance
+    # term uses p=(2+0.5)/(2+1)=0.833333. Term = 10^2 * (1-2/10) * 0.833333*0.166667 / 1
+    # = 11.1111. Clean stratum: N=90, m=3, x=0, p=(0+0.5)/(3+1)=0.125. Term = 90^2 *
+    # (1-3/90) * 0.125*0.875 / 2 = 428.2031. var = 439.3142, sd = 20.9598.
+    # half = 1.96 * 20.9598 / 100 = 0.4108. Interval = [max(0, 0.1-0.4108), 0.1+0.4108].
+    low, high = payload["overall"]["ci95"]
+    assert [low, high] == [0.0, 0.5108]
+    assert high - low > 0
     labels[-1] = {"id": rows[-1]["id"], "label": "unclear"}
     code, payload, _ = tally(capsys, run_dir, write_labels(tmp_path / "l2.json", labels))
     assert code == 0 and payload["overall"]["rate"] == 0.1
@@ -264,3 +273,38 @@ def test_unusable_inputs_are_config_errors(
     for target, labels, message in cases:
         code, payload, _ = tally(capsys, target, labels)
         assert (code, payload["message"]) == (2, message)
+
+
+def stratum(population: int, sampled: int, friction: int) -> dict[str, Any]:
+    cell = {"n": sampled, "unclear": 0, "friction": friction}
+    return {"population": population, "cell": cell}
+
+
+def test_interval_adjusts_only_all_none_and_all_friction_strata() -> None:
+    # All none: p=(0+0.5)/(4+1)=0.1, var = 100^2 * (1-4/100) * 0.09 / 3 = 288.
+    # half = 1.96 * sqrt(288) / 100 = 0.3326.
+    assert replies_tally._interval([stratum(100, 4, 0)], 0.0, 100) == [0.0, 0.3326]
+    # All friction mirrors it around 1.
+    assert replies_tally._interval([stratum(100, 4, 4)], 1.0, 100) == [0.6674, 1.0]
+    # Mixed (x=1, m=4): unadjusted p=0.25, var = 100^2 * 0.96 * 0.1875 / 3 = 600.
+    # half = 1.96 * sqrt(600) / 100 = 0.4801, so the interval is [0, 0.7301].
+    assert replies_tally._interval([stratum(100, 4, 1)], 0.25, 100) == [0.0, 0.7301]
+    # A stratum of one resolved label gives no interval.
+    assert replies_tally._interval([stratum(100, 1, 0)], 0.0, 100) is None
+
+
+def test_malformed_evidence_row_with_a_rewritten_hash_is_unreadable(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    run_dir = make_run(tmp_path, capsys)
+    labels = write_labels(tmp_path / "l.json", good_labels(run_dir))
+    evidence = run_dir / replies_sample.EVIDENCE_NAME
+    blob = evidence.read_bytes() + b"{not json\n"
+    evidence.write_bytes(blob)
+    manifest_path = run_dir / replies_sample.MANIFEST_NAME
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["evidence_sha256"] = hashlib.sha256(blob).hexdigest()
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    code, payload, _ = tally(capsys, run_dir, labels)
+    assert code == 2
+    assert payload == {"error": "config", "message": "run_dir_unreadable"}

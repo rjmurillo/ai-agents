@@ -34,6 +34,7 @@ Installing the skill does nothing by itself. An explicit request starts a run. T
 - Skills written inside the output root you choose (`.claude/skills` or `.github/skills`), each with a `reverify.json` provenance file. Scripts and their tests ship for any item a program can compute.
 - A capability score per skill, with and without the skill, from frozen eval cases.
 - A bootstrap report that separates authored, evaluated, and installed states and lists unmeasured results.
+- The reply-friction audit yields count JSON on stdout plus one local report kept out of the repository.
 
 A skill is an `instrument` (a script), a `scaffold` (prose), or `both`. Anything computable from repository state must ship as a script.
 

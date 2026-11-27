@@ -90,7 +90,7 @@ def _glossed(text: str, match: re.Match[str]) -> bool:
     """True when an identifier has a nearby gloss: parenthesis, quote, colon, or link text."""
     tail = text[match.end() : match.end() + 4]
     head = text[max(0, match.start() - 2) : match.start()]
-    return tail.lstrip().startswith(("(", '"', ":", ", ")) or head.endswith(("[", "("))
+    return tail.lstrip().startswith(("(", '"', ":")) or head.endswith(("[", "("))
 
 
 def bare_ids(text: str) -> int:
@@ -155,7 +155,7 @@ def prompt_fingerprint(text: str) -> str | None:
     norm = " ".join(text.lower().split())
     if len(norm) < MIN_FINGERPRINT_CHARS:
         return None
-    return hashlib.sha256(norm.encode("utf-8")).hexdigest()[:16]
+    return hashlib.sha256(norm.encode("utf-8", errors="replace")).hexdigest()[:16]
 
 
 def is_eval_marked(text: str) -> bool:

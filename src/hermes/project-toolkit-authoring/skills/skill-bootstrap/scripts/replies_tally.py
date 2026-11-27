@@ -69,7 +69,10 @@ def load_run(run_dir: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
         raise ConfigError("run_manifest_schema")
     if hashlib.sha256(blob).hexdigest() != manifest.get("evidence_sha256"):
         raise ValidationError([{"id": None, "code": "evidence_modified"}])
-    rows = [json.loads(line) for line in blob.decode("utf-8").splitlines() if line.strip()]
+    try:
+        rows = [json.loads(line) for line in blob.decode("utf-8").splitlines() if line.strip()]
+    except (ValueError, RecursionError) as exc:
+        raise ConfigError("run_dir_unreadable") from exc
     return manifest, rows
 
 
@@ -194,12 +197,18 @@ def _m(stratum: dict[str, Any]) -> int:
 
 
 def _interval(resolved: list[dict[str, Any]], rate: float, pop: int) -> list[float] | None:
+    """Approximate 95% interval from a stratified Wald variance.
+
+    A stratum with all friction or all none would give zero variance, so only the
+    variance term uses the adjusted proportion (x + 0.5) / (m + 1) there. The point
+    estimate is unchanged.
+    """
     if any(_m(s) < 2 for s in resolved):
         return None
     var = 0.0
     for s in resolved:
-        m, big_n = _m(s), s["population"]
-        p = s["cell"]["friction"] / m
+        m, big_n, x = _m(s), s["population"], s["cell"]["friction"]
+        p = (x + 0.5) / (m + 1) if x in (0, m) else x / m
         var += big_n**2 * (1 - min(1.0, m / big_n)) * p * (1 - p) / (m - 1)
     half = Z95 * math.sqrt(var) / pop
     return [round(max(0.0, rate - half), 4), round(min(1.0, rate + half), 4)]

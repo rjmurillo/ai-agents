@@ -16,7 +16,9 @@ from replies_helpers import (
     plant_control,
     prepare_args,
     prepare_ok,
+    replies_audit,
     replies_prepare,
+    replies_sample,
     replies_tally,
     run_cli,
     simple_session,
@@ -118,6 +120,7 @@ def test_prepare_write_failure_exits_3_with_no_text(
     assert payload == IO_ERROR
     assert "synthetic" not in out
     assert CONTROL_TOKEN not in out
+    assert not (tmp_path / "run").exists()
 
 
 def test_tally_read_failure_exits_3_with_no_text(
@@ -147,7 +150,7 @@ def test_first_follow_up_push_is_first_in_thread(
 def test_push_after_a_neutral_follow_up_still_counts_as_first_in_thread(
     store: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    # replies_prepare.py:179 labels the first push of a thread, not the first follow-up.
+    # _count_followup labels the first push of a thread, not the first follow-up.
     write_session(store, "main-a", thread("synthetic prompt wording phi two", [NEUTRAL, PUSH]))
     followups = prepared_payload(capsys, store, tmp_path)["followups"]
     assert followups["typed"] == 2
@@ -290,3 +293,98 @@ def test_no_children_gives_zero_handbacks(
         "repeat_groups": 0,
         "repeat_transcripts": 0,
     }
+
+
+def test_failed_write_removes_partial_files_so_a_retry_succeeds(
+    store: Path,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def partial(run_dir: Path, *_args: Any, **_kwargs: Any) -> str:
+        (run_dir / replies_sample.EVIDENCE_NAME).write_text("partial", encoding="utf-8")
+        raise OSError("synthetic disk full detail")
+
+    write_session(store, "main-a", thread("synthetic prompt wording nu for cleanup", [NEUTRAL]))
+    plant_control(store)
+    run = tmp_path / "run"
+    with monkeypatch.context() as patch:
+        patch.setattr(replies_prepare, "write_run", partial)
+        code, payload, _ = run_cli(capsys, prepare_args(store, run))
+    assert (code, payload) == (3, IO_ERROR)
+    assert not run.exists()
+    code, _, _ = run_cli(capsys, prepare_args(store, run))
+    assert code == 0
+
+
+def test_discard_run_dir_removes_only_run_files_and_tolerates_a_missing_dir(
+    tmp_path: Path,
+) -> None:
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / replies_sample.EVIDENCE_NAME).write_text("x", encoding="utf-8")
+    (run / "other.txt").write_text("keep", encoding="utf-8")
+    replies_sample.discard_run_dir(run)
+    assert (run / "other.txt").exists()
+    assert not (run / replies_sample.EVIDENCE_NAME).exists()
+    replies_sample.discard_run_dir(tmp_path / "absent")
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    replies_sample.discard_run_dir(empty)
+    assert not empty.exists()
+
+
+def test_unexpected_exception_exits_3_with_a_fixed_payload(
+    store: Path,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def boom(*_args: Any, **_kwargs: Any) -> Any:
+        raise RuntimeError("synthetic secret detail")
+
+    monkeypatch.setattr(replies_audit, "run_prepare", boom)
+    code, payload, out = run_cli(capsys, prepare_args(store, tmp_path / "run"))
+    assert code == 3
+    assert payload == {"error": "internal", "message": "unexpected_failure"}
+    assert "synthetic" not in out
+    assert "Traceback" not in out
+
+
+def test_prepare_survives_a_lone_surrogate_in_the_first_prompt(
+    store: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    prompt = "synthetic first prompt with a lone surrogate \ud800 and enough words to fingerprint"
+    write_session(store, "main-a", simple_session(prompt, ["synthetic final reply"], 10))
+    plant_control(store)
+    payload, _ = prepare_ok(capsys, store, tmp_path / "run")
+    assert payload["population"]["used"]["main"] == 2
+
+
+def test_short_follow_up_after_a_long_reply_is_flagged_short_after_long(
+    store: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    long_reply = "x" * 1600
+    write_session(
+        store,
+        "main-a",
+        [
+            user("synthetic prompt wording mu long", 10),
+            assistant_text(long_reply, 11),
+            user("ok thanks", 12),
+            assistant_text("synthetic reply", 13),
+        ],
+    )
+    write_session(
+        store,
+        "main-b",
+        [
+            user("synthetic prompt wording eta short", 30),
+            assistant_text("synthetic short reply", 31),
+            user("ok thanks", 32),
+            assistant_text("synthetic reply", 33),
+        ],
+    )
+    followups = prepared_payload(capsys, store, tmp_path)["followups"]
+    assert followups["typed"] == 2
+    assert followups["flags"] == {"short_after_long": 1}

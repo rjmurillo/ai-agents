@@ -28,6 +28,7 @@ from replies_corpus import (
 from replies_sample import (
     NEXT_CLIP,
     ReplyRec,
+    discard_run_dir,
     draw,
     make_key,
     make_run_dir,
@@ -40,6 +41,7 @@ KIND_FINAL = "final_reply"
 KIND_HANDBACK = "subagent_handback"
 PUSH_FLAGS = frozenset({"ownjob", "generic_nudge", "prior_authority"})
 MAX_CONTROLS = 20
+TAG_OPENER = re.compile(r"</?[A-Za-z][\w:-]*[\s>/]")
 
 
 @dataclass
@@ -63,14 +65,14 @@ class Config:
 def _mark_relays(turns: list[Any], cfg: Config) -> None:
     """Reclass a user turn the host or another agent wrote, so it is not a typed follow-up.
 
-    A turn that opens with a tag is host markup. `--machine-turn` adds the
+    A turn that opens with a tag (`<name>` or `</name>`) is host markup. `--machine-turn` adds the
     relay openers of one setup, matched at the start of the turn.
     """
     for turn in turns:
         if turn.role != "human":
             continue
         head = turn.text.lstrip()
-        if head.startswith("<") or any(p.match(head) for p in cfg.relays):
+        if TAG_OPENER.match(head) or any(p.match(head) for p in cfg.relays):
             turn.role, turn.reason = "machine", "relay"
 
 
@@ -159,7 +161,7 @@ def _count_turn(sm: Summary, turns: list[Any], i: int, cfg: Config) -> None:
     elif turn.role == "human":
         sm.turns["human"] += 1
         if i > 0 and turns[i - 1].role == "reply" and _in_window(cfg, turns[i - 1].ts):
-            _count_followup(sm, turn.text)
+            _count_followup(sm, turn.text, len(turns[i - 1].text))
     elif turn.role == "machine":
         sm.machine[turn.reason] += 1
     elif turn.role == "error":
@@ -170,9 +172,10 @@ def _count_turn(sm: Summary, turns: list[Any], i: int, cfg: Config) -> None:
         sm.turns["interrupt"] += 1
 
 
-def _count_followup(sm: Summary, text: str) -> None:
+def _count_followup(sm: Summary, text: str, prev_len: int) -> None:
+    """Count a typed follow-up. `prev_len` is the length of the reply it answers."""
     sm.turns["typed_followup"] += 1
-    flags = fl.human_flags(text, 0)
+    flags = fl.human_flags(text, prev_len)
     sm.followup_flags.update(flags)
     for flag in flags:
         if flag in ("prior_authority", "generic_nudge"):
@@ -372,7 +375,11 @@ def run_prepare(cfg: Config) -> dict[str, Any]:
     run_dir = make_run_dir(cfg.run_dir, cfg.stores, cfg.cwd)
     groups = strata_of([r for r in recs if not r.marker_hit])
     picked = draw(groups, cfg.seed, cfg.per_kind)
-    digest = write_run(run_dir, picked, groups, cfg.seed, cfg.per_kind, controls)
+    try:
+        digest = write_run(run_dir, picked, groups, cfg.seed, cfg.per_kind, controls)
+    except OSError:
+        discard_run_dir(run_dir)
+        raise
     return {
         "command": "prepare",
         "schema": SCHEMA,

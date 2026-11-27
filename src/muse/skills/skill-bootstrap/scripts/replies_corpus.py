@@ -244,9 +244,20 @@ def _skip_reason(rec: dict[str, Any], text: str) -> str:
         return "meta"
     if rec.get("isCompactSummary"):
         return "compact_summary"
-    if text.lstrip().startswith(NOTICE_PREFIXES):
-        return "notice"
+    head = text.lstrip()
+    if head.startswith(NOTICE_PREFIXES):
+        typed = _strip_leading_blocks(head)
+        if not typed or typed.startswith(NOTICE_PREFIXES):
+            return "notice"
     return ""
+
+
+def _strip_leading_blocks(text: str) -> str:
+    """Drop tag blocks that open the text, so typed text after them stays visible."""
+    rest = text.lstrip()
+    while (block := TAG_BLOCK.match(rest)) is not None:
+        rest = rest[block.end() :].lstrip()
+    return rest
 
 
 def _classify(text: str, child: bool) -> tuple[str, str]:
@@ -267,7 +278,7 @@ def parse_transcript(src: Source) -> Transcript:
                 continue
             try:
                 rec = json.loads(line)
-            except ValueError:
+            except (ValueError, RecursionError):
                 parser.tr.parse_errors += 1
                 continue
             if isinstance(rec, dict):

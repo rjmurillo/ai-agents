@@ -150,3 +150,45 @@ def test_text_before_tool_is_not_a_reply_and_error_spans_are_typed(tmp_path: Pat
     assert [t.role for t in turns] == ["human", "human", "error"]
     assert turns[-1].reason == "api"
     assert not any(t.role == "reply" for t in turns)
+
+
+def test_comma_list_counts_every_bare_id_and_glosses_still_pass() -> None:
+    assert flags.bare_ids("See ADR-001, ADR-002, ADR-003 today.") == 3
+    assert "bare_ids3" in flags.agent_flags("See ADR-001, ADR-002, ADR-003 today.")
+    assert flags.bare_ids("See ADR-001 (log), ADR-002 (index), #1234: fix.") == 0
+    assert flags.bare_ids("See [ADR-001] and ADR-002: rules.") == 0
+
+
+def test_fingerprint_does_not_raise_on_a_lone_surrogate() -> None:
+    text = "Please build the synthetic widget exporter \ud800 with tests and docs"
+    assert flags.prompt_fingerprint(text) == flags.prompt_fingerprint(text.upper())
+    assert flags.prompt_fingerprint(text) != flags.prompt_fingerprint(text + " extra")
+    assert flags.prompt_fingerprint("\ud800") is None
+
+
+def test_recursion_error_line_counts_as_a_bad_line(tmp_path: Path) -> None:
+    recs = [user("hello wording omega", 1), assistant_text("main text", 2)]
+    path = write_session(tmp_path / "p", "s1", recs)
+    deep = '{"type": "user", "x": ' + "[" * 200000 + "]" * 200000 + "}\n"
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(deep)
+    parsed = replies_corpus.parse_transcript(replies_corpus.Source(path, "s1", None, False))
+    assert parsed.parse_errors == 1
+    assert [t.text for t in parsed.turns if t.role == "reply"] == ["main text"]
+
+
+def test_leading_reminder_block_is_notice_only_when_nothing_typed_follows(
+    tmp_path: Path,
+) -> None:
+    block = "<system-reminder>synthetic reminder body</system-reminder>"
+    recs = [
+        user(block, 1),
+        user(block + "\nplease fix the typed part", 2),
+        user("Caveat: synthetic notice", 3),
+        user(block + "\nCaveat: synthetic notice after a block", 4),
+        assistant_text("main text", 5),
+    ]
+    parsed = parse(tmp_path, recs)
+    assert dict(parsed.skipped) == {"notice": 3}
+    humans = [t.text for t in parsed.turns if t.role == "human"]
+    assert humans == ["please fix the typed part"]
