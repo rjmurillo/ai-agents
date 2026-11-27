@@ -1423,9 +1423,12 @@ def test_planted_quarantine_stops_the_run_without_writing_through(tmp_path: Path
     state = tmp_path / "state"
     real = sys.modules["_controller_io"].collect_or_quarantine
 
-    def plant_first(templates, values, run_dir, quarantine):  # type: ignore[no-untyped-def]
+    def plant_first(
+        templates: list[str], values: dict[str, str], run_dir: Path, quarantine: Path
+    ) -> list[str]:
         quarantine.symlink_to(outside)
-        return real(templates, values, run_dir, quarantine)
+        result: list[str] = real(templates, values, run_dir, quarantine)
+        return result
 
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(ec, "collect_or_quarantine", plant_first)

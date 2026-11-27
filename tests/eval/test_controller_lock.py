@@ -93,7 +93,7 @@ def test_a_file_replaced_between_open_and_lock_is_retried(
 ) -> None:
     path = tmp_path / "x.lock"
     real = lock._try_lock
-    swaps = []
+    swaps: list[Path] = []
 
     def swap_once(handle: int, where: Path) -> bool:
         if not swaps:
