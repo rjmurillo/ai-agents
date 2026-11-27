@@ -204,6 +204,26 @@ def collect_all(templates: Sequence[str], values: Mapping[str, str], run_dir: Pa
     return problems
 
 
+def collect_or_quarantine(
+    templates: Sequence[str], values: Mapping[str, str], run_dir: Path, quarantine: Path
+) -> list[str]:
+    """Move `collect` outputs into `run_dir`, or into `quarantine` if it was replaced.
+
+    A replaced `run_dir` must not leave held-out reports in the checkout, so
+    they go to a fresh directory in state that the scorer never knew of.
+    `quarantine` must not exist; `mkdir` refuses a planted entry or link.
+    """
+    if is_real_dir(run_dir):
+        return collect_all(templates, values, run_dir)
+    try:
+        quarantine.mkdir(mode=0o700)
+    except OSError as exc:
+        raise ControllerError(f"could not make {quarantine}: {exc}", EXIT_EXTERNAL) from exc
+    if not is_real_dir(quarantine):
+        raise ControllerError(f"{quarantine} is not a plain directory", EXIT_EXTERNAL)
+    return collect_all(templates, values, quarantine)
+
+
 def refuse_stale_reports(templates: Sequence[str], values: Mapping[str, str], label: str) -> None:
     # A report already sitting at a collect path belongs to some earlier run.
     # Collecting it would gate on the wrong results.

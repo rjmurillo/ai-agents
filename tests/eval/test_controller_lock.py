@@ -36,13 +36,26 @@ def test_second_holder_is_refused_with_the_busy_message(tmp_path: Path) -> None:
         assert path.exists()
 
 
-def test_release_removes_the_file_and_frees_the_lock(tmp_path: Path) -> None:
+def test_release_keeps_the_file_and_frees_the_lock(tmp_path: Path) -> None:
     path = tmp_path / "x.lock"
     with lock.exclusive(path, "busy"):
         assert path.exists()
-    assert not path.exists()
+    assert path.is_file()
     with lock.exclusive(path, "busy"):
         pass
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
+def test_release_never_follows_a_link_swapped_in_while_held(tmp_path: Path) -> None:
+    # A child swaps the lock path for a link to a file it wants removed.
+    victim = tmp_path / "victim"
+    victim.write_text("keep", encoding="utf-8")
+    path = tmp_path / "x.lock"
+    with lock.exclusive(path, "busy"):
+        os.unlink(path)
+        path.symlink_to(victim)
+    assert victim.read_text(encoding="utf-8") == "keep"
+    assert path.is_symlink()
 
 
 def test_release_runs_when_the_body_raises(tmp_path: Path) -> None:
@@ -150,7 +163,7 @@ def test_msvcrt_branch_reports_contention_as_busy(
             with lock.exclusive(path, "second"):
                 pass
     assert fake.held == {}
-    assert not path.exists()
+    assert path.is_file()
 
 
 def test_msvcrt_branch_reports_another_error_as_a_failure(
@@ -174,7 +187,7 @@ def test_state_lock_creates_a_private_state_dir(tmp_path: Path) -> None:
         assert (state / lock.STATE_LOCK).exists()
         if os.name == "posix":
             assert state.stat().st_mode & 0o777 == 0o700
-    assert list(state.iterdir()) == []
+    assert [entry.name for entry in state.iterdir()] == [lock.STATE_LOCK]
 
 
 def test_artifact_lock_is_keyed_by_the_real_path(tmp_path: Path) -> None:

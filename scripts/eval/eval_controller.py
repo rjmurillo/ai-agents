@@ -55,7 +55,7 @@ from _controller_config import (
 )
 from _controller_io import (
     clear_dir,
-    collect_all,
+    collect_or_quarantine,
     contained_inputs,
     fill,
     is_real_dir,
@@ -176,15 +176,18 @@ class Controller:
             # A failed scorer may still have written a report outside state,
             # with held-out outcomes in it. Move what exists before stopping;
             # collection problems must not hide the scorer's own error.
-            if is_real_dir(run_dir):
-                collect_all(self.config.collect, values, run_dir)
+            collect_or_quarantine(
+                self.config.collect, values, run_dir, self.state / f"quarantine-{run_id}"
+            )
             raise
+        # Collected before every check below, so no refusal leaves a report
+        # outside state.
+        problems = collect_or_quarantine(
+            self.config.collect, values, run_dir, self.state / f"quarantine-{run_id}"
+        )
         # The digest skips `run_dir` by path, so a link swapped in for it (or
         # for `runs/`) would carry reports and results outside state unseen.
         self._require_run_dir(run_dir, label)
-        # Collected before every check below, so no refusal leaves a report
-        # outside state.
-        problems = collect_all(self.config.collect, values, run_dir)
         if tree_digest([self.state], exclude=run_dir) != before:
             raise ControllerError(f"controller state changed while {label} was scored")
         if problems:

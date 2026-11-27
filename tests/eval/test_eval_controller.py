@@ -1397,6 +1397,15 @@ def test_run_dir_swapped_for_a_link_is_refused_before_anything_lands_outside(
     # controller wrote is.
     scorer_wrote = {"junit.xml", "pycache"}
     assert [p.name for p in outside.iterdir() if p.name not in scorer_wrote] == ["victim.txt"]
+    if collect:
+        _assert_report_quarantined(tmp_path)
+
+
+def _assert_report_quarantined(tmp_path: Path) -> None:
+    # The report left the checkout for a fresh directory in state.
+    assert list((tmp_path / "loose").iterdir()) == []
+    (quarantine,) = (tmp_path / "state").glob("quarantine-incumbent-*")
+    assert [p.name for p in quarantine.iterdir()] == ["0"]
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
@@ -1405,6 +1414,24 @@ def test_runs_directory_swapped_for_a_link_is_refused(tmp_path: Path) -> None:
     assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
     planted = outside / next(p.name for p in outside.iterdir() if p.name.startswith("incumbent"))
     assert [p.name for p in planted.iterdir() if p.name != "pycache"] == []
+    _assert_report_quarantined(tmp_path)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
+def test_planted_quarantine_stops_the_run_without_writing_through(tmp_path: Path) -> None:
+    config, outside = _plant_around_run(tmp_path, "run_dir", collect=True)
+    state = tmp_path / "state"
+    real = sys.modules["_controller_io"].collect_or_quarantine
+
+    def plant_first(templates, values, run_dir, quarantine):  # type: ignore[no-untyped-def]
+        quarantine.symlink_to(outside)
+        return real(templates, values, run_dir, quarantine)
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(ec, "collect_or_quarantine", plant_first)
+        assert ec.main(["run", "--config", str(config)]) == ec.EXIT_EXTERNAL
+    assert not (outside / "0").exists()
+    assert len(list(state.glob("quarantine-*"))) == 1
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")

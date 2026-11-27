@@ -2362,21 +2362,24 @@ changed nothing in `state_dir` outside the new run's directory.
 
 The scorer runs inside `state_dir/runs/` and can leave links there.
 The controller checks that the run directory still resolves to itself.
+If it does not, `collect` reports move to a fresh
+`state_dir/quarantine-<run_id>` and the run stops, so none stay in the checkout.
 It checks the ledger directory before invoking the gate. Controller file
 reads and writes reject leaf symlinks, hard links, and non-regular files.
 These checks do not replace isolation from a child that keeps running.
 
 The controller holds two locks throughout each run:
 
-- The state lock lives in `state_dir`. A second run there exits 2.
+- The state lock is `state_dir/controller.lock`. A second run there exits 2.
 - The artifact lock sits beside the resolved artifact. Its name derives
   from the artifact filename and does not depend on the temp directory.
   Another run on that artifact exits 2, even with a different `state_dir`.
   `policy` lists the lock file under `deny_read_write`.
 
 The locks use `fcntl` on POSIX and `msvcrt` on Windows. The operating system
-releases them on process exit. The artifact lock file stays in place.
-Do not remove it while any controller could be using it. A platform without
+releases them on process exit. Release only closes the lock; both lock files
+stay in place, so release never removes a path a child could have swapped.
+Do not remove a lock file while any controller could be using it. A platform without
 either locking primitive refuses to run.
 
 **The boundary is conditional.** Python cannot stop a same-user process from

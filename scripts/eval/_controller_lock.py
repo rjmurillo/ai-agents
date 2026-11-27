@@ -11,11 +11,11 @@ on Windows. The system drops either when the holder exits, so a killed run
 leaves nothing that blocks the next one. A platform with neither refuses to
 run rather than run unlocked.
 
-The state lock file is removed on release. A waiter could have opened the
-file just before that removal and then locked an inode no longer at the path,
-so every acquire checks that the file it locked is still the one at the path,
-and retries if not. Windows refuses to delete a file another process holds
-open, so the check is POSIX only. Artifact lock files stay in place.
+Release only closes the descriptor; lock files stay in place. The controller
+never unlinks a path a child could have replaced. An acquire still checks that
+the file it locked is the one at the path, and retries if something swapped
+it. Windows refuses to replace a file another process holds open, so the
+check is POSIX only.
 """
 
 from __future__ import annotations
@@ -46,9 +46,8 @@ def _optional(name: str) -> ModuleType | None:
 _FCNTL = _optional("fcntl")
 _MSVCRT = _optional("msvcrt")
 STATE_LOCK = "controller.lock"
-# A waiter retries only when a holder removed the file between its open and
-# its lock, which needs a holder to finish in that gap. A loop that keeps
-# losing that race is a fault, not contention.
+# A waiter retries only when the file was swapped between its open and its
+# lock. A loop that keeps losing that race is tampering, not contention.
 _ATTEMPTS = 8
 # `msvcrt.locking` reports a byte someone else holds as EACCES; EDEADLOCK is
 # the same condition under its CRT name.
@@ -108,26 +107,8 @@ def _open(path: Path) -> int:
         raise ControllerError(f"could not open lock file {path}: {exc.strerror or exc}") from exc
 
 
-def _release(handle: int, path: Path) -> None:
-    if _FCNTL is not None:
-        # Removed while still held, so no other process can lock this inode
-        # and believe it holds the path.
-        with contextlib.suppress(FileNotFoundError):
-            os.unlink(path)
-        os.close(handle)
-        return
-    with contextlib.suppress(OSError):
-        if _MSVCRT is not None:
-            _MSVCRT.locking(handle, _MSVCRT.LK_UNLCK, 1)
-    os.close(handle)
-    # Fails while another process has the file open, which is the waiter
-    # that will lock it next; leaving the file then is correct.
-    with contextlib.suppress(OSError):
-        os.unlink(path)
-
-
 @contextlib.contextmanager
-def exclusive(path: Path, busy: str, *, keep_file: bool = False) -> Iterator[None]:
+def exclusive(path: Path, busy: str) -> Iterator[None]:
     """Hold an exclusive lock on `path`, or raise `ControllerError(busy)`."""
     for _ in range(_ATTEMPTS):
         handle = _open(path)
@@ -147,10 +128,13 @@ def exclusive(path: Path, busy: str, *, keep_file: bool = False) -> Iterator[Non
     try:
         yield
     finally:
-        if keep_file:
-            os.close(handle)
-        else:
-            _release(handle, path)
+        # The file stays, so release never touches a path that could have
+        # been swapped for a link. `msvcrt` regions are unlocked before close,
+        # as its documentation asks; `flock` drops with the descriptor.
+        if _FCNTL is None and _MSVCRT is not None:
+            with contextlib.suppress(OSError):
+                _MSVCRT.locking(handle, _MSVCRT.LK_UNLCK, 1)
+        os.close(handle)
 
 
 @contextlib.contextmanager
@@ -178,5 +162,5 @@ def artifact_lock(artifact: Path) -> Iterator[None]:
         f"another controller is running against {artifact}; "
         "run one controller per artifact, whatever its state_dir"
     )
-    with exclusive(artifact_lock_path(artifact), busy, keep_file=True):
+    with exclusive(artifact_lock_path(artifact), busy):
         yield
