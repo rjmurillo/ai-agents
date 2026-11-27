@@ -3,8 +3,9 @@
 - positive: in the hook context a slot is taken with the bounded wait, and the
   run happens inside it.
 - negative: a direct run, CI, and a container take no slot and wait zero.
-- edge: an expired wait still runs the gates; the lefthook timeout is the run
-  budget plus the wait.
+- edge: an expired wait runs when a slot is free or slots are disabled, fails
+  closed with exit 3 when all configured slots stay occupied, and the lefthook
+  timeout is the run budget plus the wait.
 """
 
 from __future__ import annotations
@@ -174,3 +175,35 @@ def test_lefthook_timeout_is_the_run_budget_plus_the_wait() -> None:
     assert timeout.endswith("m")
     budget = float(job["env"]["PRE_PR_OUTER_CAP_SECONDS"])
     assert int(timeout[:-1]) * 60 == budget + pre_pr_headroom.HEADROOM_WAIT_SECONDS
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="slot locks require fcntl.flock")
+def test_exhausted_slots_fail_closed_with_exit_3(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """AC: full slots for HEADROOM_WAIT_SECONDS fail closed with exit 3, never run uncapped."""
+    _hook(monkeypatch)
+    monkeypatch.setattr(pre_pr_headroom, "HEADROOM_WAIT_SECONDS", 0.001)
+    real = pre_pr_headroom.host_headroom
+    settings = real.Settings(slots=1, max_load=48.0, slot_dir=tmp_path / "slots")
+    monkeypatch.setattr(real, "read_settings", lambda *_a, **_k: settings)
+    monkeypatch.setattr(
+        pre_pr_headroom,
+        "_heavy_stage_slot",
+        lambda stage, wait, **kw: real.heavy_stage_slot(
+            stage, wait, load=lambda: 1.0, sleep=lambda _s: None, **kw
+        ),
+    )
+    sentinel_start = 1234.5
+    monkeypatch.setattr(pre_pr_headroom.check_generated_staleness, "_PROCESS_START", sentinel_start)
+    ran: list[bool] = []
+    with real.heavy_stage_slot("holder", 0, settings=settings, load=lambda: 1.0):
+        with pytest.raises(real.HeadroomTimeoutError) as exc_info:
+            with pre_pr_headroom.headroom_stage():
+                ran.append(True)
+    assert ran == []
+    assert exc_info.value.code == 3
+    assert pre_pr_headroom.check_generated_staleness._PROCESS_START == sentinel_start
+    err = capsys.readouterr().err
+    assert "no free heavy-stage slot" in err
+    assert "pre-pr-validation" in err

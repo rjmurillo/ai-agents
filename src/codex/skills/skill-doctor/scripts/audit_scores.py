@@ -39,6 +39,7 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 from hook_utilities.frontmatter_block import FrontmatterStatus, split_frontmatter  # noqa: E402
+from session_common import THREADS  # noqa: E402
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent
 SCORERS_DIR = SKILL_ROOT / "scorers"
@@ -169,6 +170,9 @@ def _validate_header(sid: str, session: Mapping[str, Any]) -> list[str]:
     stratum = session.get("stratum")
     if stratum is not None and not isinstance(stratum, str):
         errors.append(f"session {sid!r}: stratum must be a string when present")
+    thread = session.get("thread")
+    if thread is not None and thread not in THREADS:
+        errors.append(f"session {sid!r}: thread must be one of {', '.join(THREADS)} when present")
     if not isinstance(session.get("skills_detected"), bool):
         errors.append(f"session {sid!r}: skills_detected must be a boolean")
     term = session.get("terminated_by")
@@ -373,6 +377,10 @@ def build_artifact(sessions: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     harnesses = _group(sessions, "harness")
     artifact["strata"] = {k: _subset_summary(v) for k, v in sorted(strata.items())}
     artifact["per_harness"] = {k: _subset_summary(v) for k, v in sorted(harnesses.items())}
+    threads = _group(sessions, "thread")
+    if threads:
+        # Only when records carry a thread, so artifacts for older score files stay identical.
+        artifact["per_thread"] = {k: _subset_summary(v) for k, v in sorted(threads.items())}
     artifact["combined_source"] = "pooled_records"
     artifact["limitations"] = sorted({lim for s in sessions for lim in s.get("limitations", [])})
     return artifact
