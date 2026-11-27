@@ -22,6 +22,8 @@ from tests.eval._actionability_arms_test_support import (
 )
 from tests.eval._actionability_corpus_test_support import cc, make_pr, make_thread, write_prs
 
+pytestmark = pytest.mark.usefixtures("freeze_actionability_clock")
+
 scan = importlib.import_module("scripts.eval.actionability_scan")
 
 _ANT_TOKEN = "sk-" + "ant-" + "a1B2c3D4e5F6g7H8i9J0k1L2"

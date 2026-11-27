@@ -22,6 +22,7 @@ RUN_INPUTS = {
     "no_skill": 4,
     "min_idle_minutes": 15.0,
     "include_subagents": False,
+    "copilot_fold_child_events": False,
 }
 
 
