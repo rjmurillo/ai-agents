@@ -6,7 +6,8 @@ ADR-097), so agents and skills call this explicitly for commands known to be
 large (full test runs, builds, log dumps, wide greps).
 
 Usage:
-    run_with_receipt.py run [--max-inline-bytes N] [--out-dir DIR] -- CMD [ARG...]
+    run_with_receipt.py run [--max-inline-bytes N] [--timeout-seconds N]
+                            [--out-dir DIR] -- CMD [ARG...]
     run_with_receipt.py read ARTIFACT [--offset N] [--length N] [--out-dir DIR]
 
 ``run`` executes CMD as an argv list (never through a shell), captures stdout
@@ -19,6 +20,50 @@ and stderr in arrival order, and redacts secrets in memory with
   (default ``.project-toolkit/temp/tool-output``, gitignored) and a bounded
   receipt is printed: command, exit code, duration, total bytes, exposed bytes,
   truncated flag, artifact path, and, on nonzero exit, a stderr tail.
+
+``--timeout-seconds`` accepts a positive integer no larger than 4,294,967.
+That bound keeps the millisecond timeout inside the Windows unsigned 32-bit
+wait argument on every platform. When it is present the child command gets at
+most that many seconds after launch. A wrapper-enforced timeout
+returns 124, and a large-output receipt for one adds ``timeout: true``. A child
+that exits 124 on its own is indistinguishable without that receipt line. Where
+the platform has POSIX process groups, a timed child starts in a new session and
+the wrapper stops the whole group, not only the leader. The stop sends SIGTERM
+to the group, gives every group member a 1 second grace period (the wrapper
+reaps the leader inside it, and the period ends early once the group is empty),
+then sends SIGKILL to any member still left. Elsewhere the direct child is
+killed.
+
+On POSIX no member of a timed child's group is left running when the wrapper
+returns. The group id is captured at spawn and the same stop runs on every exit
+path: the deadline, a leader that exits early (its exit code is still the
+result, and a background process it left behind is stopped), and a cancelled
+wrapper. Cancelling means Ctrl-C, SIGTERM (exits 143), or SIGHUP (exits 129),
+unless the caller installed its own SIGTERM or SIGHUP handler. A cancel that
+arrives while the child is being spawned is held until the stop can run, then
+acts as it would have otherwise. Ctrl-C is held that way only while Python's
+default Ctrl-C handler is in place, and that handler is put back afterwards.
+SIGKILL of the wrapper cannot be caught by any handler, so it leaves a timed
+child tree running.
+
+The deadline bounds the child command. The wrapper stops the child and its group
+within the deadline plus 6 seconds in the worst case: 1 second of SIGTERM grace,
+1 second to reap the leader, and up to 2 seconds for each of the two output pipe
+drains when a process outside the group holds a pipe open. Redaction and artifact
+writing run after that stop and take extra time in proportion to the output size.
+The wrapper as a whole can therefore return later than that bound. A caller that
+sets an outer timeout must allow for it, or the receipt and artifact are lost.
+
+The shared validation runner is not reused here because it decodes through
+text-mode ``communicate``; this wrapper needs byte streams so invalid UTF-8,
+redaction, and line assembly keep their existing behavior. Its signal handler
+is not imported from that runner either: ``scripts.validation`` is importable
+only inside the project environment, and this script also runs under a plain
+``python3``. The local copy is a separate function, not a mirror.
+
+Child launch, output capture, and process-group stopping live in the sibling
+``run_with_receipt_child.py``. This module owns redaction, receipts,
+artifacts, and the command line.
 
 ``read`` pages through a saved artifact by byte range. The artifact holds the
 redacted bytes. Unredacted bytes are never written, so a retrieval cannot
@@ -37,16 +82,14 @@ import argparse
 import os
 import re
 import shlex
-import subprocess
 import sys
-import threading
 import time
 import uuid
-from dataclasses import dataclass, field
-from io import BufferedReader
+from dataclasses import dataclass
 from pathlib import Path
 
 from redact_secrets import redact_ci_sink
+from run_with_receipt_child import Capture, run_child, timeout_validation_error
 
 EXIT_OK = 0
 EXIT_USAGE = 2
@@ -58,7 +101,6 @@ TAIL_BYTES = 2048
 FAILURE_EXCERPT_BYTES = 2048
 DEFAULT_READ_LENGTH = 8192
 MAX_READ_LENGTH = 65536
-READ_CHUNK = 65536
 DEFAULT_OUT_SUBDIR = Path(".project-toolkit") / "temp" / "tool-output"
 OUT_DIR_ENV = "TOOL_OUTPUT_DIR"
 
@@ -69,50 +111,6 @@ _MIN_SECRET_LENGTH = 4
 _SECRET_FLAG = re.compile(r"^-{1,2}[\w-]+$")
 _MASK = "***"
 _ARTIFACT_NAME = re.compile(r"^\d{8}T\d{6}-[0-9a-f]{8}\.log$")
-_PIPE_DRAIN_GRACE_S = 2.0
-
-
-@dataclass(slots=True)
-class Capture:
-    """Child output as per-stream buffers plus a line-assembled merged view.
-
-    The merged view orders whole lines by completion time. A line is emitted
-    only once its newline arrives (or at ``finish``), so a secret written in
-    pieces with the other stream's output in between is rejoined before
-    redaction instead of being split by the interleave.
-    """
-
-    streams: dict[str, bytearray] = field(
-        default_factory=lambda: {"out": bytearray(), "err": bytearray()}
-    )
-    partial: dict[str, bytearray] = field(
-        default_factory=lambda: {"out": bytearray(), "err": bytearray()}
-    )
-    lines: list[bytes] = field(default_factory=list)
-    lock: threading.Lock = field(default_factory=threading.Lock)
-
-    def add(self, stream: str, data: bytes) -> None:
-        with self.lock:
-            self.streams[stream] += data
-            buffer = self.partial[stream]
-            buffer += data
-            while (index := buffer.find(b"\n")) >= 0:
-                self.lines.append(bytes(buffer[: index + 1]))
-                del buffer[: index + 1]
-
-    def finish(self) -> None:
-        """Flush unterminated trailing lines, stdout first."""
-        with self.lock:
-            for stream in ("out", "err"):
-                if self.partial[stream]:
-                    self.lines.append(bytes(self.partial[stream]))
-                    self.partial[stream].clear()
-
-    def stream_bytes(self, stream: str) -> bytes:
-        return bytes(self.streams[stream])
-
-    def merged_bytes(self) -> bytes:
-        return b"".join(self.lines)
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,6 +127,7 @@ class Receipt:
     head: str
     tail: str
     failure_excerpt: str
+    timed_out: bool
 
 
 def _secret_values() -> list[str]:
@@ -178,38 +177,6 @@ def _decode(data: bytes) -> str:
     return data.decode("utf-8", errors="replace")
 
 
-def _pump(pipe: BufferedReader, stream: str, capture: Capture) -> None:
-    while True:
-        data = pipe.read1(READ_CHUNK)
-        if not data:
-            return
-        capture.add(stream, data)
-
-
-def _run_child(argv: list[str]) -> tuple[int, Capture]:
-    """Run argv without a shell and return the exit code and captured output."""
-    proc = subprocess.Popen(
-        argv,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        shell=False,
-    )
-    capture = Capture()
-    threads = [
-        threading.Thread(target=_pump, args=(proc.stdout, "out", capture), daemon=True),
-        threading.Thread(target=_pump, args=(proc.stderr, "err", capture), daemon=True),
-    ]
-    for thread in threads:
-        thread.start()
-    code = proc.wait()
-    # A grandchild can keep a pipe open after the child exits; do not wait on it.
-    for thread in threads:
-        thread.join(timeout=_PIPE_DRAIN_GRACE_S)
-    capture.finish()
-    return (128 - code if code < 0 else code), capture
-
-
 def _find_repo_root(start: Path) -> Path:
     for candidate in (start, *start.parents):
         if (candidate / ".git").exists():
@@ -249,6 +216,7 @@ def build_receipt(
     capture: Capture,
     artifact: Path,
     redacted_merged: str,
+    timed_out: bool,
 ) -> Receipt:
     total = len(capture.merged_bytes())
     head = _clip_bytes(redacted_merged, HEAD_BYTES, keep="head")
@@ -275,6 +243,7 @@ def build_receipt(
         head=head,
         tail=tail,
         failure_excerpt=failure,
+        timed_out=timed_out,
     )
 
 
@@ -283,6 +252,10 @@ def format_receipt(receipt: Receipt) -> str:
         "[output contained: full output saved, excerpts below]",
         f"command: {receipt.command}",
         f"exit_code: {receipt.exit_code}",
+    ]
+    if receipt.timed_out:
+        lines.append("timeout: true")
+    lines += [
         f"duration_s: {receipt.duration_s:.2f}",
         f"total_bytes: {receipt.total_bytes}",
         f"exposed_bytes: {receipt.exposed_bytes}",
@@ -306,10 +279,16 @@ def _passthrough(capture: Capture) -> None:
     sys.stderr.flush()
 
 
-def run_command(argv: list[str], max_inline_bytes: int, out_dir: Path) -> int:
+def run_command(
+    argv: list[str],
+    max_inline_bytes: int,
+    out_dir: Path,
+    timeout_seconds: int | None = None,
+) -> int:
     started = time.monotonic()
+    exit_code: int
     try:
-        exit_code, capture = _run_child(argv)
+        exit_code, capture, timed_out = run_child(argv, timeout_seconds)
     except OSError as exc:
         print(_scrub(f"run_with_receipt: cannot launch {argv[0]!r}: {exc}"), file=sys.stderr)
         return EXIT_EXTERNAL
@@ -323,7 +302,7 @@ def run_command(argv: list[str], max_inline_bytes: int, out_dir: Path) -> int:
     except OSError as exc:
         print(f"run_with_receipt: cannot write artifact: {exc}", file=sys.stderr)
         return EXIT_EXTERNAL
-    receipt = build_receipt(argv, exit_code, duration, capture, artifact, redacted)
+    receipt = build_receipt(argv, exit_code, duration, capture, artifact, redacted, timed_out)
     sys.stdout.write(format_receipt(receipt))
     sys.stdout.flush()
     return exit_code
@@ -371,6 +350,17 @@ def _build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="mode", required=True)
     run = sub.add_parser("run", help="run CMD after `--`, contain large output")
     run.add_argument("--max-inline-bytes", type=int, default=DEFAULT_MAX_INLINE_BYTES)
+    run.add_argument(
+        "--timeout-seconds",
+        type=int,
+        default=None,
+        metavar="N",
+        help=(
+            "stop CMD after N seconds and return 124. On POSIX the whole process group "
+            "is stopped on every exit, including SIGTERM and SIGHUP to this wrapper; "
+            "SIGKILL of this wrapper cannot be caught and leaves the group running"
+        ),
+    )
     run.add_argument("--out-dir", default=None)
     read = sub.add_parser("read", help="page through a saved artifact by byte range")
     read.add_argument("artifact")
@@ -390,10 +380,15 @@ def main(argv: list[str] | None = None) -> int:
     out_dir = resolve_out_dir(args.out_dir)
     if args.mode == "read":
         return read_artifact(args.artifact, args.offset, args.length, out_dir)
+    if args.timeout_seconds is not None:
+        validation_error = timeout_validation_error(args.timeout_seconds)
+        if validation_error is not None:
+            print(f"run_with_receipt: {validation_error}", file=sys.stderr)
+            return EXIT_USAGE
     if not command or args.max_inline_bytes < 0:
         print("usage: run_with_receipt.py run [options] -- CMD [ARG...]", file=sys.stderr)
         return EXIT_USAGE
-    return run_command(command, args.max_inline_bytes, out_dir)
+    return run_command(command, args.max_inline_bytes, out_dir, args.timeout_seconds)
 
 
 if __name__ == "__main__":
