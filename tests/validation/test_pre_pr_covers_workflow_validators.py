@@ -59,11 +59,11 @@ import workflow_validator_inventory as inventory
 # reason. One place, so a reader can see every gap and why it is allowed.
 EXEMPT: dict[str, str] = {
     "testmon_seed_build": (
-        "The testmon-seed job runs the pre-push pytest step through this script "
-        "on a push to main to build the testmon database it uploads "
-        "(issue #6239). It validates "
-        "nothing for a pull request, and pre_pr deliberately skips the suite: "
-        "CI's pytest legs run it."
+        "The testmon-seed job runs the on-demand git_hook_policy.py pytest "
+        "wrapper through this script on a push to main to build the testmon "
+        "database it uploads (issue #6239; retired from pre-push in ADR-104 "
+        "2026-11-26). It validates nothing for a pull request, and pre_pr "
+        "deliberately skips the suite: CI's pytest legs run it."
     ),
     "assert_smoke_ran": (
         "Reads the JUnit report a CI smoke leg writes after running a real CLI "
@@ -90,9 +90,10 @@ EXEMPT: dict[str, str] = {
         "differs from them (REQ-047 AC10)."
     ),
     "check_zero_collection_tests": (
-        "The unconditional lefthook pre-push job zero-collection-tests runs it on "
-        "every push. It costs about 38 seconds, measured, and pre-pr-validation "
-        "has a four minute timeout against a 192 second baseline."
+        "CI runs zero-collection-guard unconditionally in pytest.yml and blocks "
+        "Run Python Tests; ADR-104 (2026-11-26 amendment) retired local pre-push "
+        "pytest collection because one whole-tree collection costs ~34s warm on "
+        "48 cores and pre-pr-validation has a 240s budget."
     ),
     "report_rule_activation_states": (
         "Report writer, not a check. It only emits a JSON artifact for CI upload "
