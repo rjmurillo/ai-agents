@@ -42,7 +42,7 @@ Did instead: <the workaround, with the script path if one was written>
 Permanent fix: <the smallest change that removes the workaround, and where it lives>
 ```
 
-The agent reports the item and does not fix it or file an issue. You decide whether to integrate it. Style opinions are not friction. With no workaround, omit the section.
+The report does not authorize a fix outside the task, and the agent does not file an issue for it. A fix the task already covers stays in the task. You decide whether to integrate the rest. Style opinions are not friction. With no workaround, omit the section.
 
 | Disposition | Meaning |
 | --- | --- |

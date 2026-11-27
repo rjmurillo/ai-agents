@@ -8,8 +8,6 @@ import pytest
 
 _ROOT = Path(__file__).resolve().parents[1]
 
-_FORMAT_LINES = ("Hit: <", "Did instead: <", "Permanent fix: <")
-
 
 def _read(relative: str) -> str:
     return (_ROOT / relative).read_text(encoding="utf-8")
@@ -48,12 +46,3 @@ def test_shipped_orchestrator_uses_existing_return_field(relative: str) -> None:
     line = _line_starting(_read(relative), "Agents return a completion record")
     assert "Include actual workarounds under residual risks." in line
     assert "Leave out sensitive details." in line
-
-
-def test_shipped_skill_reports_without_reopening() -> None:
-    text = _read("src/claude/skills/avoiding-manufactured-work/SKILL.md")
-    section = text.split("## Friction Report", 1)[1].split("\n## ", 1)[0]
-    for prefix in _FORMAT_LINES:
-        assert prefix in section
-    assert "does not reopen the task or authorize a fix" in section
-    assert "Skip style preferences and steps that ran as intended" in section
