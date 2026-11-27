@@ -93,17 +93,17 @@ advisory_agent_workflows:
   - path: ".github/workflows/ai-spec-validation.yml"
     reason: "Deterministic Validate Spec Coverage check, no model call; kept advisory by owner decision (issue 6182)"
     owner: "rjmurillo"
-  - path: ".github/workflows/ai-spec-review.yml"
-    reason: "Spec coverage review calls an agent on every pull request"
-    owner: "rjmurillo"
+  # On 2026-11-25 ai-spec-review.yml and
+  # software-engineering-library-activation.yml left this list. They no
+  # longer run on pull requests, because their agent-claude approval was
+  # never given and their waiting jobs blocked auto-merge. Both still run
+  # by workflow_dispatch, and the library gate also runs on its schedule.
+  # A workflow joins this list again only if it regains a PR trigger.
   - path: ".github/workflows/slash-command-quality.yml"
     reason: "The /spec behavioral eval calls a model"
     owner: "rjmurillo"
   - path: ".github/workflows/post-pr-retrospective.yml"
     reason: "The retrospective agent runs when a pull request closes"
-    owner: "rjmurillo"
-  - path: ".github/workflows/software-engineering-library-activation.yml"
-    reason: "The activation gate calls a model on library changes"
     owner: "rjmurillo"
   - path: ".github/workflows/claude.yml"
     reason: "The Claude agent answers @claude mentions and pull request events"
@@ -266,7 +266,7 @@ failure_handling:
   - type: "AI reviewer fails (code quality)"
     action: "Address findings or document acknowledgment"
   - type: "Security finding (CWE, OWASP, CVE)"
-    action: "BLOCKING. Fix the underlying code vulnerability before resolving the thread. Do NOT resolve security threads without a code fix. Log a tracking issue. Security threads with tracking issues are exempt from completion_criteria thread-resolution requirements. Ref: .claude/rules/security.md (canonical security file rule), AGENTS.md NEVER list."
+    action: "BLOCKING. Fix the underlying code vulnerability before resolving the thread. Do NOT resolve security threads without a code fix. Log a tracking issue. Security threads with tracking issues are exempt from completion_criteria thread-resolution requirements. Ref: the security-review skill's references/rule-security.md (canonical security file rule), AGENTS.md NEVER list."
   - type: "Merge conflicts"
     action: "Resolve conflicts or merge base branch"
   - type: "Behind base branch"

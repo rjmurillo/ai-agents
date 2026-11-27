@@ -76,14 +76,20 @@ _PLUGIN_CLI_SMOKE = (
         "non-default ref. Forks get no secrets, so the CLI smoke cannot run. A maintainer "
         "must rerun it from a same-repo branch.",
     ),
-    *("--skippable-check", "SMOKE_RESULT", "success", "Claude and Copilot smoke result: {value}"),
+    # The Claude and Copilot legs need an environment approval, so they run only
+    # on workflow_dispatch. A pull request skips them by design.
+    *(
+        "--guarded-check",
+        *("EVENT_NAME", "workflow_dispatch", "SMOKE_RESULT", "success"),
+        "Claude and Copilot smoke result: {value}",
+    ),
     *("--skippable-check", "CODEX_RESULT", "success", "Codex smoke result: {value}"),
     *(
         "--skippable-check",
         *("HOOKS_RESULT", "success", "Claude hook discovery smoke result: {value}"),
     ),
     *("--skippable-check", "PI_RESULT", "success", "Pi smoke result: {value}"),
-    *("--success-message", "CLI smoke passed for Claude, Copilot, Codex, and Pi."),
+    *("--success-message", "CLI smoke passed for every leg that ran."),
     *("--count-dir", "quota-skips"),
     *(
         "--count-message",

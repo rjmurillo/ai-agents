@@ -1,7 +1,7 @@
 ---
 id: ADR-073
 status: accepted
-date: 2026-06-19
+date: 2026-11-26
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -52,7 +52,7 @@ supersedes: []            # ADR ids this record supersedes
 superseded-by: null       # ADR id that supersedes this record, or null
 explainer: null           # link to a living design doc, if paired
 implemented: false        # flips true at first merged change; gates amend-vs-supersede
-review-by: null           # optional: YYYY-MM-DD this record must be revisited, also stated in prose; null when no calendar deadline
+review-by: null           # YYYY-MM-DD this record must be decided or revisited, also stated in prose; required while proposed, else null when no calendar deadline
 ```
 
 The frontmatter `status` enum is authoritative for tooling. A prose `## Status` section is optional. It is permitted when it carries nuance the enum cannot (review verdicts, conditions to reach Accepted, the conditional state ADR-072 uses today). It is forbidden when it only restates the frontmatter: the enum word alone, or the enum word with a date or the `superseded-by` target. When a section is present and the two disagree, the frontmatter wins, the gate flags the drift, and the author reconciles by editing the prose to match; the gate never silently rewrites prose.
@@ -191,9 +191,44 @@ A `superseded`, `deprecated`, or `rejected` record is history, so its date is mo
 
 The clock is a parameter of `scan()` and `run()`. The tests fix it. The command line has no flag for it, because a flag would let a branch dodge the gate.
 
-The ratchet treats the three checks like the others. ADR-077 passed its 2026-09-27 checkpoint without a recorded review, so it enters the baseline as one past-due record. ADR-107 to ADR-118 already carry `review-by` without a matching prose date, so they enter the baseline under `review-by-prose-date`. Both counts can only fall. When ADR-083 reaches 2026-10-19 with no review, `review-by-past-due` fails until the review is held or the date is moved.
+The ratchet treats the three checks like the others. ADR-077 passed its 2026-09-27 checkpoint without a recorded review, so it enters the baseline as one past-due record. ADR-107 to ADR-118 already carry `review-by` without a matching prose date, so they enter the baseline under `review-by-prose-date`. Both counts can only fall. When ADR-083 reaches 2026-10-19 with no review, `review-by-past-due` fails until the record is fixed. The 2026-11-26 amendment below lists the edits that clear it. It also makes `review-by-past-due` zero-tolerance, so the baseline no longer holds ADR-077 or any other record under it.
 
 Debate log: `.project-toolkit/critique/ADR-073-review-by-amendment-debate-log.md`.
+
+## Amendment 2026-11-26: proposed records need a review-by date
+
+Issue #7638 found 21 `proposed` records with no `review-by` date (gate run at ffc759356, 2026-11-26). `review-by-past-due` could never fire on them, so they never came up for decision. It also found the one past-due record, ADR-077, sitting in the baseline for two months. A baseline entry let a missed review stay missed.
+
+This amends ADR-073 again rather than filing a new record, for the same reason as the 2026-10-13 amendment: the schema stays in one file.
+
+Two rules change, both in `check_adr_lifecycle.py`:
+
+- `proposed-needs-review-by`: a `proposed` record whose `review-by` is absent or `null`. The date is the day the decision must be made. The check is ratcheted: records present when it shipped enter the baseline and can only fall. A malformed value stays a `review-by-format` finding, not this one.
+- `review-by-past-due` is zero-tolerance. It is listed in `ZERO_TOLERANCE_CHECKS`. The baseline cannot hold it: `--write-baseline` records it empty and exits 1 while one is live, and a live baseline that lists it is a config error. An overdue record fails every run until one of these edits lands. Set `review-by` to today or later and state that date in the prose. Accept the record and set `review-by` to `null`. Or move the status to `rejected`, `deprecated`, or `superseded`. Holding the review alone does not clear it. A `proposed` record set to `null` fails `proposed-needs-review-by` instead. Hold the review before any of these edits, and record its outcome in the prose. The gate cannot check that a review happened, so a moved date can still skip one.
+
+The clock, not a branch, creates a past-due violation. That is why it blocks every branch instead of only the one that caused it. The cost is that a missed date stops unrelated pull requests. The fix is an edit to the overdue record. Every recovery path edits the prose, so each fix also needs a debate log entry. A reduced panel (architect and critic) is enough for it.
+
+The gate runs in the pre-push hook and in `pre_pr.py`. No hosted workflow runs it, the same as every other lifecycle check. So a branch pushed green the day before a date can still merge after it. The next push from any branch then fails until the record is fixed.
+
+When a record moves from `proposed` to `accepted`, its decision date is spent. Set `review-by` to `null`, or to a revisit date that the prose also states (`review-by-prose-date`). An `accepted` record that keeps the old date fails `review-by-past-due` once the date passes.
+
+Alternative rejected: open a follow-up issue when a date passes, and keep the gate green. Issue #7638 allowed it. It was rejected because the issue asks that a missed review not sit at baseline, and an issue can sit unread the same way. Two panel seats preferred it; the debate log records their dissent. Reversal is one line: remove the name from `ZERO_TOLERANCE_CHECKS` and regenerate the baseline.
+
+`implemented-implies-decided` is zero-tolerance too. Issue #7636 (PR #7691) moved 17 shipped records out of `proposed`, including the 11 its baseline held, and emptied that baseline. No record needs grandfathering. A shipped record that reads `proposed` fails every run.
+
+Issues #7636 and #7637 decided or retired 18 of the 21 undated records. Three stay in the baseline (gate run at 8f4f1b981, 2026-11-26): ADR-065, ADR-087, and ADR-124.
+
+This narrows the 2026-10-13 amendment, which called the field optional for every status. For a `proposed` record the date is the day the decision is due, set by the author when the record opens. It is not a revisit deadline read from the prose, so it does not invent one. Phase 3 to 4 enforcement already runs in this gate, so the Phase 1 scope limit above does not apply to it.
+
+Known limits, recorded for the owner's decision:
+
+- The three grandfathered records stay in the baseline until someone dates or decides each one. The ratchet stops growth; it does not drain them.
+- An author can clear a past-due record by moving the date without holding the review. No horizon cap or reason field stops that. Review of the record's diff is the only guard.
+- Anyone who adds a `proposed` record with a near date chooses the day it starts blocking every branch.
+
+`review-by` stays optional for every status except `proposed`. An `accepted` record with a condition-triggered revisit still carries `null`. `ADR-TEMPLATE.md` and the adr-generator template now default to a `YYYY-MM-DD` placeholder and say the field is required while `proposed`.
+
+Debate log: `.project-toolkit/critique/ADR-073-proposed-review-by-amendment-debate-log.md`.
 
 ## Related Decisions
 

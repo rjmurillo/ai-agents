@@ -54,12 +54,11 @@ def test_ship_docs_use_review_skill_validator_paths() -> None:
             assert path.is_file(), f"missing ship doc: {path}"
         text = "\n".join(p.read_text(encoding="utf-8") for p in paths)
         assert "review/scripts/validate_review_marker.py" in text
-        # Canonical portable resolution: COPILOT_PLUGIN_ROOT primary,
-        # CLAUDE_PLUGIN_ROOT fallback, .claude source-checkout default, in one
-        # expression. Replaces the old per-variable branch lines (issue #2922).
+        # The doc states the fallback its resolver block prints when no
+        # plugin or checkout root matches (ADR-121 retired the nested form).
         assert (
-            "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
-            "/skills/review/scripts/validate_review_marker.py" in text
+            "`.claude/skills/review/scripts/validate_review_marker.py` under the working directory"
+            in text
         )
         assert '--repo-root "$(pwd)"' in text
         assert "git status --porcelain" in text
