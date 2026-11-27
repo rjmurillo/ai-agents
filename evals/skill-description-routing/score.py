@@ -41,23 +41,28 @@ def rates(pairs: list[tuple[dict[str, Any], dict[str, Any]]]) -> dict[str, Any]:
     out: dict[str, Any] = {"n": n}
     if not n:
         return out
-    for arm, idx in (("before", 0), ("after", 1)):
-        counts = collections.Counter(p[idx]["outcome"] for p in pairs)
-        out[arm] = {k: round(counts[k] / n, 4) for k in ("correct", "wrong", "none")}
+    counts = {
+        arm: collections.Counter(p[idx]["outcome"] for p in pairs)
+        for arm, idx in (("before", 0), ("after", 1))
+    }
+    for arm, tally in counts.items():
+        out[arm] = {k: round(tally[k] / n, 4) for k in ("correct", "wrong", "none")}
     b_win = sum(1 for b, a in pairs if b["outcome"] == "correct" and a["outcome"] != "correct")
     a_win = sum(1 for b, a in pairs if a["outcome"] == "correct" and b["outcome"] != "correct")
-    d_correct = out["after"]["correct"] - out["before"]["correct"]
-    d_wrong = out["after"]["wrong"] - out["before"]["wrong"]
+    # Gate on outcome counts. Subtracting rounded rates puts a delta that sits
+    # exactly on the 0.03 margin outside it: 0.97 - 1.0 < -0.03 in binary floats.
+    more_correct = counts["after"]["correct"] - counts["before"]["correct"]
+    more_wrong = counts["after"]["wrong"] - counts["before"]["wrong"]
     p = sign_p(b_win, a_win)
     out.update(
         {
-            "d_correct": round(d_correct, 4),
-            "d_wrong": round(d_wrong, 4),
+            "d_correct": round(more_correct / n, 4),
+            "d_wrong": round(more_wrong / n, 4),
             "before_wins": b_win,
             "after_wins": a_win,
             "sign_p": round(p, 4),
-            "G1": d_correct >= -0.03,
-            "G2": d_wrong <= 0.03,
+            "G1": 100 * more_correct >= -3 * n,
+            "G2": 100 * more_wrong <= 3 * n,
             "G3": not (b_win > a_win and p < 0.05),
         }
     )

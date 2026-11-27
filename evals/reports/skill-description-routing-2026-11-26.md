@@ -83,14 +83,16 @@ Each kind still passes G1 and G2 alone.
 
 | Model | Cut | n | Before correct | After correct |
 |---|---|---|---|---|
-| claude-sonnet-5-5 | Changed skills only | 293 | 0.949 | 0.942 |
-| claude-sonnet-5-5 | Unchanged skills only | 47 | 0.979 | 0.979 |
+| claude-sonnet-5-5 | Changed skills only | 275 | 0.949 | 0.942 |
+| claude-sonnet-5-5 | Unchanged skills only | 65 | 0.969 | 0.969 |
 | claude-sonnet-5-5 | Without the 17 name-bearing verbatim queries | 323 | 0.966 | 0.960 |
-| claude-opus-5-5 | Changed skills only | 293 | 0.956 | 0.956 |
-| claude-opus-5-5 | Unchanged skills only | 47 | 1.000 | 1.000 |
+| claude-opus-5-5 | Changed skills only | 275 | 0.956 | 0.956 |
+| claude-opus-5-5 | Unchanged skills only | 65 | 0.985 | 0.985 |
 | claude-opus-5-5 | Without the 17 name-bearing verbatim queries | 323 | 0.972 | 0.972 |
 
-No unchanged skill changed outcome between the arms on either model.
+The changed and unchanged cuts use the committed `changed.json`, the 97 skills that ship.
+The six held skills count as unchanged here, though the `after` arm ran their candidate text.
+No skill in the unchanged cut changed outcome between the arms on either model.
 
 ### Every discordant pair
 
@@ -193,14 +195,25 @@ The ratchet drops to 37,200 and 31,400 chars.
 - The workspace holds only this repo's 121 skills. Plugin skills in a real session add competitors.
 - The gates were registered in an uncommitted note. Nothing in the tree dates them.
 - Codex, Copilot CLI, Cursor, Hermes and Muse were not run. They receive the same descriptions.
+- The gates are this eval's own. ADR-057's acceptance gate allows no drop and needs repeated base runs.
+- SkillForge keyword triage is a second reader of descriptions. This eval does not cover it.
+  A separate check ran `triage_request` on the 340 queries against main and this branch on 2026-11-27.
+  The recommended skill matched the expected one on 35 queries in both trees, with 3 losses and 3 wins (2026-11-27).
+  `sync` lost 2 queries and `security-detection` lost 1. `doc-accuracy` won 2 and `security-detection` won 1.
+  `CREATE_NEW` answers rose from 76 to 105 of 340, mostly from `CLARIFY` (2026-11-27).
+  That path now proposes a new skill more often when a skill exists.
 
 ## Reproduce
 
 ```bash
 uv run python evals/skill-description-routing/extract_arms.py <candidate-worktree> <out-dir> <before-ref>
+cp evals/skill-description-routing/queries.json <out-dir>/
 uv run python evals/skill-description-routing/route_cli.py \
-    --arms <out-dir>/arms.json --queries evals/skill-description-routing/queries.json \
+    --arms <out-dir>/arms.json --queries <out-dir>/queries.json \
     --out <out-dir>/sonnet.jsonl --models claude-sonnet-5-5 --workers 2 --char-budget 80000
+uv run python evals/skill-description-routing/route_cli.py \
+    --arms <out-dir>/arms.json --queries <out-dir>/queries.json \
+    --out <out-dir>/opus.jsonl --models claude-opus-5-5 --workers 2 --char-budget 80000
 python3 evals/skill-description-routing/score.py <out-dir> <out-dir>/sonnet.jsonl <out-dir>/opus.jsonl
 ```
 

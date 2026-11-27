@@ -53,11 +53,18 @@ Run from a checkout that holds `scripts/eval`. Keep to two workers on a shared s
 
 ```bash
 uv run python evals/skill-description-routing/extract_arms.py <candidate-worktree> <out-dir> <before-ref>
+cp evals/skill-description-routing/queries.json <out-dir>/
 uv run python evals/skill-description-routing/route_cli.py \
-    --arms <out-dir>/arms.json --queries evals/skill-description-routing/queries.json \
+    --arms <out-dir>/arms.json --queries <out-dir>/queries.json \
     --out <out-dir>/results-sonnet.jsonl --models claude-sonnet-5-5 --workers 2 --char-budget 80000
+uv run python evals/skill-description-routing/route_cli.py \
+    --arms <out-dir>/arms.json --queries <out-dir>/queries.json \
+    --out <out-dir>/results-opus.jsonl --models claude-opus-5-5 --workers 2 --char-budget 80000
 python3 evals/skill-description-routing/score.py <out-dir> <out-dir>/results-sonnet.jsonl <out-dir>/results-opus.jsonl
 ```
+
+`score.py` reads `queries.json` and `changed.json` from `<out-dir>`. The extractor writes only `changed.json`, so copy the queries in.
+Run the models one at a time. Two runs at once double the worker count.
 
 A run resumes. A row already in the output file is skipped unless it errored.
 
@@ -84,6 +91,12 @@ The report under `evals/reports/` states them again with the results.
 | G2 | Per model | `after` wrong rate minus `before` wrong rate is +0.03 or lower |
 | G3 | Per model | `before` does not win the discordant pairs at p < 0.05, two-tailed sign test |
 | G4 | Per skill | Summed over both models, `after` is correct on at most 1 fewer run than `before` |
+
+`score.py` decides G1 and G2 on outcome counts, so a change that lands exactly on the margin passes.
+
+These gates are this eval's own standard. They are not the ADR-057 acceptance gate.
+That gate allows no score drop and counts only scenarios that pass every base run.
+This eval ran each query once per arm, so it cannot show a stable baseline.
 
 A skill that fails G4 keeps its base description. If G4 reverts any skill, the final catalog reruns on one model.
 That rerun must pass G1 and G2.
