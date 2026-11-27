@@ -23,6 +23,8 @@ from tests.mutation._nested_pytest import private_basetemp
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 _TARGET_REL = Path("scripts") / "validation" / "git_hook_policy.py"
+_EVIDENCE_REL = _TARGET_REL.with_name("adr_debate_evidence.py")
+_EVIDENCE_MUTANTS = {"M6", "M8", "M9", "M12", "M13", "M15", "M17", "IC"}
 # The two defects are only observable through the suite written for #5205.
 # Both halves of the split suite. The boundary module is not optional here:
 # M6's killer, test_invalid_utf8_bytes_do_not_inflate_toward_the_byte_floor,
@@ -87,26 +89,31 @@ def _assert_suite_ran(result: subprocess.CompletedProcess[str], label: str) -> N
     )
 
 
-def _mutate(wt_path: Path, original: bytes, before: bytes, after: bytes, label: str) -> bytes:
+def _mutate(target: Path, original: bytes, before: bytes, after: bytes, label: str) -> None:
     count = original.count(before)
     if count == 0:
         raise AssertionError(
-            f"{_OUTCOME_DID_NOT_APPLY} ({label}): literal not found in target. "
+            f"{_OUTCOME_DID_NOT_APPLY} ({label}): literal not found in {target.name}. "
             "The file was changed; update this harness."
         )
     if count > 1:
         raise AssertionError(f"PATTERN-AMBIGUOUS ({label}): expected 1 occurrence, found {count}.")
     mutated = original.replace(before, after, 1)
     assert mutated != original, f"Mutation {label} produced a byte-identical file"
-    (wt_path / _TARGET_REL).write_bytes(mutated)
-    return mutated
+    target.write_bytes(mutated)
 
 
 def _run_mutant(
     wt_path: Path, original: bytes, before: bytes, after: bytes, label: str
 ) -> subprocess.CompletedProcess[str]:
-    _mutate(wt_path, original, before, after, label)
     wt_target = wt_path / _TARGET_REL
+    if label.partition("-")[0] in _EVIDENCE_MUTANTS:
+        wt_target = wt_path / _EVIDENCE_REL
+        # Callers supply the policy snapshot. Check the evidence snapshot
+        # against the detached checkout before mutating it.
+        original = (REPO_ROOT / _EVIDENCE_REL).read_bytes()
+        assert wt_target.read_bytes() == original, f"{label}: evidence differs from scratch HEAD"
+    _mutate(wt_target, original, before, after, label)
     try:
         result = _run_tests_in(wt_path)
     finally:
@@ -131,7 +138,7 @@ def _apply_positive_mutant(
 
 def _active_target_unmodified() -> bool:
     result = subprocess.run(
-        ["git", "diff", "--name-only", "HEAD", "--", str(_TARGET_REL)],
+        ["git", "diff", "--name-only", "HEAD", "--", str(_TARGET_REL), str(_EVIDENCE_REL)],
         capture_output=True,
         encoding="utf-8",
         errors="replace",

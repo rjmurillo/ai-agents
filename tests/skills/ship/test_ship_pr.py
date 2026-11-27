@@ -181,10 +181,10 @@ class TestWindowsPrepare:
         common = scripts[0]
         real_run = common.run
 
-        def failing(argv, cwd=None, timeout=120):
+        def failing(argv, cwd=None, timeout=120, **kw):
             if "-c" in argv:
                 return common.Completed(child_code, "", "python: timed out after 120s")
-            return real_run(argv, cwd=cwd, timeout=timeout)
+            return real_run(argv, cwd=cwd, timeout=timeout, **kw)
 
         monkeypatch.setattr(common, "run", failing)
         code, lines = run_pr(scripts, capsys, "prepare")
