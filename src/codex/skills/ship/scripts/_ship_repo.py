@@ -11,11 +11,11 @@ from __future__ import annotations
 import re
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import _ship_common as common
-    from ship_detect import Context
 else:
     common = sys.modules["_ship_common"]
 
@@ -69,29 +69,29 @@ def repo_ref(url: str) -> RepoRef | None:
     return RepoRef(host, parts[-2], parts[-1])
 
 
-def _remote_repo(ctx: Context, name: str) -> RepoRef | None:
-    done = common.git(["remote", "get-url", name], cwd=ctx.root)
+def _remote_repo(root: Path, name: str) -> RepoRef | None:
+    done = common.git(["remote", "get-url", name], cwd=root)
     return repo_ref(done.stdout) if done.returncode == 0 else None
 
 
-def upstream(ctx: Context) -> RepoRef | None:
+def upstream(root: Path, pr: int | None, pr_url: str) -> RepoRef | None:
     """The repository that owns the open PR when origin is another one, else None.
 
     None also covers a PR URL that does not parse (Azure DevOps) and an origin
     URL that does not name an owner and repository: both keep ``origin``.
     """
-    owner = None if ctx.pr is None else pr_repo(ctx.pr_url, ctx.pr)
-    origin = _remote_repo(ctx, "origin") if owner is not None else None
+    owner = None if pr is None else pr_repo(pr_url, pr)
+    origin = _remote_repo(root, "origin") if owner is not None else None
     if owner is None or origin is None or owner.key == origin.key:
         return None
     return owner
 
 
-def remote_for(ctx: Context, repo: RepoRef) -> str | None:
+def remote_for(root: Path, repo: RepoRef) -> str | None:
     """A git remote whose URL names ``repo``, or None."""
-    names = common.git(["remote"], cwd=ctx.root).stdout.split()
+    names = common.git(["remote"], cwd=root).stdout.split()
     for name in names:
-        found = _remote_repo(ctx, name) if _REMOTE_NAME_RE.fullmatch(name) else None
+        found = _remote_repo(root, name) if _REMOTE_NAME_RE.fullmatch(name) else None
         if found is not None and found.key == repo.key:
             return name
     return None

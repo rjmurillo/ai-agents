@@ -176,42 +176,63 @@ class TestUpstreamRepo:
     """``upstream`` returns None, and so keeps origin, unless it can prove another repo."""
 
     @pytest.fixture
-    def context(self, make_repo, scripts):
+    def context(self, make_repo):
         def build(origin: str, pr: int | None, pr_url: str):
-            repo = make_repo(origin)
-            detect = scripts[1]
-            return detect.Context(
-                repo,
-                "github",
-                "github.com",
-                "feat/ship-change",
-                "main",
-                "abc",
-                pr,
-                pr_url,
-                "me",
-                "owner",
-            )
+            return make_repo(origin), pr, pr_url
 
         return build
 
     def test_an_unparsable_pr_url_keeps_origin(self, context, scripts):
         ado = "https://dev.azure.com/c/p/_git/r/pullrequest/5"
         ctx = context("https://dev.azure.com/c/p/_git/r", 5, ado)
-        assert scripts[3].checks_mod.repo_mod.upstream(ctx) is None
+        assert scripts[1].pr_query_mod.repo_mod.upstream(*ctx) is None
 
     def test_an_origin_that_names_no_owner_and_repo_keeps_origin(self, context, scripts):
         ctx = context("https://github.com/solo.git", 42, UPSTREAM_PR)
-        assert scripts[3].checks_mod.repo_mod.upstream(ctx) is None
+        assert scripts[1].pr_query_mod.repo_mod.upstream(*ctx) is None
 
     def test_another_repository_is_returned(self, context, scripts):
         ctx = context(FORK, 42, UPSTREAM_PR)
-        found = scripts[3].checks_mod.repo_mod.upstream(ctx)
+        found = scripts[1].pr_query_mod.repo_mod.upstream(*ctx)
         assert found is not None
         assert found.key == ("github.com", "upstream", "project")
 
     def test_no_pr_keeps_origin(self, context, scripts):
-        assert scripts[3].checks_mod.repo_mod.upstream(context(FORK, None, "")) is None
+        assert scripts[1].pr_query_mod.repo_mod.upstream(*context(FORK, None, "")) is None
+
+
+class TestBaseRemote:
+    """``base_remote`` is read at detect time and carried in ``Context``."""
+
+    def test_no_pr_is_origin_with_no_label(self, make_repo, scripts):
+        repo = make_repo(FORK)
+        assert scripts[1].pr_query_mod.base_remote(repo, None, "") == ("origin", "")
+
+    def test_a_fork_pr_is_the_remote_that_names_the_pr_repository(self, make_repo, scripts):
+        repo = make_repo(FORK)
+        git(repo, "remote", "add", "upstream", UPSTREAM_URLS[0])
+        found = scripts[1].pr_query_mod.base_remote(repo, 42, UPSTREAM_PR)
+        assert found == ("upstream", "upstream/project")
+
+    def test_a_fork_pr_with_no_matching_remote_is_none_with_the_label(self, make_repo, scripts):
+        repo = make_repo(FORK)
+        found = scripts[1].pr_query_mod.base_remote(repo, 42, UPSTREAM_PR)
+        assert found == (None, "upstream/project")
+
+    def test_detect_stores_the_remote_and_label_in_the_context(self, make_repo, fakes, scripts):
+        repo = make_repo(FORK)
+        git(repo, "remote", "add", "upstream", UPSTREAM_URLS[0])
+        _open_pr(fakes, UPSTREAM_PR)
+        ctx = scripts[1].detect(repo)
+        assert not isinstance(ctx, scripts[1].Halt)
+        assert (ctx.base_remote, ctx.base_shown) == ("upstream", "upstream/project")
+
+    def test_a_context_built_without_them_defaults_to_origin(self, make_repo, scripts):
+        repo = make_repo(FORK)
+        ctx = scripts[1].Context(
+            repo, "github", "github.com", "feat/x", "main", "abc", None, "", "me", "owner"
+        )
+        assert (ctx.base_remote, ctx.base_shown) == ("origin", "")
 
 
 class TestRepoRef:
@@ -228,7 +249,7 @@ class TestRepoRef:
         ],
     )
     def test_a_remote_url_names_its_repository(self, scripts, url, expected):
-        found = scripts[3].checks_mod.repo_mod.repo_ref(url)
+        found = scripts[1].pr_query_mod.repo_mod.repo_ref(url)
         assert found is not None
         assert found.key == expected
 
@@ -249,7 +270,7 @@ class TestRepoRef:
         ],
     )
     def test_a_url_that_names_no_repository_is_none(self, scripts, url):
-        assert scripts[3].checks_mod.repo_mod.repo_ref(url) is None
+        assert scripts[1].pr_query_mod.repo_mod.repo_ref(url) is None
 
     @pytest.mark.parametrize(
         ("url", "number", "found"),
@@ -263,4 +284,4 @@ class TestRepoRef:
         ],
     )
     def test_a_pr_url_names_the_repository_only_for_that_pr(self, scripts, url, number, found):
-        assert (scripts[3].checks_mod.repo_mod.pr_repo(url, number) is not None) is found
+        assert (scripts[1].pr_query_mod.repo_mod.pr_repo(url, number) is not None) is found

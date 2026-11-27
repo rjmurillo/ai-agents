@@ -82,6 +82,8 @@ class Context:
     pr_author: str
     mode: str
     pr_draft: bool | None = None
+    base_remote: str | None = "origin"
+    base_shown: str = ""
 
 
 @dataclass(frozen=True)
@@ -282,7 +284,22 @@ def detect(cwd: Path | None = None, base: str | None = None) -> Context | Halt:
     # The same set publish refuses, so the refusal comes in phase 1.
     if mode == "owner" and pr is None and branch in protected_branches(target, origin_default):
         return Halt("on-base-branch", common.EXIT_LOGIC, f"on {branch}; create a feature branch")
-    return Context(root, host, host_name, branch, target, head, pr, pr_url, author, mode, pr_draft)
+    base_remote, base_shown = pr_query_mod.base_remote(root, pr, pr_url)
+    return Context(
+        root,
+        host,
+        host_name,
+        branch,
+        target,
+        head,
+        pr,
+        pr_url,
+        author,
+        mode,
+        pr_draft,
+        base_remote,
+        base_shown,
+    )
 
 
 def add_context_lines(result: common.Result, ctx: Context, *, pr_key: str = "PR") -> None:

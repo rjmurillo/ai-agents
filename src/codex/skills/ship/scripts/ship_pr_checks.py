@@ -42,7 +42,6 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import _ship_common as common
-    import _ship_repo as repo_mod
     from ship_detect import Context
 else:
     _HERE = Path(__file__).resolve(strict=True).parent  # the real entry, never a symlink's dir
@@ -52,7 +51,6 @@ else:
             sys.modules.setdefault("_ship_common", importlib.util.module_from_spec(_s))
         )
     common = sys.modules["_ship_common"]
-    repo_mod = common.load_sibling("_ship_repo")
 
 BODY_MARKER = "<!-- replace with PR body -->"
 BASE_VALIDATOR = "scripts/validation/pr_description.py"
@@ -148,16 +146,15 @@ def _write_private_tree(ctx: Context, ref: str, files: list[str], tree: Path) ->
 
 def _locate_base(ctx: Context, base: str, result: common.Result) -> tuple[str, str] | None:
     """The remote-tracking ref and display name of the PR's target, or None after a NOT-RUN line."""
-    upstream = repo_mod.upstream(ctx)
-    remote = "origin" if upstream is None else repo_mod.remote_for(ctx, upstream)
-    target = "" if upstream is None else f"{upstream.owner}/{upstream.repo}:{base}"
+    remote = ctx.base_remote
+    target = f"{ctx.base_shown}:{base}" if ctx.base_shown else ""
     if remote is None:
         _not_run(result, f"{target} has no matching git remote; add one and fetch it")
         return None
     # The full remote-tracking name: a tag named <remote>/<base> cannot shadow it.
     ref = f"refs/remotes/{remote}/{base}"
     if common.git(["rev-parse", "--verify", "--quiet", ref], cwd=ctx.root).returncode != 0:
-        missing = f"origin/{base}" if upstream is None else f"{target} (as {remote}/{base})"
+        missing = f"{target} (as {remote}/{base})" if ctx.base_shown else f"origin/{base}"
         _not_run(result, f"{missing} not found; fetch it")
         return None
     return ref, f"{remote}/{base}"

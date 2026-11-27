@@ -5,6 +5,9 @@ on success. A command that failed returns its ``Completed``, and a reply that di
 not parse returns a ``str`` detail. ``ship_detect`` turns either into its ``Halt``;
 this module never imports it, so the one ``Halt`` type stays shared.
 
+``base_remote`` finds the git remote that holds the open PR's target branch: ``origin``,
+or, when the PR belongs to another repository as with a fork, the remote that names it.
+
 ``valid_branch`` checks a branch name git accepts, such as the target of an open
 PR, including the typed ``--base``. ``safe_ref`` in ``_ship_common`` is the
 reviewed allowlist for a name the user types: it admits letters, digits, ``.``,
@@ -37,8 +40,10 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import _ship_common as common
+    import _ship_repo as repo_mod
 else:
     common = sys.modules["_ship_common"]
+    repo_mod = common.load_sibling("_ship_repo")
 
 # number, URL, author, draft, target branch; number None means no open PR.
 PrQuery = tuple[int | None, str, str, bool | None, str]
@@ -68,6 +73,19 @@ def github_pr(root: Path) -> PrQuery | common.Completed | str:
     login = str(author.get("login") or "")
     target = str(data.get("baseRefName") or "")
     return (data["number"], str(data.get("url", "")), login, draft, target)
+
+
+def base_remote(root: Path, pr: int | None, pr_url: str) -> tuple[str | None, str]:
+    """The remote that holds the PR's target branch, and the repository label to show for it.
+
+    ``origin`` with an empty label when no other repository owns the PR. For a PR that
+    belongs to another repository, the remote that names it with the ``<owner>/<repo>``
+    label; ``None`` with that label when no remote names it.
+    """
+    owner = repo_mod.upstream(root, pr, pr_url)
+    if owner is None:
+        return "origin", ""
+    return repo_mod.remote_for(root, owner), f"{owner.owner}/{owner.repo}"
 
 
 def _ado_row_for_base(rows: list[object], base: str | None) -> object:
