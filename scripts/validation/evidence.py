@@ -113,6 +113,7 @@ __all__ = [
     "REASON_MERGE_IN_PROGRESS",
     "REASON_NO_OUTCOMES",
     "REASON_POLICY_EXEMPT",
+    "REASON_PROCESS_SETUP_FAILED",
     "REASON_PROCESS_SIGNALED",
     "REASON_PR_UNRESOLVED",
     "REASON_QUICK_MODE",
@@ -176,6 +177,9 @@ REASON_SCRIPT_ABSENT: Final = "script.absent"
 REASON_TOOL_ABSENT: Final = "tool.absent"
 REASON_TREE_ABSENT: Final = "tree.absent"
 REASON_TIMEOUT: Final = "timeout"
+#: The runner could not prepare the child for execution, so the child produced
+#: no exit status or verdict of its own.
+REASON_PROCESS_SETUP_FAILED: Final = "process.setup_failed"
 #: The child was killed by a signal rather than exiting on its own, so its
 #: return code is a negated signal number and carries no verdict. Distinct
 #: from :data:`REASON_TIMEOUT`, which is the wrapper killing a child it was

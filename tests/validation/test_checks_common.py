@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 from scripts.validation import subprocess_runner
 from scripts.validation.evidence import (
     REASON_DIFF_FAILED,
+    REASON_PROCESS_SETUP_FAILED,
     REASON_PROCESS_SIGNALED,
     REASON_TIMEOUT,
     REASON_TOOL_ABSENT,
@@ -120,6 +121,15 @@ class TestClassifySubprocessFailure:
 
         assert reason == REASON_PROCESS_SIGNALED
         assert reason != REASON_TIMEOUT
+
+    def test_windows_job_setup_failure_is_not_a_signal(self) -> None:
+        """A child that never started carries no signal status."""
+        reason = classify_subprocess_failure(
+            -1, "Windows job setup failed: denied", default=REASON_DIFF_FAILED
+        )
+
+        assert reason == REASON_PROCESS_SETUP_FAILED
+        assert reason != REASON_PROCESS_SIGNALED
 
     def test_the_marker_alone_keeps_the_caller_s_reason(self) -> None:
         """Edge: a child that printed the marker text and exited 1 is not a timeout.

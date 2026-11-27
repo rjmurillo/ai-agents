@@ -10,6 +10,7 @@ the timeout marker stays present.
 
 from __future__ import annotations
 
+import contextlib
 import subprocess
 import sys
 import time
@@ -21,6 +22,7 @@ import pytest
 
 from scripts.validation import subprocess_runner
 from scripts.validation.subprocess_runner import _decode_stream, _run_subprocess
+from scripts.validation.windows_pipes import _communicate_windows
 from tests.validation.subprocess_runner_helpers import (
     POSIX_ONLY,
     child,
@@ -316,6 +318,9 @@ class TestRunSubprocessWindowsJob:
             def __init__(self, process: object) -> None:
                 events.append(("job", getattr(process, "pid", None)))
 
+            def resume(self, _process: object) -> None:
+                events.append("resume")
+
             def terminate(self) -> None:
                 events.append("terminate")
 
@@ -334,7 +339,7 @@ class TestRunSubprocessWindowsJob:
         assert spawn[1] & 0x4, "CREATE_SUSPENDED must be set before job assignment"
         assert spawn[1] & 0x200, "CREATE_NEW_PROCESS_GROUP must isolate console events"
         assert spawn[2] is False
-        assert events[1:] == [("job", 123), "communicate", "close"]
+        assert events[1:] == [("job", 123), "resume", "communicate", "close"]
 
     def test_job_setup_failure_kills_the_suspended_child_and_fails_closed(
         self, monkeypatch: pytest.MonkeyPatch
@@ -363,7 +368,7 @@ class TestRunSubprocessWindowsJob:
                 return None
 
         def fail_job(_process: object) -> None:
-            raise OSError(5, "denied")
+            raise OSError(6, "denied")
 
         self._simulate_windows(monkeypatch)
         monkeypatch.setattr(subprocess_runner, "_WindowsJob", fail_job, raising=False)
@@ -386,6 +391,9 @@ class TestRunSubprocessWindowsJob:
             def __init__(self, _process: object) -> None:
                 pass
 
+            def resume(self, _process: object) -> None:
+                events.append("resume")
+
             def terminate(self) -> None:
                 events.append("terminate")
 
@@ -398,8 +406,112 @@ class TestRunSubprocessWindowsJob:
         exit_code, _stdout, stderr = _run_subprocess(["/fake"], timeout=7)
 
         assert exit_code == -1
-        assert events == ["terminate", "close"]
+        assert events == ["resume", "terminate", "close"]
         assert proc.killed is False
+        assert stderr == "Command timed out after 7s"
+
+    def test_access_denied_assignment_resumes_the_child_without_a_job(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A validator inside a UI-limited job can still run without nesting."""
+        events: list[str] = []
+
+        class _Child:
+            pid = 123
+            returncode = 0
+
+            def communicate(self, timeout: float | None = None) -> tuple[str, str]:
+                events.append("communicate")
+                return "out", ""
+
+            def kill(self) -> None:
+                events.append("kill")
+
+            def wait(self, timeout: float | None = None) -> int:
+                return self.returncode
+
+            def __enter__(self) -> _Child:
+                return self
+
+            def __exit__(self, *_exc: object) -> None:
+                return None
+
+        def deny_assignment(_process: object) -> None:
+            raise OSError(5, "AssignProcessToJobObject failed")
+
+        self._simulate_windows(monkeypatch)
+        monkeypatch.setattr(subprocess_runner, "_WindowsJob", deny_assignment, raising=False)
+        monkeypatch.setattr(
+            subprocess_runner,
+            "_resume_windows_process",
+            lambda _process: events.append("resume-process"),
+        )
+        monkeypatch.setattr(subprocess, "Popen", lambda *_a, **_k: _Child())
+
+        exit_code, stdout, stderr = _run_subprocess(["/fake"], timeout=5)
+
+        assert (exit_code, stdout, stderr) == (0, "out", "")
+        assert events == ["resume-process", "communicate"]
+
+    def test_interrupt_during_resume_terminates_the_owned_job(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The caller owns the job before the child can start running."""
+        events: list[str] = []
+        proc = _TimedOutPopen(None, None)
+
+        class _Job:
+            def __init__(self, _process: object) -> None:
+                events.append("job")
+
+            def resume(self, _process: object) -> None:
+                events.append("resume")
+                raise KeyboardInterrupt
+
+            def terminate(self) -> None:
+                events.append("terminate")
+
+            def close(self) -> None:
+                events.append("close")
+
+        self._simulate_windows(monkeypatch)
+        monkeypatch.setattr(subprocess_runner, "_WindowsJob", _Job, raising=False)
+        monkeypatch.setattr(subprocess, "Popen", _fake_popen(proc))
+
+        with pytest.raises(KeyboardInterrupt):
+            _run_subprocess(["/fake"], timeout=5)
+
+        assert events == ["job", "resume", "terminate", "close"]
+
+    def test_failed_job_termination_kills_the_direct_child(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        events: list[str] = []
+        proc = _TimedOutPopen(None, None, drained=None)
+
+        class _Job:
+            def __init__(self, _process: object) -> None:
+                pass
+
+            def resume(self, _process: object) -> None:
+                pass
+
+            def terminate(self) -> None:
+                events.append("terminate")
+                raise OSError(5, "denied")
+
+            def close(self) -> None:
+                events.append("close")
+
+        self._simulate_windows(monkeypatch)
+        monkeypatch.setattr(subprocess_runner, "_WindowsJob", _Job, raising=False)
+        monkeypatch.setattr(subprocess, "Popen", _fake_popen(proc))
+
+        exit_code, _stdout, stderr = _run_subprocess(["/fake"], timeout=7)
+
+        assert exit_code == -1
+        assert proc.killed is True
+        assert events == ["terminate", "close"]
         assert stderr == "Command timed out after 7s"
 
     def test_windows_job_assigns_the_suspended_process_before_resume(
@@ -446,10 +558,49 @@ class TestRunSubprocessWindowsJob:
         monkeypatch.setattr(subprocess_runner.ctypes, "WinDLL", load_library, raising=False)
 
         job = subprocess_runner._WindowsJob(SimpleNamespace(_handle=456))
+        assert events == ["create", "assign"]
+        job.resume(SimpleNamespace(_handle=456))
         job.terminate()
         job.close()
 
         assert events == ["create", "assign", "resume", "terminate-job", "close-handle"]
+
+
+@POSIX_ONLY
+def test_windows_pipe_reader_returns_bytes_written_before_a_pipe_stays_open(
+    tmp_path: Path,
+) -> None:
+    """A descendant holding the pipe cannot erase output already flushed."""
+    pid_file = tmp_path / "grandchild.pid"
+    body = (
+        "import subprocess,sys,time;"
+        "g=subprocess.Popen([sys.executable,'-c','import time;time.sleep(20)'],"
+        "stdout=sys.stdout,stderr=sys.stderr,start_new_session=True);"
+        "open(sys.argv[1],'w').write(str(g.pid));"
+        "sys.stdout.write('PARTIAL-OUT');sys.stdout.flush();"
+        "time.sleep(20)"
+    )
+    proc = subprocess.Popen(  # subprocess-encoding: strict-ok
+        [sys.executable, "-c", body, str(pid_file)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        encoding="utf-8",
+        errors="replace",
+        start_new_session=True,
+    )
+    grandchild = 0
+    try:
+        with pytest.raises(subprocess.TimeoutExpired) as caught:
+            _communicate_windows(proc, timeout=0.5)
+        output = caught.value.output
+        assert isinstance(output, bytes)
+        assert b"PARTIAL-OUT" in output
+    finally:
+        grandchild = read_pid(pid_file) if pid_file.exists() else 0
+        kill_if_alive(grandchild)
+        kill_if_alive(proc.pid)
+        with contextlib.suppress(Exception):
+            proc.wait(timeout=2)
 
 
 # ---------------------------------------------------------------------------

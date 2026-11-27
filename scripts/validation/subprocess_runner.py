@@ -43,9 +43,14 @@ from scripts.cli_exec import resolve_executable
 
 # Reason codes for the typed evidence contract (issue #5635).
 from scripts.validation.evidence import (
+    REASON_PROCESS_SETUP_FAILED,
     REASON_PROCESS_SIGNALED,
     REASON_TIMEOUT,
     REASON_TOOL_ABSENT,
+)
+from scripts.validation.windows_pipes import (
+    _abandon_live_pipe_streams,
+    _communicate_with_partial,
 )
 
 # The exit code :func:`_run_subprocess` returns when the child never produced
@@ -59,6 +64,11 @@ _SUPPORTS_PGROUP = hasattr(os, "killpg")
 
 _CREATE_NEW_PROCESS_GROUP = 0x00000200
 _CREATE_SUSPENDED = 0x00000004
+_ERROR_ACCESS_DENIED = 5
+
+# Setup failure text is part of the runner's diagnostic contract. It is not a
+# signal death: the child never produced an exit status of its own.
+_WINDOWS_JOB_SETUP_FAILED = "Windows job setup failed"
 
 # Seconds to wait for the pipes to close after the kill. A grandchild that
 # started its own session survives the group kill and keeps the pipe open, so
@@ -86,13 +96,46 @@ def _windows_creation_flags() -> int:
     )
 
 
+def _resume_windows_process(process: subprocess.Popen[str]) -> None:
+    """Resume a Windows process started with ``CREATE_SUSPENDED``."""
+    loader = getattr(ctypes, "WinDLL", None)
+    if loader is None:
+        raise OSError("Windows process resume is unavailable")
+    process_handle = getattr(process, "_handle", None)
+    if process_handle is None:
+        raise OSError("Windows process handle is unavailable")
+    ntdll = loader("ntdll", use_last_error=True)
+    resume_process = ntdll.NtResumeProcess
+    resume_process.restype = ctypes.c_long
+    status = int(resume_process(ctypes.c_void_p(int(process_handle))))
+    if status != 0:
+        raise OSError(status, "NtResumeProcess failed")
+
+
+def _windows_error(code: int, message: str) -> OSError:
+    """Build an error carrying ``winerror`` where the platform exposes it."""
+    win_error = getattr(ctypes, "WinError", None)
+    if win_error is not None:
+        return win_error(code, message)
+    return OSError(code, message)
+
+
+def _windows_error_number(error: OSError) -> int | None:
+    """Read the Win32 error out of an ``OSError`` across its two spellings."""
+    winerror = getattr(error, "winerror", None)
+    if winerror is not None:
+        return int(winerror)
+    return error.errno
+
+
 class _WindowsJob:
     """Own the job object that lets a timeout terminate a Windows child tree.
 
-    The process starts suspended, is assigned before its main thread resumes,
-    and the job is terminated explicitly on timeout. Closing the handle does
-    not itself kill a normally completed child's descendants, matching the
-    POSIX runner contract.
+    The process starts suspended and is assigned before its main thread
+    resumes. Resume is deliberately a second step: once it runs, the caller
+    already holds this object, so an interrupt cannot strand a running tree in
+    the tiny window between the constructor returning and the assignment to
+    the caller's local variable.
     """
 
     def __init__(self, process: subprocess.Popen[str]) -> None:
@@ -104,7 +147,7 @@ class _WindowsJob:
         create_job.restype = ctypes.c_void_p
         handle = create_job(None, None)
         if not handle:
-            raise OSError(_last_error(), "CreateJobObjectW failed")
+            raise _windows_error(_last_error(), "CreateJobObjectW failed")
 
         self._kernel32 = kernel32
         self._handle: int | None = int(handle)
@@ -117,23 +160,23 @@ class _WindowsJob:
                 ctypes.c_void_p(int(process_handle)),
             )
             if not assigned:
-                raise OSError(_last_error(), "AssignProcessToJobObject failed")
-            ntdll = loader("ntdll", use_last_error=True)
-            resume_process = ntdll.NtResumeProcess
-            resume_process.restype = ctypes.c_long
-            status = int(resume_process(ctypes.c_void_p(int(process_handle))))
-            if status != 0:
-                raise OSError(status, "NtResumeProcess failed")
+                error = _windows_error(_last_error(), "AssignProcessToJobObject failed")
+                error._ai_agents_job_assignment_failed = True  # type: ignore[attr-defined]
+                raise error
         except BaseException:
             self.close()
             raise
+
+    def resume(self, process: subprocess.Popen[str]) -> None:
+        """Start the assigned process after the caller owns this job object."""
+        _resume_windows_process(process)
 
     def terminate(self) -> None:
         if self._handle is None:
             return
         terminated = self._kernel32.TerminateJobObject(ctypes.c_void_p(self._handle), 1)
         if not terminated:
-            raise OSError(_last_error(), "TerminateJobObject failed")
+            raise _windows_error(_last_error(), "TerminateJobObject failed")
 
     def close(self) -> None:
         if self._handle is None:
@@ -147,9 +190,9 @@ def _decode_stream(data: bytes | str | None) -> str:
 
     ``subprocess.run(encoding="utf-8", errors="replace")`` returns ``str`` on
     the happy path, but a timeout raises inside ``Popen`` before the decode
-    step, so ``TimeoutExpired.stdout`` and ``.stderr`` arrive as raw ``bytes``
-    on POSIX and as already-decoded ``str`` on the Windows
-    kill-then-communicate path. Match the happy-path ``errors="replace"``
+    step, so ``TimeoutExpired.stdout`` and ``.stderr`` can arrive as raw
+    ``bytes``. Test fakes and older communication paths can also supply ``str``.
+    Match the happy-path ``errors="replace"``
     decode and treat a missing stream as empty.
     """
     if data is None:
@@ -282,8 +325,9 @@ def _reap_timed_out(
     _terminate(proc, windows_job)
     drained: tuple[bytes | str | None, bytes | str | None]
     try:
-        drained = proc.communicate(timeout=_DRAIN_TIMEOUT)
+        drained = _communicate_with_partial(proc, timeout=_DRAIN_TIMEOUT)
     except subprocess.TimeoutExpired as still_open:
+        _abandon_live_pipe_streams(proc)
         drained = (still_open.stdout, still_open.stderr)
     stdout = _decode_stream(drained[0]) or _decode_stream(timed_out.stdout)
     stderr = _decode_stream(drained[1]) or _decode_stream(timed_out.stderr)
@@ -314,14 +358,39 @@ def _run_in_group(
         windows_job: _WindowsJob | None = None
         try:
             if os.name == "nt":
+                setup_error: OSError | None = None
                 try:
                     windows_job = _WindowsJob(proc)
                 except OSError as error:
+                    assignment_failure = bool(
+                        getattr(error, "_ai_agents_job_assignment_failed", False)
+                    ) or "AssignProcessToJobObject" in str(error)
+                    if _windows_error_number(error) == _ERROR_ACCESS_DENIED and assignment_failure:
+                        # A child of a UI-limited job is already inside that job, and
+                        # Windows forbids the nested assignment. Refusing to run every
+                        # validator is worse than the pre-job-object cleanup contract:
+                        # resume it unowned and let timeout cleanup kill the direct child.
+                        try:
+                            _resume_windows_process(proc)
+                        except OSError as resume_error:
+                            setup_error = resume_error
+                    else:
+                        setup_error = error
+                else:
+                    try:
+                        windows_job.resume(proc)
+                    except OSError as error:
+                        setup_error = error
+                if setup_error is not None:
+                    if windows_job is not None:
+                        with contextlib.suppress(OSError):
+                            windows_job.terminate()
                     proc.kill()
                     proc.wait()
-                    return _SENTINEL_EXIT, "", f"Windows job setup failed: {error}"
+                    detail = f"{_WINDOWS_JOB_SETUP_FAILED}: {setup_error}"
+                    return _SENTINEL_EXIT, "", detail
             try:
-                stdout, stderr = proc.communicate(timeout=timeout)
+                stdout, stderr = _communicate_with_partial(proc, timeout=timeout)
             except subprocess.TimeoutExpired as timed_out:
                 partial_stdout, partial_stderr = _reap_timed_out(proc, timed_out, windows_job)
                 marker = f"Command timed out after {timeout}s"
@@ -373,8 +442,8 @@ def classify_subprocess_failure(exit_code: int, stderr: str, *, default: str) ->
     ``.claude/rules/ci-scripts.md`` MUST 14 records for the count ratchets and
     the reason ``evidence.py`` keeps BLOCKED and UNKNOWN apart.
 
-    The two markers are :func:`_run_subprocess`'s documented contract,
-    quoted verbatim from the source above:
+    The timeout, missing-command, and job-setup markers are
+    :func:`_run_subprocess`'s documented contract, quoted from the source above:
 
         marker = f"Command timed out after {timeout}s"
         return -1, "", f"Command not found: {args[0]}"
@@ -402,6 +471,8 @@ def classify_subprocess_failure(exit_code: int, stderr: str, *, default: str) ->
             return REASON_TIMEOUT
         if "Command not found:" in stderr:
             return REASON_TOOL_ABSENT
+        if _WINDOWS_JOB_SETUP_FAILED in stderr:
+            return REASON_PROCESS_SETUP_FAILED
     if exit_code < 0:
         return REASON_PROCESS_SIGNALED
     return default
