@@ -9,15 +9,24 @@ import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any
 
 import pytest
 import session_corpus
 import session_corpus_sources
+from adr_drift_helpers import symlink_or_skip
 from session_common import MAX_MSG_CHARS
 from session_corpus import SECRET, CorpusCapture, redact
-from session_test_helpers import write_jsonl
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+
+
+def write_jsonl(path: Path, records: list[dict[str, Any]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    text = "\n".join(json.dumps(record) for record in records) + "\n"
+    path.write_text(text, encoding="utf-8")
+
+
 SCRIPT = (
     REPO_ROOT / "src" / "claude" / "skills" / "skill-doctor" / "scripts" / "collect_sessions.py"
 )
@@ -48,8 +57,8 @@ def run(tmp_path: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 def claude_record(
     role: str, text: str, ts: str, tool: bool = False, cwd: str = "/work/repo"
-) -> dict:
-    blocks = [{"type": "text", "text": text}]
+) -> dict[str, Any]:
+    blocks: list[dict[str, Any]] = [{"type": "text", "text": text}]
     if tool:
         blocks.append({"type": "tool_use", "name": "Read", "input": {"file_path": "/x"}})
     return {
@@ -76,11 +85,13 @@ def make_claude_home(tmp_path: Path, name: str = "claude-home") -> Path:
     return home
 
 
-def read_rows(path: Path) -> list[dict]:
+def read_rows(path: Path) -> list[dict[str, Any]]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
 
 
-def make_t3_home(tmp_path: Path, messages: list[tuple], columns: str | None = None) -> Path:
+def make_t3_home(
+    tmp_path: Path, messages: list[tuple[Any, ...]], columns: str | None = None
+) -> Path:
     home = tmp_path / "t3-home"
     db = home / "userdata" / "statev2.sqlite"
     db.parent.mkdir(parents=True)
@@ -104,7 +115,7 @@ def make_t3_home(tmp_path: Path, messages: list[tuple], columns: str | None = No
     return home
 
 
-def make_gemini_home(tmp_path: Path, records: list[dict]) -> Path:
+def make_gemini_home(tmp_path: Path, records: list[dict[str, Any]]) -> Path:
     home = tmp_path / "gemini-home"
     log = home / "brain" / "abc123" / ".system_generated" / "logs" / "transcript_full.jsonl"
     write_jsonl(log, records)
@@ -277,7 +288,7 @@ def test_export_refuses_to_write_inside_the_skill_directory(tmp_path: Path, spel
     skill_dir = session_corpus.SKILL_ROOT
     if spelling == "symlink":
         link = tmp_path / "alias"
-        link.symlink_to(skill_dir, target_is_directory=True)
+        symlink_or_skip(link, skill_dir)
         target = link / "corpus.jsonl"
     else:
         target = skill_dir / "corpus.jsonl"
@@ -319,7 +330,7 @@ def test_corpus_only_harness_needs_the_flag(tmp_path: Path) -> None:
 # ---- T3 adapter ----
 
 
-def t3_row(mid: str, role: str, payload: object, ts: str = OLD) -> tuple:
+def t3_row(mid: str, role: str, payload: object, ts: str = OLD) -> tuple[Any, ...]:
     return (mid, "t1", role, ts, json.dumps(payload))
 
 

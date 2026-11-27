@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -41,7 +42,9 @@ WEAK_NO_CONTRAST_TEXT = (
 )
 
 
-def row(text: str, role: str = "assistant", path: str = "/s/a.jsonl", line: object = 1) -> dict:
+def row(
+    text: str, role: str = "assistant", path: str = "/s/a.jsonl", line: object = 1
+) -> dict[str, Any]:
     return {
         "source": "claude",
         "session": "s1",
@@ -53,13 +56,13 @@ def row(text: str, role: str = "assistant", path: str = "/s/a.jsonl", line: obje
     }
 
 
-def write_corpus(tmp_path: Path, rows: list[dict], name: str = "corpus.jsonl") -> Path:
+def write_corpus(tmp_path: Path, rows: list[dict[str, Any]], name: str = "corpus.jsonl") -> Path:
     path = tmp_path / name
     path.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
     return path
 
 
-def kept(tmp_path: Path, rows: list[dict], **options: int) -> list[dict]:
+def kept(tmp_path: Path, rows: list[dict[str, Any]], **options: int) -> list[dict[str, Any]]:
     corpus = write_corpus(tmp_path, rows)
     out = tmp_path / "out"
     prefilter.run_prefilter(
@@ -184,7 +187,7 @@ def test_distinct_findings_are_not_merged(tmp_path: Path) -> None:
 # ---- batching ----
 
 
-def numbered(count: int) -> list[dict]:
+def numbered(count: int) -> list[dict[str, Any]]:
     return [
         row(STRONG_TEXT.replace("one-line", f"variant {i} line"), line=i, path="/s/b.jsonl")
         for i in range(count)
@@ -247,7 +250,7 @@ def test_empty_corpus_writes_a_manifest_and_no_batches(tmp_path: Path) -> None:
 
 def cli(tmp_path: Path, corpus: Path, *extra: str) -> int:
     argv = ["prefilter", "--corpus", str(corpus), "--lens", "contradiction"]
-    return pan.main([*argv, "--out", str(tmp_path / "out"), *extra])
+    return int(pan.main([*argv, "--out", str(tmp_path / "out"), *extra]))
 
 
 def test_cli_success_exits_zero(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

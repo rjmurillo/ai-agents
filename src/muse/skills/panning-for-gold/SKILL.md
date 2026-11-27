@@ -1,7 +1,7 @@
 ---
 name: panning-for-gold
 version: 1.0.0
-description: "Triage raw unstructured input (transcripts, brain dumps) into evaluated thread inventories and a synthesized gold-found file. Four phases: front-gate, extract, evaluate, synthesize. Also mines agent session corpora for measured results that contradicted guidance. Use when you say \"pan for gold\", \"triage transcript\", \"synthesize gold-found\", \"mine eureka moments\", or hand it a voice transcript or brain dump. Do NOT use for structured input like specs or ADRs (use analyst or spec-generator instead)."
+description: "Triage raw unstructured input (transcripts, brain dumps) into evaluated thread inventories and a synthesized gold-found file. Use when you say \"pan for gold\", \"triage transcript\", \"synthesize gold-found\", \"mine eureka moments\", or hand it a voice transcript or brain dump. Do NOT use for structured input like specs or ADRs (use analyst or spec-generator instead)."
 license: Apache-2.0
 metadata:
   routing:
