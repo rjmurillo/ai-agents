@@ -1,7 +1,7 @@
 ---
 name: security-review
 version: 0.1.1
-description: Security review knowledge delivered as parent-inline context (the form-factor counterpart to the security agent). Threat-models a code change, scores risk with CWE/CVE evidence, and returns a verdict. Use to review a diff or snippet for vulnerabilities when you want the security knowledge inline rather than dispatched to a subagent. Also use when editing a GitHub Actions workflow (.github/workflows, pin every Action to a commit SHA), a lefthook config, a .env or secrets file, an Auth directory, or security benchmarks. Do NOT use for STRIDE attack-surface analysis of a system or architecture; use threat-modeling instead. Do NOT use to decide whether security review is warranted (use security-detection), or for the pre-push quality gate (use pr-quality).
+description: "Inline security review of a diff or snippet: threat model, CWE/CVE-scored risk, verdict. Also use when editing a GitHub Actions workflow, lefthook config, .env or secrets file, Auth directory, or security benchmarks. Do NOT use for STRIDE system analysis (use threat-modeling), deciding if review is warranted (use security-detection), or the pre-push gate (use pr-quality)."
 license: Apache-2.0
 ---
 

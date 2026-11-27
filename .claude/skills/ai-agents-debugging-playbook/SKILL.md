@@ -2,7 +2,7 @@
 name: ai-agents-debugging-playbook
 version: 1.0.0
 license: Apache-2.0
-description: Symptom-to-triage playbook for this repo's recurring failures. Blocked pushes, drift gate reds, plugin bump reds, coverage pin trips, hook exit 143, session NON_COMPLIANT. Maps each symptom to a first command, discriminating experiment, fix path, and trap. Use when you say `triage this failure`, `why is my push blocked`, `debug this CI red`. Do NOT use for incident history (use `ai-agents-failure-archaeology`) or measurement tools (use `ai-agents-diagnostics-toolkit`).
+description: "Symptom-to-triage playbook for recurring failures: blocked pushes, drift gate reds, plugin bump reds, coverage pin trips, hook exit 143, session NON_COMPLIANT. Use when you say `triage this failure`, `why is my push blocked`, `debug this CI red`. Do NOT use for incident history (use `ai-agents-failure-archaeology`) or measurement tools (use `ai-agents-diagnostics-toolkit`)."
 metadata:
   distribution: repo-local
   routing:

@@ -1,7 +1,7 @@
 ---
 name: destructive-change-safety
 version: 1.0.0
-description: Prove blast radius and recovery before a change that deletes, overwrites, drops, or revokes state. Scans for destructive sinks, traces callers and flags, previews scope without mutating, and blocks on unknown scope, bad cardinality, or no rollback. Use when you say `is this delete safe` or `blast radius`. Do NOT use for read-only changes or security review (use security-scan).
+description: "Prove blast radius and recovery before a change that deletes, overwrites, drops, or revokes state; blocks on unknown scope or no rollback. Use when you say `is this delete safe` or `blast radius`. Do NOT use for read-only changes or security review (use security-scan)."
 license: Apache-2.0
 user-invocable: true
 metadata:
