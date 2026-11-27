@@ -34,7 +34,7 @@ Why log: the next reader (you in three months, or another agent next session) wi
 
 **When the memory write fails.** If `mcp__serena__write_memory` returns an error or the tool is unavailable, write the same file directly with the editor and commit it. That still satisfies the `builder-ethos` eureka record.
 
-If no file under `.serena/memories/` can be written (read-only checkout, no commit access), the record is blocked. Do two things:
+If no file under `.serena/memories/` can be written, or `memory-index.md` cannot be updated (read-only checkout, no commit access), the record is blocked. Do two things:
 
 1. Put a comment block with the same five fields in the file the decision applies to, or in the reply when no such file exists or it cannot be written.
 2. Add one line to the reply: `Blocked record: decision-<short-slug>, <cause>`. The parent session or the user then commits the file.
