@@ -1,0 +1,25 @@
+{
+  "author_family": "unknown",
+  "branch": "t3/ws4b-adr-debate-evidence-extraction",
+  "counts": {
+    "dropped": 0,
+    "kept": 0,
+    "overlap": 0,
+    "raw": 0,
+    "sol_only": 0
+  },
+  "critic_sha256": "016d02d64b92864e9bb9b75745236bb86b3312473c894adcc9061d979f0eb86e",
+  "dropped": [],
+  "failure_class": "rate-limit",
+  "findings": [],
+  "head_sha": "7215ce1e7fd81e7854095e167d74107919fefce1",
+  "key": "t3/ws4b-adr-debate-evidence-extraction",
+  "model": "gpt-6.2-sol",
+  "overlap_rule": "same file and line within 3 of a critic path:line or range",
+  "pr": "",
+  "round": 1,
+  "schema_version": 2,
+  "status": "unavailable",
+  "timestamp": "2026-11-26T06:04:16Z",
+  "verdict": ""
+}

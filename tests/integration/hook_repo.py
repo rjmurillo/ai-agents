@@ -84,6 +84,7 @@ SUPPORT_FILES = (
     "scripts/maintenance/__init__.py",
     "scripts/maintenance/repair_packed_refs.py",
     "scripts/validation/__init__.py",
+    "scripts/validation/adr_debate_evidence.py",
     "scripts/validation/check_repo_health.py",
     "scripts/validation/check_repo_health_report.py",
     "scripts/validation/cli_smoke_paths.py",
