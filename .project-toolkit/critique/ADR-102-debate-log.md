@@ -193,3 +193,18 @@ The WS4B extraction of the ADR debate-log evidence layer from `git_hook_policy.p
 **Resolution.** All repairs are numeric citation corrections only; no decision, rationale, or design text in this ADR changed, so the round never reopened the consensus above. Every architect finding was mechanical (a line number that does not cover what the prose claims), each fix followed the architect's own prescription, and each was verified deterministically against the target lines. No objection remains open. The repairs, including this log entry, land in one commit on the extraction branch, after which `citation_reverse_pass.py` (which reads committed HEAD) can measure them.
 
 **Post-round correction (fresh critic, round 1).** The fresh critic reviewing the extraction branch found that the gate-flagged count of 11 understated the drift: five more live `FAIL-OPEN-INVENTORY.md` rows (lines 93, 123, 124, 126, 156) cited pre-extraction line numbers the reverse-pass trace never examined or judged clean incorrectly. Each was verified against `git_hook_policy.py` at head and repaired: `SKIP_YAMLLINT` to `:7305-7306`, `run_taste_advisory` to `:7419-7474`, `additions_advisory` plus the job constant to `:8650-8684,8961`, `run_workflow_local` to `:8579-8616`, and `check_branch_context` to `:2285-2375`. The critic also found one stale canonical-source sentence in `index_line_endings_record.py:78` still naming `git_hook_policy.py` for `Cf` normalization; it now names `scripts/validation/adr_debate_evidence.py`, where the implementation lives. These are the same class of mechanical numeric repair this round already covered, so they do not reopen the consensus; they are recorded here so the count and the completion claim match the final evidence. The residual lesson is process, not design: the reverse-pass gate does not examine every inbound citation row, so extraction work that shifts line numbers needs a full-file sweep of inbound citations, not only the gate output.
+
+### Post-round correction: WS4B head-refresh citation repair
+
+A fresh review of PR #7763 found four stale numeric citations.
+Three ADR citations still named `git_hook_policy.py:2547` for the pre-commit mode flags.
+The flags now sit at `scripts/validation/git_hook_policy.py:2548-2549`.
+The push-lock docstring also ended one line before the `return 2` it described.
+It now cites `scripts/validation/git_hook_policy.py:8736-8741`.
+
+These repairs are the same mechanical numeric class this log already covers.
+No decision, rationale, status, or enforcement text changed.
+Deterministic verification read the target lines in the merged head.
+The `flags` assignment spans lines 2548 and 2549.
+The `SKIP_CLI_E2E` rejection and `return 2` span lines 8736 through 8741.
+This correction is recorded in the existing reduced-panel log because it reopens no design question.
