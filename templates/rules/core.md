@@ -20,7 +20,7 @@ metadata:
 
 ## Task Completion Contract
 
-Execution can satisfy the request and keep going: a later optional refinement gets silently promoted into active work. This section makes verified completion terminal. Completion-Tail Audit below owns the response-side rule, stopping an unsolicited continuation prompt.
+Execution can satisfy the request and keep going: optional refinement becomes active work. It makes verified completion terminal. Completion-Tail Audit owns the response-side rule against unsolicited continuation prompts.
 
 ### Forming the contract
 
@@ -69,7 +69,7 @@ Clause 5 and Task Completion Contract own sovereignty and completion.
 
 ## Unattended Runs
 
-No human reads questions in scheduled, headless, or full-send runs. Never end on a question. Log ambiguity and choice, take the safest reversible path, continue. Force-push, hook skip, recursive delete, secrets, admin merge: human-only.
+In headless or full-send runs no human reads questions. Never end on a question. Log ambiguity and choice; take the safest reversible path and continue. Unless full-send, Ask First items halt only that branch. Force-push, hook skip, recursive delete, secrets, admin merge: human-only.
 
 ## Completion-Tail Audit
 

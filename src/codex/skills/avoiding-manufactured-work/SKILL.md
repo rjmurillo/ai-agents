@@ -55,7 +55,14 @@ The core rule, section `## Task Completion Contract`, owns the completion contra
 
 > Every post-satisfaction finding is one of four classes; classify it with the `avoiding-manufactured-work` skill's disposition procedure, not a second doctrine.
 
-This section is that procedure. It maps each class onto the keep/shrink/defer/delete dispositions above so a finding raised after the task is terminal gets one named outcome instead of a judgment call. Read the class definitions in `### Finding disposition`; this table adds only the outcome, so there is no second copy of the definitions to drift.
+This section is that procedure. It maps each class onto the keep/shrink/defer/delete dispositions above so a finding raised after the task is terminal gets one named outcome instead of a judgment call. Read the class definitions in `### Finding disposition` when a core rule file is installed. Where none is installed, use these definitions, repeated here because the Codex plugin ships no rules tree:
+
+- Blocker: evidence falsifies a frozen criterion or policy; keep the exact scope active.
+- Requested improvement: the frozen contract explicitly asks for it; keep the task active.
+- Optional enhancement: useful, but no criterion or consumer requires it; do not keep the task active.
+- Side quest: outside the requested objective; do not keep the task active.
+
+The outcome table adds only the outcome, so there is no second copy of the procedure to drift.
 
 | Class | Disposition |
 |---|---|

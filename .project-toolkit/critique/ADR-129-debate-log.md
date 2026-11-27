@@ -159,3 +159,22 @@ None for this debate. The preamble tiers need their own record, with a byte ceil
 - Critic check (author): The candidate scores cannot certify the shipped text. The scheduled rerun decides whether the cut stands.
 
 No paid eval was run for this amendment. The gap stays open until the rerun.
+
+## Amendment 2026-11-27: Unattended Runs status consistency
+
+**Trigger**: CodeRabbit review of PR 7730 found two inconsistent answers for Unattended Runs: the shipped `core` included it, while Trade-offs and Negative listed it among sections leaving the always-on set. The same review found that the shortened rule text dropped the Ask First branch halt.
+
+**Change**: ADR-129 now names Unattended Runs as a scoped exception with scope, reason, and reversal trigger. The unmeasured-section counts name the four sections that still leave the always-on set. The risk note keeps the security-adjacent classification and states that the branch halt remains in `core`. This amends the record's consistency, not the eval gate.
+
+**Reduced panel**:
+
+| Seat | Verdict | Evidence |
+|---|---|---|
+| architect | Accept | The exception has the same scope, reason, and reversal shape as the two exceptions already in the record. Decision item 1 now names all four sections in the shipped rule. |
+| critic | Accept with note | The exception is argument-backed, not measured. That is explicit in the record, and issue #7502 plus the review date bound the reversal. |
+
+**Dissent kept on record**: The critic note is the dissent. Unmeasured admission is a deliberate exception, not evidence of behavior lift.
+
+Amendment implementation note: the panel accepted the compressed wording after the byte-reserve check.
+
+Final byte-reserve check: reduced panel accepted the one-character compression.

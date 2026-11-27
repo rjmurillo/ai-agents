@@ -53,8 +53,10 @@ record names the loss.
 ### 1. The always-on set is `core` and `universal`
 
 `core` is a new rule that loads on every path, with `priority: critical`. It
-holds seven one-paragraph clauses and three sections: Task Completion Contract,
-Task Intent, and Completion-Tail Audit. Its Claude Code render is 6,876 bytes.
+holds seven one-paragraph clauses and four sections: Task Completion Contract,
+Task Intent, Unattended Runs, and Completion-Tail Audit. Its Claude Code render
+was 6,876 bytes at d3c2d82df9 (2026-11-26); admitting Unattended Runs and the
+Ask First branch halt raises the current render to 7,129 bytes.
 
 `universal` stays always-on and whole. One pointer line in it now names `core`,
 so its render grew from 8,879 to 8,886 bytes.
@@ -105,6 +107,20 @@ scored in any pool.
   `voice` and `builder-ethos` rules. The review date of this record is the
   deadline for that rerun.
 
+**Exception: Unattended Runs.** No eval pool scored the `## Unattended Runs`
+section. It stays in `core` because cutting it removes the only always-on halt
+for Ask First work in a headless run.
+
+- Scope: the `## Unattended Runs` section of `core`, and nothing else.
+- Reason: the section carries safety-adjacent continuity from the former
+  always-on `voice` rule. Without it, a scheduled or headless branch that hits
+  an architecture, ADR, breaking-change, or security decision can guess and
+  continue. That risk was not measured by any pool.
+- Reversal: the scenario work tracked by issue #7502 measures the section. If
+  it shows no lift over no rule on both models, or fails the gate lines above,
+  cut it or rewrite it. The review date of this record is the deadline for that
+  measurement.
+
 This evidence is exploratory. The core text changed after scored runs, and no
 held-out scenario set exists. The Negative section lists each limit.
 
@@ -127,7 +143,8 @@ scenario can leave the always-on set untested. This record accepts that
 asymmetry for the byte cut, and names each such section as an unmeasured loss.
 A scenario that shows a loss past the gate lines re-admits the section.
 
-Unmeasured text does not enter the always-on set on argument alone.
+Outside a named exception, unmeasured text does not enter the always-on set on
+argument alone.
 
 ### 3. `voice` and `builder-ethos` become skill-authoring sources
 
@@ -261,11 +278,12 @@ owner's local gateway, so the measurement needs no separate API account.
 
 The chosen shape trades depth on every request for bytes on every request.
 
-Five sections leave the always-on set unmeasured: Ownership, Boil the Lake,
-Search Before Building, Unattended Runs and the banned word list. The report
-names the first four as unexercised. No scenario file under
-`tests/evals/rule-scenarios/` mentions the banned word list. So the eval cannot
-show a loss or rule one out. Issue #7502 tracks the scenario gap.
+Four sections leave the always-on set unmeasured: Ownership, Boil the Lake,
+Search Before Building and the banned word list. The report names the first
+three as unexercised. No scenario file under `tests/evals/rule-scenarios/`
+mentions the banned word list. So the eval cannot show a loss or rule one out.
+Issue #7502 tracks the scenario gap. Unattended Runs stays in the always-on set
+by the named exception above.
 
 The loss has no end date in this record. A session that invokes no skill never
 loads those sections again. A skill session loads them only where a template
@@ -288,13 +306,14 @@ already includes the partial.
 
 ### Negative
 
-- Five sections leave the always-on set unmeasured, with no end date (see
+- Four sections leave the always-on set unmeasured, with no end date (see
   Trade-offs). Each tier 2 partial except `clear-the-gate` has one including
   template at d3c2d82df9 (2026-11-26), so most skill sessions lose them too.
-- Two of the five sections carry security-adjacent text. Unattended Runs says
-  an Ask First item halts only that branch of a headless run. Ownership says to
-  flag a secret seen in code. The Ask First list in `AGENTS.md` and the
-  no-secrets rules in `universal` and `core` still load on every request.
+- One of the four sections carries security-adjacent text: Ownership says to
+  flag a secret seen in code. Unattended Runs also carries security-adjacent
+  text, but it stays in `core` by the named exception above and keeps the Ask
+  First branch halt. The Ask First list in `AGENTS.md` and the no-secrets rules
+  in `universal` and `core` still load on every request.
 - Task Intent stays by exception, not by gate (item 2). On Sonnet 5.5 it also
   scored -0.14 against the old rules. That is inside the -0.20 margin, and it
   is a real cost.
