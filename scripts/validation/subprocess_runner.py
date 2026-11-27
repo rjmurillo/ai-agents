@@ -37,7 +37,7 @@ import sys
 import threading
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, cast
 
 from scripts.cli_exec import resolve_executable
 
@@ -116,7 +116,7 @@ def _windows_error(code: int, message: str) -> OSError:
     """Build an error carrying ``winerror`` where the platform exposes it."""
     win_error = getattr(ctypes, "WinError", None)
     if win_error is not None:
-        return win_error(code, message)
+        return cast(OSError, win_error(code, message))
     return OSError(code, message)
 
 
@@ -161,7 +161,7 @@ class _WindowsJob:
             )
             if not assigned:
                 error = _windows_error(_last_error(), "AssignProcessToJobObject failed")
-                error._ai_agents_job_assignment_failed = True  # type: ignore[attr-defined]
+                error.__dict__["_ai_agents_job_assignment_failed"] = True
                 raise error
         except BaseException:
             self.close()

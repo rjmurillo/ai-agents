@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import subprocess
 from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
 
@@ -262,7 +263,7 @@ class TestRunSubprocessWindowsJob:
             events.append("create")
             return 111
 
-        create_job.restype = None  # type: ignore[attr-defined]
+        cast(Any, create_job).restype = None
 
         def assign_job(_job: object, _process: object) -> int:
             events.append("assign")
@@ -280,7 +281,7 @@ class TestRunSubprocessWindowsJob:
             events.append("resume")
             return 0
 
-        resume_process.restype = None  # type: ignore[attr-defined]
+        cast(Any, resume_process).restype = None
 
         kernel32 = SimpleNamespace(
             CreateJobObjectW=create_job,
@@ -296,9 +297,10 @@ class TestRunSubprocessWindowsJob:
 
         monkeypatch.setattr(subprocess_runner.ctypes, "WinDLL", load_library, raising=False)
 
-        job = subprocess_runner._WindowsJob(SimpleNamespace(_handle=456))
+        fake_process = cast(subprocess.Popen[str], SimpleNamespace(_handle=456))
+        job = subprocess_runner._WindowsJob(fake_process)
         assert events == ["create", "assign"]
-        job.resume(SimpleNamespace(_handle=456))
+        job.resume(fake_process)
         job.terminate()
         job.close()
 
