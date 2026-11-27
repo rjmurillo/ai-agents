@@ -260,7 +260,7 @@ When a synthesis exceeds the cap, cut the weakest finding, not the strongest rec
 
 ## Completion Gate (Blocking)
 
-Task completion is governed by `.claude/rules/core.md` (Task Completion Contract): once every requested deliverable satisfies the frozen contract and no blocker remains, the task is terminal. The sequence below is the housekeeping that accompanies that terminal state, not a substitute test for it.
+Task completion is governed by the core rule (`core.md`, Task Completion Contract): once every requested deliverable satisfies the frozen contract and no blocker remains, the task is terminal. The sequence below is the housekeeping that accompanies that terminal state, not a substitute test for it.
 
 Session completion does not require a session log. Session log creation is
 discontinued; do not create one.
