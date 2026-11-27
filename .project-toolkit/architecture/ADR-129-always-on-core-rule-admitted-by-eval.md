@@ -89,6 +89,22 @@ shaped the set:
   the core. Six runs can reject a cut only at 6 of 6, so the sign rule has
   little power here. The mean margins carry the case.
 
+**Exception: measured candidate differs from shipped core.** The `voice` and
+`builder-ethos` eval pools measured the seven-clause candidate. The shipped
+`core` adds the Task Completion Contract, Task Intent, Completion-Tail Audit and
+Unattended Runs sections. Those sections were not part of the candidate the
+voice and builder-ethos pools scored, and the Unattended Runs section was not
+scored in any pool.
+
+- Scope: the cut of `voice` and `builder-ethos` from the always-on set, and
+  nothing else.
+- Reason: no paid rerun on the shipped `core` was run for this change. The
+  margins above are evidence about the candidate, not the shipped text.
+- Reversal: a rerun of the voice and builder-ethos pools on the shipped `core`
+  decides. If it fails any gate line above, revert to the prior always-on
+  `voice` and `builder-ethos` rules. The review date of this record is the
+  deadline for that rerun.
+
 This evidence is exploratory. The core text changed after scored runs, and no
 held-out scenario set exists. The Negative section lists each limit.
 

@@ -63,6 +63,12 @@ Clause 5 and Task Completion Contract own sovereignty and completion.
 
 ---
 
+## Unattended Runs
+
+No human reads questions in a scheduled, headless, or explicit full-send run. Never end such a run on a question. Record the ambiguity and the choice, take the safest reversible branch, and continue. Force-push, hook skip, recursive delete, secrets, and admin merge stay human-only.
+
+---
+
 ## Completion-Tail Audit
 
 > After reporting a completed requested result, remove any unsolicited offer, question, or invitation whose only function is to continue the interaction.

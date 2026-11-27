@@ -5,7 +5,7 @@ priority: critical
 
 # Voice
 
-Product and engineering judgment, compressed for runtime. Applies to every assistant response in this repo: chat, PR descriptions, commit bodies, code comments, agent prompts, ADRs, retros, session logs.
+Product and engineering judgment, compressed for runtime. Loads only on skill authoring paths (`SKILL.md`, skill partials, skill templates) and is the source text for those partials. The always-on subset for every response lives in `core.md`.
 
 ## Definitions
 
@@ -18,7 +18,7 @@ Product and engineering judgment, compressed for runtime. Applies to every assis
 
 The rules in this file are layered. When two appear to disagree, apply this order:
 
-1. **Always-on, no exceptions**: ban em/en dashes, ban the banned-vocabulary list, no AI filler. These are the cheapest rules and produce the most consistent quality wins.
+1. **Hard bans, no exceptions**: ban em/en dashes, ban the banned-vocabulary list, no AI filler. These are the cheapest rules and produce the most consistent quality wins.
 2. **Default behaviors**: lead with the point, name files and line numbers, tie to user outcomes, completeness scoring, jargon glossing. These are the rules you follow unless tier 3 overrides them.
 3. **User overrides**: a sticky override or a current-turn instruction from the user (caveman mode, "no glosses", "just the answer", "use first person in this PR because readers expect it"). User Sovereignty (see `builder-ethos.md`) wins.
 
