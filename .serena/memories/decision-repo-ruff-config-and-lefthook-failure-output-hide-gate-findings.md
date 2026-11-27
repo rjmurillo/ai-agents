@@ -26,7 +26,7 @@ Both claims were false in fixtures. The repo ruff config (per-file-ignores and e
 
 ## Decision
 
-A gate that wraps a linter must pass --isolated, and its tests need one fixture per config path that could hide a finding. Do not put a warning on stdout of a passing job under failure only output.
+For the unused-argument gate, pass `--isolated` to Ruff and keep one fixture per config path that could hide a finding. The fixtures cover that one Ruff wrapper, not every linter wrapper. Under failure only Lefthook output, a warning on the stdout of a passing job does not appear.
 
 ## Related
 

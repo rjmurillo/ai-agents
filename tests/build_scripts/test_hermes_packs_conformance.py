@@ -192,6 +192,7 @@ def test_the_real_tree_has_no_dash_characters() -> None:
         "project-toolkit-knowledge/plugin.json",
         "project-toolkit-quality/plugin.json",
         "project-toolkit-authoring/plugin.json",
+        "project-toolkit-azure-devops/plugin.json",
     ):
         text = (out / name).read_text(encoding="utf-8")
         assert EM_DASH not in text and EN_DASH not in text, name

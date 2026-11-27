@@ -27,7 +27,7 @@ RENDERED = REPO_ROOT / ".claude" / "settings.json"
 TEMPLATE = REPO_ROOT / "templates" / "hooks" / "settings.tmpl"
 
 KEY = "bashOutputMaxChars"
-CHOSEN = 15000
+CHOSEN = 4000
 DOC_MIN = 4000
 DOC_MAX = 128000
 DOC_DEFAULT = 30000

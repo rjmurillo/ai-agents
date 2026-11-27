@@ -1,4 +1,4 @@
-# Ship eval scenarios passed on model priors because the evaluated text never held the judgment
+# Ship eval scenarios passed while the evaluated text held none of the judgment terms
 
 **Atomicity**: 90%
 **Category**: Eval design, skill rewrites
@@ -14,7 +14,7 @@ The eval README said the base ship text already led the model to the push-pr ans
 
 ## First-principles position
 
-Scenarios P2 and P3 passed 3 of 3 on model priors alone. The base ship text never held the terms the scenarios need, so the pass showed nothing about retained judgment. Expected answers also sat mostly in the first option position.
+Scenarios P2 and P3 passed 3 of 3 while the base ship text held none of the terms the scenarios need. So the pass did not show retained judgment. The run did not isolate the cause: model priors are one reading. A keyword count cannot rule out paraphrased guidance, and the expected answers sat mostly in the first option position, which is another explanation.
 
 ## Evidence with limits
 

@@ -100,7 +100,7 @@ now the binplaced dogfood copy, not a separately marketplace-listed root):
 | `src/claude/.claude-plugin/plugin.json` | `project-toolkit` | canonical Claude Code manifest, compiled from templates; the sole Claude Code plugin root the marketplace lists |
 | `src/copilot-cli/.claude-plugin/plugin.json` | `project-toolkit` | generated Copilot CLI mirror of the same plugin |
 
-Other hosts ship their own manifests, outside this contract: `src/codex/plugin.json`, `src/cursor/.cursor-plugin/plugin.json`, and `src/hermes/project-toolkit-delivery/plugin.json`, `src/hermes/project-toolkit-knowledge/plugin.json`, `src/hermes/project-toolkit-quality/plugin.json`, and `src/hermes/project-toolkit-authoring/plugin.json`.
+Other hosts ship their own manifests, outside this contract: `src/codex/plugin.json`, `src/cursor/.cursor-plugin/plugin.json`, and `src/hermes/project-toolkit-delivery/plugin.json`, `src/hermes/project-toolkit-knowledge/plugin.json`, `src/hermes/project-toolkit-quality/plugin.json`, `src/hermes/project-toolkit-authoring/plugin.json`, and `src/hermes/project-toolkit-azure-devops/plugin.json`.
 
 No manifest may carry a `version` field, and neither may a marketplace entry.
 With the field absent, Claude Code resolves freshness from the git commit SHA,

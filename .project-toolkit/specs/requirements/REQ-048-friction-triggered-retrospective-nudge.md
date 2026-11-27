@@ -67,7 +67,7 @@ Two branches had each defined "a failing call retried". This spec now holds one 
 - **Consumer B, Stop nudge.** `invoke_reflect_nudge.py` sends transcript events to the classifier and prints the retrospective advisory, as before.
 - **Consumer C, cross-session facts.** This is deferred. It needs its own ADR-084 decision.
 
-Consumer A registers no hook. ADR-084 defines a vendored hook by its registration, not its directory (rule 5, `ADR-084-vendored-hook-roi-bar.md:203`), so rule 2a does not bind consumer A. A hook trigger for it would be a per-call event, which must clear rule 6's additional bar and needs its own decision.
+Consumer A registers no hook. ADR-084 defines a vendored hook by its registration, not its directory (rule 5, `ADR-084-vendored-hook-roi-bar.md:263`), so rule 2a does not bind consumer A. A hook trigger for it would be a per-call event, which must clear rule 6's additional bar and needs its own decision.
 
 The Step 0 answers above are the original wedge and stay verbatim. The deltas are:
 
@@ -468,7 +468,9 @@ No source ends an edit cycle on any non-edit event. AC-40 combines a caller-mark
 
 ## ADR cross-reference
 
-Requires ADR-084 rule 2a (proposed 2026-10-31 on branch `docs/adr-084-retro-nudge-amendment`, debate log `ADR-084-debate-log-2.md`). Rule 2a conditions map as follows: a to AC-05 and AC-06; b to AC-15 and AC-24; c to AC-07; d to AC-25; launcher path for a, e, and f to AC-26 to AC-28; e to AC-22; f to AC-07 and AC-17; g to AC-09, AC-11 to AC-13, AC-18, AC-20, and AC-23. The amendment blocks AC-16 to AC-18, AC-21, and AC-25 to AC-28 only. AC-01 to AC-15, AC-19, AC-20, AC-22 to AC-24, AC-29 to AC-32, AC-36 to AC-38, and AC-40 can land dogfood-first under the existing authorization. Consumer A (AC-33 to AC-35 and AC-39) ships in the plugin, reusing AC-40, which lands with TASK-002 wherever TASK-002 lands, when #7035 merges, because `src/claude/skills/` is plugin source. It sits outside rule 2a, because it registers no hook. ADR-084 defines a vendored hook by its registration (`ADR-084-vendored-hook-roi-bar.md:203`).
+Requires ADR-084 rule 2a (proposed 2026-10-31 on branch `docs/adr-084-retro-nudge-amendment`, debate log `ADR-084-debate-log-2.md`). Rule 2a conditions map as follows: a to AC-05 and AC-06; b to AC-15 and AC-24; c to AC-07; d to AC-25; launcher path for a, e, and f to AC-26 to AC-28; e to AC-22; f to AC-07 and AC-17; g to AC-09, AC-11 to AC-13, AC-18, AC-20, and AC-23. The amendment blocks AC-16 to AC-18, AC-21, and AC-25 to AC-28 only. AC-01 to AC-15, AC-19, AC-20, AC-22 to AC-24, AC-29 to AC-32, AC-36 to AC-38, and AC-40 can land dogfood-first under the existing authorization. Consumer A (AC-33 to AC-35 and AC-39) ships in the plugin, reusing AC-40, which lands with TASK-002 wherever TASK-002 lands, when #7035 merges, because `src/claude/skills/` is plugin source. It sits outside rule 2a, because it registers no hook.
+
+ADR-084 defines a vendored hook by its registration (`ADR-084-vendored-hook-roi-bar.md:263`).
 
 ## Tasks (sequenced)
 

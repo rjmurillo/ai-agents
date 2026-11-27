@@ -23,9 +23,6 @@ routes first, then creates only when no existing skill covers the need.
 SkillForge: create a skill for automated code review
   -> Creates a new skill after checking for duplicates
 
-help me debug this TypeError
-  -> Recommends an existing debugging skill
-
 improve the testgen skill to handle React components better
   -> Loads the skill and enters improvement mode
 
@@ -48,7 +45,6 @@ flow and script examples.
 - `create skill`: natural language activation
 - `design skill for {purpose}`: purpose-first creation
 - `ultimate skill`: maximum quality creation path
-- `SkillForge --plan-only`: generate specification without execution
 
 ### Routing Triggers
 
@@ -216,17 +212,23 @@ and [references/specification-template.md](references/specification-template.md)
 
 ## Phase 3: Generation
 
-Generate the skill directory in this order: structure, `SKILL.md`, references,
-assets, then any scripts and docs page. Keep `SKILL.md` concise; move deep detail into
-reference files. Choose map, GPS, or
-hybrid design with the Design Selection section of the script integration
-framework. Record that choice in the generated skill only where it changes the
-workflow. Reuse an existing tool before adding a script.
-
 Read [references/skill-content-rules.md](references/skill-content-rules.md)
-before you write or review a `SKILL.md` body or `description`, and for
-per-host native tool names. It owns the
-content rules and the description rules that `skillify` and `skillopt` cite.
+before writing or reviewing `SKILL.md`. It owns content, description, and
+native tool rules. Create the directory structure, then draft `SKILL.md`.
+
+### Placement Check
+
+For a new skill or an edit that adds or moves standing knowledge, run
+`context-optimizer` placement analysis on the whole `SKILL.md` draft before
+moving detail to `references/`. Weigh planned or existing script actions,
+then follow a Passive Context or Hybrid result. Mechanics-only edits
+(scripts, tests, wording) skip the check.
+
+After the check, keep `SKILL.md` concise. Write references, assets, scripts,
+and the docs page in that order. Choose map, GPS, or hybrid design with the
+Design Selection section of the script integration framework. Record that choice
+in the generated skill only where it changes the workflow. Reuse an existing
+tool before adding a script.
 
 See [references/phase3-generation-deep-dive.md](references/phase3-generation-deep-dive.md),
 [references/output-structure.md](references/output-structure.md),
@@ -362,10 +364,6 @@ Entry scripts: `init_skill.py`, `triage_skill_request.py`, `discover_skills.py`,
 | [Changelog](references/changelog.md) | You check version history |
 
 ---
-
-## Related Skills
-
-skill-composer (orchestrate created skills), claude-authoring-guide (deeper patterns), codereview (multi-agent panel pattern), maker-framework (zero-error standard).
 
 ## Extension Points
 
