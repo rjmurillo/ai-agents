@@ -9,12 +9,16 @@ Writes:
   - ``stats.sessions_analyzed``: the number of scored sessions
   - ``sampling.per_harness.<harness>.overall``: each harness scored on its own records;
     a harness with no scored session loses any ``overall`` the draft carried
+  - ``sampling.per_thread.<thread>.overall``: the same per session type (top_level or
+    subagent), written only when the scored records carry a ``thread``
   - ``audit``: ``scores`` (the artifact), ``records`` (the scored sessions), and
     ``catalog`` from the audit manifest when one is given
 
 ``grade`` is dropped so the renderer derives it from the new ``overall``. Each
 harness's ``sampling.per_harness.<harness>.sampled`` count must equal its scored
 count, so a partly imported batch review cannot be graded as complete.
+A supplied ``sampling.per_thread.<thread>.sampled`` must equal that type's scored count;
+one left out is filled from it.
 
 Exit codes: 0 written, 1 invalid or inconsistent input (nothing written),
 2 bad arguments or an unreadable file. python3, stdlib only.
@@ -93,7 +97,23 @@ def _coverage_errors(draft: Mapping[str, Any], artifact: Mapping[str, Any]) -> l
                 f"harness {name!r}: {scored.get(name, 0)} of {sampled} sampled sessions are "
                 "scored; score every sampled session before assembling"
             )
-    return errors
+    return errors + _thread_count_errors(sampling, artifact)
+
+
+def _thread_count_errors(sampling: Mapping[str, Any], artifact: Mapping[str, Any]) -> list[str]:
+    """A supplied per-type sampled count must equal the type's scored count."""
+    per_thread = sampling.get("per_thread")
+    scored = {name: s["sessions_scored"] for name, s in artifact.get("per_thread", {}).items()}
+    if not isinstance(per_thread, dict) or not scored:
+        return []
+    return [
+        f"session type {name!r}: {scored.get(name, 0)} of {entry['sampled']} sampled sessions "
+        "are scored; score every sampled session before assembling"
+        for name, entry in sorted(per_thread.items())
+        if isinstance(entry, dict)
+        and _is_count(entry.get("sampled"))
+        and entry["sampled"] != scored.get(name, 0)
+    ]
 
 
 def _set_harness_overall(report: dict[str, Any], artifact: Mapping[str, Any]) -> None:
@@ -104,6 +124,22 @@ def _set_harness_overall(report: dict[str, Any], artifact: Mapping[str, Any]) ->
             entry.pop("overall", None)
     for harness, summary in artifact["per_harness"].items():
         per_harness.setdefault(harness, {})["overall"] = summary["overall"]
+
+
+def _set_thread_overall(report: dict[str, Any], artifact: Mapping[str, Any]) -> None:
+    """Write ``sampling.per_thread.<thread>.overall``; no-op when records carry no thread."""
+    if "per_thread" not in artifact:
+        return
+    per_thread = report.setdefault("sampling", {}).setdefault("per_thread", {})
+    for thread, entry in per_thread.items():
+        if thread not in artifact["per_thread"] and isinstance(entry, dict):
+            entry.pop("overall", None)
+    for thread, summary in artifact["per_thread"].items():
+        entry = per_thread.setdefault(thread, {})
+        entry["overall"] = summary["overall"]
+        if not _is_count(entry.get("sampled")):
+            # Coverage already proved every sampled session is scored, so the counts match.
+            entry["sampled"] = summary["sessions_scored"]
 
 
 def assemble(
@@ -127,6 +163,7 @@ def assemble(
     report["scores"]["overall"] = rebuilt["overall"]
     report.setdefault("stats", {})["sessions_analyzed"] = rebuilt["sessions_scored"]
     _set_harness_overall(report, rebuilt)
+    _set_thread_overall(report, rebuilt)
     audit: dict[str, Any] = {"scores": rebuilt, "records": list(_sessions_of(scores))}
     if manifest is not None:
         audit["catalog"] = _catalog_of(manifest)
