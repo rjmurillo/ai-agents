@@ -78,20 +78,24 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _usage_error(message: str, fmt: str) -> None:
+    """Report a usage error (exit 2, InvalidParams) before auth or any gh call."""
+    write_skill_error(
+        message,
+        2,
+        error_type="InvalidParams",
+        output_format=fmt,
+        script_name="get_issue_context.py",
+    )
+    raise SystemExit(2)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     fmt = get_output_format(args.output_format)
     if args.issue <= 0:
-        # gh reads a negative number as a flag, so this is a usage error (exit 2),
-        # caught before auth or any gh call.
-        write_skill_error(
-            "--issue must be a positive integer",
-            2,
-            error_type="InvalidParams",
-            output_format=fmt,
-            script_name="get_issue_context.py",
-        )
-        raise SystemExit(2)
+        # gh reads a negative number as a flag, so reject it here.
+        _usage_error("--issue must be a positive integer", fmt)
 
     assert_gh_authenticated()
     resolved = resolve_repo_params(args.owner, args.repo)
