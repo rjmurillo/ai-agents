@@ -188,7 +188,7 @@ def fetch_ruleset_required_contexts(
     repos that use rulesets instead of branch protection).
 
     Returns a sorted list of context strings, or None if the API call fails,
-    times out, or ``gh`` cannot be started
+    times out, ``gh`` cannot be started, or the branch path is unsafe
     (callers should treat None as unknown rather than empty). Refs issue #4359.
     """
     rules = fetch_branch_rules(owner, repo, branch)

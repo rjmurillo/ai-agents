@@ -8,9 +8,9 @@ Cross-references the base branch ruleset against the PR's actual status check
 rollup and unresolved review threads to produce a discriminated cause list:
 MISSING checks, FAILING checks, unresolved threads, and a review requesting
 changes. A CHANGES_REQUESTED review decision counts only when the base branch
-has a ruleset rule of type pull_request, because GitHub reports the decision
-even when the base branch enforces no review rule. Classic branch protection
-is not visible to the rules endpoint, so it is not read.
+has a ruleset rule of type pull_request. That is this script's policy: it
+does not assert what GitHub enforces without such a rule. Classic branch
+protection is not visible to the rules endpoint, so it is not read.
 
 When nothing is missing, nothing is failing, no thread is unresolved, and no
 enforced review requests changes, the script says so explicitly, because that
@@ -516,8 +516,8 @@ def diagnose(
     Refs issue #6389.
 
     ``ChangesRequestedBlocking`` is True only when the review decision is
-    ``CHANGES_REQUESTED`` and ``pull_request_rule`` is True. The decision is
-    set even when the base branch enforces no review rule, so None (unknown)
+    ``CHANGES_REQUESTED`` and ``pull_request_rule`` is True. The decision
+    alone proves no enforced review rule, so by policy None (unknown)
     and False never count it. ``ChangesRequestedBlocking`` is therefore False
     both when no ``pull_request`` rule exists and when the rules were not read.
     ``RulesetContextsAvailable`` tells the two apart: False means the rules were
