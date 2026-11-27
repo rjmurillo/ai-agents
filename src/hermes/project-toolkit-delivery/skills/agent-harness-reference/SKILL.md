@@ -1,6 +1,6 @@
 ---
 name: agent-harness-reference
-description: Field reference for Claude Code and GitHub Copilot CLI hook contracts. Covers hook locations, events, matchers, payloads, decisions, exit codes, timeouts, plugin roots, and cloud limits with official URLs and versioned probes. Use for `harness contract`, `copilot cli hook behavior`, `hook payload format`, `stale plugin root`, `Errno 2 _dispatch.py`, or before changing cross-harness hooks. Do NOT use to run the porting campaign (in the ai-agents repository, use `ai-agents-portability-campaign`).
+description: "Field reference for Claude Code and Copilot CLI hook contracts: events, matchers, payloads, exit codes, timeouts, plugin roots. Use for `harness contract`, `copilot cli hook behavior`, `stale plugin root`, `Errno 2 _dispatch.py`, or before changing cross-harness hooks. Do NOT use to run the porting campaign (use `ai-agents-portability-campaign`)."
 version: 1.1.0
 license: Apache-2.0
 ---
