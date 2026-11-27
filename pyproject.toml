@@ -7,7 +7,7 @@ requires-python = ">=3.14"
 license = {text = "Apache-2.0"}
 
 dependencies = [
-    "anthropic==2.11.0",
+    "anthropic==2.12.0",
     "jsonschema>=4.25.1",
     "markdown-it-py>=4.2.0",
     "python-frontmatter==1.3.0",
@@ -297,7 +297,7 @@ max-complexity = 15
 # landed (2026-11-01, 217 functions in 189 files). The generated skill and hook
 # trees waived above (src/copilot-cli/hooks and skills, src/hermes, src/cursor/skills,
 # src/codex/skills, src/muse/skills) are not listed. The 10 generated lib copies
-# under src/{codex,cursor,muse,copilot-cli}/lib are listed, so the table lists 80 files. It holds
+# under src/{codex,cursor,muse,copilot-cli}/lib are listed, so the table lists 79 files. It holds
 # only the baseline, which may only shrink: split the function, then delete the file's line.
 # tests/test_strict_baselines.py fails when a listed file no longer exists or
 # no longer has a C901 violation.
@@ -351,7 +351,6 @@ max-complexity = 15
 "src/claude/skills/github/scripts/issue/set_issue_milestone.py" = ["C901"]
 "src/claude/skills/github/scripts/pr/detect_copilot_followup_pr.py" = ["C901"]
 "src/claude/skills/github/scripts/pr/get_pr_comments_by_reviewer.py" = ["C901"]
-"src/claude/skills/github/scripts/pr/get_pr_review_comments.py" = ["C901"]
 "src/claude/skills/github/scripts/pr/get_unaddressed_comments.py" = ["C901"]
 "src/claude/skills/github/scripts/pr/pr_validations.py" = ["C901"]
 "src/claude/skills/github/scripts/pr/run_completion_gate.py" = ["C901"]

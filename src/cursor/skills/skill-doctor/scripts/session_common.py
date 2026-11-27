@@ -424,11 +424,22 @@ def render_transcript(meta: Any, stats: Any, skills_used: Any, entries: Any) -> 
     return "\n".join(lines)
 
 
+THREAD_TOP_LEVEL = "top_level"
+THREAD_SUBAGENT = "subagent"
+THREADS = (THREAD_TOP_LEVEL, THREAD_SUBAGENT)
+
+
+def session_thread(meta: Any) -> str:
+    """The one place that labels a session: subagent only when the parser tagged it."""
+    return THREAD_SUBAGENT if meta.get("thread_source") == "subagent" else THREAD_TOP_LEVEL
+
+
 def session_record(harness: str, parsed: Any, file: str, modified_at: str) -> dict[str, Any]:
     """Build the collector's per-session record from a parser result."""
     meta, stats, entries, skills_used = parsed
     return {
         "harness": harness,
+        "thread": session_thread(meta),
         "meta": meta,
         "stats": stats,
         "skills_used": skills_used,
