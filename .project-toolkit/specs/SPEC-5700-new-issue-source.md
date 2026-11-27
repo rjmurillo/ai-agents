@@ -120,7 +120,7 @@ The script is not a repository-wide admission gate. Direct creation paths on
 `main` that bypass it, left unchanged by this issue: `scripts/ci/drift_create_alert_issue.py`
 (drift-detection workflow), `scripts/ci/main_pytest_failure_alert.py` (REST
 issues endpoint), `.claude/skills/quality-grades/scripts/check_grade_changes.py`,
-`.github/workflows/ai-metrics-analysis.yml` (inline `gh issue create`), and the
+`.github/workflows/ai-metrics-analysis.yml` (inline `gh issue create`; deleted 2026-11-25), and the
 GitHub MCP `issue_write` tool. Each is excluded, not wrapped: they file on
 deterministic CI signals, and the repo-side labeler (parent AC-3) is the
 owner-pending control for every door.
