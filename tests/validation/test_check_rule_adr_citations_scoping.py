@@ -108,6 +108,17 @@ def test_an_indented_last_line_does_not_close_a_column_zero_fence() -> None:
     assert gate.unterminated_fence_line("intro\n\n```text\nopen\n   ```") == 3
 
 
+def test_an_indented_inline_triple_backtick_span_is_not_a_fence() -> None:
+    """Negative control: an info string with a backtick does not open an indented fence."""
+    text = "- item\n   ```a``` inline\n\nAuthors MUST comply with ADR-080.\n"
+    assert gate.unterminated_fence_line(text) is None
+    assert _found(text) == [(80, BINDING, 4)]
+
+
+def test_an_indented_four_backtick_fence_is_code() -> None:
+    assert _found("1. x\n\n   ````text\n   ADR-999\n   ````\n") == []
+
+
 def test_an_indented_fence_closes_at_a_shallower_indent() -> None:
     text = "   ```text\n   ADR-999\n```\n\nAuthors MUST comply with ADR-080.\n"
     assert _found(text) == [(80, BINDING, 5)]

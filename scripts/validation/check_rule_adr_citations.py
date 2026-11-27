@@ -212,9 +212,11 @@ _MENTION_RE = re.compile(r"(?<![/\w-])ADR-(\d{1,4})\b(?![-\w]*\.md)")
 #: column (`1. ` adds three spaces, a nested item more), so the open and close lines
 #: allow leading blanks. A line with other text before the backticks is not a fence.
 #: A fence that opens at column zero closes at column zero only, so an indented
-#: marker inside it stays code. An indented fence closes at any indent.
+#: marker inside it stays code. An indented fence closes at any indent. An indented
+#: opener takes no backtick in its info string, so an indented line that starts with
+#: an inline triple-backtick span stays prose.
 _FENCE_RE = re.compile(
-    r"^(?P<indent>[ \t]+)?(?P<mark>```|~~~)[^\n]*\n"
+    r"^(?P<indent>[ \t]+)?(?P<mark>```|~~~)(?(indent)`*[^`\n]*|[^\n]*)\n"
     r".*?(?:^(?(indent)[ \t]*|)(?P<close>(?P=mark))[^\n]*$|\Z)",
     re.DOTALL | re.MULTILINE,
 )

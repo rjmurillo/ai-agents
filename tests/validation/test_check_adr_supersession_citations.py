@@ -202,6 +202,7 @@ def test_record_cited_in_its_own_supersedes_list_is_history() -> None:
         "ADR-002 governs X. ADR-078 governs Y. ADR-111 governs Z.\n",
         "Run `ADR-080 governs` in a code span.\n",
         "```text\nADR-080 governs model pins.\n```\n",
+        "1. Example:\n\n   ```text\n   ADR-080 governs model pins.\n   ```\n",
         "<!-- ADR-080 governs model pins. -->\n",
         "See ADR-080-model-pin-justification-policy.md:12 which governs pins.\n",
         "---\nstatus: accepted\nnote: ADR-080 governs\n---\nBody.\n",
@@ -362,6 +363,17 @@ def test_cli_fails_on_an_unterminated_fence(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     repo = _repo(tmp_path, "```text\nADR-080 governs model pins.\n")
+    assert (
+        main(["--repo-root", str(repo), "--baseline", str(_baseline(tmp_path, []))])
+        == EXIT_REGRESSION
+    )
+    assert "code fence is never closed" in capsys.readouterr().err
+
+
+def test_cli_fails_on_an_unterminated_indented_fence(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = _repo(tmp_path, "1. Example:\n\n   ```text\n   ADR-080 governs model pins.\n")
     assert (
         main(["--repo-root", str(repo), "--baseline", str(_baseline(tmp_path, []))])
         == EXIT_REGRESSION
