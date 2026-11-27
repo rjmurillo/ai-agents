@@ -48,8 +48,11 @@ REASONS = frozenset(
         "auth-failed",
         "pr-author-unknown",
         "unsafe-checkout",
+        "base-mismatch",
     }
 )
+# number, URL, author, draft, target branch; number None means no open PR.
+PrQuery = tuple[int | None, str, str, bool | None, str]
 _NO_PR_SIGNAL = "no pull requests found"
 # Phrases a CLI prints for an auth failure. Bare words such as "authentication"
 # also appear in echoed branch names and titles, so they are not signals.
@@ -128,21 +131,27 @@ def protected_branches(base: str, origin_default: str) -> frozenset[str]:
     return PROTECTED_BRANCHES | {base, origin_default}
 
 
-def _github_pr(root: Path) -> tuple[int | None, str, str, bool | None] | Halt:
-    done = common.run(["gh", "pr", "view", "--json", "number,author,state,url,isDraft"], cwd=root)
+_NO_OPEN_PR: PrQuery = (None, "", "", None, "")
+
+
+def _github_pr(root: Path) -> PrQuery | Halt:
+    fields = "number,author,state,url,isDraft,baseRefName"
+    done = common.run(["gh", "pr", "view", "--json", fields], cwd=root)
     if done.returncode != 0:
         if _NO_PR_SIGNAL in done.stderr.lower():
-            return (None, "", "", None)
+            return _NO_OPEN_PR
         return query_halt("pr-query-failed", done)
     data = common.parse_json(done.stdout)
     if not isinstance(data, dict) or not isinstance(data.get("number"), int):
         return Halt("pr-query-failed", common.EXIT_EXTERNAL, "gh returned no PR number")
     if data.get("state") != "OPEN":
-        return (None, "", "", None)
+        return _NO_OPEN_PR
     raw_author = data.get("author")
     author = raw_author if isinstance(raw_author, dict) else {}
     draft = data.get("isDraft") if isinstance(data.get("isDraft"), bool) else None
-    return (data["number"], str(data.get("url", "")), str(author.get("login") or ""), draft)
+    login = str(author.get("login") or "")
+    target = str(data.get("baseRefName") or "")
+    return (data["number"], str(data.get("url", "")), login, draft, target)
 
 
 def _github_user(root: Path, host_name: str) -> str | Halt:
@@ -155,7 +164,7 @@ def _github_user(root: Path, host_name: str) -> str | Halt:
     return login
 
 
-def _ado_pr(root: Path, branch: str) -> tuple[int | None, str, str, bool | None] | Halt:
+def _ado_pr(root: Path, branch: str) -> PrQuery | Halt:
     done = common.run(
         [
             "az",
@@ -177,7 +186,7 @@ def _ado_pr(root: Path, branch: str) -> tuple[int | None, str, str, bool | None]
     if not isinstance(data, list):
         return Halt("pr-query-failed", common.EXIT_EXTERNAL, "az returned no PR list")
     if not data:
-        return (None, "", "", None)
+        return _NO_OPEN_PR
     first = data[0] if isinstance(data[0], dict) else {}
     pr_id = first.get("pullRequestId")
     if not isinstance(pr_id, int):
@@ -189,7 +198,9 @@ def _ado_pr(root: Path, branch: str) -> tuple[int | None, str, str, bool | None]
     raw_created_by = first.get("createdBy")
     created_by = raw_created_by if isinstance(raw_created_by, dict) else {}
     draft = first.get("isDraft") if isinstance(first.get("isDraft"), bool) else None
-    return (pr_id, url, str(created_by.get("uniqueName") or ""), draft)
+    target = str(first.get("targetRefName") or "")
+    target = target[len("refs/heads/") :] if target.startswith("refs/heads/") else ""
+    return (pr_id, url, str(created_by.get("uniqueName") or ""), draft, target)
 
 
 def _ado_user(root: Path) -> str | Halt:
@@ -281,10 +292,18 @@ def detect(cwd: Path | None = None, base: str | None = None) -> Context | Halt:
     pr_query = _github_pr(root) if host == "github" else _ado_pr(root, branch)
     if isinstance(pr_query, Halt):
         return pr_query
-    pr, pr_url, author, pr_draft = pr_query
+    pr, pr_url, author, pr_draft, pr_target = pr_query
     mode = _mode(root, host, pr, author, host_name)
     if isinstance(mode, Halt):
         return mode
+    if pr is not None:
+        # An open PR fixes the base: its diff is against its own target branch.
+        if not pr_target or not common.safe_ref(pr_target):
+            return Halt("pr-query-failed", common.EXIT_EXTERNAL, f"PR {pr} has no target branch")
+        if base is not None and base != pr_target:
+            detail = f"--base {base} is not the target of open PR {pr}, {pr_target}"
+            return Halt("base-mismatch", common.EXIT_CONFIG, detail)
+        target = pr_target
     # The same set publish refuses, so the refusal comes in phase 1.
     if mode == "owner" and pr is None and branch in protected_branches(target, origin_default):
         return Halt("on-base-branch", common.EXIT_LOGIC, f"on {branch}; create a feature branch")

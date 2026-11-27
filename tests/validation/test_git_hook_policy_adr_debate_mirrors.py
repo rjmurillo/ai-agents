@@ -28,6 +28,7 @@ _ROOT = Path(__file__).resolve().parents[2]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
+from scripts.validation import adr_debate_evidence
 from scripts.validation import git_hook_policy as policy
 
 _DEBATE_LOG_TEMPLATE_DOC = (
@@ -140,7 +141,7 @@ def test_the_unfilled_canonical_template_does_not_pass() -> None:
 _ADR_REVIEW_SKILL = _ROOT / ".claude" / "skills" / "adr-review" / "SKILL.md"
 
 
-_GATE_MODULE = _ROOT / "scripts" / "validation" / "git_hook_policy.py"
+_GATE_MODULE = _ROOT / "scripts" / "validation" / "adr_debate_evidence.py"
 
 
 # The literal indent the roster table is quoted under above DEBATE_LOG_ROLES.
@@ -450,3 +451,26 @@ def test_an_escape_before_a_letter_is_not_stripped() -> None:
     """
     assert "\\n" in policy._normalized_for_placeholders("a\\nb")
     assert "\\" not in policy._normalized_for_placeholders("a\\]b")
+
+
+def test_policy_reexports_debate_evidence() -> None:
+    for name in (
+        "DEBATE_LOG_DECISION_RE",
+        "DEBATE_LOG_HEADING_RE",
+        "DEBATE_LOG_MIN_BYTES",
+        "DEBATE_LOG_MIN_SECTIONS",
+        "DEBATE_LOG_PLACEHOLDER_ESCAPE_RE",
+        "DEBATE_LOG_PLACEHOLDER_FORMAT_CATEGORY",
+        "DEBATE_LOG_PLACEHOLDER_PUNCTUATION_RE",
+        "DEBATE_LOG_PLACEHOLDER_SPACING_RE",
+        "DEBATE_LOG_REVIEWER_RE",
+        "DEBATE_LOG_ROLES",
+        "DEBATE_LOG_TEMPLATE_PLACEHOLDERS",
+        "DEBATE_LOG_VERDICT_LABEL_RE",
+        "DEBATE_LOG_VERDICT_WINDOW_LINES",
+        "_evidence_byte_count",
+        "_has_verdict",
+        "_normalized_for_placeholders",
+        "debate_log_evidence_gap",
+    ):
+        assert getattr(policy, name) is getattr(adr_debate_evidence, name), name
