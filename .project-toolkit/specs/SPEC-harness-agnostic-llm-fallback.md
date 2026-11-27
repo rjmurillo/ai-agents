@@ -291,7 +291,7 @@ Logging never prints a key, a key prefix, or a key length. It prints only `prese
 Migration: one consumer, one workflow, and nothing sets these in CI today.
 So the change is additive. A local setup with only `ANTHROPIC_API_KEY` set
 auto-detects the `anthropic` transport and keeps working. An old `LLM_FALLBACK_MODEL` value still passes through.
-The plan to turn the fallback on in CI was to map the existing `agent-claude` secret `ANTHROPIC_API_KEY` into the step at `update-reviewer-stats.yml:77`, with no new secret and no `LLM_FALLBACK_PROVIDER` line. That workflow was deleted on 2026-11-25, so the mapping has no target until the owner picks a new runtime.
+The plan to turn the fallback on in CI was to map the existing `agent-claude` secret `ANTHROPIC_API_KEY` into the `Run statistics aggregation` step of `update-reviewer-stats.yml`, with no new secret and no `LLM_FALLBACK_PROVIDER` line. That workflow was deleted on 2026-11-25, so the mapping has no target until the owner picks a new runtime.
 
 ## Cost and latency per call
 
