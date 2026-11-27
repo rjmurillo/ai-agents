@@ -38,7 +38,7 @@ T3_REQUIRED = {
 }
 T3_QUERY = (
     "SELECT message_id, thread_id, role, created_at, payload_json "
-    f"FROM {T3_MESSAGES} ORDER BY thread_id, created_at"
+    "FROM orchestration_v2_projection_messages ORDER BY thread_id, created_at"
 )
 GEMINI_ROLES = {"PLANNER_RESPONSE": "assistant", "USER_INPUT": "user"}
 GEMINI_LOG = ".system_generated/logs/transcript_full.jsonl"
@@ -114,7 +114,9 @@ def collect_t3(collection: Any, home: Path, cutoff: datetime) -> bool:
         if not t3_schema_matches(connection):
             record_collection_issue("schema_mismatch")
             return True
-        titles = dict(connection.execute(f"SELECT thread_id, title FROM {T3_THREADS}"))
+        titles = dict(
+            connection.execute("SELECT thread_id, title FROM orchestration_v2_projection_threads")
+        )
         grouped = itertools.groupby(connection.execute(T3_QUERY), key=lambda row: row[1])
         for thread_id, rows in grouped:
             parsed = parse_t3_thread(thread_id, titles.get(thread_id), list(rows), cutoff)
