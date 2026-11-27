@@ -48,7 +48,9 @@ jobs:
     runs-on: ubuntu-26.04-arm
     environment: agent-claude
     needs: check-paths
-    if: needs.check-paths.outputs.spec_evals_changed == 'true'
+    # Not on pull requests: the agent-claude approval is never given, so a PR
+    # run only waited and blocked auto-merge. Push to main still runs it.
+    if: github.event_name != 'pull_request' && needs.check-paths.outputs.spec_evals_changed == 'true'
     permissions:
       contents: read
 
@@ -71,9 +73,9 @@ jobs:
         # not a provider outage). Gated on the same condition as the eval so
         # it only runs when the /spec eval actually fires.
         if: |
-          github.event_name == 'pull_request' &&
+          github.event_name != 'pull_request' &&
           needs.check-paths.outputs.spec_evals_changed == 'true' &&
-          github.event.pull_request.head.repo.full_name == github.repository
+          !github.event.repository.fork
         run: uv pip install --system -e ".[eval]"
 
       - name: Run /spec behavioral evals
@@ -88,19 +90,19 @@ jobs:
         # red outage leg does not block a merge. The reviewer reads the result
         # and decides whether to rerun.
         if: |
-          github.event_name == 'pull_request' &&
+          github.event_name != 'pull_request' &&
           needs.check-paths.outputs.spec_evals_changed == 'true' &&
-          github.event.pull_request.head.repo.full_name == github.repository
+          !github.event.repository.fork
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          BASE_REF: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.event.before || 'HEAD~1' }}
         run: python3 scripts/eval/eval-prompt-change.py --prompt .claude/skills/spec/SKILL.md --scenarios tests/evals/spec-scenarios.json --base-ref "$BASE_REF"
 
   skip-validation:
     runs-on: ubuntu-26.04-arm
     needs: check-paths
-    if: needs.check-paths.outputs.spec_evals_changed != 'true'
+    if: github.event_name == 'pull_request' || needs.check-paths.outputs.spec_evals_changed != 'true'
     permissions: {}
     steps:
       - name: Skip validation
-        run: echo "No /spec prompt or scenario changes detected, skipping evals"
+        run: echo "Skipping the /spec eval on a pull request or when no /spec prompt or scenario changed"
