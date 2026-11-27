@@ -65,8 +65,8 @@ _PLUGIN_CLI_SMOKE = (
         "--guarded-check",
         *("AUTHORIZE_RESULT", "success", "TRUSTED", "true"),
         "Untrusted context: this change touches smoke paths from a fork pull request or a "
-        "non-default ref. Forks get no secrets, so the CLI smoke cannot run. A maintainer "
-        "must rerun it from a same-repo branch.",
+        "non-default ref. The trusted-context gate rejects it, so the CLI smoke does not "
+        "run. A maintainer must rerun it from a same-repo branch.",
     ),
     *("--skippable-check", "CODEX_RESULT", "success", "Codex smoke result: {value}"),
     *(

@@ -130,8 +130,8 @@ jobs:
         with:
           egress-policy: audit
 
-      # The trust gate decides who gets secrets, so its code must not come from the
-      # pull request. Run it from the base commit (workflow_dispatch uses its own ref).
+      # The trust gate decides which contexts run the smoke legs, so its code must not
+      # come from the pull request. Run it from the base commit (workflow_dispatch uses its own ref).
       - name: Checkout trusted scripts from the base commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
