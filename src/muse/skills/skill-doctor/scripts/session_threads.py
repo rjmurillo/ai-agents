@@ -69,15 +69,43 @@ def add_subagent_counts(
         entry["sampled_subagent"] = sum(1 for s in children if s["_key"] in sampled)
 
 
-def top_level_gap_notice(split: dict[str, dict[str, int]]) -> str | None:
+DEFAULT_CAP_ADVICE = "Pass --no-include-subagents or raise --max-sessions to cover top-level work."
+
+
+def cap_advice(sessions: Any, sampled: set[str], per_harness: Any) -> str:
+    """Name the cap that left top-level sessions out, judged per harness from unused slots.
+
+    A harness that filled its quota was held back by ``--max-sessions``. One that kept
+    unused slots was held back by ``--per-skill`` or ``--no-skill``.
+    """
+    left_out = {
+        s["harness"]
+        for s in sessions
+        if s["thread"] == THREAD_TOP_LEVEL and s["_key"] not in sampled
+    }
+    entries = [per_harness[h] for h in sorted(left_out) if h in per_harness]
+    slack = any(e["sampled"] - e.get("supplemented", 0) < e.get("quota", 0) for e in entries)
+    full = any(e["sampled"] - e.get("supplemented", 0) >= e.get("quota", 0) for e in entries)
+    if slack and not full:
+        return "Pass --no-include-subagents or raise --per-skill or --no-skill to cover top-level work."
+    if slack and full:
+        return (
+            "Pass --no-include-subagents or raise --max-sessions, --per-skill, or --no-skill "
+            "to cover top-level work."
+        )
+    return DEFAULT_CAP_ADVICE
+
+
+def top_level_gap_notice(
+    split: dict[str, dict[str, int]], advice: str = DEFAULT_CAP_ADVICE
+) -> str | None:
     """Warn when top-level sessions exist but the sample holds only subagent sessions."""
     top = split[THREAD_TOP_LEVEL]
     if top["scoreable"] and not top["sampled"]:
         return (
             f"the sample holds no top-level sessions although {top['scoreable']} top-level "
             f"sessions are scoreable; {split[THREAD_SUBAGENT]['sampled']} sampled sessions are "
-            "subagent sessions. Pass --no-include-subagents or raise --max-sessions to cover "
-            "top-level work."
+            f"subagent sessions. {advice}"
         )
     return None
 
@@ -88,7 +116,9 @@ def summarize_threads(
     """Fill per-harness subagent counts and the gap notice; return ``stats.per_thread``."""
     add_subagent_counts(sessions, sampled, per_harness)
     split = thread_split(sessions, sampled)
-    sampling["top_level_notice"] = top_level_gap_notice(split)
+    sampling["top_level_notice"] = top_level_gap_notice(
+        split, cap_advice(sessions, sampled, per_harness)
+    )
     return split
 
 

@@ -130,6 +130,7 @@ def render_sampling(sampling: Any) -> str:
     if not per_harness and not thread_table:
         return ""
     notice = sampling.get("notice")
+    top_notice = sampling.get("top_level_notice")
     rows = "".join(
         f"<tr><td>{esc(harness)}</td><td>{esc(c.get('scoreable', 0))}</td>"
         f"<td>{esc(c.get('skill_candidates', 0))}</td><td>{esc(c.get('sampled', 0))}</td>"
@@ -147,8 +148,8 @@ def render_sampling(sampling: Any) -> str:
         if per_harness
         else ""
     )
-    body = (f'<p class="notice">{esc(notice)}</p>' if notice else "") + harness_table + thread_table
-    return report_audit.details_html(esc, "Sampling", body, open_=bool(notice))
+    body = report_threads.notices_html(esc, notice, top_notice) + harness_table + thread_table
+    return report_audit.details_html(esc, "Sampling", body, open_=bool(notice or top_notice))
 
 
 def empty_suggestions_text(r: Any) -> str:

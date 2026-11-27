@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any
 
 import audit_scores
-from session_common import THREAD_TOP_LEVEL, THREADS
+from session_common import THREADS, session_thread
 
 ASSIGNMENT_VERSION = 1
 MANIFEST_FILENAME = "assignment.json"
@@ -74,7 +74,8 @@ def _threads_of(inventory: Mapping[str, Any], ids: Sequence[str]) -> dict[str, s
     for session in inventory.get("sessions") or []:
         key = session_key(session)
         if key in wanted:
-            threads[key] = session.get("thread") or THREAD_TOP_LEVEL
+            # Inventories made before the ``thread`` field still carry the parser's tag.
+            threads[key] = session.get("thread") or session_thread(session["meta"])
     return dict(sorted(threads.items()))
 
 
