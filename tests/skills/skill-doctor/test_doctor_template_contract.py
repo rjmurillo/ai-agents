@@ -59,7 +59,16 @@ def test_step_1a_reports_undocumented_decisions_unavailable_without_bootstrap() 
     step = _step_1a()
 
     assert '"Undocumented decisions: UNAVAILABLE" and continue' in step
-    assert "exits 2" in step and "`ptk_run:`" in step
+    assert "exits 2" in step and "cannot open `bootstrap_adr.py`" in step
+    assert "`ptk_run:`" not in step
+    scan = next(
+        line for line in _reference_section("Workflow").splitlines() if "bootstrap_adr.py" in line
+    )
+    assert scan.startswith('python3 "$SKILL_ROOT/../skill-bootstrap/scripts/bootstrap_adr.py" scan')
+    assert ".claude" not in scan and "ptk_run" not in scan
+    assert "cannot open `bootstrap_adr.py` and exits 2" in _reference_section(
+        "Undocumented decisions"
+    )
     assert "PowerShell form" in step and "Git Bash" in step
     assert "```powershell" in _reference_section("Commands")
     assert "Without Git Bash" in _reference_section("Workflow")
@@ -91,7 +100,7 @@ def test_step_1a_points_to_a_workflow_that_holds_the_moved_steps() -> None:
     assert "`--all-conversations`" in workflow
     assert 'mkdir -p "$REPORT_DIR/adr_drift"' in workflow
     assert 'adr_drift.py" scan --repo "$REPO"' in workflow
-    assert "bootstrap_adr.py scan --repo" in workflow
+    assert 'bootstrap_adr.py" scan --repo "$REPO"' in workflow
     assert "<repo-slug>-decisions.json" in workflow
     assert "references/report-schema.md" in workflow
 

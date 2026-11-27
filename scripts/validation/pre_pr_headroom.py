@@ -7,8 +7,10 @@ slot and wait for load to drop before their clock starts (issue #6609,
 
 The wait runs in the hook context only, the one that sets
 ``AI_AGENTS_PRE_PR_FAST_STAGE_RAN``. Direct runs, CI, and managed containers
-keep the current behavior. When the wait runs out the gates still run and a
-warning names load, so a timeout that follows reads as load.
+keep the current behavior. When the wait runs out with a free slot (or slots
+disabled), the gates run under that slot with a warning naming load; when every
+configured slot stays occupied for the full wait, ``HeadroomTimeoutError``
+exits 3 (external contention) instead of running uncapped.
 
 ``HEADROOM_WAIT_SECONDS`` is added to the lefthook ``timeout:`` for this job.
 ``PRE_PR_OUTER_CAP_SECONDS`` stays the run budget left after the wait, so the
