@@ -112,6 +112,7 @@ def _commit_all(work: Path, env: dict[str, str], message: str) -> str:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
         check=True,
         env=env,
     ).stdout.strip()

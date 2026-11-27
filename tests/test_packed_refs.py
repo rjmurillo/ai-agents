@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -207,7 +208,10 @@ def test_packed_refs_directory_raises_unresolved(tmp_path: Path) -> None:
     packed = tmp_path / "packed-refs"
     packed.mkdir()
 
-    with pytest.raises(PackedRefsUnresolvedError, match="not a regular file"):
+    # POSIX opens the directory and fstat rejects it. Windows refuses the open
+    # itself, so the error names the unreadable file instead. Both fail closed.
+    expected = "unreadable" if sys.platform == "win32" else "not a regular file"
+    with pytest.raises(PackedRefsUnresolvedError, match=expected):
         lookup_packed_ref(packed, "refs/heads/main")
 
 

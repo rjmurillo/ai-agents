@@ -36,6 +36,7 @@ def test_subprocess_git_sees_auto_maintenance_disabled(config_key: str, expected
         ["git", "config", "--get", config_key],
         capture_output=True,
         encoding="utf-8",
+        errors="replace",
         env={**os.environ, "LC_ALL": "C"},
         check=False,
     )
