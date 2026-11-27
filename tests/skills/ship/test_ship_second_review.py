@@ -68,7 +68,9 @@ class TestTreeIgnoresScratch:
         repo = make_repo(GITHUB)
         common = scripts[0]
         monkeypatch.setattr(
-            common, "git", lambda args, cwd=None, timeout=60: common.Completed(rc, "", "git: why")
+            common,
+            "git",
+            lambda args, cwd=None, timeout=60, **kw: common.Completed(rc, "", "git: why"),
         )
         halt = scripts[2].check_tree(repo)
         assert (halt.reason, halt.code, halt.detail) == ("no-repo", code, "git: why")
@@ -128,7 +130,13 @@ class TestDetectRefusesProtectedBranches:
             ["pr", "view"],
             {
                 "stdout": json.dumps(
-                    {"number": 5, "state": "OPEN", "author": {"login": "me"}, "url": "u"}
+                    {
+                        "number": 5,
+                        "state": "OPEN",
+                        "author": {"login": "me"},
+                        "url": "u",
+                        "baseRefName": "main",
+                    }
                 )
             },
         )
@@ -157,10 +165,10 @@ class TestCopyFailureNamesItsCause:
         common = scripts[0]
         real_git = common.git
 
-        def failing_show(args, cwd=None, timeout=60):
+        def failing_show(args, cwd=None, timeout=60, **kw):
             if args[:1] == ["show"]:
                 return common.Completed(128, "", "fatal: bad object\n")
-            return real_git(args, cwd=cwd, timeout=timeout)
+            return real_git(args, cwd=cwd, timeout=timeout, **kw)
 
         monkeypatch.setattr(common, "git", failing_show)
         _code, lines = run_pr(
