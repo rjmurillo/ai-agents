@@ -24,4 +24,4 @@ It covers the 2026-11-26 amendment. That amendment fixes text only and changes n
 | 1. Claims ledger | VERIFIED. Eleven rows above. One row is INFERRED: the host sets the runner size. |
 | 2. Documentation accuracy (doc-accuracy Phase 4, one Sonnet agent) | VERIFIED. Fifteen claims were checked against the code, and none was wrong. No contradiction with unchanged text was found. |
 | 3. Self-consistency | VERIFIED. The amendment changes no decision. The seed paragraph, the gap bullet, and the Implementation Notes give the same formula and numbers. |
-| 4. Refuting seat (analyst, Haiku) | VERIFIED. Factual findings: 0. Rows 1, 2, and 5 were UNAVAILABLE to the seat, which could not run git. The writer's `git log` output above covers them. |
+| 4. Refuting seat (analyst, Haiku) | VERIFIED for rows 3, 4, and 6 to 11. Factual findings: 0. Rows 1, 2, and 5 were UNAVAILABLE to the seat, which could not run git. The writer's `git log` output above covers them. |

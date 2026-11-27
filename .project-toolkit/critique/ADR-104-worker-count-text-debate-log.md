@@ -56,4 +56,4 @@ This amendment fixes text only. No decision changes. Three passages are correcte
 
 ## Outcome
 
-Accepted. Both seats accept. The amendment is a text correction with a named cause (PR #6364 and PR #6295, 2026-10-12), so the strategic lenses (Chesterton's Fence, path dependence, core vs context, second-system effect) do not apply.
+Accepted. Both seats accept. The amendment changes text only, so a `git revert` restores the old text with no data or behavior at stake. It is a text correction with a named cause (PR #6364 and PR #6295, 2026-10-12), so the strategic lenses (Chesterton's Fence, path dependence, core vs context, second-system effect) do not apply.
