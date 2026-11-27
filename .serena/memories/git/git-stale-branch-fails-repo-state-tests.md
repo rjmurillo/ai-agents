@@ -14,8 +14,9 @@ branch changed. Merge `origin/main` into the branch before pushing.
 
 Fired at push time until 2026-11-26, when ADR-104 removed pytest from
 pre-push; CI `pytest.yml` now surfaces it. The removed `python-tests` pre-push
-job in `lefthook.yml` shelled out to `git_hook_policy.py pytest`, whose `_pytest_commands` runs two pytest
-invocations, both deselecting the `integration` marker: the main tree under
+job in `lefthook.yml` shelled out to `git_hook_policy.py pytest`. In 2026-08,
+its `_pytest_commands` ran two pytest invocations, both deselecting the
+`integration` marker: the main tree under
 `tests/` with `tests/test_safe_push_pr_branch.py` ignored, then that file alone
 with `safe_push_transport` also deselected. So that pre-push run was the
 non-integration suite, not the whole suite. It took about 11 minutes, so the

@@ -8033,7 +8033,7 @@ def _pytest_commands(repo_root: Path) -> list[list[str]]:
     bulk plus mutation. The serial safe-push and pr-autofix files match the CI
     runner's dedicated legs (a test pins that). Bulk and mutation tests use the
     selected worker policy over whole files.
-    Direct calls default to every visible CPU. Local pre-push may apply a cap.
+    Direct calls default to every visible CPU. An on-demand run may apply a cap.
     Process-sensitive push, signal, and pr-autofix modules run serially.
 
     Raises:
