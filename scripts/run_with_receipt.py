@@ -21,9 +21,10 @@ and stderr in arrival order, and redacts secrets in memory with
   receipt is printed: command, exit code, duration, total bytes, exposed bytes,
   truncated flag, artifact path, and, on nonzero exit, a stderr tail.
 
-``--timeout-seconds`` accepts a positive integer within the platform clock's
-representable range. When it is present the child command gets at most that many
-seconds after launch. A wrapper-enforced timeout
+``--timeout-seconds`` accepts a positive integer no larger than 4,294,967.
+That bound keeps the millisecond timeout inside the Windows unsigned 32-bit
+wait argument on every platform. When it is present the child command gets at
+most that many seconds after launch. A wrapper-enforced timeout
 returns 124, and a large-output receipt for one adds ``timeout: true``. A child
 that exits 124 on its own is indistinguishable without that receipt line. Where
 the platform has POSIX process groups, a timed child starts in a new session and
@@ -118,6 +119,7 @@ _PIPE_DRAIN_GRACE_S = 2.0
 _TERM_GRACE_S = 1.0
 _GROUP_POLL_S = 0.05
 _REAP_GRACE_S = 1.0
+MAX_TIMEOUT_SECONDS = (2**32 - 1) // 1000
 _SUPPORTS_PGROUP = sys.platform != "win32" and hasattr(os, "killpg")
 
 
@@ -324,6 +326,22 @@ def _cancel_signals() -> list[int]:
     return [getattr(signal, name) for name in names if hasattr(signal, name)]
 
 
+def _timeout_validation_error(timeout_seconds: int) -> str | None:
+    if timeout_seconds < 1:
+        return "--timeout-seconds must be a positive integer"
+    if timeout_seconds > MAX_TIMEOUT_SECONDS:
+        return "--timeout-seconds is too large"
+    return None
+
+
+def _validate_timeout_seconds(timeout_seconds: int | None) -> None:
+    if timeout_seconds is None:
+        return
+    validation_error = _timeout_validation_error(timeout_seconds)
+    if validation_error is not None:
+        raise ValueError(validation_error)
+
+
 class _SpawnWindow:
     """Hold cancel signals while a timed child is being spawned.
 
@@ -334,13 +352,17 @@ class _SpawnWindow:
     SIGHUP (and Ctrl-C, when Python's default handler owns it) are recorded here
     instead, and ``raise_pending`` delivers the first one once the guard that
     stops the child's group is in place. No signal mask is used: a blocked mask
-    would be inherited by the child across exec.
+    would be inherited by the child across exec. Once a cancel has been
+    delivered, later SIGTERM and SIGHUP instances are recorded here too: a
+    repeat cancel must not unwind the cleanup before the child's group is
+    stopped.
     """
 
-    __slots__ = ("_sigint_held", "is_open", "pending")
+    __slots__ = ("_sigint_held", "delivered", "is_open", "pending")
 
     def __init__(self) -> None:
         self.is_open = False
+        self.delivered = False
         self.pending: int | None = None
         self._sigint_held = False
 
@@ -366,6 +388,7 @@ class _SpawnWindow:
         signum, self.pending = self.pending, None
         if signum is None:
             return
+        self.delivered = True
         if signum == signal.SIGINT:
             raise KeyboardInterrupt
         raise SystemExit(128 + signum)
@@ -396,9 +419,10 @@ def _cancel_signals_raise() -> Iterator[_SpawnWindow | None]:
     restoring = False
 
     def _stop(signum: int, _frame: object) -> None:
-        if window.is_open or restoring:
+        if window.is_open or restoring or window.delivered:
             window.record(signum)
             return
+        window.delivered = True
         raise SystemExit(128 + signum)
 
     installed: list[int] = []
@@ -427,39 +451,75 @@ def _run_child(argv: list[str], timeout_seconds: int | None = None) -> tuple[int
         return _spawn_and_collect(argv, timeout_seconds, window)
 
 
-def _spawn_and_collect(
-    argv: list[str], timeout_seconds: int | None, window: _SpawnWindow | None = None
-) -> tuple[int, Capture, bool]:
-    if timeout_seconds is None:
-        proc = subprocess.Popen(
-            argv,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            shell=False,
-        )
-    else:
-        # A cancel that lands inside Popen is held, not raised: Popen would unwind
-        # with the child already forked and no handle to stop it. The window closes
-        # at the top of the guarded try below, or here if the launch fails.
-        if window is not None:
-            window.open()
-        try:
-            proc = subprocess.Popen(
+def _launch_with_pumps(
+    argv: list[str],
+    timeout_seconds: int | None,
+    window: _SpawnWindow | None,
+    threads: list[threading.Thread],
+    pipes_ready: threading.Event,
+    pumps_cancelled: threading.Event,
+) -> subprocess.Popen[bytes]:
+    # A cancel that lands inside Popen is held, not raised: Popen would unwind
+    # with the child already forked and no handle to stop it. The pump threads
+    # are inside the window too, so their startup cannot become a gap between
+    # launch and deadline enforcement.
+    if window is not None:
+        window.open()
+    try:
+        for thread in threads:
+            thread.start()
+        if timeout_seconds is None:
+            return subprocess.Popen(
                 argv,
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 shell=False,
-                start_new_session=_SUPPORTS_PGROUP,
             )
-        except BaseException:
-            # No child exists. A held cancel replaces the launch error, as the
-            # handler would have raised in its place.
-            if window is not None:
-                window.close()
-                window.raise_pending()
-            raise
+        return subprocess.Popen(
+            argv,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            shell=False,
+            start_new_session=_SUPPORTS_PGROUP,
+        )
+    except BaseException:
+        pumps_cancelled.set()
+        pipes_ready.set()
+        # No child exists. A held cancel replaces the launch error, as the
+        # handler would have raised in its place.
+        if window is not None:
+            window.close()
+            window.raise_pending()
+        raise
+
+
+def _spawn_and_collect(
+    argv: list[str], timeout_seconds: int | None, window: _SpawnWindow | None = None
+) -> tuple[int, Capture, bool]:
+    _validate_timeout_seconds(timeout_seconds)
+
+    capture: Capture
+    pipes_ready = threading.Event()
+    pumps_cancelled = threading.Event()
+
+    def pump_stdout() -> None:
+        pipes_ready.wait()
+        if not pumps_cancelled.is_set():
+            _pump(proc.stdout, "out", capture)
+
+    def pump_stderr() -> None:
+        pipes_ready.wait()
+        if not pumps_cancelled.is_set():
+            _pump(proc.stderr, "err", capture)
+
+    threads = [
+        threading.Thread(target=pump_stdout, daemon=True),
+        threading.Thread(target=pump_stderr, daemon=True),
+    ]
+
+    proc = _launch_with_pumps(argv, timeout_seconds, window, threads, pipes_ready, pumps_cancelled)
     # The guard opens right after Popen returns: a cancel that lands later in this
     # function must still stop a timed child that lives in its own session. A new
     # session makes the leader's pid its group id, so no lookup can lose it to
@@ -476,12 +536,7 @@ def _spawn_and_collect(
             window.raise_pending()
         try:
             capture = Capture()
-            threads = [
-                threading.Thread(target=_pump, args=(proc.stdout, "out", capture), daemon=True),
-                threading.Thread(target=_pump, args=(proc.stderr, "err", capture), daemon=True),
-            ]
-            for thread in threads:
-                thread.start()
+            pipes_ready.set()
             wait_timeout = None
             if wait_deadline is not None:
                 wait_timeout = max(0.0, wait_deadline - time.monotonic())
@@ -508,6 +563,8 @@ def _spawn_and_collect(
         # leave a timed child running in its own session. An untimed child keeps
         # the caller's process group, so the caller's signal already reaches it.
         # A group that is already stopped or found empty is not signalled again.
+        pumps_cancelled.set()
+        pipes_ready.set()
         if timeout_seconds is not None and not group_stopped:
             _terminate_child(proc, pgid)
             _reap_stopped_child(proc)
@@ -719,13 +776,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.mode == "read":
         return read_artifact(args.artifact, args.offset, args.length, out_dir)
     if args.timeout_seconds is not None:
-        if args.timeout_seconds < 1:
-            print("run_with_receipt: --timeout-seconds must be a positive integer", file=sys.stderr)
-            return EXIT_USAGE
-        try:
-            float(args.timeout_seconds)
-        except OverflowError:
-            print("run_with_receipt: --timeout-seconds is too large", file=sys.stderr)
+        validation_error = _timeout_validation_error(args.timeout_seconds)
+        if validation_error is not None:
+            print(f"run_with_receipt: {validation_error}", file=sys.stderr)
             return EXIT_USAGE
     if not command or args.max_inline_bytes < 0:
         print("usage: run_with_receipt.py run [options] -- CMD [ARG...]", file=sys.stderr)

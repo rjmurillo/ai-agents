@@ -646,7 +646,8 @@ class TestTimeoutDeadline:
         ]
         assert main(argv) == EXIT_USAGE
 
-    def test_rejects_too_large_timeout_before_launch(self, monkeypatch, tmp_path, capsys):
+    @pytest.mark.parametrize("value", ["4294968", "1" + "0" * 306, "1" + "0" * 309])
+    def test_rejects_too_large_timeout_before_launch(self, monkeypatch, tmp_path, capsys, value):
         def forbidden_run_command(*args, **kwargs):
             raise AssertionError("the command was launched")
 
@@ -654,7 +655,7 @@ class TestTimeoutDeadline:
         argv = [
             "run",
             "--timeout-seconds",
-            "1" + "0" * 309,
+            value,
             "--out-dir",
             str(tmp_path),
             "--",
@@ -663,13 +664,28 @@ class TestTimeoutDeadline:
         assert main(argv) == EXIT_USAGE
         assert "too large" in capsys.readouterr().err
 
+    def test_timeout_bound_uses_windows_dword_milliseconds(self):
+        assert receipt_module.MAX_TIMEOUT_SECONDS * 1000 <= 0xFFFFFFFF
+        assert (receipt_module.MAX_TIMEOUT_SECONDS + 1) * 1000 > 0xFFFFFFFF
+
+    @pytest.mark.parametrize("timeout", [4294968, 10**306, 10**309])
+    def test_run_command_rejects_oversized_timeout_before_launch(
+        self, monkeypatch, tmp_path, timeout
+    ):
+        def forbidden_popen(*args, **kwargs):
+            raise AssertionError("the command was launched")
+
+        monkeypatch.setattr(receipt_module.subprocess, "Popen", forbidden_popen)
+        with pytest.raises(ValueError, match="too large"):
+            receipt_module.run_command(["fake"], 16384, tmp_path, timeout_seconds=timeout)
+
     def test_timeout_allows_fast_child_and_preserves_result(self, tmp_path, capfd):
         code = run(py("print('fast')"), tmp_path, timeout=5)
         assert code == 0
         assert capfd.readouterr().out == "fast\n"
         assert artifacts(tmp_path) == []
 
-    def test_timeout_clock_includes_output_thread_startup(self, monkeypatch, tmp_path):
+    def test_output_thread_startup_finishes_before_the_child_launches(self, monkeypatch, tmp_path):
         proc = _FakePopen(waits=[subprocess.TimeoutExpired(["fake"], 2), -9])
         install_fake_popen(monkeypatch, proc)
         monkeypatch.setattr(receipt_module, "_SUPPORTS_PGROUP", False, raising=False)
@@ -688,7 +704,47 @@ class TestTimeoutDeadline:
         monkeypatch.setattr(receipt_module.threading, "Thread", SlowFirstStart)
 
         assert receipt_module.run_command(["fake"], 16384, tmp_path, timeout_seconds=2) == 124
-        assert proc.wait_timeouts[0] == pytest.approx(0.6)
+        assert proc.wait_timeouts[0] == pytest.approx(2)
+
+    def test_slow_output_thread_startup_cannot_pass_an_over_deadline_result(
+        self, monkeypatch, tmp_path, capfd
+    ):
+        real_thread = receipt_module.threading.Thread
+        delayed = {"done": False}
+
+        class SlowFirstStart(real_thread):
+            def start(self):
+                if not delayed["done"]:
+                    delayed["done"] = True
+                    time.sleep(1.4)
+                super().start()
+
+        monkeypatch.setattr(receipt_module.threading, "Thread", SlowFirstStart)
+        script = "import time; time.sleep(1.2); print('over-deadline')"
+
+        code = receipt_module.run_command(py(script), 16384, tmp_path, timeout_seconds=1)
+
+        assert code == receipt_module.EXIT_TIMEOUT
+        assert "over-deadline" not in capfd.readouterr().out
+
+    def test_fast_child_still_passes_when_output_thread_startup_is_slow(
+        self, monkeypatch, tmp_path, capfd
+    ):
+        real_thread = receipt_module.threading.Thread
+        delayed = {"done": False}
+
+        class SlowFirstStart(real_thread):
+            def start(self):
+                if not delayed["done"]:
+                    delayed["done"] = True
+                    time.sleep(1.4)
+                super().start()
+
+        monkeypatch.setattr(receipt_module.threading, "Thread", SlowFirstStart)
+        script = "import time; time.sleep(0.2); print('fast')"
+
+        assert receipt_module.run_command(py(script), 16384, tmp_path, timeout_seconds=1) == 0
+        assert capfd.readouterr().out == "fast\n"
 
     def test_absent_timeout_leaves_process_group_setup_unchanged(self, monkeypatch, tmp_path):
         monkeypatch.setattr(receipt_module, "_SUPPORTS_PGROUP", True, raising=False)
@@ -1025,6 +1081,41 @@ class TestTimedChildLifetime:
             receipt_module.run_command(["fake"], 16384, tmp_path, timeout_seconds=30)
 
         assert signals == [(proc.pid, signal.SIGTERM), (proc.pid, signal.SIGKILL)]
+
+    @POSIX_ONLY
+    @pytest.mark.usefixtures("default_cancel_signals")
+    def test_second_cancel_during_cleanup_does_not_preempt_the_group_signal(
+        self, monkeypatch, tmp_path
+    ):
+        proc = _FakePopen(waits=[0])
+        signals = install_group_fakes(monkeypatch, proc)
+        install_fake_popen(monkeypatch, proc)
+        first_cancel = {"sent": False}
+        real_wait = proc.wait
+
+        def wait(timeout: float | None = None) -> int:
+            if not first_cancel["sent"]:
+                first_cancel["sent"] = True
+                signal.raise_signal(signal.SIGTERM)
+            return real_wait(timeout)
+
+        cleanup_reached: list[bool] = []
+        real_terminate = receipt_module._terminate_child
+
+        def terminate(proc_arg, pgid=None) -> None:
+            signal.raise_signal(signal.SIGHUP)
+            cleanup_reached.append(True)
+            real_terminate(proc_arg, pgid)
+
+        monkeypatch.setattr(proc, "wait", wait)
+        monkeypatch.setattr(receipt_module, "_terminate_child", terminate)
+
+        with pytest.raises(SystemExit) as caught:
+            receipt_module.run_command(["fake"], 16384, tmp_path, timeout_seconds=30)
+
+        assert caught.value.code == 128 + signal.SIGHUP
+        assert cleanup_reached == [True]
+        assert signals == [(proc.pid, signal.SIGTERM)]
 
     def test_interrupt_while_waiting_stops_the_child_without_group_support(
         self, monkeypatch, tmp_path
