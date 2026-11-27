@@ -1,9 +1,9 @@
 """Run the spec head-data export for real against a local fake origin.
 
-Issue #6506 workflow-ci-04: the review job checks out the base commit and
-receives the pull request head as data. The YAML-shape tests cannot tell
-whether the export works, so this runs the step's script and then the spec
-loader from the exported tree.
+Issue #6506 workflow-ci-04: the review job of ``ai-spec-review.yml`` (deleted
+2026-11-25) checked out the base commit and received the pull request head as
+data. No YAML-shape test could tell whether the export worked, so this runs the
+exporter script and then the spec loader from the exported tree.
 """
 
 from __future__ import annotations

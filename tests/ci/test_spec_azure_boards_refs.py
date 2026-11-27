@@ -240,7 +240,7 @@ def _step(workflow: str, job: str, name: str) -> dict:
 
 
 class TestWorkflowWiring:
-    """An AB-only pull request reaches the loader, the report, and the verdict."""
+    """An AB-only pull request reaches the loader and the verdict."""
 
     def test_verdict_step_reads_has_specs_from_the_same_extractor(self) -> None:
         step = _step("ai-spec-validation.yml", "validate-spec", "Decide spec coverage verdict")

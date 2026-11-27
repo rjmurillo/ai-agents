@@ -44,7 +44,7 @@ LISTED_WITHOUT_GATED_JOBS = frozenset(
 )
 UNLISTED = ".github/workflows/pytest.yml"
 # The check name of the one job LISTED still runs.
-AGENT_CHECK = "Validate Spec Coverage"
+SPEC_CHECK = "Validate Spec Coverage"
 
 
 def _resource(workflow_file: str, owner: str = "o", repo: str = "r") -> str:
@@ -122,7 +122,7 @@ def test_listed_workflow_check_never_blocks(
     status: str, conclusion: str | None, include_non_required: bool
 ) -> None:
     """FAILED is intended to be non-blocking: an agent verdict is advisory."""
-    pr_data = _pr_with(_row(AGENT_CHECK, conclusion, status))
+    pr_data = _pr_with(_row(SPEC_CHECK, conclusion, status))
     result = _readiness(pr_data, {LISTED}, include_non_required)
     assert result["CanMerge"] is True, result["Reasons"]
     assert result["UndisposedNonRequiredFailures"] == []
@@ -143,39 +143,39 @@ def test_unlisted_workflow_failure_still_blocks() -> None:
 
 def test_unlisted_workflow_using_a_listed_job_name_still_blocks() -> None:
     """Spoof: the job name matches a listed workflow's job, the workflow does not."""
-    pr_data = _pr_with(_row(AGENT_CHECK, "FAILURE", workflow=UNLISTED))
+    pr_data = _pr_with(_row(SPEC_CHECK, "FAILURE", workflow=UNLISTED))
     result = _readiness(pr_data, {LISTED})
     assert result["CanMerge"] is False
-    assert result["UndisposedNonRequiredFailures"] == [AGENT_CHECK]
+    assert result["UndisposedNonRequiredFailures"] == [SPEC_CHECK]
 
 
 def test_a_name_shared_with_an_unlisted_workflow_is_not_exempt() -> None:
     pr_data = _pr_with(
-        _row(AGENT_CHECK, "FAILURE", workflow=LISTED),
-        _row(AGENT_CHECK, "FAILURE", workflow=UNLISTED),
+        _row(SPEC_CHECK, "FAILURE", workflow=LISTED),
+        _row(SPEC_CHECK, "FAILURE", workflow=UNLISTED),
     )
     result = _readiness(pr_data, {LISTED})
     assert result["CanMerge"] is False
 
 
 def test_status_context_with_a_listed_job_name_still_blocks() -> None:
-    pr_data = _pr_with(_status_context(AGENT_CHECK, "FAILURE"))
+    pr_data = _pr_with(_status_context(SPEC_CHECK, "FAILURE"))
     result = _readiness(pr_data, {LISTED})
     assert result["CanMerge"] is False
-    assert result["UndisposedNonRequiredFailures"] == [AGENT_CHECK]
+    assert result["UndisposedNonRequiredFailures"] == [SPEC_CHECK]
 
 
 def test_a_status_context_cannot_ride_beside_a_listed_check_row() -> None:
     pr_data = _pr_with(
-        _row(AGENT_CHECK, "FAILURE", workflow=LISTED),
-        _status_context(AGENT_CHECK, "FAILURE"),
+        _row(SPEC_CHECK, "FAILURE", workflow=LISTED),
+        _status_context(SPEC_CHECK, "FAILURE"),
     )
     result = _readiness(pr_data, {LISTED})
     assert result["CanMerge"] is False
 
 
 def test_check_run_without_a_workflow_run_still_blocks() -> None:
-    pr_data = _pr_with(_row(AGENT_CHECK, "FAILURE", workflow=None))
+    pr_data = _pr_with(_row(SPEC_CHECK, "FAILURE", workflow=None))
     result = _readiness(pr_data, {LISTED})
     assert result["CanMerge"] is False
 
@@ -190,7 +190,7 @@ def test_check_run_without_a_workflow_run_still_blocks() -> None:
     ],
 )
 def test_a_resource_path_from_another_repo_or_shape_is_not_exempt(resource: str) -> None:
-    pr_data = _pr_with(_row(AGENT_CHECK, "FAILURE", workflow=None, resource=resource))
+    pr_data = _pr_with(_row(SPEC_CHECK, "FAILURE", workflow=None, resource=resource))
     result = _readiness(pr_data, {LISTED})
     assert result["CanMerge"] is False
 
@@ -203,7 +203,7 @@ def test_unlisted_pending_still_blocks_when_non_required_count() -> None:
 
 def test_a_listed_check_does_not_hide_an_unlisted_failure_beside_it() -> None:
     pr_data = _pr_with(
-        _row(AGENT_CHECK, "FAILURE"),
+        _row(SPEC_CHECK, "FAILURE"),
         _row("Run Python Tests", "FAILURE", workflow=UNLISTED),
     )
     result = _readiness(pr_data, {LISTED})
@@ -212,7 +212,7 @@ def test_a_listed_check_does_not_hide_an_unlisted_failure_beside_it() -> None:
 
 
 def test_empty_list_exempts_nothing() -> None:
-    pr_data = _pr_with(_row(AGENT_CHECK, "FAILURE"))
+    pr_data = _pr_with(_row(SPEC_CHECK, "FAILURE"))
     assert _readiness(pr_data, set())["CanMerge"] is False
 
 
@@ -223,10 +223,10 @@ def test_empty_list_exempts_nothing() -> None:
 
 @pytest.mark.parametrize(("status", "conclusion"), [("COMPLETED", "FAILURE"), ("WAITING", None)])
 def test_listed_but_required_check_still_blocks(status: str, conclusion: str | None) -> None:
-    pr_data = _pr_with(_row(AGENT_CHECK, conclusion, status, required=True))
+    pr_data = _pr_with(_row(SPEC_CHECK, conclusion, status, required=True))
     result = _readiness(pr_data, {LISTED})
     assert result["CanMerge"] is False
-    assert any(AGENT_CHECK in reason for reason in result["Reasons"])
+    assert any(SPEC_CHECK in reason for reason in result["Reasons"])
 
 
 # ---------------------------------------------------------------------------
@@ -693,8 +693,8 @@ def _paged_readiness(first: dict, second: dict, listed: set[str]) -> dict:
 
 
 def test_unlisted_row_on_a_later_page_blocks_a_listed_same_name_row() -> None:
-    first = _row(AGENT_CHECK, "FAILURE", workflow=LISTED)
-    second = _row(AGENT_CHECK, "FAILURE", workflow=UNLISTED)
+    first = _row(SPEC_CHECK, "FAILURE", workflow=LISTED)
+    second = _row(SPEC_CHECK, "FAILURE", workflow=UNLISTED)
     result = _paged_readiness(first, second, {LISTED})
     assert result["CanMerge"] is False
     assert result["fetched_pages_complete"] is True
@@ -702,7 +702,7 @@ def test_unlisted_row_on_a_later_page_blocks_a_listed_same_name_row() -> None:
 
 def test_listed_row_on_a_later_page_is_exempt() -> None:
     first = _row("Run Python Tests", "SUCCESS", workflow=UNLISTED)
-    second = _row(AGENT_CHECK, "FAILURE", workflow=LISTED)
+    second = _row(SPEC_CHECK, "FAILURE", workflow=LISTED)
     result = _paged_readiness(first, second, {LISTED})
     assert result["CanMerge"] is True
 
@@ -715,14 +715,14 @@ def test_both_queries_select_the_workflow_resource_path() -> None:
 
 
 def test_row_without_a_check_suite_key_blocks() -> None:
-    row = _row(AGENT_CHECK, "FAILURE")
+    row = _row(SPEC_CHECK, "FAILURE")
     del row["checkSuite"]
     assert _readiness(_pr_with(row), {LISTED})["CanMerge"] is False
 
 
 def test_uppercase_owner_and_repo_prefix_still_matches() -> None:
     row = _row(
-        AGENT_CHECK,
+        SPEC_CHECK,
         "FAILURE",
         workflow=None,
         resource="/O/R/actions/workflows/ai-spec-validation.yml",
@@ -740,12 +740,12 @@ def test_uppercase_owner_and_repo_prefix_still_matches() -> None:
     ],
 )
 def test_malformed_resource_paths_are_not_exempt(resource: str) -> None:
-    row = _row(AGENT_CHECK, "FAILURE", workflow=None, resource=resource)
+    row = _row(SPEC_CHECK, "FAILURE", workflow=None, resource=resource)
     assert _readiness(_pr_with(row), {LISTED})["CanMerge"] is False
 
 
 def test_ignore_ci_does_not_read_the_trusted_list() -> None:
-    pr_data = _pr_with(_row(AGENT_CHECK, "FAILURE"))
+    pr_data = _pr_with(_row(SPEC_CHECK, "FAILURE"))
     with (
         patch("test_pr_merge_ready.gh_graphql", return_value=pr_data),
         patch("test_pr_merge_ready._load_advisory_agent_workflows") as loader,
@@ -782,14 +782,14 @@ def _node(name: str, required: bool, conclusion: str = "FAILURE") -> dict:
 
 def test_why_pr_blocked_ignores_a_failing_non_required_check() -> None:
     why = _why_pr_blocked()
-    result = why.diagnose({"CheckNodes": [_node(AGENT_CHECK, required=False)]}, None)
+    result = why.diagnose({"CheckNodes": [_node(SPEC_CHECK, required=False)]}, None)
     assert result["FailingRequired"] == []
 
 
 def test_why_pr_blocked_reports_a_failing_required_check_even_from_a_listed_name() -> None:
     why = _why_pr_blocked()
-    result = why.diagnose({"CheckNodes": [_node(AGENT_CHECK, required=True)]}, None)
-    assert result["FailingRequired"] == [AGENT_CHECK]
+    result = why.diagnose({"CheckNodes": [_node(SPEC_CHECK, required=True)]}, None)
+    assert result["FailingRequired"] == [SPEC_CHECK]
 
 
 # ---------------------------------------------------------------------------

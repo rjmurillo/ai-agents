@@ -836,7 +836,12 @@ class TestNameTruncationAtUnquotedHash:
 
 
 class TestLiveWorkflowTreeHasNoInjection:
-    """Regression pin for the two chains repaired in issue #3664."""
+    """Regression pin for the chains repaired in issue #3664.
+
+    Issue #3664 repaired two workflows. One of them,
+    ``copilot-context-synthesis.yml``, was deleted on 2026-11-25, so the visit
+    guard below names only ``agent-metrics.yml``.
+    """
 
     @staticmethod
     def _scan() -> list[str]:
@@ -860,7 +865,7 @@ class TestLiveWorkflowTreeHasNoInjection:
         import re
 
         repo_root = Path(__file__).resolve().parents[1]
-        for name in ("agent-metrics.yml", "pr-maintenance.yml"):
+        for name in ("agent-metrics.yml",):
             path = repo_root / ".github" / "workflows" / name
             assert path.is_file(), name
             body = path.read_text(encoding="utf-8")
