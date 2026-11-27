@@ -144,6 +144,15 @@ class TestEditIssueBodySuccess:
 
 
 class TestEditIssueBodyErrors:
+    def test_issue_not_found_exits_3(self, mock_auth, capsys):
+        # A missing remote issue is an external error (ADR-035), not config.
+        proc = _make_proc(returncode=1, stderr="GraphQL: Could not resolve to an Issue (HTTP 404)")
+        with patch("subprocess.run", return_value=proc):
+            with pytest.raises(SystemExit) as exc:
+                main(["--issue", "4242", "--body", "x"])
+        assert exc.value.code == 3
+        assert "HTTP 404" in capsys.readouterr().err
+
     def test_gh_missing_exits_2(self, mock_auth):
         with patch("subprocess.run", side_effect=FileNotFoundError):
             with pytest.raises(SystemExit) as exc:

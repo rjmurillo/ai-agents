@@ -308,11 +308,11 @@ class TestHeadShaFailures:
         assert run.call_count == 1
         return code, _envelope(capsys)
 
-    def test_pull_request_not_found_exits_2(self, repo_ready, capsys):
+    def test_pull_request_not_found_exits_3(self, repo_ready, capsys):
         code, out = self._run(_completed(stderr="gh: Not Found (HTTP 404)", rc=1), capsys)
-        assert code == 2
+        assert code == 3
         assert out["Success"] is False
-        assert out["Error"]["Code"] == 2
+        assert out["Error"]["Code"] == 3
         assert out["Error"]["Type"] == "NotFound"
         assert "o/r#123 not found" in out["Error"]["Message"]
 
@@ -349,9 +349,9 @@ class TestPostFailures:
         assert out["Error"]["Code"] == code
         return code, out
 
-    def test_not_found_exits_2(self, repo_ready, capsys):
+    def test_not_found_exits_3(self, repo_ready, capsys):
         code, out = self._run(_completed(stderr="gh: Not Found (HTTP 404)", rc=1), capsys)
-        assert (code, out["Error"]["Type"]) == (2, "NotFound")
+        assert (code, out["Error"]["Type"]) == (3, "NotFound")
 
     def test_unprocessable_line_exits_2_with_reason(self, repo_ready, capsys):
         stderr = (
@@ -464,9 +464,11 @@ class TestDryRun:
             "new_pr_review_comment.subprocess.run",
             side_effect=[_completed(rc=1, stderr="gh: Not Found (HTTP 404)")],
         ) as run:
-            assert main([*BASE_ARGS, "--dry-run"]) == 2
+            assert main([*BASE_ARGS, "--dry-run"]) == 3
 
-        assert _envelope(capsys)["Success"] is False
+        out = _envelope(capsys)
+        assert out["Success"] is False
+        assert out["Error"]["Type"] == "NotFound"
         assert run.call_count == 1
 
     def test_default_run_has_no_dry_run_key(self, repo_ready, capsys):

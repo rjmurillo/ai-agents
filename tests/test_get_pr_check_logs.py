@@ -1018,3 +1018,36 @@ class TestCheckLogsFailedSteps:
             [result] = get_check_logs("o", "r", [self._check("https://circleci.com/b/1")], 160, 30)
         steps_mock.assert_not_called()
         assert result["LogSource"] == "external"
+
+
+class TestChecksScriptFailurePassthrough:
+    """get_pr_checks.py exit codes pass through unchanged (ADR-035)."""
+
+    @staticmethod
+    def _run_with_checks_exit(rc, error_type, capsys):
+        envelope = json.dumps(
+            {"Success": False, "Error": {"Message": "boom", "Code": rc, "Type": error_type}}
+        )
+        with (
+            patch("get_pr_check_logs.assert_gh_authenticated"),
+            patch(
+                "get_pr_check_logs.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_check_logs.subprocess.run",
+                return_value=_completed(stdout=envelope, rc=rc),
+            ),
+        ):
+            result = main(["--pull-request", "999"])
+        return result, json.loads(capsys.readouterr().out)
+
+    def test_pr_not_found_exits_3_and_keeps_not_found_type(self, capsys):
+        rc, output = self._run_with_checks_exit(3, "NotFound", capsys)
+        assert rc == 3
+        assert output["Error"]["Type"] == "NotFound"
+
+    def test_config_error_still_exits_2(self, capsys):
+        rc, output = self._run_with_checks_exit(2, "InvalidParams", capsys)
+        assert rc == 2
+        assert output["Error"]["Type"] == "InvalidParams"

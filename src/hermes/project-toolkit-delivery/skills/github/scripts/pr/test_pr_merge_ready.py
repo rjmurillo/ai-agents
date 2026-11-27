@@ -30,8 +30,11 @@ masking failure documented in retrospective
 Exit codes follow ADR-035:
     0 - PR is ready to merge
     1 - PR is not ready to merge
-    2 - PR not found
-    3 - API error: a failed branch ruleset lookup with no other blocker
+    2 - Config or usage error
+    3 - External error: an API failure, a failed branch ruleset lookup with no
+        other blocker (retryable), or the PR was not found. A missing PR prints
+        a JSON error envelope on stdout with ``Error.Type`` ``NotFound``. A
+        caller that retries on 3 must not retry when that Type is NotFound.
     4 - Auth error
 """
 
@@ -47,7 +50,7 @@ import sys
 import time
 from collections import defaultdict
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, NoReturn
 
 logger = logging.getLogger(__name__)
 
@@ -555,6 +558,37 @@ def _count_passed_checks(
 # ---------------------------------------------------------------------------
 
 
+def _exit_pr_not_found(message: str, pr_number: int) -> NoReturn:
+    """Exit 3 (ADR-035 external) with a NotFound envelope on stdout.
+
+    Exit 3 also means a retryable ruleset lookup failure or a transport fault,
+    so ``Error.Type`` is the signal that tells a deleted PR from an outage.
+
+    The envelope is built inline, not through ``write_skill_error``: this
+    script's success output is a flat object, and a ``write_skill_*`` call
+    makes the pr-autofix field-contract parser read the whole script as
+    ``Data``-wrapped. The shape matches ``write_skill_error``
+    (``scripts/github_core/output.py``): Success, Data, Error, Metadata.
+    """
+    print(message, file=sys.stderr)
+    print(
+        json.dumps(
+            {
+                "Success": False,
+                "Data": {"pull_request": pr_number},
+                "Error": {"Message": message, "Code": 3, "Type": "NotFound"},
+                "Metadata": {
+                    "Script": "test_pr_merge_ready.py",
+                    "Version": "1.0.0",
+                    "Timestamp": datetime.now(_UTC).isoformat(),
+                },
+            },
+            separators=(",", ":"),
+        )
+    )
+    raise SystemExit(3)
+
+
 def _fetch_pr_data(owner: str, repo: str, pr_number: int, op_start: float) -> dict:
     """Run the merge-ready GraphQL query. Exits on auth/transport/missing PR.
 
@@ -578,7 +612,7 @@ def _fetch_pr_data(owner: str, repo: str, pr_number: int, op_start: float) -> di
                 repo,
                 duration_ms,
             )
-            error_and_exit(f"PR #{pr_number} not found in {owner}/{repo}", 2)
+            _exit_pr_not_found(f"PR #{pr_number} not found in {owner}/{repo}", pr_number)
         logger.warning(
             "op=merge_ready_failed pr=%d owner=%s repo=%s "
             "reason=graphql_error duration_ms=%d error=%s",
@@ -604,7 +638,7 @@ def _fetch_pr_data(owner: str, repo: str, pr_number: int, op_start: float) -> di
             repo,
             duration_ms,
         )
-        error_and_exit(f"PR #{pr_number} not found", 2)
+        _exit_pr_not_found(f"PR #{pr_number} not found", pr_number)
     return pr
 
 

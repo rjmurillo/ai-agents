@@ -20,8 +20,9 @@ cannot take part in these relationships and are rejected.
 Exit codes follow ADR-035:
     0 - Success (including no-op)
     1 - Invalid parameters / logic error (bad target, PR target, parent conflict)
-    2 - Not found (issue or target does not exist) or plugin lib missing
-    3 - External error (API failure on any mutation)
+    2 - Config error (plugin lib missing)
+    3 - External error (API failure on any mutation, or the issue or target
+        does not exist; Error.Type is NotFound for a missing issue)
     4 - Auth error (not authenticated)
 """
 
@@ -271,8 +272,8 @@ examples:
 exit codes:
   0  success (including no-op)
   1  invalid parameters / logic error (bad target, PR target, parent conflict)
-  2  not found (issue or target does not exist) or plugin lib missing
-  3  external error (API failure on any mutation)
+  2  config error (plugin lib missing)
+  3  external error (API failure, or issue/target not found; see Error.Type)
   4  auth error (not authenticated)
 """
 
@@ -327,7 +328,7 @@ def main(argv: list[str] | None = None) -> int:
     except UsageError as exc:
         return _error(str(exc), 1, "InvalidParams", fmt)
     except IssueNotFoundError as exc:
-        return _error(str(exc), 2, "NotFound", fmt)
+        return _error(str(exc), 3, "NotFound", fmt)
     except RuntimeError as exc:
         return _error(str(exc) or "GraphQL request failed", 3, "ApiError", fmt)
 

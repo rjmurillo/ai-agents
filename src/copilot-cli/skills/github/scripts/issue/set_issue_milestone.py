@@ -9,8 +9,9 @@ or ``would_clear`` with ``dry_run: true``; it edits nothing.
 Exit codes follow ADR-035:
     0 - Success
     1 - Logic/precondition error (includes: milestone already set without --force)
-    2 - Usage/config error (invalid arguments, milestone not found)
-    3 - External error (API failure, including a failed milestone query)
+    2 - Usage/config error (invalid arguments)
+    3 - External error (API failure, including a failed milestone query, or
+        the milestone does not exist; Error.Type is NotFound for a missing milestone)
     4 - Auth error (not authenticated)
 """
 
@@ -64,6 +65,12 @@ class _MilestoneQueryError(RuntimeError):
 
 class _MilestoneTimeoutError(_MilestoneQueryError):
     """A gh milestone query timed out."""
+
+
+def _is_not_found_text(text: str) -> bool:
+    """Return True when gh reported a missing remote object (HTTP 404)."""
+    lowered = text.lower()
+    return "not found" in lowered or "http 404" in lowered
 
 
 def _get_current_milestone(owner: str, repo: str, issue: int) -> str | None:
@@ -140,8 +147,8 @@ examples:
 exit codes:
   0  success
   1  logic/precondition error (includes: milestone already set without --force)
-  2  usage/config error (invalid arguments, milestone not found)
-  3  external error (API failure, including a failed milestone query)
+  2  usage/config error (invalid arguments)
+  3  external error (API failure, failed milestone query, or milestone not found; see Error.Type)
   4  auth error (not authenticated)
 """
 
@@ -236,7 +243,7 @@ def main(argv: list[str] | None = None) -> int:
             str(err),
             3,
             fmt,
-            "ApiError",
+            "NotFound" if _is_not_found_text(str(err)) else "ApiError",
             {"issue": args.issue, "milestone": None, "action": "failed"},
         )
         raise SystemExit(3) from err
@@ -363,12 +370,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.milestone not in milestone_titles:
         _emit_error(
             f"Milestone '{args.milestone}' does not exist in {owner}/{repo}.",
-            2,
+            3,
             fmt,
             "NotFound",
             output | {"milestone": args.milestone, "action": "failed"},
         )
-        raise SystemExit(2)
+        raise SystemExit(3)
 
     if args.dry_run:
         output["milestone"] = args.milestone

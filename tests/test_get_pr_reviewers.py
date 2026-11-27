@@ -195,7 +195,7 @@ class TestMain:
                 main(["--pull-request", "1"])
         assert exc.value.code == 4
 
-    def test_pr_not_found_exits_2(self):
+    def test_pr_not_found_exits_3(self, capsys):
         with (
             _api(author=None),
             patch(
@@ -205,7 +205,8 @@ class TestMain:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "999"])
-        assert exc.value.code == 2
+        assert exc.value.code == 3
+        assert "PR #999 not found" in capsys.readouterr().err
 
     def test_graphql_failure_exits_3(self):
         with _api(graphql_error=RuntimeError("server error")):

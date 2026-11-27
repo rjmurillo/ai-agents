@@ -131,7 +131,7 @@ class TestMain:
                 main(["--pull-request", "1"])
             assert exc.value.code == 4
 
-    def test_pr_not_found_exits_2(self):
+    def test_pr_not_found_exits_3(self):
         with (
             patch(
                 "merge_pr.assert_gh_authenticated",
@@ -151,12 +151,12 @@ class TestMain:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "999"])
-            assert exc.value.code == 2
+            assert exc.value.code == 3
 
     @pytest.mark.parametrize(
         ("stderr", "expected"),
         [
-            ("GraphQL: Could not resolve to a PullRequest with the number of 999.", 2),
+            ("GraphQL: Could not resolve to a PullRequest with the number of 999.", 3),
             ("Could not resolve host: api.github.com", 3),
         ],
     )
@@ -1116,10 +1116,10 @@ class TestErrorEnvelope:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "999", "--output-format", "json"])
-            assert exc.value.code == 2
+            assert exc.value.code == 3
         envelope = json.loads(capsys.readouterr().out)
         assert envelope["Success"] is False
-        assert envelope["Error"]["Code"] == 2
+        assert envelope["Error"]["Code"] == 3
         assert envelope["Error"]["Type"] == "NotFound"
 
     def test_closed_pr_uses_envelope(self, capsys):

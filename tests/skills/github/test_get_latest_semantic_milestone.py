@@ -94,10 +94,11 @@ class TestGetLatestSemanticMilestone:
             patch("get_latest_semantic_milestone.gh_api_paginated", return_value=[]),
         ):
             rc = mod.main([])
-        assert rc == 2
+        assert rc == 3
         result = json.loads(capsys.readouterr().out)
         assert result["Success"] is False
-        assert result["Error"]["Code"] == 2
+        assert result["Error"]["Code"] == 3
+        assert result["Error"]["Type"] == "NotFound"
         assert result["Data"]["found"] is False
         assert result["Data"]["title"] == ""
 
@@ -113,10 +114,11 @@ class TestGetLatestSemanticMilestone:
             patch("get_latest_semantic_milestone.gh_api_paginated", return_value=milestones),
         ):
             rc = mod.main([])
-        assert rc == 2
+        assert rc == 3
         result = json.loads(capsys.readouterr().out)
         assert result["Success"] is False
-        assert result["Error"]["Code"] == 2
+        assert result["Error"]["Code"] == 3
+        assert result["Error"]["Type"] == "NotFound"
         assert result["Data"]["found"] is False
 
     def test_version_comparison_10_vs_2(self, _import_module, capsys):

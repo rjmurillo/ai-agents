@@ -209,23 +209,23 @@ class TestIdempotentPost:
         assert len(fake.posted) == 1
         assert fake.posted[0][2] == "repos/o/r/pulls/5/comments/10/replies"
 
-    def test_unknown_comment_id_exits_2(self, capsys):
+    def test_unknown_comment_id_exits_3(self, capsys):
         fake = _FakeGh(pages={_REVIEW: [[_comment(20, "x", login="reviewer")]]})
 
         with pytest.raises(SystemExit) as exc:
             _run_main(fake, _THREAD)
 
-        assert exc.value.code == 2
+        assert exc.value.code == 3
         assert fake.posted == []
         assert "Comment 10 not found on o/r#5" in capsys.readouterr().err
 
-    def test_listing_404_exits_2(self, capsys):
+    def test_listing_404_exits_3(self, capsys):
         fake = _FakeGh(list_result=_completed(rc=1, stderr="gh: Not Found (HTTP 404)"))
 
         with pytest.raises(SystemExit) as exc:
             _run_main(fake, _TOP)
 
-        assert exc.value.code == 2
+        assert exc.value.code == 3
         assert fake.posted == []
 
     def test_listing_failure_exits_3_and_posts_nothing(self, capsys):

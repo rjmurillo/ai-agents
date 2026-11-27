@@ -13,8 +13,8 @@ or changed code.
 Exit codes follow ADR-035:
     0 - Success
     1 - Invalid parameters
-    2 - Not found
-    3 - API error
+    2 - Config or usage error
+    3 - External error (API failure, or the PR was not found)
     4 - Auth error
 """
 
@@ -620,8 +620,8 @@ examples:
 exit codes:
   0  success
   1  invalid parameters
-  2  not found
-  3  API error
+  2  config or usage error
+  3  external error (API failure, or PR not found)
   4  auth error
 """
 

@@ -126,7 +126,7 @@ def test_clear_no_milestone(mock_run, capsys):
 
 
 @patch("subprocess.run")
-def test_milestone_not_found(mock_run):
+def test_milestone_not_found(mock_run, capsys):
     mock_run.side_effect = [
         _completed(rc=0),
         _completed(stdout="https://github.com/o/r\n"),
@@ -136,7 +136,8 @@ def test_milestone_not_found(mock_run):
 
     with pytest.raises(SystemExit) as exc_info:
         main(["--issue", "1", "--milestone", "nonexistent"])
-    assert exc_info.value.code == 2
+    assert exc_info.value.code == 3
+    assert json.loads(capsys.readouterr().out)["Error"]["Type"] == "NotFound"
 
 
 @patch("subprocess.run")

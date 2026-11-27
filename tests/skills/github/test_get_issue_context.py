@@ -102,7 +102,7 @@ class TestGetIssueContext:
         output = json.loads(capsys.readouterr().out)
         assert output["Data"]["milestone"] is None
 
-    def test_not_found_exits_2(self, _import_module):
+    def test_not_found_exits_3(self, _import_module):
         mod = _import_module
         with (
             patch("get_issue_context.assert_gh_authenticated"),
@@ -117,22 +117,26 @@ class TestGetIssueContext:
         ):
             with pytest.raises(SystemExit) as exc:
                 mod.main(["--issue", "999"])
-        assert exc.value.code == 2
+        assert exc.value.code == 3
 
     @pytest.mark.parametrize(
-        ("stderr", "expected"),
+        ("stderr", "expected_type"),
         [
-            # Positive: both gh wordings of a missing issue exit 2.
-            ("HTTP 404: Not Found", 2),
-            ("GraphQL: Could not resolve to an issue or pull request with the number of 999.", 2),
-            # Negative controls: other gh failures are external errors, exit 3.
-            ("some error", 3),
-            ("Could not resolve host: api.github.com", 3),
-            ("HTTP 502: Bad Gateway", 3),
-            ("", 3),
+            # Positive: both gh wordings of a missing issue exit 3 with Type NotFound.
+            ("HTTP 404: Not Found", "NotFound"),
+            (
+                "GraphQL: Could not resolve to an issue or pull request with the number of 999.",
+                "NotFound",
+            ),
+            # Negative controls: other gh failures exit 3 with Type ApiError, so
+            # Type alone separates a missing issue from an outage.
+            ("some error", "ApiError"),
+            ("Could not resolve host: api.github.com", "ApiError"),
+            ("HTTP 502: Bad Gateway", "ApiError"),
+            ("", "ApiError"),
         ],
     )
-    def test_nonzero_gh_exit_classification(self, _import_module, capsys, stderr, expected):
+    def test_nonzero_gh_exit_classification(self, _import_module, capsys, stderr, expected_type):
         mod = _import_module
         with (
             patch("get_issue_context.assert_gh_authenticated"),
@@ -147,10 +151,10 @@ class TestGetIssueContext:
         ):
             with pytest.raises(SystemExit) as exc:
                 mod.main(["--issue", "999", "--output-format", "json"])
-        assert exc.value.code == expected
+        assert exc.value.code == 3
         envelope = json.loads(capsys.readouterr().out)
-        assert envelope["Error"]["Code"] == expected
-        assert envelope["Error"]["Type"] == ("NotFound" if expected == 2 else "ApiError")
+        assert envelope["Error"]["Code"] == 3
+        assert envelope["Error"]["Type"] == expected_type
 
     def test_timeout_exits_3_with_timeout_error(self, _import_module, capsys):
         mod = _import_module

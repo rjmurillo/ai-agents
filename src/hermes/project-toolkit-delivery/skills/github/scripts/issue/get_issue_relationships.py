@@ -8,8 +8,9 @@ that GitHub stores on the issue. These are the platform relationships, not
 Exit codes follow ADR-035:
     0 - Success
     1 - Invalid parameters / logic error
-    2 - Not found (no issue with that number) or plugin lib missing
-    3 - External error (API failure)
+    2 - Config error (plugin lib missing)
+    3 - External error (API failure, or no issue with that number;
+        Error.Type is NotFound for a missing issue, ApiError otherwise)
     4 - Auth error (not authenticated)
 """
 
@@ -138,8 +139,8 @@ examples:
 exit codes:
   0  success
   1  invalid parameters / logic error
-  2  not found (no issue with that number) or plugin lib missing
-  3  external error (API failure)
+  2  config error (plugin lib missing)
+  3  external error (API failure, or no issue with that number; see Error.Type)
   4  auth error (not authenticated)
 """
 
@@ -177,12 +178,12 @@ def main(argv: list[str] | None = None) -> int:
     except IssueNotFoundError as exc:
         write_skill_error(
             str(exc),
-            2,
+            3,
             error_type="NotFound",
             output_format=fmt,
             script_name=SCRIPT_NAME,
         )
-        return 2
+        return 3
     except RuntimeError as exc:
         write_skill_error(
             str(exc) or "GraphQL request failed",

@@ -7,8 +7,11 @@ Per Skill-PR-Review-007: gh pr view may return stale data.
 
 Exit codes follow ADR-035:
     0   - Query succeeded; merge state reported in JSON ``"merged"`` field
-    2   - Config error, or the remote answered "no such PR"
-    3   - External error (API failure, timeout, unusable payload)
+    2   - Config error (invalid arguments)
+    3   - External error (API failure, timeout, unusable payload), or the
+          remote answered "no such PR". The not-found case prints a JSON error
+          envelope on stdout with ``Error.Type`` ``NotFound``, so a caller that
+          retries on 3 can tell a missing PR from an outage and not retry it.
     4   - Auth error
     100 - Legacy skip-review sentinel, only with ``--exit-100-on-merged``
 
@@ -56,6 +59,7 @@ import argparse
 import json
 import os
 import sys
+from datetime import datetime, timezone
 from typing import Any
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -114,6 +118,36 @@ def _human_summary(output: dict[str, Any]) -> str:
     return f"PR #{output['pull_request']} in {output['owner']}/{output['repo']}: {verdict}"
 
 
+def _exit_not_found(pull_request: int, owner: str, repo: str) -> int:
+    """Report a missing PR: stderr message, error envelope on stdout, exit 3.
+
+    Exit 3 also covers API failures, so ``Error.Type`` ``NotFound`` is the
+    signal that tells a deleted PR from an outage. The envelope is built
+    inline, not through ``write_skill_error``: the success output is a flat
+    object, and a ``write_skill_*`` call makes the pr-autofix field-contract
+    parser read this script as ``Data``-wrapped. The shape matches
+    ``write_skill_error`` in ``github_core/output.py``.
+    """
+    message = f"PR #{pull_request} not found in {owner}/{repo}."
+    print(message, file=sys.stderr)
+    print(
+        json.dumps(
+            {
+                "Success": False,
+                "Data": {"pull_request": pull_request, "owner": owner, "repo": repo},
+                "Error": {"Message": message, "Code": 3, "Type": "NotFound"},
+                "Metadata": {
+                    "Script": "test_pr_merged.py",
+                    "Version": "1.0.0",
+                    "Timestamp": datetime.now(timezone.utc).isoformat(),
+                },
+            },
+            separators=(",", ":"),
+        )
+    )
+    return 3
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
@@ -126,10 +160,7 @@ def main(argv: list[str] | None = None) -> int:
     if state.status is PrMergeStatus.PROBE_FAILED:
         error_and_exit(f"GraphQL query failed: {state.detail}", state.exit_code)
     if state.status is PrMergeStatus.NOT_FOUND:
-        error_and_exit(
-            f"PR #{args.pull_request} not found in {owner}/{repo}.",
-            2,
-        )
+        return _exit_not_found(args.pull_request, owner, repo)
 
     output = {
         "success": True,

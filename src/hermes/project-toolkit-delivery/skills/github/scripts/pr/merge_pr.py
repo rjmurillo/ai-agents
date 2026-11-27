@@ -42,8 +42,8 @@ to a terminal status. ``--auto`` never takes this path.
 Exit codes follow ADR-035:
     0 - Success
     1 - Invalid parameters / logic error
-    2 - Not found
-    3 - External error (API failure)
+    2 - Config or usage error
+    3 - External error (API failure, or the PR or repository was not found)
     4 - Auth error
     100 - Not mergeable (script-specific; ADR-035 reserves 5-99)
 """
@@ -94,8 +94,8 @@ examples:
 exit codes:
   0  success
   1  invalid parameters / logic error
-  2  not found
-  3  external error (API failure)
+  2  config or usage error
+  3  external error (API failure, or the PR or repository was not found)
   4  auth error
   100  not mergeable (script-specific code)
 """
@@ -423,7 +423,7 @@ def _fetch_pr_state(
         if _is_repo_not_found(combined):
             _emit_error(
                 f"Repository {repo_flag} not found: {sanitize_failure_detail(combined)}",
-                2,
+                3,
                 "NotFound",
                 output_format,
                 pr,
@@ -432,7 +432,7 @@ def _fetch_pr_state(
             # Keep gh's words: a 404 from a wrong host or repo also lands here.
             _emit_error(
                 f"PR #{pr} not found in {repo_flag}: {sanitize_failure_detail(combined)}",
-                2,
+                3,
                 "NotFound",
                 output_format,
                 pr,
@@ -1553,7 +1553,7 @@ def _resolve_strategy(
             # The REST "Not Found" wording is the one marker the classifier shares.
             _emit_error(
                 f"Repository {repo_flag} not found: {sanitize_failure_detail(str(exc))}",
-                2,
+                3,
                 "NotFound",
                 args.output_format,
                 pr,

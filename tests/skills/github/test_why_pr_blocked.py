@@ -868,7 +868,7 @@ class TestMain:
         mock_fetch.assert_called_once_with("o", "r", "release/1.0")
         assert json.loads(capsys.readouterr().out)["Data"]["BaseBranch"] == "release/1.0"
 
-    def test_pr_not_found_exits_2(self, capsys):
+    def test_pr_not_found_exits_3(self, capsys):
         gql = {"repository": {"pullRequest": None}}
         with (
             patch("why_pr_blocked.assert_gh_authenticated"),
@@ -881,7 +881,10 @@ class TestMain:
         ):
             rc = main(["--pull-request", "9999", "--output-format", "json"])
 
-        assert rc == 2
+        assert rc == 3
+        envelope = json.loads(capsys.readouterr().out)
+        assert envelope["Error"]["Type"] == "NotFound"
+        assert envelope["Error"]["Code"] == 3
 
     def test_api_error_exits_3(self, capsys):
         with (
@@ -899,6 +902,7 @@ class TestMain:
             rc = main(["--pull-request", "42", "--output-format", "json"])
 
         assert rc == 3
+        assert json.loads(capsys.readouterr().out)["Error"]["Type"] == "ApiError"
 
     def test_ruleset_api_error_exits_3(self, capsys):
         gql = _gql_pr(

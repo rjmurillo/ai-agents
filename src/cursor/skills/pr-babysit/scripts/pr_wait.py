@@ -34,10 +34,13 @@ Exit codes (ADR-035):
      after required checks pass. A ready exit waits SETTLE_SECONDS after this
      watcher first saw the head, so review bots can post. A blocker already
      reported does not exit again; the watcher waits for it to clear.
-  2  bad arguments, the PR does not exist, another pr_wait already watches
-     this PR, gh is not on PATH, or why_pr_blocked.py returned a payload
-     missing a key
-  3  GitHub stayed unreachable for MAX_FAILED_POLLS consecutive polls
+  2  bad arguments, another pr_wait already watches this PR, gh is not on
+     PATH, or why_pr_blocked.py failed with a config error or returned a
+     payload missing a key
+  3  GitHub stayed unreachable for MAX_FAILED_POLLS consecutive polls (stdout
+     line starts with ``unreachable:``), or the PR does not exist (stdout line
+     starts with ``not found:``). A missing PR exits at once and is never
+     retried; do not retry it.
   4  gh is not authenticated
 
 State lives in the user state directory under ``pr-babysit``. A lock makes a
@@ -332,6 +335,20 @@ def why_pr_blocked_path() -> Path:
     return Path(__file__).resolve().parents[2] / "github" / "scripts" / "pr" / "why_pr_blocked.py"
 
 
+def _is_not_found_envelope(stdout: str) -> bool:
+    """True when why_pr_blocked.py printed an error envelope with Type NotFound.
+
+    Exit 3 also covers API failures, which retry. Only ``Error.Type`` tells a
+    deleted PR from an outage.
+    """
+    try:
+        payload = json.loads(stdout)
+    except ValueError:
+        return False
+    error = payload.get("Error") if isinstance(payload, dict) else None
+    return isinstance(error, dict) and error.get("Type") == "NotFound"
+
+
 def fetch_gate(owner: str, name: str, number: int) -> Json:
     """Run why_pr_blocked.py and return its Data payload."""
     result = subprocess.run(
@@ -356,8 +373,10 @@ def fetch_gate(owner: str, name: str, number: int) -> Json:
     )
     detail = (result.stderr or result.stdout).strip().splitlines()
     last = detail[-1] if detail else ""
-    if result.returncode == 2:
+    if result.returncode == 3 and _is_not_found_envelope(result.stdout):
         raise LookupError(f"why_pr_blocked: {last}")
+    if result.returncode == 2:
+        raise SetupError(f"why_pr_blocked config error: {last}")
     if result.returncode == 4:
         raise AuthError(f"why_pr_blocked: {last}")
     if result.returncode not in (0, 1):
@@ -417,7 +436,8 @@ def watch(state: State, state_path: Path, target: tuple[str, str, int], args: An
             poll = poll_once(state, target, args.until, baseline)
         except LookupError as exc:
             log(str(exc))
-            return 2
+            print(f"not found: {str(exc)[:200]}", flush=True)
+            return 3
         except (ContractError, SetupError) as exc:
             log(str(exc))
             return 2

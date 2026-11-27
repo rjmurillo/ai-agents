@@ -166,11 +166,12 @@ class TestJobMode:
         assert env["Data"]["job_run_id"] == 99
         assert client.post_calls == []
 
-    def test_unknown_job_exits_two(self, capsys):
+    def test_unknown_job_exits_three(self, capsys):
         client = FakeClient(
             {"repos/o/r/actions/runs/42": run_obj(42), JOB_77: RuntimeError("Not Found (HTTP 404)")}
         )
-        assert run_main(["--run-id", "42", "--job-id", "77"], client) == 2
+        assert run_main(["--run-id", "42", "--job-id", "77"], client) == 3
+        assert envelope(capsys)["Error"]["Type"] == "NotFound"
 
     def test_job_refusal_exits_100(self, capsys):
         client = FakeClient(

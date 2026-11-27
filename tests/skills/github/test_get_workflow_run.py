@@ -113,9 +113,18 @@ class TestMain:
         result = json.loads(capsys.readouterr().out)
         assert result["Data"]["waiting_on_environment_approval"] is False
 
-    def test_run_not_found_exit_2(self, mod):
+    def test_run_not_found_exit_3(self, mod, capsys):
         rc = _exec(mod, ["--run-id", "42"], run_err="404 Not Found")
-        assert rc == 2
+        assert rc == 3
+        error = json.loads(capsys.readouterr().out)["Error"]
+        assert error["Code"] == 3
+        assert error["Type"] == "NotFound"
+
+    def test_run_read_server_error_is_apierror_not_notfound(self, mod, capsys):
+        """Negative control: a non-404 read failure exits 3 with Type ApiError."""
+        rc = _exec(mod, ["--run-id", "42"], run_err="HTTP 502 Bad Gateway")
+        assert rc == 3
+        assert json.loads(capsys.readouterr().out)["Error"]["Type"] == "ApiError"
 
     def test_failed_steps_surface(self, mod, capsys):
         rc = _exec(mod, ["--run-id", "42"], jobs=_jobs_payload(failed_step=True))

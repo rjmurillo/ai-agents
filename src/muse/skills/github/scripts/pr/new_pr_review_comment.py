@@ -14,9 +14,10 @@ validation run before any API call and report on stderr.
 
 Exit codes follow ADR-035:
     0 - Success
-    2 - Config/usage error (invalid body, PR not found, line not in the diff,
-        bad request, session refuses GitHub)
-    3 - External error (API failure, rate limit, timeout)
+    2 - Config/usage error (invalid body, line not in the diff, bad request,
+        session refuses GitHub)
+    3 - External error (API failure, rate limit, timeout, or the PR was not
+        found, reported as Error.Type NotFound)
     4 - Auth error (not authenticated, permission denied)
 """
 
@@ -106,8 +107,9 @@ duplicate, and the existing comment_id.
 
 exit codes:
   0  success (posted, previewed with --dry-run, or skipped as a duplicate)
-  2  config/usage error, or the pull request was not found
-  3  external error (API failure, rate limit, timeout, or a failed duplicate check)
+  2  config/usage error
+  3  external error (API failure, rate limit, timeout, a failed duplicate check, or the
+     pull request was not found, Error.Type NotFound)
   4  auth error (not authenticated, permission denied)
 """
 
@@ -188,7 +190,7 @@ def _fail(action: str, result: subprocess.CompletedProcess[str], notfound: str) 
     text = f"{result.stderr or ''}\n{result.stdout or ''}"
     status = _http_status(text)
     if status == 404:
-        raise CommentApiError(notfound, 2, "NotFound")
+        raise CommentApiError(notfound, 3, "NotFound")
     detail = sanitize_failure_detail(text, limit=400) or "no output from gh"
     exit_code, error_type = _classify_failure(status, text)
     raise CommentApiError(f"Failed to {action}: {detail}", exit_code, error_type)

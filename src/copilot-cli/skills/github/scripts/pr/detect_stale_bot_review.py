@@ -41,8 +41,8 @@ point ``check_pr_round_cap.py`` already bounds. See the pr-autofix skill.
 Exit codes follow ADR-035:
     0 - Classified (read ``Data.verdict``)
     1 - Invalid parameters / logic error
-    2 - Not found or config error
-    3 - External error (API failure, unreadable sibling output)
+    2 - Config or usage error
+    3 - External error (API failure, PR not found, unreadable sibling output)
     4 - Auth error
 """
 

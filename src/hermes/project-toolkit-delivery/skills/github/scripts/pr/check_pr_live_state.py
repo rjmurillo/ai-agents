@@ -25,8 +25,8 @@ before acting on each PR. It returns a single verdict:
 Exit codes follow ADR-035:
     0 - PR is safe to act on (still OPEN; not superseded by main)
     1 - PR should be skipped/closed (merged, closed, or superseded by main)
-    2 - PR not found
-    3 - External error (API failure)
+    2 - Config or usage error
+    3 - External error (API failure, or the PR was not found; Error.Type is NotFound)
     4 - Auth error
 
 Stricter/looser/different than canonical
@@ -191,7 +191,7 @@ def _query_live_pr(
             )
             _emit_error(
                 f"PR #{pr_number} not found in {owner}/{repo}",
-                2,
+                3,
                 "NotFound",
                 output_format,
                 pr_number,
@@ -229,7 +229,7 @@ def _query_live_pr(
         )
         _emit_error(
             f"PR #{pr_number} not found in {owner}/{repo}",
-            2,
+            3,
             "NotFound",
             output_format,
             pr_number,
@@ -531,8 +531,8 @@ examples:
 exit codes:
   0  PR is safe to act on (still OPEN; not superseded by main)
   1  PR should be skipped/closed (merged, closed, or superseded by main)
-  2  PR not found
-  3  external error (API failure)
+  2  config or usage error
+  3  external error (API failure, or the PR was not found: Error.Type NotFound)
   4  auth error
 """
 

@@ -10,8 +10,8 @@ context rather than just unresolved threads.
 Exit codes follow ADR-035:
     0 - Success
     1 - Invalid parameters / logic error
-    2 - Not found
-    3 - External error (API failure)
+    2 - Config or usage error
+    3 - External error (API failure, or the PR was not found)
     4 - Auth error
 """
 
@@ -157,6 +157,7 @@ def _extract_review_threads(
     repo: str,
     pr: int,
     pages_seen: int,
+    failure_reason: list[str] | None = None,
 ) -> dict | None:
     """Pull the reviewThreads dict from a GraphQL response, defensively.
 
@@ -164,11 +165,15 @@ def _extract_review_threads(
     intermediate fields is missing. Each missing-field branch logs a
     distinct ``op=review_threads_failed reason=...`` line so an operator
     grepping the failure surface can distinguish the failure mode without
-    reading source.
+    reading source. When ``failure_reason`` is given, the same reason string
+    is appended to it so the caller can tell a missing PR from a malformed
+    response without parsing logs.
     """
     repository = data.get("repository") or {}
     pull_request_obj = repository.get("pullRequest")
     if pull_request_obj is None:
+        if failure_reason is not None:
+            failure_reason.append("pr_not_found")
         logger.warning(
             "op=review_threads_failed pr=%d owner=%s repo=%s page=%d reason=pr_not_found",
             pr,
@@ -179,6 +184,8 @@ def _extract_review_threads(
         return None
     review_threads = pull_request_obj.get("reviewThreads")
     if review_threads is None:
+        if failure_reason is not None:
+            failure_reason.append("field_missing")
         logger.warning(
             "op=review_threads_failed pr=%d owner=%s repo=%s page=%d reason=field_missing",
             pr,
@@ -188,6 +195,8 @@ def _extract_review_threads(
         )
         return None
     if review_threads.get("nodes") is None:
+        if failure_reason is not None:
+            failure_reason.append("nodes_missing")
         logger.warning(
             "op=review_threads_failed pr=%d owner=%s repo=%s page=%d reason=nodes_missing",
             pr,
@@ -229,6 +238,7 @@ def _collect_all_threads(
     repo: str,
     pr: int,
     comments_limit: int,
+    failure_reason: list[str] | None = None,
 ) -> tuple[list[dict] | None, int, bool]:
     """Page through all reviewThreads for a PR.
 
@@ -243,6 +253,9 @@ def _collect_all_threads(
       (5000-thread ceiling) while ``hasNextPage`` was still true; triggers
       ``warnings.warn``.
 
+    ``failure_reason``, when given, receives ``pr_not_found``, ``field_missing``,
+    or ``nodes_missing`` on a first-page ``None`` return.
+
     Raises RuntimeError on transport failures, propagated from gh_graphql.
     """
     aggregated: list[dict] = []
@@ -253,7 +266,7 @@ def _collect_all_threads(
     while pages_seen < _MAX_THREAD_PAGES:
         pages_seen += 1
         data = _run_threads_query(owner, repo, pr, comments_limit, cursor)
-        review_threads = _extract_review_threads(data, owner, repo, pr, pages_seen)
+        review_threads = _extract_review_threads(data, owner, repo, pr, pages_seen, failure_reason)
         if review_threads is None:
             if pages_seen == 1:
                 return None, 0, False
@@ -338,24 +351,26 @@ def main(argv: list[str] | None = None) -> int:
 
     comments_limit = 50 if args.include_comments else 1
 
+    failure_reason: list[str] = []
     try:
         threads, _total_count, truncated = _collect_all_threads(
             owner,
             repo,
             pr,
             comments_limit,
+            failure_reason,
         )
     except RuntimeError as exc:
         msg = str(exc)
         if is_pr_not_found(msg):
             write_skill_error(
                 f"PR #{pr} not found in {owner}/{repo}",
-                2,
+                3,
                 error_type="NotFound",
                 output_format=fmt,
                 script_name="get_pr_review_threads.py",
             )
-            return 2
+            return 3
         write_skill_error(
             f"Failed to query review threads: {msg}",
             3,
@@ -366,14 +381,19 @@ def main(argv: list[str] | None = None) -> int:
         return 3
 
     if threads is None:
+        if failure_reason and failure_reason[0] == "pr_not_found":
+            message, error_type = f"PR #{pr} not found in {owner}/{repo}", "NotFound"
+        else:
+            message = f"PR #{pr} review threads missing from the GraphQL response"
+            error_type = "ApiError"
         write_skill_error(
-            f"PR #{pr} not found or has no review threads",
-            2,
-            error_type="NotFound",
+            message,
+            3,
+            error_type=error_type,
             output_format=fmt,
             script_name="get_pr_review_threads.py",
         )
-        return 2
+        return 3
 
     if args.unresolved_only:
         threads = filter_unresolved_threads(threads)

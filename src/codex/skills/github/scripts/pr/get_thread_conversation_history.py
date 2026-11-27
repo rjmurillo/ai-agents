@@ -6,8 +6,8 @@ Supports pagination for threads with many comments.
 
 Exit codes follow ADR-035:
     0 - Success
-    2 - Config/usage error (invalid parameters, thread not found)
-    3 - API error
+    2 - Config/usage error (invalid parameters)
+    3 - External error (API failure, or the thread was not found)
     4 - Auth error
 """
 
@@ -107,7 +107,7 @@ def fetch_thread_comments(thread_id: str) -> tuple[dict, list[dict]]:
         if result.returncode != 0:
             error_text = result.stderr.strip() or result.stdout.strip()
             if "Could not resolve" in error_text or "not found" in error_text:
-                error_and_exit(f"Thread {thread_id} not found.", 2)
+                error_and_exit(f"Thread {thread_id} not found.", 3)
             error_and_exit(f"Failed to query thread: {error_text}", 3)
 
         try:
@@ -119,7 +119,7 @@ def fetch_thread_comments(thread_id: str) -> tuple[dict, list[dict]]:
         if node is None or node.get("id") is None:
             error_and_exit(
                 f"Thread {thread_id} not found or is not a review thread.",
-                2,
+                3,
             )
 
         # Store thread info from first page
@@ -160,8 +160,8 @@ examples:
 
 exit codes:
   0  success
-  2  config/usage error (invalid parameters, thread not found)
-  3  API error
+  2  config/usage error (invalid parameters)
+  3  external error (API failure, or the thread was not found)
   4  auth error
 """
 

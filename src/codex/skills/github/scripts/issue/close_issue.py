@@ -11,8 +11,9 @@ Metadata}).
 Exit codes follow ADR-035:
     0 - Success (issue closed, or already closed)
     1 - Invalid parameters / logic error
-    2 - File not found / config error
-    3 - External error (API failure)
+    2 - Config or usage error (for example, the comment file is missing)
+    3 - External error (API failure, or the issue was not found;
+        Error.Type is NotFound for a missing issue, ApiError otherwise)
     4 - Auth error (not authenticated)
 
 ``--verify-claims`` splits those last three deliberately (issue #4951). A
@@ -72,8 +73,8 @@ examples:
 exit codes:
   0  success (issue closed, or already closed)
   1  invalid parameters / logic error
-  2  file not found / config error
-  3  external error (API failure)
+  2  config or usage error (for example, the comment file is missing)
+  3  external error (API failure, or the issue was not found; see Error.Type)
   4  auth error (not authenticated)
 """
 
@@ -447,7 +448,7 @@ def _resolve_comment(comment: str, comment_file: str, fmt: str) -> str:
 
 def _write_subprocess_error(message: str, issue: int, fmt: str, *, not_found: bool = False) -> int:
     if not_found:
-        code = 2
+        code = 3
         error_type = "NotFound"
     elif is_auth_failure_text(message):
         code = 4

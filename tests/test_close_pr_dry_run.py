@@ -64,7 +64,7 @@ class TestDryRun:
     def test_dry_run_still_fails_when_the_pr_is_missing(self):
         with pytest.raises(SystemExit) as exc:
             run_close(_DRY, [_completed(rc=1, stderr="Could not resolve to a PullRequest")])
-        assert exc.value.code == 2
+        assert exc.value.code == 3
 
     def test_dry_run_comment_lookup_failure_exits_3(self):
         with pytest.raises(SystemExit) as exc:

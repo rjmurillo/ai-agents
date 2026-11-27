@@ -7,9 +7,9 @@ Reference documentation for the GitHub skill. For usage, see `../SKILL.md`.
 | Code | Meaning | Claude Action |
 |------|---------|---------------|
 | 0 | Success | Parse JSON output |
-| 1 | Invalid parameters | Check script parameters |
-| 2 | Resource not found | PR/issue/milestone doesn't exist |
-| 3 | GitHub API error | Check error message, may be rate limit |
+| 1 | Logic error | Read the error; some scripts give 1 a documented meaning |
+| 2 | Config or usage error | Fix the arguments, a local file path, or the environment |
+| 3 | External error, including a PR, issue, or milestone that does not exist | Read `Error.Type`: `NotFound` means fix the number, do not retry; `ApiError` or `Timeout` may be transient |
 | 4 | gh CLI not authenticated | Run `gh auth login` |
 | 100 | Not mergeable (`merge_pr.py`, script-specific) | PR has conflicts or checks failing |
 
@@ -188,8 +188,8 @@ PR mode keeps the newest run per workflow and event, so a superseded run is not 
 |------|---------------|---------|
 | 0 | `rerun_requested`, `no_failed_runs` | Reruns requested, or nothing failed. Runs still in progress are listed in `skipped_in_progress` |
 | 1 | `run_in_progress`, `pr_not_open`, `job_run_mismatch` | Only in-progress runs, a PR that is not open, or a job from another run |
-| 2 | `invalid_params`, `not_found` | Bad arguments (ADR-035 usage error; argparse type errors print usage with no envelope), or PR, run, or job not found on a read |
-| 3 | `pagination_incomplete`, `api_error`, `timeout`, `rate_limited` | The run list had a gap, or a call failed. After a POST timeout the outcome is unknown |
+| 2 | `invalid_params` | Bad arguments (ADR-035 usage error; argparse type errors print usage with no envelope) |
+| 3 | `not_found`, `pagination_incomplete`, `api_error`, `timeout`, `rate_limited` | The PR, run, or job was not found on a read, the run list had a gap, or a call failed. After a POST timeout the outcome is unknown |
 | 4 | `auth` | Credential or permission fault, including a permission 403 on a POST |
 | 100 | `cannot_be_retried` | GitHub refused. Do not retry. The fallbacks are in `Data.fallbacks` and on stderr |
 
@@ -209,7 +209,8 @@ Starts a new review thread on a diff line. Use `post_pr_comment_reply.py` to rep
 - Exit 0: created. `Data` carries `comment_id`, `html_url`, `pull_request`, `path`, `line`, `side`, `commit_id`, `created_at`.
 - On an API failure, `Error.Code` is the exit code and `Error.Type` names the cause. `Data` echoes the PR, path, line, and side.
 - Argument and body errors happen before any API call. They print plain text to stderr and exit 2.
-- Exit 2: the PR is not found, the body is invalid, or the API returned 400 or 422 (line or path not in the diff).
+- Exit 2: the body is invalid, or the API returned 400 or 422 (line or path not in the diff).
+- Exit 3 with `Error.Type` `NotFound`: the PR does not exist.
 - A `--body-file` that is empty, unreadable, or not UTF-8 also exits 2. The literal backslash-n check applies to an inline `--body` only.
 - Exit 2 also covers a session whose network policy refuses GitHub.
 - Exit 3: another API failure, a quota refusal, or a timeout.

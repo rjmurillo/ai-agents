@@ -131,7 +131,7 @@ class TestGetIssueContext:
         output = json.loads(capsys.readouterr().out)
         assert output["Data"]["milestone"] is None
 
-    def test_api_not_found_exits_2(self):
+    def test_api_not_found_exits_3(self, capsys):
         mod = self._import()
         proc = make_proc(stderr="not found", returncode=1)
         with (
@@ -140,10 +140,11 @@ class TestGetIssueContext:
             patch("subprocess.run", return_value=proc),
         ):
             with pytest.raises(SystemExit) as exc:
-                mod.main(["--issue", "99"])
-        assert exc.value.code == 2
+                mod.main(["--issue", "99", "--output-format", "json"])
+        assert exc.value.code == 3
+        assert json.loads(capsys.readouterr().out)["Error"]["Type"] == "NotFound"
 
-    def test_api_other_error_exits_3(self):
+    def test_api_other_error_exits_3(self, capsys):
         mod = self._import()
         proc = make_proc(stderr="connection refused", returncode=1)
         with (
@@ -152,8 +153,9 @@ class TestGetIssueContext:
             patch("subprocess.run", return_value=proc),
         ):
             with pytest.raises(SystemExit) as exc:
-                mod.main(["--issue", "99"])
+                mod.main(["--issue", "99", "--output-format", "json"])
         assert exc.value.code == 3
+        assert json.loads(capsys.readouterr().out)["Error"]["Type"] == "ApiError"
 
     def test_empty_json_exits_3(self):
         mod = self._import()
@@ -823,7 +825,7 @@ class TestSetIssueMilestone:
         result = json.loads(capsys.readouterr().out)
         assert result["Data"]["action"] == "no_change"
 
-    def test_milestone_not_found_exits_2(self):
+    def test_milestone_not_found_exits_3(self, capsys):
         mod = self._import()
         with (
             patch("set_issue_milestone.assert_gh_authenticated"),
@@ -838,7 +840,8 @@ class TestSetIssueMilestone:
         ):
             with pytest.raises(SystemExit) as exc:
                 mod.main(["--issue", "1", "--milestone", "missing-ms"])
-        assert exc.value.code == 2
+        assert exc.value.code == 3
+        assert json.loads(capsys.readouterr().out)["Error"]["Type"] == "NotFound"
 
     def test_main_no_milestone_no_clear_exits_2(self):
         mod = self._import()

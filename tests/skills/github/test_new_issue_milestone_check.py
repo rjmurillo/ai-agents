@@ -39,7 +39,7 @@ def test_absent_flag_makes_no_milestone_calls(capsys, tmp_path, monkeypatch):
 @pytest.mark.parametrize(
     ("milestones_route", "milestone", "code", "error_type", "message"),
     [
-        (LIST_OK, "v9.9.9", 2, "NotFound", "Milestone 'v9.9.9' does not exist in owner/repo."),
+        (LIST_OK, "v9.9.9", 3, "NotFound", "Milestone 'v9.9.9' does not exist in owner/repo."),
         (_make_proc(returncode=1, stderr="boom"), "v0.7.0", 3, "ApiError", "boom"),
         (subprocess.TimeoutExpired(cmd="gh", timeout=30), "v0.7.0", 3, "Timeout", "Timed out"),
         (
@@ -75,7 +75,7 @@ def test_missing_milestone_human_output_says_no_issue(capsys):
     with patch("subprocess.run", side_effect=gh):
         rc = main([*BASE, "--milestone", "v9.9.9", "--output-format", "human"])
 
-    assert rc == 2
+    assert rc == 3
     captured = capsys.readouterr()
     assert "No issue was created." in captured.out + captured.err
     assert ("issue", "create") not in gh.verbs()

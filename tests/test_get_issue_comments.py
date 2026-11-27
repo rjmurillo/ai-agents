@@ -319,7 +319,7 @@ class TestMain:
             capsys.readouterr().out
         )
 
-    def test_not_found_exits_2(self, capsys):
+    def test_not_found_exits_3(self, capsys):
         with (
             patch("get_issue_comments.assert_gh_authenticated"),
             patch(
@@ -333,7 +333,8 @@ class TestMain:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--issue", "1"])
-            assert exc.value.code == 2
+            assert exc.value.code == 3
+        assert _envelope(capsys)["Error"]["Type"] == "NotFound"
 
     def test_missing_user_login_is_none(self, capsys):
         bad = {"created_at": "2026-06-06T00:00:00Z", "body": "ghost"}

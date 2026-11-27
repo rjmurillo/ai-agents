@@ -50,7 +50,7 @@ class TestMain:
                 main(["--thread-id", "PRRT_abc"])
             assert exc.value.code == 4
 
-    def test_thread_not_found_exits_2(self):
+    def test_thread_not_found_exits_3(self, capsys):
         with (
             patch(
                 "get_thread_by_id.assert_gh_authenticated",
@@ -66,9 +66,10 @@ class TestMain:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--thread-id", "PRRT_abc"])
-            assert exc.value.code == 2
+            assert exc.value.code == 3
+        assert "not found" in capsys.readouterr().err
 
-    def test_null_node_exits_2(self):
+    def test_null_node_exits_3(self):
         with (
             patch(
                 "get_thread_by_id.assert_gh_authenticated",
@@ -84,7 +85,7 @@ class TestMain:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--thread-id", "PRRT_abc"])
-            assert exc.value.code == 2
+            assert exc.value.code == 3
 
     def test_success(self, capsys):
         thread_data = {

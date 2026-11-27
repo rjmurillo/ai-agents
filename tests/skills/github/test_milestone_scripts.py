@@ -99,10 +99,11 @@ class TestGetLatestSemanticMilestone:
             patch("get_latest_semantic_milestone.gh_api_paginated", return_value=[]),
         ):
             rc = mod.main([])
-        assert rc == 2
+        assert rc == 3
         result = json.loads(capsys.readouterr().out)
         assert result["Success"] is False
-        assert result["Error"]["Code"] == 2
+        assert result["Error"]["Code"] == 3
+        assert result["Error"]["Type"] == "NotFound"
         assert result["Data"]["found"] is False
         assert result["Data"]["title"] == ""
 
@@ -118,10 +119,11 @@ class TestGetLatestSemanticMilestone:
             patch("get_latest_semantic_milestone.gh_api_paginated", return_value=milestones),
         ):
             rc = mod.main([])
-        assert rc == 2
+        assert rc == 3
         result = json.loads(capsys.readouterr().out)
         assert result["Success"] is False
-        assert result["Error"]["Code"] == 2
+        assert result["Error"]["Code"] == 3
+        assert result["Error"]["Type"] == "NotFound"
         assert result["Data"]["found"] is False
 
     def test_version_comparison(self, capsys):
@@ -159,7 +161,7 @@ class TestGetLatestSemanticMilestone:
         assert result["Data"]["found"] is True
         assert result["Data"]["title"] == "1.0.0"
 
-    def test_main_exits_2_when_not_found(self):
+    def test_main_exits_3_when_not_found(self, capsys):
         mod = self._import()
         with (
             patch("get_latest_semantic_milestone.assert_gh_authenticated"),
@@ -167,7 +169,24 @@ class TestGetLatestSemanticMilestone:
             patch("get_latest_semantic_milestone.gh_api_paginated", return_value=[]),
         ):
             rc = mod.main([])
-        assert rc == 2
+        assert rc == 3
+        assert json.loads(capsys.readouterr().out)["Error"]["Type"] == "NotFound"
+
+    def test_main_api_failure_emits_no_notfound_envelope(self, capsys):
+        """Negative control: an API failure exits 3 through error_and_exit, no NotFound."""
+        mod = self._import()
+        with (
+            patch("get_latest_semantic_milestone.assert_gh_authenticated"),
+            patch("get_latest_semantic_milestone.resolve_repo_params", return_value=_mock_repo()),
+            patch(
+                "get_latest_semantic_milestone.gh_api_paginated",
+                side_effect=SystemExit(3),
+            ),
+            pytest.raises(SystemExit) as exc,
+        ):
+            mod.main([])
+        assert exc.value.code == 3
+        assert "NotFound" not in capsys.readouterr().out
 
     def test_main_success(self, capsys):
         mod = self._import()

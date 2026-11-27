@@ -11,7 +11,8 @@ Exit codes (per ADR-035):
     1 - Invalid parameters / logic error
     2 - Config/environment error (missing lib dir, body-file not found,
         path-traversal rejected, gh CLI binary missing, gh CLI timeout)
-    3 - External error (API failure)
+    3 - External error (API failure, or the issue was not found; stderr only,
+        no envelope)
     4 - Auth error (not authenticated)
 """
 
@@ -47,7 +48,7 @@ exit codes:
   0  success
   1  invalid parameters / logic error
   2  config/environment error
-  3  external error (API failure)
+  3  external error (API failure, or the issue was not found)
   4  auth error (not authenticated)
 """
 

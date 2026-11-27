@@ -285,7 +285,7 @@ class TestMain:
             {},
         ],
     )
-    def test_pr_not_found_exits_2(self, response, capsys):
+    def test_pr_not_found_exits_3(self, response, capsys):
         with (
             patch(f"{_MODULE}.assert_gh_authenticated"),
             patch(
@@ -298,12 +298,14 @@ class TestMain:
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "42"])
 
-        assert exc.value.code == 2
+        assert exc.value.code == 3
         paginated.assert_not_called()
-        assert '"success": true' not in capsys.readouterr().out.lower()
+        captured = capsys.readouterr()
+        assert "PR #42 not found" in captured.err
+        assert '"success": true' not in captured.out.lower()
 
-    def test_pr_found_does_not_exit_2(self, capsys):
-        # Negative control for test_pr_not_found_exits_2: the same mocks with
+    def test_pr_found_does_not_exit_3(self, capsys):
+        # Negative control for test_pr_not_found_exits_3: the same mocks with
         # a present pullRequest must complete and return 0.
         with (
             patch(f"{_MODULE}.assert_gh_authenticated"),

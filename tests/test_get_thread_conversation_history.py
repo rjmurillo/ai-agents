@@ -200,7 +200,7 @@ class TestMain:
         assert output["ReturnedComments"] == 1
         assert output["MinimizedExcluded"] == 1
 
-    def test_thread_not_found_exits_2(self):
+    def test_thread_not_found_exits_3(self):
         gql_response = json.dumps({"data": {"node": None}})
         with (
             patch(
@@ -217,4 +217,40 @@ class TestMain:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--thread-id", "PRRT_nonexistent"])
-            assert exc.value.code == 2
+            assert exc.value.code == 3
+
+    def test_gh_not_found_stderr_exits_3_not_found_message(self, capsys):
+        with (
+            patch("get_thread_conversation_history.assert_gh_authenticated"),
+            patch(
+                "get_thread_conversation_history.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stderr="Could not resolve to a node", rc=1),
+            ),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--thread-id", "PRRT_nonexistent"])
+        assert exc.value.code == 3
+        assert "not found" in capsys.readouterr().err
+
+    def test_gh_server_error_exits_3_without_not_found_message(self, capsys):
+        with (
+            patch("get_thread_conversation_history.assert_gh_authenticated"),
+            patch(
+                "get_thread_conversation_history.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stderr="HTTP 502 Bad Gateway", rc=1),
+            ),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--thread-id", "PRRT_x"])
+        assert exc.value.code == 3
+        err = capsys.readouterr().err
+        assert "Failed to query thread" in err
+        assert "not found" not in err

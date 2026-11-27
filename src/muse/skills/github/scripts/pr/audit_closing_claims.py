@@ -54,8 +54,8 @@ returns exit code 1 instead of 0.
 Exit codes follow ADR-035:
     0 - Audit complete, no unsupported reachable claim found
     1 - Audit complete, but an unsupported claim can reach the squash commit
-    2 - Not found / empty fleet / local --artifact write failure
-    3 - API error
+    2 - Config or usage error, or a local --artifact write failure
+    3 - External error (API failure, or no open PRs were found)
     4 - Auth error
 """
 
@@ -435,12 +435,12 @@ def main(argv: list[str] | None = None) -> int:
     if not pr_nodes:
         write_skill_error(
             "No open PRs found",
-            2,
+            3,
             error_type="NotFound",
             output_format=fmt,
             script_name=_SCRIPT_NAME,
         )
-        return 2
+        return 3
 
     all_claims: list[dict[str, Any]] = []
     audited_prs = 0

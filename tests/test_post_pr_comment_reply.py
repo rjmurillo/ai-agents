@@ -255,7 +255,7 @@ class TestMain:
 
 @pytest.mark.usefixtures("no_prior_comment")
 class TestNotFound:
-    """A 404 from the replies endpoint exits 2 with a one-line message (D29)."""
+    """A 404 from the replies endpoint exits 3 with a one-line message (D29)."""
 
     _GH_BODY = (
         '{"message":"Not Found","documentation_url":"https://docs.github.com","status":"404"}'
@@ -277,23 +277,23 @@ class TestNotFound:
                 main(argv)
         return exc.value.code
 
-    def test_missing_review_comment_exits_2_with_one_line(self, capsys):
+    def test_missing_review_comment_exits_3_with_one_line(self, capsys):
         code = self._run(
             ["--pull-request", "50", "--comment-id", "123", "--body", "x"],
             stdout=self._GH_BODY,
             stderr="gh: Not Found (HTTP 404)",
         )
-        assert code == 2
+        assert code == 3
         err = capsys.readouterr().err
         assert err.strip() == "Comment 123 not found on o/r#50"
         assert "}" not in err
 
-    def test_missing_pull_request_exits_2(self, capsys):
+    def test_missing_pull_request_exits_3(self, capsys):
         code = self._run(
             ["--pull-request", "50", "--body", "x"],
             stderr="gh: Not Found (HTTP 404)",
         )
-        assert code == 2
+        assert code == 3
         assert capsys.readouterr().err.strip() == "Pull request o/r#50 not found"
 
     def test_404_detected_from_json_body_alone(self, capsys):
@@ -301,7 +301,7 @@ class TestNotFound:
             ["--pull-request", "50", "--comment-id", "9", "--body", "x"],
             stdout=self._GH_BODY,
         )
-        assert code == 2
+        assert code == 3
         assert "Comment 9 not found" in capsys.readouterr().err
 
     def test_non_404_failure_still_exits_3(self, capsys):
@@ -371,15 +371,15 @@ class TestDryRun:
 
         assert exc.value.code == 2
 
-    def test_missing_pull_request_exits_2_like_a_real_run(self, capsys):
+    def test_missing_pull_request_exits_3_like_a_real_run(self, capsys):
         missing = _completed(rc=1, stderr="gh: Not Found (HTTP 404)")
         with pytest.raises(SystemExit) as exc:
             self._run(["--pull-request", "5", "--body", "hi", "--dry-run"], target=missing)
 
-        assert exc.value.code == 2
+        assert exc.value.code == 3
         assert "Pull request o/r#5 not found" in capsys.readouterr().err
 
-    def test_missing_comment_exits_2_naming_the_comment(self, capsys):
+    def test_missing_comment_exits_3_naming_the_comment(self, capsys):
         missing = _completed(rc=1, stderr="gh: Not Found (HTTP 404)")
         with pytest.raises(SystemExit) as exc:
             self._run(
@@ -387,7 +387,7 @@ class TestDryRun:
                 target=missing,
             )
 
-        assert exc.value.code == 2
+        assert exc.value.code == 3
         assert "Comment 77 not found" in capsys.readouterr().err
 
     def test_api_failure_while_reading_the_target_exits_3(self):
@@ -397,14 +397,14 @@ class TestDryRun:
 
         assert exc.value.code == 3
 
-    def test_comment_on_another_pull_request_exits_2_like_the_scoped_post(self, capsys):
+    def test_comment_on_another_pull_request_exits_3_like_the_scoped_post(self, capsys):
         with pytest.raises(SystemExit) as exc:
             self._run(
                 ["--pull-request", "5", "--comment-id", "77", "--body", "hi", "--dry-run"],
                 target=self._comment_on(6),
             )
 
-        assert exc.value.code == 2
+        assert exc.value.code == 3
         assert "Comment 77 not found" in capsys.readouterr().err
 
     def test_pull_request_number_is_matched_exactly_not_by_suffix(self, capsys):
@@ -414,7 +414,7 @@ class TestDryRun:
                 target=self._comment_on(15),
             )
 
-        assert exc.value.code == 2
+        assert exc.value.code == 3
 
     def test_unparseable_comment_body_is_treated_as_not_belonging(self):
         with pytest.raises(SystemExit) as exc:
@@ -423,7 +423,7 @@ class TestDryRun:
                 target=_completed(stdout="not json"),
             )
 
-        assert exc.value.code == 2
+        assert exc.value.code == 3
 
     def test_timeout_reading_the_target_exits_3_not_a_traceback(self, capsys):
         with (

@@ -375,7 +375,7 @@
   {
    "kind": "contains",
    "path": "src/claude/skills/github/scripts/pr/get_pr_comments_by_reviewer.py",
-   "text": "2 - Not found",
+   "text": "3 - External error (API failure, or the PR was not found)",
    "id": "R66"
   },
   {
@@ -411,7 +411,7 @@
   {
    "kind": "contains",
    "path": "src/claude/skills/github/scripts/pr/get_pr_comments_by_reviewer.py",
-   "text": "not found\", 2)",
+   "text": "not found\", 3)",
    "id": "R72"
   },
   {

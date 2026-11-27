@@ -10,8 +10,8 @@ Retrieves PR information including:
 Exit codes follow ADR-035:
     0 - Success
     1 - Invalid parameters / logic error
-    2 - Not found
-    3 - External error (API failure)
+    2 - Config or usage error
+    3 - External error (API failure, or the PR was not found)
     4 - Auth error
 """
 
@@ -22,7 +22,7 @@ import json
 import os
 import subprocess
 import sys
-from typing import Any, TypeAlias, cast
+from typing import Any, NoReturn, TypeAlias, cast
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from skill_bootstrap import ensure_plugin_paths
@@ -43,6 +43,7 @@ from github_core.not_found import is_pr_not_found
 from github_core.output import (
     add_output_format_arg,
     get_output_format,
+    write_skill_error,
     write_skill_output,
 )
 from pr_context_helpers import (
@@ -57,6 +58,24 @@ from pr_context_helpers import (
 )
 
 JsonObject: TypeAlias = dict[str, Any]
+# main() sets this from --output-format so the not-found envelope honors it.
+_output_format = "auto"
+
+
+def _exit_pr_not_found(message: str) -> NoReturn:
+    """Exit 3 with Error.Type NotFound (ADR-035), so callers can tell a
+    missing PR from an outage, which also exits 3 but as ApiError."""
+    print(message, file=sys.stderr)
+    write_skill_error(
+        message,
+        3,
+        error_type="NotFound",
+        output_format=_output_format,
+        script_name="get_pr_context.py",
+    )
+    raise SystemExit(3)
+
+
 _MAX_REVIEW_THREAD_PAGES = 50
 
 _FULL_JSON_FIELDS = (
@@ -119,7 +138,7 @@ def _review_threads_page(
 
     pull_request = cast(JsonObject, repository).get("pullRequest")
     if pull_request is None:
-        error_and_exit(f"PR #{pr} not found in {owner}/{repo}", 2)
+        _exit_pr_not_found(f"PR #{pr} not found in {owner}/{repo}")
     if not isinstance(pull_request, dict):
         error_and_exit(
             f"Failed to get review threads for PR #{pr}: pullRequest invalid",
@@ -166,7 +185,7 @@ def _load_pr_data(repo_flag: str, pr: int, json_fields: str) -> JsonObject:
     if pr_result.returncode != 0:
         err_msg = pr_result.stderr or pr_result.stdout
         if is_pr_not_found(err_msg):
-            error_and_exit(f"PR #{pr} not found in {repo_flag}", 2)
+            _exit_pr_not_found(f"PR #{pr} not found in {repo_flag}")
         error_and_exit(f"Failed to get PR #{pr}: {err_msg}", 3)
 
     try:
@@ -368,6 +387,8 @@ def main(argv: list[str] | None = None) -> int:
     pr = args.pull_request
     repo_flag = f"{owner}/{repo}"
     fmt = get_output_format(args.output_format)
+    global _output_format
+    _output_format = fmt
 
     pr_data = _load_pr_data(
         repo_flag, pr, requested_json_fields(selected_fields, _FULL_JSON_FIELDS)

@@ -14,8 +14,8 @@ Success output adds commentPosted, commentSkipped, and existingCommentId.
 Exit codes follow ADR-035:
     0 - Success
     1 - Invalid parameters / logic error
-    2 - Not found
-    3 - External error (API failure, or the closing comment failed so the PR stays open)
+    2 - Config or usage error (for example a missing comment file)
+    3 - External error (API failure, the PR was not found, or the closing comment failed so the PR stays open)
     4 - Auth error
 """
 
@@ -46,8 +46,8 @@ examples:
 
 exit codes:
   0  success
-  2  not found
-  3  external error (API failure, including a failed closing comment or comment lookup: the PR stays open)
+  2  config or usage error
+  3  external error (API failure, PR not found, including a failed closing comment or comment lookup: the PR stays open)
   4  auth error
 """
 

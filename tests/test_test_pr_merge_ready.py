@@ -404,7 +404,7 @@ class TestCheckMergeReadiness:
             result = check_merge_readiness("o", "r", 42, ignore_ci=True)
         assert result["CanMerge"] is True
 
-    def test_pr_not_found_exits_2(self, caplog):
+    def test_pr_not_found_exits_3(self, caplog, capsys):
         import logging
 
         with caplog.at_level(logging.WARNING, logger="test_pr_merge_ready"):
@@ -414,7 +414,13 @@ class TestCheckMergeReadiness:
             ):
                 with pytest.raises(SystemExit) as exc:
                     check_merge_readiness("o", "r", 999)
-            assert exc.value.code == 2
+            assert exc.value.code == 3
+        # Exit 3 is also the retryable code, so the envelope Type tells a
+        # deleted PR from an outage.
+        envelope = json.loads(capsys.readouterr().out)
+        assert envelope["Success"] is False
+        assert envelope["Error"]["Type"] == "NotFound"
+        assert envelope["Error"]["Code"] == 3
         # Boundary observability: failed paths must emit a structured
         # `op=merge_ready_failed reason=...` log line so an operator can
         # grep failures across scripts using a unified taxonomy.
@@ -423,8 +429,8 @@ class TestCheckMergeReadiness:
             for r in caplog.records
         ), "merge_ready failure path must log op=merge_ready_failed reason=pr_not_found"
 
-    def test_pr_not_found_via_could_not_resolve_exits_2(self, caplog):
-        """gh_graphql RuntimeError with 'Could not resolve' maps to exit 2."""
+    def test_pr_not_found_via_could_not_resolve_exits_3(self, caplog, capsys):
+        """gh_graphql RuntimeError with 'Could not resolve' maps to exit 3 NotFound."""
         import logging
 
         with caplog.at_level(logging.WARNING, logger="test_pr_merge_ready"):
@@ -434,14 +440,19 @@ class TestCheckMergeReadiness:
             ):
                 with pytest.raises(SystemExit) as exc:
                     check_merge_readiness("o", "r", 999)
-            assert exc.value.code == 2
+            assert exc.value.code == 3
+        assert json.loads(capsys.readouterr().out)["Error"]["Type"] == "NotFound"
         assert any(
             "op=merge_ready_failed" in r.message and "reason=pr_not_found" in r.message
             for r in caplog.records
         )
 
-    def test_transport_fault_exits_3(self):
-        """'Could not resolve host' is a network fault, not a missing PR."""
+    def test_transport_fault_exits_3(self, capsys):
+        """'Could not resolve host' is a network fault, not a missing PR.
+
+        Control for the NotFound tests: same exit 3, but no NotFound envelope,
+        so a caller that retries on 3 still retries an outage.
+        """
         with patch(
             "test_pr_merge_ready.gh_graphql",
             side_effect=RuntimeError("Could not resolve host: api.github.com"),
@@ -449,8 +460,9 @@ class TestCheckMergeReadiness:
             with pytest.raises(SystemExit) as exc:
                 check_merge_readiness("o", "r", 42)
         assert exc.value.code == 3
+        assert "NotFound" not in capsys.readouterr().out
 
-    def test_graphql_error_exits_3_with_log(self, caplog):
+    def test_graphql_error_exits_3_with_log(self, caplog, capsys):
         """A non-'Could not resolve' RuntimeError exits 3 and logs reason=graphql_error."""
         import logging
 
@@ -462,6 +474,7 @@ class TestCheckMergeReadiness:
                 with pytest.raises(SystemExit) as exc:
                     check_merge_readiness("o", "r", 42)
             assert exc.value.code == 3
+        assert "NotFound" not in capsys.readouterr().out
         assert any(
             "op=merge_ready_failed" in r.message and "reason=graphql_error" in r.message
             for r in caplog.records

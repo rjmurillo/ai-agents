@@ -717,7 +717,7 @@ class TestSetIssueRelationshipTargets:
             ],
             stub,
         )
-        assert rc == 2
+        assert rc == 3
         result = _out(capsys)
         assert result["Error"]["Type"] == "NotFound"
 

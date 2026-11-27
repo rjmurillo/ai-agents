@@ -15,8 +15,8 @@ Behavior:
 Output uses the standard skill envelope (ADR-056). Exit codes follow ADR-035:
     0 - Success (reopened, or already open)
     1 - Invalid parameters / logic error (PR is merged or in an unknown state)
-    2 - Not found
-    3 - External error (API failure, timeout, head branch deleted)
+    2 - Config or usage error
+    3 - External error (API failure, timeout, head branch deleted, or the PR was not found)
     4 - Auth error
 """
 
@@ -68,8 +68,8 @@ examples:
 exit codes:
   0  success (reopened, or already open)
   1  invalid parameters / logic error (PR is merged or in an unknown state)
-  2  not found
-  3  external error (API failure, timeout, head branch deleted)
+  2  config or usage error
+  3  external error (API failure, timeout, head branch deleted, or the PR was not found)
   4  auth error
 """
 
@@ -144,7 +144,7 @@ def _fail_text(result: subprocess.CompletedProcess[str]) -> str:
 
 
 def _fail_gh(result: subprocess.CompletedProcess[str], ctx: _Context, what: str) -> NoReturn:
-    """Map a failed gh call to the ADR-035 code: 4 auth, 2 missing PR, else 3."""
+    """Map a failed gh call to the ADR-035 code: 4 auth, 3 missing PR or other external failure."""
     text = _fail_text(result)
     detail = sanitize_failure_detail(text)
     if is_auth_failure_text(text):
@@ -152,7 +152,7 @@ def _fail_gh(result: subprocess.CompletedProcess[str], ctx: _Context, what: str)
     if is_pr_not_found(text):
         _emit_error(
             f"PR #{ctx.pr} not found in {ctx.repo_flag}",
-            2,
+            3,
             "NotFound",
             ctx.output_format,
             ctx.pr,

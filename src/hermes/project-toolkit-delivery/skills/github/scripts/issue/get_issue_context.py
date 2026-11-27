@@ -6,8 +6,9 @@ Retrieves issue information including title, body, labels, milestone, state.
 Exit codes follow ADR-035:
     0 - Success
     1 - Logic error
-    2 - Not found, or invalid arguments
-    3 - External error (API failure)
+    2 - Config or usage error
+    3 - External error (API failure, or the issue was not found;
+        Error.Type is NotFound for a missing issue, ApiError otherwise)
     4 - Auth error (not authenticated)
 """
 
@@ -58,8 +59,8 @@ examples:
 
 exit codes:
   0  success
-  2  not found
-  3  external error (API failure)
+  2  config or usage error
+  3  external error (API failure, or the issue was not found; see Error.Type)
   4  auth error (not authenticated)
 """
 
@@ -115,18 +116,19 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit(3) from err
 
     if result.returncode != 0:
-        # Only a reported miss is exit 2. Any other gh failure (network,
-        # server, rate limit) is an external error, exit 3, per ADR-035.
+        # A reported miss and any other gh failure (network, server, rate
+        # limit) both exit 3 per ADR-035. Error.Type separates them:
+        # NotFound versus ApiError.
         detail = (result.stderr or result.stdout or "").strip()
         if _is_issue_not_found(detail):
             write_skill_error(
                 f"Issue #{args.issue} not found in {owner}/{repo}",
-                2,
+                3,
                 error_type="NotFound",
                 output_format=fmt,
                 script_name="get_issue_context.py",
             )
-            raise SystemExit(2)
+            raise SystemExit(3)
         write_skill_error(
             f"Failed to get issue #{args.issue} (gh exit {result.returncode}): {detail}",
             3,

@@ -7,8 +7,9 @@ versioning format (X.Y.Z), sorts by version number, and returns the latest.
 Exit codes follow ADR-035:
     0 - Success: Milestone found
     1 - Invalid parameters
-    2 - Config/resource error (no semantic milestones found)
-    3 - External error (API failure)
+    2 - Config or usage error
+    3 - External error (API failure, or no open or semantic milestones
+        found; Error.Type is NotFound for a missing milestone, ApiError otherwise)
     4 - Auth error (not authenticated)
 """
 
@@ -54,8 +55,8 @@ examples:
 
 exit codes:
   0  success: Milestone found
-  2  config/resource error (no semantic milestones found)
-  3  external error (API failure)
+  2  config or usage error
+  3  external error (API failure, or no semantic milestones found; see Error.Type)
   4  auth error (not authenticated)
 """
 
@@ -87,7 +88,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"No open milestones found in {owner}/{repo}", file=sys.stderr)
         write_skill_error(
             f"No open milestones found in {owner}/{repo}",
-            2,
+            3,
             error_type="NotFound",
             output_format=fmt,
             script_name="get_latest_semantic_milestone.py",
@@ -107,7 +108,7 @@ def main(argv: list[str] | None = None) -> int:
             f"were found in **{owner}/{repo}**.\n\n"
             f"**Action**: Create a semantic version milestone (e.g., 0.2.0, 1.0.0).\n"
         )
-        return 2
+        return 3
 
     semantic = [m for m in milestones if _SEMVER_PATTERN.match(m.get("title", ""))]
 
@@ -119,7 +120,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         write_skill_error(
             f"No semantic version milestones found. Available: {available}",
-            2,
+            3,
             error_type="NotFound",
             output_format=fmt,
             script_name="get_latest_semantic_milestone.py",
@@ -140,7 +141,7 @@ def main(argv: list[str] | None = None) -> int:
             f"semantic versioning format (X.Y.Z):\n\n{available_list}\n\n"
             f"**Action**: Create a semantic version milestone (e.g., 0.2.0, 1.0.0).\n"
         )
-        return 2
+        return 3
 
     latest = max(semantic, key=lambda m: _parse_semver_tuple(m["title"]))
 

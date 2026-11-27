@@ -156,7 +156,7 @@ class TestRefusedStates:
         assert rc == 1
         assert fake.calls == []
 
-    def test_pr_not_found_exits_2(self, capsys):
+    def test_pr_not_found_exits_3(self, capsys):
         """AC9: GraphQL's could-not-resolve text maps to not found."""
 
         def _missing(cmd, **kwargs):
@@ -166,7 +166,7 @@ class TestRefusedStates:
             )
 
         rc = run_main(["--pull-request", "50"], _missing)
-        assert rc == 2
+        assert rc == 3
         assert envelope(capsys)["Error"]["Type"] == "NotFound"
 
 
@@ -292,11 +292,11 @@ class TestErrorPaths:
         assert rc == 0
         assert envelope(capsys)["Data"]["message"] == ""
 
-    def test_put_not_found_exits_2(self, capsys):
+    def test_put_not_found_exits_3(self, capsys):
         """AC9: a PR deleted between the read and the PUT maps to not found."""
         fake = FakeGh(put=completed(stderr="gh: Not Found (HTTP 404)", rc=1))
         rc = run_main(["--pull-request", "50"], fake)
-        assert rc == 2
+        assert rc == 3
         assert envelope(capsys)["Error"]["Type"] == "NotFound"
 
     def test_base_ref_is_url_quoted_in_compare(self, capsys):

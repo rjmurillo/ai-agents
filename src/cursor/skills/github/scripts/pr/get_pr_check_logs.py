@@ -11,8 +11,8 @@ Supports standalone mode (provide --pull-request) and pipeline mode
 Exit codes follow ADR-035:
     0 - Success (logs retrieved, or no failing checks)
     1 - Invalid parameters
-    2 - PR not found
-    3 - API error
+    2 - Config or usage error
+    3 - External error (API failure, or the PR was not found)
     4 - Auth error
 """
 
@@ -648,8 +648,8 @@ examples:
 exit codes:
   0  success (logs retrieved, or no failing checks)
   1  invalid parameters
-  2  PR not found
-  3  API error
+  2  config or usage error
+  3  external error (API failure, or PR not found)
   4  auth error
 """
 

@@ -42,8 +42,8 @@ Exit codes follow ADR-035:
 | --- | --- |
 | 0 | Success |
 | 1 | Logic error |
-| 2 | Config error |
-| 3 | External failure |
+| 2 | Config or usage error |
+| 3 | External failure, including a missing PR, issue, or milestone. `Error.Type` is `NotFound` for a missing object |
 | 4 | Auth error |
 
 Some scripts add their own meaning to a code. For example, `triage_red_check.py` exits `0` when the check is green on main, `1` when it is red on main, and `3` when it cannot tell.

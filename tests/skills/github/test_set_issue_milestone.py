@@ -123,7 +123,7 @@ class TestSetIssueMilestone:
                 ["--issue", "1", "--milestone", "nope"],
                 [make_completed_process(stdout="null"), make_completed_process(stdout="v1.0.0")],
             )
-        assert exc.value.code == 2
+        assert exc.value.code == 3
 
     def test_dry_run_still_refuses_replace_without_force(self, _import_module):
         with pytest.raises(SystemExit) as exc:
@@ -295,7 +295,7 @@ class TestSetIssueMilestone:
         assert result["Error"]["Code"] == 3
         assert result["Error"]["Type"] == "ApiError"
 
-    def test_milestone_not_found_exits_2(self, _import_module, capsys):
+    def test_milestone_not_found_exits_3(self, _import_module, capsys):
         mod = _import_module
         with (
             patch("set_issue_milestone.assert_gh_authenticated"),
@@ -319,10 +319,10 @@ class TestSetIssueMilestone:
                         "json",
                     ]
                 )
-        assert exc.value.code == 2
+        assert exc.value.code == 3
         result = json.loads(capsys.readouterr().out)
         assert result["Success"] is False
-        assert result["Error"]["Code"] == 2
+        assert result["Error"]["Code"] == 3
         assert result["Error"]["Type"] == "NotFound"
 
     def test_missing_milestone_argument_emits_json_error(self, _import_module, capsys):

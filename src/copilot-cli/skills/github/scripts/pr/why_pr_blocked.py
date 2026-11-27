@@ -16,8 +16,8 @@ that merge cleanly on the first call -- refs issue #4393.)
 Exit codes (ADR-035):
     0 - No blocking cause found (PR may be mergeable)
     1 - Blocking cause found (missing, failing, pending, or unresolved threads)
-    2 - PR not found or config error
-    3 - API error
+    2 - Config or usage error
+    3 - API error, or the PR was not found (``Error.Type`` NotFound)
 """
 
 from __future__ import annotations
@@ -579,8 +579,8 @@ examples:
 exit codes:
   0  no blocking cause found (PR may be mergeable)
   1  blocking cause found (missing, failing, pending, or unresolved threads)
-  2  PR not found or config error
-  3  API error
+  2  config or usage error
+  3  API error, or the PR was not found (Error.Type NotFound)
   4  not authenticated with gh
 """
 
@@ -649,13 +649,13 @@ def main(argv: list[str] | None = None) -> int:
     if pr_data.get("Error") == "NotFound":
         write_skill_error(
             pr_data["Message"],
-            2,
+            3,
             error_type="NotFound",
             output_format=fmt,
             script_name="why_pr_blocked.py",
             extra={"Number": args.pull_request},
         )
-        return 2
+        return 3
 
     if pr_data.get("Error") == "ApiError":
         write_skill_error(

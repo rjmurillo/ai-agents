@@ -47,13 +47,13 @@ def read_comment(comment: str, comment_file: str) -> str:
 
 
 def pr_state(pr: int, repo_flag: str) -> str:
-    """Read the PR state, or exit 2/3 as ADR-035 defines."""
+    """Read the PR state, or exit 3 (API failure or PR not found) as ADR-035 defines."""
     state_result = _run_gh(["gh", "pr", "view", str(pr), "--repo", repo_flag, "--json", "state"])
 
     if state_result.returncode != 0:
         output = state_result.stderr or state_result.stdout
         if is_pr_not_found(output):
-            error_and_exit(f"PR #{pr} not found in {repo_flag}", 2)
+            error_and_exit(f"PR #{pr} not found in {repo_flag}", 3)
         error_and_exit(f"Failed to get PR state: {output}", 3)
 
     return json.loads(state_result.stdout).get("state", "")

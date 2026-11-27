@@ -62,9 +62,10 @@ stand in for one, so the probe keeps walking to an older commit instead
 Exit codes (ADR-035):
     0 - GREEN_ON_MAIN (check passes on main; investigate the PR)
     1 - RED_ON_MAIN (failure inherited from main; cite EvidenceUrl)
-    2 - Config error (branch not found, invalid arguments)
+    2 - Config error (invalid arguments)
     3 - PR_ONLY / CANCELLED_ON_MAIN / UNKNOWN / API error (probe failure is
-        not absence; none of these is evidence of green)
+        not absence; none of these is evidence of green), or the branch was not
+        found (``Error.Type`` NotFound)
     4 - Auth error (from assert_gh_authenticated)
 """
 
@@ -604,8 +605,8 @@ examples:
 exit codes:
   0  GREEN_ON_MAIN (check passes on main; investigate the PR)
   1  RED_ON_MAIN (failure inherited from main; cite EvidenceUrl)
-  2  config error (branch not found, invalid arguments)
-  3  PR_ONLY / CANCELLED_ON_MAIN / UNKNOWN / API error
+  2  config error (invalid arguments)
+  3  PR_ONLY / CANCELLED_ON_MAIN / UNKNOWN / API error, or branch not found
   4  auth error (from assert_gh_authenticated)
 """
 
@@ -710,12 +711,12 @@ def main(argv: list[str] | None = None) -> int:
     if history.get("Error") == "BranchNotFound":
         write_skill_error(
             history["Message"],
-            2,
+            3,
             error_type="NotFound",
             output_format=fmt,
             script_name="triage_red_check.py",
         )
-        return 2
+        return 3
     if history.get("Error") == "ApiError":
         # An API failure is a probe failure, never evidence of green.
         write_skill_error(

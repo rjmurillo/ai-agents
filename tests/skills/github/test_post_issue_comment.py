@@ -221,6 +221,23 @@ class TestPostIssueComment:
                 mod.main(["--issue", "1", "--body", "body"])
         assert exc.value.code == 3
 
+    def test_issue_not_found_exits_3(self, _import_module):
+        mod = _import_module
+        with (
+            patch("post_issue_comment.assert_gh_authenticated"),
+            patch("post_issue_comment.resolve_repo_params", return_value=_mock_repo()),
+            patch(
+                "subprocess.run",
+                return_value=make_completed_process(
+                    stderr="GraphQL: Could not resolve to an Issue (HTTP 404)",
+                    returncode=1,
+                ),
+            ),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                mod.main(["--issue", "999", "--body", "body"])
+        assert exc.value.code == 3
+
     def test_post_timeout_exits_3(self, _import_module):
         # A hung gh on the POST call must surface as an external-error exit (3),
         # not block the script indefinitely (Copilot review on PR #2659).

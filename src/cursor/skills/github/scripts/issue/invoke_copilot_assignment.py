@@ -12,8 +12,9 @@ the existing comment rather than creating a duplicate.
 Exit codes follow ADR-035:
     0 - Success (includes idempotent update)
     1 - Invalid parameters / logic error
-    2 - Issue not found
-    3 - External error (API failure)
+    2 - Config or usage error
+    3 - External error (API failure, or the issue was not found;
+        Error.Type is NotFound for a missing issue, ApiError otherwise)
     4 - Auth error (not authenticated)
 """
 
@@ -487,8 +488,8 @@ examples:
 
 exit codes:
   0  success (includes idempotent update)
-  2  issue not found
-  3  external error (API failure)
+  2  config or usage error
+  3  external error (API failure, or the issue was not found; see Error.Type)
   4  auth error (not authenticated)
 """
 
@@ -576,7 +577,14 @@ def main(argv: list[str] | None = None) -> int:
     if issue_result.returncode != 0:
         error_str = issue_result.stderr.strip() or issue_result.stdout.strip()
         if "Not Found" in error_str:
-            error_and_exit(f"Issue #{issue_number} not found in {owner}/{repo}", 2)
+            write_skill_error(
+                f"Issue #{issue_number} not found in {owner}/{repo}",
+                3,
+                error_type="NotFound",
+                output_format=fmt,
+                script_name="invoke_copilot_assignment.py",
+            )
+            raise SystemExit(3)
         error_and_exit(f"Failed to get issue: {error_str}", 3)
 
     issue_payload = json.loads(issue_result.stdout)

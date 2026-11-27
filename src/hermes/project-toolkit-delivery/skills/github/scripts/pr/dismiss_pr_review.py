@@ -26,8 +26,8 @@ the script enforces is preconditions. Detection stays with
 Exit codes follow ADR-035:
     0 - Success (or no-op)
     1 - Logic or validation error (wrong state, unresolved threads)
-    2 - Usage, configuration, or not-found error
-    3 - External service or API error
+    2 - Usage or configuration error
+    3 - External service or API error, or the PR or review was not found
     4 - Auth error
 """
 
@@ -179,8 +179,8 @@ examples:
 exit codes:
   0  success (or no-op)
   1  logic or validation error (wrong review state, unresolved threads)
-  2  usage, configuration, or not-found error
-  3  external service or API error
+  2  usage or configuration error
+  3  external service or API error, or the PR or review was not found
   4  auth error
 """
 
@@ -290,12 +290,12 @@ def main(argv: list[str] | None = None) -> int:
     if review is None:
         write_skill_error(
             f"Review {review_id} on PR #{pr} not found",
-            2,
+            3,
             error_type="NotFound",
             output_format=fmt,
             script_name=_SCRIPT_NAME,
         )
-        return 2
+        return 3
 
     state = str(review.get("state") or "")
     audit: dict[str, object] = {

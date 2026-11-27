@@ -18,8 +18,8 @@ Safety behavior:
 Exit codes follow ADR-035:
     0 - Success (or no-op)
     1 - Logic or validation error, including a stale write
-    2 - Usage, configuration, or not-found error
-    3 - External service or API error
+    2 - Usage or configuration error
+    3 - External service or API error, or the PR was not found
     4 - Auth error
 """
 
@@ -126,8 +126,8 @@ examples:
 exit codes:
   0  success (or no-op)
   1  logic or validation error, including a stale write
-  2  usage, configuration, or not-found error
-  3  external service or API error
+  2  usage or configuration error
+  3  external service or API error, or the PR was not found
   4  auth error
 """
 
@@ -184,12 +184,12 @@ def main(argv: list[str] | None = None) -> int:
     if current_title is None:
         write_skill_error(
             f"PR #{pr} not found",
-            2,
+            3,
             error_type="NotFound",
             output_format=fmt,
             script_name=_SCRIPT_NAME,
         )
-        return 2
+        return 3
 
     if args.expected_title and args.expected_title != current_title:
         write_skill_error(

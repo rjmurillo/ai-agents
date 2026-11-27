@@ -8,8 +8,8 @@ Uses GraphQL variables for security (prevents injection via ThreadId).
 
 Exit codes follow ADR-035:
     0 - Success
-    2 - Config/usage error (invalid parameters, thread not found)
-    3 - External error (API failure)
+    2 - Config/usage error (invalid parameters)
+    3 - External error (API failure, or the thread was not found)
     4 - Auth error
 """
 
@@ -65,8 +65,8 @@ examples:
 
 exit codes:
   0  success
-  2  config/usage error (invalid parameters, thread not found)
-  3  external error (API failure)
+  2  config/usage error (invalid parameters)
+  3  external error (API failure, or the thread was not found)
   4  auth error
 """
 
@@ -104,14 +104,14 @@ def main(argv: list[str] | None = None) -> int:
     except RuntimeError as exc:
         msg = str(exc)
         if "Could not resolve" in msg or "not found" in msg:
-            error_and_exit(f"Thread {args.thread_id} not found.", 2)
+            error_and_exit(f"Thread {args.thread_id} not found.", 3)
         error_and_exit(f"Failed to query thread: {msg}", 3)
 
     thread = data.get("node")
     if not thread or not thread.get("id"):
         error_and_exit(
             f"Thread {args.thread_id} not found or is not a review thread.",
-            2,
+            3,
         )
 
     comments_data = thread.get("comments", {})

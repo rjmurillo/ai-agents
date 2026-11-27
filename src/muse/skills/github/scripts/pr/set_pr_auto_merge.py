@@ -10,8 +10,8 @@ Requires auto-merge enabled in repository settings and write access.
 Exit codes follow ADR-035:
     0 - Success
     1 - Operation failed or invalid parameters
-    2 - PR not found
-    3 - External error (API failure)
+    2 - Config or usage error
+    3 - External error (API failure, or the PR was not found)
     4 - Auth error
 
 ``--output-format`` is the shared ADR-056 flag every sibling ``pr/`` script
@@ -123,12 +123,12 @@ def get_pr_node_id(owner: str, repo: str, pr_number: int) -> tuple[str, dict[str
     except RuntimeError as exc:
         msg = str(exc)
         if is_pr_not_found(msg):
-            error_and_exit(f"PR #{pr_number} not found in {owner}/{repo}", 2)
+            error_and_exit(f"PR #{pr_number} not found in {owner}/{repo}", 3)
         error_and_exit(f"Failed to get PR info: {msg}", 3)
 
     pr = data.get("repository", {}).get("pullRequest")
     if pr is None:
-        error_and_exit(f"PR #{pr_number} not found", 2)
+        error_and_exit(f"PR #{pr_number} not found", 3)
 
     return pr["id"], pr
 
@@ -304,8 +304,8 @@ examples:
 exit codes:
   0  success
   1  operation failed or invalid parameters
-  2  PR not found
-  3  external error (API failure)
+  2  config or usage error
+  3  external error (API failure, or the PR was not found)
   4  auth error
 """
 

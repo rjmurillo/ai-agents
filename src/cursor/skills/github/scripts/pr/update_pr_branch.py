@@ -23,8 +23,8 @@ Behavior:
 Output uses the standard skill envelope (ADR-056). Exit codes follow ADR-035:
     0 - Success (update requested, completed, or already up to date)
     1 - Invalid parameters / logic error (PR not open, head moved)
-    2 - Not found
-    3 - External error (API failure, wait timeout)
+    2 - Config or usage error
+    3 - External error (API failure, wait timeout, or the PR was not found)
     4 - Auth error
 """
 
@@ -98,8 +98,8 @@ examples:
 exit codes:
   0  success (update requested, completed, or already up to date)
   1  invalid parameters / logic error (PR not open, head moved)
-  2  not found
-  3  external error (API failure, wait timeout)
+  2  config or usage error
+  3  external error (API failure, wait timeout, or the PR was not found)
   4  auth error
 """
 
@@ -268,7 +268,7 @@ def _fail_lookup(result: subprocess.CompletedProcess[str], ctx: _Context) -> NoR
     if is_pr_not_found(text):
         _emit_error(
             f"PR #{ctx.pr} not found in {ctx.repo_flag}",
-            2,
+            3,
             "NotFound",
             ctx.output_format,
             ctx.pr,
@@ -368,7 +368,7 @@ def _fail_update(
     if is_pr_not_found(text):
         _emit_error(
             f"PR #{ctx.pr} not found in {ctx.repo_flag} when updating",
-            2,
+            3,
             "NotFound",
             ctx.output_format,
             ctx.pr,

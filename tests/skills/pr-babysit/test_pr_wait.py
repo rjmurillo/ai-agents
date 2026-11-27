@@ -112,15 +112,22 @@ def test_main_exits_one_on_failed_check(
     assert pw.main(["5", "--repo", "o/r"]) == 1
 
 
-def test_main_exits_two_when_pr_not_found(
-    isolated_state: Path, monkeypatch: pytest.MonkeyPatch
+def test_main_exits_three_when_pr_not_found(
+    isolated_state: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    calls = {"n": 0}
+
     def missing(*_a: Any) -> Any:
+        calls["n"] += 1
         raise LookupError("PR o/r#5 not found")
 
     monkeypatch.setattr(pw, "fetch_snapshot", missing)
 
-    assert pw.main(["5", "--repo", "o/r"]) == 2
+    assert pw.main(["5", "--repo", "o/r"]) == 3
+    assert calls["n"] == 1  # never retried
+    out = capsys.readouterr().out
+    assert out.startswith("not found:")
+    assert "unreachable" not in out
 
 
 def test_main_exits_three_after_repeated_api_failures(
@@ -226,8 +233,8 @@ def test_restart_with_known_blocker_waits_until_ready(
     ]
 
 
-def test_main_exits_two_on_graphql_not_found(
-    isolated_state: Path, monkeypatch: pytest.MonkeyPatch
+def test_main_exits_three_on_graphql_not_found(
+    isolated_state: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     import github_core.api as api
 
@@ -238,7 +245,8 @@ def test_main_exits_two_on_graphql_not_found(
 
     monkeypatch.setattr(api, "gh_graphql", not_found)
 
-    assert pw.main(["9", "--repo", "o/r"]) == 2
+    assert pw.main(["9", "--repo", "o/r"]) == 3
+    assert capsys.readouterr().out.startswith("not found:")
 
 
 def test_main_exits_four_on_auth_failure(
@@ -254,7 +262,7 @@ def test_main_exits_four_on_auth_failure(
     assert pw.main(["5", "--repo", "o/r"]) == 4
 
 
-@pytest.mark.parametrize(("code", "error"), [(2, LookupError), (4, "AuthError")])
+@pytest.mark.parametrize(("code", "error"), [(2, "SetupError"), (4, "AuthError")])
 def test_fetch_gate_maps_permanent_exits(
     monkeypatch: pytest.MonkeyPatch, code: int, error: Any
 ) -> None:
@@ -268,6 +276,33 @@ def test_fetch_gate_maps_permanent_exits(
 
     with pytest.raises(expected):
         pw.fetch_gate("o", "r", 5)
+
+
+def test_fetch_gate_maps_not_found_envelope_to_lookup_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Result:
+        returncode = 3
+        stdout = json.dumps({"Success": False, "Error": {"Type": "NotFound", "Code": 3}})
+        stderr = ""
+
+    monkeypatch.setattr(pw.subprocess, "run", lambda *_a, **_k: Result())
+
+    with pytest.raises(LookupError):
+        pw.fetch_gate("o", "r", 5)
+
+
+def test_fetch_gate_keeps_api_error_envelope_retryable(monkeypatch: pytest.MonkeyPatch) -> None:
+    class Result:
+        returncode = 3
+        stdout = json.dumps({"Success": False, "Error": {"Type": "ApiError", "Code": 3}})
+        stderr = ""
+
+    monkeypatch.setattr(pw.subprocess, "run", lambda *_a, **_k: Result())
+
+    with pytest.raises(RuntimeError, match="exit 3") as info:
+        pw.fetch_gate("o", "r", 5)
+    assert not isinstance(info.value, pw.SetupError)
 
 
 def test_state_key_is_case_insensitive() -> None:

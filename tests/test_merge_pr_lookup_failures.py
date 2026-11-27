@@ -87,26 +87,26 @@ def _drive_main(view, capsys, auth=_OK) -> tuple[int, dict, list[list[str]]]:
 @pytest.mark.parametrize(
     ("view", "code", "error_type"),
     [
-        pytest.param(_failed(stderr=_GH_MISSING_PR), 2, "NotFound", id="AC1-gh-missing-pr"),
+        pytest.param(_failed(stderr=_GH_MISSING_PR), 3, "NotFound", id="AC1-gh-missing-pr"),
         pytest.param(
             _failed(stdout=_GH_MISSING_PR, stderr="warning: unrelated"),
-            2,
+            3,
             "NotFound",
             id="AC1-marker-on-stdout-only",
         ),
-        pytest.param(_failed(stderr="not found"), 2, "NotFound", id="AC2-legacy-wording"),
-        pytest.param(_failed(stderr="gh: Not Found (HTTP 404)"), 2, "NotFound", id="AC2-any-case"),
+        pytest.param(_failed(stderr="not found"), 3, "NotFound", id="AC2-legacy-wording"),
+        pytest.param(_failed(stderr="gh: Not Found (HTTP 404)"), 3, "NotFound", id="AC2-any-case"),
         pytest.param(_failed(stderr="HTTP 502: Bad Gateway"), 3, "ApiError", id="AC3-external"),
-        pytest.param(_failed(stderr=_GH_MISSING_REPO), 2, "NotFound", id="AC6-missing-repo-stderr"),
+        pytest.param(_failed(stderr=_GH_MISSING_REPO), 3, "NotFound", id="AC6-missing-repo-stderr"),
         pytest.param(
             _failed(stdout=_GH_MISSING_REPO, stderr="warning: unrelated"),
-            2,
+            3,
             "NotFound",
             id="AC6-missing-repo-stdout-only",
         ),
         pytest.param(
             _failed(stderr=_GH_MISSING_REPO.upper()),
-            2,
+            3,
             "NotFound",
             id="AC6-missing-repo-any-case",
         ),
@@ -124,7 +124,7 @@ def test_failed_lookup_exit_code(view, code, error_type, capsys):
     assert exit_code == code
     assert envelope["Error"]["Type"] == error_type
     assert not any(c[:3] == ["gh", "pr", "merge"] for c in calls)
-    if code == 2:
+    if error_type == "NotFound":
         gh_words = (view.stdout or view.stderr).splitlines()[0][:40]
         assert gh_words in envelope["Error"]["Message"]
 
@@ -174,7 +174,7 @@ def _drive_default_strategy(settings, capsys) -> tuple[int, dict, list[list[str]
     [
         pytest.param(
             _failed(stderr="gh: Not Found (HTTP 404)"),
-            2,
+            3,
             "NotFound",
             id="missing-repo-settings-404",
         ),
@@ -187,7 +187,7 @@ def _drive_default_strategy(settings, capsys) -> tuple[int, dict, list[list[str]
     ],
 )
 def test_default_strategy_settings_failure_exit_code(settings, code, error_type, capsys):
-    """A 404 on repository settings is a missing repo (exit 2); other failures stay 3."""
+    """A 404 on repo settings is a missing repo (exit 3 NotFound); others are ApiError."""
     exit_code, envelope, calls = _drive_default_strategy(settings, capsys)
     assert exit_code == code
     assert envelope["Error"]["Type"] == error_type

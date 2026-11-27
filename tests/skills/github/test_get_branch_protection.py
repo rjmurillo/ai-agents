@@ -121,9 +121,51 @@ class TestMain:
         rc = _run(mod, [], None, [], protection_err="connection reset")
         assert rc == 3
 
-    def test_blank_branch_exit_2(self, mod):
-        rc = _run(mod, ["--branch", "  "], {}, [])
+    def test_blank_branch_exit_2_invalid_params(self, mod, capsys):
+        """Negative control: a usage error stays exit 2 and never reaches the API."""
+        with (
+            patch.object(mod, "assert_gh_authenticated"),
+            patch.object(mod, "resolve_repo_params", return_value=_mock_repo()),
+            patch.object(mod, "gh_api_get") as api_get,
+        ):
+            rc = mod.main(["--branch", "  ", "--output-format", "json"])
         assert rc == 2
+        api_get.assert_not_called()
+        assert json.loads(capsys.readouterr().out)["Error"]["Type"] == "InvalidParams"
+
+    def test_missing_branch_exit_3_not_found(self, mod, capsys):
+        with (
+            patch.object(mod, "assert_gh_authenticated"),
+            patch.object(mod, "resolve_repo_params", return_value=_mock_repo()),
+            patch.object(mod, "gh_api_get", return_value=(None, "HTTP 404: Not Found")),
+        ):
+            rc = mod.main(["--branch", "mian", "--output-format", "json"])
+        assert rc == 3
+        error = json.loads(capsys.readouterr().out)["Error"]
+        assert error["Code"] == 3
+        assert error["Type"] == "NotFound"
+        assert "mian" in error["Message"]
+
+    def test_branch_lookup_server_error_is_not_notfound(self, mod, capsys):
+        """Negative control: a non-404 branch read does not claim the branch is missing."""
+        calls = []
+
+        def fake_get(path):
+            calls.append(path)
+            if path.endswith("/protection"):
+                return None, "HTTP 502: Bad Gateway"
+            if "/rules/" in path:
+                return [], ""
+            return None, "HTTP 502: Bad Gateway"
+
+        with (
+            patch.object(mod, "assert_gh_authenticated"),
+            patch.object(mod, "resolve_repo_params", return_value=_mock_repo()),
+            patch.object(mod, "gh_api_get", side_effect=fake_get),
+        ):
+            rc = mod.main(["--branch", "main", "--output-format", "json"])
+        assert rc == 3
+        assert json.loads(capsys.readouterr().out)["Error"]["Type"] == "ApiError"
 
 
 class TestBranchEncoding:

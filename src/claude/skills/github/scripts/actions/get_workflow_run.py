@@ -16,8 +16,9 @@ script only makes the wait visible.
 
 Exit codes follow ADR-035. The script never mutates, so exit 1 cannot occur:
     0 - The run was read; inspect Data.jobs and Data.pending_deployments
-    2 - No run with this id exists in the repository
-    3 - The API read failed
+    2 - Config or usage error
+    3 - External error (the API read failed, or no run with this id exists;
+        Error.Type is NotFound for a missing run, ApiError otherwise)
     4 - Auth error
 """
 
@@ -90,8 +91,8 @@ examples:
 
 exit codes:
   0  success
-  2  usage, configuration, or not-found error
-  3  external service or API error
+  2  usage or configuration error
+  3  external error (API failure, or the run was not found; see Error.Type)
   4  auth error
 """
 
@@ -148,12 +149,12 @@ def main(argv: list[str] | None = None) -> int:
         not_found = "404" in run_error or "Not Found" in run_error
         write_skill_error(
             f"Run {run_id} not found" if not_found else f"Run read failed: {run_error}",
-            2 if not_found else 3,
+            3,
             error_type="NotFound" if not_found else "ApiError",
             output_format=fmt,
             script_name=_SCRIPT_NAME,
         )
-        return 2 if not_found else 3
+        return 3
 
     jobs_payload, jobs_error = gh_api_get(
         f"repos/{owner}/{repo}/actions/runs/{run_id}/jobs?per_page=100"

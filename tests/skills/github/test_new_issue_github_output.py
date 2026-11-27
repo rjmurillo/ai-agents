@@ -106,7 +106,7 @@ def test_failure_writes_output_once(gh_output):
             BASE,
             3,
         ),
-        (FakeGh(extra_routes={MILESTONES: LIST_OK}), [*BASE, "--milestone", "v9"], 2),
+        (FakeGh(extra_routes={MILESTONES: LIST_OK}), [*BASE, "--milestone", "v9"], 3),
     ],
     ids=["create-fails", "create-unparseable", "create-times-out", "milestone-missing"],
 )

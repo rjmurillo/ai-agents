@@ -241,8 +241,9 @@ class TestMain:
         assert rc == 3
         env = _envelope(capsys)
         assert env["Success"] is False
+        assert env["Error"]["Type"] == "ApiError"
 
-    def test_not_found_returns_2(self, capsys):
+    def test_not_found_returns_3(self, capsys):
         with (
             patch("reopen_issue.assert_gh_authenticated"),
             patch(
@@ -256,7 +257,8 @@ class TestMain:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--issue", "999"])
-            assert exc.value.code == 2
+            assert exc.value.code == 3
+        assert _envelope(capsys)["Error"]["Type"] == "NotFound"
 
 
 class TestDryRun:
@@ -330,7 +332,8 @@ class TestDryRun:
                 [_completed(stderr="Could not resolve to an Issue", rc=1)],
             )
 
-        assert exc.value.code == 2
+        assert exc.value.code == 3
+        assert _envelope(capsys)["Error"]["Type"] == "NotFound"
 
 
 class TestCommentFileContainment:
