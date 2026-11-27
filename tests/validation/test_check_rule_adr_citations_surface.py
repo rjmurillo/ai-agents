@@ -225,7 +225,7 @@ def test_missing_record_fails_and_names_the_line(
     assert code == EXIT_REGRESSION
     assert re.search(r"^AGENTS\.md:1: .*ADR-999 has no tracked record", captured.out, re.M)
     assert "1 missing record(s)" in captured.err
-    assert _run(repo, _baseline(tmp_path, ["AGENTS.md::ADR-999"])) == EXIT_OK
+    assert _run(repo, _baseline(tmp_path, ["AGENTS.md::ADR-999"])) == EXIT_REGRESSION
 
 
 def test_an_untracked_record_does_not_satisfy_existence(tmp_path: Path) -> None:

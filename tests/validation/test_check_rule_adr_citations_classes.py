@@ -244,10 +244,10 @@ def test_a_heading_with_no_space_after_the_hashes_is_prose_and_still_missing() -
     assert _found("#ADR-999 is a hashtag\n") == [(999, MISSING, 1)]
 
 
-def test_a_missing_heading_fails_the_run_and_a_baseline_key_accepts_it(tmp_path: Path) -> None:
+def test_a_missing_heading_fails_the_run_and_no_baseline_key_accepts_it(tmp_path: Path) -> None:
     repo = _make_repo(tmp_path, {"CLAUDE.md": "## Pin policy (ADR-999)\n"})
     assert _run(repo, _baseline(tmp_path, [])) == EXIT_REGRESSION
-    assert _run(repo, _baseline(tmp_path, ["CLAUDE.md::ADR-999"])) == EXIT_OK
+    assert _run(repo, _baseline(tmp_path, ["CLAUDE.md::ADR-999"])) == EXIT_REGRESSION
 
 
 # --------------------------------------------------------------------------
@@ -258,15 +258,18 @@ BINDING_LINE = "Authors MUST comply with ADR-078.\n"
 MISSING_LINE = "Background: ADR-999 came first.\n"
 
 
-def test_known_is_reported_against_binding_plus_missing(
+def test_known_counts_binding_keys_only_against_the_combined_failing_total(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    """A baseline key for a missing record is stale, so it is never counted known."""
     repo = _make_repo(tmp_path, {"CLAUDE.md": BINDING_LINE, "AGENTS.md": MISSING_LINE})
     known = ["CLAUDE.md::ADR-078", "AGENTS.md::ADR-999"]
-    assert _run(repo, _baseline(tmp_path, known)) == EXIT_OK
-    out = capsys.readouterr().out
-    assert "1 binding violation(s) and 1 missing record(s), 2 failing (2 known)" in out
-    assert "(1 known)" not in out
+    assert _run(repo, _baseline(tmp_path, known)) == EXIT_REGRESSION
+    captured = capsys.readouterr()
+    assert "1 binding violation(s) and 1 missing record(s), 2 failing (1 known)" in captured.err
+    assert "AGENTS.md::ADR-999: [rule-adr-citation] baseline entry no longer produced" in (
+        captured.out
+    )
 
 
 def test_a_new_failure_is_counted_failing_but_not_known(

@@ -19,6 +19,8 @@ while a stale mirror ships the violation to plugin consumers has not protected t
 - every tracked `AGENTS.md` and `CLAUDE.md`, at the root and nested
 - `templates/rules/*.md` (the source, per ADR-109)
 - `.claude/rules/*.md`, `src/claude/rules/*.md`
+- `.github/copilot-instructions.md`, the repository-wide Copilot guide, which loads
+  on every Copilot request and is in no other glob
 - `.github/instructions/*.instructions.md`, `src/copilot-cli/instructions/*.md`
 - `templates/agents/**`: the agent templates and their `.mustache` and `.tmpl`
   sources
@@ -29,8 +31,13 @@ while a stale mirror ships the violation to plugin consumers has not protected t
 
 A `.mustache` or `.tmpl` file is a fragment: its fences open in one file and
 close in another. An unclosed fence there is counted and not failed. Masking in
-a fragment can be wrong after that fence, so the rendered trees, which are whole
-documents, are the complete read of the same prose.
+a fragment can be wrong after that fence, and also before a lone fence that closes
+a block a sibling partial opened. A fence marker is the same line open or close, so
+one fragment cannot tell which it is: with an odd marker count, every line is code
+under one reading and prose under the other. The scan keeps the first reading (pair
+from the top) and does not skip such fragments, so real source-only prose is read;
+the rendered trees, which are whole documents, are the complete read of the same
+prose.
 
 ## Status resolution
 
@@ -62,9 +69,9 @@ fails the gate (MISSING, above, is decided before classification). A check that
 guesses on ambiguous prose trains people to add ignore comments, so a mention
 the classifier cannot place is UNCLASSIFIED and is reported, never failed.
 
-- NOT A CITATION, never seen: inside an inline code span, a fenced block, an
-  HTML comment or YAML frontmatter, or part of a file name or path such as
-  `ADR-085-slug.md:428-431`.
+- NOT A CITATION, never seen: inside an inline code span, a fenced block (its
+  fence lines may be indented, as under a list item), an HTML comment or YAML
+  frontmatter, or part of a file name or path such as `ADR-085-slug.md:428-431`.
 - META: under a `References` style heading, after a `References:` label,
   or in a lineage clause: "ADR-092, which supersedes ADR-079" (ADR-079 is
   history), "ADR-002, formerly cited here, is deprecated", "superseded by
@@ -81,7 +88,11 @@ the classifier cannot place is UNCLASSIFIED and is reported, never failed.
   sentence or pipe cell that is only a label and ADR numbers, such as the terse
   `pins: ADR-080` that sat in `AGENTS.md`, is a pointer to the owning record and
   is BINDING too, unless the label is a history or bibliography word ("Refs:",
-  "Replaces:", "Background:", "Prior art:").
+  "Replaces:", "Background:", "Prior art:"). A `Refs:` style label opens its own pipe
+  cell only: `Refs: ADR-042 | pins: ADR-080` holds one bibliography cell and one
+  binding pointer. A bibliography heading scopes the whole section.
+  A compliance verb covers a coordinated list: "pass ADR-042 and ADR-080" reads
+  ADR-080 through the same verb and the same negation window as ADR-042.
 
   The pointer default is binding-unless-history, not an allowlist of binding
   labels. Terse pipe guides such as `AGENTS.md` use arbitrary labels (`pins:`),
@@ -108,6 +119,11 @@ baseline fails. A baseline entry the tree no longer produces also fails, so the
 list shrinks when a citation is repaired and cannot mask a re-introduction.
 Edit the baseline by hand: delete a line when its citation is fixed. Adding a
 line legalises a violation and shows in review as an added line.
+
+The baseline holds BINDING violations only. A MISSING record has the same key
+shape, so a baseline entry could otherwise cover it after the record is deleted.
+A missing record is always new, and a baseline entry that the tree no longer
+produces as BINDING is stale, whatever the tree produces in its place.
 
 A scan that cannot see every tracked file does not pass. A tracked file that is
 not a regular file, or resolves outside the repository (including a symlink that
@@ -164,6 +180,7 @@ SCAN_GLOBS = (
     "templates/rules/*.md",
     ".claude/rules/*.md",
     "src/claude/rules/*.md",
+    ".github/copilot-instructions.md",
     ".github/instructions/*.instructions.md",
     "src/copilot-cli/instructions/*.md",
     "templates/agents/**",
@@ -191,7 +208,12 @@ _BASELINE_PATH = Path(__file__).with_name("rule_adr_citations_baseline.json")
 #: by a slug that ends in `.md`, so a file name with a line range is not a mention.
 _MENTION_RE = re.compile(r"(?<![/\w-])ADR-(\d{1,4})\b(?![-\w]*\.md)")
 
-_FENCE_RE = re.compile(r"^(```|~~~)[^\n]*\n.*?(?:^\1[^\n]*$|\Z)", re.DOTALL | re.MULTILINE)
+#: A fence may be indented: a list item holds its fenced example at the item's content
+#: column (`1. ` adds three spaces, a nested item more), so the open and close lines
+#: allow leading blanks. A line with other text before the backticks is not a fence.
+_FENCE_RE = re.compile(
+    r"^[ \t]*(```|~~~)[^\n]*\n.*?(?:^[ \t]*\1[^\n]*$|\Z)", re.DOTALL | re.MULTILINE
+)
 _COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 _CODE_SPAN_RE = re.compile(r"(?<!`)(`+)(?!`)[^\n]*?(?<!`)\1(?!`)")
 
@@ -243,6 +265,13 @@ _COMPLY_NEGATED_RE = re.compile(
     re.IGNORECASE,
 )
 _COMPLY_NEGATION_WINDOW = 3
+# One earlier item of a coordinated list that ends `before`: "pass ADR-042 and ADR-080"
+# reads ADR-042 and the joiner off ADR-080's prefix so the verb ends it. The item is
+# matched at the end only and one at a time, so a long run cannot backtrack.
+_COMPLY_LIST_ITEM_RE = re.compile(
+    r"ADR-\d+\s*(?:,\s*(?:and|or)\b|,|\band\b|\bor\b|/|\+)(?:\s+(?:an?|the)\b)?\s*$",
+    re.IGNORECASE,
+)
 # A sentence or pipe cell that is only `label: ADR-NNN[, ADR-MMM]`. The tail is one
 # optional period and one whitespace run, so a long blanked-code-span run cannot
 # backtrack through two adjacent `\s*` groups.
@@ -295,7 +324,7 @@ def unterminated_fence_line(text: str) -> int | None:
     body = _blank_frontmatter(text)
     for match in _FENCE_RE.finditer(body):
         lines = match.group(0).split("\n")
-        if len(lines) < 2 or not lines[-1].startswith(match.group(1)):
+        if len(lines) < 2 or not lines[-1].lstrip().startswith(match.group(1)):
             return body.count("\n", 0, match.start()) + 1
     return None
 
@@ -347,7 +376,12 @@ def _continues(previous: str, line: str) -> bool:
 
 
 def _blocks(masked: str) -> list[tuple[bool, list[tuple[int, str]]]]:
-    """Split text into blocks of ``(lineno, text)`` lines, tagged bibliography."""
+    """Split text into blocks of ``(lineno, text)`` lines, tagged by heading scope.
+
+    The tag is the bibliography heading scope only. An inline label such as
+    `Refs:` is read per cell by :func:`_mentions_in_block`, so it cannot spill into
+    the next cell of a pipe row.
+    """
     blocks: list[tuple[bool, list[tuple[int, str]]]] = []
     bib_level = 0
     current: list[tuple[int, str]] = []
@@ -368,8 +402,7 @@ def _blocks(masked: str) -> list[tuple[bool, list[tuple[int, str]]]]:
             current.append((number, line))
             continue
         current = [(number, line)]
-        in_bibliography = bool(bib_level) or bool(_BIB_LABEL_RE.match(line))
-        blocks.append((in_bibliography, current))
+        blocks.append((bool(bib_level), current))
     return blocks
 
 
@@ -384,7 +417,14 @@ def _sentence_spans(text: str) -> list[tuple[int, int]]:
 
 
 def _complies(before: str) -> bool:
-    """True when ``before`` ends in a compliance verb that nothing negates."""
+    """True when ``before`` ends in a compliance verb that nothing negates.
+
+    Earlier items of a coordinated ADR list are stripped first, so every item reads
+    the same verb and the same negation window. Only ADR items are stripped: any
+    other word between the verb and the mention still ends the match.
+    """
+    while (item := _COMPLY_LIST_ITEM_RE.search(before)) is not None:
+        before = before[: item.start()]
     verb = _COMPLY_BEFORE_RE.search(before)
     if verb is None:
         return False
@@ -479,9 +519,13 @@ def _mentions_in_block(
         def line_of(relative: int, start: int = start) -> int:
             return max(n for o, n in starts if o <= start + relative)
 
+        # A label opens the cell it starts: the text from the last pipe before this
+        # sentence. A block with no pipe has one cell, the whole block.
+        cell = text[text.rfind("|", 0, start) + 1 :]
+        sentence_bibliography = in_bibliography or bool(_BIB_LABEL_RE.match(cell))
         found.extend(
             _mentions_in_sentence(
-                path, text[start:end], line_of, in_bibliography, statuses, unknown, records
+                path, text[start:end], line_of, sentence_bibliography, statuses, unknown, records
             )
         )
     return found
@@ -687,12 +731,17 @@ def _report_fences(result: ScanResult, verbose: bool) -> None:
 
 
 def _scope_line(result: ScanResult, current: set[str], baseline: set[str]) -> str:
-    """Counts for the terminal line. ``known`` is against the combined failing total."""
-    binding = len({c.key for c in result.binding})
+    """Counts for the terminal line. ``known`` counts baselined BINDING keys only.
+
+    The total is the combined failing keys. A MISSING record is never known: the
+    baseline holds binding violations alone.
+    """
+    binding_keys = {c.key for c in result.binding}
+    binding = len(binding_keys)
     missing = len({c.key for c in result.missing})
     return (
         f"{binding} binding violation(s) and {missing} missing record(s), "
-        f"{len(current)} failing ({len(current & baseline)} known), "
+        f"{len(current)} failing ({len(binding_keys & baseline)} known), "
         f"{len(result.unclassified)} unclassified, across "
         f"{result.examined} of {result.candidates} tracked instruction file(s), "
         f"{len(result.unknown)} ADR number(s) with no usable status, "
@@ -744,9 +793,14 @@ def main(argv: list[str] | None = None) -> int:
         )
         return EXIT_CONFIG
 
+    # A MISSING key is `<path>::ADR-NNN`, the same shape as a BINDING key. If the
+    # baseline could cover it, deleting a baselined record would turn that entry
+    # into a pass. So the baseline is matched against BINDING keys only: a missing
+    # record is always new, and a baseline entry for it is stale.
     current = {c.key for c in result.failing}
-    new = sorted(current - baseline)
-    stale = sorted(baseline - current)
+    binding_keys = {c.key for c in result.binding}
+    new = sorted((binding_keys - baseline) | {c.key for c in result.missing})
+    stale = sorted(baseline - binding_keys)
     _report(result, new, stale, args.verbose)
     _report_fences(result, args.verbose)
     scope = _scope_line(result, current, baseline)
