@@ -926,7 +926,7 @@ console; no log artifact is committed.
 
 `model-context-doctrine.md` lists which rules load on every turn, and
 `tests/validation/test_always_on_corpus_claims.py` asserts that the list
-matches the generated trees. It also fails when the doctrine mentions bytes,
+matches the generated `.github/instructions` tree. It also fails when the doctrine mentions bytes,
 `instruction_budget`, or 8KB. Changing a rule's `paths:` scope can change that
 membership, so a small scope edit to an unrelated rule turns the guard red.
 
@@ -941,10 +941,16 @@ Check it in under a second before pushing:
 uv run --frozen python -m pytest tests/validation/test_always_on_corpus_claims.py -q
 ```
 
-When it fails, fix the membership table in
-`.claude/skills/context-optimizer/references/model-context-doctrine.md` and
-rerun `build/scripts/generate_skills.py` so the `src/copilot-cli/` mirror
-matches. Write no byte or budget figure there; the test rejects one.
+When it fails, update every membership statement the test reads:
+
+- the table in `.claude/skills/context-optimizer/references/model-context-doctrine.md`;
+- the membership table in `templates/rules/canonical-source-mirror.md`;
+- `.serena/memories/architecture/always-on-membership-lives-in-the-mirror.md`;
+- the loading sentence in `templates/skills/software-engineering-library.SKILL.md.tmpl`.
+
+Then run `uv run python build/scripts/build_all.py` to regenerate the rule and
+skill mirrors. Write no byte or budget figure in the doctrine; the test
+rejects one.
 ## An empty `endingCommit` breaks the episode store on the next push
 
 The pre-commit hook extracts an episode from every staged session log. It reads
