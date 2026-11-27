@@ -16,6 +16,7 @@ import math
 import random
 import sys
 import threading
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -328,40 +329,45 @@ def test_falls_back_to_load_average_when_proc_files_unavailable(
 # --- bounded concurrency under contention ---
 
 
-def test_bounded_concurrency_under_slot_contention_no_stampede(tmp_path: Path) -> None:
-    """AC: concurrent contenders never exceed configured slots, even when waiters time out."""
-    total = 6
-    settings = _settings(tmp_path, slots=2, max_load=48.0)
+def _run_contenders(
+    *,
+    stage: str,
+    total: int,
+    wait_budget: float,
+    settings: host_headroom.Settings,
+    load_value: float,
+    jitter: Callable[[float, float], float] = random.uniform,
+) -> tuple[int, list[int | None], int]:
+    """Run ``total`` contending threads and return ``(peak_active, entered_slots, timed_out)``."""
     expected_timeouts = total - settings.slots
     gate = threading.Barrier(total)
     release_holders = threading.Event()
     state_lock = threading.Lock()
     active = 0
     peak_active = 0
-    completed = 0
+    entered: list[int | None] = []
     timed_out = 0
     errors: list[BaseException] = []
 
     def worker() -> None:
-        nonlocal active, peak_active, completed, timed_out
+        nonlocal active, peak_active, timed_out
         try:
             gate.wait(timeout=5.0)
             with host_headroom.heavy_stage_slot(
-                "pytest",
-                0.05,
+                stage,
+                wait_budget,
                 settings=settings,
-                load=lambda: 1.0,
-                jitter=lambda _lo, _hi: 0.01,
+                load=lambda: load_value,
+                jitter=jitter,
                 stream=io.StringIO(),
             ) as grant:
-                assert grant.slot is not None
                 with state_lock:
                     active += 1
                     peak_active = max(peak_active, active)
+                    entered.append(grant.slot)
                 assert release_holders.wait(timeout=5.0), "contenders never finished timing out"
                 with state_lock:
                     active -= 1
-                    completed += 1
         except host_headroom.HeadroomTimeoutError as exc:
             if exc.code != 3:
                 with state_lock:
@@ -385,67 +391,37 @@ def test_bounded_concurrency_under_slot_contention_no_stampede(tmp_path: Path) -
         assert not thread.is_alive()
 
     assert errors == []
+    return peak_active, entered, timed_out
+
+
+def test_bounded_concurrency_under_slot_contention_no_stampede(tmp_path: Path) -> None:
+    """AC: concurrent contenders never exceed configured slots, even when waiters time out."""
+    settings = _settings(tmp_path, slots=2, max_load=48.0)
+    peak_active, entered, timed_out = _run_contenders(
+        stage="pytest",
+        total=6,
+        wait_budget=0.05,
+        settings=settings,
+        load_value=1.0,
+        jitter=lambda _lo, _hi: 0.01,
+    )
     assert peak_active <= settings.slots
-    assert completed == settings.slots
-    assert timed_out == expected_timeouts
+    assert len(entered) == settings.slots
+    assert all(slot is not None for slot in entered)
+    assert timed_out == 6 - settings.slots
 
 
 def test_simultaneous_timeout_under_high_load_caps_at_slots(tmp_path: Path) -> None:
     """AC: waiters timing out together under external high load still cap execution at slots."""
-    total = 5
     settings = _settings(tmp_path, slots=2, max_load=8.0)
-    expected_timeouts = total - settings.slots
-    gate = threading.Barrier(total)
-    hold_inside = threading.Event()
-    state_lock = threading.Lock()
-    active = 0
-    peak_active = 0
-    entered: list[int | None] = []
-    timed_out = 0
-    errors: list[BaseException] = []
-
-    def worker() -> None:
-        nonlocal active, peak_active, timed_out
-        try:
-            gate.wait(timeout=5.0)
-            with host_headroom.heavy_stage_slot(
-                "pre-pr-validation",
-                0.0,
-                settings=settings,
-                load=lambda: 99.0,
-                stream=io.StringIO(),
-            ) as grant:
-                with state_lock:
-                    active += 1
-                    peak_active = max(peak_active, active)
-                    entered.append(grant.slot)
-                assert hold_inside.wait(timeout=5.0), "contenders never finished timing out"
-                with state_lock:
-                    active -= 1
-        except host_headroom.HeadroomTimeoutError as exc:
-            if exc.code != 3:
-                with state_lock:
-                    errors.append(AssertionError(f"expected exit 3, got {exc.code}"))
-                hold_inside.set()
-                return
-            with state_lock:
-                timed_out += 1
-                if timed_out == expected_timeouts:
-                    hold_inside.set()
-        except BaseException as exc:  # pragma: no cover - surfaced to main thread
-            with state_lock:
-                errors.append(exc)
-            hold_inside.set()
-
-    threads = [threading.Thread(target=worker) for _ in range(total)]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join(timeout=10.0)
-        assert not thread.is_alive()
-
-    assert errors == []
+    peak_active, entered, timed_out = _run_contenders(
+        stage="pre-pr-validation",
+        total=5,
+        wait_budget=0.0,
+        settings=settings,
+        load_value=99.0,
+    )
     assert peak_active <= settings.slots
     assert len(entered) == settings.slots
     assert all(slot is not None for slot in entered)
-    assert timed_out == expected_timeouts
+    assert timed_out == 5 - settings.slots
