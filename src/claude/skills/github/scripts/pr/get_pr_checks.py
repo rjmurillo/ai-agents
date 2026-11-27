@@ -1093,18 +1093,11 @@ def _handle_fetch_error(
     repo: str | None = None,
 ) -> int | None:
     """Return an exit code if check_data carries an error, else None."""
-    codes = {"NotFound": 3, "ApiError": 3}
     error = check_data.get("Error")
-    if error not in codes:
+    if error not in ("NotFound", "ApiError"):
         return None
-    _emit_failure(
-        check_data["Message"],
-        codes[error],
-        error,
-        fmt,
-        failure_data(pr_number, owner, repo),
-    )
-    return codes[error]
+    _emit_failure(check_data["Message"], 3, error, fmt, failure_data(pr_number, owner, repo))
+    return 3
 
 
 def _resolve_repo_or_fail(args: argparse.Namespace, fmt: str) -> tuple[str, str]:

@@ -87,6 +87,7 @@ For each failing check, run `triage_red_check.py --check-name "<name>" --pull-re
 | `PR_ONLY` | 3 | The check never reports on `main`. Read the PR run |
 | `CANCELLED_ON_MAIN` | 3 | No completed evidence on `main`. Rerun the `EvidenceRunId` run |
 | `UNKNOWN` | 3 | Probe failure, never evidence of green |
+| `Error.Type` `NotFound` | 3 | The branch was not found. Fix `--branch`, do not rerun |
 
 ### Stale bot review
 
