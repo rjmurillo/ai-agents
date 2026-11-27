@@ -229,7 +229,7 @@ See `universal.md` MUST NOT 11.
 
 You cannot delegate. Return to orchestrator with (fields per the orchestrator Handoff Contract):
 
-1. Verdict and confidence
+1. Verdict and confidence as one line, `<VERDICT> - Confidence: <HIGH|MEDIUM|LOW>`, using a verdict from Verdict Rules
 2. Path to critique document
 3. Critical findings count
 4. Recommended next step (only when an orchestrator delegated this task; when you report to the user directly, omit this item and end on the result):

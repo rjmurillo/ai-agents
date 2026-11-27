@@ -253,6 +253,71 @@ class TestTstackTakeoverAttribution:
         assert "Copyright (c) 2026 Theo Browne" in notices
 
 
+class TestClaudePluginsOfficialAttribution:
+    """References adapted from Apache-2.0 plugins must produce a shipped notice."""
+
+    PINNED_COMMIT = "0fbfda5a91f4adc311daca25acc99132f40f0b6e"
+    UPSTREAM_FILES = {
+        "claude-plugins-official code-modernization": (
+            "plugins/code-modernization/agents/version-delta-analyst.md",
+            "plugins/code-modernization/commands/modernize-uplift.md",
+            "plugins/code-modernization/commands/modernize-verify.md",
+            "plugins/code-modernization/commands/modernize-preflight.md",
+        ),
+        "claude-plugins-official skill-creator": (
+            "plugins/skill-creator/skills/skill-creator/agents/grader.md",
+        ),
+    }
+
+    @staticmethod
+    def _source_section(reference: Path) -> str:
+        text = reference.read_text(encoding="utf-8")
+        _, marker, section = text.partition("\n## Source\n")
+        assert marker, f"{reference} has no Source section"
+        return " ".join(section.split())
+
+    @staticmethod
+    def _shipped_paths() -> list[Path]:
+        return get_shipped_source_paths(PROJECT_ROOT, load_marketplace_config(PROJECT_ROOT))
+
+    @pytest.mark.parametrize("name", sorted(UPSTREAM_FILES))
+    def test_entry_points_at_a_shipped_reference_file(self, name: str) -> None:
+        entry = FORKED_COMPONENTS[name]
+        reference = (PROJECT_ROOT / entry["local_path"]).resolve()
+
+        assert entry["license"] == "Apache-2.0"
+        assert reference.is_file()
+        assert any(reference.is_relative_to(root) for root in self._shipped_paths())
+
+    @pytest.mark.parametrize("name", sorted(UPSTREAM_FILES))
+    def test_source_section_names_the_pinned_commit_and_upstream_files(self, name: str) -> None:
+        section = self._source_section(PROJECT_ROOT / FORKED_COMPONENTS[name]["local_path"])
+
+        assert self.PINNED_COMMIT in section
+        assert "Apache-2.0" in section
+        for upstream_file in self.UPSTREAM_FILES[name]:
+            assert upstream_file in section
+
+    def test_generated_notice_gives_each_entry_its_own_license_pointer(self) -> None:
+        components = find_forked_components(PROJECT_ROOT, self._shipped_paths())
+        notices = format_notices(components, [])
+
+        for name in self.UPSTREAM_FILES:
+            _, heading, block = notices.partition(f"{name} ((fork))")
+            assert heading, f"{name} is missing from the notice"
+            block = block.split("((fork))", 1)[0]
+            assert "Apache License, Version 2.0" in block
+            assert "https://www.apache.org/licenses/LICENSE-2.0" in block
+        assert "License text not embedded" not in notices
+
+    def test_entries_drop_out_when_no_shipped_root_holds_them(self, tmp_path: Path) -> None:
+        shipped = find_forked_components(PROJECT_ROOT, self._shipped_paths())
+        foreign = find_forked_components(PROJECT_ROOT, [tmp_path])
+
+        assert {c.name for c in shipped} >= set(self.UPSTREAM_FILES)
+        assert not {c.name for c in foreign} & set(self.UPSTREAM_FILES)
+
+
 class TestCommittedNotice:
     """The committed notice artifacts must be current generator output."""
 

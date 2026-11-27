@@ -67,6 +67,22 @@ _MIT_PERMISSION_TEXT = (
     "SOFTWARE.\n"
 )
 
+# Notice for references reworded from Apache-2.0 sources. This product ships
+# under the same license, so its LICENSE file already carries the full text.
+# The upstream LICENSE files leave the copyright line unfilled, so none is
+# quoted here.
+_APACHE_2_0_POINTER_TEXT = (
+    "Apache License, Version 2.0\n"
+    "\n"
+    "The upstream plugin is licensed under the Apache License, Version 2.0.\n"
+    "Its LICENSE file carries no copyright line. The full license text is in\n"
+    "the LICENSE file shipped with this product and at\n"
+    "https://www.apache.org/licenses/LICENSE-2.0\n"
+    "\n"
+    "The shipped file is a reworded adaptation, not a copy. Its Source section\n"
+    "names the upstream files and the pinned upstream commit.\n"
+)
+
 # Forked or vendored components shipped in plugin source paths.
 # Each entry must include the license text or a path to a LICENSE file.
 FORKED_COMPONENTS: dict[str, dict[str, str]] = {
@@ -120,6 +136,14 @@ FORKED_COMPONENTS: dict[str, dict[str, str]] = {
         "url": "https://github.com/garrytan/gstack",
         "author": "Garry Tan",
         "local_path": "src/claude/skills/dx-review",
+        "license_text": ("MIT License\n\nCopyright (c) 2026 Garry Tan\n\n" + _MIT_PERMISSION_TEXT),
+        "license_blank_line_prefix": "",
+    },
+    "gstack modernize": {
+        "license": "MIT",
+        "url": "https://github.com/garrytan/gstack",
+        "author": "Garry Tan",
+        "local_path": "src/claude/skills/modernize",
         "license_text": ("MIT License\n\nCopyright (c) 2026 Garry Tan\n\n" + _MIT_PERMISSION_TEXT),
         "license_blank_line_prefix": "",
     },
@@ -193,6 +217,24 @@ FORKED_COMPONENTS: dict[str, dict[str, str]] = {
         "license_text": (
             "MIT License\n\nCopyright (c) 2026 Shilpa Mitra\n\n" + _MIT_PERMISSION_TEXT
         ),
+        "license_blank_line_prefix": "",
+    },
+    "claude-plugins-official code-modernization": {
+        "license": "Apache-2.0",
+        "url": "https://github.com/anthropics/claude-plugins-official",
+        "author": "Anthropic",
+        "local_path": (
+            "src/claude/skills/software-engineering-library/references/version-uplift.md"
+        ),
+        "license_text": _APACHE_2_0_POINTER_TEXT,
+        "license_blank_line_prefix": "",
+    },
+    "claude-plugins-official skill-creator": {
+        "license": "Apache-2.0",
+        "url": "https://github.com/anthropics/claude-plugins-official",
+        "author": "Anthropic",
+        "local_path": "src/claude/skills/skillopt/references/judge-grading-discipline.md",
+        "license_text": _APACHE_2_0_POINTER_TEXT,
         "license_blank_line_prefix": "",
     },
 }

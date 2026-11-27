@@ -61,7 +61,6 @@ REQUIRED_WORKFLOWS: frozenset[str] = frozenset(
 REPORT_ONLY_WORKFLOWS: dict[str, str] = {
     "agent-drift-detection.yml": DETERMINISTIC,
     "agent-skill-discriminator-check.yml": DETERMINISTIC,
-    "ai-spec-review.yml": AI_QUOTA,
     "ai-spec-validation.yml": DETERMINISTIC,
     "audit-hook-bypass.yml": DETERMINISTIC,
     "citation-verify.yml": DETERMINISTIC,
@@ -91,7 +90,6 @@ REPORT_ONLY_WORKFLOWS: dict[str, str] = {
     "skill-passive-compliance.yml": DETERMINISTIC,
     "skillbook-validation.yml": DETERMINISTIC,
     "slash-command-quality.yml": AI_QUOTA,
-    "software-engineering-library-activation.yml": AI_QUOTA,
     "synthesis-panel-gate.yml": DETERMINISTIC,
     "test-codeql-integration.yml": DETERMINISTIC,
     "validate-adr-number-uniqueness.yml": DETERMINISTIC,
