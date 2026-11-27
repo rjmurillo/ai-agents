@@ -359,25 +359,13 @@ def test_cli_ignores_an_untracked_record(tmp_path: Path) -> None:
     assert main(["--repo-root", str(repo), "--baseline", str(_baseline(tmp_path, []))]) == EXIT_OK
 
 
+@pytest.mark.parametrize("opener", ["```text\n", "1. Example:\n\n   ```text\n   "])
 def test_cli_fails_on_an_unterminated_fence(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    opener: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    repo = _repo(tmp_path, "```text\nADR-080 governs model pins.\n")
-    assert (
-        main(["--repo-root", str(repo), "--baseline", str(_baseline(tmp_path, []))])
-        == EXIT_REGRESSION
-    )
-    assert "code fence is never closed" in capsys.readouterr().err
-
-
-def test_cli_fails_on_an_unterminated_indented_fence(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    repo = _repo(tmp_path, "1. Example:\n\n   ```text\n   ADR-080 governs model pins.\n")
-    assert (
-        main(["--repo-root", str(repo), "--baseline", str(_baseline(tmp_path, []))])
-        == EXIT_REGRESSION
-    )
+    repo = _repo(tmp_path, opener + "ADR-080 governs model pins.\n")
+    args = ["--repo-root", str(repo), "--baseline", str(_baseline(tmp_path, []))]
+    assert main(args) == EXIT_REGRESSION
     assert "code fence is never closed" in capsys.readouterr().err
 
 
