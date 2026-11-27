@@ -12,7 +12,7 @@ go in `scores`.
   "handle": "<repo_name from inventory.json>",
   "stats": {
     "sessions_analyzed": 0, "sessions_scanned": 0,
-    "skills_found": 0, "skills_used": 0, "window_days": 45
+    "skills_found": 0, "skills_used": 0, "window_days": 14
   },
   "sampling": {
     "harness_coverage_complete": true,

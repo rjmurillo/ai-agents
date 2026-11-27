@@ -7,7 +7,7 @@ requires-python = ">=3.14"
 license = {text = "Apache-2.0"}
 
 dependencies = [
-    "anthropic==2.11.0",
+    "anthropic==2.12.0",
     "jsonschema>=4.25.1",
     "markdown-it-py>=4.2.0",
     "python-frontmatter==1.3.0",
@@ -350,7 +350,6 @@ max-complexity = 15
 "src/claude/skills/github/scripts/issue/set_issue_milestone.py" = ["C901"]
 "src/claude/skills/github/scripts/pr/detect_copilot_followup_pr.py" = ["C901"]
 "src/claude/skills/github/scripts/pr/get_pr_comments_by_reviewer.py" = ["C901"]
-"src/claude/skills/github/scripts/pr/get_pr_review_comments.py" = ["C901"]
 "src/claude/skills/github/scripts/pr/get_unaddressed_comments.py" = ["C901"]
 "src/claude/skills/github/scripts/pr/pr_validations.py" = ["C901"]
 "src/claude/skills/github/scripts/pr/run_completion_gate.py" = ["C901"]
