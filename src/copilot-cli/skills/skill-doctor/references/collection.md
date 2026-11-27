@@ -48,7 +48,17 @@ When `sampling.top_level_notice` is set, the sample holds no top-level session. 
 Scope is decided per session, from that session's own cwd. The parent is never consulted.
 A child whose cwd is in scope is kept even when its parent ran elsewhere.
 A child whose cwd is out of scope is dropped even when its parent is in scope.
-A child in a registered linked worktree of `--repo` is in scope. One in a worktree removed since is not, unless you pass that path with `--repo`.
+A child in a registered linked worktree of `--repo` is in scope.
+
+Worktrees are often short lived, so many sessions ran in a directory that no longer exists.
+Such a session stays in scope when it recorded a branch this repository still has.
+Claude Code records `gitBranch`. Codex records `git.branch`.
+The default branch (`main`, `master`, or the remote `HEAD` target) never admits a session.
+A path now inside a checkout of another repository is not admitted.
+`--no-worktrees` turns this rule off.
+`scope_resolution.removed_checkout_sessions` counts the sessions admitted this way.
+Warp, Hermes, Droid, and Copilot record no branch. Their sessions in a removed worktree stay out unless you pass that path with `--repo`.
+A session whose branch was deleted also stays out.
 
 When the run covered exactly one repository (`conversation_scope` is `projects` and `repos` has one entry), you can pass the inventory to `skill-bootstrap` as an initial candidate seed. Bootstrap rejects all-conversations and multi-project inventories.
 In a bootstrap child run, return it to the caller instead of starting another run.

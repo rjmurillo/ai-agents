@@ -11,13 +11,20 @@ A rejected root also fences off its own subtree: a session whose deepest
 containing root is a rejected one stays out of scope even when a shallower
 included root contains it.
 
+Linked worktrees are often short lived. A session whose working directory no
+longer exists stays in scope when it recorded a branch this repository still
+has, other than the default branch, and no other checkout now owns that path.
+Claude Code records ``gitBranch`` and Codex records ``git.branch``. The other
+harnesses record no branch, so their sessions in a removed worktree stay out.
+
 Clone discovery (a second clone of the same upstream) is not supported.
 """
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 from session_discovery import (
@@ -30,8 +37,10 @@ CLONE_DISCOVERY = "unsupported"
 BRANCH_FILTER = "none"
 _POINTER_PREFIX = "gitdir:"
 _REMOVED = (
-    "registered worktree directory is missing (removed); pass --repo PATH to include its sessions"
+    "registered worktree directory is missing (removed); its sessions stay in scope when they "
+    "recorded a branch this repository still has, pass --repo PATH to include the others"
 )
+_DEFAULT_BRANCHES = frozenset({"main", "master"})
 _NOT_POINTING_BACK = "directory exists but its .git does not point back to the registration"
 _BAD_REGISTRATION = "registration gitdir file is empty, unreadable, or not a valid path"
 _UNREADABLE = "registered worktree directory is unreadable (permission or I/O error)"
@@ -55,6 +64,9 @@ class RepositoryScope:
     included: list[ScopeRoot] = field(default_factory=list)
     rejected: list[RejectedRoot] = field(default_factory=list)
     _fenced: dict[str, bool] = field(default_factory=dict, repr=False)
+    commons: set[Path] = field(default_factory=set)
+    branches: set[str] = field(default_factory=set)
+    branch_admitted: int = 0
 
     @property
     def paths(self) -> list[Path]:
@@ -70,14 +82,39 @@ class RepositoryScope:
             self.rejected.append(RejectedRoot(path, reason))
 
     def matches(self, harness: str, meta: Any) -> bool:
-        """Apply the repository filter, then drop sessions inside a rejected root."""
+        """Apply the repository filter, then drop sessions inside a rejected root.
+
+        A session in a removed checkout is admitted by its recorded branch instead.
+        """
         if harness == "copilot":
             admitted = copilot_session_matches_repos(meta, self.paths)
             cwds = [meta.get("cwd"), *meta["cwd_history"]]
         else:
             admitted = session_matches_repos(meta.get("cwd"), self.paths)
             cwds = [meta.get("cwd")]
-        return admitted and not any(self._fenced_off(cwd) for cwd in cwds)
+        if admitted and not any(self._fenced_off(cwd) for cwd in cwds):
+            return True
+        if harness != "copilot" and self._removed_checkout_on_branch(meta):
+            self.branch_admitted += 1
+            return True
+        return False
+
+    def _removed_checkout_on_branch(self, meta: Any) -> bool:
+        """True for a vanished cwd whose session recorded a non-default branch of this repo."""
+        branch = session_branch(meta)
+        if branch is None or branch not in self.branches:
+            return False
+        cwd = meta.get("cwd")
+        if not isinstance(cwd, str) or bool(PureWindowsPath(cwd).drive) != (os.name == "nt"):
+            return False
+        path = Path(cwd)
+        try:
+            if not path.is_absolute() or path.exists():
+                return False
+            owner = _enclosing_common_dir(path)
+        except OSError:
+            return False
+        return owner is None or owner in self.commons
 
     def _fenced_off(self, cwd: Any) -> bool:
         key = cwd if isinstance(cwd, str) else ""
@@ -110,14 +147,76 @@ class RepositoryScope:
                 for root in self.included
             ],
             "rejected": [{"path": str(item.path), "reason": item.reason} for item in self.rejected],
+            "removed_checkout_sessions": self.branch_admitted,
         }
 
 
-def _read_line(path: Path) -> str | None:
+def session_branch(meta: Any) -> str | None:
+    """The branch a session recorded: Claude Code ``git_branch`` or Codex ``git.branch``."""
+    branch = meta.get("git_branch")
+    git = meta.get("git")
+    if branch is None and isinstance(git, dict):
+        branch = git.get("branch")
+    return branch if isinstance(branch, str) and branch else None
+
+
+def _enclosing_common_dir(path: Path) -> Path | None:
+    """Common directory of the checkout holding the nearest existing ancestor, if any."""
+    ancestors = [parent for parent in path.parents if parent.exists()]
+    for ancestor in ancestors:
+        if (ancestor / ".git").exists():
+            git_dir = git_dir_of(ancestor)
+            return common_dir_of(git_dir) if git_dir is not None else ancestor
+    return None
+
+
+def _ref_names(common: Path) -> set[str]:
+    """Local and remote-tracking branch names, from loose refs and ``packed-refs``."""
+    names: set[str] = set()
+    for prefix, depth in (("refs/heads/", 0), ("refs/remotes/", 1)):
+        root = common / prefix
+        try:
+            files = [item for item in root.rglob("*") if item.is_file()]
+        except OSError:
+            files = []
+        for item in files:
+            parts = item.relative_to(root).parts[depth:]
+            if parts and parts != ("HEAD",):
+                names.add("/".join(parts))
+    for line in (_read_text(common / "packed-refs") or "").splitlines():
+        ref = line.partition(" ")[2]
+        for prefix, depth in (("refs/heads/", 0), ("refs/remotes/", 1)):
+            if ref.startswith(prefix):
+                parts = tuple(ref[len(prefix) :].split("/"))[depth:]
+                if parts and parts != ("HEAD",):
+                    names.add("/".join(parts))
+    return names
+
+
+def branch_names(common: Path) -> set[str]:
+    """Non-default branch names a removed checkout of this repository could have used."""
+    defaults = set(_DEFAULT_BRANCHES)
     try:
-        return path.read_text(encoding="utf-8", errors="replace").strip()
+        heads = sorted((common / "refs" / "remotes").glob("*/HEAD"))
+    except OSError:
+        heads = []
+    for head in heads:
+        target = _read_line(head) or ""
+        if target.startswith("ref: refs/remotes/"):
+            defaults.add(target.split("/", 3)[-1])
+    return _ref_names(common) - defaults
+
+
+def _read_text(path: Path) -> str | None:
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return None
+
+
+def _read_line(path: Path) -> str | None:
+    text = _read_text(path)
+    return text.strip() if text is not None else None
 
 
 def _resolve(base: Path, text: str) -> Path | None:
@@ -204,6 +303,8 @@ def _expand(scope: RepositoryScope, selected: Path, expanded: set[Path]) -> None
     if common in expanded:
         return
     expanded.add(common)
+    scope.commons.add(common)
+    scope.branches |= branch_names(common)
     _admit_main(scope, common)
     for registration, worktree in _registrations(common):
         _admit_worktree(scope, registration, worktree)

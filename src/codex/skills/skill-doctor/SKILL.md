@@ -178,7 +178,7 @@ Read `$SKILL_ROOT/references/collection.md` (Collector flags) before you change 
 
 Read `$REPORT_DIR/inventory.json`, including `collection_status` and `collection_issues`.
 State `scope_resolution` in the report: included roots with their session counts, rejected roots with reasons, and that clone discovery is unsupported.
-A removed worktree joins only when the user confirms its path and you pass it as `--repo PATH`. A directory name or shared prefix never grants access.
+Sessions from removed worktrees stay in scope by recorded branch (`removed_checkout_sessions`). A directory name never grants access.
 Note `stats.sessions_skipped_idle`: sessions whose last record is newer than `--min-idle-minutes` (default 15) are skipped because they may still be running; disclose the count.
 Disclose partial collection before interpreting usage or recommending changes.
 Same-name definitions with different content stay in usage and coverage.
