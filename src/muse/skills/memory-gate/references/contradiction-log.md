@@ -41,8 +41,9 @@ Serena MCP server is optional; file tools on the same folder work.
 
 1. Search the store for the same finding first. Update a matching entry, and
    add a dated pointer to any older entry the new evidence supersedes.
-2. Write the entry. In an indexed Serena corpus, add its row to the matching
-   domain `*-index` file in the same change.
+2. Write the entry. In an indexed Serena corpus, check the matching domain
+   `*-index` file in the same change: update the entry's row if one exists,
+   and add a row only when none does.
 3. When the host also configures a memory service for this project, retain
    the same entry there, unless the worktree note below forbids it. A
    service is a retrieval aid, not a replacement for the repository entry.

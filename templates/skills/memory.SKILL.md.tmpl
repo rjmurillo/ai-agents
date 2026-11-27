@@ -115,10 +115,17 @@ For deeper guidance on picking a tier, see
 1. Keep a verified decision, result, or reusable lesson. Record what happened,
    the reason, the date, and the evidence. Put required behavior in rules or
    instructions. Keep secrets, private data, and transcripts out of notes.
+   For a measured contradiction, name the entry `decision-<slug>` and record
+   five fields: the question, the conventional answer with its citation, the
+   first-principles position, the evidence, and the decision with where it
+   lives in the code. Write it to the repository store in step 4 first; a
+   memory service may hold a copy, never the only one.
 2. Use the destination authorized by the user or repository. If neither names
    one, use an available write capability only when its permission and project
    scope are clear. Use the capability's actual tool schema. A global account
-   or an unknown bank does not establish project scope.
+   or an unknown bank does not establish project scope. Before you write
+   through a memory service, confirm it is bound to the current checkout. If
+   you cannot confirm it, do not write through it; report the gap.
 3. Search the destination for the same fact before writing. Update a matching
    entry when supported. Save one self-contained note and verify it landed.
    If the result of a write is ambiguous, check that destination before retrying.

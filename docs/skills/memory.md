@@ -6,7 +6,7 @@ Routes a memory request to the right focused sub-skill. It also saves verified f
 
 - You ask "what do we know about X", "recall prior context", or "search memory" and are not sure which memory operation you need.
 - You want to retain a verified decision, result, or reusable lesson.
-- Trigger phrases include `remember this`, `search memory`, `check memory tier health`, `extract episode from session`, `memory-first gate`, `consolidate memory`. A measured result that contradicts a memory routes to the `memory-gate` contradiction log, or to the write procedure where `memory-gate` is not installed.
+- Trigger phrases include `remember this`, `search memory`, `check memory tier health`, `extract episode from session`, `memory-first gate`, `consolidate memory`. A measured result that contradicts a memory routes to the `memory-gate` contradiction log, or to the write procedure where `memory-gate` is not installed. That procedure records the same five fields, writes the repository store first, and writes to a memory service only when it is bound to this checkout.
 
 ## When not to use it
 
