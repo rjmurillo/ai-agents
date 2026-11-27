@@ -8151,11 +8151,11 @@ def _validated_full_suite_opt_in() -> str:
 
 
 def _testmon_stand_in(repo_root: Path) -> list[list[str]]:
-    """Return what pre-push runs by default: the tests testmon selects.
+    """Return what an on-demand run executes by default: testmon's selection.
 
     Running every test here duplicates CI's `pytest.yml` partition matrix on
     the same commit. Measured on a 4-CPU container, that duplicate cost 475s of
-    a 679s push. testmon keeps the local run short by re-running only tests
+    a 679s push, when pre-push ran it. testmon re-runs only tests
     whose recorded dependencies changed since its last run, so a failure that
     the diff can cause usually surfaces before CI does (issue #6239).
 
@@ -8178,8 +8178,8 @@ def _testmon_stand_in(repo_root: Path) -> list[list[str]]:
         "  The pytest header and summary below show what testmon selected and ran.\n"
         "  Pre-push does not run pytest. CI runs every test: "
         ".github/workflows/pytest.yml\n"
-        "  runs every pytest leg in full on every push, pull request, and "
-        "merge-queue event\n"
+        "  runs every pytest leg in full on every pull request, merge-queue "
+        "event, and push to main\n"
         "  (issue #6239).",
         file=sys.stderr,
     )
