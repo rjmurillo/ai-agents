@@ -288,6 +288,8 @@ def parse_hermes_session(
         "source": session_row["source"] or "cli",
         "cwd": session_row["cwd"],
         "title": session_row["title"] or session_row["display_name"],
+        "parent_session_id": session_row["parent_session_id"],
+        "thread_source": "subagent" if session_row["parent_session_id"] else None,
     }
     state = SessionState()
     state.skills = detect_skill_candidates(session_row["cwd"] or "")
