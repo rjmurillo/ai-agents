@@ -245,7 +245,7 @@ not a running system.
       recorded, THE SYSTEM SHALL classify it `KEEP`.
       Evidence citations: `scripts/validation/pre_pr_sequence.py:884-895`,
       `lefthook.yml:728`, and
-      `tests/validation/test_pre_pr_sequence_registry.py:198-325`.
+      `tests/validation/test_pre_pr_sequence_registry.py:199-326`.
       THE SYSTEM SHALL NOT propose a deletion PR for this mechanism SO
       THAT the already-fixed finding is recorded rather than re-solved
       (DR3, this REQ's motivating example).

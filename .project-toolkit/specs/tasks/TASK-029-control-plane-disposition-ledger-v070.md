@@ -40,7 +40,7 @@ script for the ledger (DESIGN-021's deliberate choice).
       validators/workflows/mirrors the baseline surfaces.
 - [ ] TASK-029-AC2: The duplicate-gate row is present, classified `KEEP`.
       Citations: `pre_pr_sequence.py:884-895`, `lefthook.yml:728`, and
-      `test_pre_pr_sequence_registry.py:198-325`.
+      `test_pre_pr_sequence_registry.py:199-326`.
 - [ ] TASK-029-AC3: Every `KEEP` row's five required fields are non-empty
       (spot-checked at PR review, per DESIGN-021).
 - [ ] TASK-029-AC4: ADR-100 item 5 recorded as `DELETE` (the construct
