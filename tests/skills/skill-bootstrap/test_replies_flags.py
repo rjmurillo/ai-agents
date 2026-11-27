@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 from replies_helpers import (
@@ -112,7 +113,7 @@ def test_parse_ts_handles_zulu_naive_and_garbage() -> None:
     assert replies_corpus.parse_ts("nope") is None and replies_corpus.parse_ts(None) is None
 
 
-def parse(tmp_path: Path, records: list[dict]) -> replies_corpus.Transcript:
+def parse(tmp_path: Path, records: list[dict[str, Any]]) -> replies_corpus.Transcript:
     path = write_session(tmp_path / "p", "s1", records)
     return replies_corpus.parse_transcript(replies_corpus.Source(path, "s1", None, False))
 

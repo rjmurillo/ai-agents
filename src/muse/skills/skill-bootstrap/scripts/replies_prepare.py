@@ -142,14 +142,14 @@ def summarize(tr: Transcript, cfg: Config) -> Summary | None:
             continue
         if not usable:
             continue
-        _count_turn(sm, tr, turns, i, cfg)
+        _count_turn(sm, turns, i, cfg)
     if tr.src.child and sm.replies:
         sm.replies = sm.replies[-1:]
         sm.replies[0].kind = KIND_HANDBACK
     return sm
 
 
-def _count_turn(sm: Summary, tr: Transcript, turns: list[Any], i: int, cfg: Config) -> None:
+def _count_turn(sm: Summary, turns: list[Any], i: int, cfg: Config) -> None:
     turn = turns[i]
     nxt = turns[i + 1] if i + 1 < len(turns) else None
     if nxt is not None and not _in_window(cfg, nxt.ts):

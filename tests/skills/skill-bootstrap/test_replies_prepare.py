@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import stat
 from pathlib import Path
+from typing import Any
 
 import pytest
 from replies_helpers import (
@@ -428,7 +429,7 @@ def test_last_message_id_and_cutoff_limit_evidence(
 ) -> None:
     plant_control(store)
 
-    def fragment(text: str, at: int, mid: str) -> dict:
+    def fragment(text: str, at: int, mid: str) -> dict[str, Any]:
         record = assistant_text(text, at)
         record["message"]["id"] = mid
         return record
