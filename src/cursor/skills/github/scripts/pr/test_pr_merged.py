@@ -118,8 +118,10 @@ def _human_summary(output: dict[str, Any]) -> str:
     return f"PR #{output['pull_request']} in {output['owner']}/{output['repo']}: {verdict}"
 
 
-def _exit_not_found(pull_request: int, owner: str, repo: str) -> int:
-    """Report a missing PR: stderr message, error envelope on stdout, exit 3.
+def _exit_not_found(pull_request: int, owner: str, repo: str, fmt: str = "json") -> int:
+    """Report a missing PR: stderr message, JSON envelope on stdout, exit 3.
+
+    Human mode gets the stderr message only, like the success path.
 
     Exit 3 also covers API failures, so ``Error.Type`` ``NotFound`` is the
     signal that tells a deleted PR from an outage. The envelope is built
@@ -130,6 +132,8 @@ def _exit_not_found(pull_request: int, owner: str, repo: str) -> int:
     """
     message = f"PR #{pull_request} not found in {owner}/{repo}."
     print(message, file=sys.stderr)
+    if fmt != "json":
+        return 3
     print(
         json.dumps(
             {
@@ -160,7 +164,9 @@ def main(argv: list[str] | None = None) -> int:
     if state.status is PrMergeStatus.PROBE_FAILED:
         error_and_exit(f"GraphQL query failed: {state.detail}", state.exit_code)
     if state.status is PrMergeStatus.NOT_FOUND:
-        return _exit_not_found(args.pull_request, owner, repo)
+        return _exit_not_found(
+            args.pull_request, owner, repo, get_output_format(args.output_format)
+        )
 
     output = {
         "success": True,

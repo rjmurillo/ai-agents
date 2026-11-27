@@ -156,6 +156,38 @@ class TestGetIssueContext:
         assert envelope["Error"]["Code"] == 3
         assert envelope["Error"]["Type"] == expected_type
 
+    @pytest.mark.parametrize("issue", ["-1", "0"])
+    def test_non_positive_issue_is_a_usage_error(self, _import_module, capsys, issue):
+        """A non-positive number exits 2 before auth or any gh call."""
+        mod = _import_module
+        with (
+            patch("get_issue_context.assert_gh_authenticated") as auth,
+            patch("subprocess.run") as run,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                mod.main(["--issue", issue, "--output-format", "json"])
+        assert exc.value.code == 2
+        envelope = json.loads(capsys.readouterr().out)
+        assert envelope["Error"]["Type"] == "InvalidParams"
+        auth.assert_not_called()
+        run.assert_not_called()
+
+    def test_positive_issue_still_reaches_gh(self, _import_module):
+        """Negative control: issue 1 passes validation and calls gh."""
+        mod = _import_module
+        with (
+            patch("get_issue_context.assert_gh_authenticated"),
+            patch("get_issue_context.resolve_repo_params", return_value=_mock_repo()),
+            patch(
+                "subprocess.run",
+                return_value=make_completed_process(stderr="not found", returncode=1),
+            ) as run,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                mod.main(["--issue", "1"])
+        assert exc.value.code == 3
+        run.assert_called_once()
+
     def test_timeout_exits_3_with_timeout_error(self, _import_module, capsys):
         mod = _import_module
         with (

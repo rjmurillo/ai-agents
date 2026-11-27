@@ -184,6 +184,27 @@ class TestMain:
         assert envelope["Error"]["Code"] == 3
         assert "not found" in captured.err
 
+    @pytest.mark.parametrize(("fmt", "wants_json"), [("human", False), ("json", True)])
+    def test_pr_not_found_envelope_follows_output_format(self, capsys, fmt, wants_json):
+        """Human mode gets the stderr message only; JSON mode also gets the envelope."""
+        graphql_data = {"repository": {"pullRequest": None}}
+        with (
+            patch("test_pr_merged.assert_gh_authenticated"),
+            patch(
+                "test_pr_merged.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            _patch_graphql(return_value=graphql_data),
+        ):
+            rc = main(["--pull-request", "999", "--output-format", fmt])
+        assert rc == 3
+        captured = capsys.readouterr()
+        assert "not found" in captured.err
+        if wants_json:
+            assert json.loads(captured.out)["Error"]["Type"] == "NotFound"
+        else:
+            assert captured.out == ""
+
     def test_graphql_error_exits_3(self, capsys):
         with (
             patch(

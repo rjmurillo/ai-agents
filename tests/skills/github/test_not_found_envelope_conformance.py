@@ -15,8 +15,16 @@ import pytest
 
 from tests.skills.claude_skills_import import import_skill_script
 
-_merged = import_skill_script(".claude/skills/github/scripts/pr/test_pr_merged.py")
-_ready = import_skill_script(".claude/skills/github/scripts/pr/test_pr_merge_ready.py")
+# Unique module names keep these copies out of sys.modules["test_pr_merged"],
+# which other test files patch by that name.
+_merged = import_skill_script(
+    ".claude/skills/github/scripts/pr/test_pr_merged.py",
+    module_name="_conformance_test_pr_merged",
+)
+_ready = import_skill_script(
+    ".claude/skills/github/scripts/pr/test_pr_merge_ready.py",
+    module_name="_conformance_test_pr_merge_ready",
+)
 
 
 def _shape(value: Any) -> Any:

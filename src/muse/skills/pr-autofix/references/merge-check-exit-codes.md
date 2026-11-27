@@ -34,6 +34,11 @@ SCRIPTS_DIR="$(resolve_pr_scripts_dir)"
 python3 "$SCRIPTS_DIR/test_pr_merged.py" --pull-request "$PR_NUMBER" | jq -e '.merged == true'
 ```
 
+A missing PR exits 3, and its JSON envelope has no `merged` field, so the
+`jq` check above reads it as "not merged". Exit 3 also covers API failures.
+To tell the cases apart, capture the output and read `.Error.Type`:
+`NotFound` means fix the PR number, and anything else means retry later.
+
 To restore the legacy skip-review sentinel (only for callers that already
 encoded "100 = merged"):
 
