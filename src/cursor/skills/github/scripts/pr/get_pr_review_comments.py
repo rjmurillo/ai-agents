@@ -29,7 +29,7 @@ import subprocess
 import sys
 import urllib.parse
 from collections import Counter
-from typing import Any
+from typing import Any, NamedTuple
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from skill_bootstrap import ensure_plugin_paths
@@ -318,184 +318,250 @@ def get_staleness(
 # ---------------------------------------------------------------------------
 
 
-def get_pr_review_comments(
+class _StaleDetectionState(NamedTuple):
+    file_tree: list[str]
+    content_cache: dict[str, str | None]
+    head_sha: str | None
+
+
+def _initialize_stale_detection(
     owner: str,
     repo: str,
     pr_number: int,
-    author: str = "",
-    include_diff_hunk: bool = False,
-    include_issue_comments: bool = False,
-    detect_stale: bool = False,
-    exclude_stale: bool = False,
-    only_stale: bool = False,
-    group_by_domain: bool = False,
-    group_by_reviewer_priority: bool = False,
-    only_unaddressed: bool = False,
-    bot_only: bool = False,
-) -> dict[str, Any]:
-    """Get all comments for a PR with optional filtering and classification."""
-    # Initialize stale detection caches
-    file_tree: list[str] = []
-    content_cache: dict[str, str | None] = {}
-    head_sha: str | None = None
+    enabled: bool,
+) -> _StaleDetectionState | None:
+    """Initialize stale detection caches and warning behavior when enabled."""
+    if not enabled:
+        return None
 
-    if detect_stale:
-        head_sha = get_pr_head_sha(owner, repo, pr_number)
-        file_tree = get_pr_file_tree(owner, repo, head_sha)
-        if not file_tree:
-            print(
-                "WARNING: File tree is empty. Stale detection disabled.",
-                file=sys.stderr,
-            )
+    head_sha = get_pr_head_sha(owner, repo, pr_number)
+    file_tree = get_pr_file_tree(owner, repo, head_sha)
+    if not file_tree:
+        print(
+            "WARNING: File tree is empty. Stale detection disabled.",
+            file=sys.stderr,
+        )
 
-    # Fetch review comments
+    return _StaleDetectionState(
+        file_tree=file_tree,
+        content_cache={},
+        head_sha=head_sha,
+    )
+
+
+def _fetch_paginated_comments(endpoint: str, error_prefix: str) -> list[dict[str, Any]]:
+    """Fetch one paginated comment collection with the script's exit contract."""
     try:
-        review_comments = gh_api_paginated(f"repos/{owner}/{repo}/pulls/{pr_number}/comments")
+        comments: list[dict[str, Any]] = gh_api_paginated(endpoint)
     except SystemExit:
         raise
     except Exception as exc:
-        error_and_exit(
-            f"Failed to fetch PR review comments for PR #{pr_number}: {exc}",
-            3,
-        )
+        error_and_exit(f"{error_prefix}: {exc}", 3)
+    return comments
 
-    processed_review: list[dict[str, Any]] = []
+
+def _stale_info_for_review_comment(
+    comment: dict[str, Any],
+    line: int | None,
+    diff_hunk: str,
+    stale_state: _StaleDetectionState | None,
+    owner: str,
+    repo: str,
+) -> dict[str, Any]:
+    """Return stale detection fields for one review comment."""
+    if stale_state is None:
+        return {"Stale": None, "StaleReason": None}
+
+    return get_staleness(
+        {
+            "CommentType": "Review",
+            "Path": comment.get("path"),
+            "Line": line,
+            "DiffHunk": diff_hunk,
+        },
+        owner,
+        repo,
+        stale_state.file_tree,
+        stale_state.content_cache,
+        stale_state.head_sha,
+    )
+
+
+def _process_review_comment(
+    comment: dict[str, Any],
+    user: dict[str, Any],
+    login: str,
+    include_diff_hunk: bool,
+    stale_state: _StaleDetectionState | None,
+    owner: str,
+    repo: str,
+) -> dict[str, Any]:
+    """Project one GitHub review comment into the output shape."""
+    line = comment.get("line") or comment.get("original_line")
+    diff_hunk = comment.get("diff_hunk", "")
+    stale_info = _stale_info_for_review_comment(
+        comment,
+        line,
+        diff_hunk,
+        stale_state,
+        owner,
+        repo,
+    )
+
+    return {
+        "Id": comment.get("id"),
+        "CommentType": "Review",
+        "Author": login,
+        "AuthorType": user.get("type", ""),
+        "Path": comment.get("path"),
+        "Line": line,
+        "Side": comment.get("side"),
+        "Body": comment.get("body", ""),
+        "Domain": classify_domain(comment.get("body", "")),
+        "CreatedAt": comment.get("created_at"),
+        "UpdatedAt": comment.get("updated_at"),
+        "InReplyToId": comment.get("in_reply_to_id"),
+        "IsReply": comment.get("in_reply_to_id") is not None,
+        "DiffHunk": diff_hunk if include_diff_hunk else None,
+        "HtmlUrl": comment.get("html_url"),
+        "CommitId": comment.get("commit_id"),
+        "Stale": stale_info["Stale"],
+        "StaleReason": stale_info["StaleReason"],
+        "EyesCount": comment.get("reactions", {}).get("eyes", 0) or 0,
+    }
+
+
+def _process_review_comments(
+    review_comments: list[dict[str, Any]],
+    author: str,
+    include_diff_hunk: bool,
+    stale_state: _StaleDetectionState | None,
+    owner: str,
+    repo: str,
+) -> list[dict[str, Any]]:
+    """Filter and project review comments in API order."""
+    processed: list[dict[str, Any]] = []
     for comment in review_comments:
         user = _comment_user(comment)
         login = user.get("login", "")
         if author and login != author:
             continue
-
-        line = comment.get("line") or comment.get("original_line")
-        diff_hunk = comment.get("diff_hunk", "")
-
-        stale_info: dict[str, Any] = {"Stale": None, "StaleReason": None}
-        if detect_stale:
-            stale_info = get_staleness(
-                {
-                    "CommentType": "Review",
-                    "Path": comment.get("path"),
-                    "Line": line,
-                    "DiffHunk": diff_hunk,
-                },
+        processed.append(
+            _process_review_comment(
+                comment,
+                user,
+                login,
+                include_diff_hunk,
+                stale_state,
                 owner,
                 repo,
-                file_tree,
-                content_cache,
-                head_sha,
-            )
-
-        processed_review.append(
-            {
-                "Id": comment.get("id"),
-                "CommentType": "Review",
-                "Author": login,
-                "AuthorType": user.get("type", ""),
-                "Path": comment.get("path"),
-                "Line": line,
-                "Side": comment.get("side"),
-                "Body": comment.get("body", ""),
-                "Domain": classify_domain(comment.get("body", "")),
-                "CreatedAt": comment.get("created_at"),
-                "UpdatedAt": comment.get("updated_at"),
-                "InReplyToId": comment.get("in_reply_to_id"),
-                "IsReply": comment.get("in_reply_to_id") is not None,
-                "DiffHunk": diff_hunk if include_diff_hunk else None,
-                "HtmlUrl": comment.get("html_url"),
-                "CommitId": comment.get("commit_id"),
-                "Stale": stale_info["Stale"],
-                "StaleReason": stale_info["StaleReason"],
-                "EyesCount": comment.get("reactions", {}).get("eyes", 0) or 0,
-            }
+            ),
         )
+    return processed
 
-    # Fetch issue comments if requested
-    processed_issue: list[dict[str, Any]] = []
-    if include_issue_comments:
-        try:
-            issue_comments = gh_api_paginated(f"repos/{owner}/{repo}/issues/{pr_number}/comments")
-        except SystemExit:
-            raise
-        except Exception as exc:
-            error_and_exit(
-                f"Failed to fetch issue comments for PR #{pr_number}: {exc}",
-                3,
-            )
 
-        for comment in issue_comments:
-            user = _comment_user(comment)
-            login = user.get("login", "")
-            if author and login != author:
-                continue
+def _process_issue_comment(
+    comment: dict[str, Any],
+    user: dict[str, Any],
+    login: str,
+    detect_stale: bool,
+) -> dict[str, Any]:
+    """Project one GitHub issue comment into the output shape."""
+    return {
+        "Id": comment.get("id"),
+        "CommentType": "Issue",
+        "Author": login,
+        "AuthorType": user.get("type", ""),
+        "Path": None,
+        "Line": None,
+        "Side": None,
+        "Body": comment.get("body", ""),
+        "Domain": classify_domain(comment.get("body", "")),
+        "CreatedAt": comment.get("created_at"),
+        "UpdatedAt": comment.get("updated_at"),
+        "InReplyToId": None,
+        "IsReply": False,
+        "DiffHunk": None,
+        "HtmlUrl": comment.get("html_url"),
+        "CommitId": None,
+        "Stale": False if detect_stale else None,
+        "StaleReason": None,
+        "EyesCount": comment.get("reactions", {}).get("eyes", 0) or 0,
+    }
 
-            processed_issue.append(
-                {
-                    "Id": comment.get("id"),
-                    "CommentType": "Issue",
-                    "Author": login,
-                    "AuthorType": user.get("type", ""),
-                    "Path": None,
-                    "Line": None,
-                    "Side": None,
-                    "Body": comment.get("body", ""),
-                    "Domain": classify_domain(comment.get("body", "")),
-                    "CreatedAt": comment.get("created_at"),
-                    "UpdatedAt": comment.get("updated_at"),
-                    "InReplyToId": None,
-                    "IsReply": False,
-                    "DiffHunk": None,
-                    "HtmlUrl": comment.get("html_url"),
-                    "CommitId": None,
-                    "Stale": False if detect_stale else None,
-                    "StaleReason": None,
-                    "EyesCount": comment.get("reactions", {}).get("eyes", 0) or 0,
-                }
-            )
 
-    # Combine
-    all_comments = processed_review + processed_issue
+def _process_issue_comments(
+    issue_comments: list[dict[str, Any]],
+    author: str,
+    detect_stale: bool,
+) -> list[dict[str, Any]]:
+    """Filter and project issue comments in API order."""
+    processed: list[dict[str, Any]] = []
+    for comment in issue_comments:
+        user = _comment_user(comment)
+        login = user.get("login", "")
+        if author and login != author:
+            continue
+        processed.append(_process_issue_comment(comment, user, login, detect_stale))
+    return processed
 
-    # Apply stale filters
-    if detect_stale:
-        if exclude_stale:
-            all_comments = [c for c in all_comments if not c.get("Stale")]
-        elif only_stale:
-            all_comments = [c for c in all_comments if c.get("Stale") is True]
 
-    # Apply unaddressed filtering
-    if only_unaddressed:
-        unresolved_threads = get_unresolved_review_threads(owner, repo, pr_number)
-        unresolved_ids: set[int] = set()
-        for thread in unresolved_threads:
-            nodes = thread.get("comments", {}).get("nodes", [])
-            if nodes and nodes[0] and nodes[0].get("databaseId"):
-                unresolved_ids.add(nodes[0]["databaseId"])
+def _apply_stale_filters(
+    all_comments: list[dict[str, Any]],
+    detect_stale: bool,
+    exclude_stale: bool,
+    only_stale: bool,
+) -> list[dict[str, Any]]:
+    """Apply the mutually exclusive stale filters in their established order."""
+    if not detect_stale:
+        return all_comments
+    if exclude_stale:
+        return [c for c in all_comments if not c.get("Stale")]
+    if only_stale:
+        return [c for c in all_comments if c.get("Stale") is True]
+    return all_comments
 
-        filtered: list[dict[str, Any]] = []
-        for c in all_comments:
-            if bot_only and c.get("AuthorType") != "Bot":
-                continue
-            is_unacknowledged = c.get("EyesCount", 0) == 0
-            is_unresolved = c.get("Id") in unresolved_ids
-            if is_unacknowledged or is_unresolved:
-                lifecycle = "NEW" if c.get("EyesCount", 0) == 0 else "ACKNOWLEDGED"
-                c["LifecycleState"] = lifecycle
-                filtered.append(c)
 
-        all_comments = filtered
+def _unresolved_root_comment_ids(owner: str, repo: str, pr_number: int) -> set[int]:
+    """Return database ids for the first comment in each unresolved thread."""
+    unresolved_threads = get_unresolved_review_threads(owner, repo, pr_number)
+    unresolved_ids: set[int] = set()
+    for thread in unresolved_threads:
+        nodes = thread.get("comments", {}).get("nodes", [])
+        if nodes and nodes[0] and nodes[0].get("databaseId"):
+            unresolved_ids.add(nodes[0]["databaseId"])
+    return unresolved_ids
 
-    # Sort by creation date
-    all_comments.sort(key=lambda c: c.get("CreatedAt") or "")
 
-    # Calculate counts
-    stale_count = sum(1 for c in all_comments if c.get("Stale") is True) if detect_stale else 0
-    review_count = sum(1 for c in all_comments if c.get("CommentType") == "Review")
-    issue_count = sum(1 for c in all_comments if c.get("CommentType") == "Issue")
+def _filter_unaddressed_comments(
+    all_comments: list[dict[str, Any]],
+    owner: str,
+    repo: str,
+    pr_number: int,
+    bot_only: bool,
+) -> list[dict[str, Any]]:
+    """Filter comments that are unacknowledged or unresolved."""
+    unresolved_ids = _unresolved_root_comment_ids(owner, repo, pr_number)
 
+    filtered: list[dict[str, Any]] = []
+    for comment in all_comments:
+        if bot_only and comment.get("AuthorType") != "Bot":
+            continue
+        is_unacknowledged = comment.get("EyesCount", 0) == 0
+        is_unresolved = comment.get("Id") in unresolved_ids
+        if is_unacknowledged or is_unresolved:
+            lifecycle = "NEW" if comment.get("EyesCount", 0) == 0 else "ACKNOWLEDGED"
+            comment["LifecycleState"] = lifecycle
+            filtered.append(comment)
+    return filtered
+
+
+def _calculate_domain_counts(all_comments: list[dict[str, Any]]) -> dict[str, int]:
+    """Calculate fixed-key lowercase domain counts."""
     domain_counter: Counter[str] = Counter()
-    for c in all_comments:
-        domain_counter[c.get("Domain", "general")] += 1
-    domain_counts = {
+    for comment in all_comments:
+        domain_counter[comment.get("Domain", "general")] += 1
+    return {
         "security": domain_counter.get("security", 0),
         "bug": domain_counter.get("bug", 0),
         "style": domain_counter.get("style", 0),
@@ -503,68 +569,96 @@ def get_pr_review_comments(
         "general": domain_counter.get("general", 0),
     }
 
+
+def _build_author_summary(all_comments: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Build the insertion-ordered author summary."""
     author_counter: Counter[str] = Counter()
-    for c in all_comments:
-        if c.get("Author"):
-            author_counter[c["Author"]] += 1
-    author_summary = [{"Author": a, "Count": cnt} for a, cnt in author_counter.items()]
+    for comment in all_comments:
+        if comment.get("Author"):
+            author_counter[comment["Author"]] += 1
+    return [{"Author": author, "Count": count} for author, count in author_counter.items()]
 
-    # Handle GroupByReviewerPriority output mode (composes with domain: reviewer
-    # priority is the outer key, domain the inner tiebreaker).
-    if group_by_reviewer_priority:
-        reviewer_grouped = _group_comments_by_reviewer_priority(all_comments, group_by_domain)
-        reviewer_counts: dict[str, int] = {}
-        for tier in _REVIEWER_TIERS:
-            value = reviewer_grouped[tier]
-            reviewer_counts[tier] = (
-                sum(len(v) for v in value.values()) if group_by_domain else len(value)
-            )
 
-        reviewer_grouped["TotalComments"] = len(all_comments)
-        reviewer_grouped["ReviewerPriorityCounts"] = reviewer_counts
-        if group_by_domain:
-            reviewer_grouped["DomainCounts"] = {k.capitalize(): v for k, v in domain_counts.items()}
-        reviewer_grouped["StaleCount"] = stale_count
-
-        tiers_summary = ", ".join(f"{t}({reviewer_counts[t]})" for t in _REVIEWER_TIERS)
-        print(
-            f"PR #{pr_number}: Grouped by reviewer priority: {tiers_summary}",
-            file=sys.stderr,
+def _reviewer_priority_output(
+    all_comments: list[dict[str, Any]],
+    group_by_domain: bool,
+    domain_counts: dict[str, int],
+    stale_count: int,
+    pr_number: int,
+) -> dict[str, Any]:
+    """Build reviewer-priority grouped output and print its console summary."""
+    reviewer_grouped = _group_comments_by_reviewer_priority(all_comments, group_by_domain)
+    reviewer_counts: dict[str, int] = {}
+    for tier in _REVIEWER_TIERS:
+        value = reviewer_grouped[tier]
+        reviewer_counts[tier] = (
+            sum(len(v) for v in value.values()) if group_by_domain else len(value)
         )
-        return reviewer_grouped
 
-    # Handle GroupByDomain output mode
+    reviewer_grouped["TotalComments"] = len(all_comments)
+    reviewer_grouped["ReviewerPriorityCounts"] = reviewer_counts
     if group_by_domain:
-        grouped: dict[str, Any] = {
-            "Security": [],
-            "Bug": [],
-            "Style": [],
-            "Summary": [],
-            "General": [],
-        }
-        for c in all_comments:
-            domain = c.get("Domain", "general")
-            cap = domain.capitalize()
-            if cap in grouped:
-                grouped[cap].append(c)
+        reviewer_grouped["DomainCounts"] = {k.capitalize(): v for k, v in domain_counts.items()}
+    reviewer_grouped["StaleCount"] = stale_count
 
-        cap_domain_counts = {k.capitalize(): v for k, v in domain_counts.items()}
+    tiers_summary = ", ".join(f"{t}({reviewer_counts[t]})" for t in _REVIEWER_TIERS)
+    print(
+        f"PR #{pr_number}: Grouped by reviewer priority: {tiers_summary}",
+        file=sys.stderr,
+    )
+    return reviewer_grouped
 
-        grouped["TotalComments"] = len(all_comments)
-        grouped["DomainCounts"] = cap_domain_counts
-        grouped["StaleCount"] = stale_count
 
-        # Console summary
-        domains = ("Security", "Bug", "Style", "Summary", "General")
-        parts = [f"{d}({cap_domain_counts.get(d, 0)})" for d in domains]
-        print(
-            f"PR #{pr_number}: Grouped by domain: {', '.join(parts)}",
-            file=sys.stderr,
-        )
+def _domain_group_output(
+    all_comments: list[dict[str, Any]],
+    domain_counts: dict[str, int],
+    stale_count: int,
+    pr_number: int,
+) -> dict[str, Any]:
+    """Build domain grouped output and print its console summary."""
+    grouped: dict[str, Any] = {
+        "Security": [],
+        "Bug": [],
+        "Style": [],
+        "Summary": [],
+        "General": [],
+    }
+    for comment in all_comments:
+        domain = comment.get("Domain", "general")
+        cap = domain.capitalize()
+        if cap in grouped:
+            grouped[cap].append(comment)
 
-        return grouped
+    cap_domain_counts = {k.capitalize(): v for k, v in domain_counts.items()}
 
-    # Standard output mode
+    grouped["TotalComments"] = len(all_comments)
+    grouped["DomainCounts"] = cap_domain_counts
+    grouped["StaleCount"] = stale_count
+
+    domains = ("Security", "Bug", "Style", "Summary", "General")
+    parts = [f"{d}({cap_domain_counts.get(d, 0)})" for d in domains]
+    print(
+        f"PR #{pr_number}: Grouped by domain: {', '.join(parts)}",
+        file=sys.stderr,
+    )
+
+    return grouped
+
+
+def _standard_output(
+    all_comments: list[dict[str, Any]],
+    pr_number: int,
+    owner: str,
+    repo: str,
+    review_count: int,
+    issue_count: int,
+    stale_count: int,
+    domain_counts: dict[str, int],
+    author_summary: list[dict[str, Any]],
+    include_issue_comments: bool,
+    detect_stale: bool,
+) -> dict[str, Any]:
+    """Build standard output and print its console summary."""
     top_level_count = sum(1 for c in all_comments if not c.get("IsReply"))
     reply_count = sum(1 for c in all_comments if c.get("IsReply"))
 
@@ -584,7 +678,6 @@ def get_pr_review_comments(
         "Comments": all_comments,
     }
 
-    # Console summary
     review_text = "review comment" if review_count == 1 else "review comments"
     summary = f"PR #{pr_number}: {review_count} {review_text}"
     if include_issue_comments:
@@ -595,16 +688,114 @@ def get_pr_review_comments(
         summary += f" ({stale_count} {stale_text})"
 
     domain_parts = []
-    for d in ("security", "bug", "style", "summary", "general"):
-        cnt = domain_counts.get(d, 0)
-        if cnt > 0:
-            domain_parts.append(f"{d.capitalize()}({cnt})")
+    for domain in ("security", "bug", "style", "summary", "general"):
+        count = domain_counts.get(domain, 0)
+        if count > 0:
+            domain_parts.append(f"{domain.capitalize()}({count})")
     if domain_parts:
         summary += f" | Domains: {', '.join(domain_parts)}"
 
     print(summary, file=sys.stderr)
 
     return output
+
+
+def get_pr_review_comments(
+    owner: str,
+    repo: str,
+    pr_number: int,
+    author: str = "",
+    include_diff_hunk: bool = False,
+    include_issue_comments: bool = False,
+    detect_stale: bool = False,
+    exclude_stale: bool = False,
+    only_stale: bool = False,
+    group_by_domain: bool = False,
+    group_by_reviewer_priority: bool = False,
+    only_unaddressed: bool = False,
+    bot_only: bool = False,
+) -> dict[str, Any]:
+    """Get all comments for a PR with optional filtering and classification."""
+    stale_state = _initialize_stale_detection(owner, repo, pr_number, detect_stale)
+
+    review_comments = _fetch_paginated_comments(
+        f"repos/{owner}/{repo}/pulls/{pr_number}/comments",
+        f"Failed to fetch PR review comments for PR #{pr_number}",
+    )
+    processed_review = _process_review_comments(
+        review_comments,
+        author,
+        include_diff_hunk,
+        stale_state,
+        owner,
+        repo,
+    )
+
+    processed_issue: list[dict[str, Any]] = []
+    if include_issue_comments:
+        issue_comments = _fetch_paginated_comments(
+            f"repos/{owner}/{repo}/issues/{pr_number}/comments",
+            f"Failed to fetch issue comments for PR #{pr_number}",
+        )
+        processed_issue = _process_issue_comments(issue_comments, author, detect_stale)
+
+    all_comments = processed_review + processed_issue
+    all_comments = _apply_stale_filters(
+        all_comments,
+        detect_stale,
+        exclude_stale,
+        only_stale,
+    )
+
+    if only_unaddressed:
+        all_comments = _filter_unaddressed_comments(
+            all_comments,
+            owner,
+            repo,
+            pr_number,
+            bot_only,
+        )
+
+    all_comments.sort(key=lambda c: c.get("CreatedAt") or "")
+
+    stale_count = sum(1 for c in all_comments if c.get("Stale") is True) if detect_stale else 0
+    review_count = sum(1 for c in all_comments if c.get("CommentType") == "Review")
+    issue_count = sum(1 for c in all_comments if c.get("CommentType") == "Issue")
+    domain_counts = _calculate_domain_counts(all_comments)
+    author_summary = _build_author_summary(all_comments)
+
+    # Reviewer priority composes with domain: reviewer priority is the outer key,
+    # domain the inner tiebreaker.
+    if group_by_reviewer_priority:
+        return _reviewer_priority_output(
+            all_comments,
+            group_by_domain,
+            domain_counts,
+            stale_count,
+            pr_number,
+        )
+
+    if group_by_domain:
+        return _domain_group_output(
+            all_comments,
+            domain_counts,
+            stale_count,
+            pr_number,
+        )
+
+    return _standard_output(
+        all_comments,
+        pr_number,
+        owner,
+        repo,
+        review_count,
+        issue_count,
+        stale_count,
+        domain_counts,
+        author_summary,
+        include_issue_comments=include_issue_comments,
+        detect_stale=detect_stale,
+    )
 
 
 # ---------------------------------------------------------------------------
