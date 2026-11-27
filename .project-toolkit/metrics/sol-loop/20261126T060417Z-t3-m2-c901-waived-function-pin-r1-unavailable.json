@@ -1,0 +1,25 @@
+{
+  "author_family": "anthropic",
+  "branch": "t3/m2-c901-waived-function-pin",
+  "counts": {
+    "dropped": 0,
+    "kept": 0,
+    "overlap": 0,
+    "raw": 0,
+    "sol_only": 0
+  },
+  "critic_sha256": "2ad87fe183e8236091434323436e796b6c27f9586384713c10aa4de6a5cf1ce6",
+  "dropped": [],
+  "failure_class": "rate-limit",
+  "findings": [],
+  "head_sha": "332dc65623ed3d8b8b5d1aaaff449c4b33be4360",
+  "key": "t3/m2-c901-waived-function-pin",
+  "model": "gpt-6.2-sol",
+  "overlap_rule": "same file and line within 3 of a critic path:line or range",
+  "pr": "",
+  "round": 1,
+  "schema_version": 2,
+  "status": "unavailable",
+  "timestamp": "2026-11-26T06:04:17Z",
+  "verdict": ""
+}
