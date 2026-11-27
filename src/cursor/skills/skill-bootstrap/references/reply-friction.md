@@ -123,6 +123,8 @@ Transcripts hold the reader's prompts, code, and pasted content.
   Read the surrounding turns before deciding when the reader granted authority.
 - `machine` skip reasons `notice`, `meta`, `compact_summary`, and `empty`
   carry no timestamp. They ignore `--since` and `--before`.
+- `population.undated_turns` counts turns with no usable timestamp.
+  The window cannot place them, so they are never sampled.
 - Say what the bare-identifier flag tests: an identifier counts as explained
   only when a parenthesis, quote, colon, or link sits within four characters
   of it. It overcounts.
@@ -149,7 +151,9 @@ One local file. The reader has no context, so:
 - The hand-back sample covers returned reply text. Use `handbacks` counts
   for empty, unfinished, and repeated runs. `unfinished` needs a metadata
   file that records `finished` as false. `finish_not_recorded` counts
-  metadata files with no such field; those runs often stopped early.
+  runs whose metadata file is unreadable or not an object. It also counts
+  files where `finished` is missing or not true or false.
+  Those runs often stopped early.
   Read local evidence before calling a repeated run rework.
 - Delete the run directory when the audit ends. Keep no transcript-derived
   ledger anywhere.

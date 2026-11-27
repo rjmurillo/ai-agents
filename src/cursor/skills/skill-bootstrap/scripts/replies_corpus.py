@@ -44,9 +44,9 @@ NOTICE_PREFIXES = (
     "<tool-use-rejected",
 )
 TAG_BLOCK = re.compile(
-    r"<(system-reminder|hindsight_memory|hindsight_knowledge|pasted_content[^>]*|"
+    r"<(system-reminder|hindsight_memory|hindsight_knowledge|pasted_content|"
     r"retrospective-guide|claude-mem-context|task-notification|local-command-stdout|"
-    r"command-name|command-message|command-args)>.*?</\1>",
+    r"command-name|command-message|command-args)(?:\s[^>]*)?>.*?</\1>",
     re.S,
 )
 AGENT_TYPE = re.compile(r"[\w.\-]{1,40}")

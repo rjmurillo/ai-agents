@@ -149,8 +149,9 @@ def write_run(
     """
     rows = []
     control_ids = []
+    control_keys = {rec.key for rec in controls}
     for number, rec in enumerate(sorted([*picked, *controls], key=lambda r: r.key), start=1):
-        if rec.marker_hit:
+        if rec.key in control_keys:
             control_ids.append(f"e{number:04d}")
         rows.append(
             {

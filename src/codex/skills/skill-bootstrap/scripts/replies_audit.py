@@ -10,7 +10,8 @@ Privacy boundary:
 - `--store` names one explicit Claude project directory per flag. A store root
   is refused, so unrelated projects are never read.
 - stdout carries aggregate counts and reason codes only: no reply text, no
-  quotes, no session ids, no project paths. Errors are fixed codes.
+  quotes, no session ids. It also echoes `--run-dir` and the short
+  entrypoint and agent-type names. Errors are fixed codes.
 - Sampled text goes to `--run-dir`, which must not exist yet, must sit outside
   every store and outside the repository of the current directory, and is
   created 0700 with 0600 files. There is no full corpus export.

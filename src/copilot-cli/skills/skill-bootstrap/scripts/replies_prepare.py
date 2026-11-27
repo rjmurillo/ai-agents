@@ -362,6 +362,7 @@ def run_prepare(cfg: Config) -> dict[str, Any]:
     excluded: Counter[str] = Counter()
     kept, found = collect(cfg, excluded)
     parse_errors = sum(s.parse_errors for s in kept)
+    undated = sum(s.undated for s in kept)
     entrypoints = Counter(s.entrypoint or "unknown" for s in kept if not s.src.child)
     people = split_population(kept, cfg, excluded)
     used = apply_limit(split_replay(people, cfg.replay_min, excluded), cfg.limit, excluded)
@@ -373,7 +374,8 @@ def run_prepare(cfg: Config) -> dict[str, Any]:
     if cfg.markers and not controls:
         raise ConfigError("control_not_found")
     run_dir = make_run_dir(cfg.run_dir, cfg.stores, cfg.cwd)
-    groups = strata_of([r for r in recs if not r.marker_hit])
+    sampled_controls = {r.key for r in controls}
+    groups = strata_of([r for r in recs if r.key not in sampled_controls])
     picked = draw(groups, cfg.seed, cfg.per_kind)
     try:
         digest = write_run(run_dir, picked, groups, cfg.seed, cfg.per_kind, controls)
@@ -403,6 +405,7 @@ def run_prepare(cfg: Config) -> dict[str, Any]:
             },
             "excluded": dict(sorted(excluded.items())),
             "parse_errors": parse_errors,
+            "undated_turns": undated,
         },
         **aggregate(used),
         "replies": reply_composition(recs),
