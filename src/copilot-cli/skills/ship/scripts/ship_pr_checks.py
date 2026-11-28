@@ -20,6 +20,12 @@ base version until it merges.
 When the base has no validator, or the base copy cannot run (exit 2 or a
 crash), the check reports ``paths=NOT-RUN``. That is never a pass.
 
+``origin`` is the base's remote unless the open PR belongs to another
+repository, as when origin is a fork. Then the remote that names the PR's
+repository supplies ``<remote>/<base>``, for the validator and the diff; with no
+such remote, or no such ref in it, the check is ``NOT-RUN`` and names
+``<owner>/<repo>:<base>``.
+
 vendor-portability: declared. The validator path names the consumer
 repository's own ``scripts/validation/pr_description.py`` on its base branch.
 """
@@ -138,18 +144,32 @@ def _write_private_tree(ctx: Context, ref: str, files: list[str], tree: Path) ->
     return None
 
 
+def _locate_base(ctx: Context, base: str, result: common.Result) -> tuple[str, str] | None:
+    """The remote-tracking ref and display name of the PR's target, or None after a NOT-RUN line."""
+    remote = ctx.base_remote
+    target = f"{ctx.base_shown}:{base}" if ctx.base_shown else ""
+    if remote is None:
+        _not_run(result, f"{target} has no matching git remote; add one and fetch it")
+        return None
+    # The full remote-tracking name: a tag named <remote>/<base> cannot shadow it.
+    ref = f"refs/remotes/{remote}/{base}"
+    if common.git(["rev-parse", "--verify", "--quiet", ref], cwd=ctx.root).returncode != 0:
+        missing = f"{target} (as {remote}/{base})" if ctx.base_shown else f"origin/{base}"
+        _not_run(result, f"{missing} not found; fetch it")
+        return None
+    return ref, f"{remote}/{base}"
+
+
 def _check_paths(ctx: Context, body_file: Path, base: str, result: common.Result) -> bool | None:
     """Run the base branch's paths-in-diff validator from a private copy.
 
     Returns True on a pass, False on a failure, and None when it could not run.
     A None is not a pass: the model must compare the paths by hand.
     """
-    # The full remote-tracking name: a tag named origin/<base> cannot shadow it.
-    ref = f"refs/remotes/origin/{base}"
-    shown = f"origin/{base}"
-    if common.git(["rev-parse", "--verify", "--quiet", ref], cwd=ctx.root).returncode != 0:
-        _not_run(result, f"{shown} not found; fetch it")
+    located = _locate_base(ctx, base, result)
+    if located is None:
         return None
+    ref, shown = located
     files = _base_files(ctx, ref)
     if files is None:
         _not_run(result, f"{shown} has no path validator")

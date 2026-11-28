@@ -31,6 +31,7 @@ try:
     import bootstrap_sweep_import  # noqa: F401
     import draft_helpers  # noqa: F401
     import reason_helpers  # noqa: F401
+    import replies_helpers  # noqa: F401
     import review_clusters  # noqa: F401
     import sweep_helpers
 finally:
