@@ -498,7 +498,6 @@ pre-push:
       tags: [ref-guard]
       timeout: 10s
       run: uv run --frozen python scripts/validation/check_repo_health.py
-
     # 1m -> 50s pays for repo-health's 10s above, so the pre-push declared worst
     # case is unchanged. This job's single git call runs under a 15s watchdog, so
     # 50s is still more than three times its internal ceiling.
@@ -506,12 +505,10 @@ pre-push:
       tags: [ref-guard]
       timeout: 50s
       run: uv run --frozen python scripts/maintenance/repair_packed_refs.py
-
     - name: mutation-safety
       tags: [ref-guard]
       timeout: 30s
       run: uv run --frozen python -m scripts.testing.mutation_workspace check
-
     # Issue #4634: this job was declared twice, and the copy that ran first
     # passed `{remote}`. Lefthook substitutes positional hook arguments only
     # (`{0}` for all of them, `{1}`..`{n}` for one), so `{remote}` reached the
@@ -532,7 +529,6 @@ pre-push:
       timeout: 60s
       run: uv run --frozen python scripts/validation/push_ref_staleness.py "{1}"
       use_stdin: true
-
     # Fast stage, stdin half (issue #5066). Cheap policies that read the
     # ref-update payload stay in one piped group per ci-scripts.md MUST-21.
     - group:
@@ -552,19 +548,16 @@ pre-push:
             timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py pre-push
             use_stdin: true
-
           - name: security-suppression-policy
             tags: [ref-guard]
             timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-push
             use_stdin: true
-
           - name: placeholder-identity
             tags: [ref-guard]
             timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py placeholder-identity
             use_stdin: true
-
     # Fast stage, parallel half (issue #5066). Blocking gates that finish in
     # seconds. A failure here skips semgrep and the expensive stage below, so
     # a ratchet or policy miss costs seconds, not semgrep and pre-pr-validation.
