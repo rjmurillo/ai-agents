@@ -10,17 +10,13 @@ diagnostic that explained where the child stopped.
 ``checks_common`` re-exports :func:`_run_subprocess`, so every existing
 ``from checks_common import _run_subprocess`` keeps resolving.
 
-On timeout the child's process tree dies, not only the direct child (issue
-#6412). ``subprocess.run(timeout=)`` kills just the direct child, so a
-``gh act`` grandchild kept its ports bound after the gate that started it had
-already failed. On POSIX the group gets SIGTERM, a short grace window, then
-SIGKILL. Windows uses a job object to terminate the tree when assignment and termination
-succeed. If either fails with a direct-child fallback, a warning reports that
-cleanup cannot guarantee descendant termination. A descendant that
-started its own POSIX session is outside the group, so the child that started
-it must forward the stop itself (``run_workflow_local_test`` does). While a
-child runs on the main thread, a SIGTERM to this process becomes ``SystemExit``
-so the same cleanup stops the child's tree.
+On timeout, terminate the owned process tree (issue #6412). POSIX uses
+SIGTERM, a grace window, then SIGKILL; Windows uses a job object. Windows
+assignment denial or termination failure falls back to direct-child cleanup
+with a warning that descendant termination is not guaranteed. A descendant
+in its own POSIX session requires the parent to forward the stop itself
+(``run_workflow_local_test`` does). On the main thread, SIGTERM to this process
+becomes ``SystemExit`` so the same cleanup stops the child's tree.
 
 On POSIX every child runs in a new session, so it has no controlling terminal.
 A child that prompts through ``/dev/tty`` (ssh passphrase, git credential
