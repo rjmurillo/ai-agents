@@ -46,7 +46,7 @@ regardless), set ``SKIP_PUSH_LOCK_COMMIT_GUARD=1`` to bypass this one check,
 matching the ``SKIP_YAMLLINT``/``FORCE_PUSH_OK`` escape-hatch convention in
 ``scripts/validation/git_hook_policy.py``. Not every ``SKIP_*`` name there is
 a real bypass: ``SKIP_CLI_E2E=true`` is explicitly rejected
-(``git_hook_policy.py:8736-8741`` prints "cannot bypass a required CLI E2E
+(``git_hook_policy.py:8852-8857`` prints "cannot bypass a required CLI E2E
 gate" and returns exit 2), so it is not cited here as precedent.
 
 EXIT CODES (ADR-035):
