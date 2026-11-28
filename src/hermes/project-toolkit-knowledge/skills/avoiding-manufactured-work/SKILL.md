@@ -104,7 +104,7 @@ Permanent fix: <the smallest change that would remove the workaround>
 ```
 
 Classify the finding with the table above. Reporting a deferred finding does not reopen the task or authorize a fix.
-Keep a script for a recurring job when the task permits it. Use the host's script location and link to it from the workflow that needs it.
+Keep a script for a recurring job when the task permits it. `scripts` prints where: the `scripts/` directory at the repository root. Link to the script from the workflow that needs it.
 If retaining the script would exceed scope, report the proposed location and let the user decide.
 
 A program computes `Hit:` and `Did instead:` from the session transcript, so you do not recall them from memory. You judge which items are real friction and write `Permanent fix:`.
@@ -113,7 +113,7 @@ A program computes `Hit:` and `Did instead:` from the session transcript, so you
 2. Drop each candidate that is not real friction, such as a check you then fixed in code, output that only looked like an error, or a slip in your own throwaway code. Below the blocks it lists calls the harness marked as success whose output states a failure. Each is a lead: write a block for it when you worked around it. Add any workaround the program could not see.
 3. Write `Permanent fix:` on each kept block: the smallest change that removes the workaround, and where it lives.
 4. Run `check` on the final block. Fix every problem it prints.
-5. Run `scripts` to list inline programs you ran 2 or more times and script files you wrote under a scratch path. A recurring job belongs in the host script location.
+5. Run `scripts` to list inline programs you ran 2 or more times and script files you wrote under a scratch path. Each line ends with the directory to keep it in. With no `scripts/` directory, the output holds a friction block for the missing location: report it, and let the user choose the place.
 
 Invocation and exit codes are in `## Scripts` below.
 

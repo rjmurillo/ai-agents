@@ -89,8 +89,8 @@ The skill also covers two related steps:
 
 | Subcommand | What it prints |
 | --- | --- |
-| `candidates` | One `Hit:` / `Did instead:` / `Permanent fix:` block for each failed shell call that a later call worked around. `Permanent fix:` holds a placeholder. Below the blocks, it lists calls that the harness marked as success but whose output states a failure. |
-| `scripts` | Inline programs that ran 2 or more times, and script files written under a scratch path. A recurring one belongs in the host script location. |
+| `candidates` | One `Hit:` / `Did instead:` / `Permanent fix:` block for each failed shell call that a later call worked around. The later call must rerun one of the failed call's programs, and the failure must show an error line. It skips check verdicts, crashes in the agent's own inline or scratch code, and denials. `Permanent fix:` holds a placeholder. Below the blocks, it lists calls that the harness marked as success but whose output states a failure. |
+| `scripts` | Inline programs that ran 2 or more times, and script files written under a scratch path by a file tool, a shell redirect, or `tee`. Each line ends with the place to keep it: the `scripts/` directory at the root of the repository that the transcript's working directory is in. With no such directory, it prints a friction block for the missing location. JSON output adds `repository_root`, `script_location`, and `script_location_status` (`found`, `missing`, or `unknown`). |
 | `check` | Problems in a finished friction block, one per line. It reads `--file PATH` or standard input. A block with a missing line, an empty value, or a placeholder fails. |
 
 `candidates` and `scripts` read the newest transcript for the working directory. `--transcript PATH` selects a different one. `--format json` gives machine output. Commands, errors, and paths in the output are redacted for secret shapes and cut to a fixed length.
@@ -102,7 +102,7 @@ The skill also covers two related steps:
 | 2 | Bad arguments, a missing or unreadable transcript or file, or no transcript for the working directory. |
 | 3 | I/O error while reading the transcript. |
 
-The output is a list of leads. A candidate can be a false positive, and a workaround can be missing.
+The output is a list of leads. A candidate can be a false positive, and a workaround can be missing. The `retrospective` skill runs `candidates` as its first data step.
 
 Checklist the skill ends with:
 

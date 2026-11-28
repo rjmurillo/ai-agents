@@ -29,7 +29,7 @@ These rules apply to every change in the active host repository.
 
 1. **Retrieval-led reasoning**. SHOULD read the host project's constraint and architecture guidance when those documents exist, not rely on pre-training.
 2. **Capability-first, grounded reads**. SHOULD prefer an existing host capability over inline shell commands when one exists. Batch independent reads into one turn, and stop exploring once the answer is grounded in evidence.
-3. **Script before model**. Use programs for deterministic work and reserve model calls for judgment. Keep in-scope recurring scripts in the host's script location, not scratch. SHOULD use the project's documented language and tooling conventions for new scripts. MUST NOT create a new shell script when the project provides a supported alternative.
+3. **Script before model**. Use programs for deterministic work and reserve model calls for judgment. Keep in-scope recurring scripts where `friction_report.py scripts` reports, not scratch. SHOULD use the project's documented language and tooling conventions for new scripts. MUST NOT create a new shell script when the project provides a supported alternative.
 4. **Minimal diff**. SHOULD NOT introduce unrelated refactors in a change.
 5. **Atomic commits (advisory)**. Keep each commit to one logical, reviewable change. Follow host guidance for file-count limits when it exists.
 

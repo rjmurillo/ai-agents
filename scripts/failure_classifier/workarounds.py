@@ -30,8 +30,6 @@ import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-# Same digit, hex, and whitespace normalization that ``failure_fingerprint``
-# applies to an error line (classifier.py), applied here to whole texts.
 from scripts.failure_classifier.classifier import (
     _DIGIT_RUN,
     _HEX_RUN,
@@ -43,6 +41,11 @@ from scripts.failure_classifier.classifier import (
     is_check_command,
     is_denial,
 )
+
+# Same digit, hex, and whitespace normalization that ``failure_fingerprint``
+# applies to an error line (classifier.py), applied here to whole texts.
+from scripts.failure_classifier.command_shape import action_heads, strip_cd_prefix
+from scripts.failure_classifier.failure_noise import is_self_inflicted
 
 COMMAND_MAX_CHARS = 300
 ERROR_MAX_CHARS = 240
@@ -214,6 +217,16 @@ def _related(first: frozenset[str], second: frozenset[str]) -> bool:
     return smaller > 0 and shared >= MIN_SHARED_TOKENS and shared / smaller >= MIN_OVERLAP
 
 
+def _shape(text: str) -> tuple[frozenset[str], frozenset[str]]:
+    """Word tokens and action heads of a call, without its ``cd <path> &&`` lead.
+
+    Many calls in one session open with the same ``cd <worktree> &&``. Tokens
+    from that path say where a call ran, not what it did.
+    """
+    body = strip_cd_prefix(text)
+    return _tokens(body), action_heads(body)
+
+
 _EXIT_CODE_LINE = re.compile(r"exit code \d+", re.IGNORECASE)
 _TOOL_ERROR_TAG = re.compile(r"</?tool_use_error>", re.IGNORECASE)
 
@@ -229,22 +242,20 @@ def _error_lines(error: str) -> list[str]:
     return [line for line in lines if line and not _EXIT_CODE_LINE.fullmatch(line)]
 
 
-# Output that signals a failure. A command can exit non-zero and print help or a
-# status table; with none of these words in its output it is not a gap.
-_FAILURE_WORDS = re.compile(
-    r"\b(?:errors?|fail(?:ed|ure|s)?|denied|refus(?:ed|ing)|rejected|invalid|unknown"
-    r"|unrecogni[sz]ed|unable|cannot|can't|not found|no such|no matches|not permitted"
-    r"|not allowed|forbidden|unauthori[sz]ed|timed out|timeout|traceback|exception"
-    r"|fatal|abort(?:ed)?|panic|missing|required|permission|unsupported|illegal)\b",
+# A line that is an error message: it opens with a failure word, alone or
+# after a ``prog:`` prefix, or it holds a phrase tools use only for errors. A
+# failure word in the middle of ordinary output (a commit subject, a status
+# line) does not count: a compound command can exit non-zero and print only that.
+_FAILURE_SCAN_LINES = 40
+_ANSI = re.compile(r"\x1b\[[\d;]*m")
+_ERROR_LINE = re.compile(
+    r"^(?:[\w./()\[\]'\"-]{1,80}: ?){0,3}(?:error|fatal|fail(?:ed|ure)?|denied|invalid|unknown"
+    r"|unrecogni[sz]ed|unable|cannot|can't|usage|refus(?:ed|ing)|rejected|missing|abort(?:ed)?"
+    r"|unsupported|illegal|forbidden|unauthori[sz]ed|traceback \(most recent)\b"
+    r"|no such file or directory|command not found|: not found|no matches found|not allowed"
+    r"|not permitted|unable to \w|failed to \w|is required|timed out",
     re.IGNORECASE,
 )
-# The failure word must open the output: a word in the first lines, not one deep
-# in help text or a file listing. A `prog: error:` or `Traceback` line counts
-# further down, because argparse prints its usage block first.
-_FAILURE_HEAD_LINES = 5
-_FAILURE_HEAD_CHARS = 100
-_FAILURE_SCAN_LINES = 40
-_FAILURE_LINE = re.compile(r"(?:^|: )(?:error|fatal)\b|^traceback \(most recent", re.IGNORECASE)
 
 # A rejection by the user, in wording ``DENIAL_MARKERS`` (classifier.py) lacks.
 # Seen in local transcripts on 2026-11-27. Not a gap in a tool or process.
@@ -264,15 +275,17 @@ _SCRATCH_SCRIPT_RUN = re.compile(
 def _is_check(event: FailureEvent) -> bool:
     if event.is_check:
         return True
-    return is_check_command(_SHELL_PRELUDE.sub("", _call_text(event)))
+    text = _call_text(event)
+    if is_check_command(_SHELL_PRELUDE.sub("", text)):
+        return True
+    # A check that runs after ``cd``, ``export``, or another command in the same
+    # line is still a check: its non-zero exit is a verdict, not a gap.
+    return any(is_check_command(f"python3 {head}") for head in action_heads(text))
 
 
 def _has_failure_message(error: str) -> bool:
     lines = _error_lines(error)[:_FAILURE_SCAN_LINES]
-    head = lines[:_FAILURE_HEAD_LINES]
-    return any(_FAILURE_WORDS.search(line[:_FAILURE_HEAD_CHARS]) for line in head) or any(
-        _FAILURE_LINE.search(line) for line in lines
-    )
+    return any(_ERROR_LINE.search(_ANSI.sub("", line)[:400]) for line in lines)
 
 
 def _is_rejection(error: str) -> bool:
@@ -286,7 +299,8 @@ def _is_candidate_failure(event: FailureEvent) -> bool:
     Shell only: scripts, hooks, and CLIs run there. A failed Edit, Read, Agent,
     or MCP call is mostly a slip or an outage, and a later success of the same
     tool is rarely a workaround. Not a denial or user rejection, not a check
-    command, and not a run of the agent's own scratch script.
+    command, not a run of the agent's own scratch script, and not one of the
+    self-inflicted kinds in ``failure_noise``.
     """
     return (
         not event.ok
@@ -295,12 +309,28 @@ def _is_candidate_failure(event: FailureEvent) -> bool:
         and not _is_check(event)
         and _has_failure_message(event.error)
         and _SCRATCH_SCRIPT_RUN.search(_call_text(event)) is None
+        and not is_self_inflicted(_call_text(event), event.error)
     )
 
 
 def _fix_calls(between: list[FailureEvent]) -> str:
     shown = between[:FIX_MAX_CALLS]
     return " ; ".join(_snippet(_display_text(call), COMMAND_MAX_CHARS) for call in shown)
+
+
+# A commit that fails and then passes after the content changed is the normal
+# edit loop. Staging and committing again is not a second route.
+_COMMIT_LOOP = frozenset({"git add", "git commit"})
+
+
+def _is_alternative(tokens: frozenset[str], heads: frozenset[str], later_text: str) -> bool:
+    """A later call that reruns one of the failed call's programs another way.
+
+    Shared words are not enough: a ``tail`` of the log the failed call wrote
+    shares its path. The two calls must also share a program that acts.
+    """
+    later_tokens, later_heads = _shape(later_text)
+    return bool((heads & later_heads) - _COMMIT_LOOP) and _related(tokens, later_tokens)
 
 
 def _resolve(events: list[FailureEvent], index: int) -> tuple[str, str] | None:
@@ -317,7 +347,7 @@ def _resolve(events: list[FailureEvent], index: int) -> tuple[str, str] | None:
     family = _family(failed)
     failed_text = _call_text(failed)
     failed_id = _normalize(failed_text)
-    failed_tokens = _tokens(failed_text)
+    failed_tokens, failed_heads = _shape(failed_text)
     between: list[FailureEvent] = []
     alternative: tuple[str, str] | None = None
     edited = False
@@ -336,7 +366,7 @@ def _resolve(events: list[FailureEvent], index: int) -> tuple[str, str] | None:
             if edited:
                 return alternative
             return (KIND_FIX_THEN_RETRY, _fix_calls(between)) if between else None
-        if alternative is None and _related(failed_tokens, _tokens(later_text)):
+        if alternative is None and _is_alternative(failed_tokens, failed_heads, later_text):
             alternative = (KIND_ALTERNATIVE, _snippet(_display_text(later), COMMAND_MAX_CHARS))
         between.append(later)
     return alternative

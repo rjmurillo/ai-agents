@@ -15,6 +15,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 
 from scripts.failure_classifier.classifier import SHELL_TOOLS, FailureEvent
+from scripts.failure_classifier.command_shape import shell_write_targets
 from scripts.failure_classifier.workarounds import (
     COMMAND_MAX_CHARS,
     MIN_BODY_CHARS,
@@ -224,12 +225,24 @@ def _is_scratch_script(path: str) -> bool:
     return in_scratch and posixpath.splitext(path)[1].lower() in SCRIPT_SUFFIXES
 
 
+def _written_paths(event: FailureEvent) -> list[str]:
+    """Files a successful call wrote: an edit tool's target, or a shell redirect."""
+    if not event.ok:
+        return []
+    if event.edit_tool:
+        return [event.target] if event.target else []
+    if event.tool in SHELL_TOOLS:
+        return shell_write_targets(_call_text(event))
+    return []
+
+
 def _scratch_scripts(events: list[FailureEvent]) -> list[ScratchScript]:
     written: dict[str, list[int]] = {}
     for index, event in enumerate(events):
-        if event.ok and event.edit_tool and event.target and _is_scratch_script(event.target):
-            entry = written.setdefault(event.target, [index, 0])
-            entry[1] += 1
+        for target in _written_paths(event):
+            if _is_scratch_script(target):
+                entry = written.setdefault(target, [index, 0])
+                entry[1] += 1
     texts = [_command_text(event) for event in events]
     scripts: list[ScratchScript] = []
     for path, (first, writes) in written.items():
@@ -247,8 +260,8 @@ def inline_script_inventory(events: Iterable[FailureEvent]) -> ScriptInventory:
     code-running tool call. Bodies are grouped by a hash of the body with hex
     runs, digit runs, and whitespace normalized, and a group seen
     ``MIN_GROUP_COUNT`` times or more is reported. A scratch script is a file
-    with a script suffix that a Write or Edit call wrote to a path containing
-    ``/scratch/`` or ``/tmp/``. Both lists run in transcript order.
+    with a script suffix that a Write or Edit call, a shell redirect, or ``tee``
+    wrote to a path containing ``/scratch/`` or ``/tmp/``. Both lists run in transcript order.
     """
     ordered = list(events)
     groups = sorted(_inline_groups(ordered), key=lambda group: group.first_index)

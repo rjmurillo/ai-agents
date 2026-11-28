@@ -12,7 +12,10 @@ Subcommands:
   one ``Hit:`` / ``Did instead:`` / ``Permanent fix:`` block per candidate. The
   permanent fix line stays a placeholder for the model to fill.
 - ``scripts``: inline programs seen two or more times, and script files written
-  under a scratch path. Each is a candidate for the host script location.
+  under a scratch path by a file tool or a shell redirect. It resolves the
+  repository root from the working directory the transcript records and prints
+  ``<root>/scripts`` beside each one. With no such directory it prints a
+  friction block for the missing location.
 - ``check``: validates the final friction block. Reads ``--file`` or stdin.
 
 ``candidates`` and ``scripts`` read ``--transcript``. Without it they use the
@@ -64,6 +67,7 @@ from failure_classifier import (  # noqa: E402
     WorkaroundCandidate,
     events_from_records,
     inline_script_inventory,
+    redact_text,
     unmarked_failures,
     validate_friction_block,
     workaround_candidates,
@@ -138,8 +142,27 @@ def iter_records(handle: IO[str]) -> Iterator[object]:
             continue
 
 
-def load_events(path: Path) -> list[FailureEvent]:
-    """Stream ``path`` into FailureEvents. Exit 2 on open failure, 3 on read failure."""
+class _CwdTap:
+    """Pass records through and keep the first working directory one carries."""
+
+    def __init__(self, records: Iterator[object]) -> None:
+        self._records = records
+        self.cwd: str | None = None
+
+    def __iter__(self) -> Iterator[object]:
+        for record in self._records:
+            if self.cwd is None and isinstance(record, dict):
+                cwd = record.get("cwd")
+                if isinstance(cwd, str) and cwd:
+                    self.cwd = cwd
+            yield record
+
+
+def load_session(path: Path) -> tuple[list[FailureEvent], str | None]:
+    """``path`` as FailureEvents plus its recorded working directory.
+
+    Exit 2 on open failure, 3 on read failure.
+    """
     try:
         size = path.stat().st_size
         handle = path.open("r", encoding="utf-8", errors="replace")
@@ -152,9 +175,70 @@ def load_events(path: Path) -> list[FailureEvent]:
         raise UsageError(f"transcript is {size} bytes, over the {MAX_TRANSCRIPT_BYTES} cap")
     with handle:
         try:
-            return events_from_records(iter_records(handle))
+            tap = _CwdTap(iter_records(handle))
+            return events_from_records(tap), tap.cwd
         except OSError as exc:
             raise ExternalError(f"read failed for {path}: {exc.strerror or exc}") from exc
+
+
+def load_events(path: Path) -> list[FailureEvent]:
+    """Stream ``path`` into FailureEvents. Exit 2 on open failure, 3 on read failure."""
+    return load_session(path)[0]
+
+
+# ---------------------------------------------------------------------------
+# Script location
+# ---------------------------------------------------------------------------
+
+LOCATION_FOUND = "found"
+LOCATION_MISSING = "missing"
+LOCATION_UNKNOWN = "unknown"
+SCRIPT_DIR_NAME = "scripts"
+_ROOT_SEARCH_DEPTH = 64
+
+
+@dataclasses.dataclass(frozen=True)
+class ScriptLocation:
+    """Where the project keeps scripts. ``root`` is None when it is unknown."""
+
+    status: str
+    root: str | None = None
+    path: str | None = None
+
+
+def resolve_script_location(cwd: str | None) -> ScriptLocation:
+    """``<root>/scripts`` for the repository that holds ``cwd``.
+
+    The root is the nearest directory at or above ``cwd`` with a ``.git`` entry
+    (a directory, or a file in a linked worktree). A ``cwd`` that is absent, not
+    on this disk, or outside a repository gives ``unknown``: the program then
+    claims nothing about the location.
+    """
+    if not cwd:
+        return ScriptLocation(LOCATION_UNKNOWN)
+    try:
+        start = Path(cwd)
+        if not start.is_absolute() or not start.is_dir():
+            return ScriptLocation(LOCATION_UNKNOWN)
+        for directory in (start, *start.parents)[:_ROOT_SEARCH_DEPTH]:
+            if (directory / ".git").exists():
+                scripts = directory / SCRIPT_DIR_NAME
+                if scripts.is_dir():
+                    return ScriptLocation(LOCATION_FOUND, str(directory), str(scripts))
+                return ScriptLocation(LOCATION_MISSING, str(directory))
+    except (OSError, ValueError):
+        return ScriptLocation(LOCATION_UNKNOWN)
+    return ScriptLocation(LOCATION_UNKNOWN)
+
+
+def missing_location_block(location: ScriptLocation, inventory: ScriptInventory) -> str:
+    """The friction block for a repository with no scripts directory."""
+    count = len(inventory.inline) + len(inventory.scratch)
+    return (
+        f"Hit: no {SCRIPT_DIR_NAME}/ directory under {redact_text(location.root or '')}\n"
+        f"Did instead: left {count} recurring programs inline or under a scratch path\n"
+        f"Permanent fix: {PERMANENT_FIX_PLACEHOLDER}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -205,30 +289,46 @@ def render_candidates(
     return "\n\n".join(parts)
 
 
-def render_scripts(events: list[FailureEvent], inventory: ScriptInventory, fmt: str) -> str:
+def render_scripts(
+    events: list[FailureEvent],
+    inventory: ScriptInventory,
+    fmt: str,
+    location: ScriptLocation | None = None,
+) -> str:
+    where = location or ScriptLocation(LOCATION_UNKNOWN)
+    path = redact_text(where.path) if where.path else None
+    has_programs = bool(inventory.inline or inventory.scratch)
     if fmt == "json":
         payload = {
             "events": len(events),
-            "inline": [dataclasses.asdict(g) for g in inventory.inline],
-            "scratch": [dataclasses.asdict(s) for s in inventory.scratch],
+            "repository_root": redact_text(where.root) if where.root else None,
+            "script_location": path,
+            "script_location_status": where.status,
+            "inline": [dataclasses.asdict(g) | {"script_location": path} for g in inventory.inline],
+            "scratch": [
+                dataclasses.asdict(s) | {"script_location": path} for s in inventory.scratch
+            ],
         }
         return json.dumps(payload, indent=2)
-    if not inventory.inline and not inventory.scratch:
+    if not has_programs:
         return f"No recurring inline programs and no scratch scripts in {len(events)} tool calls."
+    keep = f" | keep in: {path}" if path else ""
     lines: list[str] = []
     if inventory.inline:
         lines.append("Inline programs seen 2 or more times:")
         lines.extend(
             f"- {g.interpreter} x{g.count} (hash {g.body_hash}, first at tool call "
-            f"{g.first_index + 1}): {g.sample}"
+            f"{g.first_index + 1}): {g.sample}{keep}"
             for g in inventory.inline
         )
     if inventory.scratch:
         lines.append("Scratch scripts written:")
         lines.extend(
-            f"- {s.path}: written {s.writes} times, named by {s.references} later commands"
+            f"- {s.path}: written {s.writes} times, named by {s.references} later commands{keep}"
             for s in inventory.scratch
         )
+    if where.status == LOCATION_MISSING:
+        lines.extend(("", missing_location_block(where, inventory)))
     return "\n".join(lines)
 
 
@@ -250,8 +350,9 @@ def run_candidates(args: argparse.Namespace) -> int:
 
 
 def run_scripts(args: argparse.Namespace) -> int:
-    events = _transcript_events(args)
-    print(render_scripts(events, inline_script_inventory(events), args.format))
+    events, cwd = load_session(resolve_transcript(args.transcript, os.getcwd(), os.environ))
+    location = resolve_script_location(cwd)
+    print(render_scripts(events, inline_script_inventory(events), args.format, location))
     return EXIT_OK
 
 
