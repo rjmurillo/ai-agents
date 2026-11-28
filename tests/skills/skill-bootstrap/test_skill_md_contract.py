@@ -130,6 +130,7 @@ def test_skill_md_documents_exit_codes_in_a_table_with_one_row_per_script() -> N
     assert named == {
         "bootstrap_mine.py",
         "bootstrap_sweep.py",
+        "replies_audit.py",
         "bootstrap_forms.py",
         "bootstrap_eval.py",
         "bootstrap_drift.py",
