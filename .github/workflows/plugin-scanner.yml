@@ -31,7 +31,7 @@
 # diff, never the tree").
 #
 # On-demand local twin: uv run --frozen python scripts/validation/check_plugin_scanner_score.py
-# (the pre-push job was removed on 2026-11-27, ADR-104; this workflow owns the score).
+# (the pre-push job was removed on 2026-11-27, ADR-104; this workflow reports the score as a check, not a required gate).
 
 name: Plugin Scanner
 
