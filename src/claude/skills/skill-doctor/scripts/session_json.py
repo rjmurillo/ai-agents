@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote
 
+from session_codex_events import codex_event, codex_event_only_rows
 from session_common import (
     CLAUDE_CODE_EDIT_TOOLS,
     GENERIC_EDIT_TOOLS,
@@ -165,28 +166,6 @@ def _codex_response(state: SessionState, payload: Any) -> None:
         state.output(out if isinstance(out, str) else json.dumps(out))
 
 
-def _codex_error_reason(info: Any) -> str:
-    if isinstance(info, str) and info:
-        return info
-    if isinstance(info, dict) and info:
-        return str(next(iter(info)))
-    return "error"
-
-
-def _codex_completion(state: SessionState, payload: dict[str, Any]) -> None:
-    """`task_complete.error.codex_error_info` marks a provider cutoff; a clean one resumes."""
-    error = payload.get("error")
-    if not error:
-        state.resume()
-        return
-    if not isinstance(error, dict):
-        state.terminate("error", str(error))
-        return
-    state.terminate(
-        _codex_error_reason(error.get("codex_error_info")), str(error.get("message") or "")
-    )
-
-
 def _codex_turn_role(payload: Any) -> str | None:
     # Developer messages and injected user context are not turns.
     if payload.get("type") != "message":
@@ -197,39 +176,6 @@ def _codex_turn_role(payload: Any) -> str | None:
     if role == "user" and not looks_injected(extract_text(payload.get("content"))):
         return role
     return None
-
-
-def _codex_event(
-    state: SessionState,
-    payload: dict[str, Any],
-    events: dict[str, int],
-    pending: dict[str, list[tuple[Any, str, Any]]],
-    stamp: tuple[Any, Any],
-) -> None:
-    event_roles = {"user_message": "user", "agent_message": "assistant"}
-    if payload.get("type") in event_roles:
-        role = event_roles[payload["type"]]
-        events[role] += 1
-        text = payload.get("message")
-        if isinstance(text, str) and text.strip() and not (role == "user" and looks_injected(text)):
-            pending[role].append((stamp[0], text, stamp[1]))
-    elif payload.get("type") == "task_complete":
-        _codex_completion(state, payload)
-
-
-def _codex_event_only_rows(capture: Any, pending: dict[str, list[tuple[Any, str, Any]]]) -> None:
-    """Export event text for a role that has no `response_item` text, so no turn lands twice."""
-    if capture is None:
-        return
-    added = False
-    for role, rows in pending.items():
-        if any(row["role"] == role for row in capture.rows):
-            continue
-        for line, text, ts in rows:
-            capture.record_at(line, role, text, ts)
-            added = True
-    if added:
-        capture.rows.sort(key=lambda row: row["line"] if isinstance(row["line"], int) else 0)
 
 
 def parse_codex_session(path: Path, _skill_names: Any, include_subagents: bool) -> Any:
@@ -268,13 +214,13 @@ def parse_codex_session(path: Path, _skill_names: Any, include_subagents: bool) 
             meta["thread_source"] = "subagent" if child else meta["thread_source"]
         elif kind == "event_msg":
             line = capture.line if capture is not None else 0
-            _codex_event(state, payload, events, pending, (line, obj.get("timestamp")))
+            codex_event(state, payload, events, pending, (line, obj.get("timestamp")))
         elif kind == "response_item":
             role = _codex_turn_role(payload)
             if role:
                 items[role] += 1
             _codex_response(state, payload)
-    _codex_event_only_rows(capture, pending)
+    codex_event_only_rows(capture, pending)
     state.stats["user_turns"] = events["user"] or items["user"]
     state.stats["assistant_turns"] = events["assistant"] or items["assistant"]
     return state.finish(meta or {"id": path.stem, "cwd": None, "started_at": state.first_ts})
