@@ -5,16 +5,18 @@
 
 This document describes how the PR maintenance system handles CHANGES_REQUESTED feedback and when rjmurillo-bot takes action.
 
+**State since 2026-11-25**: the `process-prs` job was deleted from `.github/workflows/pr-maintenance.yml` with every other job gated by an `agent-*` environment. The hourly workflow now runs two read-only jobs, `discover-prs` and `summarize`. It lists the PRs that need attention and acts on none. The conflict resolution and comment processing described below run only when a person or an agent session starts them. The `pull_requests:write` prerequisite, the comment acknowledgment baseline, and the zero-actions alert below describe the deleted job.
+
 ## Quick Start
 
 ### When to Use This Protocol
 
-- **Scheduled (automated)**: GitHub Actions runs hourly - no manual action needed
+- **Scheduled (automated)**: GitHub Actions runs hourly and reports which PRs need attention. It changes no PR.
 - **Manual (on-demand)**: Run script when PRs need immediate attention
 
 ### Invocation
 
-**Automated (Default)**:
+**Automated (discovery and summary only)**:
 
 GitHub Actions workflow: `.github/workflows/pr-maintenance.yml`
 
@@ -50,7 +52,7 @@ Use this to determine which invocation method:
 ```mermaid
 flowchart TD
     A[What is your goal?] --> B{Goal Type}
-    B -->|Routine maintenance| C["Scheduled: hourly GitHub Actions"]
+    B -->|Routine maintenance| C["Scheduled: hourly GitHub Actions (reports only)"]
     B -->|Check PR status now| D["Manual: uv run --frozen python -m scripts.invoke_pr_maintenance"]
     B -->|Address CHANGES_REQUESTED| E["Agent: pr-review skill"]
     B -->|Trigger from CI/CD| F["gh workflow run pr-maintenance.yml"]

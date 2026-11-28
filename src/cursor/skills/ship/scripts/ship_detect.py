@@ -23,6 +23,8 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import _ship_common as common
+    import _ship_pr_query as pr_query_mod
+    import _ship_repo as repo_mod
     import _ship_windows as windows_mod
 else:
     _HERE = Path(__file__).resolve(strict=True).parent  # the real entry, never a symlink's dir
@@ -33,6 +35,8 @@ else:
         )
     common = sys.modules["_ship_common"]
     windows_mod = common.load_sibling("_ship_windows")
+    pr_query_mod = common.load_sibling("_ship_pr_query")
+    repo_mod = common.load_sibling("_ship_repo")
 
 SCRIPT = "ship_detect.py"
 REASONS = frozenset(
@@ -51,9 +55,6 @@ REASONS = frozenset(
         "base-mismatch",
     }
 )
-# number, URL, author, draft, target branch; number None means no open PR.
-PrQuery = tuple[int | None, str, str, bool | None, str]
-_NO_PR_SIGNAL = "no pull requests found"
 # Phrases a CLI prints for an auth failure. Bare words such as "authentication"
 # also appear in echoed branch names and titles, so they are not signals.
 _AUTH_SIGNALS = (
@@ -83,6 +84,8 @@ class Context:
     pr_author: str
     mode: str
     pr_draft: bool | None = None
+    base_remote: str | None = "origin"
+    base_shown: str = ""
 
 
 @dataclass(frozen=True)
@@ -131,29 +134,6 @@ def protected_branches(base: str, origin_default: str) -> frozenset[str]:
     return PROTECTED_BRANCHES | {base, origin_default}
 
 
-_NO_OPEN_PR: PrQuery = (None, "", "", None, "")
-
-
-def _github_pr(root: Path) -> PrQuery | Halt:
-    fields = "number,author,state,url,isDraft,baseRefName"
-    done = common.run(["gh", "pr", "view", "--json", fields], cwd=root)
-    if done.returncode != 0:
-        if _NO_PR_SIGNAL in done.stderr.lower():
-            return _NO_OPEN_PR
-        return query_halt("pr-query-failed", done)
-    data = common.parse_json(done.stdout)
-    if not isinstance(data, dict) or not isinstance(data.get("number"), int):
-        return Halt("pr-query-failed", common.EXIT_EXTERNAL, "gh returned no PR number")
-    if data.get("state") != "OPEN":
-        return _NO_OPEN_PR
-    raw_author = data.get("author")
-    author = raw_author if isinstance(raw_author, dict) else {}
-    draft = data.get("isDraft") if isinstance(data.get("isDraft"), bool) else None
-    login = str(author.get("login") or "")
-    target = str(data.get("baseRefName") or "")
-    return (data["number"], str(data.get("url", "")), login, draft, target)
-
-
 def _github_user(root: Path, host_name: str) -> str | Halt:
     # gh api ignores the origin remote, so name the host: on GitHub Enterprise
     # the login must come from the same host as the PR author.
@@ -164,45 +144,6 @@ def _github_user(root: Path, host_name: str) -> str | Halt:
     return login
 
 
-def _ado_pr(root: Path, branch: str) -> PrQuery | Halt:
-    done = common.run(
-        [
-            "az",
-            "repos",
-            "pr",
-            "list",
-            "--source-branch",
-            f"refs/heads/{branch}",
-            "--status",
-            "active",
-            "--output",
-            "json",
-        ],
-        cwd=root,
-    )
-    if done.returncode != 0:
-        return query_halt("pr-query-failed", done)
-    data = common.parse_json(done.stdout)
-    if not isinstance(data, list):
-        return Halt("pr-query-failed", common.EXIT_EXTERNAL, "az returned no PR list")
-    if not data:
-        return _NO_OPEN_PR
-    first = data[0] if isinstance(data[0], dict) else {}
-    pr_id = first.get("pullRequestId")
-    if not isinstance(pr_id, int):
-        return Halt("pr-query-failed", common.EXIT_EXTERNAL, "az returned no pullRequestId")
-    raw_repository = first.get("repository")
-    repository = raw_repository if isinstance(raw_repository, dict) else {}
-    web_url = str(repository.get("webUrl", ""))
-    url = f"{web_url}/pullrequest/{pr_id}" if web_url else ""
-    raw_created_by = first.get("createdBy")
-    created_by = raw_created_by if isinstance(raw_created_by, dict) else {}
-    draft = first.get("isDraft") if isinstance(first.get("isDraft"), bool) else None
-    target = str(first.get("targetRefName") or "")
-    target = target[len("refs/heads/") :] if target.startswith("refs/heads/") else ""
-    return (pr_id, url, str(created_by.get("uniqueName") or ""), draft, target)
-
-
 def _ado_user(root: Path) -> str | Halt:
     done = common.run(
         ["az", "account", "show", "--query", "user.name", "--output", "tsv"], cwd=root
@@ -211,6 +152,20 @@ def _ado_user(root: Path) -> str | Halt:
     if done.returncode != 0 or not name:
         return query_halt("user-query-failed", done)
     return name
+
+
+def _open_pr(root: Path, host: str, branch: str, base: str | None) -> pr_query_mod.PrQuery | Halt:
+    """The open PR's fields, or the Halt for a failed command or a reply that did not parse."""
+    found = (
+        pr_query_mod.github_pr(root)
+        if host == "github"
+        else pr_query_mod.ado_pr(root, branch, base)
+    )
+    if isinstance(found, str):
+        return Halt("pr-query-failed", common.EXIT_EXTERNAL, found)
+    if isinstance(found, common.Completed):
+        return query_halt("pr-query-failed", found)
+    return found
 
 
 def unsafe_checkout(root: Path) -> Halt | None:
@@ -281,6 +236,37 @@ def _mode(root: Path, host: str, pr: int | None, author: str, host_name: str) ->
     return "owner" if author.strip().lower() == me.strip().lower() else "contributor"
 
 
+def _pr_base(pr: int, pr_target: str, base: str | None) -> str | Halt:
+    """The base of open PR ``pr``: its target branch, which ``--base`` may only repeat.
+
+    The host named the target, so it need only be a branch git accepts, such as
+    ``release/2026+hotfix``. It reaches git as one argv element or a
+    ``refs/remotes/<remote>/<target>`` path, never as an option or a shell word.
+    """
+    if not pr_target or not pr_query_mod.valid_branch(pr_target):
+        return Halt("pr-query-failed", common.EXIT_EXTERNAL, f"PR {pr} has no target branch")
+    if base is not None and base != pr_target:
+        detail = f"--base {base} is not the target of open PR {pr}, {pr_target}"
+        return Halt("base-mismatch", common.EXIT_CONFIG, detail)
+    return pr_target
+
+
+def base_arg_error(base: str | None, *, strict: bool = False) -> str | None:
+    """The message that refuses a typed ``--base``, or None when it may go on. The one home of the rule.
+
+    Two stages. ``strict`` is the plain-ref rule (``common.safe_ref``): it holds when no host
+    is asked (``ship_pr.py prepare``) and when no open PR fixes the base, because a new PR
+    sends the name to the host and, on Windows, through cmd.exe. Without ``strict`` the
+    first stage admits any valid branch (``valid_branch``) too, since an open PR may target
+    one such as ``release/2026+hotfix``; ``detect`` then holds it to that PR's own target.
+    """
+    if base is None:
+        return None
+    if common.safe_ref(base) or (not strict and pr_query_mod.valid_branch(base)):
+        return None
+    return "--base is not a plain ref"
+
+
 def detect(cwd: Path | None = None, base: str | None = None) -> Context | Halt:
     """Return the ship context, or the Halt that stops the run."""
     checkout = _checkout(cwd)
@@ -289,7 +275,7 @@ def detect(cwd: Path | None = None, base: str | None = None) -> Context | Halt:
     root, host, host_name, branch, head = checkout
     origin_default = default_branch(root)
     target = base or origin_default
-    pr_query = _github_pr(root) if host == "github" else _ado_pr(root, branch)
+    pr_query = _open_pr(root, host, branch, base)
     if isinstance(pr_query, Halt):
         return pr_query
     pr, pr_url, author, pr_draft, pr_target = pr_query
@@ -298,16 +284,32 @@ def detect(cwd: Path | None = None, base: str | None = None) -> Context | Halt:
         return mode
     if pr is not None:
         # An open PR fixes the base: its diff is against its own target branch.
-        if not pr_target or not common.safe_ref(pr_target):
-            return Halt("pr-query-failed", common.EXIT_EXTERNAL, f"PR {pr} has no target branch")
-        if base is not None and base != pr_target:
-            detail = f"--base {base} is not the target of open PR {pr}, {pr_target}"
-            return Halt("base-mismatch", common.EXIT_CONFIG, detail)
-        target = pr_target
+        pr_base = _pr_base(pr, pr_target, base)
+        if isinstance(pr_base, Halt):
+            return pr_base
+        target = pr_base
+    elif (error := base_arg_error(base, strict=True)) is not None:
+        # A new PR sends --base to the host and, on Windows, through cmd.exe: the strict rule.
+        return Halt("bad-arguments", common.EXIT_CONFIG, error)
     # The same set publish refuses, so the refusal comes in phase 1.
     if mode == "owner" and pr is None and branch in protected_branches(target, origin_default):
         return Halt("on-base-branch", common.EXIT_LOGIC, f"on {branch}; create a feature branch")
-    return Context(root, host, host_name, branch, target, head, pr, pr_url, author, mode, pr_draft)
+    base_remote, base_shown = repo_mod.base_remote(root, pr, pr_url)
+    return Context(
+        root,
+        host,
+        host_name,
+        branch,
+        target,
+        head,
+        pr,
+        pr_url,
+        author,
+        mode,
+        pr_draft,
+        base_remote,
+        base_shown,
+    )
 
 
 def add_context_lines(result: common.Result, ctx: Context, *, pr_key: str = "PR") -> None:
@@ -340,12 +342,8 @@ def run(argv: list[str]) -> tuple[common.Result, str, Path | None]:
     except common.UsageError as exc:
         return result.stop("bad-arguments", common.EXIT_CONFIG, exc), common.peek_format(argv), None
     fmt = common.resolve_format(args.output_format)
-    if args.base is not None and not common.safe_ref(args.base):
-        return (
-            result.stop("bad-arguments", common.EXIT_CONFIG, "--base is not a plain ref"),
-            fmt,
-            None,
-        )
+    if (error := base_arg_error(args.base)) is not None:
+        return result.stop("bad-arguments", common.EXIT_CONFIG, error), fmt, None
     ctx = detect(base=args.base)
     if isinstance(ctx, Halt):
         return result.stop(ctx.reason, ctx.code, ctx.detail), fmt, common.repo_root()

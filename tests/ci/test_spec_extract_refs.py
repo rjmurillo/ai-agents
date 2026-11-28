@@ -330,8 +330,7 @@ class TestRun:
     ) -> None:
         """Pin the workflow guard, not the helper return value.
 
-        Both `.github/workflows/ai-spec-validation.yml` and
-        `.github/workflows/ai-spec-review.yml` read
+        `.github/workflows/ai-spec-validation.yml` reads
         `steps.spec-ref.outputs.has_specs`, so the output file is the contract
         that decides whether the check evaluates anything.
         Issues #5489 and #5620.
@@ -479,12 +478,12 @@ class TestMain:
             assert main() == 0
 
 
-class TestBothWorkflowsRunTheExtraction:
-    """The deterministic check and the model review share one extraction step."""
+class TestWorkflowRunsTheExtraction:
+    """The deterministic check runs the shared extraction step."""
 
     @pytest.mark.parametrize(
         ("filename", "job_id"),
-        [("ai-spec-validation.yml", "validate-spec"), ("ai-spec-review.yml", "review-spec")],
+        [("ai-spec-validation.yml", "validate-spec")],
     )
     def test_job_runs_the_extractor_as_spec_ref(self, filename: str, job_id: str) -> None:
         workflow = Path(__file__).resolve().parents[2] / ".github/workflows" / filename

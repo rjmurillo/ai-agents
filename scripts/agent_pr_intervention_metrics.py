@@ -6,7 +6,7 @@ discontinued (``universal.md`` MUST NOT 10), so the "iterations before the
 first intervention" metric from the issue is out of scope.
 
 Called by ``scripts/update_reviewer_signal_stats.py --agent-intervention`` on
-the ``update-reviewer-stats.yml`` cadence. Kept in its own module so the
+the cadence of the deleted ``update-reviewer-stats.yml`` workflow. Kept in its own module so the
 reviewer-signal functions in that script stay untouched.
 
 The definitions and known limits live in ``DEFINITIONS`` below and are

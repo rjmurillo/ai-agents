@@ -7,7 +7,6 @@ changes the PR. ``ship_preflight.py`` owns the deadline and the terminal line.
 
 from __future__ import annotations
 
-import re
 import sys
 import time
 from dataclasses import dataclass
@@ -15,11 +14,13 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import _ship_common as common
+    import _ship_repo as repo_mod
     import ship_detect as detect_mod
     from ship_detect import Context, Halt
 else:
     common = sys.modules["_ship_common"]
     detect_mod = common.load_sibling("ship_detect")
+    repo_mod = common.load_sibling("_ship_repo")
     # One Halt type across the ship scripts, so a detect-side halt reads as a halt here.
     Halt = detect_mod.Halt
 
@@ -28,11 +29,6 @@ CHECKS_TIMEOUT_SECONDS = 300
 # Seconds of the shared run budget kept for the calls after a wait.
 RESERVE_SECONDS = 120
 MAX_LISTED = 10
-# A GitHub PR URL: https://<host>/<owner>/<repo>/pull/<number>, as gh prints it.
-_PR_URL_RE = re.compile(
-    r"^https://(?P<host>[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?)"
-    r"/(?P<owner>[A-Za-z0-9_.-]+)/(?P<repo>[A-Za-z0-9_.-]+)/pull/(?P<number>[0-9]+)/?$"
-)
 
 
 @dataclass(frozen=True)
@@ -46,23 +42,9 @@ class Check:
         return self.state in ("FAIL", "dirty")
 
 
-@dataclass(frozen=True)
-class PrRepo:
-    """The repository that owns a PR, read from the PR URL the host returned."""
-
-    host: str
-    owner: str
-    repo: str
-
-
-def _pr_repo(url: str, pr: int) -> PrRepo | None:
-    match = _PR_URL_RE.match(url)
-    if match is None or int(match["number"]) != pr:
-        return None
-    return PrRepo(match["host"].lower(), match["owner"], match["repo"])
-
-
-def _github_head(ctx: Context, pr: int, owner: PrRepo | None) -> tuple[str, str, PrRepo] | Halt:
+def _github_head(
+    ctx: Context, pr: int, owner: repo_mod.RepoRef | None
+) -> tuple[str, str, repo_mod.RepoRef] | Halt:
     """Return the head branch, head SHA, and owning repository of PR ``pr``.
 
     The first read finds the PR as ``gh`` resolves the number. A later read
@@ -79,7 +61,7 @@ def _github_head(ctx: Context, pr: int, owner: PrRepo | None) -> tuple[str, str,
     if not isinstance(data, dict) or not data.get("headRefName") or not data.get("headRefOid"):
         return Halt("checks-query-failed", common.EXIT_EXTERNAL, f"PR {pr} head did not parse")
     url = str(data.get("url") or "")
-    owner = _pr_repo(url, pr)
+    owner = repo_mod.pr_repo(url, pr)
     if owner is None:
         return Halt(
             "checks-query-failed", common.EXIT_EXTERNAL, f"PR {pr} URL did not parse: {url}"
@@ -100,7 +82,7 @@ def _binding(ctx: Context, pr: int, branch: str, sha: str, after_publish: bool) 
 
 
 def _read_github_checks(
-    ctx: Context, pr: int, owner: PrRepo, wait_seconds: int
+    ctx: Context, pr: int, owner: repo_mod.RepoRef, wait_seconds: int
 ) -> tuple[int, dict[str, Any]] | Check | Halt:
     """Run get_pr_checks.py once; return (exit code, Data), a PENDING check, or a Halt.
 

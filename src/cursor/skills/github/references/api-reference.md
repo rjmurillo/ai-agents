@@ -140,7 +140,7 @@ These readers differ on purpose:
 - `new_pr.py --prepare-body-file` still allocates a unique, random file name in the repo's scratch directory, which passes the rule. Use it when several sessions share one scratch directory: a fixed name such as `body.md` lets one session publish another's text, and the rule does not prevent that (owner decision D14, 2026-10-24, issue #6667).
 - `validate_pr_description.py` only reads the file and posts nothing, so it has no containment check.
 - `new_validated_pr.py` (the repo-level PR wrapper, not a skill script) reads the source body path with no containment check, then copies it into the allocated scratch file that `new_pr.py` reads.
-- CI-only scripts in the workflow scripts directory are outside the rule. Its own `post_issue_comment.py` reads any `--body-file`; workflows (`ai-spec-review.yml`, `investigation-claim-backstop.yml`, `pr-validation.yml`) supply the path.
+- CI-only scripts in the workflow scripts directory are outside the rule. Its own `post_issue_comment.py` reads any `--body-file`; workflows (`investigation-claim-backstop.yml`, `pr-validation.yml`) supply the path.
 
 ## Troubleshooting
 

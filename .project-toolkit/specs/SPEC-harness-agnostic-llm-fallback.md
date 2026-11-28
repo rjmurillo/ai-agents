@@ -20,15 +20,15 @@ The heuristic scores each comment. Scores from 0.4 to 0.6 go to
 `scripts/llm_classification/classifier.py`. That module calls the Anthropic SDK with a
 hard-coded Haiku model id and `ANTHROPIC_API_KEY`.
 
-The only runtime is the daily cron in `.github/workflows/update-reviewer-stats.yml`.
-That workflow passes no `ANTHROPIC_API_KEY` (lines 77 to 79, read 2026-11-23).
+The only runtime was the daily cron in `.github/workflows/update-reviewer-stats.yml`. The owner deleted that workflow on 2026-11-25, so nothing runs the classifier on a schedule now.
+That workflow passed no `ANTHROPIC_API_KEY` (lines 77 to 79, read 2026-11-23).
 No commit ever added it there (`git log -S ANTHROPIC_API_KEY` on that file, empty on 2026-11-23).
 `LLMFallbackConfig.from_env()` then sets `enabled=False` (`config.py:53-61`).
-So the fallback does not run in that workflow, and its history shows it never did.
+So the fallback never ran in that workflow, as its history shows.
 
-The job already runs under `environment: agent-claude` (`update-reviewer-stats.yml:57`, since `d73c0cf0fe`, 2026-11-05).
+The job ran under `environment: agent-claude` from `d73c0cf0fe` (2026-11-05) until the workflow was deleted on 2026-11-25.
 That environment holds `ANTHROPIC_API_KEY` and `CLAUDE_CODE_OAUTH_TOKEN` (secret names listed by `gh api`, 2026-11-24).
-The secrets are optional: a fork, a `gh act` run, or another repository has none. The step just never maps them in.
+The secrets are optional: a fork, a `gh act` run, or another repository has none. The step never mapped them in.
 The heuristic alone decides every comment.
 
 ### Q3 Desperate Specificity
@@ -77,7 +77,7 @@ The design must cache across runs and cap calls and wall time per run.
 
 - Connected entity: `scripts/eval/_claude_cli.py`, transport. Adjudication: in-scope. Note: strips `ANTHROPIC_API_KEY` and five related vars from the child env (lines 85 to 94), so a subscription call cannot bill a metered key.
 - Connected entity: `scripts/eval/_http_providers.py`, transport. Adjudication: blast-radius. Note: the OpenAI-compatible cell imports the `openai` SDK lazily (line 318) and the SDK Anthropic cell imports `anthropic` (line 446). Only `scripts/eval/_anthropic_api.py` is stdlib `urllib` (lines 16 to 17).
-- Connected entity: `.github/workflows/update-reviewer-stats.yml`, workflow. Adjudication: in-scope. Note: the sole runtime.
+- Connected entity: `.github/workflows/update-reviewer-stats.yml`, workflow. Adjudication: in-scope. Note: the sole runtime until the owner deleted it on 2026-11-25; no workflow runs the script now.
 - Linked project: claude-mem (`github.com/thedotmack/claude-mem`, `LICENSE` is Apache-2.0, checked through the GitHub license API on 2026-11-23). Why it matters: its observer model runs in a background worker; `CLAUDE_MEM_PROVIDER` picks the vendor and `CLAUDE_MEM_MODEL` the model; `DEFAULT_LLM_TIMEOUT_MS = 180_000` (line 138 of `SettingsDefaultsManager.ts` in the claude-mem repository). Pattern borrowed: provider and model are config, never code. No code copied. Apache-2.0 places no duty on a borrowed design pattern.
 - (Search depth: medium, matched to Tier 3.)
 
@@ -100,7 +100,7 @@ And its one consumer never turns it on, so nobody knows if it helps.
 
 | Consumer | File and lines | Runtime |
 |---|---|---|
-| `update_reviewer_signal_stats.py` | Import at 53. Classifier built at 750 to 765. Called from `get_actionability_score` at 331. | GitHub Actions cron, `update-reviewer-stats.yml:82` and `:91`, daily 06:00 UTC <!-- citation-freshness: ignore -- anchors here are command strings from another column; cited lines re-read 2026-11-24 --> |
+| `update_reviewer_signal_stats.py` | Import at 53. Classifier built at 750 to 765. Called from `get_actionability_score` at 331. | None since 2026-11-25. Before that: GitHub Actions cron, `update-reviewer-stats.yml:82` and `:91`, daily 06:00 UTC <!-- citation-freshness: ignore -- anchors here are command strings from another column; cited lines re-read 2026-11-24 --> |
 | Tests | `tests/llm_classification/` | pytest |
 
 No hook, skill, or lefthook job imports it. Search: `git grep -n -E "llm_classification|LLMClassifier|get_default_classifier|LLM_FALLBACK"`.
@@ -177,7 +177,7 @@ The caller keeps its current rule: apply the verdict only when `confidence >= 0.
 
 A comment skipped by either cap keeps its heuristic verdict and counts as `fallback_capped`.
 Worst case per run: the wall budget plus one in-flight call, about 11 minutes.
-That fits inside the 15-minute step budget the sibling step already uses (`update-reviewer-stats.yml:88`).
+That fits inside the 15-minute step budget the sibling step used in the update-reviewer-stats workflow, which was deleted on 2026-11-25.
 
 ### Caching
 
@@ -291,7 +291,7 @@ Logging never prints a key, a key prefix, or a key length. It prints only `prese
 Migration: one consumer, one workflow, and nothing sets these in CI today.
 So the change is additive. A local setup with only `ANTHROPIC_API_KEY` set
 auto-detects the `anthropic` transport and keeps working. An old `LLM_FALLBACK_MODEL` value still passes through.
-To turn the fallback on in CI, map the existing `agent-claude` secret `ANTHROPIC_API_KEY` into the step at `update-reviewer-stats.yml:77`. No new secret, and no `LLM_FALLBACK_PROVIDER` line.
+The plan to turn the fallback on in CI was to map the existing `agent-claude` secret `ANTHROPIC_API_KEY` into the `Run statistics aggregation` step of `update-reviewer-stats.yml`, with no new secret and no `LLM_FALLBACK_PROVIDER` line. That workflow was deleted on 2026-11-25, so the mapping has no target until the owner picks a new runtime.
 
 ## Cost and latency per call
 
@@ -408,7 +408,7 @@ Promoting it (Open question 1, option A) is an architecture change and needs an 
 1. Eval steps 1 to 4. No library code. Decide against the kill criteria.
 2. If the eval passes: owner decides Open question 1. Write the ADR if option A.
 3. Build the transport, the contract, the cache, and the counters, with tests for AC 1 to 7.
-4. Map the `agent-claude` environment's `ANTHROPIC_API_KEY` into the stats step of `update-reviewer-stats.yml`. Set no `LLM_FALLBACK_PROVIDER` there. Watch one run's summary.
+4. Blocked since 2026-11-25: `update-reviewer-stats.yml` was deleted, so this step has no target until the owner picks a new runtime. The step was: map the `agent-claude` environment's `ANTHROPIC_API_KEY` into the stats step, set no `LLM_FALLBACK_PROVIDER` there, and watch one run's summary.
 
 ## Out of scope
 

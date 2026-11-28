@@ -1,8 +1,10 @@
 # Claude Workflow Authorization Pattern
 
-**Status**: ACTIVE
+**Status**: RETIRED (2026-11-25)
 **Date**: 2026-01-04
 **Related**: PR #789, `tests/workflows/test_claude_authorization.py`
+
+> **Retired 2026-11-25.** The owner deleted `.github/workflows/claude.yml`, the only workflow that used this pattern, with every other job gated by an `agent-*` environment (ADR-057, the `/spec` CI leg amendment of that date). The text below describes the state before that date. The checker script and its test suite remain in the tree. No workflow calls the script now.
 
 ## Context
 

@@ -118,7 +118,7 @@ Set up GitHub billing alerts at:
 | Workflow | Est. Monthly Cost | Optimization Status |
 |----------|------------------|---------------------|
 | ai-spec-validation | $8-12 | ✅ ARM, concurrency (no path filter; the job decides its own scope) |
-| copilot-context-synthesis | $8-12 | ✅ ARM, concurrency, approval-gated |
+| copilot-context-synthesis | $0 | Workflow deleted 2026-11-25 |
 | validate-generated-agents | $5-10 | ⚠️ Windows (no ARM), concurrency, path filter |
 | drift-detection | $3-5 | ✅ ARM, concurrency, path filter |
 
@@ -163,17 +163,17 @@ If monthly costs exceed $100:
 
 - agent-metrics (weekly)
 - drift-detection (weekly)
-- copilot-context-synthesis (hourly sweep)
-- autoplan-route-eval (weekly)
+- copilot-context-synthesis (hourly sweep; deleted 2026-11-25)
+- autoplan-route-eval (weekly; deleted 2026-11-25)
 
 ### Critical Workflows (Never Disable)
 
 - pester-tests (blocks merge)
 - validate-generated-agents (blocks merge)
 
-### Agent Workflows (Approval-Gated, Advisory)
+### Advisory pull-request workflows
 
-These twelve workflows run a model or an agent. Each model job declares the environment of its provider and runs after a reviewer approves it (ADR-114). Checks from workflows listed as advisory never block merge unless the branch ruleset requires them (ADR-114 Decisions 5 and 7).
+These workflows run on pull requests and stay advisory. The jobs that ran a model behind a provider environment (`agent-claude`, `agent-copilot`) were deleted on 2026-11-25 by owner decision. The four environments below gate no job now and can be deleted in GitHub settings (ADR-114). Checks from workflows listed as advisory never block merge unless the branch ruleset requires them (ADR-114 Decisions 5 and 7).
 
 | Environment | Provider | Secrets |
 |-------------|----------|---------|
@@ -182,24 +182,14 @@ These twelve workflows run a model or an agent. Each model job declares the envi
 | `agent-codex` | Codex | `OPENAI_API_KEY` |
 | `agent-droid` | Droid | `FACTORY_API_KEY` |
 
-All four require a reviewer. `agent-approval` is deleted (ADR-114 Decision 11 item 6).
+All four still require a reviewer, but no job uses them. `agent-approval` is deleted (ADR-114 Decision 11 item 6).
 
 - ai-spec-validation
-- slash-command-quality
-- post-pr-retrospective
-- software-engineering-library-activation
-- ai-metrics-analysis
-- pr-maintenance
-- artifact-insight-scanner
-- autoplan-route-eval
-- skill-overlap-eval
 - plugin-cli-smoke
-- copilot-context-synthesis
-- claude
 
-ai-metrics-analysis, pr-maintenance, artifact-insight-scanner, and autoplan-route-eval run Claude in `agent-claude`. No workflow outside plugin-cli-smoke reads `COPILOT_GITHUB_TOKEN`.
+No workflow reads a provider secret or runs in a provider environment now.
 
-plugin-cli-smoke runs on pull requests, only when a change touches a smoke path (`scripts/validation/cli_smoke_paths.py`). It runs one matrix leg per CLI. A Claude or Copilot leg runs in `agent-claude` or `agent-copilot` and receives only that provider's credential. The Codex legs read no credential and run in no environment. plugin-cli-smoke is advisory like the other gated pull-request workflows (owner decision 2026-11-05, ADR-114).
+plugin-cli-smoke runs on pull requests, only when a change touches a smoke path (`scripts/validation/cli_smoke_paths.py`). Its Codex, Pi, and Claude hook discovery legs read no credential and run in no environment. plugin-cli-smoke stays advisory (owner decision 2026-11-05, ADR-114).
 
 ### Claude Max Monthly API Credits
 
@@ -220,8 +210,8 @@ How the `agent-claude` secrets map to the credits:
 
 | Secret | How the repo uses it | Draws on the monthly API credits |
 |--------|----------------------|----------------------------------|
-| `ANTHROPIC_API_KEY` | Calls the Messages API directly, through the `anthropic` SDK in `.github/actions/ai-review` or the HTTP client in `scripts/eval/_anthropic_api.py`. Used by ai-spec-review, pr-maintenance, artifact-insight-scanner, ai-metrics-analysis, autoplan-route-eval, skill-overlap-eval, slash-command-quality, and software-engineering-library-activation. | Yes, when the key was created in the linked Console organization. |
-| `CLAUDE_CODE_OAUTH_TOKEN` | Runs Claude Code through `anthropics/claude-code-action` in claude and post-pr-retrospective, and through the Claude Code CLI in plugin-cli-smoke. | No. The token uses the Claude subscription. |
+| `ANTHROPIC_API_KEY` | Calls the Messages API directly, through the `anthropic` SDK in `.github/actions/ai-review` or the HTTP client in `scripts/eval/_anthropic_api.py`. Was used by ai-spec-review, pr-maintenance, artifact-insight-scanner, ai-metrics-analysis, autoplan-route-eval, skill-overlap-eval, slash-command-quality, and software-engineering-library-activation. Those workflows, or their model jobs, were deleted on 2026-11-25, so no workflow reads it now. | Yes, when the key was created in the linked Console organization. |
+| `CLAUDE_CODE_OAUTH_TOKEN` | Ran Claude Code through `anthropics/claude-code-action` in claude and post-pr-retrospective, which were deleted on 2026-11-25, and through the Claude Code CLI in the plugin-cli-smoke leg that was also deleted. No workflow reads it now. | No. The token uses the Claude subscription. |
 
 [max-credits-help]: https://support.claude.com/en/articles/17154008-monthly-api-credits-for-max-and-team-plans
 [max-credits-docs]: https://docs.claude.com/en/docs/about-claude/api-credits-for-subscribers
