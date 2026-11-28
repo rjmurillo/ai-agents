@@ -73,8 +73,9 @@ def _prime_cache(module_path: Path) -> float:
     )
     env = os.environ.copy()
     env.pop("PYTHONDONTWRITEBYTECODE", None)
-    # CI sets PYTHONPYCACHEPREFIX on the pytest step. With it set, CPython writes
-    # the pyc under the prefix, so the sibling __pycache__ asserted below never exists.
+    # A developer or runner environment may set PYTHONPYCACHEPREFIX. With it set,
+    # CPython writes the pyc under the prefix, so the sibling __pycache__ asserted
+    # below never exists.
     env.pop("PYTHONPYCACHEPREFIX", None)
     subprocess.run(
         [sys.executable, "-c", probe],

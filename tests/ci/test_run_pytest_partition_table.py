@@ -36,14 +36,6 @@ def test_serial_partitions_carry_no_parallel_flags(partition: str) -> None:
     assert "--dist" not in mod._PARTITION_FULL_ARGS[partition]
 
 
-@pytest.mark.parametrize("partition", sorted(mod._PARTITION_FULL_ARGS))
-def test_cached_partitions_pin_the_root_pytest_configuration(partition: str) -> None:
-    """A future tests/pytest.ini must not change the bytecode cache key input."""
-    args = mod._PARTITION_FULL_ARGS[partition]
-    assert args.count("-c") == 1
-    assert args[args.index("-c") + 1] == "pyproject.toml"
-
-
 @pytest.mark.parametrize(
     ("rel", "expected"),
     [

@@ -35,10 +35,6 @@ except ModuleNotFoundError:  # pragma: no cover - exercised via direct file exec
 # both read this one value.
 PYTEST_DIST_MODE = "worksteal"
 
-# The bytecode cache is shared by every partition, so every cached command pins
-# one configuration file instead of letting a future tests/pytest.ini win discovery.
-PYTEST_CONFIG_ARGS = ["-c", "pyproject.toml"]
-
 _PARALLEL = ["-n", "auto", "--dist", PYTEST_DIST_MODE]
 
 # The pool is every test file outside the dedicated legs and the unpartitioned
@@ -137,7 +133,6 @@ def split_flags(group: int, durations_path: str) -> list[str]:
 def _split_group_args(index: int) -> list[str]:
     return [
         *_PARALLEL,
-        *PYTEST_CONFIG_ARGS,
         *split_flags(index, _leg_durations_path(f"{_SPLIT_PREFIX}{index}")),
         "--store-durations",
         "--clean-durations",
@@ -150,8 +145,8 @@ def _split_group_args(index: int) -> list[str]:
 # pytest.yml matrix carries only the partition name.
 _PARTITION_FULL_ARGS: dict[str, list[str]] = {
     **{name: _split_group_args(i) for i, name in enumerate(split_names(), start=1)},
-    "safe-push": [*PYTEST_CONFIG_ARGS, *_SAFE_PUSH_ARGS],
-    "pr-autofix": [*PYTEST_CONFIG_ARGS, *_PR_AUTOFIX_ARGS],
+    "safe-push": list(_SAFE_PUSH_ARGS),
+    "pr-autofix": list(_PR_AUTOFIX_ARGS),
 }
 
 _PARALLEL_PARTITIONS = frozenset(split_names())

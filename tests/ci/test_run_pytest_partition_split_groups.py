@@ -78,13 +78,11 @@ def test_each_split_leg_stores_to_its_own_path() -> None:
 
 def test_dedicated_legs_run_only_their_files() -> None:
     assert mod._PARTITION_FULL_ARGS["safe-push"] == [
-        *mod.PYTEST_CONFIG_ARGS,
         "tests/test_safe_push_pr_branch.py",
         "tests/test_mutation_workspace_signals.py",
     ]
     assert mod._PARTITION_FULL_ARGS["pr-autofix"] == [
-        *mod.PYTEST_CONFIG_ARGS,
-        "tests/test_pr_autofix_late_live_state_gate.py",
+        "tests/test_pr_autofix_late_live_state_gate.py"
     ]
 
 

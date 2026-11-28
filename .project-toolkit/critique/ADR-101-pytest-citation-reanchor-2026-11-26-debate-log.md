@@ -36,3 +36,11 @@ The validation-lane citation in `tests/validation/test_check_push_lock_before_co
 ## Decision
 
 Accepted by both seats. Apply the citation re-anchor as a one-line citation correction. No ADR requirement, status, or enforcement behavior changes.
+
+## Round 2: re-anchor reverted (2026-11-28)
+
+The re-anchor compensated for workflow lines that the pytest bytecode cache added above the `test-result` job. Owner decision D2 removed the cross-run cache and every workflow line behind it, so `.github/workflows/pytest.yml` is byte-identical to its main parent again, and the ADR-101 sentence returns to `pytest.yml:1043-1062`, its text on that parent. The same reasoning reverts the `tests/validation/test_check_push_lock_before_commit.py` citation to `pytest.yml:1209-1249`.
+
+Evidence, read from the working tree at the revert: `pytest.yml:1048` is `test-result:`, `pytest.yml:1062` is `if: ${{ !cancelled() }}`, so the range 1043-1062 holds the job declaration and the condition the sentence cites. `pytest.yml:1209` is `test-windows-pwsh:` and `pytest.yml:1249` is the `run_pytest_windows.py` command, so the push-lock citation holds.
+
+Panel: reduced, architect and critic, as in round 1. The edit changes no executable enforcement. The lane brief forbids subagents, so both seats ran as inline passes by the implementer. Both accept the revert: it returns the ADR to a parent text whose citations were checked above, and it changes no decision, status, requirement, or enforcement rule. The re-anchor in round 1 no longer applies to the final tree.

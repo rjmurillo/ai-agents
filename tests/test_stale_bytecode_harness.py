@@ -62,7 +62,7 @@ def _write_module(path: Path, return_val: str) -> None:
 def _child_env(extra: dict[str, str] | None = None) -> dict[str, str]:
     """Environment for a child that must keep its pyc beside the source.
 
-    CI sets PYTHONPYCACHEPREFIX on the pytest step. With it set the pyc lands
+    A developer or runner environment may set PYTHONPYCACHEPREFIX. With it set the pyc lands
     under the prefix, so these tests would purge the wrong directory.
     """
     env = {k: v for k, v in os.environ.items() if k != "PYTHONPYCACHEPREFIX"}

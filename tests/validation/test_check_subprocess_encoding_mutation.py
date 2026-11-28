@@ -29,7 +29,7 @@ def _purge_cache(root: Path) -> None:
 
 
 def _child_env() -> dict[str, str]:
-    """Environment for the child pytest, without the CI bytecode prefix.
+    """Environment for the child pytest, without any inherited bytecode prefix.
 
     _purge_cache clears only __pycache__ beside the source. With
     PYTHONPYCACHEPREFIX set, the child would write the mutant checker's pyc
