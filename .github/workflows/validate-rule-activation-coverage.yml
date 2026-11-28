@@ -10,8 +10,8 @@
 # the autoplan `Intent | Route` table must come with an edited scenario in
 # tests/evals/skill-scenarios/autoplan.json. The deterministic autoplan route
 # eval then runs as a fast subset with no model call. Budget: 60 seconds for
-# the subset step (about 2 seconds measured). The full model suite runs on a
-# schedule in autoplan-route-eval.yml.
+# the subset step (about 2 seconds measured). The full model suite is run by
+# hand (scripts/eval/README.md, Autoplan Route Eval).
 #
 # Fail-closed: a missing inventory, an unparseable baseline, or a malformed
 # scenario exits non-zero. An unmeasured artifact must never read as clean.

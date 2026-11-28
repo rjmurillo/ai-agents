@@ -94,42 +94,6 @@
     },
     {
       "kind": "continue-on-error",
-      "path": ".github/workflows/ai-spec-review.yml",
-      "job": "review-spec",
-      "step": "\ud83d\udd17 Requirements Traceability Check (Analyst Agent)",
-      "reason": "Advisory: the job only comments and never fails on a verdict or model failure (issue 6182). The typed report step records the outcome.",
-      "owner": "rjmurillo",
-      "expires": "2026-12-31"
-    },
-    {
-      "kind": "continue-on-error",
-      "path": ".github/workflows/ai-spec-review.yml",
-      "job": "review-spec",
-      "step": "\u2705 Completeness Check (Critic Agent)",
-      "reason": "Advisory: the job only comments and never fails on a verdict or model failure (issue 6182). The typed report step records the outcome.",
-      "owner": "rjmurillo",
-      "expires": "2026-12-31"
-    },
-    {
-      "kind": "continue-on-error",
-      "path": ".github/workflows/ai-spec-review.yml",
-      "job": "review-spec",
-      "step": "Post PR Comment",
-      "reason": "Comment posting only. Carries no verdict.",
-      "owner": "rjmurillo",
-      "expires": "2026-12-31"
-    },
-    {
-      "kind": "continue-on-error",
-      "path": ".github/workflows/autoplan-route-eval.yml",
-      "job": "full-suite",
-      "step": "Run the model scenarios",
-      "reason": "Advisory: a model miss must not fail the run. The downstream step Fail when the live run produced no results reads the step outcome and exits 1 when no results file exists.",
-      "owner": "rjmurillo",
-      "expires": "2026-12-31"
-    },
-    {
-      "kind": "continue-on-error",
       "path": ".github/workflows/drift-detection.yml",
       "job": "detect-drift",
       "step": "Emit K2 kill-criteria event",
@@ -175,24 +139,6 @@
     },
     {
       "kind": "continue-on-error",
-      "path": ".github/workflows/plugin-cli-smoke.yml",
-      "job": "smoke-result",
-      "step": "Download quota-skip counts",
-      "reason": "An artifact-service failure must not hide a green smoke. smoke_result.py reads a missing count directory as zero, and every smoke job result is still a required check.",
-      "owner": "rjmurillo",
-      "expires": "2026-12-31"
-    },
-    {
-      "kind": "continue-on-error",
-      "path": ".github/workflows/post-pr-retrospective.yml",
-      "job": "retrospective",
-      "step": "Run retrospective via Claude Code",
-      "reason": "Issue 2015 contract: an expired token or API outage must not paint the check red. The annotation is the signal.",
-      "owner": "rjmurillo",
-      "expires": "2026-12-31"
-    },
-    {
-      "kind": "continue-on-error",
       "path": ".github/workflows/pr-maintenance.yml",
       "job": "discover-prs",
       "step": "Detect orphan commits on merged PR branches",
@@ -215,15 +161,6 @@
       "job": "main",
       "step": "semantic",
       "reason": "Re-asserted: the Classify outcome step ignores the known HTML flake and blocks real failures.",
-      "owner": "rjmurillo",
-      "expires": "2026-12-31"
-    },
-    {
-      "kind": "continue-on-error",
-      "path": ".github/workflows/software-engineering-library-activation.yml",
-      "job": "activation-gate",
-      "step": "Run live activation eval",
-      "reason": "Re-asserted: Fail when live activation gate failed reads the step outcome and exits 1, alongside the rollback alert.",
       "owner": "rjmurillo",
       "expires": "2026-12-31"
     },

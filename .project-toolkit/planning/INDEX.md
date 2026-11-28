@@ -19,7 +19,7 @@ Prefer `/spec` to generate the document rather than writing one by hand.
 |------|---------|----------------|
 | `build/scripts/validate_planning_artifacts.py` | `validate-planning-artifacts.yml` on PR, and the `planning-artifacts` lefthook pre-commit hook | Effort estimates in an epic or PRD against the task breakdown total, orphan specialist conditions, document structure |
 | `scripts/validation/git_hook_policy.py planning` | `planning-advisory` lefthook hook | Advisory guidance on planning changes |
-| `.github/workflows/artifact-insight-scanner.yml` | Weekly, Monday | Scans documents modified in the last 7 days for insights |
+| `.github/workflows/artifact-insight-scanner.yml` (deleted 2026-11-25) | Weekly, Monday | Scanned documents modified in the last 7 days for insights |
 
 The directory is not empty after the move: `INDEX.md` remains, so the validator
 parses it and passes. Had the directory been emptied entirely, the validator

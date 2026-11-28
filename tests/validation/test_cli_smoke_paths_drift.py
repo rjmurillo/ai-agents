@@ -73,7 +73,6 @@ def test_workflow_invokes_repo_scripts_and_tests() -> None:
 
     assert "scripts/validation/assert_smoke_ran.py" in invoked
     assert "tests/e2e/test_plugin_load_smoke.py" in invoked
-    assert "tests/integration/test_e2e_install.py" in invoked
 
 
 def test_every_repo_path_the_workflow_runs_matches_the_smoke_globs() -> None:

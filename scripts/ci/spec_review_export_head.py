@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
-"""Export a pull request head's spec trees as data for the spec review job.
+"""Export a pull request head's spec trees as data for a spec review job.
 
-Issue #6506 workflow-ci-04: the review job holds the model key, so it checks
-out the base commit and runs only base code. The pull request head arrives
+The spec review job (``ai-spec-review.yml``) was deleted on 2026-11-25. No
+workflow calls this script now.
+
+Issue #6506 workflow-ci-04: the review job held the model key, so it checked
+out the base commit and ran only base code. The pull request head arrived
 here as data. This script fetches the head commit and writes the regular files
 of the spec and planning trees into a directory under RUNNER_TEMP. It reads
 blobs from the git object store and writes only mode 100644 and 100755 entries,
