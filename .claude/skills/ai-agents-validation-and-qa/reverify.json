@@ -339,12 +339,6 @@
   },
   {
    "kind": "contains",
-   "path": ".github/workflows/ai-spec-review.yml",
-   "text": "--marker \"AI-SPEC-VALIDATION\" \\\n            --update-if-exists",
-   "id": "R60"
-  },
-  {
-   "kind": "contains",
    "path": ".github/workflows/investigation-claim-backstop.yml",
    "text": "# Intentionally write-once (no --update-if-exists)",
    "id": "R61"

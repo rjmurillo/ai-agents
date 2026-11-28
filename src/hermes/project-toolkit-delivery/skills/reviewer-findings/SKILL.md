@@ -169,8 +169,8 @@ prescribing a fix the file had already applied. Recorded in the
    cannot be read as a flag, or as the quoted `"$PATH_SPEC"` for `git
    show`'s combined revision spec; never splice it into a larger shell
    string, and never construct `PATH_SPEC=` from typed text instead of a
-   file read. A checkout here may be shallow (`.github/workflows/claude.yml:47,88`
-   sets `fetch-depth: 1`; check with `git rev-parse --is-shallow-repository`):
+   file read. A checkout here may be shallow (`actions/checkout` defaults to
+   `fetch-depth: 1`; check with `git rev-parse --is-shallow-repository`):
    `git show` reads a single commit's tree and is unaffected, but `git log
    -S` cannot answer a provenance claim about commits git has not fetched.
    For that kind of claim, run `git fetch --unshallow` first, or report that

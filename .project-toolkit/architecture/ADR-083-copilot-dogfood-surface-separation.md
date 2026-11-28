@@ -1,7 +1,7 @@
 ---
 id: ADR-083
 status: accepted
-date: 2026-10-19
+date: 2026-11-27
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -60,13 +60,7 @@ Closed by the 2026-10-19 amendment below, which records the owner decision.
 
 ## Amendment 2026-10-08: base-alone e2e runs on pull requests (issue #6069)
 
-Status of this amendment: records a workflow move. The decision is unchanged.
-`.github/workflows/nightly-cli-smoke.yml` is deleted. The base-alone e2e test it
-ran now runs in `.github/workflows/plugin-cli-smoke.yml` on pull requests that
-change a smoke path, on Linux, macOS, and Windows (ADR-114 Decision 13). Where
-Decision item 4, the Impact table, and the Confirmation Criteria name the
-nightly workflow, read `plugin-cli-smoke.yml`. The criterion "two consecutive
-scheduled runs" becomes two consecutive green runs on pull requests.
+Status of this amendment: records a workflow move. The decision is unchanged. `.github/workflows/nightly-cli-smoke.yml` is deleted. The base-alone e2e test it ran now runs in `.github/workflows/plugin-cli-smoke.yml` on pull requests that change a smoke path, on Linux, macOS, and Windows (ADR-114 Decision 13). Where Decision item 4, the Impact table, and the Confirmation Criteria name the nightly workflow, read `plugin-cli-smoke.yml`. The criterion "two consecutive scheduled runs" becomes two consecutive green runs on pull requests.
 
 ## Amendment 2026-10-19: 90-day review outcome (issue #6742)
 
@@ -131,6 +125,10 @@ record weighs the two, and the owner has not recorded a choice of the in-place
 form. The first-accepted text is at `7e43f7f89d^` (08994b6190, 2026-10-18).
 
 Debate log: `.project-toolkit/critique/ADR-083-debate-log-2.md`.
+
+## Amendment 2026-11-25: the Copilot legs are deleted
+
+Status of this amendment: records a deletion. The decision is unchanged. Commit `3f145f26fd` (2026-11-25), on the branch of pull request #7654, deleted the `smoke` job from `.github/workflows/plugin-cli-smoke.yml`, and with it the Claude and Copilot legs. If `main` does not hold that commit, a fetch of `refs/pull/7654/head` from `rjmurillo/ai-agents` makes it readable. ADR-057, the `/spec` CI leg amendment of 2026-11-25, holds the reason. No workflow runs the Copilot base-alone e2e now. The pre-push job `plugin-load-e2e` in `lefthook.yml` runs `tests/e2e/test_plugin_load_smoke.py` with `-m "not copilot"`, so no local gate runs it either. Criterion 1 cannot be measured in CI while no Copilot leg exists. The choice between the two exits in Review Date stays with the owner at the 2027-01-17 review. Where the 2026-10-08 amendment says the test runs in `plugin-cli-smoke.yml`, read that as history. Review record: `.project-toolkit/critique/agent-env-adr-amendments-2026-11-25-debate-log-2.md`.
 
 ## Date
 
@@ -247,10 +245,10 @@ existing citations still resolve.
    does this yet (see the 2026-10-19 amendment). Loading the base alone
    is what catches base-only form-factor bugs; loading the `.claude` superset
    never exercises the base by itself. The test lives in
-   `tests/e2e/test_plugin_load_smoke.py` and runs in
-   `.github/workflows/plugin-cli-smoke.yml`, gated by `RUN_CLI_E2E`, on Linux,
+   `tests/e2e/test_plugin_load_smoke.py`. Until 2026-11-25 a job in
+   `.github/workflows/plugin-cli-smoke.yml` was defined to run it, gated by `RUN_CLI_E2E`, on Linux,
    macOS, and Windows, for pull requests that change a smoke path (ADR-114
-   Decision 13).
+   Decision 13). No workflow defines that job since (see the 2026-11-25 amendment).
 
 5. **Hooks stay with #3197 and ADR-097 (D3).** This ADR does not build a hook
    overlay or tag hooks. Internal hooks were deleted from the vendored surface
@@ -391,7 +389,7 @@ item needed the `internal` value, so the 2026-10-19 amendment retired it.
 |-----------|----------------|-----------------|------|
 | `scripts/dev/dogfood_copilot_plugin.py` | Direct | Copy install, `--status`, `--check` (shipped, phase 3) | Low |
 | `tests/e2e/test_plugin_load_smoke.py` | Direct | Base-alone `skill list` primary assertion and best-effort probe hook (shipped, phase 2) | Medium |
-| `.github/workflows/plugin-cli-smoke.yml` | Direct | Runs the base-alone e2e on pull requests on Linux, macOS, and Windows (moved from the nightly workflow by the 2026-10-08 amendment) | Low |
+| `.github/workflows/plugin-cli-smoke.yml` | Direct | Defined the base-alone e2e for pull requests on Linux, macOS, and Windows until 2026-11-25 (moved from the nightly workflow by the 2026-10-08 amendment); its Copilot legs are deleted (2026-11-25 amendment) | Low |
 | `.github/plugin/marketplace.json` | Direct | Lists the base only; unchanged | Low |
 
 The tag router, overlay tree, and overlay gate entries were retired unbuilt.
@@ -439,6 +437,7 @@ Restated by the 2026-10-19 amendment. Each criterion keeps its number.
    counted 80 runs from 2026-10-18T18:58Z to 2026-10-19T00:01Z (UTC), and 0
    Copilot legs completed. They waited on the `agent-copilot` environment approval,
    whose only required reviewer is the owner (ADR-114).
+   State since 2026-11-25: the Copilot legs are deleted, so CI cannot measure this.
 2. Retired 2026-10-19 with the `surface` tag (Decision item 1).
 3. Retired 2026-10-19. Decision item 5 no longer requires the security hooks in
    the base. ADR-097 owns the tool-use hook surface and its confirmation.
@@ -461,6 +460,7 @@ runs, record that and set `review-by` to null. If no Copilot leg has completed b
 then, the owner decides at that review between two exits: approve Copilot legs
 until the criterion can be measured, or drop Criterion 1 and record why. A
 second "not yet met" with no decision is not an outcome.
+Since 2026-11-25 no Copilot leg exists, so the first exit now means restoring one.
 
 ## Related Decisions
 
@@ -474,8 +474,8 @@ second "not yet met" with no decision is not an outcome.
 - ADR-092 (omit plugin manifest version): restated Confirmation Criterion 4 and
   retired the version half of the parity gate.
 - ADR-114 (agent workflows approval): Decision 13 moved the base-alone e2e into
-  `plugin-cli-smoke.yml`, where the Copilot legs wait on the `agent-copilot`
-  environment approval.
+  `plugin-cli-smoke.yml`. Its Copilot legs were deleted on 2026-11-25 (ADR-057,
+  `/spec` CI leg amendment), so no workflow runs the legs Criterion 1 counts.
 - ADR-079 (plugin version bump stays at PR time): bounded the overlay's version
   handling. Moot since the overlay was retired.
 - ADR-042 (Python migration): the install script is Python.

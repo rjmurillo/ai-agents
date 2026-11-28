@@ -138,7 +138,7 @@ This repository uses multiple AI-powered bots for PR review. This document expla
 
 **Expected Impact**: 30-50% reduction in comment volume via instruction adherence
 
-**Note**: Copilot uses workflow integration (`.github/workflows/copilot-context-synthesis.yml`) rather than a standalone config file. Noise reduction relies on prompt engineering in instruction files.
+**Note**: Copilot has no standalone config file. Its workflow integration (`.github/workflows/copilot-context-synthesis.yml`) was deleted on 2026-11-25. Noise reduction relies on prompt engineering in instruction files.
 
 ## Configuration Files Summary
 
