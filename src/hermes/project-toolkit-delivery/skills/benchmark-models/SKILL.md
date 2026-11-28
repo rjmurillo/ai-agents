@@ -1,7 +1,7 @@
 ---
 name: benchmark-models
 version: 1.0.0
-description: Cross-model benchmark. Runs one prompt or skill through Claude, GPT (Codex CLI), and Gemini side by side and compares latency, tokens, cost, tool calls, and optionally output quality via an Anthropic-API judge. Reports per-metric leaders with data, and grades a single run per provider as inconclusive. Use when you say "benchmark models", "compare models", "which model is best for X", "cross-model comparison", or "model shootout". Do NOT use to measure web page performance.
+description: "Run one prompt or skill through Claude, GPT (Codex CLI), and Gemini side by side; compare latency, tokens, cost, tool calls. Use when you say \"benchmark models\", \"compare models\", \"which model is best for X\", or \"model shootout\". Do NOT use to measure web page performance."
 license: Apache-2.0
 ---
 

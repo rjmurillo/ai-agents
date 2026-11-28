@@ -1,7 +1,7 @@
 ---
 name: pr-quality
 version: 1.0.0
-description: Run the six PR quality axes (security, QA, analyst, architect, DevOps, roadmap), or one of them, against your working changes and merge the verdicts. Use when you say `/pr-quality`, `/pr-quality --axis security`, or `run all the quality gates`. Do NOT use as the pre-merge gate (use review), to answer PR review comments (use pr-review), or for an inline security review of a snippet (use security-review).
+description: "Run the six PR quality axes, or one, on your working changes. Use when you say `/pr-quality`, `/pr-quality --axis security`, or `run all the quality gates`. Do NOT use as the pre-merge gate (use review), for PR comments (use pr-review), or inline snippet security review (use security-review)."
 license: Apache-2.0
 metadata:
   capability:

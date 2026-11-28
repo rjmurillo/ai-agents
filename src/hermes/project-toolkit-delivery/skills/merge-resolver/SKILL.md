@@ -1,7 +1,7 @@
 ---
 name: merge-resolver
 version: 2.3.0
-description: Resolve merge conflicts by analyzing git history and commit intent. Handles PR conflicts, branch conflicts, and session file conflicts with automated resolution for known patterns. Use when you say "resolve merge conflicts", "fix conflicts on this branch", "PR has conflicts with main", "can't merge due to conflicts", or "resolve PR conflicts". Do NOT use for rebasing, cherry-picking, or complex history rewrites (use git-advanced-workflows).
+description: "Resolve merge conflicts from git history and commit intent (PR, branch, session file conflicts). Use when you say \"resolve merge conflicts\", \"fix conflicts on this branch\", or \"PR has conflicts with main\". Do NOT use for rebasing, cherry-picking, or history rewrites (use git-advanced-workflows)."
 license: Apache-2.0
 ---
 # Merge Resolver

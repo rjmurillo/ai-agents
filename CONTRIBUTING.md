@@ -71,7 +71,7 @@ It covers steps 4, 5, 7, and 8 below. Step 6 (Git configuration) stays manual.
 
 **Open in dev container:** `.devcontainer/devcontainer.json` covers steps 3, 4, and 7; steps 5, 6, and 8 stay manual. It installs Python 3.14, uv, Node 26, PowerShell 7.5, and the GitHub CLI, then runs the `uv sync` and Lefthook commands above. It does not install the locked Node tools. Run `npm ci --ignore-scripts` after opening the container. It does not run the `tests/test_workspace_limits.py` check from the one command, so run that once to prove the environment. Use VS Code "Reopen in Container" or `devcontainer up --workspace-folder .`. Open a normal clone, not a git worktree: a worktree's `.git` file points outside the container mount, so the Lefthook install exits 128. Each feature reference carries a sha256 digest, so integrity is verified on every client without an extra flag. Add `--frozen-lockfile` to also check the committed `devcontainer-lock.json` against the config. If you change a feature, run `devcontainer upgrade --workspace-folder .` and commit both files.
 
-**After setup, quality gates are automated.** Pre-commit hooks run ruff (Python) and markdownlint on staged files. Pre-push hooks run full test suites, drift detection, and security scans before each push. CI runs the complete validation suite. No manual test commands needed for routine development.
+**After setup, quality gates are automated.** Pre-commit hooks run ruff (Python) and markdownlint on staged files. Pre-push hooks run fast policy, drift, type, security, and pre-PR validation checks before each push. CI (`pytest.yml`, required `Run Python Tests`) runs the full pytest suite and whole-tree zero-collection check unconditionally on every push to `main`, pull request, and merge-queue event; run targeted `uv run --frozen pytest <paths>` locally when changing code or tests.
 
 ### Duplication and dependency checks
 
@@ -81,7 +81,7 @@ Pre-PR validation runs these checks, as do their dedicated CI workflows:
 
 ```bash
 uv run --frozen python scripts/validation/check_duplicate_code.py --base-ref origin/main
-uv run --frozen --extra dev --extra eval python scripts/validation/check_unused_dependencies.py
+uv run --isolated --frozen --extra dev --extra eval python scripts/validation/check_unused_dependencies.py
 uv run --frozen --extra dev python scripts/validation/check_dependency_drift.py
 ```
 
@@ -820,10 +820,10 @@ The repository enforces quality automatically at multiple stages:
 | Stage | What Runs | Trigger |
 |-------|-----------|---------|
 | **Pre-commit hook** | Python linting (ruff), Markdown linting | Every commit |
-| **Pre-push hook** | Full pytest, drift detection, lint, security scans | Every push |
-| **CI pytest.yml** | pytest, pip-audit, ruff security rules | Every PR/push |
+| **Pre-push hook** | Fast policy, drift, type, security, and pre-PR validation checks | Every push |
+| **CI pytest.yml** | Full pytest suite, zero-collection guard, pip-audit, ruff security rules | Every PR/push to `main`/merge queue |
 
-**No manual test runs required for routine development.** Quality gates run automatically.
+Run targeted `uv run --frozen pytest <paths>` locally when changing code or tests; CI (`Run Python Tests`) runs the full suite before merge.
 
 ### Type and Complexity Baselines
 

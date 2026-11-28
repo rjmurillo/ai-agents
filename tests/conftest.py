@@ -39,9 +39,9 @@ _NUMBERED_GIT_CONFIG = re.compile(r"^GIT_CONFIG_(KEY|VALUE)_\d+$")
 def _isolate_git_config_for_test_git() -> Iterator[None]:
     """Make git-config hermetic for all git subprocesses in the suite.
 
-    Two host-environment leaks break ``tmp_path`` fixture commits, so both are
-    neutralized here (the whole ``GIT_CONFIG*`` namespace is snapshotted and
-    restored on teardown):
+    Three host-environment leaks disrupt ``tmp_path`` fixture git commands, so
+    all three are neutralized here (the whole ``GIT_CONFIG*`` namespace is
+    snapshotted and restored on teardown):
 
     1. ``commit.gpgsign`` (issue #2548). Some environments (e.g. Claude web
        containers) set a global ``commit.gpgsign`` backed by a signing server
@@ -57,9 +57,11 @@ def _isolate_git_config_for_test_git() -> Iterator[None]:
        #2925 push). ``GIT_CONFIG_PARAMETERS`` outranks the indexed form, so an
        empty override cannot win; the leaked key is stripped instead.
 
-    No test sets ``GIT_CONFIG_COUNT``, so index 0 is free after the strip; if
-    some outer process already uses the indexed mechanism, gpgsign injection is
-    skipped and left to that process.
+    3. ``gc.auto`` / ``maintenance.auto``. Every ``git commit``, ``fetch``, or
+       ``merge`` inside disposable ``tmp_path`` test repos otherwise spawns a
+       ``git maintenance run --auto`` child process, adding thousands of extra
+       git execs per suite run. Injecting ``gc.auto=0`` and
+       ``maintenance.auto=false`` disables auto-maintenance suite-wide.
     """
     snapshot = snapshot_git_config_env(os.environ)
     strip_git_config_hooks_path(os.environ)
@@ -77,9 +79,7 @@ def _isolate_git_config_for_test_git() -> Iterator[None]:
         key for key in os.environ if key == "GIT_CONFIG_COUNT" or _NUMBERED_GIT_CONFIG.match(key)
     ]:
         del os.environ[name]
-    os.environ["GIT_CONFIG_COUNT"] = "1"
-    os.environ["GIT_CONFIG_KEY_0"] = "commit.gpgsign"
-    os.environ["GIT_CONFIG_VALUE_0"] = "false"
+    os.environ.update(_SUITE_OWNED_GIT_CONFIG)
     try:
         yield
     finally:
@@ -169,9 +169,13 @@ _GIT_POINTER_VARS = (
 # per-test sanitizer must not remove it. Everything else in the GIT_CONFIG
 # family is inherited and therefore hostile.
 _SUITE_OWNED_GIT_CONFIG = {
-    "GIT_CONFIG_COUNT": "1",
+    "GIT_CONFIG_COUNT": "3",
     "GIT_CONFIG_KEY_0": "commit.gpgsign",
     "GIT_CONFIG_VALUE_0": "false",
+    "GIT_CONFIG_KEY_1": "gc.auto",
+    "GIT_CONFIG_VALUE_1": "0",
+    "GIT_CONFIG_KEY_2": "maintenance.auto",
+    "GIT_CONFIG_VALUE_2": "false",
 }
 
 _GIT_CONFIG_ENV_VARS = ("GIT_CONFIG_COUNT", "GIT_CONFIG_PARAMETERS")
@@ -245,10 +249,10 @@ def _sanitize_git_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     set by code under test would make the stale pairs live again. The numbered
     pairs are therefore removed alongside the count.
 
-    The suite's own ``commit.gpgsign=false`` injection is preserved. Removing it
-    disarmed the protection from issue #2548 for every test and turned the test
-    guarding it into a silent skip, which is a worse outcome than the leak this
-    function exists to stop.
+    The suite's own ``_SUITE_OWNED_GIT_CONFIG`` entries (``commit.gpgsign=false``,
+    ``gc.auto=0``, ``maintenance.auto=false``) are preserved. Removing them
+    disarmed issue #2548's guard and turned its test into a silent skip, which
+    is a worse outcome than the leak this function exists to stop.
     """
     suite_owns_config = all(
         os.environ.get(name) == value for name, value in _SUITE_OWNED_GIT_CONFIG.items()

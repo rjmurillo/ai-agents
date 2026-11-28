@@ -1,10 +1,7 @@
 ---
 name: orphan-ref-validator
 version: 1.0.0
-description: Detect references to skills and scripts in structured artifacts (specs, ADRs, eval fixtures,
-  plugin manifests, skill descriptions) that do not match working-tree state. Run as a /build Mandatory
-  Exit Gate to block orphan refs pre-commit instead of paying iteration rounds in /pr-quality post-PR.
-  Use when you say "scan for orphan refs", "validate orphan references", or "check skill catalog drift".
+description: "Detect references to skills and scripts in specs, ADRs, eval fixtures, plugin manifests, and skill descriptions that do not match the working tree; a /build exit gate. Use when you say \"scan for orphan refs\" or \"check skill catalog drift\"."
 license: Apache-2.0
 ---
 

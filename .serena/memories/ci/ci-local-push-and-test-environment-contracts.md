@@ -22,9 +22,11 @@ real drift in a generator-owned file and read the reported paths. Setting
 See `decision-warm-pycache-before-push-never-purge.md` for the cache race that
 does exist.
 
-## The pre-push python-tests job runs only testmon-selected tests
+## Pre-push does not run pytest; on-demand hook runs use testmon
 
-By default pre-push runs `pytest --testmon` over the suite partitions
+Since the ADR-104 amendment of 2026-11-26, pre-push runs no pytest and no
+zero-collection check; CI `pytest.yml` gates both. An on-demand
+`git_hook_policy.py pytest` run uses `pytest --testmon` over the suite partitions
 (`_testmon_commands` in `scripts/validation/git_hook_policy.py`), so only the
 tests pytest-testmon selects run. Selection is best effort and misses code a test
 reaches only through a subprocess. With no `.testmondata` the hook first fetches

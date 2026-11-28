@@ -65,18 +65,19 @@ from scripts.ci.lefthook_budget_model import (
 #
 # READ THIS BEFORE TRUSTING THE NUMBER. What the clamp bounds is one CHILD
 # PROCESS, not one job, and this model conflates them for every job that spawns
-# exactly one child. Two jobs spawn more:
+# exactly one child. Two jobs in this codebase spawn more (one still on pre-push):
 #
-#   * `python-tests` runs up to four partition commands. `run_pytest` holds an
-#     aggregate deadline over them and now passes that deadline through
-#     `_container_clamped`, so the job is bounded at 150s in a container on
-#     every path rather than at TEST_SUITE_TIMEOUT_SECONDS. Closed on PR #5319
-#     after review found the aggregate unclamped on the ordinary subset path.
-#   * `security-scan` runs one scan per pushed ref and batches targets within a
-#     ref. `scan_pushed_heads` now holds one deadline across all of them and
-#     passes the remaining time down, so the job is bounded at 150s in a
-#     container rather than at N refs times M batches times 150s. Closed on
-#     PR #5319, last of the four rounds spent on this same confusion.
+#   * `python-tests` (retired from pre-push in ADR-104 2026-11-26; retained
+#     on-demand via `git_hook_policy.py pytest`) runs up to four partition
+#     commands. `run_pytest` holds an aggregate deadline over them and passes
+#     that deadline through `_container_clamped`, so on-demand runs stay
+#     bounded at 150s in a container on every path.
+#   * `security-scan` (still on pre-push) runs one scan per pushed ref and
+#     batches targets within a ref. `scan_pushed_heads` holds one deadline
+#     across all of them and passes the remaining time down, so the job is
+#     bounded at 150s in a container rather than at N refs times M batches
+#     times 150s. Closed on PR #5319, last of the four rounds spent on this
+#     same confusion.
 #
 # So this assertion is evidence for "no single subprocess outlives the
 # container". The whole-job bound for those two comes from their own aggregate
