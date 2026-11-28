@@ -1,7 +1,7 @@
 ---
 name: avoiding-manufactured-work
 version: 1.3.0
-description: "Stop manufactured work after a deliverable looks done and classify post-completion findings into the four classes builder-ethos.md delegates here. Use when a worker made a plan, issue, PR, or follow-up task and you must verify a real user, criterion, or blocked decision demanded it. Also bounds mid-task drive-by fixes."
+description: "Stop manufactured work after a deliverable looks done and classify post-completion findings into the four contract classes builder-ethos.md delegates here. Use when a worker produced a plan, issue, PR, backlog item, or follow-up task and you must verify a real user, criterion, or blocked decision demanded it. Also bounds drive-by fixes."
 license: Apache-2.0
 metadata:
   routing:
