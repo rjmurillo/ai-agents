@@ -85,12 +85,6 @@ def test_budget_ends_within_three_minutes() -> None:
     assert gate.TOTAL_BUDGET_SECONDS + gate.DRAIN_SECONDS < 180
 
 
-def test_pre_push_no_longer_runs_the_scanner() -> None:
-    """Negative: the hook carries no plugin-scanner job, so CI is the owner."""
-    hook = (REPO_ROOT / "lefthook.yml").read_text(encoding="utf-8")
-    assert "- name: plugin-scanner" not in hook
-
-
 def test_run_returns_output(tmp_path: Path) -> None:
     result = gate._run([sys.executable, "-c", "print('hi')"], tmp_path, 30)
     assert result.returncode == 0

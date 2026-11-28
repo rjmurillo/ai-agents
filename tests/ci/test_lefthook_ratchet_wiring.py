@@ -127,6 +127,15 @@ class TestCountRatchetsAreOwnedByCi:
         "    name: {required}\n"
         "    steps:\n"
         "      - run: python3 scripts/ci/fixture_ratchet.py\n"
+        "  comment_only:\n"
+        "    name: {required}\n"
+        "    steps:\n"
+        "      - run: |\n"
+        "          # python3 scripts/ci/fixture_ratchet.py\n"
+        "  echo_only:\n"
+        "    name: {required}\n"
+        "    steps:\n"
+        "      - run: echo python3 scripts/ci/fixture_ratchet.py\n"
         "  optional:\n"
         "    name: Not A Required Context\n"
         "    steps:\n"
@@ -148,9 +157,9 @@ class TestCountRatchetsAreOwnedByCi:
     ) -> None:
         """Negative control: drive ``ci_owners_of`` on a fixture workflow.
 
-        Of four jobs that run the script, only ``good`` qualifies: ``optional``
-        is outside ``REQUIRED_CONTEXTS``, and ``softjob`` and ``softstep`` set
-        ``continue-on-error``, so a failure there would not fail the check.
+        Only ``good`` qualifies: ``optional`` is outside ``REQUIRED_CONTEXTS``,
+        ``softjob`` and ``softstep`` set ``continue-on-error``, and the other
+        two jobs mention the script without running it.
         """
         import tests.ci.ratchet_test_helpers as helpers
 

@@ -133,7 +133,11 @@ def _owner_problems(entry: str, needle: str | None, workflows_dir: Path | None =
     or a rollup that needs it is a required context, and, when ``needle`` is
     given, an unconditional step of the job runs it.
     """
-    from tests.ci.ratchet_test_helpers import _is_required_job, continues_on_error
+    from tests.ci.ratchet_test_helpers import (
+        _is_required_job,
+        continues_on_error,
+        runs_python_command,
+    )
 
     base = workflows_dir or REPO_ROOT / ".github" / "workflows"
     workflow, _, job_id = entry.partition(" ")
@@ -154,7 +158,7 @@ def _owner_problems(entry: str, needle: str | None, workflows_dir: Path | None =
     if not _is_required_job(jobs, job_id):
         problems.append(f"{entry!r}: neither the job nor a rollup that needs it is required")
     if needle is not None and not any(
-        needle in str(step.get("run", ""))
+        runs_python_command(step, needle)
         and step.get("if") is None
         and not continues_on_error(step)
         for step in jobs[job_id].get("steps", [])
@@ -189,6 +193,15 @@ class TestOwnerProblemsNegativeControls:
         "    steps:\n"
         "      - run: uv run python build/scripts/build_all.py --check\n"
         "        if: matrix.primary\n"
+        "  commentonly:\n"
+        "    name: Run Python Tests\n"
+        "    steps:\n"
+        "      - run: |\n"
+        "          # uv run python build/scripts/build_all.py --check\n"
+        "  echoonly:\n"
+        "    name: Run Python Tests\n"
+        "    steps:\n"
+        "      - run: echo uv run python build/scripts/build_all.py --check\n"
         "  softjob:\n"
         "    name: Run Python Tests\n"
         "    continue-on-error: true\n"
@@ -230,6 +243,12 @@ class TestOwnerProblemsNegativeControls:
         "    if: ${{ !cancelled() }}\n"
         "    steps:\n"
         "      - run: echo done\n"
+        "  log_only:\n"
+        "    name: Run Python Tests\n"
+        "    needs: [inner]\n"
+        "    if: always()\n"
+        "    steps:\n"
+        '      - run: echo "${{ needs.inner.result }}"\n'
         "  soft_read:\n"
         "    name: Run Python Tests\n"
         "    needs: [inner]\n"
@@ -270,7 +289,7 @@ class TestOwnerProblemsNegativeControls:
         assert _owner_problems("always_rollup.yml inner", None, workflows) == []
 
     def test_a_valid_owner_has_no_problem(self, workflows: Path) -> None:
-        assert _owner_problems("w.yml good", "build_all.py --check", workflows) == []
+        assert _owner_problems("w.yml good", "build/scripts/build_all.py --check", workflows) == []
 
     def test_an_enforcing_rollup_makes_its_need_required(self, workflows: Path) -> None:
         """Positive control for the rollup path: ``!cancelled()`` plus a result read."""
@@ -288,11 +307,13 @@ class TestOwnerProblemsNegativeControls:
             ("w.yml", None, "is not '<workflow>.yml <job>'"),
             ("w.yml gated", None, "job carries an if:"),
             ("w.yml optional", None, "required"),
-            ("w.yml stepgated", "build_all.py --check", "no unconditional step"),
+            ("w.yml stepgated", "build/scripts/build_all.py --check", "no unconditional step"),
             ("w.yml good", "some_other_script.py", "no unconditional step"),
             ("filtered.yml good", None, "paths filter"),
+            ("w.yml commentonly", "build/scripts/build_all.py --check", "no unconditional step"),
+            ("w.yml echoonly", "build/scripts/build_all.py --check", "no unconditional step"),
             ("w.yml softjob", None, "continue-on-error"),
-            ("w.yml softstep", "build_all.py --check", "no unconditional step"),
+            ("w.yml softstep", "build/scripts/build_all.py --check", "no unconditional step"),
             ("rollup.yml inner", None, "required"),
         ],
     )
