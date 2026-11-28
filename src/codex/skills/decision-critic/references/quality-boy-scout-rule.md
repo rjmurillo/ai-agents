@@ -31,9 +31,11 @@ When validating improvement decisions:
 
 | VERIFIED | FAILED | UNCERTAIN |
 |----------|--------|-----------|
-| Change is in touched code area | Change unrelated to current work | Scope unclear from context |
+| Change is in touched code area | Unrelated change bundled into this PR | Scope unclear from context |
 | Small, safe improvement | Large refactoring bundled with fix | Risk assessment missing |
 | Balanced with delivery | Perfectionism blocking progress | Trade-offs not articulated |
+
+When the decision is a drive-by fix, judge it against the Drive-By Fixes classes in the `avoiding-manufactured-work` skill.
 
 ## Warning Signs to Flag
 
@@ -48,7 +50,7 @@ During decision critique, flag these patterns:
 
 When reaching verdict on improvement decisions:
 
-- **STAND**: Improvement clearly scoped to touched area, safe, and not blocking delivery
+- **STAND**: Improvement allowed by the Drive-By Fixes classes, safe, and not blocking delivery
 - **REVISE**: Scope unclear or trade-offs not addressed; needs boundary clarification
 - **ESCALATE**: Large refactoring masquerading as small improvement; requires separate planning
 
