@@ -5,7 +5,9 @@ from __future__ import annotations
 import contextlib
 import subprocess
 import sys
+import time
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -57,8 +59,6 @@ def test_decode_pipe_bytes_uses_text_mode_universal_newlines() -> None:
 
 
 def test_windows_wait_uses_bounded_slices(monkeypatch) -> None:
-    import scripts.validation.windows_pipes as windows_pipes
-
     waits: list[float | None] = []
 
     class _Proc:
@@ -66,16 +66,15 @@ def test_windows_wait_uses_bounded_slices(monkeypatch) -> None:
         stdout = None
         stderr = None
 
-        def wait(self, timeout: float | None = None) -> int:
+        def wait(self, timeout: float = 0.0) -> int:
             waits.append(timeout)
             if len(waits) < 3:
                 raise subprocess.TimeoutExpired(self.args, timeout)
             return 0
 
-    monkeypatch.setattr(
-        windows_pipes.time, "monotonic", iter([0.0, 0.05, 0.1, 0.14, 0.15]).__next__
-    )
-    stdout, stderr = _communicate_windows(_Proc(), timeout=1.0)
+    monkeypatch.setattr(time, "monotonic", iter([0.0, 0.05, 0.1, 0.14, 0.15]).__next__)
+    proc = cast(subprocess.Popen[str], _Proc())
+    stdout, stderr = _communicate_windows(proc, timeout=1.0)
 
     assert (stdout, stderr) == ("", "")
     assert waits == [0.1, 0.1, 0.1]
