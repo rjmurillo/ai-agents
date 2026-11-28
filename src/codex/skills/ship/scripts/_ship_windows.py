@@ -69,8 +69,12 @@ def planted_programs(root: Path) -> list[str]:
 
 
 def find_program(name: str) -> str | None:
-    """Return the first absolute PATH entry holding ``name`` with a PATHEXT suffix."""
-    suffixes = _pathext_suffixes()
+    """Return the first absolute PATH entry holding ``name`` with a run suffix.
+
+    The suffixes are PATHEXT, then ``.EXE``: CreateProcess appends ``.exe``
+    whatever PATHEXT says, so an installed ``git.exe`` is found either way.
+    """
+    suffixes = _planted_suffixes()
     for entry in os.environ.get("PATH", "").split(os.pathsep):
         if not entry or not os.path.isabs(entry):
             continue
