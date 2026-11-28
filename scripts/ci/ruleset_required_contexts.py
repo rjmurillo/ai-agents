@@ -27,10 +27,7 @@ REQUIRED_CONTEXTS: frozenset[str] = frozenset(
 # so GitHub lets a pull request merge while it fails or stays pending. The local
 # merge-readiness check (check_merge_readiness) is a separate policy and still
 # rejects a failed non-required check that has no recorded disposition.
-AI_QUOTA = (
-    "model-driven: spends provider quota or waits on an agent-<cli> environment "
-    "approval, so it must never gate a merge"
-)
+AI_QUOTA = "model-driven: spends provider quota, so it must never gate a merge"
 DETERMINISTIC = (
     "deterministic check: a job name is not pinned in the ruleset, so promoting "
     "it is a ruleset change, not a code change"
@@ -64,7 +61,6 @@ REPORT_ONLY_WORKFLOWS: dict[str, str] = {
     "ai-spec-validation.yml": DETERMINISTIC,
     "audit-hook-bypass.yml": DETERMINISTIC,
     "citation-verify.yml": DETERMINISTIC,
-    "claude.yml": AI_QUOTA,
     "cli-smoke.yml": DETERMINISTIC,
     "dependabot-approve-and-auto-merge.yml": AUTOMATION,
     "dependency-hygiene.yml": DETERMINISTIC,
@@ -84,12 +80,10 @@ REPORT_ONLY_WORKFLOWS: dict[str, str] = {
     "milestone-tracking.yml": AUTOMATION,
     "passive-context-budget.yml": DETERMINISTIC,
     "placeholder-identity-check.yml": DETERMINISTIC,
-    "plugin-cli-smoke.yml": AI_QUOTA,
+    "plugin-cli-smoke.yml": DETERMINISTIC,
     "plugin-scanner.yml": DETERMINISTIC,
-    "post-pr-retrospective.yml": AI_QUOTA,
     "skill-passive-compliance.yml": DETERMINISTIC,
     "skillbook-validation.yml": DETERMINISTIC,
-    "slash-command-quality.yml": AI_QUOTA,
     "synthesis-panel-gate.yml": DETERMINISTIC,
     "test-codeql-integration.yml": DETERMINISTIC,
     "validate-adr-number-uniqueness.yml": DETERMINISTIC,

@@ -45,7 +45,7 @@ C1-06 catches a stale citation introduced on an added line.
 |---|---|---|---|---|---|
 | C1-01 | 8e7e59b2634b | `build_all.py:1005-1033` moved | counted as base debt | manual | Its anchors never match code, so the base verdict is stale. |
 | C1-02 | 2580325a93bd | `checks_coverage.py:70-135` drifted | suggested `checks_coverage.py:72-144` | caught | The range moved and grew at HEAD. |
-| C1-03 | d4dc86aadf55 | `ai-spec-review.yml:168` is the wrong step | anchors miss line 168 | caught | The added citation does not match that line. |
+| C1-03 | d4dc86aadf55 | `ai-spec-review.yml:168` is the wrong step | anchors miss line 168 | caught | The added citation does not match that line. <!-- citation-freshness: ignore -- historical corpus row; the cited workflow was deleted 2026-11-25 --> |
 | C1-04 | 727e9bf5f0ad | `lefthook.yml:328-350` is the wrong group | rare names sit outside 328-350 | caught | The job names sit outside the cited range. |
 | C1-05 | b13283f2c305 | `.markdownlint-cli2.yaml:131` should be 138 | anchors miss line 131 | caught | A citation beside an edit fails at HEAD. |
 | C1-06 | 2bcb83d278e0 | The new audit citation names stale lines | anchors miss line 58 | caught | The added line cites lines the anchors miss. |

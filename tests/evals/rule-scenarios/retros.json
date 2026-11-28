@@ -79,7 +79,7 @@
         "quiet"
       ],
       "expected_gate": "no-retro-on-quiet-day",
-      "rationale": "When To Write One: retros are event-triggered, never scheduled. None of the four triggers fired, and no pull request closed, so the Post-PR Retrospective workflow has nothing to run on. A day like that owes no retrospective. The removed daily gate is the carve-out, so no retro file is authored."
+      "rationale": "When To Write One: retros are event-triggered, never scheduled. None of the four triggers fired, and no pull request closed, so no retrospective trigger fired. (The Post-PR Retrospective workflow was deleted on 2026-11-25.) A day like that owes no retrospective. The removed daily gate is the carve-out, so no retro file is authored."
     },
     {
       "id": "N1",

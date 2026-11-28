@@ -149,7 +149,7 @@ class TestPushLock:
         self, owner, scripts, capsys, monkeypatch, tmp_path
     ):
         _repo, body = owner
-        monkeypatch.setattr(scripts[0]._paths, "_fcntl", None)
+        monkeypatch.setattr(scripts[0]._push_lock, "_fcntl", None)
         code, lines = publish(scripts, capsys, body)
         assert code == 0, lines
         assert values(lines, "PUSH_LOCK") == ["unavailable"]
@@ -262,7 +262,7 @@ class TestPushLock:
             def flock(fd, op):
                 raise OSError(errno.ENOLCK, "No locks available")
 
-        monkeypatch.setattr(scripts[0]._paths, "_fcntl", NoLocks)
+        monkeypatch.setattr(scripts[0]._push_lock, "_fcntl", NoLocks)
         code, lines = publish(scripts, capsys, body)
         assert code == 0, lines
         assert values(lines, "PUSH_LOCK") == ["unavailable"]
@@ -278,9 +278,9 @@ class TestPushLock:
         guard = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(guard)
         monkeypatch.setenv("HOME", str(tmp_path))
-        assert scripts[0]._paths.push_lock_path(branch) == guard.lock_path_for_branch(branch)
+        assert scripts[0]._push_lock.push_lock_path(branch) == guard.lock_path_for_branch(branch)
 
     def test_a_branch_slug_replaces_each_slash(self, scripts, monkeypatch, tmp_path):
         monkeypatch.setenv("HOME", str(tmp_path))
-        path = scripts[0]._paths.push_lock_path("feat/a/b")
+        path = scripts[0]._push_lock.push_lock_path("feat/a/b")
         assert path == tmp_path / "src" / "scratch" / "locks" / "push-lock-feat-a-b.lock"

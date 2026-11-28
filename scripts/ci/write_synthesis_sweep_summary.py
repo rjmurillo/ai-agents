@@ -1,6 +1,6 @@
 """Write the Copilot Context Synthesis Sweep step summary.
 
-Replaces the inline bash block in copilot-context-synthesis.yml
+Replaces the inline bash block in copilot-context-synthesis.yml (deleted 2026-11-25)
 (ADR-006: no logic in YAML). Reads trigger, count, and issues from env
 vars and appends a markdown summary to GITHUB_STEP_SUMMARY.
 
