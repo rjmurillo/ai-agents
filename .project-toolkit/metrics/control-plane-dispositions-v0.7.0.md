@@ -321,8 +321,8 @@ different owners and states.
 - Owner: `scripts/validation/pre_pr_sequence.py`
 - Consumers: `lefthook.yml` pre-push hook, `pre_pr.py` (direct invocation),
   CI
-- Evidence: `scripts/validation/pre_pr_sequence.py:879-890` reads `fast_stage_ran` and skips with `continue`.
-  `lefthook.yml:728` sets `AI_AGENTS_PRE_PR_FAST_STAGE_RAN: "1"`.
+- Evidence: `scripts/validation/pre_pr_sequence.py:894-905` reads `fast_stage_ran` and skips with `continue`.
+  `lefthook.yml:703` sets `AI_AGENTS_PRE_PR_FAST_STAGE_RAN: "1"`.
   `tests/validation/test_pre_pr_sequence_registry.py:197-205` defines `FAST_STAGE_DUPLICATES`.
   The set names Count Ratchets, Unreachable Code Detection, Path Normalization, Planning Artifacts, and Em/en-dash Prohibition.
   `tests/validation/test_pre_pr_sequence_registry.py:300-324` defines `TestFastStageDeferral`.

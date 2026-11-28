@@ -221,7 +221,7 @@ Invariants:
 
 The validator reads the canonical `templates/` trees through the existing
 frontmatter parsing in `scripts/validation/`. It registers as one gate in the
-`_SEQUENCE` table at `scripts/validation/pre_pr_sequence.py:321`. It writes no
+`_SEQUENCE` table at `scripts/validation/pre_pr_sequence.py:330`. It writes no
 file during validation. Failure mode on a malformed YAML header is a named
 parse error against the file path, never a silent skip.
 

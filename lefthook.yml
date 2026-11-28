@@ -475,10 +475,9 @@ pre-commit:
 #      MUST-21 forbids `use_stdin: true` inside a `parallel: true` group; the top level of a
 #      piped hook delivers the same serialized stdin a piped group does.
 #   5. Expensive stage: mypy, workflow-local-run, the e2e smokes,
-#      pre-pr-validation, plus the advisory reporters scheduled alongside
-#      them. (python-tests and zero-collection-tests removed per ADR-104
-#      2026-11-26; plugin-scanner and count-ratchets removed 2026-11-27.
-#      CI owns all four.)
+#      pre-pr-validation, and the advisory reporters beside them. CI owns
+#      python-tests and zero-collection-tests (ADR-104, 2026-11-26) and
+#      plugin-scanner and count-ratchets (2026-11-27); all four left the hook.
 # Job bodies match the pre-#5066 config, less the jobs removed above.
 pre-push:
   piped: true
