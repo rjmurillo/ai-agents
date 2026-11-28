@@ -6,18 +6,23 @@ daemon the push leaves, a timed-out hook tree, and a signal mid-push.
 
 from __future__ import annotations
 
-import contextlib
 import errno
 import importlib.util
 import os
 import signal
 import sys
-import time
 from pathlib import Path
 
 import pytest
 
-from tests.skills.ship.ship_helpers import publish, remote_has_branch, values
+from tests.skills.ship.ship_helpers import (
+    alive,
+    assert_dead,
+    publish,
+    reap,
+    remote_has_branch,
+    values,
+)
 
 # The push lock is flock, which Windows does not have.
 fcntl = pytest.importorskip("fcntl")
@@ -33,34 +38,6 @@ def _hook(repo: Path, script: str) -> None:
     hook = repo / ".git" / "hooks" / "pre-push"
     hook.write_text(f"#!/bin/sh\n{script}", encoding="utf-8")
     hook.chmod(0o755)
-
-
-def _alive(pid: int) -> bool:
-    """True while ``pid`` runs; a zombie waiting for its reaper counts as gone."""
-    try:
-        stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
-    except OSError:
-        try:
-            os.kill(pid, 0)
-        except ProcessLookupError:
-            return False
-        return True
-    return stat.rsplit(")", 1)[1].split()[0] != "Z"
-
-
-def _assert_dead(pid_file: Path) -> None:
-    """The hook's child dies within a bounded poll, so a slow reaper cannot flake it."""
-    pid = int(pid_file.read_text(encoding="utf-8"))
-    deadline = time.monotonic() + 10
-    while _alive(pid) and time.monotonic() < deadline:
-        time.sleep(0.05)
-    assert not _alive(pid), "the hook's child outlived the push"
-
-
-def _reap(pid_file: Path) -> None:
-    if pid_file.exists():
-        with contextlib.suppress(ProcessLookupError, ValueError):
-            os.kill(int(pid_file.read_text(encoding="utf-8")), signal.SIGKILL)
 
 
 def _assert_lock_free() -> None:
@@ -164,10 +141,10 @@ class TestPushLock:
         try:
             code, lines = publish(scripts, capsys, body)
             assert code == 0, lines
-            assert _alive(int(pid_file.read_text(encoding="utf-8")))
+            assert alive(int(pid_file.read_text(encoding="utf-8")))
             _assert_lock_free()
         finally:
-            _reap(pid_file)
+            reap(pid_file)
 
     def test_a_push_timeout_kills_the_hook_tree_before_the_lock_frees(
         self, owner, scripts, capsys, monkeypatch, tmp_path
@@ -180,10 +157,10 @@ class TestPushLock:
             code, lines = publish(scripts, capsys, body)
             assert code == 3, lines
             assert lines[-1].startswith("STOP: push-failed git: timed out after 2s"), lines
-            _assert_dead(pid_file)
+            assert_dead(pid_file)
             _assert_lock_free()
         finally:
-            _reap(pid_file)
+            reap(pid_file)
 
     @pytest.mark.parametrize(
         ("sig", "cause"),
@@ -210,12 +187,12 @@ class TestPushLock:
             assert lines[-1] == (
                 f"STOP: push-interrupted {cause}; check the remote, then rerun publish"
             ), lines
-            _assert_dead(pid_file)
+            assert_dead(pid_file)
             _assert_lock_free()
             assert not remote_has_branch(tmp_path)
             assert [signal.getsignal(each) for each in trapped] == before
         finally:
-            _reap(pid_file)
+            reap(pid_file)
 
     def test_a_signal_mid_unlocked_push_still_kills_the_hook_tree(
         self, owner, scripts, capsys, monkeypatch, tmp_path
@@ -230,9 +207,9 @@ class TestPushLock:
             assert code == 3, lines
             assert values(lines, "PUSH_LOCK") == ["unavailable"]
             assert lines[-1].startswith("STOP: push-interrupted signal exit 143"), lines
-            _assert_dead(pid_file)
+            assert_dead(pid_file)
         finally:
-            _reap(pid_file)
+            reap(pid_file)
 
     def test_an_ignored_hangup_stays_ignored_and_the_push_lands(
         self, owner, scripts, capsys, tmp_path
