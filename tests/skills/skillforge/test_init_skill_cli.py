@@ -364,3 +364,22 @@ def test_two_column_table_gets_a_two_cell_row(tmp_path: Path) -> None:
     text = readme.read_text(encoding="utf-8")
     assert "| [`my-skill`](my-skill.md) | TODO: what a reader uses it to do |" in text
     assert "| [`my-skill`](my-skill.md) | TODO | TODO:" not in text
+
+
+def test_scaffold_frontmatter_passes_the_gp003_checks(tmp_path: Path) -> None:
+    """A fresh scaffold carries a top-level SemVer version and a license."""
+    repo_root = Path(__file__).resolve().parents[3]
+    sys.path.insert(0, str(repo_root))
+    from scripts.validation.skill_frontmatter import (
+        parse_frontmatter,
+        validate_license,
+        validate_version,
+    )
+
+    assert run("my-skill", "--path", str(tmp_path)).returncode == 0
+    text = (tmp_path / "my-skill" / "SKILL.md").read_text(encoding="utf-8")
+    parsed = parse_frontmatter(text)
+
+    assert parsed.errors == []
+    assert validate_version(parsed.typed.get("version")) == []
+    assert validate_license(parsed.typed.get("license")) == []
