@@ -1,6 +1,6 @@
 ---
 name: planner
-description: Script-guided plan-and-execute workflow run one numbered step at a time. planner.py drafts a plan through forced reflection pauses, then runs a comment-analyzer and critic review of the plan file; executor.py delegates each milestone of an approved plan file to specialized agents and, on resume, reconciles the file against completed work. Use when you say "run the planner workflow", "review the plan file at plans/X.md", "execute the plan at plans/X.md", "pick up where the plan left off", or "resume execution". Do NOT use to decompose a spec into milestones and tasks in the lifecycle chain (use plan), or to log progress on a plan artifact (use execution-plans).
+description: "Script-guided plan-and-execute: planner.py drafts a plan; executor.py runs and resumes an approved plan file. Use when you say \"run the planner workflow\", \"review the plan file at plans/X.md\", \"execute the plan at plans/X.md\", or \"resume execution\". Do NOT use to decompose a spec (use plan) or log progress on a plan artifact (use execution-plans)."
 license: Apache-2.0
 metadata:
   routing:

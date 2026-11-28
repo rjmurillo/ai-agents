@@ -1,14 +1,7 @@
 ---
 name: ai-agents-build-and-env
 version: 1.0.0
-description: >-
-  Runbook to recreate the ai-agents dev environment from scratch and survive
-  its traps, including the uv-pinned Python, git hooks install, MCP
-  layer setup, contributor commands, and PEP 668.
-  Use when you say `set up this repo`, `bootstrap the environment`, `fresh
-  clone setup`, or you hit `ModuleNotFoundError yaml`. Do NOT use for the
-  generation pipeline (use `ai-agents-generation-and-release`) or CI gate
-  evidence rules (use `ai-agents-validation-and-qa`).
+description: "Recreate the ai-agents dev environment: uv-pinned Python, git hooks, MCP setup, PEP 668. Use when you say `set up this repo`, `bootstrap the environment`, `fresh clone setup`, or you hit `ModuleNotFoundError yaml`. Do NOT use for the generation pipeline (use `ai-agents-generation-and-release`) or CI gate evidence (use `ai-agents-validation-and-qa`)."
 license: Apache-2.0
 metadata:
   distribution: repo-local

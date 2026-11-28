@@ -1,12 +1,7 @@
 ---
 name: memory-maintenance
 version: 0.1.0
-description: Memory-system maintenance operations, split out of the memory router
-  per ADR-063. Runs health checks, token-cost counting, atomicity size
-  validation, graph-density improvement, and performance benchmarking against the
-  canonical memory scripts. Use when you say `check memory tier health`, `count memory
-  tokens`, or `benchmark memory performance`. Do NOT use for Tier 1 search (use
-  memory-search) or recording a session (use memory-reflexion).
+description: "Memory maintenance: health checks, token-cost counts, size validation, graph density, benchmarking. Use when you say `check memory tier health`, `count memory tokens`, or `benchmark memory performance`. Do NOT use for search (use memory-search) or recording a session (use memory-reflexion)."
 license: Apache-2.0
 metadata:
   adr: ADR-063, ADR-106

@@ -1,6 +1,6 @@
 ---
 name: style-enforcement
-description: Validate code against style rules from .editorconfig, StyleCop.json, and Directory.Build.props. Use when you say "check style compliance", "validate editorconfig rules", "run style enforcement", "check naming conventions", or "validate line endings". Detects line ending violations, naming convention issues, indentation problems, and charset mismatches across C#, Python, PowerShell, and JavaScript. Do NOT use for taste/style invariants like file size or structured logging (use taste-lints).
+description: "Validate code against .editorconfig, StyleCop.json, and Directory.Build.props (line endings, naming, indentation, charset). Use when you say \"check style compliance\", \"validate editorconfig rules\", or \"run style enforcement\". Do NOT use for taste invariants like file size or structured logging (use taste-lints)."
 license: Apache-2.0
 metadata:
   version: 1.0.0
