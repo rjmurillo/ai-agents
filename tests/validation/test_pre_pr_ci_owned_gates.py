@@ -110,6 +110,19 @@ def _ci_owned_entries(gate: object) -> list[str]:
     ]
 
 
+def _paths_filter_problems(entry: str, document: dict) -> list[str]:
+    """Return one problem per trigger that carries a ``paths`` or ``paths-ignore`` filter."""
+    # PyYAML reads the bare key ``on`` as boolean True.
+    triggers = document.get(True, document.get("on")) or {}
+    if not isinstance(triggers, dict):
+        return []
+    return [
+        f"{entry!r}: the {event} trigger carries a paths filter"
+        for event, config in triggers.items()
+        if isinstance(config, dict) and ({"paths", "paths-ignore"} & set(config))
+    ]
+
+
 def _owner_problems(entry: str, needle: str | None, workflows_dir: Path | None = None) -> list[str]:
     """Return why ``entry`` (``<workflow>.yml <job-id>``) is not a valid CI owner.
 
@@ -131,13 +144,7 @@ def _owner_problems(entry: str, needle: str | None, workflows_dir: Path | None =
     jobs = document["jobs"]
     if job_id not in jobs:
         return [f"{entry!r}: job {job_id!r} not in {workflow}"]
-    problems: list[str] = []
-    # PyYAML reads the bare key ``on`` as boolean True.
-    triggers = document.get(True, document.get("on")) or {}
-    if isinstance(triggers, dict):
-        for event, config in triggers.items():
-            if isinstance(config, dict) and ({"paths", "paths-ignore"} & set(config)):
-                problems.append(f"{entry!r}: the {event} trigger carries a paths filter")
+    problems = _paths_filter_problems(entry, document)
     if jobs[job_id].get("if") is not None:
         problems.append(f"{entry!r}: job carries an if:")
     if not _is_required_job(jobs, job_id):
