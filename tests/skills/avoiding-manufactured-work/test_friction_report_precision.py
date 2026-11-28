@@ -261,8 +261,21 @@ class TestQuotedSecretsAreRedactedWhole:
             '--password "tuna melt"',
             "--token='tuna melt'",
             "--password 'tuna melt",
+            '--password "tuna\\" melt"',
+            "--password 'tuna'\\''s melt'",
+            'TOKEN="tuna\\" melt"',
+            "--password tuna\\ melt",
         ],
-        ids=["single-quoted", "double-quoted", "equals-form", "unterminated-quote"],
+        ids=[
+            "single-quoted",
+            "double-quoted",
+            "equals-form",
+            "unterminated-quote",
+            "escaped-double-quote",
+            "joined-single-quotes",
+            "assignment-escaped-quote",
+            "escaped-space",
+        ],
     )
     def test_a_quoted_credential_with_a_space_leaves_no_part_behind(
         self, flag_value: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]

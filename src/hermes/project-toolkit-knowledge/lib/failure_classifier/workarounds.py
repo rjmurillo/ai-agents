@@ -77,6 +77,10 @@ _REDACTED = "[redacted]"
 # back to the last whitespace before redaction, so no secret is split in half.
 _REDACT_INPUT_MAX_CHARS = 20_000
 
+# One shell word: quoted parts (an escaped quote stays inside), escaped characters,
+# and plain characters, joined. An open quote runs to the end of its line. ``%s``
+# takes extra characters that end a plain part.
+_SHELL_WORD = r"(?:\"(?:[^\"\\\n]|\\.)*(?:\"|$)|'[^'\n]*(?:'|$)|\\.|[^\s\"'\\%s])+"
 _SECRET_RULES: tuple[tuple[re.Pattern[str], str], ...] = (
     (
         re.compile(
@@ -107,16 +111,15 @@ _SECRET_RULES: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"(://[^\s/:@]+:)[^\s/@]+@"), r"\1" + _REDACTED + "@"),
     (
         re.compile(
-            r"(?im)(--?(?:password|passwd|token|secret|api[-_]?key)[ =]+)(?!-)"
-            r"(?:\"[^\"\n]*(?:\"|$)|'[^'\n]*(?:'|$)|[^\s]+)"
+            r"(?im)(--?(?:password|passwd|token|secret|api[-_]?key)[ =]+)(?!-)" + _SHELL_WORD % ""
         ),
         r"\1" + _REDACTED,
     ),
     (
         re.compile(
             r"(?i)((?:api[_-]?key|secret|token|passw(?:or)?d|passwd|credential"
-            r"|private[_-]?key)[\w.-]{0,24}[\"']?\s*[:=]\s*)"
-            r"(\"[^\"\n]*\"|'[^'\n]*'|[^\s\"'&|;<>)]+)"
+            r"|private[_-]?key)[\w.-]{0,24}[\"']?\s*[:=]\s*)" + _SHELL_WORD % "&|;<>)",
+            re.MULTILINE,
         ),
         r"\1" + _REDACTED,
     ),
