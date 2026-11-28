@@ -41,7 +41,9 @@ names (ADR-126). The
 Serena MCP server is optional; file tools on the same folder work.
 
 1. Search the store for the same finding first. Update a matching entry, and
-   add a dated pointer to any older entry the new evidence supersedes.
+   add a dated pointer to any older entry the new evidence supersedes. When
+   the match is not named `decision-*`, write a `decision-<short-slug>` entry
+   anyway and add a dated pointer to it from the match.
 2. Write the entry. In an indexed Serena corpus, check the matching domain
    `*-index` file in the same change: update the entry's row if one exists,
    and add a row only when none does. A new file under `.serena/memories/`
@@ -68,6 +70,6 @@ read-only file or checkout, no commit access, a rejected commit hook, and a
 user instruction against file changes or commits. Do two things:
 
 1. Put a comment block with the same five fields in the file the decision applies to. Use the reply instead when that file must not be edited: it does not exist, cannot be written, is generated (regeneration discards the comment), has no safe comment syntax (for example JSON), or the user forbids file changes.
-2. Add one line to the reply: `Blocked record: decision-<short-slug>, <cause>, <location>`. The location is the path and line of the comment block. If the reply holds the five fields instead, the location is `reply`. Once the user authorizes the change, the parent session or the user writes the entry from those fields, adds its index lines, and commits them.
+2. Add one line to the reply: `Blocked record: decision-<short-slug>, <cause>, <location>`. The location is the path and line of the comment block. If the reply holds the five fields instead, the location is `reply`. Once the user authorizes the change, the parent session or the user writes the entry from those fields, adds its index lines, removes the comment block, and commits them together.
 
 A blocked record is reported, not silently dropped. The comment is worse than a memory entry (less searchable, no graph) but better than losing the reasoning.
