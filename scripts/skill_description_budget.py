@@ -29,8 +29,8 @@ Listing chars (PR #7871): the budget file run also measures ListingChars per
 root, the sum over skills with a parseable description of
 `93 + len(name) + len(description)`. 93 is the Copilot CLI per-entry markup cost
 for `<location>project</location>` entries (PR #7871 evidence note, receipt C).
-It is the Copilot entry cost only. No Claude Code entry cost or budget is
-measured, so none is listed. A root may set `max_listing_chars`, a ceiling that
+It is the Copilot entry cost only. The Claude Code entry cost and listing budget
+are not yet in the budget file or the gate. A root may set `max_listing_chars`, a ceiling that
 fails the run (exit 1) when exceeded.
 
 Host budgets (PR #7871): the optional top-level `host_budgets` list records
