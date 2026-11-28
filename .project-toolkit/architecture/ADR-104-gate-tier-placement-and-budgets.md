@@ -873,7 +873,7 @@ changed files only, so not heavy), plus `pre-pr-validation`:
 ### Measured Effect
 
 One dry-run push per side (`git push --dry-run` runs the hook, sends nothing):
-base `d31aa71e60`, 1 file, load1 18.3, 245.9s wall, 509.4s CPU; this branch,
+base `d31aa71e60` (2026-11-27), 1 file, load1 18.3, 245.9s wall, 509.4s CPU; this branch,
 36 files, load1 4.8, 167.6s wall, 308.6s CPU. Load, range, and excluded jobs
 differ (`security-scan` both sides: `semgrep-core` exits -11 under the host's
 8 MiB stack, a pre-existing defect; `push-ref-policy` after, for the missing
@@ -917,18 +917,18 @@ equal load is unmeasured.
 ### Revert Path (2026-11-27)
 
 Supersede this amendment with a new dated one; do not delete it. Revert
-`7eae0095e2`, `e5f3735d62`, `a5981ac307`, `507754b326`, `9bcf7fa36f`, and
-`e788140223`, or by hand:
+the squash-merge commit of the pull request that added this amendment (the
+branch commits do not survive the squash), or by hand:
 restore the two job blocks (not the whole file) from
-`git show d31aa71e60:lefthook.yml`; re-add `plugin-scanner` to
+`git show d31aa71e60:lefthook.yml` (2026-11-27); re-add `plugin-scanner` to
 `CONTAINER_UNCLAMPED_JOBS` and restore its 12/13 comment; set Count Ratchets
 to `already_run_by="count-ratchets"` and drop `ci_owned_by` from both gates;
 drop the `_NO_CALLER` entry in `tests/ci/test_validation_scripts_are_reachable.py`;
 restore the tests in the Impact table plus `test_pre_pr_compact.py`,
 `test_pre_pr_evidence_states.py`, `test_lefthook_prepush_tiering.py`,
 `test_lefthook_gate_config.py`, and `test_check_plugin_scanner_run.py`; restore
-the comment and doc edits listed by `git show --stat 7eae0095e2 e5f3735d62
-e788140223`; revert rule 2.
+the comment and doc edits listed by `git show --stat` on that squash-merge
+commit; revert rule 2.
 
 ## Implementation Notes
 

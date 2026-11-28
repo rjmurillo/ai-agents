@@ -80,3 +80,9 @@ The ADR's re-evaluation trigger already moves the owner decision earlier when a 
 | Second-System Effect | PASS | `ci_owned_by`, one reason code, and ownership tests with negative controls; no new framework |
 
 **Overall Strategic Assessment**: APPROVED.
+
+## Post-Review Text Fixes (2026-11-28, `/review` round 1 on `9182482b27`)
+
+- **Revert Path.** The commit list named branch commits that a squash merge does not keep. The step now says to revert the pull request's squash-merge commit, and the by-hand step reads `git show --stat` on that commit. This supersedes the Round 2 edit that added `e5f3735d62` to the list.
+- **Universal MUST 9.** `d31aa71e60` now carries its ISO date (2026-11-27) on both lines that cite it.
+- These are text-only fixes. They do not change a Decision item, so no new vote ran.

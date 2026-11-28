@@ -12,7 +12,8 @@ relies on, so this module checks the CI side of the claim:
   ``checks_ratchet.RATCHETS`` script.
 - negative: ``_owner_problems`` reports each failure mode on a fixture
   workflow, and a gate that sets both deferral fields is named.
-- edge: a step-level ``if:`` does not count as an unconditional run.
+- edge: a step-level ``if:`` or ``continue-on-error`` (an expression counts)
+  does not count as an unconditional run.
 
 The hook-side behavior (which gates skip, and that the skip prints) lives in
 ``test_pre_pr_sequence_registry.py``.
@@ -128,10 +129,11 @@ def _owner_problems(entry: str, needle: str | None, workflows_dir: Path | None =
 
     Valid means: the workflow and job exist, no trigger carries a ``paths`` or
     ``paths-ignore`` filter, the job has no job-level ``if:``,
-    the job or a rollup that needs it is a required context, and, when
-    ``needle`` is given, an unconditional step of the job runs it.
+    neither the job nor the needle's step sets ``continue-on-error``, the job
+    or a rollup that needs it is a required context, and, when ``needle`` is
+    given, an unconditional step of the job runs it.
     """
-    from tests.ci.ratchet_test_helpers import _is_required_job
+    from tests.ci.ratchet_test_helpers import _is_required_job, continues_on_error
 
     base = workflows_dir or REPO_ROOT / ".github" / "workflows"
     workflow, _, job_id = entry.partition(" ")
@@ -147,10 +149,14 @@ def _owner_problems(entry: str, needle: str | None, workflows_dir: Path | None =
     problems = _paths_filter_problems(entry, document)
     if jobs[job_id].get("if") is not None:
         problems.append(f"{entry!r}: job carries an if:")
+    if continues_on_error(jobs[job_id]):
+        problems.append(f"{entry!r}: job sets continue-on-error")
     if not _is_required_job(jobs, job_id):
         problems.append(f"{entry!r}: neither the job nor a rollup that needs it is required")
     if needle is not None and not any(
-        needle in str(step.get("run", "")) and step.get("if") is None
+        needle in str(step.get("run", ""))
+        and step.get("if") is None
+        and not continues_on_error(step)
         for step in jobs[job_id].get("steps", [])
     ):
         problems.append(f"{entry!r}: no unconditional step runs {needle!r}")
@@ -183,6 +189,16 @@ class TestOwnerProblemsNegativeControls:
         "    steps:\n"
         "      - run: uv run python build/scripts/build_all.py --check\n"
         "        if: matrix.primary\n"
+        "  softjob:\n"
+        "    name: Run Python Tests\n"
+        "    continue-on-error: true\n"
+        "    steps:\n"
+        "      - run: uv run python build/scripts/build_all.py --check\n"
+        "  softstep:\n"
+        "    name: Run Python Tests\n"
+        "    steps:\n"
+        "      - run: uv run python build/scripts/build_all.py --check\n"
+        "        continue-on-error: ${{ github.event_name == 'push' }}\n"
     )
 
     @pytest.fixture
@@ -206,6 +222,8 @@ class TestOwnerProblemsNegativeControls:
             ("w.yml stepgated", "build_all.py --check", "no unconditional step"),
             ("w.yml good", "some_other_script.py", "no unconditional step"),
             ("filtered.yml good", None, "paths filter"),
+            ("w.yml softjob", None, "continue-on-error"),
+            ("w.yml softstep", "build_all.py --check", "no unconditional step"),
         ],
     )
     def test_each_failure_mode_is_reported(

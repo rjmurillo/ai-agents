@@ -20,7 +20,6 @@ from tests.ci.ratchet_test_helpers import (  # noqa: E402
     ALLOWED_STEP_IF,
     RATCHET_WORKFLOWS,
     ci_owners_of,
-    workflow_jobs,
 )
 
 
@@ -92,11 +91,48 @@ class TestCountRatchetsAreOwnedByCi:
         finally:
             ALLOWED_STEP_IF.update(saved)
 
-    def test_the_owner_check_rejects_a_job_outside_the_required_contexts(self) -> None:
-        """Negative control: the plugin-scanner job runs unconditionally but is not required."""
-        jobs = workflow_jobs("plugin-scanner.yml")
-        assert jobs
-        assert not any(str(job.get("name")) in REQUIRED_CONTEXTS for job in jobs.values())
+    _FIXTURE = (
+        "on: pull_request\n"
+        "jobs:\n"
+        "  good:\n"
+        "    name: {required}\n"
+        "    steps:\n"
+        "      - run: python3 scripts/ci/fixture_ratchet.py\n"
+        "  optional:\n"
+        "    name: Not A Required Context\n"
+        "    steps:\n"
+        "      - run: python3 scripts/ci/fixture_ratchet.py\n"
+        "  softjob:\n"
+        "    name: {required}\n"
+        "    continue-on-error: true\n"
+        "    steps:\n"
+        "      - run: python3 scripts/ci/fixture_ratchet.py\n"
+        "  softstep:\n"
+        "    name: {required}\n"
+        "    steps:\n"
+        "      - run: python3 scripts/ci/fixture_ratchet.py\n"
+        "        continue-on-error: ${{{{ github.event_name == 'push' }}}}\n"
+    )
+
+    def test_the_owner_check_rejects_unrequired_and_soft_failing_jobs(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Negative control: drive ``ci_owners_of`` on a fixture workflow.
+
+        Of four jobs that run the script, only ``good`` qualifies: ``optional``
+        is outside ``REQUIRED_CONTEXTS``, and ``softjob`` and ``softstep`` set
+        ``continue-on-error``, so a failure there would not fail the check.
+        """
+        import tests.ci.ratchet_test_helpers as helpers
+
+        required = sorted(REQUIRED_CONTEXTS)[0]
+        assert "Not A Required Context" not in REQUIRED_CONTEXTS
+        (tmp_path / "fixture.yml").write_text(
+            self._FIXTURE.format(required=required), encoding="utf-8"
+        )
+        monkeypatch.setattr(helpers, "_WORKFLOWS", tmp_path)
+        monkeypatch.setattr(helpers, "RATCHET_WORKFLOWS", ("fixture.yml",))
+        assert ci_owners_of("scripts/ci/fixture_ratchet.py") == ["fixture.yml good"]
 
 
 class TestRegistryContents:

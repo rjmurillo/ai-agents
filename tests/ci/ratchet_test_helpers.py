@@ -55,6 +55,15 @@ def workflow_jobs(workflow: str) -> dict[str, dict]:
     return jobs
 
 
+def continues_on_error(node: dict) -> bool:
+    """True when a job or step sets ``continue-on-error`` to anything but ``false``.
+
+    An expression string counts: it can evaluate to true, and then a failure
+    no longer fails the required context.
+    """
+    return node.get("continue-on-error") not in (None, False)
+
+
 def _is_required_job(jobs: dict[str, dict], job_id: str) -> bool:
     """True when the job's name, or a rollup job that needs it, is a required context."""
     if str(jobs[job_id].get("name")) in REQUIRED_CONTEXTS:
@@ -72,18 +81,23 @@ def ci_owners_of(script: str) -> list[str]:
 
     A job qualifies when a ``run:`` step names the script, the job has no
     job-level ``if:``, the step has no ``if:`` except the one ``ALLOWED_STEP_IF``
-    names, and the job (or a rollup that needs it) is in ``REQUIRED_CONTEXTS``.
+    names, neither the job nor the step sets ``continue-on-error``, and the job
+    (or a rollup that needs it) is in ``REQUIRED_CONTEXTS``.
     """
     owners: list[str] = []
     for workflow in RATCHET_WORKFLOWS:
         jobs = workflow_jobs(workflow)
         for job_id, job in jobs.items():
-            if job.get("if") is not None or not _is_required_job(jobs, job_id):
+            if job.get("if") is not None or continues_on_error(job):
+                continue
+            if not _is_required_job(jobs, job_id):
                 continue
             for step in job.get("steps", []):
                 if script not in str(step.get("run", "")):
                     continue
                 if step.get("if") not in (None, ALLOWED_STEP_IF.get(script)):
+                    continue
+                if continues_on_error(step):
                     continue
                 owners.append(f"{workflow} {job_id}")
     return owners
