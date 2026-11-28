@@ -2936,6 +2936,108 @@ def check_github_bash_scripts(paths: Sequence[str], repo_root: Path) -> int:
     return 1
 
 
+def _run_git_exact_text(repo_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+    """Run git and decode its output without newline translation.
+
+    Text mode turns a lone carriage return into a newline, which would split one
+    physical line in two before the suppression scan sees it.
+    """
+    result = _run_git_bytes(repo_root, args)
+    return subprocess.CompletedProcess(
+        result.args,
+        result.returncode,
+        result.stdout.decode("utf-8", errors="replace"),
+        result.stderr.decode("utf-8", errors="replace"),
+    )
+
+
+class AllowedSemgrepSuppression(NamedTuple):
+    """One exact exemption: a repository path, a Semgrep rule id, and why."""
+
+    path: str
+    rule_id: str
+    reason: str
+
+
+_PTK_RUN_EXEC_RULE = (
+    "python.lang.security.audit.dangerous-os-exec-tainted-env-args."
+    "dangerous-os-exec-tainted-env-args"
+)
+_PTK_RUN_SUBPROCESS_RULE = (
+    "python.lang.security.audit.dangerous-subprocess-use-tainted-env-args."
+    "dangerous-subprocess-use-tainted-env-args"
+)
+_PTK_RUN_REASON = (
+    "_launch passes an argv list with no shell. resolve_target admits only a "
+    "skills/<path>.py target with no part of two or more dots, under a root "
+    "that holds lib/ptk_run.py. ptk_run is not an authentication boundary "
+    "(ADR-121 decision 10). Owner ruling: issue #7591 comment 7175038778."
+)
+# The source and every generated or hand-pinned copy, one exact path each.
+# A test fails when a tracked copy is missing here.
+_PTK_RUN_COPIES = (
+    "src/claude/lib/ptk_run.py",
+    "src/codex/lib/ptk_run.py",
+    "src/copilot-cli/lib/ptk_run.py",
+    "src/cursor/lib/ptk_run.py",
+    "src/hermes/project-toolkit-authoring/lib/ptk_run.py",
+    "src/hermes/project-toolkit-azure-devops/lib/ptk_run.py",
+    "src/hermes/project-toolkit-delivery/lib/ptk_run.py",
+    "src/hermes/project-toolkit-knowledge/lib/ptk_run.py",
+    "src/hermes/project-toolkit-quality/lib/ptk_run.py",
+    "src/muse/lib/ptk_run.py",
+)
+ALLOWED_SEMGREP_SUPPRESSIONS: tuple[AllowedSemgrepSuppression, ...] = tuple(
+    AllowedSemgrepSuppression(path, rule_id, _PTK_RUN_REASON)
+    for path in _PTK_RUN_COPIES
+    for rule_id in (_PTK_RUN_EXEC_RULE, _PTK_RUN_SUBPROCESS_RULE)
+)
+# The only allowed form: a whole-line Python comment that names one rule id,
+# optionally followed by the exact line-length waiver. Case, spacing, and the
+# hash marker are exact, so a bare directive, the short form, a rule list, a
+# `//` marker, or any other trailing text never matches. The pattern is split
+# so this file does not trip its own gate.
+_ALLOWED_SEMGREP_LINE_RE = re.compile(
+    r"[ \t]*#" + r" nosem" + r"grep: (?P<rule_id>[A-Za-z0-9_.\-]+)(?:  # noqa: E501)?"
+)
+
+
+def is_blocked_suppression_line(path: str, line: str) -> bool:
+    """Return True when ``line`` carries a security suppression the gate blocks.
+
+    A line passes only when it is a whole-line Semgrep directive that names one
+    rule id listed against this exact path. Any other text on the line, except
+    the exact line-length waiver, blocks.
+    """
+    if SECURITY_SUPPRESSION_RE.search(line) is None:
+        return False
+    match = _ALLOWED_SEMGREP_LINE_RE.fullmatch(line)
+    if match is None:
+        return True
+    key = (PurePosixPath(path).as_posix(), match["rule_id"])
+    return not any((entry.path, entry.rule_id) == key for entry in ALLOWED_SEMGREP_SUPPRESSIONS)
+
+
+def _holds_allowed_semgrep_entry(path: str) -> bool:
+    """Return True when ``path`` is listed in ``ALLOWED_SEMGREP_SUPPRESSIONS``."""
+    normalized = PurePosixPath(path).as_posix()
+    return any(entry.path == normalized for entry in ALLOWED_SEMGREP_SUPPRESSIONS)
+
+
+def suppression_scan_lines(text: str) -> list[str]:
+    """Split ``text`` into lines the way git counts them, on newline only.
+
+    ``str.splitlines`` also breaks on form feed, vertical tab, NEL, and other
+    separators. That would let an allowed directive hide trailing text, such
+    as a second rule id, in a piece with no suppression token. A trailing
+    carriage return is dropped so CRLF files scan the same as LF files.
+    """
+    lines = text.split("\n")
+    if lines and lines[-1] == "":
+        lines.pop()
+    return [line.removesuffix("\r") for line in lines]
+
+
 def check_security_suppressions(paths: Sequence[str], repo_root: Path) -> int:
     violations: list[str] = []
     for raw_path in paths:
@@ -2958,10 +3060,10 @@ def check_security_suppressions(paths: Sequence[str], repo_root: Path) -> int:
 def _security_suppression_violations(path: str, full_path: Path) -> list[str]:
     violations: list[str] = []
     for line_number, line in enumerate(
-        full_path.read_text(encoding="utf-8", errors="replace").splitlines(),
+        suppression_scan_lines(full_path.read_bytes().decode("utf-8", errors="replace")),
         start=1,
     ):
-        if SECURITY_SUPPRESSION_RE.search(line):
+        if is_blocked_suppression_line(path, line):
             violations.append(f"{path}:{line_number}")
     return violations
 
@@ -3334,10 +3436,9 @@ DIFF_HUNK_RE = diff_line_scope.DIFF_HUNK_RE
 _normalize_ratchet_path = diff_line_scope.normalize_path
 _parse_changed_lines = diff_line_scope.parse_changed_lines
 # DIFF_ADDED_FILE_RE deliberately keeps the ``b/`` prefix, because git quotes
-# the prefix together with the path (``+++ "b/od\"d.py"``). Every consumer of
-# the header must go through this helper, which unquotes, then strips, and
-# returns None for the ``/dev/null`` post-image of a deletion.
-_file_header_path = diff_line_scope.file_header_path
+# the prefix together with the path (``+++ "b/od\"d.py"``). The suppression
+# scan reads the header through ``_exact_diff_header_path``, which unquotes,
+# then strips the prefix, and returns None for a deletion's ``/dev/null``.
 
 
 def _mypy_ratchet_base_ref() -> str:
@@ -3911,7 +4012,9 @@ def _suppression_violations_in_diff(
         if operation != "-":
             continue
         match = SECURITY_SUPPRESSION_RE.search(text)
-        if match is None:
+        # An allowed line needs no credit, so removing one earns none. Otherwise
+        # it would pay for a blocked form of the same directive.
+        if match is None or not is_blocked_suppression_line(path, text):
             continue
         removed.setdefault(path, Counter())[suppression_identity(text, match)] += 1
 
@@ -3920,7 +4023,7 @@ def _suppression_violations_in_diff(
         if operation != "+":
             continue
         match = SECURITY_SUPPRESSION_RE.search(text)
-        if match is None:
+        if match is None or not is_blocked_suppression_line(path, text):
             continue
         identity = suppression_identity(text, match)
         file_removed = removed.get(path)
@@ -3931,10 +4034,24 @@ def _suppression_violations_in_diff(
     return violations
 
 
+def _exact_diff_header_path(raw: str) -> str | None:
+    """Return a ``+++`` header path exactly as git names the file.
+
+    ``diff_line_scope.file_header_path`` strips spaces and turns backslashes
+    into slashes. Here that would key a decoy such as `` src/claude/lib/ptk_run.py``
+    to a listed path. Git appends one tab when a name holds a space, so only
+    that tab is dropped.
+    """
+    unquoted = diff_line_scope.unquote_diff_path(raw.removesuffix("\t"))
+    if unquoted == "/dev/null":
+        return None
+    return unquoted.removeprefix("b/")
+
+
 def _iter_diff_changes(diff_text: str) -> Iterator[tuple[str, str, int, str]]:
     current_path = None
     current_line: int | None = None
-    for line in diff_text.splitlines():
+    for line in suppression_scan_lines(diff_text):
         if line.startswith("diff --git "):
             current_path = None
             current_line = None
@@ -3942,7 +4059,7 @@ def _iter_diff_changes(diff_text: str) -> Iterator[tuple[str, str, int, str]]:
         if current_line is None:
             file_match = DIFF_ADDED_FILE_RE.match(line)
             if file_match is not None:
-                header_path = _file_header_path(file_match.group("path"))
+                header_path = _exact_diff_header_path(file_match.group("path"))
                 if header_path is not None:
                     current_path = header_path
                     continue
@@ -3999,7 +4116,7 @@ def _textual_suppression_violations(
             "--",
         )
     )
-    result = _run_git(repo_root, args)
+    result = _run_git_exact_text(repo_root, args)
     if result.returncode != 0:
         _print_process_output(result)
         return None
@@ -4208,7 +4325,7 @@ def _staged_full_content_suppression_violations(
 ) -> list[str] | None:
     violations: list[str] = []
     for path in paths:
-        text = _index_text_or_none(path, repo_root)
+        text = _suppression_text_or_none(f":{path}", repo_root)
         if text is None:
             return None
         violations.extend(_full_content_suppression_violations("staged", path, text))
@@ -4240,7 +4357,7 @@ def _diff_full_content_suppression_violations(
 ) -> list[str] | None:
     violations: list[str] = []
     for path in paths:
-        text = _commit_text_or_none("HEAD", path, repo_root)
+        text = _suppression_text_or_none(f"HEAD:{path}", repo_root)
         if text is None:
             return None
         violations.extend(_full_content_suppression_violations("HEAD", path, text))
@@ -4382,11 +4499,20 @@ def _commit_full_content_suppression_violations(
 ) -> list[str] | None:
     violations: list[str] = []
     for path in paths:
-        text = _commit_text_or_none(update.head, path, repo_root)
+        text = _suppression_text_or_none(f"{update.head}:{path}", repo_root)
         if text is None:
             return None
         violations.extend(_full_content_suppression_violations(update.head[:12], path, text))
     return violations
+
+
+def _suppression_text_or_none(object_spec: str, repo_root: Path) -> str | None:
+    """Return a blob's exact text for a suppression scan, or None on a git failure."""
+    result = _run_git_exact_text(repo_root, ["show", object_spec])
+    if result.returncode != 0:
+        _print_process_output(result)
+        return None
+    return result.stdout
 
 
 def _full_content_suppression_violations(
@@ -4395,12 +4521,14 @@ def _full_content_suppression_violations(
     text: str,
 ) -> list[str]:
     lines = (
-        _notebook_code_lines(text) if Path(path).suffix.lower() == ".ipynb" else text.splitlines()
+        _notebook_code_lines(text)
+        if Path(path).suffix.lower() == ".ipynb"
+        else suppression_scan_lines(text)
     )
     return [
         f"{head_label}:{path}:{line_number}"
         for line_number, line in enumerate(lines, start=1)
-        if SECURITY_SUPPRESSION_RE.search(line)
+        if is_blocked_suppression_line(path, line)
     ]
 
 
@@ -4415,28 +4543,20 @@ def _notebook_suppression_violations_for_text(
     return [
         f"{head_label}:{path}:{line_number}"
         for line_number in _added_line_numbers(base_lines, head_lines)
-        if SECURITY_SUPPRESSION_RE.search(head_lines[line_number - 1])
+        if is_blocked_suppression_line(path, head_lines[line_number - 1])
     ]
 
 
 def _index_text_or_none(path: str, repo_root: Path) -> str | None:
-    result = _run_git(repo_root, ["show", f":{path}"])
-    if result.returncode != 0:
-        _print_process_output(result)
-        return None
-    return result.stdout
+    return _suppression_text_or_none(f":{path}", repo_root)
 
 
 def _commit_text_or_none(head: str, path: str, repo_root: Path) -> str | None:
-    result = _run_git(repo_root, ["show", f"{head}:{path}"])
-    if result.returncode != 0:
-        _print_process_output(result)
-        return None
-    return result.stdout
+    return _suppression_text_or_none(f"{head}:{path}", repo_root)
 
 
 def _commit_text_or_empty(head: str, path: str, repo_root: Path) -> str:
-    result = _run_git(repo_root, ["show", f"{head}:{path}"])
+    result = _run_git_exact_text(repo_root, ["show", f"{head}:{path}"])
     return result.stdout if result.returncode == 0 else ""
 
 
@@ -4444,7 +4564,7 @@ def _commit_text_for_base(base_ref: str, path: str, repo_root: Path) -> str | No
     """Return the text of a file at ``base_ref``, or ``""`` when the file is
     absent at that ref (new file), or ``None`` when ``base_ref`` itself is
     invalid so the caller can propagate rc=3 rather than rc=1."""
-    result = _run_git(repo_root, ["show", f"{base_ref}:{path}"])
+    result = _run_git_exact_text(repo_root, ["show", f"{base_ref}:{path}"])
     if result.returncode == 0:
         return result.stdout
     # Distinguish "file not in tree" (new file, treat as empty) from any
@@ -4460,21 +4580,23 @@ def _notebook_code_lines(text: str) -> list[str]:
     try:
         parsed = json.loads(text)
     except json.JSONDecodeError:
-        return text.splitlines()
+        return suppression_scan_lines(text)
     if not isinstance(parsed, dict):
-        return text.splitlines()
+        return suppression_scan_lines(text)
     cells = parsed.get("cells")
     if not isinstance(cells, list):
-        return text.splitlines()
+        return suppression_scan_lines(text)
     lines: list[str] = []
     for cell in cells:
         if not isinstance(cell, dict) or cell.get("cell_type") != "code":
             continue
         source = cell.get("source", [])
         if isinstance(source, str):
-            lines.extend(source.splitlines())
+            lines.extend(suppression_scan_lines(source))
         elif isinstance(source, list):
-            lines.extend("".join(item for item in source if isinstance(item, str)).splitlines())
+            lines.extend(
+                suppression_scan_lines("".join(item for item in source if isinstance(item, str)))
+            )
     return lines
 
 
@@ -6282,9 +6404,13 @@ def _parse_suppression_renames(
             return None
         source_scanned = Path(source).suffix.lower() in SECURITY_SUPPRESSION_SUFFIXES
         destination_scanned = Path(destination).suffix.lower() in SECURITY_SUPPRESSION_SUFFIXES
-        if status == "R100" and source_scanned and destination_scanned:
+        # An allowed Semgrep directive is keyed on its listed path. A rename
+        # carries it to the destination, where hunks alone would credit or skip
+        # it, so the destination is scanned in full under its own path.
+        leaves_allowed_path = _holds_allowed_semgrep_entry(source)
+        if status == "R100" and source_scanned and destination_scanned and not leaves_allowed_path:
             pure_scanned.add(destination)
-        if not source_scanned and destination_scanned:
+        if destination_scanned and (not source_scanned or leaves_allowed_path):
             promoted.add(destination)
         index += 3
     return SuppressionRenames(

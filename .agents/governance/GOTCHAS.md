@@ -233,6 +233,33 @@ destination file, because the suppression becomes active at that boundary.
 
 Existing suppressions on `main` remain grandfathered unless the change makes
 them newly active. Refs #3940, #4049, #4051, and #4052.
+
+One exact allow path exists, and only for Semgrep. `ALLOWED_SEMGREP_SUPPRESSIONS`
+in `git_hook_policy.py` lists each entry as one repository path, one full rule
+id, and a written reason. It has no wildcard, directory, or any-rule entry.
+
+A line passes only when the whole line is a `nosemgrep: <rule id>` comment. The
+rule id must be listed for that exact path. The only text allowed after it is
+the exact line-length waiver `noqa: E501`, two spaces after the id. A bare
+directive, a rule list, a short id, or any other trailing text still blocks.
+Removing an allowed line earns no removal credit, so it cannot pay for a
+blocked form of the same directive. The scan splits lines on newline only and
+reads git output as raw bytes. So a form feed or a lone carriage return cannot
+hide a second rule id after an allowed directive. The diff scan keys each line
+on the file name exactly as git reports it. A decoy name with a leading space
+does not match a listed path.
+
+An entry grants a rule for its whole file, not for one line. Today the list
+covers the `_launch` calls in `ptk_run.py`, per the owner ruling on #7591, so a
+reviewer should question any new directive in that file. Each of the ten
+tracked copies is its own entry. A test fails when a tracked copy is missing
+from the list. The verbatim-mirror drop can still pass a new copy that is
+byte-identical to a reviewed source, so that test is the control for new copies.
+
+The staged, push, and CI diff checks all call `is_blocked_suppression_line`, so
+they give the same verdict. Adding an entry loosens a security gate. Get an
+owner ruling first, and cite it in the reason.
+
 ## A large branch has no commit-count gate at all (ADR-099, ADR-100)
 
 The pre-push `push-ref-policy` hook and `pr-validation.yml` used to hard-fail a

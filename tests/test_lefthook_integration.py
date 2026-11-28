@@ -5387,7 +5387,7 @@ def test_parse_changed_lines_strips_the_quoted_b_prefix() -> None:
 
 def test_iter_diff_changes_strips_the_b_prefix_from_the_header() -> None:
     # Regression: the shared header pattern keeps the "b/" prefix, so the
-    # suppression scanner must strip it via _file_header_path. Reporting
+    # suppression scanner must strip it via _exact_diff_header_path. Reporting
     # "b/pkg/a.py" made every net-new suppression look like a different file,
     # which fails a security gate open.
     diff = (
@@ -8249,6 +8249,7 @@ def test_immutable_suppression_error_and_clean_paths(
         lambda *_args: ["README.md", "source.py"],
     )
     monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(1, stderr="error"))
+    monkeypatch.setattr(policy, "_run_git_exact_text", lambda *_args: _completed(1, stderr="error"))
     assert policy.check_pushed_suppressions(io.StringIO(ref_line), tmp_path) == 2
 
     def clean_suppression_git(_repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
@@ -8257,6 +8258,7 @@ def test_immutable_suppression_error_and_clean_paths(
         return _completed(0, "clean\n")
 
     monkeypatch.setattr(policy, "_run_git", clean_suppression_git)
+    monkeypatch.setattr(policy, "_run_git_exact_text", clean_suppression_git)
     assert policy.check_pushed_suppressions(io.StringIO(ref_line), tmp_path) == 0
 
 

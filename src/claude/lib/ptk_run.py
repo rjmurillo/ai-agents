@@ -135,8 +135,13 @@ def _launch(path: str, args: list[str]) -> int:
     if not sys.executable:
         raise ResolverError("sys.executable is empty, so the interpreter cannot be reused")
     command = [sys.executable, *interpreter_flags(), path, *args]
+    # Both calls take an argv list with no shell. resolve_target admits only a
+    # skills/<path>.py target under a root that holds lib/ptk_run.py, and this
+    # is not an auth boundary (ADR-121 decision 10). Owner ruling: issue #7591.
     if IS_POSIX:
+        # nosemgrep: python.lang.security.audit.dangerous-os-exec-tainted-env-args.dangerous-os-exec-tainted-env-args  # noqa: E501
         os.execv(sys.executable, command)
+    # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args.dangerous-subprocess-use-tainted-env-args  # noqa: E501
     return subprocess.run(command, check=False).returncode
 
 
