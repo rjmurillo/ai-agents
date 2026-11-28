@@ -91,6 +91,20 @@ def _first_plain(words: list[str], start: int) -> tuple[str, int]:
     return "", len(words)
 
 
+def _interpreter_head(words: list[str], index: int) -> str | None:
+    following = words[index + 1] if index + 1 < len(words) else ""
+    script, _ = _first_plain(words, index + 1)
+    # ``python -c``, ``python -`` and ``python <<EOF`` run an inline program.
+    if following in ("-c", "-e", "-") or not script or script.startswith(_QUOTE_MARK):
+        return None
+    target = posixpath.basename(script)
+    if target in _LAUNCHERS:
+        # A launcher runs the script named after it: that script is the action.
+        launched, _ = _first_plain(words, words.index(script, index + 1) + 1)
+        return posixpath.basename(launched) if launched else target
+    return target
+
+
 def _segment_head(segment: str) -> str | None:
     words = segment.split()
     index = 0
@@ -111,17 +125,7 @@ def _segment_head(segment: str) -> str | None:
         return None
     name = posixpath.basename(word)
     if _INTERPRETER.match(name):
-        following = words[index + 1] if index + 1 < len(words) else ""
-        script, _ = _first_plain(words, index + 1)
-        # ``python -c``, ``python -`` and ``python <<EOF`` run an inline program.
-        if following in ("-c", "-e", "-") or not script or script.startswith(_QUOTE_MARK):
-            return None
-        target = posixpath.basename(script)
-        if target in _LAUNCHERS:
-            # A launcher runs the script named after it: that script is the action.
-            launched, _ = _first_plain(words, words.index(script, index + 1) + 1)
-            return posixpath.basename(launched) if launched else target
-        return target
+        return _interpreter_head(words, index)
     if name in _SUBCOMMAND_TOOLS:
         sub, _ = _first_plain(words, index + 1)
         return f"{name} {sub}" if sub and not sub.startswith(_QUOTE_MARK) else name
