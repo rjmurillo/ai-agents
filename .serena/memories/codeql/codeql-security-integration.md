@@ -56,7 +56,7 @@
 - Agent attempted manual detection, failed
 
 **Fix Applied**:
-- `.agents/governance/SECURITY-REVIEW-PROTOCOL.md` Step 0 tells the security agent to fetch open CodeQL alerts with `gh api` before manual review (the dormant `invoke_precommit_security.py` that once did this was retired)
+- `.agents/governance/SECURITY-REVIEW-PROTOCOL.md` Step 0 tells the security agent to fetch open CodeQL alerts through the GitHub skill reader before manual review (the dormant `invoke_precommit_security.py` that once did this was retired)
 - Security report includes "CodeQL Findings" section
 - Benchmarks test agent REVIEW capability, not detection
 
