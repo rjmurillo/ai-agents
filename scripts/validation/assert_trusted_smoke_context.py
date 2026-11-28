@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""Gate the authenticated CLI smoke to a trusted execution context (issue #2231 item 3, REQ-047).
+"""Gate the CLI smoke to a trusted execution context (issue #2231 item 3, REQ-047).
 
-The CLI smoke installs the real Copilot/Claude CLIs and runs a hook end to end.
-That needs auth secrets, so the run MUST NOT execute attacker-controlled code
-with those secrets in scope. Per
+The CLI smoke installs real third-party CLIs and runs a hook end to end.
+The Claude and Copilot legs that read auth secrets were deleted on 2026-11-25,
+and no remaining leg reads a secret. The workflow still runs this gate. Per
 ``.claude/skills/security-review/references/rule-security.md`` and the issue-3
 requirement, this script is the trusted-context gate. Per ADR-006 the decision
 lives here, not in workflow YAML.
 
 The smoke workflow triggers on ``pull_request`` and ``workflow_dispatch``.
-GitHub withholds secrets from fork pull requests, but this gate re-checks the
-event, repository, and head repository so a fork PR fails closed with a named
-reason instead of a confusing missing-credential failure. It fails closed:
+This gate checks the event, repository, and head repository. A fork PR gets a
+named reason, and the smoke legs do not run for it. No secret is in scope
+either way since the 2026-11-25 deletion. It fails closed:
 anything it cannot positively confirm is untrusted.
 
 Authorized when ALL hold:
@@ -24,7 +24,7 @@ Authorized when ALL hold:
   denied too (a deleted fork reports an empty value).
 - For ``workflow_dispatch``: ``--ref`` equals the expected trusted ref (default
   ``refs/heads/main``), so a manual dispatch from another branch cannot run
-  code with smoke secrets. A pull request ref (``refs/pull/N/merge``) is not
+  the smoke legs. A pull request ref (``refs/pull/N/merge``) is not
   compared to the default branch; the head-repository rule governs it.
 
 Prints ``true`` or ``false`` to stdout for the workflow to branch on.

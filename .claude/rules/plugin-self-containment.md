@@ -43,7 +43,7 @@ A grep cannot tell these apart. A reviewer can. When the target exists only upst
 
 ### Why it is invisible in development
 
-This repository self-hosts its own plugins. `.claude/` is both the plugin source and the live configuration, so every upstream reference resolves here and the tests pass here. CI does load the shipped `src/copilot-cli/` plugin from a separate working directory in the plugin-load smoke test, so plugin isolation itself is covered. What no gate checked, until issue #3565 added the frontmatter check below, was whether the *prose inside a shipped file* names a path the consumer does not have.
+This repository self-hosts its own plugins. `.claude/` is both the plugin source and the live configuration, so every upstream reference resolves here and the tests pass here. CI no longer loads the shipped `src/copilot-cli/` plugin from a separate working directory: the Copilot plugin-load smoke leg was deleted on 2026-11-25, and only the Codex and Pi legs and Claude hook discovery run, so Copilot plugin isolation has no CI coverage. What no gate checked, until issue #3565 added the frontmatter check below, was whether the *prose inside a shipped file* names a path the consumer does not have.
 
 ## The mechanism already exists
 

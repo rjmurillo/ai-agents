@@ -3,7 +3,7 @@
 
 Reads ISSUE_NUMBER from the environment and writes a markdown summary
 to $GITHUB_STEP_SUMMARY.
-Replaces the inline "Summary" run step in copilot-context-synthesis.yml
+Replaces the inline "Summary" run step in copilot-context-synthesis.yml (deleted 2026-11-25)
 (issue #2967, ADR-006 burn-down).
 
 EXIT CODES (ADR-035):
