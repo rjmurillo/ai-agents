@@ -471,13 +471,10 @@ def run(argv: list[str]) -> tuple[common.Result, str, Path | None]:
     except common.UsageError as exc:
         return result.stop("bad-arguments", common.EXIT_CONFIG, exc), common.peek_format(argv), None
     fmt = common.resolve_format(args.output_format)
-    base = getattr(args, "base", None)
-    if base is not None and not common.safe_ref(base):
-        return (
-            result.stop("bad-arguments", common.EXIT_CONFIG, "--base is not a plain ref"),
-            fmt,
-            None,
-        )
+    # prepare asks no host, so it keeps the plain-ref rule; the others let detect hold the rest.
+    strict = args.command == "prepare"
+    if (error := detect_mod.base_arg_error(getattr(args, "base", None), strict=strict)) is not None:
+        return result.stop("bad-arguments", common.EXIT_CONFIG, error), fmt, None
     if not all(preflight_mod.AXIS_RE.fullmatch(axis) for axis in getattr(args, "require_axis", [])):
         message = "--require-axis must be a lowercase axis name"
         return result.stop("bad-arguments", common.EXIT_CONFIG, message), fmt, None
