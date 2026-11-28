@@ -163,12 +163,22 @@ SOME_SHA = "954729fa9af4ef395fd0b8643f9c50a0b04b7d36"
 DELETE_LINE = f"(delete) {ZERO_SHA} refs/heads/old {SOME_SHA}\n"
 UPDATE_LINE = f"refs/heads/topic {SOME_SHA} refs/heads/topic {ZERO_SHA}\n"
 GIT_ARGUMENTS = ["origin", "https://example.test/repo.git"]
+# The pre-push jobs that guard refs. A literal, not read from lefthook.yml, so
+# dropping the tag from any one of them fails a test.
+REF_GUARD_JOBS = frozenset(
+    {
+        "repo-health",
+        "repair-packed-refs",
+        "mutation-safety",
+        "push-ref-staleness",
+        "push-ref-policy",
+        "security-suppression-policy",
+        "placeholder-identity",
+    }
+)
 # Pre-push jobs that read stdin but inspect tree content, so a delete skips them.
 TREE_JOBS_WITH_STDIN = frozenset({"security-scan", "hook-anchoring-e2e", "plugin-load-e2e"})
-
-
-def _guard_job_args() -> list[str]:
-    return [item for job in runner.REF_GUARD_JOBS for item in ("--job", job)]
+GUARD_TAG_ARGS = ["--tag", "ref-guard"]
 
 
 def _pre_push(stdin: bytes | None, *flags: str) -> list[str]:
@@ -195,19 +205,28 @@ def _stdin_job_names(jobs: list[dict]) -> list[str]:
     return names
 
 
+def _tagged_job_names(jobs: list[dict], tag: str) -> list[str]:
+    names: list[str] = []
+    for job in jobs:
+        if tag in (job.get("tags") or []):
+            names.append(job["name"])
+        names.extend(_tagged_job_names(job.get("group", {}).get("jobs", []), tag))
+    return names
+
+
 def _pre_push_jobs() -> list[dict]:
     config = yaml.safe_load((PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
     return config["pre-push"]["jobs"]
 
 
-def test_delete_only_push_adds_one_job_flag_per_ref_guard() -> None:
+def test_delete_only_push_adds_the_ref_guard_tag() -> None:
     result = _pre_push(DELETE_LINE.encode())
 
     assert result == [
         "run",
         "pre-push",
         "--file=a.py",
-        *_guard_job_args(),
+        *GUARD_TAG_ARGS,
         "--",
         *GIT_ARGUMENTS,
     ]
@@ -216,7 +235,7 @@ def test_delete_only_push_adds_one_job_flag_per_ref_guard() -> None:
 def test_delete_only_push_with_several_deletes_adds_the_jobs() -> None:
     stdin = (DELETE_LINE + DELETE_LINE.replace("old", "older")).encode()
 
-    assert _guard_job_args() == _pre_push(stdin)[3 : 3 + 2 * len(runner.REF_GUARD_JOBS)]
+    assert _pre_push(stdin)[3:5] == GUARD_TAG_ARGS
 
 
 def test_delete_only_push_says_tree_jobs_were_skipped(capsys: pytest.CaptureFixture[str]) -> None:
@@ -226,29 +245,29 @@ def test_delete_only_push_says_tree_jobs_were_skipped(capsys: pytest.CaptureFixt
     assert err.count("\n") == 1
     assert "skipped the tree jobs" in err
     assert "only deletes refs" in err
-    assert f"{len(runner.REF_GUARD_JOBS)} ref guard jobs run" in err
+    assert "Only jobs tagged ref-guard run" in err
 
 
 def test_mixed_delete_and_update_keeps_every_job() -> None:
     stdin = (DELETE_LINE + UPDATE_LINE).encode()
 
-    assert "--job" not in _pre_push(stdin)
+    assert "--tag" not in _pre_push(stdin)
 
 
 def test_update_before_delete_keeps_every_job() -> None:
     stdin = (UPDATE_LINE + DELETE_LINE).encode()
 
-    assert "--job" not in _pre_push(stdin)
+    assert "--tag" not in _pre_push(stdin)
 
 
 def test_update_only_push_keeps_every_job(capsys: pytest.CaptureFixture[str]) -> None:
-    assert "--job" not in _pre_push(UPDATE_LINE.encode())
+    assert "--tag" not in _pre_push(UPDATE_LINE.encode())
     assert capsys.readouterr().err == ""
 
 
 @pytest.mark.parametrize("stdin", [None, b"", b"\n"])
 def test_empty_stdin_keeps_every_job(stdin: bytes | None) -> None:
-    assert "--job" not in _pre_push(stdin)
+    assert "--tag" not in _pre_push(stdin)
 
 
 @pytest.mark.parametrize(
@@ -290,27 +309,31 @@ def test_malformed_ref_line_still_stops_the_push() -> None:
         runner._child_arguments(arguments, b"not a ref line\n")
 
 
-def test_ref_guard_list_names_only_real_pre_push_jobs() -> None:
-    real = set(_job_names(_pre_push_jobs()))
+def test_runner_tag_matches_the_config_tag() -> None:
+    assert GUARD_TAG_ARGS == ["--tag", runner.REF_GUARD_TAG]
 
-    assert set(runner.REF_GUARD_JOBS) <= real
-    assert len(set(runner.REF_GUARD_JOBS)) == len(runner.REF_GUARD_JOBS)
+
+def test_exactly_the_ref_guard_jobs_carry_the_tag() -> None:
+    tagged = _tagged_job_names(_pre_push_jobs(), runner.REF_GUARD_TAG)
+
+    assert sorted(tagged) == sorted(REF_GUARD_JOBS)
+    assert REF_GUARD_JOBS <= set(_job_names(_pre_push_jobs()))
 
 
 def test_every_stdin_job_is_a_ref_guard_or_a_known_tree_job() -> None:
     stdin_jobs = set(_stdin_job_names(_pre_push_jobs()))
 
-    unclassified = stdin_jobs - set(runner.REF_GUARD_JOBS) - TREE_JOBS_WITH_STDIN
+    unclassified = stdin_jobs - REF_GUARD_JOBS - TREE_JOBS_WITH_STDIN
     assert not unclassified, f"classify as ref guard or tree job: {sorted(unclassified)}"
     assert TREE_JOBS_WITH_STDIN <= set(_job_names(_pre_push_jobs()))
-    assert not TREE_JOBS_WITH_STDIN & set(runner.REF_GUARD_JOBS)
+    assert not TREE_JOBS_WITH_STDIN & REF_GUARD_JOBS
 
 
 def test_protected_branch_guard_runs_on_a_delete() -> None:
     # check_push_refs refusing a protected delete is covered end to end by
     # tests/test_pre_push_ref_guard_entrypoint.py. This pins that a delete reaches it.
-    assert "push-ref-policy" in runner.REF_GUARD_JOBS
-    assert "push-ref-policy" in _pre_push(DELETE_LINE.encode())
+    assert "push-ref-policy" in _tagged_job_names(_pre_push_jobs(), runner.REF_GUARD_TAG)
+    assert _pre_push(DELETE_LINE.encode())[3:5] == GUARD_TAG_ARGS
 
 
 # --- behavior through a real generated shim -------------------------------

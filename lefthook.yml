@@ -495,6 +495,7 @@ pre-push:
     # singleton, ahead of the parallel group, so the loaded-machine contention
     # ci-scripts.md MUST-16 measures on a group member does not apply to it.
     - name: repo-health
+      tags: [ref-guard]
       timeout: 10s
       run: uv run --frozen python scripts/validation/check_repo_health.py
 
@@ -502,10 +503,12 @@ pre-push:
     # case is unchanged. This job's single git call runs under a 15s watchdog, so
     # 50s is still more than three times its internal ceiling.
     - name: repair-packed-refs
+      tags: [ref-guard]
       timeout: 50s
       run: uv run --frozen python scripts/maintenance/repair_packed_refs.py
 
     - name: mutation-safety
+      tags: [ref-guard]
       timeout: 30s
       run: uv run --frozen python -m scripts.testing.mutation_workspace check
 
@@ -525,6 +528,7 @@ pre-push:
     # script allows `git ls-remote` 10s per pushed ref, so a push of several
     # refs on a slow link could exceed the 30s this copy carried.
     - name: push-ref-staleness
+      tags: [ref-guard]
       timeout: 60s
       run: uv run --frozen python scripts/validation/push_ref_staleness.py "{1}"
       use_stdin: true
@@ -544,16 +548,19 @@ pre-push:
           # scored from merge-base(origin/main, pushed SHA), with exit 2 when
           # that base cannot be resolved.
           - name: push-ref-policy
+            tags: [ref-guard]
             timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py pre-push
             use_stdin: true
 
           - name: security-suppression-policy
+            tags: [ref-guard]
             timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-push
             use_stdin: true
 
           - name: placeholder-identity
+            tags: [ref-guard]
             timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py placeholder-identity
             use_stdin: true

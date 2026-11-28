@@ -33,10 +33,11 @@ the list cannot be built the push stops with exit 1. It never skips.
 
 Delete-only pushes: a delete pushes no code, so jobs that inspect the working
 tree can only block cleanup. When every ref line is a delete and the caller
-passed no ``--job``, ``--tag``, ``--command``, or file flag, this program adds one
-``--job`` per name in ``REF_GUARD_JOBS`` and prints one stderr line. The ref
-guards, including the protected-branch check, still run. A push that mixes a
-delete with an update, or has an empty stdin, runs every job as before.
+passed no ``--job``, ``--tag``, ``--command``, or file flag, this program adds
+``--tag ref-guard`` and prints one stderr line. ``lefthook.yml`` tags the jobs
+that guard refs, so it stays the one source of truth for what runs (ADR-086).
+The ref guards, including the protected-branch check, still run. A push that
+mixes a delete with an update, or has an empty stdin, runs every job as before.
 
 Failure report (issue #6734, item 5): ``run <hook>`` goes through
 ``lefthook_failure_report.py``, which names the failed stage and job and prints a
@@ -146,19 +147,10 @@ def _split_hook_arguments(rest: list[str], from_git: bool) -> tuple[list[str], l
     return rest, []
 
 
-# The pre-push jobs that guard refs, not tree content. A push that only deletes
-# refs runs just these. Every pre-push job with ``use_stdin: true`` must be here
-# or in the tree-job list of tests/test_lefthook_runner.py, which parses
-# lefthook.yml so a new ref guard cannot be skipped on a delete unnoticed.
-REF_GUARD_JOBS = (
-    "repo-health",
-    "repair-packed-refs",
-    "mutation-safety",
-    "push-ref-staleness",
-    "push-ref-policy",
-    "security-suppression-policy",
-    "placeholder-identity",
-)
+# The lefthook.yml tag on the pre-push jobs that guard refs, not tree content.
+# A push that only deletes refs runs just those jobs. tests/test_lefthook_runner.py
+# pins the tagged set, so a new ref guard cannot be skipped on a delete unnoticed.
+REF_GUARD_TAG = "ref-guard"
 _SCOPE_FLAGS = ("--job", "--tag", "--command")
 
 
@@ -170,7 +162,7 @@ def _caller_chose_scope(flags: list[str]) -> bool:
 
 
 def _delete_only_job_args(stdin_bytes: bytes | None, flags: list[str]) -> list[str]:
-    """Return ``--job`` arguments that limit a delete-only push to the ref guards.
+    """Return the ``--tag`` arguments that limit a delete-only push to the ref guards.
 
     A delete pushes no code, so a job that inspects the working tree can only
     block cleanup. Returns nothing for an empty stdin, for any ref line that
@@ -183,9 +175,9 @@ def _delete_only_job_args(stdin_bytes: bytes | None, flags: list[str]) -> list[s
         return []
     sys.stderr.write(
         "lefthook_runner: pre-push skipped the tree jobs because the push only "
-        f"deletes refs. {len(REF_GUARD_JOBS)} ref guard jobs run.\n"
+        f"deletes refs. Only jobs tagged {REF_GUARD_TAG} run.\n"
     )
-    return [item for job in REF_GUARD_JOBS for item in ("--job", job)]
+    return ["--tag", REF_GUARD_TAG]
 
 
 def _child_arguments(arguments: list[str], stdin_bytes: bytes | None) -> list[str]:
@@ -193,8 +185,8 @@ def _child_arguments(arguments: list[str], stdin_bytes: bytes | None) -> list[st
 
     ``--`` ends Lefthook's flags, so git's arguments always reach ``{1}`` and
     ``{2}`` and never act as a flag. With an empty stdin there is no push and
-    no file list. A push that only deletes refs also gets one ``--job`` per ref
-    guard. Raises :class:`PushFileListError` when the list cannot be built.
+    no file list. A push that only deletes refs also gets ``--tag ref-guard``.
+    Raises :class:`PushFileListError` when the list cannot be built.
     """
     if hook_name(arguments) != "pre-push":
         return arguments
