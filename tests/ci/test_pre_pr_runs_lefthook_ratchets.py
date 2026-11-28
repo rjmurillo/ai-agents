@@ -1,4 +1,8 @@
-"""The pre-PR gate must run every count ratchet the push runs (issue #4251).
+"""The pre-PR gate must run every count ratchet in the registry (issue #4251).
+
+Since 2026-11-27 the pre-push hook no longer runs the ratchets (CI owns them, see
+``test_lefthook_ratchet_wiring.py``), so parity is checked against the
+registry in ``checks_ratchet.py`` and the old lefthook job is asserted absent.
 
 AGENTS.md names ``scripts/validation/pre_pr.py`` as the one pre-PR gate. The
 four count ratchets ran only at ``pre-push``, in the same lefthook group as the
@@ -104,55 +108,35 @@ _EXPECTED_RATCHETS = (
 )
 
 
-def _walk_jobs(jobs: object, out: list[dict]) -> None:
-    """Collect every named job in a lefthook job list, including nested groups."""
-    if not isinstance(jobs, list):
-        return
-    for job in jobs:
-        if not isinstance(job, dict):
-            continue
-        if job.get("name"):
-            out.append(job)
-        group = job.get("group")
-        if isinstance(group, dict):
-            _walk_jobs(group.get("jobs"), out)
-        _walk_jobs(job.get("jobs"), out)
-
-
-def collect_count_ratchets_job(data: object) -> dict | None:
-    """Return the aggregate pre-push ratchet job from parsed YAML."""
-    if not isinstance(data, dict):
-        return None
-    pre_push = data.get("pre-push")
-    if not isinstance(pre_push, dict):
-        return None
-    found: list[dict] = []
-    _walk_jobs(pre_push.get("jobs"), found)
-    return next((job for job in found if job.get("name") == "count-ratchets"), None)
-
-
-def _real_count_ratchets_job() -> dict | None:
+def _pre_push_job_names() -> set[str]:
+    """Return every job name in the real pre-push hook, nested groups included."""
     data = yaml.safe_load(_LEFTHOOK.read_text(encoding="utf-8"))
-    return collect_count_ratchets_job(data)
+    names: set[str] = set()
+
+    def walk(node: object) -> None:
+        if isinstance(node, dict):
+            if node.get("name"):
+                names.add(str(node["name"]))
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+
+    walk(data["pre-push"])
+    return names
 
 
 class TestAggregateLefthookDelegation:
     """Lefthook delegates the full ratchet set to this module."""
 
-    def test_aggregate_job_exists(self) -> None:
-        assert _real_count_ratchets_job() is not None
+    def test_pre_push_hook_no_longer_runs_the_aggregate_job(self) -> None:
+        """Owner ruling 2026-11-27: CI owns the ratchets, the hook must not run them."""
+        assert "count-ratchets" not in _pre_push_job_names()
 
-    def test_aggregate_job_invokes_the_registry_runner(self) -> None:
-        job = _real_count_ratchets_job()
-        assert job is not None
-        assert str(job.get("run")) == (
-            "uv run --frozen python scripts/validation/git_hook_policy.py count-ratchets"
-        )
-
-    def test_aggregate_job_is_unconditional(self) -> None:
-        job = _real_count_ratchets_job()
-        assert job is not None
-        assert job.get("glob") is None
+    def test_pre_push_job_detector_sees_a_present_job(self) -> None:
+        """Negative control: the detector reports a job that does exist."""
+        assert "pre-pr-validation" in _pre_push_job_names()
 
     def test_registry_contains_every_registered_ratchet(self) -> None:
         assert (
@@ -171,30 +155,6 @@ class TestAggregateLefthookDelegation:
         ratchet = next(r for r in checks_ratchet.RATCHETS if r.uses_base_ref)
         command = checks_ratchet.build_command(ratchet, "origin/main")
         assert command[-2:] == ["--base-ref", "origin/main"]
-
-    def test_missing_aggregate_job_is_detected(self) -> None:
-        synthetic = {"pre-push": {"jobs": [{"name": "other", "run": "true"}]}}
-        assert collect_count_ratchets_job(synthetic) is None
-
-    def test_aggregate_deadline_leaves_headroom_under_the_lefthook_cap(self) -> None:
-        """A YAML cap at or below the internal deadline restores the hard kill.
-
-        ``checks_ratchet._AGGREGATE_TIMEOUT_SECONDS`` only protects the
-        remaining ratchets from Lefthook's SIGKILL when the outer ``timeout``
-        in ``lefthook.yml`` leaves headroom above it. Pinning the internal
-        constant alone (see
-        ``test_each_ratchet_uses_the_remaining_aggregate_time`` above) stays
-        green even if the YAML cap is lowered to match or fall below it.
-        """
-        job = _real_count_ratchets_job()
-        assert job is not None
-        raw_timeout = job.get("timeout")
-        assert isinstance(raw_timeout, (str, int))
-        if isinstance(raw_timeout, str) and raw_timeout.endswith("s"):
-            lefthook_cap_seconds = int(raw_timeout[:-1])
-        else:
-            lefthook_cap_seconds = int(raw_timeout)
-        assert lefthook_cap_seconds > checks_ratchet._AGGREGATE_TIMEOUT_SECONDS
 
     def test_main_returns_nonzero_when_a_ratchet_fails(
         self, monkeypatch: pytest.MonkeyPatch
@@ -561,10 +521,8 @@ class TestBudgetHoldsAgainstMeasuredRuntime:
 
     Issue #4876 reports the aggregate gate exceeding its wrapper timeout. Every
     other timeout assertion in this tree relates two declared numbers:
-    ``test_aggregate_deadline_leaves_headroom_under_the_lefthook_cap`` compares
-    the lefthook cap with ``_AGGREGATE_TIMEOUT_SECONDS``, and
     ``test_each_ratchet_gets_the_budget_left_when_it_starts`` compares stubbed
-    child timeouts with the same constant. Both stay green with the deadline set
+    child timeouts with ``_AGGREGATE_TIMEOUT_SECONDS``. It stays green with the deadline set
     to 30 seconds, which the real registry cannot meet. Constants agreeing with
     constants cannot calibrate a timeout; only running the registry can.
 
@@ -649,9 +607,8 @@ class TestBudgetHoldsAgainstMeasuredRuntime:
         guard below skips it. A number measured anywhere else is not comparable
         with the deadline and must not be used to move it (issue #5610).
 
-        What still gates locally is the deadline-below-cap relationship in
-        `test_aggregate_deadline_leaves_headroom_under_the_lefthook_cap`, which
-        is a property of the constants and needs no clock.
+        The lefthook cap relationship is gone: the pre-push job was removed on
+        2026-11-27, so only this measurement bounds the deadline.
         """
         if os.environ.get(self._MEASUREMENT_OPT_IN_ENV) != "1":
             pytest.skip(
