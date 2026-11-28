@@ -89,105 +89,9 @@ uv run pytest .project-toolkit/security/benchmarks/ -v
 
 ### CodeQL Integration
 
-The security agent workflow now fetches CodeQL alerts before manual review:
+The security agent workflow now fetches CodeQL alerts before manual review. In `/review`, the security axis reads CodeQL results through the pre-step `src/claude/skills/review/scripts/codeql_prestep.py` (ADR-041 amendment 2026-11-09). It prints one JSON outcome: `CURRENT`, `CLEAN`, `FINDINGS`, `STALE`, `NOT ANALYZED`, or `SKIPPED`. `STALE`, `NOT ANALYZED`, and `SKIPPED` are never clean.
 
-```bash
-# Set these from the PR's base repository, never from the fork's origin.
-# Example: base_owner=rjmurillo base_repo=ai-agents pull_request=7762
-# Set review_base_ref to a fetched local base ref, for example upstream/main.
-if [ -z "${base_owner:-}" ] || [ -z "${base_repo:-}" ] ||
-   [ -z "${pull_request:-}" ] || [ -z "${review_base_ref:-}" ]; then
-  echo "Set base_owner, base_repo, pull_request, and review_base_ref explicitly." >&2
-  exit 2
-fi
-# Use an operator-approved, installed plugin root outside the reviewed checkout.
-trusted_plugin_root="${CLAUDE_PLUGIN_ROOT:-${COPILOT_PLUGIN_ROOT:-}}"
-case "$review_base_ref" in
-  -*) echo "Invalid review_base_ref: option-shaped value." >&2; exit 2 ;;
-esac
-base_sha="$(git rev-parse --verify --end-of-options "$review_base_ref^{commit}")" || exit 2
-head_sha="$(git rev-parse HEAD)" || exit 2
-
-# ADR-041: guard scanner inputs and collect decoded paths before reading results.
-changed_files="$(python3 -I -X utf8 - "$trusted_plugin_root" "$base_sha" \
-    "$base_owner" "$base_repo" "$pull_request" <<'PYTHON'
-import pathlib
-import subprocess
-import sys
-
-root = pathlib.Path(subprocess.check_output(
-    ["git", "rev-parse", "--show-toplevel"], text=True).strip()).resolve()
-plugin = pathlib.Path(sys.argv[1])
-required = (
-    "lib/ptk_run.py",
-    "skills/github/scripts/pr/get_pr_code_scanning_alerts.py",
-    "skills/github/scripts/pr/get_pr_context.py",
-    "skills/github/scripts/pr/code_scanning_sarif.py",
-    "skills/review/scripts/codeql_scanner_guard.py",
-)
-if not plugin.is_absolute() or plugin.resolve().is_relative_to(root) or any(
-    not (plugin / name).is_file()
-    or not (plugin / name).resolve().is_relative_to(plugin.resolve())
-    for name in required
-):
-    sys.exit("CodeQL: SKIPPED (trusted plugin installation unavailable)")
-sys.path.insert(0, str(plugin / "skills/review/scripts"))
-import codeql_scanner_guard as guard
-
-# CWE-345: the review base must agree with the PR base the API reports.
-try:
-    guard.verify_review_base(
-        root, sys.argv[2], guard.fetch_pr_base_sha(plugin, *sys.argv[3:6]))
-except guard.GitError as exc:
-    sys.exit(f"CodeQL: SKIPPED ({exc})")
-
-try:
-    files = guard.changed_files(root, sys.argv[2])
-    links = guard.changed_symlinks(root, sys.argv[2])
-except guard.GitError:
-    sys.exit("CodeQL: SKIPPED (diff could not be computed)")
-if guard.guarded_paths(files, links):
-    sys.exit("CodeQL: SKIPPED (scanner inputs modified)")
-sys.path.insert(0, str(plugin / "skills/github/scripts/pr"))
-from code_scanning_sarif import normalize_repo_path
-
-if any(normalize_repo_path(path) != path or path.splitlines() != [path] for path in files):
-    sys.exit("CodeQL: SKIPPED (changed paths cannot be represented losslessly)")
-print("\n".join(files))
-PYTHON
-)" || exit 2
-tree_state=dirty
-# CWE-367: ignored files, submodule changes, and hidden index entries count as dirty.
-status="$(git status --porcelain --untracked-files=all --ignored=matching \
-  --ignore-submodules=none)" || exit 2
-index_flags="$(git ls-files -v)" || exit 2
-if [ -z "$status" ] &&
-   ! printf '%s\n' "$index_flags" | LC_ALL=C grep -q '^[a-zS]'; then
-  tree_state=clean
-fi
-
-# The GitHub skill reads every open alert and verifies PR merge-ref freshness.
-# The C locale selects Python UTF-8 mode through the launcher and reader.
-printf '%s\n' "$changed_files" |
-  LC_ALL=C python3 -I "$trusted_plugin_root/lib/ptk_run.py" skills/github/scripts/pr/get_pr_code_scanning_alerts.py \
-    --owner "$base_owner" --repo "$base_repo" --pull-request "$pull_request" \
-    --head-sha "$head_sha" --tree-state "$tree_state" \
-    --changed-files-from - --output-format json
-```
-
-Use the `github` skill's transport preflight from the same trusted installation before running this block. Do not fall back to checkout scripts.
-PR scans require explicit base-repository parameters, including in detached checkouts.
-Use an absolute `CLAUDE_PLUGIN_ROOT` or `COPILOT_PLUGIN_ROOT` from an operator-approved installation; never select one from the reviewed checkout.
-If the guard refuses the scan, report `SKIPPED` without reading alerts.
-The guard also reads the PR's base commit through the trusted installation and refuses the scan unless `review_base_ref` descends from it and does not already contain HEAD.
-The tree counts as `dirty` when ignored files, submodule changes, or `assume-unchanged` and `skip-worktree` index entries exist, so a checkout with `.venv` or caches reports `dirty`.
-Source: [ADR-041](../../architecture/ADR-041-codeql-integration.md), amendment 2026-11-09.
-Exit 0 alone is not a clean scan; inspect `Data.outcome`.
-Only `CURRENT` carries alerts, including counts for findings outside the diff.
-Report `STALE`, `NOT ANALYZED`, and `SKIPPED` without claiming a clean scan.
-For a branch without a PR, use `codeql-scan` for a local scan.
-The PR reader does not support branch refs.
-Keep any branch-repository inference scoped to origin, not PR base selection.
+This ensures the agent reviews all automated findings before producing its assessment.
 
 ## Test Case Format
 
@@ -227,7 +131,7 @@ vulnerable_code_here
 
 ## Verification Procedure
 
-1. Read CodeQL alerts through the GitHub skill and record analysis freshness.
+1. Read CodeQL results through the `/review` pre-step `codeql_prestep.py` (automated detection)
 2. Run security agent on `vulnerable_samples/` directory (interpretation)
 3. Collect agent review in `.project-toolkit/security/SR-benchmark-*.md`
 4. Evaluate interpretation quality:

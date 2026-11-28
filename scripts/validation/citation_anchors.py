@@ -21,12 +21,6 @@ import re
 from pathlib import PurePosixPath
 
 from check_adr_links import ADR_BASENAME, adr_number
-from citation_code_spans import (
-    _BACKTICK_SPAN,
-    _mask_dquotes_in_backtick_spans,
-    _mask_escaped_backticks,
-    _unequal_backtick_span_contents,
-)
 from citation_continuations import (
     _EXTENSIONS as _EXTENSIONS,
 )
@@ -62,8 +56,7 @@ _CITATION = re.compile(
 )
 
 _URL = re.compile(r"https?://\S+")
-
-
+_BACKTICK_SPAN = re.compile(r"`+([^`]+)`+")
 # Double-quoted phrases are anchors too: prose quotes the cited contract
 # ('a KEEP_PIN sweep must cover "at least 8 shared fixtures"'). Minimum 4
 # chars so quoted articles and flags stay out.
@@ -102,30 +95,6 @@ def _span_anchor(span: str, citation_text: str) -> str | None:
     return candidate
 
 
-def _code_span_anchor_texts(
-    masked: str, citation_text: str, prose_quote_ranges: list[tuple[int, int]]
-) -> list[str]:
-    """Return code-span contents, with orphaned quoted arguments as anchors."""
-    spans: list[str] = []
-    for match in _BACKTICK_SPAN.finditer(masked):
-        span = match.group(1)
-        spans.append(span)
-        if _span_anchor(span, citation_text) is not None:
-            continue
-        content_start, _ = match.content_span()
-        for quote in _DQUOTE_SPAN.finditer(span):
-            quote_start = content_start + quote.start(1)
-            quote_end = content_start + quote.end(1)
-            if any(
-                prose_start <= quote_start and quote_end <= prose_end
-                for prose_start, prose_end in prose_quote_ranges
-            ):
-                continue
-            spans.append(quote.group(1))
-    spans.extend(_unequal_backtick_span_contents(masked))
-    return spans
-
-
 def _anchor_candidates(context_lines: list[str], citation_text: str) -> list[str]:
     """Extract anchor strings the citing text names near a citation.
 
@@ -141,13 +110,7 @@ def _anchor_candidates(context_lines: list[str], citation_text: str) -> list[str
         # Triple-quote delimiters would otherwise pair with the opening
         # quote of a real anchor and swallow it.
         masked = masked.replace('"""', " ").replace("'''", " ")
-        quote_masked = _mask_dquotes_in_backtick_spans(masked)
-        quote_matches = list(_DQUOTE_SPAN.finditer(quote_masked))
-        quote_spans = [masked[match.start(1) : match.end(1)] for match in quote_matches]
-        prose_quote_ranges = [(match.start(1), match.end(1)) for match in quote_matches]
-        for span in (
-            _code_span_anchor_texts(masked, citation_text, prose_quote_ranges) + quote_spans
-        ):
+        for span in _BACKTICK_SPAN.findall(masked) + _DQUOTE_SPAN.findall(masked):
             candidate = _span_anchor(span, citation_text)
             if candidate is not None:
                 anchors.append(candidate)
@@ -328,6 +291,33 @@ def _context_lines(
     return context
 
 
+def _mask_escaped_backticks(text: str) -> str:
+    """Blank each backslash-escaped backtick outside a code span, keeping length.
+
+    Outside a span it is a literal, not a delimiter. Inside a span the
+    backslash is literal, so the backtick still closes the span.
+    """
+    if "\\`" not in text:
+        return text
+    out = list(text)
+    in_span = False
+    i = 0
+    while i < len(text):
+        char = text[i]
+        if char == "\\" and not in_span:
+            if text[i + 1 : i + 2] == "`":
+                out[i] = out[i + 1] = " "
+            i += 2
+            continue
+        if char == "`":
+            while i < len(text) and text[i] == "`":
+                i += 1
+            in_span = not in_span
+            continue
+        i += 1
+    return "".join(out)
+
+
 def _snap_out_of_tokens(text: str, point: int, low: int, high: int) -> int:
     """Move a split point out of any span, quote, or identifier it bisects.
 
@@ -335,14 +325,8 @@ def _snap_out_of_tokens(text: str, point: int, low: int, high: int) -> int:
     so it says nothing about where the gap splits and is skipped. A token
     that wraps only one citation still counts: the split must not cut it.
     """
-    quote_masked = _mask_dquotes_in_backtick_spans(text)
-    token_sources = (
-        (_BACKTICK_SPAN, text),
-        (_DQUOTE_SPAN, quote_masked),
-        (_IDENTIFIER, text),
-    )
-    for pattern, source in token_sources:
-        for match in pattern.finditer(source):
+    for pattern in (_BACKTICK_SPAN, _DQUOTE_SPAN, _IDENTIFIER):
+        for match in pattern.finditer(text):
             if match.start() <= low and match.end() >= high:
                 continue
             if match.start() < point < match.end():
