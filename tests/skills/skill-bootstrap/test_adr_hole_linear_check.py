@@ -24,14 +24,16 @@ def _why_not_linear(pattern: str) -> list[str]:
     one doubles the ways a failed match is retried. A pattern with no repeat and a few ``?``
     is linear whatever the input holds, so this needs no clock.
 
-    This reads the pattern as text and does not parse it. It drops each escape, then each
-    character class, and looks at what is left. A comment breaks that: the engine skips a
-    comment, but the class strip pairs a ``[`` in one comment with a later ``]`` and takes the
-    repeats between them out of the text. So a pattern that has ``(?`` or ``#`` after the
-    escapes are gone is refused, and the refusal is the only reason given, because the rest of
-    the scan is not reliable there. ``(?`` starts a comment group, and also each lookaround,
-    non-capturing group and inline flag. ``#`` starts a comment under ``re.VERBOSE``, a flag
-    the text does not show when the caller passes it to ``re.compile``.
+    This reads the pattern as text and does not parse it. It drops each escape but one, then
+    each character class, and looks at what is left. The escape that stays is a backslash
+    before a newline: the strip takes nothing there, so it hides nothing. A comment breaks the
+    scan: the engine skips a comment, but the class strip pairs a ``[`` in one comment with a
+    later ``]`` and takes the repeats between them out of the text. So a pattern that has
+    ``(?`` or ``#`` after the escapes are gone is refused, and the refusal is the only reason
+    given, because the rest of the scan is not reliable there. ``(?`` starts a comment group,
+    and also each lookaround, non-capturing group and inline flag. ``#`` starts a comment
+    under ``re.VERBOSE``, a flag the text does not show when the caller passes it to
+    ``re.compile``.
 
     The refusal also takes a pattern that is safe: ``(\\s?)`` is ``(?)`` after the escape is
     gone, and ``[(?]`` and ``[#]`` hold the two marks as literals. A safe pattern can fail
