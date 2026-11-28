@@ -35,10 +35,12 @@ PLUGIN_ROOT_ENV_KEYS = frozenset(
 )
 
 # Prefix of a skip reason for budget exhaustion only (owner decision D26): a
-# spent Copilot monthly quota (HTTP 402) or a spent Claude credit balance. The
-# Copilot and Claude CI legs pass it to
+# spent Copilot monthly quota (HTTP 402) or a spent Claude credit balance. A
+# caller passes it to
 # scripts/validation/assert_smoke_ran.py --allow-skip-marker, so a prompt-based
-# best-effort test that hits an exhausted budget does not fail the gate.
+# best-effort test that hits an exhausted budget does not fail the gate. The
+# Copilot and Claude CI legs that passed it were deleted on 2026-11-25, so no
+# workflow passes it now.
 # Copilot auth, rate limit, transport, and latency blocks never carry it: in CI
 # they fail the test, and locally they skip loudly without the marker, so the
 # gate still turns red on any of them. A Claude 429 does carry it: the CLI

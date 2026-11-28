@@ -2,7 +2,7 @@
 """Create GitHub issues from artifact insight findings.
 
 Replaces the PowerShell 'Create issues for findings' block in
-artifact-insight-scanner.yml (ADR-006).
+artifact-insight-scanner.yml (deleted 2026-11-25) (ADR-006).
 
 ENV:
   FINDINGS_JSON       - JSON array of finding objects (title, body, labels, source)

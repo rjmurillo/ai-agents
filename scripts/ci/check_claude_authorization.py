@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run the Claude authorization check and validate its answer.
 
-Extracted from ``.github/workflows/claude.yml`` under ADR-006 (no logic in
+Extracted from the deleted ``.github/workflows/claude.yml`` under ADR-006 (no logic in
 workflow YAML). Issue #3536.
 
 The shell this replaces separated two failure modes that look identical from

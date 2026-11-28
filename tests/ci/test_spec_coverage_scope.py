@@ -313,7 +313,6 @@ class TestEntrypoint:
 
 SCOPE_WORKFLOWS = [
     ("ai-spec-validation.yml", "validate-spec"),
-    ("ai-spec-review.yml", "review-spec"),
 ]
 
 
