@@ -221,31 +221,31 @@ class TestUpstreamRepo:
     def test_an_unparsable_pr_url_keeps_origin(self, context, scripts):
         ado = "https://dev.azure.com/c/p/_git/r/pullrequest/5"
         ctx = context("https://dev.azure.com/c/p/_git/r", 5, ado)
-        assert scripts[1].pr_query_mod.repo_mod.upstream(*ctx) is None
+        assert scripts[1].repo_mod.upstream(*ctx) is None
 
     def test_an_origin_that_names_no_owner_and_repo_keeps_origin(self, context, scripts):
         ctx = context("https://github.com/solo.git", 42, UPSTREAM_PR)
-        assert scripts[1].pr_query_mod.repo_mod.upstream(*ctx) is None
+        assert scripts[1].repo_mod.upstream(*ctx) is None
 
     def test_another_repository_is_returned(self, context, scripts):
         ctx = context(FORK, 42, UPSTREAM_PR)
-        found = scripts[1].pr_query_mod.repo_mod.upstream(*ctx)
+        found = scripts[1].repo_mod.upstream(*ctx)
         assert found is not None
         assert found.key == ("github.com", "upstream", "project")
 
     def test_no_pr_keeps_origin(self, context, scripts):
-        assert scripts[1].pr_query_mod.repo_mod.upstream(*context(FORK, None, "")) is None
+        assert scripts[1].repo_mod.upstream(*context(FORK, None, "")) is None
 
     @pytest.mark.parametrize("origin", ALIAS_ORIGINS)
     def test_the_same_owner_and_repository_on_an_alias_host_keeps_origin(
         self, context, scripts, origin
     ):
         ctx = context(origin, 42, "https://github.com/octo/repo/pull/42")
-        assert scripts[1].pr_query_mod.repo_mod.upstream(*ctx) is None
+        assert scripts[1].repo_mod.upstream(*ctx) is None
 
     def test_a_different_owner_on_an_alias_host_is_still_a_fork(self, context, scripts):
         ctx = context("git@work-gh:me/repo.git", 42, "https://github.com/octo/repo/pull/42")
-        found = scripts[1].pr_query_mod.repo_mod.upstream(*ctx)
+        found = scripts[1].repo_mod.upstream(*ctx)
         assert found is not None
         assert found.key == ("github.com", "octo", "repo")
 
@@ -255,31 +255,31 @@ class TestRemoteFor:
 
     @staticmethod
     def _ref(scripts):
-        return scripts[1].pr_query_mod.repo_mod.pr_repo(UPSTREAM_PR, 42)
+        return scripts[1].repo_mod.pr_repo(UPSTREAM_PR, 42)
 
     def test_an_alias_host_remote_is_found_by_owner_and_repository(self, make_repo, scripts):
         repo = make_repo(FORK)
         git(repo, "remote", "add", "upstream", "git@work-gh:Upstream/Project.git")
-        found = scripts[1].pr_query_mod.repo_mod.remote_for(repo, self._ref(scripts))
+        found = scripts[1].repo_mod.remote_for(repo, self._ref(scripts))
         assert found == "upstream"
 
     def test_the_exact_host_wins_over_an_earlier_alias_match(self, make_repo, scripts):
         repo = make_repo(FORK)
         git(repo, "remote", "add", "aaa-alias", "ssh://git@ssh.github.com:443/upstream/project.git")
         git(repo, "remote", "add", "zzz-exact", UPSTREAM_URLS[0])
-        found = scripts[1].pr_query_mod.repo_mod.remote_for(repo, self._ref(scripts))
+        found = scripts[1].repo_mod.remote_for(repo, self._ref(scripts))
         assert found == "zzz-exact"
 
     def test_the_first_alias_match_is_used_when_no_host_matches(self, make_repo, scripts):
         repo = make_repo(FORK)
         git(repo, "remote", "add", "aaa", "git@work-gh:upstream/project.git")
         git(repo, "remote", "add", "bbb", "git@other-gh:upstream/project.git")
-        found = scripts[1].pr_query_mod.repo_mod.remote_for(repo, self._ref(scripts))
+        found = scripts[1].repo_mod.remote_for(repo, self._ref(scripts))
         assert found == "aaa"
 
     def test_origin_of_a_different_owner_never_matches(self, make_repo, scripts):
         repo = make_repo("git@work-gh:me/project.git")
-        found = scripts[1].pr_query_mod.repo_mod.remote_for(repo, self._ref(scripts))
+        found = scripts[1].repo_mod.remote_for(repo, self._ref(scripts))
         assert found is None
 
 
@@ -288,17 +288,17 @@ class TestBaseRemote:
 
     def test_no_pr_is_origin_with_no_label(self, make_repo, scripts):
         repo = make_repo(FORK)
-        assert scripts[1].pr_query_mod.base_remote(repo, None, "") == ("origin", "")
+        assert scripts[1].repo_mod.base_remote(repo, None, "") == ("origin", "")
 
     def test_a_fork_pr_is_the_remote_that_names_the_pr_repository(self, make_repo, scripts):
         repo = make_repo(FORK)
         git(repo, "remote", "add", "upstream", UPSTREAM_URLS[0])
-        found = scripts[1].pr_query_mod.base_remote(repo, 42, UPSTREAM_PR)
+        found = scripts[1].repo_mod.base_remote(repo, 42, UPSTREAM_PR)
         assert found == ("upstream", "upstream/project")
 
     def test_a_fork_pr_with_no_matching_remote_is_none_with_the_label(self, make_repo, scripts):
         repo = make_repo(FORK)
-        found = scripts[1].pr_query_mod.base_remote(repo, 42, UPSTREAM_PR)
+        found = scripts[1].repo_mod.base_remote(repo, 42, UPSTREAM_PR)
         assert found == (None, "upstream/project")
 
     def test_detect_stores_the_remote_and_label_in_the_context(self, make_repo, fakes, scripts):
@@ -331,7 +331,7 @@ class TestRepoRef:
         ],
     )
     def test_a_remote_url_names_its_repository(self, scripts, url, expected):
-        found = scripts[1].pr_query_mod.repo_mod.repo_ref(url)
+        found = scripts[1].repo_mod.repo_ref(url)
         assert found is not None
         assert found.key == expected
 
@@ -352,7 +352,7 @@ class TestRepoRef:
         ],
     )
     def test_a_url_that_names_no_repository_is_none(self, scripts, url):
-        assert scripts[1].pr_query_mod.repo_mod.repo_ref(url) is None
+        assert scripts[1].repo_mod.repo_ref(url) is None
 
     @pytest.mark.parametrize(
         ("url", "number", "found"),
@@ -366,4 +366,4 @@ class TestRepoRef:
         ],
     )
     def test_a_pr_url_names_the_repository_only_for_that_pr(self, scripts, url, number, found):
-        assert (scripts[1].pr_query_mod.repo_mod.pr_repo(url, number) is not None) is found
+        assert (scripts[1].repo_mod.pr_repo(url, number) is not None) is found

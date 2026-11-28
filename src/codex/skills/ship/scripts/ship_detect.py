@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import _ship_common as common
     import _ship_pr_query as pr_query_mod
+    import _ship_repo as repo_mod
     import _ship_windows as windows_mod
 else:
     _HERE = Path(__file__).resolve(strict=True).parent  # the real entry, never a symlink's dir
@@ -35,6 +36,7 @@ else:
     common = sys.modules["_ship_common"]
     windows_mod = common.load_sibling("_ship_windows")
     pr_query_mod = common.load_sibling("_ship_pr_query")
+    repo_mod = common.load_sibling("_ship_repo")
 
 SCRIPT = "ship_detect.py"
 REASONS = frozenset(
@@ -249,12 +251,20 @@ def _pr_base(pr: int, pr_target: str, base: str | None) -> str | Halt:
     return pr_target
 
 
-def base_arg_ok(base: str) -> bool:
-    """Whether ``--base`` may reach ``detect``: a plain ref, or a valid branch an open PR may target.
+def base_arg_error(base: str | None, *, strict: bool = False) -> str | None:
+    """The message that refuses a typed ``--base``, or None when it may go on. The one home of the rule.
 
-    ``detect`` then holds a branch outside the plain-ref rule to the open PR's own target.
+    Two stages. ``strict`` is the plain-ref rule (``common.safe_ref``): it holds when no host
+    is asked (``ship_pr.py prepare``) and when no open PR fixes the base, because a new PR
+    sends the name to the host and, on Windows, through cmd.exe. Without ``strict`` the
+    first stage admits any valid branch (``valid_branch``) too, since an open PR may target
+    one such as ``release/2026+hotfix``; ``detect`` then holds it to that PR's own target.
     """
-    return common.safe_ref(base) or pr_query_mod.valid_branch(base)
+    if base is None:
+        return None
+    if common.safe_ref(base) or (not strict and pr_query_mod.valid_branch(base)):
+        return None
+    return "--base is not a plain ref"
 
 
 def detect(cwd: Path | None = None, base: str | None = None) -> Context | Halt:
@@ -278,13 +288,13 @@ def detect(cwd: Path | None = None, base: str | None = None) -> Context | Halt:
         if isinstance(pr_base, Halt):
             return pr_base
         target = pr_base
-    elif base is not None and not common.safe_ref(base):
+    elif (error := base_arg_error(base, strict=True)) is not None:
         # A new PR sends --base to the host and, on Windows, through cmd.exe: the strict rule.
-        return Halt("bad-arguments", common.EXIT_CONFIG, "--base is not a plain ref")
+        return Halt("bad-arguments", common.EXIT_CONFIG, error)
     # The same set publish refuses, so the refusal comes in phase 1.
     if mode == "owner" and pr is None and branch in protected_branches(target, origin_default):
         return Halt("on-base-branch", common.EXIT_LOGIC, f"on {branch}; create a feature branch")
-    base_remote, base_shown = pr_query_mod.base_remote(root, pr, pr_url)
+    base_remote, base_shown = repo_mod.base_remote(root, pr, pr_url)
     return Context(
         root,
         host,
@@ -332,12 +342,8 @@ def run(argv: list[str]) -> tuple[common.Result, str, Path | None]:
     except common.UsageError as exc:
         return result.stop("bad-arguments", common.EXIT_CONFIG, exc), common.peek_format(argv), None
     fmt = common.resolve_format(args.output_format)
-    if args.base is not None and not base_arg_ok(args.base):
-        return (
-            result.stop("bad-arguments", common.EXIT_CONFIG, "--base is not a plain ref"),
-            fmt,
-            None,
-        )
+    if (error := base_arg_error(args.base)) is not None:
+        return result.stop("bad-arguments", common.EXIT_CONFIG, error), fmt, None
     ctx = detect(base=args.base)
     if isinstance(ctx, Halt):
         return result.stop(ctx.reason, ctx.code, ctx.detail), fmt, common.repo_root()

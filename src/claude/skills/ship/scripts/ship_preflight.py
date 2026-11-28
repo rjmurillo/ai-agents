@@ -145,8 +145,8 @@ def build_parser() -> common.ResultParser:
 
 
 def _validate(args: argparse.Namespace) -> str | None:
-    if args.base is not None and not detect_mod.base_arg_ok(args.base):
-        return "--base is not a plain ref"
+    if (error := detect_mod.base_arg_error(args.base)) is not None:
+        return error
     if args.pr is not None and args.pr <= 0:
         return "--pr must be a positive integer"
     if args.deadline is not None and args.deadline > int(time.time()) + TOTAL_WAIT_SECONDS:

@@ -3,7 +3,7 @@
 Stdlib only, Python 3.10 floor. ``RepoRef`` names a repository on a host. ``pr_repo``
 reads it from a PR URL and ``repo_ref`` from a git remote URL. ``upstream`` and
 ``remote_for`` use them to find the repository that owns a PR and the remote that
-tracks it.
+tracks it. ``base_remote`` combines them: the remote that holds an open PR's target branch.
 """
 
 from __future__ import annotations
@@ -118,3 +118,16 @@ def remote_for(root: Path, repo: RepoRef) -> str | None:
         if same_slug is None and found.slug == repo.slug:
             same_slug = name
     return same_slug
+
+
+def base_remote(root: Path, pr: int | None, pr_url: str) -> tuple[str | None, str]:
+    """The remote that holds the PR's target branch, and the repository label to show for it.
+
+    ``origin`` with an empty label when no other repository owns the PR. For a PR that
+    belongs to another repository, the remote that names it with the ``<owner>/<repo>``
+    label; ``None`` with that label when no remote names it.
+    """
+    owner = upstream(root, pr, pr_url)
+    if owner is None:
+        return "origin", ""
+    return remote_for(root, owner), f"{owner.owner}/{owner.repo}"
