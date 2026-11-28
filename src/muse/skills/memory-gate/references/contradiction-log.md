@@ -48,7 +48,10 @@ Serena MCP server is optional; file tools on the same folder work.
    `*-index` file in the same change: update the entry's row if one exists,
    and add a row only when none does. A new file under `.serena/memories/`
    also gets a keyword line in `memory-index.md` (the `knowledge-persistence`
-   rule, MUST 5). Commit the entry and its index lines together.
+   rule, MUST 5). Commit the decision entry, every matching or superseded
+   entry changed in step 1, and all changed index lines together. During
+   recovery, also remove any fallback comment block added by this procedure
+   in that same commit (leave the rest of the affected file unchanged).
 3. When the host also configures a memory service for this project, retain
    the same entry there, unless the worktree note below forbids it. A
    service is a retrieval aid, not a replacement for the repository entry.
@@ -70,6 +73,6 @@ read-only file or checkout, no commit access, a rejected commit hook, and a
 user instruction against file changes or commits. Do two things:
 
 1. Put a comment block with the same five fields in the file the decision applies to. Use the reply instead when that file must not be edited: it does not exist, cannot be written, is generated (regeneration discards the comment), has no safe comment syntax (for example JSON), or the user forbids file changes.
-2. Add one line to the reply: `Blocked record: decision-<short-slug>, <cause>, <location>`. The location is the path and line of the comment block. If the reply holds the five fields instead, the location is `reply`. Once the user authorizes the change, the parent session or the user writes the entry from those fields, adds its index lines, removes the comment block, and commits them together.
+2. Add one line to the reply: `Blocked record: decision-<short-slug>, <cause>, <location>`. The location is the path and line of the comment block. If the reply holds the five fields instead, the location is `reply`. Once the user authorizes the change, the parent session or the user runs the full "Where to write it" procedure (steps 1 through 4) with those fields, including the recovery cleanup in step 2. If the repository commit is still blocked, preserve the five fields in the fallback comment or reply and report the remaining cause.
 
 A blocked record is reported, not silently dropped. The comment is worse than a memory entry (less searchable, no graph) but better than losing the reasoning.
