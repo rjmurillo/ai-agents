@@ -31,7 +31,7 @@ When validating improvement decisions:
 
 | VERIFIED | FAILED | UNCERTAIN |
 |----------|--------|-----------|
-| Change is in touched code area | Change unrelated to current work | Scope unclear from context |
+| Change is in touched code area | Unrelated change bundled into this PR | Scope unclear from context |
 | Small, safe improvement | Large refactoring bundled with fix | Risk assessment missing |
 | Balanced with delivery | Perfectionism blocking progress | Trade-offs not articulated |
 
