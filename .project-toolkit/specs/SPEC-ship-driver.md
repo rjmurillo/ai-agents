@@ -131,6 +131,7 @@ Owns everything `/push-pr` did after the body is written.
 - It refuses when HEAD is not the reviewed SHA: `STOP: head-not-reviewed`, exit 1.
   `--draft` skips that check only for a new PR or an open PR the host reports as a draft.
   An open PR whose draft state is unknown or false still needs the marker (owner ruling, 2026-11-25, #7581).
+  On ADO a push updates every active PR from the branch, so the draft state is true only when each of them is a draft.
 - It refuses `MODE: contributor`: `STOP: contributor-mode`, exit 1.
 - It never creates a commit.
 - It reruns `check` and stops on any failure before the push.
@@ -162,7 +163,10 @@ Owns everything `/push-pr` did after the body is written.
   The PR is left open for the user to decide.
 - An existing open PR is not recreated. It prints `PR: host=<h> number=<id> url=<u> existing` and pushes only.
 - The paths-in-diff check never runs code from the branch being shipped (owner ruling, 2026-11-25).
-  It reads `scripts/validation/pr_description.py` and its `scripts/github_core/` import closure with `git show origin/<base>:<path>`.
+  It reads `scripts/validation/pr_description.py` and its `scripts/github_core/` import closure with `git show <remote>/<base>:<path>`.
+  `<remote>` is `origin`, unless an open PR belongs to another repository (a fork checkout).
+  Then it is the remote whose URL names that repository on the PR host, or on `ssh.<PR host>`. A remote on any other host is not read.
+  When no remote or ref matches, `check` prints `CHECK: paths=NOT-RUN <owner>/<repo>:<base> ...`, never a pass.
   It writes them to a private temporary tree (directory 0700, files 0600) and runs that copy with `python3 -I`.
   The body file and the branch diff are its data. `uv` is not used, so the branch's lockfile builds nothing.
 - Accepted trade-off: a PR that changes the validator itself is checked by the base version until it merges.
