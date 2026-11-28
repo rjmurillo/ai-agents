@@ -47,7 +47,6 @@ _MIN_REASON_LENGTH = 40
 
 # Pre-push job -> the pre_pr gate that runs the same check.
 GATED: dict[str, str] = {
-    "count-ratchets": "Count Ratchets",
     "python-unreachable-statements": "Unreachable Code Detection",
     "python-unused-arguments": "Unused Argument Detection",
     "path-normalization": "Path Normalization",
@@ -129,12 +128,6 @@ EXEMPT: dict[str, str] = {
         "Advisory report that calls gh for the open pull request. It needs a "
         "pull request, which does not exist before the first push."
     ),
-    "plugin-scanner": (
-        "Scores the whole tree with the pinned HOL plugin scanner, about 50s, and "
-        "installs it from PyPI on first use. Inside pre_pr it would spend a fifth of "
-        "the 240s run budget; the Plugin Scanner workflow runs the same scanner on "
-        "every pull request instead."
-    ),
 }
 
 
@@ -182,7 +175,12 @@ def test_the_hook_scan_finds_the_known_jobs() -> None:
     """A scan that finds nothing would pass the test above for the wrong reason."""
     jobs = pre_push_jobs()
     assert len(jobs) > 20
-    for known in ("python-type-check", "security-scan", "pre-pr-validation", "count-ratchets"):
+    for known in (
+        "python-type-check",
+        "security-scan",
+        "pre-pr-validation",
+        "python-lint-advisory",
+    ):
         assert known in jobs
 
 
@@ -205,6 +203,15 @@ def test_deferred_gates_match_their_gated_row() -> None:
             f"{gate.name} defers to {gate.already_run_by}, but GATED maps that job to "
             f"{GATED.get(gate.already_run_by)!r}"
         )
+
+
+def test_ci_owned_heavy_jobs_left_the_hook() -> None:
+    """Owner ruling 2026-11-27: CI owns these, so no hook job and no table row remains."""
+    jobs = pre_push_jobs()
+    for removed in ("count-ratchets", "plugin-scanner"):
+        assert removed not in jobs
+        assert removed not in GATED
+        assert removed not in EXEMPT
 
 
 def test_every_exemption_states_a_reason() -> None:

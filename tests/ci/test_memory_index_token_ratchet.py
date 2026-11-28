@@ -21,37 +21,11 @@ import sys
 from pathlib import Path
 
 import pytest
-import yaml
+
+from tests.ci.ratchet_test_helpers import ci_owners_of
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _MODULE_PATH = _REPO_ROOT / "scripts" / "ci" / "memory_index_token_ratchet.py"
-
-
-def _walk_jobs(jobs: object) -> list[dict]:
-    if not isinstance(jobs, list):
-        return []
-    found: list[dict] = []
-    for job in jobs:
-        if not isinstance(job, dict):
-            continue
-        found.append(job)
-        group = job.get("group")
-        if isinstance(group, dict):
-            found.extend(_walk_jobs(group.get("jobs")))
-    return found
-
-
-def _count_ratchets_job() -> dict | None:
-    config = yaml.safe_load((_REPO_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
-    if not isinstance(config, dict):
-        return None
-    pre_push = config.get("pre-push")
-    if not isinstance(pre_push, dict):
-        return None
-    return next(
-        (job for job in _walk_jobs(pre_push.get("jobs")) if job.get("name") == "count-ratchets"),
-        None,
-    )
 
 
 _spec = importlib.util.spec_from_file_location("memory_index_token_ratchet", _MODULE_PATH)
@@ -287,9 +261,8 @@ class TestRegisteredInBothGates:
         names = {r.job_name for r in checks_ratchet.RATCHETS}
         assert "memory-index-token-ratchet" in names
 
-    def test_aggregate_registry_runner_is_the_pre_push_job(self) -> None:
-        job = _count_ratchets_job()
-        assert job is not None
-        assert str(job.get("run")) == (
-            "uv run --frozen python scripts/validation/git_hook_policy.py count-ratchets"
-        )
+    def test_required_ci_job_runs_the_ratchet(self) -> None:
+        """CI owns this ratchet since the pre-push job was removed on 2026-11-27."""
+        assert ci_owners_of("scripts/ci/memory_index_token_ratchet.py") == [
+            "pr-validation.yml validate-pr"
+        ]
