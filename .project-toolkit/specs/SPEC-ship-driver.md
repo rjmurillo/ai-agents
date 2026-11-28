@@ -122,7 +122,7 @@ Owns everything `/push-pr` did after the body is written.
 | `branch --name <type>/<slug>` | creates and switches to a feature branch | `BRANCH:` |
 | `prepare [--base <ref>]` | allocates the body file and seeds the template | `BODY_FILE: <path>` |
 | `check --title --body-file [--base <ref>]` | title, body, paths-in-diff, ADO description rules | `CHECK: title=`, `CHECK: body=`, `CHECK: paths=` |
-| `publish --title --body-file [--base <ref>] [--draft] [--require-axis A] [--paths-checked-by-hand]` | push, then create the PR | `PUSH_LOCK:`, `PUSH_LOCK_CAUSE:`, `PUSH:`, `PR:`, `NEXT:` |
+| `publish --title --body-file [--base <ref>] [--draft] [--require-axis A] [--paths-checked-by-hand]` | push, then create the PR | `PUSH_LOCK:`, `PUSH:`, `PR:`, `NEXT:` |
 
 `publish` rules, all enforced in code:
 
@@ -150,18 +150,10 @@ Owns everything `/push-pr` did after the body is written.
   So does every child when the script dies from any other signal, such as SIGKILL.
   The push has no terminal there, so git cannot prompt for a password; that push ends `STOP: auth-failed`.
   A lock another push holds is `STOP: push-locked`, exit 3, and nothing is pushed.
-  When it cannot take the lock, it pushes and prints `PUSH_LOCK: unavailable`, then `PUSH_LOCK_CAUSE: <cause> <detail>`.
-  The cause is the first that applies of: `no-flock` (Windows), `no-home`, `mkdir-failed` (the lock directory), `open-failed` (the lock file), and `flock-failed` (the lock call).
-  The detail of a failed call is the errno name and the path under `$HOME`, such as `EISDIR at $HOME/src/scratch/locks/push-lock-<slug>.lock`. The real home path is never printed.
-  `PUSH_LOCK: held` prints no cause line.
+  With no flock (Windows), no `HOME`, an unwritable lock directory, or a failed lock call, it pushes and prints `PUSH_LOCK: unavailable`.
   It pushes rather than stops there, because a stop would block every publish on that host. The cost is no serialization with the commit guard there.
 - GitHub create calls `new_pr.py` as today.
 - ADO create builds a fixed argument list and runs it without a shell.
-- Off Windows each create runs in a new session, as the push does.
-  A create that passes its cap (180 seconds, or the time left in the run budget) is killed with its process group, `gh` or `az` included.
-  So no create process is left running after `STOP: pr-create-failed`. The PR may already exist, so the detail says to rerun `publish`.
-  A Ctrl-C, or a SIGTERM, SIGHUP, or SIGQUIT to the script, kills that group too. The script then ends with no terminal line.
-  On Windows the create has no process group, so a timeout kills the direct child only.
 - On Windows, `az` is `az.cmd`, which runs through cmd.exe. The scripts find it on absolute `PATH` entries only, never the current directory.
   Every argument is double-quoted, and an argument holding `%`, `!`, a quote, a line break, or a trailing backslash is refused (exit 126, so a STOP).
   `check`, which `publish` reruns, fails such a title or body file path first, so the refusal never comes after the push.
@@ -200,7 +192,7 @@ A STOP detail is at most 500 characters.
 |---|---|---|---|
 | `ship_detect.py` | `HOST`, `REMOTE_HOST`, `BRANCH`, `BASE`, `HEAD`, `PR`, `PR_URL`, `PR_AUTHOR`, `PR_DRAFT`, `MODE` | `preflight`, `validate-only` | `--base` |
 | `ship_preflight.py` | the detect keys, `CHECK`, `PIPELINE_DEADLINE` | `write-body`, `report`, `publish-then-discharge`, `rerun-pipeline` | `--check` (repeatable), `--base`, `--pr`, `--draft`, `--require-axis`, `--deadline`, `--wait-seconds` (0 to 540) |
-| `ship_pr.py` | `BRANCH`, `BODY_FILE`, `CHECK`, `FINDING`, `PUSH_LOCK`, `PUSH_LOCK_CAUSE`, `PUSH`, `PR`, and the detect keys with `PR_AT_PREFLIGHT` in place of `PR` | `commit-then-review`, `write-body`, `compare-paths-by-hand`, `publish`, `discharge` | per subcommand, in the table above |
+| `ship_pr.py` | `BRANCH`, `BODY_FILE`, `CHECK`, `FINDING`, `PUSH_LOCK`, `PUSH`, `PR`, and the detect keys with `PR_AT_PREFLIGHT` in place of `PR` | `commit-then-review`, `write-body`, `compare-paths-by-hand`, `publish`, `discharge` | per subcommand, in the table above |
 
 `--wait-seconds` defaults to 480 and takes at most 540. These are upper bounds, not the wait you get.
 Each wait is clamped to the run budget (540 seconds, `RUN_BUDGET_SECONDS` in `_ship_common.py`) less a 120-second reserve for the calls after it.

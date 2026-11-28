@@ -229,13 +229,11 @@ def cmd_check(args: argparse.Namespace, result: common.Result, _root: Path) -> c
 
 def _push(ctx: Context, result: common.Result) -> bool:
     """Push under the shared per-branch push lock, so the commit guard sees the push."""
-    with common.push_lock(ctx.branch) as lock:
+    with common.push_lock(ctx.branch, lambda cause: result.add("PUSH_LOCK_CAUSE", cause)) as lock:
         if lock == "busy":
             result.stop("push-locked", common.EXIT_EXTERNAL, _LOCK_BUSY)
             return False
         result.add("PUSH_LOCK", lock)
-        if lock.cause:
-            result.add("PUSH_LOCK_CAUSE", f"{lock.cause} {lock.detail}")
         return _push_now(ctx, result)
 
 
@@ -327,7 +325,7 @@ def _create_ado(
         "--draft",
         "true" if args.draft else "false",
     ]
-    done = common.run(argv, cwd=ctx.root, timeout=PR_TIMEOUT_SECONDS, group=not common.on_windows())
+    done = common.run(argv, cwd=ctx.root, timeout=180)
     if done.returncode != 0:
         halt = _create_halt(done)
         return result.stop(halt.reason, halt.code, halt.detail)

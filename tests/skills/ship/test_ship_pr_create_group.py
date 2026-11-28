@@ -1,20 +1,19 @@
 """The PR create runs in its own process group off Windows (issue #7807, gap 1).
 
-``ship_pr.py publish`` ran ``new_pr.py`` and ``az repos pr create`` with no
-process group. A timeout killed the direct child only, so the ``gh`` or ``az``
+``ship_pr.py publish`` ran ``new_pr.py`` with no
+process group. A timeout killed the direct child only, so the ``gh``
 grandchild kept running and could still open a PR after ``STOP: pr-create-failed``.
 """
 
 from __future__ import annotations
 
-import json
 import os
 import signal
 from pathlib import Path
 
 import pytest
 
-from tests.skills.ship.ship_helpers import ADO, ado_created, publish, values
+from tests.skills.ship.ship_helpers import publish, values
 from tests.skills.ship.test_ship_push_lock import _assert_dead, _reap
 
 posix_only = pytest.mark.skipif(os.name == "nt", reason="process groups are POSIX only")
@@ -45,33 +44,8 @@ def _grandchild_on_create(
     helper.write_text(f"{shebang}\n{prefix}{body}", encoding="utf-8")
 
 
-@pytest.fixture
-def ado(make_repo, fakes, body_file):
-    """An Azure DevOps owner repo with no PR, a valid marker, and a body file."""
-    repo = make_repo(ADO)
-    fakes.no_pr_ado()
-    fakes.marker(0)
-    fakes.rule(
-        "validate_pr_description",
-        [],
-        {"stdout": json.dumps({"ErrorCount": 0, "WarningCount": 1, "Validations": {}})},
-    )
-    fakes.rule("az", ["repos", "pr", "create"], ado_created())
-    return repo, body_file(repo)
-
-
 def _github_helper(fakes) -> tuple[Path, str]:
     return fakes.skills / "github" / "scripts" / "pr" / "new_pr.py", "--title"
-
-
-def _ado_helper(fakes) -> tuple[Path, str]:
-    return fakes.root / "bin" / "az", "create"
-
-
-HOSTS = [
-    pytest.param("owner", _github_helper, id="github"),
-    pytest.param("ado", _ado_helper, id="ado"),
-]
 
 
 def _spy_on_create(monkeypatch, common, token: str) -> list[dict]:
@@ -90,12 +64,11 @@ def _spy_on_create(monkeypatch, common, token: str) -> list[dict]:
 
 @posix_only
 class TestCreateTimeoutKillsTheGroup:
-    @pytest.mark.parametrize(("fixture", "helper"), HOSTS)
     def test_a_timeout_kills_the_grandchild(
-        self, request, fakes, scripts, capsys, monkeypatch, tmp_path, fixture, helper
+        self, owner, fakes, scripts, capsys, monkeypatch, tmp_path
     ):
-        _repo, body = request.getfixturevalue(fixture)
-        path, token = helper(fakes)
+        _repo, body = owner
+        path, token = _github_helper(fakes)
         pid_file = tmp_path / "grandchild.pid"
         _grandchild_on_create(path, token, pid_file)
         monkeypatch.setattr(scripts[3], "PR_TIMEOUT_SECONDS", 2)
@@ -154,35 +127,30 @@ class TestCreateTimeoutKillsTheGroup:
 class TestCreateGroupFlag:
     """The flag itself, so Windows is covered with no real Windows process."""
 
-    @pytest.mark.parametrize(("fixture", "helper"), HOSTS)
     def test_windows_runs_the_create_with_no_group(
-        self, request, fakes, scripts, capsys, monkeypatch, fixture, helper
+        self, owner, fakes, scripts, capsys, monkeypatch
     ):
-        _repo, body = request.getfixturevalue(fixture)
-        seen = _spy_on_create(monkeypatch, scripts[0], helper(fakes)[1])
+        _repo, body = owner
+        seen = _spy_on_create(monkeypatch, scripts[0], _github_helper(fakes)[1])
         monkeypatch.setattr(scripts[0], "on_windows", lambda: True)
         code, lines = publish(scripts, capsys, body)
         assert code == 0, lines
         assert [call["group"] for call in seen] == [False]
 
     @posix_only
-    @pytest.mark.parametrize(("fixture", "helper"), HOSTS)
-    def test_posix_runs_the_create_in_a_group(
-        self, request, fakes, scripts, capsys, monkeypatch, fixture, helper
-    ):
-        _repo, body = request.getfixturevalue(fixture)
-        seen = _spy_on_create(monkeypatch, scripts[0], helper(fakes)[1])
+    def test_posix_runs_the_create_in_a_group(self, owner, fakes, scripts, capsys, monkeypatch):
+        _repo, body = owner
+        seen = _spy_on_create(monkeypatch, scripts[0], _github_helper(fakes)[1])
         monkeypatch.setattr(scripts[0], "on_windows", lambda: False)
         code, lines = publish(scripts, capsys, body)
         assert code == 0, lines
         assert [call["group"] for call in seen] == [True]
 
-    @pytest.mark.parametrize(("fixture", "helper"), HOSTS)
     def test_the_create_keeps_its_timeout_and_work_tree(
-        self, request, fakes, scripts, capsys, monkeypatch, fixture, helper
+        self, owner, fakes, scripts, capsys, monkeypatch
     ):
-        repo, body = request.getfixturevalue(fixture)
-        seen = _spy_on_create(monkeypatch, scripts[0], helper(fakes)[1])
+        repo, body = owner
+        seen = _spy_on_create(monkeypatch, scripts[0], _github_helper(fakes)[1])
         assert scripts[3].PR_TIMEOUT_SECONDS == 180
         code, lines = publish(scripts, capsys, body)
         assert code == 0, lines
