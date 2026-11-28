@@ -140,7 +140,7 @@ Derive the route from discovered context (stack, tests, verifier, harness contro
 Below Bounded: no model if a script or rule decides; a big model on a yes/no is a classifier in an expensive coat. Higher effort is not monotonically better; it can add latency and tokens without raising acceptance. Validate an effort per task shape and harness before defaulting to it.
 Model labels and agent roles are separate | tiers and labels advisory, not agents or IDs.
 `orchestrator` coordinates | `autoplan` routes | advisory, harness-resolved aliases: `haiku` bounded (no effort control), `sonnet` specified, `opus` judgment, `fable` escalation only; other labels only when the harness resolves them, never as superiority claims.
-Pin changes pass ADR-080; this policy never justifies a pin.
+Pin changes pass ADR-111; this policy never justifies a pin.
 Resolve to concrete IDs | unresolved: retain harness default + record fallback | never silently substitute.
 Preserve registered roles, mappings, role-keyed results, ADR-009, and ADR-078.
 

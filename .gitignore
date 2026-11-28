@@ -242,3 +242,7 @@ evals/*/runs/sweep-*
 
 # panning-for-gold workspace: holds transcript-derived text, never commit it.
 .panning/
+
+# Eval controller artifact locks (scripts/eval/README.md). They stay beside
+# the artifact after a run, by design.
+.eval-controller-*.lock

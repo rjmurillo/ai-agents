@@ -4,7 +4,7 @@ Both marketplace plugin sources: `claude/` for Claude Code, `copilot-cli/` for C
 
 ## Matters
 
-- ADR-109 B1 to B5: `claude/{agents,skills,rules,hooks}` and `claude/hooks.json` render from `templates/`, `claude/lib/` from `scripts/`; binplace places them in `.claude/` (dogfood, no manifest or marketplace entry): `agents/`, `skills/`, `rules/` as symlinks here (ADR-119), the rest as copies. Render map: `templates/AGENTS.md`.
+- ADR-109: `claude/{agents,skills,rules,hooks}` render from `templates/`. Dogfood `.claude/` links agents, skills, and rules (ADR-119). See `templates/AGENTS.md`.
 - `.claude-plugin/marketplace.json` lists one Claude plugin, `project-toolkit` at `./src/claude`; `claude-agents` is retired (B6).
 - `claude/skills/<name>/`: `SKILL.md` renders from its template; every other file is hand-maintained here; `.claude/skills/<name>` links here (ADR-119).
 
@@ -23,7 +23,7 @@ Both marketplace plugin sources: `claude/` for Claude Code, `copilot-cli/` for C
 
 ## Skip
 
-- `claude/{agents,skills,rules,hooks,lib}/`, `copilot-cli/{agents,skills,instructions,lib,hooks}/`, `vs-code-agents/*.agent.md`: generated (`.agents/governance/GENERATOR-FILES.md`); `copilot-cli/THIRD-PARTY-NOTICES.TXT` too, via `scripts/generate_third_party_notices.py --check`, omitted from that inventory.
+- `claude/{agents,skills,rules,hooks}/`, `copilot-cli/{agents,skills,instructions,hooks}/`, `vs-code-agents/*.agent.md`: generated (`.agents/governance/GENERATOR-FILES.md`); `copilot-cli/THIRD-PARTY-NOTICES.TXT` too, via `scripts/generate_third_party_notices.py --check`, omitted from that inventory.
 - `STYLE-GUIDE.md`: orphan by design, bot-linked via `.gemini/styleguide.md`. Do not delete.
 
 ## Constraints
@@ -40,7 +40,7 @@ Both marketplace plugin sources: `claude/` for Claude Code, `copilot-cli/` for C
 
 ## Dependencies
 
-- `copilot-cli/lib/` and `claude/lib/`: rendered from `scripts/` packages by `build_all.py` in the same run (B5); no prerequisite step.
+- `build_all.py` renders lib packages and bootstrap from `scripts/`. See `.claude/AGENTS.md` for lib edit locations.
 
 ## Architecture
 

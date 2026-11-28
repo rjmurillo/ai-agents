@@ -1,7 +1,7 @@
 ---
 name: cva-analysis
 version: 1.0.0
-description: Systematic abstraction discovery using Commonality Variability Analysis. Build matrix of what varies vs what's constant, then let patterns emerge. Prevents wrong abstractions by deferring pattern selection until requirements are analyzed. Use when facing multiple similar requirements and need to discover natural abstractions.
+description: "Abstraction discovery via Commonality Variability Analysis: matrix of what varies vs what is constant, defer pattern choice. Use when facing multiple similar requirements and you need natural abstractions."
 license: Apache-2.0
 metadata:
   tier: 3

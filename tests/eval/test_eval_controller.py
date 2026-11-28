@@ -24,8 +24,10 @@ import importlib.util
 import json
 import os
 import signal
+import subprocess
 import sys
 import textwrap
+import time
 from pathlib import Path
 from typing import Any
 
@@ -254,6 +256,7 @@ def test_policy_lists_state_and_task_paths(
         str(tmp_path / "state"),
         str(config.resolve()),
         str(tmp_path / "fixtures"),
+        str(sys.modules["_controller_lock"].artifact_lock_path(tmp_path / "artifact.json")),
     ]
     # The whole eval directory, so a planted sibling module is covered too.
     assert policy["deny_write"] == [str(_SCRIPT.parent)]
@@ -714,8 +717,12 @@ def test_gate_runs_with_bytecode_cache_under_state(
 
     monkeypatch.setattr(ec, "optimizer", fake)
     assert ec.main(["run", "--config", str(config)]) == 0
-    prefix = str(tmp_path / "state" / "pycache")
-    assert envs and all(env["PYTHONPYCACHEPREFIX"] == prefix for env in envs)
+    prefixes = [Path(env["PYTHONPYCACHEPREFIX"]) for env in envs]
+    # One fresh private directory per call, under state, gone once it returns,
+    # so a cache planted between calls is never read.
+    assert len(prefixes) >= 3 and len(set(prefixes)) == len(prefixes)
+    assert all(prefix.parent == tmp_path / "state" for prefix in prefixes)
+    assert not any(prefix.exists() for prefix in prefixes)
 
 
 @pytest.mark.parametrize("task", ["suite::../secret", "suite::a/b", "suite::..", "a\\b"])
@@ -1082,3 +1089,477 @@ def test_input_that_escapes_the_run_directory_is_refused(tmp_path: Path, templat
     config, _ = _setup(tmp_path, {}, steps=1)
     _edit_config(config, inputs=[template])
     assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+
+
+# Claim from an imported review learning: the collector (then `_collect`, now
+# `collect_all`) follows a planted symlink
+# and reads or copies bytes from outside the results tree. These pin the
+# observed behavior: the link itself moves, its target is never read, and
+# extract refuses an input that resolves outside the run directory.
+_PLANT_LEAF = textwrap.dedent(
+    """
+    import os, sys
+    os.symlink(sys.argv[2], sys.argv[1])
+    """
+)
+
+_PLANT_NESTED = textwrap.dedent(
+    """
+    import os, sys
+    os.makedirs(sys.argv[1])
+    os.symlink(sys.argv[2], os.path.join(sys.argv[1], "junit.xml"))
+    """
+)
+
+
+def _outside_report(tmp_path: Path) -> Path:
+    outside = tmp_path / "outside" / "secret.xml"
+    outside.parent.mkdir()
+    outside.write_text(
+        "<testsuites><testsuite><testcase classname='suite' name='T01'/></testsuite></testsuites>",
+        encoding="utf-8",
+    )
+    return outside
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
+def test_collected_leaf_symlink_moves_the_link_and_is_not_read(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    outside = _outside_report(tmp_path)
+    before = outside.read_bytes()
+    loose = tmp_path / "loose"
+    loose.mkdir()
+    target = str(loose / "{run_id}.xml")
+    _edit_config(
+        config,
+        scorer=[sys.executable, "-c", _PLANT_LEAF, target, str(outside)],
+        collect=[target],
+        inputs=["{run_dir}/0"],
+    )
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+    (moved,) = (tmp_path / "state" / "runs").glob("incumbent-0-*/0")
+    assert moved.is_symlink()
+    assert outside.read_bytes() == before
+    assert not (tmp_path / "state" / "split.json").exists()
+    assert "outside the run directory" in _events(tmp_path)[-1]["error"]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
+def test_collected_tree_with_a_nested_symlink_is_not_read(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    outside = _outside_report(tmp_path)
+    before = outside.read_bytes()
+    loose = tmp_path / "loose"
+    loose.mkdir()
+    target = str(loose / "{run_id}")
+    _edit_config(
+        config,
+        scorer=[sys.executable, "-c", _PLANT_NESTED, target, str(outside)],
+        collect=[target],
+        inputs=["{run_dir}/0/junit.xml"],
+    )
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+    (moved,) = (tmp_path / "state" / "runs").glob("incumbent-0-*/0")
+    assert moved.is_dir() and not moved.is_symlink()
+    assert (moved / "junit.xml").is_symlink()
+    assert outside.read_bytes() == before
+    assert not (tmp_path / "state" / "split.json").exists()
+    assert "outside the run directory" in _events(tmp_path)[-1]["error"]
+
+
+# The scorer is told `{run_dir}`, so it can plant the collect destination
+# itself before writing its report. `link` points `{run_dir}/0` at a directory
+# outside state; `dir` makes it a real directory. A nonzero `exit` makes the
+# scorer fail after planting, which takes the collect-on-failure path.
+_PLANT_DESTINATION = textwrap.dedent(
+    """
+    import os, runpy, sys
+    mode, run_dir, outside, exit_code = sys.argv[1:5]
+    destination = os.path.join(run_dir, "0")
+    if mode == "link":
+        os.symlink(outside, destination)
+    else:
+        os.mkdir(destination)
+    sys.argv = sys.argv[5:]
+    runpy.run_path(sys.argv[0], run_name="__main__")
+    sys.exit(int(exit_code))
+    """
+)
+
+
+def _plant_destination(tmp_path: Path, mode: str, exit_code: int = 0) -> tuple[Path, Path, Path]:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    loose = tmp_path / "loose"
+    loose.mkdir()
+    report = str(loose / "{run_id}.xml")
+    scorer = tmp_path / "scripts" / "scorer.py"
+    plant = [sys.executable, "-c", _PLANT_DESTINATION, mode, "{run_dir}", str(outside)]
+    _edit_config(
+        config,
+        scorer=[*plant, str(exit_code), str(scorer), "{artifact}", report],
+        collect=[report],
+        inputs=["{run_dir}/0"],
+    )
+    return config, outside, loose
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
+def test_collect_does_not_move_a_report_through_a_planted_destination_link(
+    tmp_path: Path,
+) -> None:
+    config, outside, loose = _plant_destination(tmp_path, "link")
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_EXTERNAL
+    assert list(outside.iterdir()) == []
+    # The report still leaves the checkout: it lands inside state.
+    assert list(loose.iterdir()) == []
+    (moved,) = (tmp_path / "state" / "runs").glob("incumbent-0-*/0")
+    assert moved.is_file() and not moved.is_symlink()
+    assert "existed before collection" in _events(tmp_path)[-1]["error"]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
+def test_failed_scorer_cannot_move_its_report_through_a_destination_link(
+    tmp_path: Path,
+) -> None:
+    config, outside, loose = _plant_destination(tmp_path, "link", exit_code=5)
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_EXTERNAL
+    assert list(outside.iterdir()) == []
+    assert list(loose.iterdir()) == []
+
+
+def test_real_directory_at_the_collect_destination_fails_the_run(tmp_path: Path) -> None:
+    config, outside, _ = _plant_destination(tmp_path, "dir")
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_EXTERNAL
+    assert list(outside.iterdir()) == []
+    (planted,) = (tmp_path / "state" / "runs").glob("incumbent-0-*/0")
+    assert planted.is_dir() and list(planted.iterdir()) == []
+    assert "existed before collection" in _events(tmp_path)[-1]["error"]
+
+
+# The first scorer to start claims `held` and waits for `release`; any later
+# scorer runs straight through. That parks one controller mid-baseline, after
+# its `split.json` check and before it writes the split.
+_HOLD_FIRST = textwrap.dedent(
+    """
+    import os, runpy, sys, time
+    held, release = sys.argv[1], sys.argv[2]
+    try:
+        os.close(os.open(held, os.O_CREAT | os.O_EXCL | os.O_WRONLY))
+    except FileExistsError:
+        pass
+    else:
+        deadline = time.monotonic() + 60
+        while not os.path.exists(release) and time.monotonic() < deadline:
+            time.sleep(0.05)
+    sys.argv = sys.argv[3:]
+    runpy.run_path(sys.argv[0], run_name="__main__")
+    """
+)
+
+
+def _wait_for(path: Path, seconds: float = 30.0) -> None:
+    deadline = time.monotonic() + seconds
+    while not path.exists():
+        assert time.monotonic() < deadline, f"{path} never appeared"
+        time.sleep(0.05)
+
+
+def _hold_first_scorer(tmp_path: Path, config: Path) -> tuple[Path, Path]:
+    held, release = tmp_path / "held", tmp_path / "release"
+    scorer = tmp_path / "scripts" / "scorer.py"
+    _edit_config(
+        config,
+        scorer=[
+            sys.executable,
+            "-c",
+            _HOLD_FIRST,
+            str(held),
+            str(release),
+            str(scorer),
+            "{artifact}",
+            "{run_dir}/junit.xml",
+        ],
+        timeout_seconds=120,
+    )
+    return held, release
+
+
+def _race(tmp_path: Path, first_config: Path, second_config: Path) -> tuple[int, int]:
+    """Park a first controller mid-baseline, run a second, then let the first finish."""
+    held, release = _hold_first_scorer(tmp_path, first_config)
+    first = subprocess.Popen(
+        [sys.executable, str(_SCRIPT), "run", "--config", str(first_config)],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        _wait_for(held)
+        second = ec.main(["run", "--config", str(second_config)])
+    finally:
+        release.touch()
+        first.wait(timeout=120)
+    return first.returncode, second
+
+
+def test_second_controller_on_the_same_state_dir_is_refused(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    first, second = _race(tmp_path, config, config)
+    assert second == ec.EXIT_CONFIG
+    assert "use a fresh state_dir" in capsys.readouterr().err
+    assert first == ec.EXIT_OK
+
+
+def test_second_controller_on_the_same_artifact_is_refused(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config, artifact = _setup(tmp_path, {"1": _all_true()}, steps=1)
+    before = artifact.read_bytes()
+    other = tmp_path / "other.json"
+    data = json.loads(config.read_text(encoding="utf-8"))
+    data.update(state_dir=str(tmp_path / "state2"), workspace_dir=str(tmp_path / "workspace2"))
+    other.write_text(json.dumps(data), encoding="utf-8")
+    first, second = _race(tmp_path, config, other)
+    assert second == ec.EXIT_CONFIG
+    assert "one controller per artifact" in capsys.readouterr().err
+    assert first == ec.EXIT_OK
+    # The refused run never scored, so it left no state behind but its lock.
+    assert not (tmp_path / "state2" / "split.json").exists()
+    assert artifact.read_bytes() != before
+
+
+def test_reused_state_dir_still_names_the_old_session_not_the_lock(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    assert ec.main(["run", "--config", str(config)]) == 0
+    capsys.readouterr()
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+    err = capsys.readouterr().err
+    assert "already holds a session" in err
+    assert "another controller" not in err
+
+
+# The scorer is told `{run_dir}`. These plant something in or around it before
+# running the real scorer, as candidate code inside a hook scorer could.
+_PLANT_AROUND_RUN = textwrap.dedent(
+    """
+    import os, runpy, shutil, sys
+    mode, run_dir, outside = sys.argv[1:4]
+    runs = os.path.dirname(run_dir)
+    state = os.path.dirname(runs)
+    if mode == "run_dir":
+        shutil.rmtree(run_dir)
+        os.symlink(outside, run_dir)
+    elif mode == "runs":
+        os.rename(runs, os.path.join(outside, "moved-runs"))
+        os.symlink(outside, runs)
+        os.mkdir(run_dir)
+    elif mode == "log_link":
+        os.symlink(os.path.join(outside, "victim.txt"), os.path.join(state, "log.jsonl"))
+    elif mode == "log_fifo":
+        os.mkfifo(os.path.join(state, "log.jsonl"))
+    sys.argv = sys.argv[4:]
+    runpy.run_path(sys.argv[0], run_name="__main__")
+    """
+)
+
+
+def _plant_around_run(tmp_path: Path, mode: str, *, collect: bool = False) -> tuple[Path, Path]:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "victim.txt").write_text("keep", encoding="utf-8")
+    scorer = tmp_path / "scripts" / "scorer.py"
+    plant = [sys.executable, "-c", _PLANT_AROUND_RUN, mode, "{run_dir}", str(outside)]
+    if collect:
+        loose = tmp_path / "loose"
+        loose.mkdir()
+        report = str(loose / "{run_id}.xml")
+        changes: dict[str, Any] = {"collect": [report], "inputs": ["{run_dir}/0"]}
+    else:
+        report = "{run_dir}/junit.xml"
+        changes = {}
+    _edit_config(config, scorer=[*plant, str(scorer), "{artifact}", report], **changes)
+    return config, outside
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
+@pytest.mark.parametrize("collect", [False, True])
+def test_run_dir_swapped_for_a_link_is_refused_before_anything_lands_outside(
+    tmp_path: Path, collect: bool
+) -> None:
+    config, outside = _plant_around_run(tmp_path, "run_dir", collect=collect)
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+    # The scorer's own report and bytecode cache may be there; nothing the
+    # controller wrote is.
+    scorer_wrote = {"junit.xml", "pycache"}
+    assert [p.name for p in outside.iterdir() if p.name not in scorer_wrote] == ["victim.txt"]
+    if collect:
+        _assert_report_quarantined(tmp_path)
+    else:
+        # Nothing to collect, so no quarantine is made.
+        assert not list((tmp_path / "state").glob("quarantine-*"))
+
+
+def _assert_report_quarantined(tmp_path: Path) -> None:
+    # The report left the checkout for a fresh directory in state.
+    assert list((tmp_path / "loose").iterdir()) == []
+    (quarantine,) = (tmp_path / "state").glob("quarantine-incumbent-*")
+    assert [p.name for p in quarantine.iterdir()] == ["0"]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
+def test_runs_directory_swapped_for_a_link_is_refused(tmp_path: Path) -> None:
+    config, outside = _plant_around_run(tmp_path, "runs", collect=True)
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+    planted = outside / next(p.name for p in outside.iterdir() if p.name.startswith("incumbent"))
+    assert [p.name for p in planted.iterdir() if p.name != "pycache"] == []
+    _assert_report_quarantined(tmp_path)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
+def test_planted_quarantine_names_cannot_capture_the_report(tmp_path: Path) -> None:
+    # The scorer knows `run_id`, so it can plant the old fixed name and the
+    # bare prefix. Neither is where the report goes.
+    config, outside = _plant_around_run(tmp_path, "run_dir", collect=True)
+    state = tmp_path / "state"
+    real = sys.modules["_controller_io"].collect_or_quarantine
+    planted: list[Path] = []
+
+    def plant_first(
+        templates: list[str], values: dict[str, str], run_dir: Path, base: Path, prefix: str
+    ) -> tuple[Path, list[str]]:
+        for name in (f"quarantine-{values['run_id']}", prefix):
+            (base / name).symlink_to(outside)
+            planted.append(base / name)
+        result: tuple[Path, list[str]] = real(templates, values, run_dir, base, prefix)
+        return result
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(ec, "collect_or_quarantine", plant_first)
+        assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+    assert [p.name for p in outside.iterdir() if p.name != "pycache"] == ["victim.txt"]
+    (quarantine,) = [p for p in state.glob("quarantine-incumbent-*") if p not in planted]
+    assert not quarantine.is_symlink()
+    assert [p.name for p in quarantine.iterdir()] == ["0"]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
+def test_replaced_run_dir_error_names_the_quarantine(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config, _ = _plant_around_run(tmp_path, "run_dir", collect=True)
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+    (quarantine,) = (tmp_path / "state").glob("quarantine-incumbent-*")
+    assert f"reports moved to {quarantine}" in capsys.readouterr().err
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
+def test_replaced_run_dir_error_names_the_quarantine_and_the_missing_report(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config, _ = _plant_around_run(tmp_path, "run_dir", collect=True)
+    missing = str(tmp_path / "loose" / "{run_id}.missing")
+    data = json.loads(config.read_text(encoding="utf-8"))
+    _edit_config(config, collect=[*data["collect"], missing])
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+    (quarantine,) = (tmp_path / "state").glob("quarantine-incumbent-*")
+    err = capsys.readouterr().err
+    assert f"reports moved to {quarantine}" in err
+    assert ".missing" in err
+
+
+def test_failed_quarantine_does_not_hide_the_scorer_error(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    _edit_config(config, scorer=[sys.executable, "-c", "raise SystemExit(9)"])
+
+    def broken(*_args: object) -> tuple[Path, list[str]]:
+        raise ec.ControllerError("quarantine broke", ec.EXIT_EXTERNAL)
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(ec, "collect_or_quarantine", broken)
+        assert ec.main(["run", "--config", str(config)]) == ec.EXIT_EXTERNAL
+    err = capsys.readouterr().err
+    assert "exited 9" in err
+    assert "quarantine broke" not in err
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
+def test_abort_record_is_written_while_the_locks_are_held(tmp_path: Path) -> None:
+    config, _ = _plant_around_run(tmp_path, "run_dir")
+    lock = sys.modules["_controller_lock"]
+    real = ec.Controller._record
+    held: list[bool] = []
+
+    def probe(self: Any, event: dict[str, Any]) -> None:
+        if event.get("event") == "abort":
+            # flock conflicts across descriptors even in one process.
+            try:
+                with lock.state_lock(tmp_path / "state"):
+                    held.append(False)
+            except ec.ControllerError:
+                held.append(True)
+        real(self, event)
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(ec.Controller, "_record", probe)
+        assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+    assert held == [True]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
+def test_log_planted_as_a_link_is_never_written_through(tmp_path: Path) -> None:
+    config, outside = _plant_around_run(tmp_path, "log_link")
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+    assert (outside / "victim.txt").read_text(encoding="utf-8") == "keep"
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX FIFOs")
+@pytest.mark.timeout(60)
+def test_log_planted_as_a_fifo_does_not_hang_the_controller(tmp_path: Path) -> None:
+    config, _ = _plant_around_run(tmp_path, "log_fifo")
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privilege on Windows")
+def test_ledger_directory_swapped_for_a_link_stops_the_gate(tmp_path: Path) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    outside = tmp_path / "outside"
+    plant = (
+        "import json, os, sys; state, outside, artifact = sys.argv[1:4]; "
+        "ledger = os.path.join(state, 'ledger'); os.rename(ledger, outside); "
+        "os.symlink(outside, ledger); "
+        "json.dump({f'T{n:02d}': True for n in range(1, 11)}, open(artifact, 'w'))"
+    )
+    state = str(tmp_path / "state")
+    _edit_config(config, proposer=[sys.executable, "-c", plant, state, str(outside), "{artifact}"])
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
+    assert "ledger directory was replaced" in _events(tmp_path)[-1]["error"]
+    assert list(outside.iterdir()) == []
+
+
+def test_a_refused_split_does_not_block_a_corrected_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    real = ec.optimizer
+
+    def refuse_split(args: list[str], timeout: int, env: Any = None) -> tuple[int, dict[str, Any]]:
+        if args[0] == "split":
+            return 1, {}
+        return real(args, timeout, env)
+
+    monkeypatch.setattr(ec, "optimizer", refuse_split)
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_EXTERNAL
+    state = tmp_path / "state"
+    assert (state / "tasks.txt").is_file()
+    assert not (state / "split.json").exists()
+    monkeypatch.setattr(ec, "optimizer", real)
+    assert ec.main(["run", "--config", str(config)]) == 0
+    assert (state / "split.json").is_file()

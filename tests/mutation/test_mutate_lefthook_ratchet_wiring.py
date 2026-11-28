@@ -52,7 +52,7 @@ def mutation_repo() -> Iterator[Path]:
             True,
         ),
         (
-            "    # a ratchet or policy miss costs seconds, not a full pytest run.",
+            "    # a ratchet or policy miss costs seconds, not semgrep and pre-pr-validation.",
             "    # an inert comment mutation must leave wiring tests green.",
             False,
         ),

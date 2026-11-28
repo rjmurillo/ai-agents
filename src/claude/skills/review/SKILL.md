@@ -1,7 +1,7 @@
 ---
 name: review
 version: 1.0.0
-description: Review before merge. Stage-1 spec-compliance gate, then risk-selected Stage-2 review axes from the canonical set. analyst always runs, callers can pin extra always-on axes, and explicit deep review runs every canonical axis. Run after /test. Do NOT invoke code-qualities-assessment, doc-accuracy, golden-principles, or taste-lints directly for a full review; review can select them when requested or when deep review is explicit. Do NOT use to answer PR review comments (use pr-review) or as the pre-push gate (use pr-quality).
+description: "Pre-merge review: Stage-1 spec-compliance gate, then risk-selected Stage-2 axes (analyst always; deep review runs all). Run after /test. Do NOT invoke code-qualities-assessment, doc-accuracy, golden-principles, or taste-lints directly for a full review. Do NOT use for PR review comments (use pr-review) or the pre-push gate (use pr-quality)."
 argument-hint: branch-or-pr-number
 allowed-tools: Task, Skill, Read, Glob, Grep, Bash(*)
 user-invocable: true

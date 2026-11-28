@@ -42,7 +42,7 @@ When nothing matches, it prints `No infrastructure/security files detected.`
 
 | Level | Meaning | Action | Example patterns |
 | --- | --- | --- | --- |
-| CRITICAL | Immediate security implications | Review required | `.github/workflows/*`, git hook config (lefthook, `.husky/*`), [`scripts/validation/git_hook_policy.py`](../../scripts/validation/git_hook_policy.py), `**/Auth/**`, `**/Security/**`, `*.env*`, `*.pem`, `*.key`, `*secret*` |
+| CRITICAL | Immediate security implications | Review required | `.github/workflows/*`, git hook config (lefthook, `.husky/*`), [`scripts/validation/git_hook_policy.py`](../../scripts/validation/git_hook_policy.py), [`scripts/validation/adr_debate_evidence.py`](../../scripts/validation/adr_debate_evidence.py), `**/Auth/**`, `**/Security/**`, `*.env*`, `*.pem`, `*.key`, `*secret*` |
 | HIGH | Potential security impact | Review recommended | `build/**/*.ps1`, `scripts/**/*.sh`, `Dockerfile*`, `docker-compose*`, `**/Controllers/**`, `appsettings*.json`, `*.tf`, `*.tfvars`, `*.bicep` |
 
 ## Advanced use

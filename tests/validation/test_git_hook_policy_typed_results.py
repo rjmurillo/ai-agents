@@ -425,7 +425,12 @@ class TestBranchContext:
         monkeypatch.setattr(policy, "_is_committed_here", lambda _r, _l: True)
 
         assert policy.check_branch_context(repo) == 0
-        assert _typed(capsys) == [("SKIP", "branch-context", "policy.exempt")]
+        detail = capsys.readouterr().err
+        assert [(m["state"], m["job"], m["reason"]) for m in _LINE.finditer(detail)] == [
+            ("SKIP", "branch-context", "policy.exempt")
+        ]
+        assert "path present at HEAD" in detail
+        assert "committed at HEAD" not in detail
 
     def test_no_sessions_directory_is_a_typed_skip(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]

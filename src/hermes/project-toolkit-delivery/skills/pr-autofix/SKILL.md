@@ -1,7 +1,7 @@
 ---
 name: pr-autofix
 version: 1.0.0
-description: Fix open PRs autonomously. Triage by tier, address thread feedback, fix CI failures, and enable auto-merge when the 4-condition Ready-to-Merge gate passes. Use when you say `pr-autofix`, `autofix this pr`, or `monitor open prs`. Do NOT use to watch one PR (use pr-babysit), to answer one PR's review comments (use pr-review), or to run the quality axes (use pr-quality).
+description: "Fix open PRs autonomously: triage by tier, address thread feedback, fix CI, enable auto-merge when the Ready-to-Merge gate passes. Use when you say `pr-autofix`, `autofix this pr`, or `monitor open prs`. Do NOT use to watch one PR (use pr-babysit), answer one PR's comments (use pr-review), or run quality axes (use pr-quality)."
 license: Apache-2.0
 argument-hint: "[pull-request|mode]"
 size-exception: true

@@ -285,12 +285,12 @@ Save to: `.project-toolkit/planning/impact-analysis-code-[feature].md`. Read `im
 
 Ask: "Does this refactoring unblock my task or improve testability of code I'm changing?"
 
-- **Yes**: Refactor, document in commit message
+- **Yes**: Refactor in its own commit, and name it in the PR body
 - **No**: Flag it to the owner in the handoff, do not refactor now
 
 ### Boy Scout Rule Application
 
-"Leave code cleaner than you found it" applies ONLY to code you touch for the task. Do not expand scope to adjacent code.
+"Leave code cleaner than you found it" applies ONLY to code you touch for the task. Do not expand scope to adjacent code. The `avoiding-manufactured-work` skill's Drive-By Fixes classes set the limits; one drive-by fix never spawns another.
 
 ## Task Behaviors
 

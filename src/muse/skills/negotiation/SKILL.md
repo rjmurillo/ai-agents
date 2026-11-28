@@ -1,7 +1,7 @@
 ---
 name: negotiation
 version: 1.0.0
-description: Deal intelligence skill for offer analysis and counter-proposal drafting. Trigger on `review this offer`, `analyze counter`, `value gap`, `draft counter`, `should I walk`. Apply when reviewing any offer (real estate, compensation, vendor, resource allocation) or designing negotiation analysis behavior in agentic systems. Quantifies value gaps and applies the RADAR protocol.
+description: "Offer analysis and counter-proposal drafting (real estate, compensation, vendor, resource allocation); quantifies value gaps with the RADAR protocol. Trigger on `review this offer`, `analyze counter`, `value gap`, `draft counter`, `should I walk`."
 license: Apache-2.0
 metadata:
   domains: [negotiation, deal-intelligence, behavioral-influence, agent-design]
