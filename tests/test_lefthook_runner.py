@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -177,7 +178,7 @@ REF_GUARD_JOBS = frozenset(
         "placeholder-identity",
     }
 )
-# Every other pre-push job. Each inspects tree content, so a delete skips it.
+# Every other pre-push job. None is required to guard a ref deletion.
 # Listing every job means a new one fails a test until someone classifies it.
 TREE_JOBS = frozenset(
     {
@@ -470,9 +471,9 @@ def _marker_config(marks: Path) -> dict:
     for job in _leaf_jobs(config["pre-push"]["jobs"]):
         job.pop("env", None)
         name = job["name"]
-        record = f'echo {name} >> "{marks / "ran.txt"}"'
+        record = f"printf '%s\\n' {shlex.quote(name)} >> {shlex.quote(str(marks / 'ran.txt'))}"
         if job.get("use_stdin"):
-            record += f'; cat > "{marks / name}.stdin"'
+            record += f"; cat > {shlex.quote(str(marks / (name + '.stdin')))}"
         job["run"] = record
     return {"pre-push": config["pre-push"], "min_version": config["min_version"]}
 
@@ -482,7 +483,7 @@ def _run_real_pre_push(tmp_path: Path, child_arguments: list[str]) -> tuple[int,
     repo = tmp_path / "repo"
     marks = tmp_path / "marks"
     marks.mkdir()
-    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    subprocess.run(["git", "init", "-q", str(repo)], check=True, timeout=10)
     (repo / "lefthook.yml").write_text(yaml.safe_dump(_marker_config(marks)), encoding="utf-8")
     env = {key: value for key, value in os.environ.items() if not key.startswith("LEFTHOOK")}
     result = subprocess.run(
@@ -492,6 +493,7 @@ def _run_real_pre_push(tmp_path: Path, child_arguments: list[str]) -> tuple[int,
         input=DELETE_LINE.encode(),
         capture_output=True,
         check=False,
+        timeout=30,
     )
     ran_file = marks / "ran.txt"
     ran = set(ran_file.read_text(encoding="utf-8").split()) if ran_file.exists() else set()
