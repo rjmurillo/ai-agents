@@ -26,7 +26,7 @@ _POPEN_CLASS = subprocess.Popen
 def _decode_pipe_bytes(data: bytes | None) -> str:
     if data is None:
         return ""
-    return data.decode("utf-8", errors="replace")
+    return data.decode("utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
 
 
 @dataclass
@@ -99,10 +99,17 @@ def _communicate_windows(proc: subprocess.Popen[str], timeout: float | None) -> 
     """Read a Windows child's pipes incrementally within a total deadline."""
     readers = _windows_pipe_readers(proc)
     deadline = None if timeout is None else time.monotonic() + timeout
-    try:
-        proc.wait(timeout=timeout)
-    except subprocess.TimeoutExpired as exc:
-        raise _windows_pipe_output(proc, readers, timeout) from exc
+    while True:
+        remaining = None if deadline is None else deadline - time.monotonic()
+        if remaining is not None and remaining <= 0:
+            raise _windows_pipe_output(proc, readers, timeout)
+        slice_timeout = 0.1 if remaining is None else min(0.1, remaining)
+        try:
+            proc.wait(timeout=slice_timeout)
+            break
+        except subprocess.TimeoutExpired:
+            if deadline is None:
+                continue
 
     for reader in readers.values():
         remaining = None if deadline is None else max(0.0, deadline - time.monotonic())

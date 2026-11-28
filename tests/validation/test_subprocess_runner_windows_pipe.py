@@ -48,3 +48,34 @@ def test_windows_pipe_reader_returns_bytes_written_before_a_pipe_stays_open(
         kill_if_alive(proc.pid)
         with contextlib.suppress(Exception):
             proc.wait(timeout=2)
+
+
+def test_decode_pipe_bytes_uses_text_mode_universal_newlines() -> None:
+    from scripts.validation.windows_pipes import _decode_pipe_bytes
+
+    assert _decode_pipe_bytes(b"a\r\nb\rc\n") == "a\nb\nc\n"
+
+
+def test_windows_wait_uses_bounded_slices(monkeypatch) -> None:
+    import scripts.validation.windows_pipes as windows_pipes
+
+    waits: list[float | None] = []
+
+    class _Proc:
+        args = ["child"]
+        stdout = None
+        stderr = None
+
+        def wait(self, timeout: float | None = None) -> int:
+            waits.append(timeout)
+            if len(waits) < 3:
+                raise subprocess.TimeoutExpired(self.args, timeout)
+            return 0
+
+    monkeypatch.setattr(
+        windows_pipes.time, "monotonic", iter([0.0, 0.05, 0.1, 0.14, 0.15]).__next__
+    )
+    stdout, stderr = _communicate_windows(_Proc(), timeout=1.0)
+
+    assert (stdout, stderr) == ("", "")
+    assert waits == [0.1, 0.1, 0.1]
