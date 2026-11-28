@@ -12,8 +12,9 @@ Past the budget, a skill is listed by name only, with no description.
 
 This repo ships more skills than that budget can describe.
 At f8398e1b2d (2026-11-28), `src/copilot-cli/skills` needs 42,453 listing characters for 103 skills.
-At that budget, only 36 of the 103 keep a description (f8398e1b2d, 2026-11-28).
-Skills such as `review`, `ship`, `test`, and the `pr-*` skills fall past it.
+At that budget, a model predicts that only 36 of the 103 keep a description (f8398e1b2d, 2026-11-28).
+The model fills the catalog in name order. Copilot's fill order is not determined (receipt B), so the count and the named omissions are INFERRED, not observed.
+In that model, skills such as `review`, `ship`, `test`, and the `pr-*` skills fall past it.
 
 The repo gate does not measure this limit.
 `scripts/skill_description_budget.json` caps description characters only, at 31,400 for the Copilot tree.
@@ -33,7 +34,7 @@ That cap is about twice the budget Copilot applies, and it leaves out the 93 cha
 | Past the budget, skills are listed by name only | VERIFIED | Upstream sources 2 and 3; the line format in every session log (receipt B) |
 | The budget in effect here is 14,915 to 15,063 characters | VERIFIED lower bound, INFERRED upper bound | Receipt B |
 | The published default is 15,000 | Disputed | Source 1 says 15,000; source 2 says 30,000 |
-| 36 of 103 Copilot skills keep a description | VERIFIED at f8398e1b2d (2026-11-28), assuming a 15,000 budget | Receipt C |
+| 36 of 103 Copilot skills keep a description | INFERRED at f8398e1b2d (2026-11-28): a model that assumes a 15,000 budget and name-order fill | Receipt C |
 | No override is set on this machine | VERIFIED for the files searched; NOT RUN for process environments of past sessions | Receipt E |
 
 ### Upstream sources
@@ -61,7 +62,12 @@ The probe read every local Copilot session log on 2026-11-28.
 The upper bound comes from three sessions in this repo, before #7779 merged.
 Each showed 24 full entries, `adr-generator` through `benchmark-models`, totaling 14,392 characters.
 The next skill, `build`, had a 672-character entry at `d31aa71e60^`. Adding it makes 15,064, and it was dropped.
-This bound is INFERRED. It assumes those sessions ran on a checkout with the `d31aa71e60^` text for `build`.
+This bound is INFERRED. It rests on four assumptions:
+
+- Those sessions ran in this repo. The probe picks them by their first and last skill names, not by the working directory or session date recorded in the log.
+- They ran on a checkout with the `d31aa71e60^` text for `build`.
+- Copilot tested `build` next, in name order, before it stopped.
+- Copilot counts the entry text the probe measures, with no separator. If it counts one newline per entry, the same sessions give 14,416 plus 673, and the upper bound moves from 15,063 to 15,088.
 
 Two points stay open:
 
@@ -99,7 +105,7 @@ None is chosen here.
 | Set `SKILL_CHAR_BUDGET` to about 43,000 where this repo launches Copilot | Every skill keeps a description | About 27,500 more prompt characters in every Copilot session, about 6,900 tokens at 4 characters per token |
 | Ship fewer skills to the Copilot tree | The shipped skills keep descriptions | Users lose the skills that are cut |
 | Re-anchor the gate on listing characters at 15,000 | The gate measures what Copilot shows | Needs a cut list first; the tree is at 42,453 (f8398e1b2d, 2026-11-28) |
-| Keep the gate as is | No change | About 67 Copilot skills stay name-only (f8398e1b2d, 2026-11-28) |
+| Keep the gate as is | No change | About 67 Copilot skills stay name-only in the name-order model (f8398e1b2d, 2026-11-28) |
 
 ## Noticed
 
@@ -113,7 +119,13 @@ No change made here; the owner decides whether the gate should cite it.
 ### Receipt A, B, C, D: the probe
 
 Read-only. It prints counts, sizes, short hashes, and skill names from this repo.
-It prints no prompt or response text. Run it from the repo root:
+It prints no prompt or response text.
+
+Prerequisites. Save the code block below as `probe.py` in the repo root.
+Receipts A and B need the owner's setup: a Copilot CLI launcher at `~/.local/bin/copilot` and session logs under `~/.copilot/session-state/`.
+Without the launcher, receipt A raises `FileNotFoundError`. With no matching session logs, receipt B raises `ValueError`. Either error stops the script before receipts C and D.
+Receipt C needs only this checkout, and receipt D needs network access to the GitHub API.
+Run it from the repo root:
 
 ```bash
 uv run --frozen python probe.py --fetch
