@@ -1,12 +1,7 @@
 ---
 name: fix-markdown-fences
 version: 1.5.0
-description: >-
-  Repair malformed markdown code fence closings. Use when you say "fix markdown
-  fences", "repair code block closings", "markdown rendering broken", "code
-  blocks bleeding into content", or "validate markdown code blocks" on any .md
-  file. Do NOT use for documentation accuracy checks or verifying code examples
-  (use doc-accuracy).
+description: "Repair malformed markdown code fence closings. Use when you say \"fix markdown fences\", \"repair code block closings\", \"markdown rendering broken\", or \"code blocks bleeding into content\" on any .md file. Do NOT use for doc accuracy or code example checks (use doc-accuracy)."
 license: Apache-2.0
 metadata:
   routing:

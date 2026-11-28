@@ -241,7 +241,7 @@ list rather than maintaining a second checklist here.
 
 ### Pre-push hook
 
-`lefthook.yml` declares 27 pre-push jobs (`0e98cb2d12`, 2026-10-23), staged so
+`lefthook.yml` declares 27 pre-push jobs (2026-11-27), staged so
 cheap gates fail before expensive ones start (issue #5066). The hook is `piped: true`, so a failing
 job or group skips everything after it. Stage order:
 
@@ -252,10 +252,12 @@ job or group skips everything after it. Stage order:
    `count-ratchets`, 40.2s at p50 on 2026-10-23 (see Latency baseline).
 4. `security-scan` (semgrep), a serialized stdin consumer. Measured 6.7s for a
    7-file push.
-5. Expensive stage: `python-tests`, `pre-pr-validation`, mypy,
+5. Expensive stage: `pre-pr-validation`, mypy,
    `workflow-local-run`, the CLI e2e smokes, and the advisory reporters.
 
-On a 4-CPU container, `python-tests` took 475s across four serial partitions
+Pre-push no longer runs pytest or the zero-collection check (ADR-104
+amendment, 2026-11-26); CI `pytest.yml` gates both. The figures below are
+historical. On a 4-CPU container, `python-tests` took 475s across four serial partitions
 (bulk 257.9s, mutation 166.6s, safe-push 36.9s, pr-autofix 8.8s) in an earlier
 measurement. On the 48-CPU host in the Latency baseline below, `python-tests`
 took 53s at p50 and `pre-pr-validation` took 220s. Which job dominates depends
@@ -299,8 +301,8 @@ lines on stdout and stderr. The report for one failed job adds 4 lines:
 
 The before count for `pre-pr-validation` held 231 PASS, 110 RUNNING, and 17 SKIP
 lines, and the failing gate's file and line sat at line 97. The pre-push
-`python-tests` job still prints its whole pytest log on a failure (69459 lines
-in one run at the same SHA). This change leaves it as it was.
+`python-tests` job, since removed, printed its whole pytest log on a failure
+(69459 lines in one run at the same SHA).
 
 ### CI pipeline
 
@@ -310,7 +312,7 @@ dedicated workflows instead:
 | Local gate | CI workflow |
 |------------|-------------|
 | Count Ratchets | `pr-validation.yml` |
-| `python-tests` | `pytest.yml` (5 parallel matrix partitions) |
+| pytest (CI only since 2026-11-26) | `pytest.yml` (8 parallel matrix legs) |
 | Path Normalization | `validate-paths.yml` |
 | Planning Artifacts | `validate-planning-artifacts.yml` |
 | Agent Drift Detection | `drift-detection.yml` |
@@ -334,8 +336,7 @@ Python files, which is narrower than the pre-push `python-type-check` job.
 
 ### Job ownership table
 
-Each row is one pre-commit or pre-push job in `lefthook.yml` at `0e98cb2d12`
-(2026-10-23): 47 pre-commit jobs and 27 pre-push jobs. The `commit-msg` job
+Each row is one pre-commit or pre-push job in `lefthook.yml` (2026-11-27): 49 pre-commit jobs and 27 pre-push jobs. The `commit-msg` job
 (`commit-message-policy`) and the `pre-merge-commit` jobs are not rows. The Hook
 column names the owner. A job has one owner unless the Also runs at column says
 otherwise.
@@ -438,8 +439,6 @@ a security gate.
 | pre-push | `worktree-gc-report` | unscoped | Reports stale registered worktrees, advisory | - | no | Local state, no CI analogue |
 | pre-push | `branch-config-prune-report` | unscoped | Reports stale branch sections in .git/config, advisory | - | no | Local state, no CI analogue |
 | pre-push | `plugin-scanner` | unscoped | HOL plugin scanner score of HEAD is at least 80 (awesome-ai-plugins listing bar) | - | adjacent | CI, not required: plugin-scanner.yml |
-| pre-push | `python-tests` | unscoped | Pytest suite via git_hook_policy pytest | - | no | Required: Run Python Tests, step Run pytest (partitioned matrix) |
-| pre-push | `zero-collection-tests` | unscoped | Test files that collect zero tests | - | no | Required: Run Python Tests, step Check for zero-collection test files (blocking) |
 | pre-push | `python-lint-advisory` | push files | Ruff on pushed Python, advisory | - | no | Required: Run Python Tests, step Run ruff ratchet (changed Python files) |
 | pre-push | `python-type-check` | push files | Mypy on pushed Python | - | no | Required: Run Python Tests, step Run mypy ratchet (changed Python files) |
 | pre-push | `workflow-local-run` | push files | Runs changed workflows locally with act | - | no | None found |
