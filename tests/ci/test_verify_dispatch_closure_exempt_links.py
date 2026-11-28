@@ -3,7 +3,9 @@
 A pull request that adds a skill adds `.claude/skills/<name>` and
 `.agents/skills/<name>`. Those links are exempt only when every condition in
 `scripts/ci/_link_exemption.py` holds. Every other new link still fails, and each
-negative case below changes exactly one condition.
+negative case below changes exactly one condition. A pull request that adds a
+rule adds `.claude/rules/<name>.md` and `.github/instructions/<name>.instructions.md`
+(#7730), under the same conditions.
 """
 
 from __future__ import annotations
@@ -15,7 +17,16 @@ import pytest
 import yaml
 
 from scripts.ci import verify_dispatch_closure as vdc
-from tests.ci.dispatch_closure_helpers import CONFIG, VERIFIER, git, link_demo_skill, rev, write
+from tests.ci.dispatch_closure_helpers import (
+    CONFIG,
+    GATE,
+    REPO_ROOT,
+    VERIFIER,
+    git,
+    link_demo_skill,
+    rev,
+    write,
+)
 from tests.ci.dispatch_closure_runner import check
 
 BINPLACE = "templates/platforms/binplace.yaml"
@@ -30,6 +41,18 @@ ROWS = [
         "class": "skills-codex",
         "plugin_tree": "src/codex/skills",
         "install_tree": ".agents/skills",
+        "link": True,
+    },
+    {
+        "class": "rules",
+        "plugin_tree": "src/claude/rules",
+        "install_tree": ".claude/rules",
+        "link": True,
+    },
+    {
+        "class": "instructions-github",
+        "plugin_tree": "src/copilot-cli/instructions",
+        "install_tree": ".github/instructions",
         "link": True,
     },
     {"class": "lib", "plugin_tree": "src/claude/lib", "install_tree": ".claude/lib", "link": True},
@@ -70,6 +93,21 @@ def _new_skill(
     return link
 
 
+def _new_rule_links(head: Path) -> tuple[Path, Path]:
+    write(head, "src/claude/rules/core.md", "# Core\n")
+    write(head, "src/copilot-cli/instructions/core.instructions.md", "# Core\n")
+    claude = head / ".claude/rules/core.md"
+    github = head / ".github/instructions/core.instructions.md"
+    claude.parent.mkdir(parents=True, exist_ok=True)
+    github.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        claude.symlink_to("../../src/claude/rules/core.md")
+        github.symlink_to("../../src/copilot-cli/instructions/core.instructions.md")
+    except OSError as exc:
+        pytest.skip(f"symlink creation unsupported: {exc}")
+    return claude, github
+
+
 def _main(base: Path, head: Path) -> int:
     return vdc.main(["--tool-root", str(base), "--base-ref", "HEAD", "--head-root", str(head)])
 
@@ -104,6 +142,18 @@ class TestExemptInstallLinks:
         out = capsys.readouterr().out
         assert "dispatch-closure: EXEMPT .claude/skills/fresh" in out
         assert "dispatch-closure: EXEMPT .agents/skills/fresh" in out
+        assert "2 exempt install links" in out
+
+    def test_new_rule_and_instruction_links_exit_zero(
+        self, skill_trees: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        base, head = skill_trees
+        _new_rule_links(head)
+
+        assert _main(base, head) == 0
+        out = capsys.readouterr().out
+        assert "dispatch-closure: EXEMPT .claude/rules/core.md" in out
+        assert "dispatch-closure: EXEMPT .github/instructions/core.instructions.md" in out
         assert "2 exempt install links" in out
 
     def test_a_committed_new_skill_is_exempt_with_a_head_sha(
@@ -206,6 +256,26 @@ class TestLinksThatStillFail:
         _new_skill(head, "fresh")
 
         self._reported(base, head, ".claude/skills/fresh")
+
+    @pytest.mark.parametrize(
+        ("script", "link"),
+        [
+            (".claude/rules/run.py", ".claude/rules/core.md"),
+            (".github/instructions/run.py", ".github/instructions/core.instructions.md"),
+        ],
+    )
+    def test_a_rule_link_under_an_import_root(
+        self, skill_trees: tuple[Path, Path], script: str, link: str
+    ) -> None:
+        base, head = skill_trees
+        config = yaml.safe_load((base / CONFIG).read_text(encoding="utf-8"))
+        config["scripts"]["claude_code"]["top"] = f"python3 {script}"
+        write(base, CONFIG, yaml.safe_dump(config))
+        write(base, script, "X = 1\n")
+        _rebase_head(base, head, "a verifier in the install tree makes it an import root")
+        _new_rule_links(head)
+
+        self._reported(base, head, link)
 
     def test_a_link_under_a_lib_install_tree(self, skill_trees: tuple[Path, Path]) -> None:
         base, head = skill_trees
@@ -371,3 +441,48 @@ def test_the_demo_verifier_stays_in_the_closure(skill_trees: tuple[Path, Path]) 
 
     assert report.clean, report.to_json()
     assert VERIFIER.startswith(".claude/skills/demo")
+
+
+def test_the_live_closure_stays_clear_of_every_exempt_install_tree() -> None:
+    """No root, closure path, or import root of the real gate overlaps an exempt tree.
+
+    It runs in the ambient environment on purpose. The environment adds only
+    `<root>/lib` directories to the import roots (`_environment_libs`), and a root
+    that puts one in an exempt tree is a case this test must report.
+    """
+    gate = vdc._load_gate(REPO_ROOT)
+    config = vdc._base_config(REPO_ROOT)
+    links = vdc._REF_LINKS.link_table(REPO_ROOT, "HEAD")
+    assert links is not None
+    with vdc._following(gate, REPO_ROOT, links):
+        roots = [GATE, CONFIG, *vdc._named_files(gate, config, REPO_ROOT)]
+        closure = gate._expand_import_closure(
+            [path for path in roots if vdc._head_file(REPO_ROOT, path) is not None], REPO_ROOT
+        )
+        import_roots = vdc._EXEMPTION.import_roots(gate, closure, REPO_ROOT)
+    trees = vdc._EXEMPTION.link_rows(REPO_ROOT)
+    within = vdc._EXEMPTION._within
+
+    assert set(trees) == {
+        ".claude/skills",
+        ".agents/skills",
+        ".claude/rules",
+        ".github/instructions",
+    }
+    reach = {*roots, *closure, *(import_roots - {"."})}
+    overlap = sorted(
+        (tree, path) for tree in trees for path in reach if within(path, tree) or within(tree, path)
+    )
+    assert overlap == []
+
+
+def test_a_real_file_in_an_exempt_tree_is_never_exempt(skill_trees: tuple[Path, Path]) -> None:
+    """The symlink scan never lists a real rule file, and `split` reports one handed to it."""
+    base, head = skill_trees
+    write(head, "src/claude/rules/real.md", "# Real\n")
+    write(head, ".claude/rules/real.md", "# Real\n")
+
+    assert ".claude/rules/real.md" not in vdc._REF_LINKS.symlinks_in_tree(head)
+    trees = (base, head, "HEAD", vdc._REF_LINKS.INERT_GIT)
+    reported, exempt = vdc._EXEMPTION.split([".claude/rules/real.md"], trees, set(), set())
+    assert (reported, exempt) == ([".claude/rules/real.md"], [])

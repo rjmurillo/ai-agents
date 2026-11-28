@@ -57,6 +57,13 @@ def test_every_script_on_disk_is_bundled_and_documented() -> None:
         "scripts/bootstrap_friction.py",
         "scripts/bootstrap_sweep.py",
         "scripts/bootstrap_sweep_import.py",
+        # The reply-friction audit is documented in references/reply-friction.md.
+        "scripts/replies_audit.py",
+        "scripts/replies_corpus.py",
+        "scripts/replies_flags.py",
+        "scripts/replies_prepare.py",
+        "scripts/replies_sample.py",
+        "scripts/replies_tally.py",
         "scripts/boundary_grants.py",
         "scripts/bootstrap_review.py",
         "scripts/review_clusters.py",

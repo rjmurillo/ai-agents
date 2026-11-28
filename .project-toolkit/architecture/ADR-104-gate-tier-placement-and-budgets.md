@@ -2,7 +2,7 @@
 # taste-lint: ignore file-size, ten numbered rules cited by number from the debate log and from tests; splitting renumbers them and the linter's suggested split into helpers, types, and constants has no meaning for a decision record.
 id: ADR-104
 status: accepted
-date: 2026-11-26
+date: 2026-11-27
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -14,8 +14,8 @@ implemented: true
 
 ## Status
 
-Accepted 2026-11-25 by owner direction (issue #7636); amended 2026-11-26 by owner
-direction. Original six-seat adr-review debate held 2026-08-25
+Accepted 2026-11-25 by owner direction (issue #7636); amended 2026-11-26 and
+2026-11-27 by owner direction. Original six-seat adr-review debate held 2026-08-25
 (`.project-toolkit/critique/ADR-104-debate-log.md`); merged as PR #5319
 (`107205cf7`, 2026-08-26), so `implemented` is true per ADR-073. Acceptance was
 gated on an in-hook wall-clock measurement per `ci-scripts.md` MUST-16 (cleared
@@ -37,7 +37,7 @@ required branch-protection check `Run Python Tests` (`test-result`,
 intact, and `scripts/validation/checks_ci_parity.py`
 (`validate_unused_dependencies`) now passes `--isolated` to `uv run` so
 `pre_pr.py` never mutates a worktree `.venv` with the `eval` extra (`openai`).
-See `## Amendment 2026-11-26` below.
+See `## Amendment 2026-11-26` and `## Amendment 2026-11-27` below.
 
 **Historical amendments (superseded for `pre-push` by 2026-11-26; kept for
 on-demand `git_hook_policy.py pytest` context):**
@@ -266,11 +266,11 @@ applied, the target is redundant with it.
    it does not belong here.
 
 2. **Pre-push takes checks that are cheap and would otherwise be discovered
-   remotely.** Ratchets, branch-scope and push-ref policy, and fast static
-   checks. Whole-suite or testmon-selected pytest execution and whole-tree
-   pytest collection belong in CI (amended 2026-11-26); developers run targeted
-   `uv run pytest <paths>` on demand. The test is not "is this check valuable"
-   but "does running it here cost seconds and save a CI round trip".
+   remotely.** Branch-scope and push-ref policy and fast static checks. Pytest
+   execution and collection (amended 2026-11-26) and the whole-tree count
+   ratchets, generated-tree check, and plugin scanner (a CI check, not
+   required; amended 2026-11-27) belong in CI; developers run them on demand. The test is not "is this check
+   valuable" but "does running it here cost seconds and save a CI round trip".
 
 3. **CI takes everything expensive, isolated, matrixed, or credentialed.**
    Whole-suite execution, end-to-end smokes, static analysis at full scope,
@@ -717,9 +717,9 @@ CI backstop scope and pre-existing ADR-101 limits (stated plainly):
 - `validate_unused_dependencies` runs under `uv run --isolated` (`2.21s-2.45s`
   warm), ending `.venv` contamination with `openai` and preserving testmon
   matching for on-demand `git_hook_policy.py pytest`.
-- Compute-lane declared worst case drops `18m -> 14m` (`plugin-scanner` 3m +
-  `count-ratchets` 11m); container per-job ceiling stays `240s`
-  (`pre-pr-validation`).
+- Compute-lane declared worst case dropped `18m -> 14m` on 2026-11-26; the
+  2026-11-27 amendment removed the lane (`plugin-scanner`, `count-ratchets`).
+  Container per-job ceiling stays `240s` (`pre-pr-validation`).
 - Historical baseline before 2026-11-26: collection-only cut a comparable
   4-CPU push from 679s to 142.39s (`python-tests` 498.52s to 15.10s).
 
@@ -739,6 +739,8 @@ CI backstop scope and pre-existing ADR-101 limits (stated plainly):
 - **Container-reclaim protection remains closed for pre-push:** no single
   subprocess exceeds 150s in a container, and `scan_pushed_heads` (plus
   on-demand `run_pytest`) holds aggregate deadlines.
+- **Plugin scanner score is not blocking (2026-11-27):** a CI check, not a
+  required context; see `## Amendment 2026-11-27` Consequences.
 
 ### Neutral
 
@@ -784,6 +786,149 @@ mechanism: issue #5315 (or dedicated follow-up issue for `testmon-seed`).
 | `tests/test_safe_push_pr_branch.py`, `tests/validation/test_pytest_parallelism_policy.py` | Direct | On-demand budget and worker-flag contracts for `git_hook_policy.py pytest` | Low |
 | ADR-090 | Indirect | 30-minute lease TTL calibrated for former 20-30m pre-push; pre-push no longer runs pytest | Low |
 | Contributor & agent docs (`CONTRIBUTING.md`, `.github/dependency-hygiene/policy.toml`, `tests/AGENTS.md`, `templates/rules/session-logs.md`, `templates/skills/ai-agents-config-catalog.SKILL.md.tmpl`, `docs/runbooks/local-hook-failure.md`, `.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`) | Indirect | Updated to reflect CI `Run Python Tests`, on-demand local pytest, and `--isolated` deptry | Low |
+| `lefthook.yml` (2026-11-27) | Direct | `plugin-scanner` and `count-ratchets` removed from `pre-push`; 25 leaf jobs remain (12 clamped, 13 unclamped); declared total unchanged at 3330s | Low |
+| `scripts/validation/pre_pr_sequence.py`, `scripts/validation/evidence.py` (2026-11-27) | Direct | `_Gate.ci_owned_by` and `REASON_CI_OWNED` (`policy.ci_owned`); Count Ratchets and Generated Artifact Staleness skip inside the hook only | Low |
+| CI ownership tests (2026-11-27: `tests/ci/test_lefthook_ratchet_wiring.py`, `tests/validation/test_pre_pr_ci_owned_gates.py`, `tests/validation/test_pre_pr_sequence_registry.py`, `tests/mutation/test_mutate_lefthook_ratchet_wiring.py`) | Direct | Pin that each `ci_owned_by` job is required and unconditional, runs the command the gate runs, and that the hook no longer carries the two jobs | Low |
+| `.github/workflows/plugin-scanner.yml`, `scripts/validation/check_plugin_scanner_score.py` (2026-11-27) | Indirect | The workflow is the sole remaining scanner gate and is not a required context; the script becomes an on-demand twin, recorded in `_NO_CALLER` of `tests/ci/test_validation_scripts_are_reachable.py` | Medium |
+
+## Amendment 2026-11-27: Retire CI-Owned Heavy Passes From Pre-Push
+
+Decided 2026-11-27 by owner direction: "CI runs the tests. We do not force a
+heavy pass locally. CI scales well beyond the host." Claims and evidence:
+`.project-toolkit/critique/ADR-104-ci-owned-heavy-passes-claims-ledger.md`.
+
+### Context
+
+Why the passes were local: PR #5418 (2026-08-29) consolidated the count
+ratchets into pre-push because a 0.21s ratchet failure surfaced 674s later in
+CI (`scripts/validation/checks_ratchet.py` docstring). PR #6913 (2026-10-24)
+added the scanner job when the score gate went to 80. Both bought an earlier
+signal; neither was the only CI check. Measured standalone on the shared
+48-vCPU host, 2026-11-27, load1 5 to 9:
+
+| Pass | Where it ran | Wall | CPU (user + sys) |
+|---|---|---|---|
+| `count-ratchets` | pre-push job | 30.3s | 110.0s |
+| `plugin-scanner` | pre-push job | 56.5s | 56.5s |
+| `build_all.py --check` | `pre-pr-validation` gate | 13.2s | 13.2s |
+
+The staleness run exited 2 on the uncommitted ADR index after running every
+generator. Heavy-stage slots (`scripts/validation/host_headroom.py`) delay a
+pass, not remove it: the first baseline push waited 420s for a slot.
+
+### Decision
+
+Criterion: a pass leaves the hook when a CI job runs the same command on every
+PR. It stays when no CI job runs it before merge. Cost ranks the candidates;
+it is not the test, so the 13.2s staleness gate leaves on the ruling.
+
+1. Remove `plugin-scanner` and `count-ratchets` from `lefthook.yml`
+   `pre-push`, and `plugin-scanner` from `CONTAINER_UNCLAMPED_JOBS`.
+2. Add `_Gate.ci_owned_by` and `REASON_CI_OWNED = "policy.ci_owned"`. With
+   `AI_AGENTS_PRE_PR_FAST_STAGE_RAN=1`, which the hook sets and nothing
+   enforces, Count Ratchets and Generated Artifact Staleness record a SKIP
+   naming the CI job, printed under `--compact`. The flag is a visibility aid,
+   not a trust boundary. A direct `pre_pr.py` run executes both gates.
+3. Keep the commands on demand (Implementation Notes).
+
+### CI Jobs That Run The Removed Passes
+
+| Pass | CI job | Triggers | Required context |
+|---|---|---|---|
+| `count-ratchets` (10 scripts in `checks_ratchet.RATCHETS`) | `pytest.yml` `count-ratchet-guard`, `test` primary leg (`ruff_ratchet.py`); `pr-validation.yml` `validate-pr` | PR and merge group on `main`; `pytest.yml` also push to `main` | Yes: "Check whole-tree count ratchets (blocking)", "Run Python Tests" (rollup needs `test`), "Validate PR" |
+| Generated Artifact Staleness | `validate-generated-agents.yml` `build-all-staleness` | push, PR, merge group on `main` | Yes, via "Validate Generated Files" |
+| `plugin-scanner` | `plugin-scanner.yml` `scan` | push and PR on `main`; no merge group | No: a check, not a gate |
+
+No job above has a job-level `if:`. Among steps that run a ratchet script, the
+one step-level condition is `matrix.primary` on `ruff_ratchet.py`
+(`ALLOWED_STEP_IF`, `tests/ci/ratchet_test_helpers.py`). CI runs the same
+scripts the local gate ran: each against the merge base, plus
+`merge_tree_ratchet_check.py` against the base tip. A branch with no PR gets
+no check.
+
+### Why This Is Not The Rejected Deferral
+
+The rejected deferral trusted that a sibling local job ran, and a glob skip
+read as a pass. `ci_owned_by` defers to merge-time CI and shows a SKIP. Rule 6
+holds because `tests/validation/test_pre_pr_ci_owned_gates.py` tests what the
+deferral relies on: each named job exists with no job-level `if:`, feeds a
+required context, and sits in a workflow with no `paths` filter; the staleness
+job runs `build_all.py --check`; the Count Ratchets owners equal the required
+jobs that run every `RATCHETS` script. Script identity is pinned, not base-ref
+arguments. `TestOwnerProblemsNegativeControls` proves each failure is reported.
+`plugin-scanner` has no `ci_owned_by` row, so these tests do not cover it.
+
+### Kept, With The CI Gap Named
+
+These match Known non-conformances, less `python-type-check` (2.73s,
+changed files only, so not heavy), plus `pre-pr-validation`:
+
+| Job | CI gap |
+|---|---|
+| `workflow-local-run` | Runs each changed workflow under `act`, including schedule-only and dispatch-only ones such as `agent-metrics.yml`. No PR-triggered workflow executes those; `pr-validation.yml` validates schema only. |
+| `security-scan` | No workflow under `.github/workflows/` runs Semgrep; one file cites a rule id in a comment. |
+| `hook-anchoring-e2e`, `plugin-load-e2e` | No workflow runs `test_cli_hook_e2e.py`, and `test_plugin_load_smoke.py` runs in CI only as `-m "smoke and codex"`: #7654 (`f8398e1b2d`, 2026-11-27) deleted the dispatch-only `smoke` job that ran both against the real Claude and Copilot CLIs. `plugin-cli-smoke.yml` legs cover Claude hook discovery, Codex, and Pi. |
+| `pre-pr-validation` | No workflow runs `pre_pr.py`; its other gates are not mapped to CI one by one. |
+
+### Measured Effect
+
+One dry-run push per side (`git push --dry-run` runs the hook, sends nothing):
+base `d31aa71e60` (2026-11-27), 1 file, load1 18.3, 245.9s wall, 509.4s CPU; this branch,
+36 files, load1 4.8, 167.6s wall, 308.6s CPU. Load, range, and excluded jobs
+differ (`security-scan` both sides: `semgrep-core` exits -11 under the host's
+8 MiB stack, a pre-existing defect; `push-ref-policy` after, for the missing
+review marker). The direction matches the standalone table; the magnitude at
+equal load is unmeasured.
+
+### Consequences
+
+- Positive: a push stops paying about 180s of CPU. Wall saved is bounded by
+  the slowest sibling in the parallel group, not the 100s standalone sum.
+- Negative: the scanner scored 80 against a minimum of 80 on 2026-11-27, so
+  the next drop merges unless someone reads the check. Its findings include
+  security items (for example "No privileged untrusted checkout patterns");
+  no other required check is verified to cover them. Requiring the context
+  is a ruleset change for the owner.
+- Negative: ratchet and staleness failures surface one CI round trip later.
+  This change hit it: a 534-line test file passed the hook and only an
+  on-demand `count-ratchets` run found it.
+- Neutral: the declared total stays 3330s; the two removed jobs sat in a
+  lane shorter than the 30m `workflow-local-run` beside them.
+
+### Alternatives Considered
+
+| Alternative | Why rejected |
+|---|---|
+| Keep the passes behind heavy-stage slots | Slots delay work; the baseline push waited 420s |
+| Remove the five kept jobs too | Each is the only pre-merge run of its check |
+| Glob-gate or cache `count-ratchets` | Whole-tree counts; a diff filter cannot decide them (`rule-ci-scripts.md`, "Path filters gate the diff, never the tree"), and a cache still runs locally |
+| Require Plugin Scanner first | Ruleset change owned by the repository owner; recorded as a trigger |
+
+### Re-evaluation Triggers (2026-11-27)
+
+- By 2026-12-27 the repository owner decides whether to require "Plugin
+  Scanner (score >= 80)" or restore the local job; sooner if a score below 80
+  reaches `main`.
+- An owner job gains a job-level `if:` or `paths` filter, or leaves
+  `REQUIRED_CONTEXTS`: `test_pre_pr_ci_owned_gates.py` fails.
+- This record is 1000 lines at most; the next amendment moves the 2026-11-26
+  and 2026-11-27 amendments to a successor record first.
+
+### Revert Path (2026-11-27)
+
+Supersede this amendment with a new dated one; do not delete it. Revert
+the squash-merge commit of the pull request that added this amendment (the
+branch commits do not survive the squash), or by hand:
+restore the two job blocks (not the whole file) from
+`git show d31aa71e60:lefthook.yml` (2026-11-27); re-add `plugin-scanner` to
+`CONTAINER_UNCLAMPED_JOBS` and restore its 12/13 comment; set Count Ratchets
+to `already_run_by="count-ratchets"` and drop `ci_owned_by` from both gates;
+drop the `_NO_CALLER` entry in `tests/ci/test_validation_scripts_are_reachable.py`;
+restore the tests in the Impact table plus `test_pre_pr_compact.py`,
+`test_pre_pr_evidence_states.py`, `test_lefthook_prepush_tiering.py`,
+`test_lefthook_gate_config.py`, and `test_check_plugin_scanner_run.py`; restore
+the comment and doc edits listed by `git show --stat` on that squash-merge
+commit; revert rule 2.
 
 ## Implementation Notes
 
