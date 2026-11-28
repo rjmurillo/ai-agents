@@ -55,7 +55,7 @@ At the default cap, 48 of 121 descriptions showed before #7779 and 71 of 121 aft
 Two host behaviors differ, and the design must serve both:
 
 - Claude Code keeps the most-used skills described. A rarely used skill goes name-only first.
-- Copilot CLI fills in an order this repo does not control. In 3 sessions in this repo, `build` and every later skill by name went name-only, so `review`, `ship`, and `test` did too.
+- Copilot CLI fills in an order this repo does not control. In 3 sessions in this repo (logs read 2026-11-28), `build` and every later skill by name went name-only, so `review`, `ship`, and `test` did too.
 
 ## Step 0 First Principles
 
@@ -68,7 +68,7 @@ Richard Murillo, owner, on 2026-11-28 in the token-diet thread: "start a thread 
 
 1. A user opens Copilot CLI or Claude Code in this repo, or in a repo with the plugin installed.
 2. The host builds the skill list and drops descriptions past its budget.
-3. The model sees `review`, `ship`, or `test` as a bare name in Copilot (3 sessions in this repo, before #7779).
+3. The model sees `review`, `ship`, or `test` as a bare name in Copilot (3 sessions in this repo, logs read 2026-11-28, before #7779).
 4. The user types the skill name by hand (`/review`), or the model skips the skill.
 5. Evals work around the cap with `SLASH_COMMAND_TOOL_CHAR_BUDGET=80000`, so eval results do not show what users see.
 
