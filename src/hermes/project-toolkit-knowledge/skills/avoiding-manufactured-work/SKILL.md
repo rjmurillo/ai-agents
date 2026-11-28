@@ -1,6 +1,6 @@
 ---
 name: avoiding-manufactured-work
-version: 1.1.0
+version: 1.3.0
 description: "Stop manufactured work after a deliverable looks done and classify post-completion findings into the four contract classes builder-ethos.md delegates here. Use when a worker produced a plan, issue, PR, backlog item, or follow-up task and you must verify a real user, criterion, or blocked decision demanded it. Also bounds drive-by fixes."
 license: Apache-2.0
 ---
@@ -92,6 +92,31 @@ Practice behind the classes:
 - Google Engineering Practices, [Small CLs](https://google.github.io/eng-practices/review/developer/small-cls.html), section "Separate Out Refactorings": refactorings go in a separate CL from feature changes or bug fixes, but "Small cleanups such as fixing a local variable name can be included inside of a feature change or bug fix CL."
 - Martin Fowler, [Opportunistic Refactoring](https://martinfowler.com/bliki/OpportunisticRefactoring.html): the camp site rule, "always leave the code behind in a better state than you found it." Classes 1 and 4 bound how far that reaches.
 
+## Friction Report
+
+Report concrete workarounds. Skip style preferences and steps that ran as intended.
+Record each gap once in the existing final report, PR body, or hand-back:
+
+```text
+Hit: <which process, script, skill, or tool failed or lacked a needed step>
+Did instead: <the workaround, with the script path if available>
+Permanent fix: <the smallest change that would remove the workaround>
+```
+
+Classify the finding with the table above. Reporting a deferred finding does not reopen the task or authorize a fix.
+Keep a script for a recurring job when the task permits it. `scripts` prints where: the script directory at the repository root. Link to the script from the workflow that needs it.
+If retaining the script would exceed scope, report the proposed location and let the user decide.
+
+A program computes `Hit:` and `Did instead:` from the session transcript, so you do not recall them from memory. You judge which items are real friction and write `Permanent fix:`.
+
+1. Run `candidates`. It prints one block per failed shell call that a later call worked around. `Hit:` and `Did instead:` come from the transcript. `Permanent fix: <model writes this>` is the only placeholder.
+2. Drop each candidate that is not real friction, such as a check you then fixed in code, output that only looked like an error, or a slip in your own throwaway code. Below the blocks it lists calls the harness marked as success whose output states a failure. Each is a lead: write a block for it when you worked around it. Add any workaround the program could not see.
+3. Write `Permanent fix:` on each kept block: the smallest change that removes the workaround, and where it lives.
+4. Run `check` on the final block. Fix every problem it prints.
+5. Run `scripts` to list inline programs you ran 2 or more times and script files you wrote under a scratch path. Each line ends with the directory to keep it in. With no script directory, the output holds a friction block for the missing location: report it, and let the user choose the place.
+
+Invocation and exit codes are in `## Scripts` below.
+
 ## Forming The Contract
 
 Before non-trivial execution, derive the smallest task contract, in order: current user goal and deliverables; explicit constraints and acceptance criteria; mandatory system/safety/repository policy; minimum inferred success criteria a bounded request needs to be observable. Routine, low-risk work skips user confirmation of obvious inferred criteria. Record the contract before broad execution (TODO list, stated plan, or per-issue handoff); once started, criteria stay fixed unless the user changes them or a mandatory policy was omitted.
@@ -100,6 +125,29 @@ Before non-trivial execution, derive the smallest task contract, in order: curre
 
 A terminal task reopens only when evidence falsifies a named frozen criterion, a mandatory policy adds a blocker, or the user reopens it or makes a new request. Reviewer preference, optional hardening, a new context, or remaining budget cannot reactivate it. A child task's completion does not terminate its parent; a new request is new work unless it explicitly reopens the prior one. A consumer holding task identity and completion evidence must not reopen it without one of these events.
 
+## Scripts
+
+### friction_report.py
+
+Computes the transcript-derived parts of the friction report. Subcommands: `candidates`, `scripts`, `check`.
+
+`candidates` and `scripts` read the newest transcript for the working directory. Pass `--transcript PATH` to read another. Add `--format json` for machine output.
+
+```bash
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/avoiding-manufactured-work/scripts/friction_report.py candidates; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/avoiding-manufactured-work/scripts/friction_report.py scripts; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/avoiding-manufactured-work/scripts/friction_report.py check --file report.txt; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+```
+
+Exit codes:
+
+| Exit | Meaning |
+|---|---|
+| 0 | Done. `candidates` and `scripts` also exit 0 when they find nothing. `check` exits 0 when the block is valid. |
+| 1 | `check` found problems, one per line on stdout. |
+| 2 | Bad arguments, a missing or unreadable transcript or file, or no transcript for the working directory. |
+| 3 | I/O error while reading the transcript. |
+
 ## Checklist
 
 - [ ] The work product is named concretely, not as a category.
@@ -107,4 +155,5 @@ A terminal task reopens only when evidence falsifies a named frozen criterion, a
 - [ ] The proposed action is the smallest one that unblocks that consumer.
 - [ ] Any post-completion finding was tested against Blocker first.
 - [ ] Every finding reached a stated disposition; none was dropped silently.
+- [ ] Every workaround has a report. Omit the section when there were none.
 - [ ] Each drive-by fix has a Drive-By Fixes class, and no fix spawned another.

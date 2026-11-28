@@ -35,6 +35,16 @@ Reason: <one sentence>
 Next action: <smallest action, or none>
 ```
 
+It also defines the friction report. When an agent works around a gap in a process, script, skill, or tool, its final report carries three lines per item:
+
+```text
+Hit: <process, script, skill, or tool, and what failed or was missing>
+Did instead: <the workaround, with the script path if one was written>
+Permanent fix: <the smallest change that removes the workaround, and where it lives>
+```
+
+The report alone does not authorize a fix outside the task or a new issue. The agent files an issue only when you ask for one. A fix the task already covers stays in the task. You decide whether to integrate the rest. Style opinions are not friction. With no workaround, omit the section.
+
 | Disposition | Meaning |
 | --- | --- |
 | `keep` | The work satisfies an acceptance criterion, fixes a failing required check, resolves a reviewer thread, or unblocks a named decision. |
@@ -72,6 +82,27 @@ The skill also covers two related steps:
 
 - **Forming the contract.** Before non-trivial work, record the smallest task contract: the user goal and deliverables, explicit constraints and acceptance criteria, mandatory policy, and the minimum inferred success criteria. Once work starts, the criteria stay fixed unless you change them or a mandatory policy was omitted.
 - **Reactivation.** A terminal task reopens only when evidence falsifies a named frozen criterion, a mandatory policy adds a blocker, or you reopen it or make a new request. Reviewer preference, optional hardening, a new context, or leftover budget cannot reopen it.
+
+### The friction report script
+
+`friction_report.py` computes the parts of a friction report that the session transcript holds. The agent decides which items are real friction and writes `Permanent fix:`.
+
+| Subcommand | What it prints |
+| --- | --- |
+| `candidates` | One `Hit:` / `Did instead:` / `Permanent fix:` block for each failed shell call that a later call worked around. The later call must rerun one of the failed call's programs, and the failure must show an error line. It skips check verdicts, crashes in the agent's own inline or scratch code, and denials. `Permanent fix:` holds a placeholder. Below the blocks, it lists calls that the harness marked as success but whose output states a failure. |
+| `scripts` | Inline programs that ran 2 or more times, and script files written under a scratch path by a file tool, a shell redirect, or `tee`. Each line ends with the place to keep it: the `scripts/` directory at the root of the repository that the transcript's working directory is in. With no such directory, it prints a friction block for the missing location. JSON output adds `repository_root`, `script_location`, and `script_location_status` (`found`, `missing`, or `unknown`). |
+| `check` | Problems in a finished friction block, one per line. It reads `--file PATH` or standard input. A block with a missing line, an empty value, or a placeholder fails. |
+
+`candidates` and `scripts` read the newest transcript for the working directory. `--transcript PATH` selects a different one. `--format json` gives machine output. Commands, errors, and paths in the output are redacted for secret shapes and cut to a fixed length.
+
+| Exit code | Meaning |
+| --- | --- |
+| 0 | Done. `candidates` and `scripts` also return 0 when they find nothing. `check` returns 0 for a valid block. |
+| 1 | `check` found problems. |
+| 2 | Bad arguments, a missing or unreadable transcript or file, or no transcript for the working directory. |
+| 3 | I/O error while reading the transcript. |
+
+The output is a list of leads. A candidate can be a false positive, and a workaround can be missing. The `retrospective` skill runs `candidates` as its first data step.
 
 Checklist the skill ends with:
 

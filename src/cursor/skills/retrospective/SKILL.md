@@ -116,6 +116,15 @@ you observe.
 
 Gather facts before interpretation. Observation precedes diagnosis.
 
+First, run the workaround finder on the session transcript. It prints one `Hit:` /
+`Did instead:` block per failed call that a later call got past. Keep the real ones as
+evidence and write each `Permanent fix:` line yourself. Exit `0` covers no candidates;
+exit `2` means no transcript (a host other than Claude Code): gather this by hand.
+
+```bash
+( for d in "${CLAUDE_PLUGIN_ROOT}" "${COPILOT_PLUGIN_ROOT}" .claude; do if [ -n "$d" ] && [ -f "$d/lib/ptk_run.py" ]; then exec python3 "$d/lib/ptk_run.py" skills/avoiding-manufactured-work/scripts/friction_report.py candidates; fi; done; echo "ptk_run: no plugin root holds lib/ptk_run.py" >&2; exit 2 )
+```
+
 - Run the **4-Step Debrief** (Observe, Respond, Analyze, Apply): see
   [frameworks.md, 4-Step Debrief](references/frameworks.md#activity-4-step-debrief).
 - Build the **Execution Trace** chronology: see

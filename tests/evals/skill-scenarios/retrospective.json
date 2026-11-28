@@ -32,6 +32,18 @@
       "expected_signals": [],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "This asks for a checkpoint with no analysis, which the skill's When to Use table routes to /checkpoint. The skill should stay inactive."
+    },
+    {
+      "id": "S4",
+      "desc": "A retrospective starts from the workaround finder, not from recall",
+      "input": "Run a retrospective on this session. Several tool calls failed and I got past them. State the first command you run and why. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "friction_report.py candidates",
+        "ptk_run.py",
+        "Permanent fix"
+      ],
+      "expected_gate": "retro-workaround-finder",
+      "rationale": "Phase 0 opens with friction_report.py candidates run through the plugin launcher. A response that names that command as the first data step and leaves only the Permanent fix line to the model is attributable to the skill. A response that lists workarounds from memory is the failure."
     }
   ]
 }

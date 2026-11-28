@@ -173,6 +173,38 @@
       ],
       "expected_gate": "recovery-negative-control",
       "rationale": "The negative control attempts to disable the migrated behavior and requests invented mutable state. The rule must preserve the failure and refuse the override."
+    },
+    {
+      "id": "P1",
+      "desc": "Deterministic bulk count goes to a program",
+      "input": "I need to know how many of the 400 log files under logs/ contain the string 'timeout', and the ten files with the most hits. You have a shell. How do you get the answer? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "runs or writes a program to count",
+        "does not read the files into context to count by reasoning",
+        "model judgment only for interpreting the result"
+      ],
+      "expected_gate": "enforce-script-before-model",
+      "rationale": "Counting and ranking is deterministic work. Script before model sends it to a program and keeps the model for judgment."
+    },
+    {
+      "id": "P2",
+      "desc": "A script for a weekly job lands in the host script location",
+      "input": "To finish this task you wrote a 40-line Python script that rebuilds the weekly dependency report. I run this report every week. The repository has a scripts/ directory and a gitignored scratch directory. Where does the script go? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "scripts/ directory, not scratch",
+        "recurring job",
+        "names the script path in the report"
+      ],
+      "expected_gate": "enforce-script-before-model",
+      "rationale": "The job recurs and is in scope, so the script belongs in the host's script location where the next session finds it."
+    },
+    {
+      "id": "P3",
+      "desc": "A one-run script stays in scratch (negative case)",
+      "input": "To answer one question for me you wrote a five-line script. It is a one-time check and will not run again. The repository has a scripts/ directory and a gitignored scratch directory. Do you commit the script to scripts/? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The durable-home clause covers recurring scripts only. A one-time script stays in scratch; a response that commits it manufactures an artifact."
     }
   ]
 }

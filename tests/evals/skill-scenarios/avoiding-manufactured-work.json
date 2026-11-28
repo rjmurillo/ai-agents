@@ -105,6 +105,40 @@
       ],
       "expected_gate": "drive-by-report-unauthorized-defect",
       "rationale": "An order to ship one PR does not authorize a second one. Without that authority the defect is reported in the PR body with its impact and a reproduction, not fixed in this PR and not opened as its own PR. Silently dropping it or opening an unrequested PR both fail."
+    },
+    {
+      "id": "S1",
+      "desc": "Follow-up issue with no consumer is not filed",
+      "input": "I finished the retry-logic fix you asked for and the tests pass. I also drafted a follow-up issue to refactor the whole HTTP client. Nobody asked for it and no acceptance criterion needs it. Should I file the issue? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "Disposition: defer or delete",
+        "Consumer: none",
+        "does not file the issue",
+        "names the smallest next action or none"
+      ],
+      "expected_gate": "manufactured-work-disposition",
+      "rationale": "No user, criterion, or blocked decision asked for the refactor. The skill returns its four-line disposition and stops without creating the issue."
+    },
+    {
+      "id": "S2",
+      "desc": "A workaround gets the three-line friction report",
+      "input": "The task was to regenerate the API docs. The docs generator crashed on a missing plugin, so you ran the two underlying commands by hand and the docs are regenerated. Write the friction part of your final report. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "Hit: line naming the generator and the missing plugin",
+        "Did instead: line naming the two manual commands",
+        "Permanent fix: line naming the smallest change and where it lives",
+        "does not fix the generator or file an issue"
+      ],
+      "expected_gate": "friction-report",
+      "rationale": "The Friction Report section gives one Hit, Did instead, Permanent fix block per workaround, and the report does not reopen the task or authorize a fix."
+    },
+    {
+      "id": "S3",
+      "desc": "No workaround means no friction section (negative case)",
+      "input": "The task was to regenerate the API docs. The generator ran as documented on the first try. You think its flag names are ugly. Does your final report carry a friction section? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "Style preferences and steps that ran as intended are not friction. With no workaround the section is omitted."
     }
   ]
 }

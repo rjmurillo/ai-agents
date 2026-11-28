@@ -74,6 +74,8 @@ Frozen weights do not stop the agent system from gaining useful, retrievable ext
 3. Measure a computable fact instead of asking a model to guess it.
 4. Keep model judgment for real ambiguity.
 5. Reject a new control surface when an existing rule, skill, or script can carry the job.
+6. Keep a script written for a job that will recur. Put it in the script location, not scratch, so the next session finds it.
+7. Report every workaround: what was hit, what was done instead, and the permanent fix. The user decides whether to integrate it. An unreported workaround is paid for again by each later session.
 
 ### How to Verify
 

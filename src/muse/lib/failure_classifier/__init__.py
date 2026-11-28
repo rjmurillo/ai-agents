@@ -28,6 +28,7 @@ from .friction import (
     THRESHOLD_ENV,
     Friction,
     build_friction_message,
+    build_friction_nudge,
     collect_record,
     compute_friction,
     friction_marker_body,
@@ -38,9 +39,37 @@ from .friction import (
     parse_threshold,
     partial_budget,
 )
+from .friction_block import validate_friction_block
+from .script_inventory import (
+    InlineScriptGroup,
+    ScratchScript,
+    ScriptInventory,
+    inline_script_inventory,
+)
 from .transcript import events_from_records, stop_feedback_count
+from .workarounds import (
+    KIND_ALTERNATIVE,
+    KIND_FIX_THEN_RETRY,
+    UnmarkedFailure,
+    WorkaroundCandidate,
+    redact_text,
+    unmarked_failures,
+    workaround_candidates,
+)
 
 __all__ = [
+    "KIND_ALTERNATIVE",
+    "KIND_FIX_THEN_RETRY",
+    "InlineScriptGroup",
+    "ScratchScript",
+    "ScriptInventory",
+    "UnmarkedFailure",
+    "WorkaroundCandidate",
+    "inline_script_inventory",
+    "redact_text",
+    "validate_friction_block",
+    "unmarked_failures",
+    "workaround_candidates",
     "DENIAL_MARKERS",
     "EDIT_TOOLS",
     "FINGERPRINT_MAX_CHARS",
@@ -49,6 +78,7 @@ __all__ = [
     "THRESHOLD_ENV",
     "Friction",
     "build_friction_message",
+    "build_friction_nudge",
     "collect_record",
     "compute_friction",
     "friction_marker_body",

@@ -42,7 +42,7 @@ The skill runs six phases in order:
 
 | Phase | Purpose | Tools |
 | --- | --- | --- |
-| 0. Data gathering | Facts before interpretation. | 4-Step Debrief, Execution Trace, Outcome Classification (Mad, Sad, Glad). |
+| 0. Data gathering | Facts before interpretation. | `friction_report.py candidates` first (it lists failed calls that a later call got past), then 4-Step Debrief, Execution Trace, Outcome Classification (Mad, Sad, Glad). |
 | 1. Generate insights | Find causes. | Five Whys (mandatory for every failure), Fishbone, Force Field, Patterns and Shifts, Learning Matrix. |
 | 2. Diagnosis | Prioritize findings. | Root-cause pattern storage. `diagnose this failure` stops here. |
 | 3. Decide | Move to action. | Action Classification (Keep, Drop, Add, Modify), SMART validation, dependency ordering. |
