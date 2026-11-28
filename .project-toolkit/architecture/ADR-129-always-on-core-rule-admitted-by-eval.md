@@ -103,9 +103,12 @@ scored in any pool.
 - Reason: no paid rerun on the shipped `core` was run for this change. The
   margins above are evidence about the candidate, not the shipped text.
 - Reversal: a rerun of the voice and builder-ethos pools on the shipped `core`
-  decides. If it fails any gate line above, revert to the prior always-on
-  `voice` and `builder-ethos` rules. The review date of this record is the
-  deadline for that rerun.
+  decides. If it fails any gate line above, revert PR #7730, as Rollback
+  states. Restoring only the prior always-on `voice` (13,659 bytes) and
+  `builder-ethos` (11,187 bytes) rules, as main holds them at a09c8807a4
+  (2026-11-28), does not fit: the always-on `.md` corpus had 670 bytes of
+  headroom under its 34,600-byte ceiling at 5f0809ccb9 (2026-11-28). The review
+  date of this record is the deadline for that rerun.
 
 **Exception: Unattended Runs.** No eval pool scored the `## Unattended Runs`
 section. It stays in `core` because cutting it removes the only always-on halt
@@ -358,7 +361,12 @@ when that PR merges.
 Review this record by 2027-02-26. By then the five unmeasured sections have
 scenarios or a recorded reason, and the Task Intent exception has its rerun.
 
-Rollback is one revert of PR #7730. No data format changes. Putting one rule
+Rollback is one revert of PR #7730, which merges as one squash commit. No data
+format changes. The revert raises the `.md` ceiling from 34,600 back to 83,000,
+so `test_no_ceiling_rose_against_the_base_ref` fails on it until the owner
+approves the raise and the commit body says why (issue #4345). The revert also
+removes the `rules` and `instructions-github` link exemption in ADR-101, so a
+rule link added after the revert fails dispatch closure again. Putting one rule
 back alone must fit the lowered ceilings, because the ratchet forbids a raise.
 
 ## Related Decisions

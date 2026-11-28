@@ -178,3 +178,20 @@ No paid eval was run for this amendment. The gap stays open until the rerun.
 Amendment implementation note: the panel accepted the compressed wording after the byte-reserve check.
 
 Final byte-reserve check: reduced panel accepted the one-character compression.
+
+## Amendment 2026-11-28: Reversal and Rollback name the same path
+
+**Trigger**: CodeRabbit review 6095946480 on PR #7730 (thread on ADR-129 lines 105-107). The Reversal bullet said to restore the prior `voice` and `builder-ethos` rules, while Rollback names one revert of PR #7730.
+
+**Change**: Reversal now names the PR revert and gives the measured reason a partial restore fails: main holds `voice` at 13,659 bytes and `builder-ethos` at 11,187 bytes at a09c8807a4, and the always-on `.md` corpus had 670 bytes of headroom under 34,600 at 5f0809ccb9. Rollback now states that the repo merges by squash only, that the revert raises the `.md` ceiling to 83,000 so `test_no_ceiling_rose_against_the_base_ref` fails until the owner approves the raise (issue #4345), and that the revert also removes the ADR-101 rule-link exemption. No decision text changes.
+
+**Panel**: the same six-seat panel that reviewed the ADR-101 amendment in `ADR-101-dispatch-closure-exempt-links-debate-log.md` reviewed this edit.
+
+| Seat | Verdict | Finding applied |
+|---|---|---|
+| architect | Disagree-and-Commit | the first draft said the revert restores the ceiling with no word on the ratchet; Rollback now names the ratchet failure and the approval it needs |
+| critic | Disagree-and-Commit | squash-only merge confirmed, so one revert holds |
+| analyst | Disagree-and-Commit | byte claim now measured, with SHA and date |
+| independent-thinker, security, high-level-advisor | Accept or Disagree-and-Commit | no finding on this edit beyond line wrapping, which is fixed |
+
+**Outcome**: Consensus, no Block. ADR-129 status unchanged.
