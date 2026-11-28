@@ -28,8 +28,9 @@ from typing import cast
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from skill_bootstrap import ensure_plugin_paths
 
-# Never resolve the lib from GITHUB_WORKSPACE. pr-maintenance runs this script
-# from a trusted copy (.trusted-helper) while the workspace may hold a PR head.
+# Never resolve the lib from GITHUB_WORKSPACE. A caller may run this script from
+# a trusted copy while the workspace holds a PR head, as the deleted
+# pr-maintenance process-prs job did.
 # Passing no workspace fallback keeps resolution on this script's own tree.
 ensure_plugin_paths(__file__)
 
@@ -49,8 +50,9 @@ _CODE_FENCE_PATTERN = re.compile(r"```(?:json)?\s*([\s\S]*?)```")
 def parse_findings(json_str: str) -> dict:
     """Parse AI findings JSON, stripping markdown code fences if present.
 
-    Resilience contract (Issue #3180): this function runs inside the hourly
-    ``pr-maintenance`` workflow. When the AI Quality Gate returns a WARN or PASS
+    Resilience contract (Issue #3180): this function ran inside the hourly
+    ``pr-maintenance`` workflow until its ``process-prs`` job was deleted on
+    2026-11-25. The contract still holds for any caller. When the AI Quality Gate returns a WARN or PASS
     verdict, it routinely emits an empty body or prose instead of a findings
     object, because there is nothing to report. That case means "no actionable
     findings," which is success, not a config error.

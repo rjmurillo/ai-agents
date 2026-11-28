@@ -1,7 +1,7 @@
 """Tests for scripts/ci/open_bot_pr.py.
 
-Issue #7287: the default branch is protected, so update-reviewer-stats.yml
-cannot push to it. Branch mode commits on a bot branch and opens a pull
+Issue #7287: the default branch is protected, so the deleted update-reviewer-stats.yml
+could not push to it. Branch mode commits on a bot branch and opens a pull
 request. These tests drive `main(argv)` and assert on the exit code, the
 commands issued, and the commands that must not be issued. Git and gh are
 faked at the subprocess boundary and dispatched on argv, so an unexpected

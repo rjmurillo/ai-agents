@@ -10,7 +10,6 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-import yaml
 
 from scripts import agent_pr_intervention_metrics as m
 from scripts import update_reviewer_signal_stats as stats_script
@@ -240,60 +239,3 @@ class TestCli:
 
 def _raise(*_: Any) -> None:
     raise RuntimeError("boom")
-
-
-# ---------------------------------------------------------------------------
-# Workflow wiring: parsed structure, not substrings
-# ---------------------------------------------------------------------------
-
-WORKFLOW = (
-    Path(__file__).resolve().parents[1] / ".github" / "workflows" / "update-reviewer-stats.yml"
-)
-
-
-class TestWorkflowWiring:
-    """The report is built in the read-only job and published by the one publish step.
-
-    Issue #7287 moved the commit steps into a second job that opens a pull request.
-    """
-
-    @staticmethod
-    def _doc() -> dict[str, Any]:
-        return yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
-
-    @classmethod
-    def _steps(cls) -> dict[str, dict[str, Any]]:
-        return {s["name"]: s for s in cls._doc()["jobs"]["update-stats"]["steps"]}
-
-    @classmethod
-    def _publish_run(cls) -> str:
-        steps = cls._doc()["jobs"]["publish-stats"]["steps"]
-        return "\n".join(s.get("run", "") for s in steps)
-
-    def test_intervention_report_is_built_after_the_stats_and_before_the_upload(self) -> None:
-        names = list(self._steps())
-        assert names.index("Run statistics aggregation") < names.index(
-            "Build agent PR intervention report"
-        )
-        assert names.index("Build agent PR intervention report") < names.index(
-            "Upload updated stats"
-        )
-
-    def test_both_reports_are_uploaded_and_published_through_the_one_publish_step(self) -> None:
-        steps = self._steps()
-        assert "--agent-intervention" in steps["Build agent PR intervention report"]["run"]
-        assert m.REPORT_PATH in steps["Upload updated stats"]["with"]["path"]
-        assert f"--path {m.REPORT_PATH}" in self._publish_run()
-        assert "--path .serena/memories/pr-review/pr-comment-responder-skills.md" in (
-            self._publish_run()
-        )
-
-    def test_report_does_not_depend_on_the_stats_steps_succeeding(self) -> None:
-        build = self._steps()["Build agent PR intervention report"]
-        assert "!cancelled()" in build["if"]
-        assert build["timeout-minutes"] > 0
-
-    def test_the_upload_carries_whatever_was_built_even_when_the_stats_step_failed(self) -> None:
-        steps = self._steps()
-        assert "!cancelled()" in steps["Upload updated stats"]["if"]
-        assert "!cancelled()" in steps["Build agent PR intervention report"]["if"]

@@ -1,7 +1,7 @@
 ---
 id: ADR-109
 status: accepted
-date: 2026-11-22
+date: 2026-11-27
 decision-makers: [rjmurillo]
 supersedes: [ADR-052]
 superseded-by: null
@@ -320,6 +320,30 @@ Rollback: revert the PR and run `uv run python build/scripts/build_all.py`. Then
 - No plugin `hooks.json` names `plugin-userpromptsubmit-1-memory_recall`.
 
 Consumers drop the hook at their next plugin update.
+
+## Amendment 2026-11-25: effects of deleting the agent-environment jobs
+
+Decision-maker: rjmurillo. Panel: reduced (architect, critic); see `.project-toolkit/critique/agent-env-adr-amendments-2026-11-25-debate-log-2.md`.
+
+The owner deleted `ai-metrics-analysis.yml` on 2026-11-25, with every other job gated by an `agent-*` environment (ADR-057, the `/spec` CI leg amendment of that date).
+The 2026-11-19 amendment says `metrics-analysis.prompt.md` "stays as an input the `ai-metrics-analysis.yml` workflow reads".
+That sentence describes the state before 2026-11-25.
+The file is still at `.github/prompts/metrics-analysis.prompt.md`, and no workflow reads it now.
+The same commit removed the only workflow reference to each of five more files there: `artifact-insight-scan.md`, `merge-conflict-analysis.md`, `pr-comment-triage.md`, `spec-check-completeness.md`, and `spec-trace-requirements.md`.
+No workflow names any of those six files now.
+A seventh file lost its reader by an indirect path: `scripts/ci/build_retrospective_prompt.py` reads `post-pr-retrospective.md`, and the deleted post-pr-retrospective workflow was the only workflow that ran that script.
+An eighth lost its reader the same way: `scripts/ci/load_ai_review_prompt.py` reads `default-ai-review.md`, only `.github/actions/ai-review/action.yml` runs that script, and no workflow uses that action now.
+The owner decides whether those eight files, and that action, are deleted or wired again.
+
+The 2026-11-09 follow-up says execution "stays with the environment-gated hook smoke and the opt-in `test_cli_stop_nudge_e2e.py`".
+That sentence describes the state before 2026-11-25.
+The same commit deleted the environment-gated `smoke` job from `plugin-cli-smoke.yml`.
+No workflow runs the real-CLI cases of `tests/e2e/test_cli_hook_e2e.py` or `tests/e2e/test_cli_stop_nudge_e2e.py` now.
+The pre-push `hook-anchoring-e2e` job in `lefthook.yml` still runs the Claude cases of `tests/e2e/test_cli_hook_e2e.py` (`-m "not copilot"`) on a contributor machine when a pushed file matches its globs, and it fails the push when `claude` is not on PATH.
+The Copilot cases run nowhere.
+The `smoke-claude-hooks` leg remains and still proves registration, not execution.
+
+The decision text above is otherwise unchanged.
 
 ## Related Decisions
 

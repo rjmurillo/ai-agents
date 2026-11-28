@@ -1,8 +1,8 @@
 """A job with no ``permissions:`` block silently inherits the workflow-level one.
 
-24 jobs hold a write scope they never asked for. A ``debounce`` job that only
-computes an output carries ``pull-requests: write``; ``claude.yml``'s
-authorization check carries seven write scopes including ``id-token``. Nothing
+24 jobs held a write scope they never asked for when this gate was written. A
+``debounce`` job that only computed an output carried ``pull-requests: write``; the
+deleted ``claude.yml``'s authorization check carried seven, ``id-token`` included. Nothing
 in the job body says so, so a reviewer reading the job cannot see it (CWE-269).
 
 ``scripts/validate_workflows.py`` ``validate_permissions`` does not close this.
@@ -20,8 +20,9 @@ give an over-granted job attacker-reachable code. That happened once already:
 (PR #3967) and scoped it to ``contents: read``. Manual review is the only
 control this repository has for it.
 
-The 24 stay frozen below rather than scoped by hand: each needs per-job
-knowledge of what it calls, and a wrong guess breaks CI. The gate stops the
+The jobs listed below stay frozen rather than scoped by hand (24 when this gate
+was written; fewer after the agent-* workflow deletions of 2026-11-25): each
+needs per-job knowledge of what it calls, and a wrong guess breaks CI. The gate stops the
 bleeding, and the burn-down rides the extraction PRs.
 
 Comparison is set equality, not a subset check. A stale entry would re-permit
@@ -46,22 +47,13 @@ WORKFLOW_DIR = Path(__file__).resolve().parents[2] / ".github/workflows"
 # Delete a line when you give that job its own permissions block.
 _GRANDFATHERED: frozenset[tuple[str, str]] = frozenset(
     {
-        ("ai-metrics-analysis.yml", "analyze-metrics"),
-        ("ai-spec-review.yml", "review-spec"),
-        ("artifact-insight-scanner.yml", "scan-artifacts"),
-        ("claude.yml", "check-authorization"),
-        ("claude.yml", "claude-response"),
-        ("copilot-context-synthesis.yml", "sweep-missed"),
-        ("copilot-context-synthesis.yml", "synthesize-single"),
         ("investigation-claim-backstop.yml", "validate-claims"),
         ("label-pr.yml", "label"),
         ("memory-health.yml", "check-paths"),
         ("memory-health.yml", "health-check"),
         ("memory-health.yml", "skip-health-check"),
         ("milestone-tracking.yml", "assign-milestone"),
-        ("post-pr-retrospective.yml", "retrospective"),
         ("pr-validation.yml", "validate-pr"),
-        ("software-engineering-library-activation.yml", "activation-gate"),
     }
 )
 

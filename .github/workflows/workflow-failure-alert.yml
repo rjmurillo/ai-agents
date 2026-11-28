@@ -21,17 +21,10 @@ on:
     workflows:
       - "Agent Metrics"
       - "Agent-Skill Discriminator Check"
-      - "AI Metrics Analysis"
-      - "Artifact Insight Scanner"
-      - "Autoplan Route Eval"
       - "CodeQL Analysis"
-      - "Copilot Context Synthesis"
       - "Enforcement Closure"
       - "npm Publish"
       - "PR Maintenance"
-      - "Skill Overlap Eval"
-      - "Software Engineering Library Activation"
-      - "Update Reviewer Signal Stats"
       - "Workflow Coalescing Metrics"
     types: [completed]
 
