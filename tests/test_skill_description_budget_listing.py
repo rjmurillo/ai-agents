@@ -82,7 +82,8 @@ def test_listing_ceiling_exceeded_exits_one_and_names_root(tmp_path, monkeypatch
     assert budget.main(["--budget-file", str(path)]) == budget.EXIT_OVER_BUDGET
     err = capsys.readouterr().err
     assert f"[OVER BUDGET] {_ROOT_CLAUDE}" in err
-    assert "listing over ceiling by 1 chars" in err
+    assert "listing over ceiling by 1 chars; largest entries:" in err
+    assert f"{_ALPHA_LISTING:>5} chars  alpha" in err
 
 
 def test_listing_ceiling_equal_passes(tmp_path, monkeypatch, capsys):

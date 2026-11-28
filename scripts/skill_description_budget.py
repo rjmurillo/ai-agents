@@ -319,8 +319,11 @@ def _root_to_human(result: RootResult, *, top: int) -> str:
     lines.append(f"  listing: {report.listing_chars} chars, ceiling {ceiling}")
     if result.max_listing_chars is not None and not result.within_listing_ceiling:
         lines.append(
-            f"  listing over ceiling by {report.listing_chars - result.max_listing_chars} chars"
+            f"  listing over ceiling by {report.listing_chars - result.max_listing_chars} chars; "
+            "largest entries:"
         )
+        largest = sorted(report.skills, key=lambda s: (-s.listing_chars, s.name))[:top]
+        lines.extend(f"    {s.listing_chars:>5} chars  {s.name}" for s in largest)
     for host in result.host_budgets:
         lines.append(
             f"  fit [{host.state}] {host.host} {host.chars}: "
