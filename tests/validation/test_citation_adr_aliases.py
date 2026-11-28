@@ -6,14 +6,14 @@ import subprocess
 import sys
 from pathlib import Path
 
-# citation_anchors imports its siblings by bare name (check_adr_links and
+# citation_adr_aliases imports its siblings by bare name (check_adr_links and
 # others), so scripts/validation must be on sys.path first. Without this,
 # collecting the file alone fails, serial or under pytest -n auto.
 _VALIDATION_DIR = Path(__file__).resolve().parents[2] / "scripts" / "validation"
 if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
 
-from scripts.validation.citation_anchors import _citation_aliases_across
+from scripts.validation.citation_adr_aliases import _citation_aliases_across
 from tests.validation.citation_freshness_helpers import TARGET_CONTENT, _git, _repo
 
 _SCRIPT = (

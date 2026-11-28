@@ -12,7 +12,8 @@ from collections.abc import Callable
 from typing import Protocol, cast
 
 from check_citation_freshness import Finding, _citation_anchors
-from citation_anchors import _CITATION, _adr_base_path, _expand_adr_citations
+from citation_adr_aliases import _adr_base_path, _expand_adr_citations
+from citation_anchors import _CITATION
 from citation_head_state import _ChangeSet, _HeadFileCache, _reworded_line_pairs
 
 

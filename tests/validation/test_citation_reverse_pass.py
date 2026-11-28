@@ -380,7 +380,7 @@ def test_recorded_replay_findings_are_historical_but_corpus_is_authored() -> Non
 
 def test_serena_memory_does_not_steal_an_adr_number() -> None:
     """A historical ADR copy must not make the live number ambiguous."""
-    from scripts.validation.citation_anchors import _citation_aliases
+    from scripts.validation.citation_adr_aliases import _citation_aliases
 
     tracked = {
         ".agents/architecture/ADR-036-example.md",

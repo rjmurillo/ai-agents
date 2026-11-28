@@ -18,9 +18,7 @@ that short is checked for existence and range, not content.
 from __future__ import annotations
 
 import re
-from pathlib import PurePosixPath
 
-from check_adr_links import ADR_BASENAME, adr_number
 from citation_continuations import (
     _EXTENSIONS as _EXTENSIONS,
 )
@@ -37,7 +35,6 @@ from citation_continuations import (
     _unique_move as _unique_move,
 )
 from citation_tables import table_row
-from stale_script_refs import HISTORICAL_ROOTS
 
 # A citation: a repo path with a known extension, then :N or :N-M. The
 # path class excludes backticks, quotes, parens, and colons, so
@@ -56,7 +53,7 @@ _CITATION = re.compile(
 )
 
 _URL = re.compile(r"https?://\S+")
-_BACKTICK_SPAN = re.compile(r"`+([^`]+)`+")
+_BACKTICK_SPAN = re.compile(r"(?<!`)(`+)(?!`)(.+?)(?<!`)\1(?!`)")
 # Double-quoted phrases are anchors too: prose quotes the cited contract
 # ('a KEEP_PIN sweep must cover "at least 8 shared fixtures"'). Minimum 4
 # chars so quoted articles and flags stay out.
@@ -106,17 +103,19 @@ def _anchor_candidates(context_lines: list[str], citation_text: str) -> list[str
     """
     anchors: list[str] = []
     for line in context_lines:
-        masked = _URL.sub(" ", _mask_escaped_backticks(line))
+        masked = _URL.sub(" ", line)
         # Triple-quote delimiters would otherwise pair with the opening
         # quote of a real anchor and swallow it.
         masked = masked.replace('"""', " ").replace("'''", " ")
-        for span in _BACKTICK_SPAN.findall(masked) + _DQUOTE_SPAN.findall(masked):
+        backtick_masked = _mask_escaped_backticks(masked)
+        backtick_spans = [match.group(2) for match in _BACKTICK_SPAN.finditer(backtick_masked)]
+        for span in backtick_spans + _DQUOTE_SPAN.findall(masked):
             candidate = _span_anchor(span, citation_text)
             if candidate is not None:
                 anchors.append(candidate)
         # Mask spans and citations before harvesting bare identifiers so a
         # path segment such as model_pin_manifest never reads as an anchor.
-        masked = _BACKTICK_SPAN.sub(" ", masked)
+        masked = _BACKTICK_SPAN.sub(" ", backtick_masked)
         masked = _DQUOTE_SPAN.sub(" ", masked)
         masked = _CITATION.sub(" ", masked)
         masked = _PATHLIKE_INLINE.sub(" ", masked)
@@ -291,6 +290,34 @@ def _context_lines(
     return context
 
 
+def _backtick_run_end(text: str, start: int) -> int:
+    end = start
+    while end < len(text) and text[end] == "`":
+        end += 1
+    return end
+
+
+def _matching_backtick_run(text: str, start: int, length: int) -> int | None:
+    index = start
+    while index < len(text):
+        if text[index] != "`":
+            index += 1
+            continue
+        end = _backtick_run_end(text, index)
+        if end - index == length:
+            return index
+        index = end
+    return None
+
+
+def _backtick_is_escaped(text: str, point: int) -> bool:
+    """An odd run of preceding backslashes escapes a backtick outside spans."""
+    start = point
+    while start > 0 and text[start - 1] == "\\":
+        start -= 1
+    return (point - start) % 2 == 1
+
+
 def _mask_escaped_backticks(text: str) -> str:
     """Blank each backslash-escaped backtick outside a code span, keeping length.
 
@@ -300,34 +327,45 @@ def _mask_escaped_backticks(text: str) -> str:
     if "\\`" not in text:
         return text
     out = list(text)
-    in_span = False
     i = 0
     while i < len(text):
-        char = text[i]
-        if char == "\\" and not in_span:
-            if text[i + 1 : i + 2] == "`":
-                out[i] = out[i + 1] = " "
-            i += 2
+        if text[i] == "`" and _backtick_is_escaped(text, i):
+            out[i - 1] = out[i] = " "
+            i += 1
             continue
-        if char == "`":
-            while i < len(text) and text[i] == "`":
-                i += 1
-            in_span = not in_span
+        if text[i] == "`":
+            opening_end = _backtick_run_end(text, i)
+            length = opening_end - i
+            close = _matching_backtick_run(text, opening_end, length)
+            i = opening_end if close is None else close + length
             continue
         i += 1
     return "".join(out)
 
 
+def _snap_out_of_backtick_prefix(line: str, point: int) -> int:
+    """Keep the whole backslash run before a backtick in one segment."""
+    end = point
+    while end < len(line) and line[end] == "\\":
+        end += 1
+    if end == len(line) or line[end] != "`":
+        return point
+    while point > 0 and line[point - 1] == "\\":
+        point -= 1
+    return point
+
+
 def _snap_out_of_tokens(text: str, point: int, low: int, high: int) -> int:
     """Move a split point out of any span, quote, or identifier it bisects.
 
-    A token that covers the whole gap ``[low, high]`` wraps both citations,
-    so it says nothing about where the gap splits and is skipped. A token
-    that wraps only one citation still counts: the split must not cut it.
+    A token that extends beyond both ends of the gap ``[low, high]`` wraps
+    both citations, so it says nothing about where the gap splits and is
+    skipped. A token bounded by the citations is gap text, and a token that
+    wraps only one citation still counts: the split must not cut either one.
     """
     for pattern in (_BACKTICK_SPAN, _DQUOTE_SPAN, _IDENTIFIER):
         for match in pattern.finditer(text):
-            if match.start() <= low and match.end() >= high:
+            if match.start() < low and match.end() > high:
                 continue
             if match.start() < point < match.end():
                 left = point - match.start()
@@ -343,15 +381,16 @@ def _gap_split(line: str, prev_end: int, next_start: int) -> int:
     with the closing backtick of the first citation's span, so pairing inside
     the gap is off by one and the snap would bisect a span (issue #7656).
     Escaped backticks are blanked first so they do not shift that pairing.
-    A token that covers the whole gap is skipped: a quote that wraps both
-    citations would otherwise push every gap anchor to one side. The result
-    is clamped to the
-    gap so a segment never loses its own citation.
+    A token that extends beyond both ends of the gap is skipped: a quote
+    that wraps both citations would otherwise push every gap anchor to one
+    side. The result is clamped to the gap so a segment never loses its own
+    citation.
     """
     text = _mask_escaped_backticks(line)
     point = prev_end + (next_start - prev_end) // 2
     for _ in range(3):
         snapped = _snap_out_of_tokens(text, point, prev_end, next_start)
+        snapped = _snap_out_of_backtick_prefix(line, snapped)
         if snapped == point:
             break
         point = snapped
@@ -396,105 +435,3 @@ def _relocated_range(
     if first is None or last is None or last < first:
         return None
     return first, last
-
-
-# Colon form: ADR number, colon, line number, and no space after the colon.
-# "ADR-035: 0 ok" stays an exit code because a space follows the colon.
-# Prose form: ADR number, up to six words, then lines and a line range.
-_ADR_CITE = re.compile(
-    r"\bADR-(?P<number>\d+)(?::|\s+(?:[A-Za-z]+\s+){0,6}lines?\s+)"
-    r"(?P<start>\d+)(?:-(?P<end>\d+))?\b",
-    re.IGNORECASE,
-)
-
-
-def _historical(path: str) -> bool:
-    """Return whether path sits under a historical root the gates already exempt."""
-    return path.startswith(HISTORICAL_ROOTS)
-
-
-_ADR_PARENTS = frozenset({"architecture", "adr", "adrs"})
-
-
-def _adr_candidates(tracked: set[str]) -> dict[str, set[str]]:
-    """Map a zero-padded ADR number to the files that use it."""
-    candidates: dict[str, set[str]] = {}
-    for path in tracked:
-        if _historical(path):
-            continue
-        pure = PurePosixPath(path)
-        if pure.parent.name not in _ADR_PARENTS:
-            continue
-        if not ADR_BASENAME.match(pure.name):
-            continue
-        number = adr_number(pure.name)
-        if number is None:
-            continue
-        candidates.setdefault(f"{number:03d}", set()).add(path)
-    return candidates
-
-
-def _unique_adr(paths: set[str]) -> str | None:
-    """Return the only path in a number's set, or None when it is empty or split."""
-    if len(paths) != 1:
-        return None
-    return next(iter(paths))
-
-
-def _citation_aliases(tracked: set[str]) -> dict[str, str]:
-    """Map a zero-padded ADR number to its file when that number is unique.
-
-    The number parse is ``adr_number`` from the ADR link checker. Serena
-    memories and other historical roots are not ADR records, so they do not
-    compete. A number that still names two files is left unresolved.
-    """
-    return {
-        name: path
-        for name, paths in _adr_candidates(tracked).items()
-        if (path := _unique_adr(paths)) is not None
-    }
-
-
-def _citation_aliases_across(base_tracked: set[str], head_tracked: set[str]) -> dict[str, str]:
-    """Resolve ADR numbers from the merge base and from HEAD.
-
-    A number that names two files on either side stays unresolved. A number
-    that exists only at the merge base keeps that path, so a deletion still
-    fails at HEAD. Different unique paths are a rename, and the alias then
-    names the HEAD file.
-    """
-    base = _adr_candidates(base_tracked)
-    head = _adr_candidates(head_tracked)
-    aliases: dict[str, str] = {}
-    for number in set(base) | set(head):
-        if len(base.get(number, set())) > 1 or len(head.get(number, set())) > 1:
-            continue
-        head_path = _unique_adr(head.get(number, set()))
-        if head_path is not None:
-            aliases[number] = head_path
-            continue
-        base_path = _unique_adr(base.get(number, set()))
-        if base_path is not None:
-            aliases[number] = base_path
-    return aliases
-
-
-def _adr_base_path(head_path: str, base_tracked: set[str]) -> str | None:
-    """Return the one merge-base ADR file that shares ``head_path``'s number."""
-    number = adr_number(PurePosixPath(head_path).name)
-    if number is None:
-        return None
-    return _unique_adr(_adr_candidates(base_tracked).get(f"{number:03d}", set()))
-
-
-def _expand_adr_citations(text: str, aliases: dict[str, str]) -> str:
-    """Rewrite ADR-NNN line cites as path:line cites the matcher already checks."""
-
-    def adr(match: re.Match[str]) -> str:
-        path = aliases.get(f"{int(match.group('number')):03d}")
-        if path is None:
-            return match.group(0)
-        end = f"-{match.group('end')}" if match.group("end") else ""
-        return f"{path}:{match.group('start')}{end}"
-
-    return _ADR_CITE.sub(adr, text)

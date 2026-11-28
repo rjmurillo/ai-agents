@@ -29,6 +29,11 @@ PYPROJECT = REPO_ROOT / "pyproject.toml"
 # length tests below, so the growth shows up in the diff a reviewer reads.
 # The count includes src/muse/lib copies that mirror src/claude/lib files already listed.
 EXPECTED_C901_BASELINE_ENTRIES = 79
+# Functions over max-complexity inside those files, one per ruff record. The
+# entry pin above counts files, so a new over-limit function in an already
+# listed file passes it. This pin only goes down: lower it when you split a
+# function, never raise it to make a new one fit.
+EXPECTED_C901_BASELINE_FUNCTIONS = 94
 # 159 is the complete count for this PR, not growth: the first cut counted 144
 # and missed the modules that fail only an error code (type-arg,
 # no-any-return, call-overload). Those now count, which is 148, plus the 10
@@ -155,7 +160,12 @@ def stale_c901_entries(
     return stale
 
 
-def _c901_violating_files(paths: Sequence[str], max_complexity: int) -> set[str]:
+def count_c901_violations(records: Sequence[Mapping[str, Any]]) -> int:
+    """Count C901 violations: ruff emits one record per over-limit function."""
+    return len(records)
+
+
+def _c901_violation_records(paths: Sequence[str], max_complexity: int) -> list[Mapping[str, Any]]:
     # --isolated drops pyproject's per-file ignores, so the scan sees the
     # violations the baseline waives.
     result = subprocess.run(
@@ -189,10 +199,18 @@ def _c901_violating_files(paths: Sequence[str], max_complexity: int) -> set[str]
     assert result.stdout.strip(), (
         f"ruff exited {result.returncode} with no JSON on stdout; stderr={result.stderr!r}"
     )
+    return json.loads(result.stdout)
+
+
+def _c901_violating_files(paths: Sequence[str], max_complexity: int) -> set[str]:
     return {
         Path(record["filename"]).resolve().relative_to(REPO_ROOT).as_posix()
-        for record in json.loads(result.stdout)
+        for record in _c901_violation_records(paths, max_complexity)
     }
+
+
+def _c901_violation_count(paths: Sequence[str], max_complexity: int) -> int:
+    return count_c901_violations(_c901_violation_records(paths, max_complexity))
 
 
 def is_strict_relax(settings: Mapping[str, object]) -> bool:

@@ -294,9 +294,10 @@ max-complexity = 15
 "tests/test_redact_secrets.py" = ["RUF100"]
 
 # C901 baseline. These files held a function over max-complexity when C90
-# landed (2026-11-01, 217 functions in 189 files). The generated copies waived
-# above (src/copilot-cli, src/hermes, src/cursor/skills, src/codex/skills,
-# src/muse/skills) are not listed, which leaves 81 files. This table holds
+# landed (2026-11-01, 217 functions in 189 files). The generated skill and hook
+# trees waived above (src/copilot-cli/hooks and skills, src/hermes, src/cursor/skills,
+# src/codex/skills, src/muse/skills) are not listed. The 10 generated lib copies
+# under src/{codex,cursor,muse,copilot-cli}/lib are listed, so the table lists 79 files. It holds
 # only the baseline, which may only shrink: split the function, then delete the file's line.
 # tests/test_strict_baselines.py fails when a listed file no longer exists or
 # no longer has a C901 violation.

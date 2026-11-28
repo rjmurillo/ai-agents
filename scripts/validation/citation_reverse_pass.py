@@ -70,6 +70,7 @@ from check_citation_freshness import (  # noqa: E402
     _resolve_cited_range,
 )
 from checks_common import _resolve_default_base_ref  # noqa: E402
+from citation_adr_aliases import _citation_aliases_across, _expand_adr_citations  # noqa: E402
 from citation_anchors import (  # noqa: E402
     _CITATION,
     _EXTENSIONS,
@@ -77,8 +78,6 @@ from citation_anchors import (  # noqa: E402
     _anchor_candidates,
     _anchor_matches,
     _basename_index,
-    _citation_aliases_across,
-    _expand_adr_citations,
     _expand_continuations,
     _range_misses_distinctive_anchors,
     _relocated_range,

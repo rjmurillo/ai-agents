@@ -13,11 +13,14 @@ from __future__ import annotations
 from tests.strict_baseline_helpers import (
     _GLOB_CHARS,
     EXPECTED_C901_BASELINE_ENTRIES,
+    EXPECTED_C901_BASELINE_FUNCTIONS,
     GENERATED_MIRROR_C90_GLOBS,
     _c901_violating_files,
+    _c901_violation_count,
     _load_pyproject,
     _tracked_python_files,
     c901_baseline,
+    count_c901_violations,
     malformed_c901_entries,
     stale_c901_entries,
 )
@@ -59,6 +62,23 @@ def test_c901_baseline_length_matches_the_pinned_constant() -> None:
         f"[tool.ruff.lint.extend-per-file-ignores] holds {len(baseline)} entries, pinned "
         f"at {EXPECTED_C901_BASELINE_ENTRIES}. Lower the constant when you delete an "
         "entry; never raise it. New code must be under max-complexity, not added here."
+    )
+
+
+def test_c901_baseline_function_count_matches_the_pinned_constant() -> None:
+    pyproject = _load_pyproject()
+    baseline = c901_baseline(pyproject)
+    max_complexity = pyproject["tool"]["ruff"]["lint"]["mccabe"]["max-complexity"]
+    tracked = set(_tracked_python_files())
+    present = [path for path in baseline if path in tracked]
+
+    count = _c901_violation_count(present, max_complexity)
+
+    assert count == EXPECTED_C901_BASELINE_FUNCTIONS, (
+        f"the {len(present)} files in [tool.ruff.lint.extend-per-file-ignores] hold {count} "
+        f"functions over max-complexity {max_complexity}, pinned at "
+        f"{EXPECTED_C901_BASELINE_FUNCTIONS}. Lower the constant when you split a function; "
+        "never raise it. New code must stay under max-complexity, not hide in a waived file."
     )
 
 
@@ -113,6 +133,19 @@ def test_malformed_c901_entries_flags_other_codes_and_globs() -> None:
     }
 
     assert malformed_c901_entries(baseline) == ["extra.py", "family.py", "scripts/**/*.py"]
+
+
+def test_count_c901_violations_counts_each_function_in_one_file() -> None:
+    records = [
+        {"code": "C901", "filename": "/repo/a.py", "location": {"row": 10, "column": 5}},
+        {"code": "C901", "filename": "/repo/a.py", "location": {"row": 90, "column": 5}},
+    ]
+
+    assert count_c901_violations(records) == 2
+
+
+def test_count_c901_violations_empty_input_is_zero() -> None:
+    assert count_c901_violations([]) == 0
 
 
 def test_c901_baseline_reads_missing_table_as_empty() -> None:
