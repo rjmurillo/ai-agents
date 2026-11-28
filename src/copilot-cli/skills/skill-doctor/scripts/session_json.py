@@ -41,6 +41,7 @@ def _claude_meta(meta: Any, obj: Any, ts: Any) -> Any:
             "started_at": ts,
             "originator": "claude-code",
             "thread_source": "subagent" if obj.get("isSidechain") else None,
+            "git_branch": obj.get("gitBranch"),
             "cli_version": obj.get("version"),
             "entrypoint": obj.get("entrypoint"),
         }
@@ -48,6 +49,7 @@ def _claude_meta(meta: Any, obj: Any, ts: Any) -> Any:
         return meta
     for key, value in (
         ("cwd", obj.get("cwd")),
+        ("git_branch", obj.get("gitBranch")),
         ("started_at", ts),
         ("cli_version", obj.get("version")),
         ("entrypoint", obj.get("entrypoint")),
@@ -226,6 +228,7 @@ def parse_codex_session(path: Path, _skill_names: Any, include_subagents: bool) 
                 "started_at": payload.get("timestamp"),
                 "originator": payload.get("originator"),
                 "thread_source": payload.get("thread_source"),
+                "git": payload.get("git"),
                 "cli_version": payload.get("cli_version"),
             }
             source = payload.get("source")
@@ -234,8 +237,7 @@ def parse_codex_session(path: Path, _skill_names: Any, include_subagents: bool) 
             )
             if child and not include_subagents:
                 return None
-            if child:
-                meta["thread_source"] = "subagent"
+            meta["thread_source"] = "subagent" if child else meta["thread_source"]
         elif kind == "event_msg":
             _codex_event(state, payload, events)
         elif kind == "response_item":

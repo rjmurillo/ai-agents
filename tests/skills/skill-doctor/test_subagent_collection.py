@@ -19,8 +19,10 @@ STAMP = "2026-10-01T10:00:00Z"
 UPSTREAM = "https://example.invalid/acme/widgets.git"
 
 
-def claude_records(session_id, cwd, *, agent_id=None):
+def claude_records(session_id, cwd, *, agent_id=None, branch=None):
     base = {"sessionId": session_id, "cwd": cwd, "timestamp": STAMP}
+    if branch:
+        base["gitBranch"] = branch
     if agent_id:
         base.update({"agentId": agent_id, "isSidechain": True})
     return [
@@ -40,14 +42,16 @@ def claude_records(session_id, cwd, *, agent_id=None):
     ]
 
 
-def write_claude(home, session_id, cwd, *, child_cwd=None, project="-repo", child=True):
+def write_claude(
+    home, session_id, cwd, *, child_cwd=None, project="-repo", child=True, branch=None
+):
     """Write a parent journal and, when ``child`` is set, one subagent journal beside it."""
     root = home / "projects" / project
-    write_jsonl(root / f"{session_id}.jsonl", claude_records(session_id, str(cwd)))
+    write_jsonl(root / f"{session_id}.jsonl", claude_records(session_id, str(cwd), branch=branch))
     if child:
         write_jsonl(
             root / session_id / "subagents" / "agent-x.jsonl",
-            claude_records(session_id, str(child_cwd or cwd), agent_id="x"),
+            claude_records(session_id, str(child_cwd or cwd), agent_id="x", branch=branch),
         )
 
 
@@ -149,7 +153,18 @@ def test_child_in_registered_linked_worktree_is_kept(tmp_path):
     assert [s["thread"] for s in inventory["sessions"]] == ["subagent"]
 
 
-def test_child_in_removed_worktree_falls_out_of_scope(tmp_path):
+def test_child_in_removed_worktree_stays_in_scope_by_its_branch(tmp_path):
+    main = make_clone(tmp_path / "clones" / "widgets", UPSTREAM)
+    tree = add_worktree(main, tmp_path / "trees" / "widgets" / "gone", "gone-branch")
+    home = tmp_path / "claude-home"
+    write_claude(home, "parent", tree, branch="gone-branch")
+    shutil.rmtree(tree)
+    inventory, _ = collect(tmp_path, "--claude-home", str(home), "--repo", str(main))
+    assert sorted(s["thread"] for s in inventory["sessions"]) == ["subagent", "top_level"]
+    assert inventory["scope_resolution"]["removed_checkout_sessions"] == 2
+
+
+def test_child_in_removed_worktree_without_a_recorded_branch_falls_out(tmp_path):
     main = make_clone(tmp_path / "clones" / "widgets", UPSTREAM)
     tree = add_worktree(main, tmp_path / "trees" / "widgets" / "gone", "gone-branch")
     home = tmp_path / "claude-home"
