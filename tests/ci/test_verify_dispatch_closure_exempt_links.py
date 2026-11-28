@@ -32,6 +32,18 @@ ROWS = [
         "install_tree": ".agents/skills",
         "link": True,
     },
+    {
+        "class": "rules",
+        "plugin_tree": "src/claude/rules",
+        "install_tree": ".claude/rules",
+        "link": True,
+    },
+    {
+        "class": "instructions-github",
+        "plugin_tree": "src/copilot-cli/instructions",
+        "install_tree": ".github/instructions",
+        "link": True,
+    },
     {"class": "lib", "plugin_tree": "src/claude/lib", "install_tree": ".claude/lib", "link": True},
     {
         "class": "hooks-github",
@@ -70,6 +82,21 @@ def _new_skill(
     return link
 
 
+def _new_rule_links(head: Path) -> tuple[Path, Path]:
+    write(head, "src/claude/rules/core.md", "# Core\n")
+    write(head, "src/copilot-cli/instructions/core.instructions.md", "# Core\n")
+    claude = head / ".claude/rules/core.md"
+    github = head / ".github/instructions/core.instructions.md"
+    claude.parent.mkdir(parents=True, exist_ok=True)
+    github.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        claude.symlink_to("../../src/claude/rules/core.md")
+        github.symlink_to("../../src/copilot-cli/instructions/core.instructions.md")
+    except OSError as exc:
+        pytest.skip(f"symlink creation unsupported: {exc}")
+    return claude, github
+
+
 def _main(base: Path, head: Path) -> int:
     return vdc.main(["--tool-root", str(base), "--base-ref", "HEAD", "--head-root", str(head)])
 
@@ -104,6 +131,18 @@ class TestExemptInstallLinks:
         out = capsys.readouterr().out
         assert "dispatch-closure: EXEMPT .claude/skills/fresh" in out
         assert "dispatch-closure: EXEMPT .agents/skills/fresh" in out
+        assert "2 exempt install links" in out
+
+    def test_new_rule_and_instruction_links_exit_zero(
+        self, skill_trees: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        base, head = skill_trees
+        _new_rule_links(head)
+
+        assert _main(base, head) == 0
+        out = capsys.readouterr().out
+        assert "dispatch-closure: EXEMPT .claude/rules/core.md" in out
+        assert "dispatch-closure: EXEMPT .github/instructions/core.instructions.md" in out
         assert "2 exempt install links" in out
 
     def test_a_committed_new_skill_is_exempt_with_a_head_sha(
