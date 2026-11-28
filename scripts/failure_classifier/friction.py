@@ -20,6 +20,7 @@ from scripts.failure_classifier.classifier import (
     friction_score,
 )
 from scripts.failure_classifier.transcript import events_from_records, stop_feedback_count
+from scripts.failure_classifier.workarounds import workaround_candidates
 
 THRESHOLD_ENV = "AI_AGENTS_RETRO_NUDGE_THRESHOLD"
 OFF_VALUES = frozenset({"0", "off"})
@@ -135,3 +136,20 @@ def build_friction_message(friction: Friction, prefix: str) -> str:
         f"error streak of {friction.streak}. "
         "You can run /retrospective to review what went wrong."
     )
+
+
+def build_friction_nudge(
+    friction: Friction, prefix: str, records: Iterable[Mapping[str, Any]]
+) -> str:
+    """The friction message, plus a workaround candidate count when it is not 0.
+
+    The count rides on a message that already fires. It never fires one, and
+    it is not part of the score, the tier, or the marker. A finder error
+    drops the count and keeps the message. Integers only (AC-07).
+    """
+    text = build_friction_message(friction, prefix)
+    try:
+        count = len(workaround_candidates(events_from_records(tuple(records))))
+    except Exception:  # fail-open: a broken finder must not cost the nudge
+        return text
+    return f"{text} Workaround candidates, not confirmed: {count}." if count > 0 else text

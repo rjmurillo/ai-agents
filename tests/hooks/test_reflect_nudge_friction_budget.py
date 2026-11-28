@@ -151,7 +151,7 @@ class TestFailOpen:
             "partial_budget",
             "friction_marker_name",
             "friction_marker_body",
-            "build_friction_message",
+            "build_friction_nudge",
         ],
     )
     def test_classifier_error_keeps_correction(

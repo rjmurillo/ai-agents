@@ -106,7 +106,10 @@ _SECRET_RULES: tuple[tuple[re.Pattern[str], str], ...] = (
     ),
     (re.compile(r"(://[^\s/:@]+:)[^\s/@]+@"), r"\1" + _REDACTED + "@"),
     (
-        re.compile(r"(?i)(--?(?:password|passwd|token|secret|api[-_]?key)[ =]+)(?!-)[^\s]+"),
+        re.compile(
+            r"(?im)(--?(?:password|passwd|token|secret|api[-_]?key)[ =]+)(?!-)"
+            r"(?:\"[^\"\n]*(?:\"|$)|'[^'\n]*(?:'|$)|[^\s]+)"
+        ),
         r"\1" + _REDACTED,
     ),
     (

@@ -253,6 +253,39 @@ class TestFailuresThatAreNotGaps:
 SCRATCH = ".project-toolkit/scratch/foo.py"
 
 
+class TestQuotedSecretsAreRedactedWhole:
+    @pytest.mark.parametrize(
+        "flag_value",
+        [
+            "--password 'tuna melt'",
+            '--password "tuna melt"',
+            "--token='tuna melt'",
+            "--password 'tuna melt",
+        ],
+        ids=["single-quoted", "double-quoted", "equals-form", "unterminated-quote"],
+    )
+    def test_a_quoted_credential_with_a_space_leaves_no_part_behind(
+        self, flag_value: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        steps: list[Step] = [
+            (f"tools/deploy.py --env x {flag_value}", TOOL_FAIL, True),
+            (f"tools/deploy.py --env y {flag_value}", "deployed", False),
+        ]
+        out = _run(capsys, "candidates", _transcript(tmp_path / "t.jsonl", steps))
+        assert "deploy.py" in out, "the pair must still be a candidate"
+        assert "tuna" not in out and "melt" not in out
+
+    def test_an_unquoted_credential_is_still_redacted_and_the_next_flag_kept(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        steps: list[Step] = [
+            ("tools/deploy.py --password tunamelt --env x", TOOL_FAIL, True),
+            ("tools/deploy.py --password tunamelt --env y", "deployed", False),
+        ]
+        out = _run(capsys, "candidates", _transcript(tmp_path / "t.jsonl", steps))
+        assert "tunamelt" not in out and "--env" in out
+
+
 class TestShellWrittenScratchScripts:
     @pytest.mark.parametrize(
         "command",
