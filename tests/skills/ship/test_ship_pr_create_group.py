@@ -13,8 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.skills.ship.ship_helpers import publish, values
-from tests.skills.ship.test_ship_push_lock import _assert_dead, _reap
+from tests.skills.ship.ship_helpers import alive, assert_dead, publish, reap, values
 
 posix_only = pytest.mark.skipif(os.name == "nt", reason="process groups are POSIX only")
 
@@ -78,9 +77,9 @@ class TestCreateTimeoutKillsTheGroup:
             assert values(lines, "PUSH") == ["pushed"]
             assert lines[-1].startswith("STOP: pr-create-failed "), lines
             assert "timed out after 2s (rerun publish; it detects an existing PR)" in lines[-1]
-            _assert_dead(pid_file)
+            assert_dead(pid_file)
         finally:
-            _reap(pid_file)
+            reap(pid_file)
 
     @pytest.mark.parametrize(
         ("signum", "raised", "exit_code"),
@@ -102,10 +101,10 @@ class TestCreateTimeoutKillsTheGroup:
             with pytest.raises(raised) as caught:
                 publish(scripts, capsys, body)
             assert getattr(caught.value, "code", None) == exit_code
-            _assert_dead(pid_file)
+            assert_dead(pid_file)
             assert [signal.getsignal(each) for each in (signal.SIGINT, signal.SIGTERM)] == before
         finally:
-            _reap(pid_file)
+            reap(pid_file)
 
     def test_a_create_that_ends_in_time_leaves_its_grandchild_alone(
         self, owner, fakes, scripts, capsys, tmp_path
@@ -119,9 +118,9 @@ class TestCreateTimeoutKillsTheGroup:
             code, lines = publish(scripts, capsys, body)
             assert code == 0, lines
             assert lines[-1] == "NEXT: discharge"
-            os.kill(int(pid_file.read_text(encoding="utf-8")), 0)  # raises if it is gone
+            assert alive(int(pid_file.read_text(encoding="utf-8")))
         finally:
-            _reap(pid_file)
+            reap(pid_file)
 
 
 class TestCreateGroupFlag:
