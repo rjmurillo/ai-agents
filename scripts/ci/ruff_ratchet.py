@@ -250,6 +250,22 @@ def report(
     return blocking
 
 
+def _module_available_outside_checkout(name: str, repo_root: Path) -> bool:
+    """Probe import availability without the checkout path ``-P`` excludes."""
+    root = os.path.realpath(repo_root)
+    original = sys.path[:]
+    narrowed: list[str] = []
+    for entry in original:
+        candidate = os.path.realpath(entry or os.getcwd())
+        if candidate != root:
+            narrowed.append(entry)
+    sys.path[:] = narrowed
+    try:
+        return importlib.util.find_spec(name) is not None
+    finally:
+        sys.path[:] = original
+
+
 def run_ruff(
     files: Sequence[str],
     repo_root: Path,
@@ -263,7 +279,7 @@ def run_ruff(
     # that interpreter does not ship ruff, use the native standalone binary. A
     # .cmd or .bat shim is never selected: Windows may parse list-form batch
     # arguments as shell input, and Git-controlled filenames are in this list.
-    if importlib.util.find_spec("ruff") is not None:
+    if _module_available_outside_checkout("ruff", repo_root):
         program = [sys.executable, "-P", "-m", "ruff"]
     else:
         program = [_native_program("ruff")]

@@ -92,3 +92,20 @@ def test_windows_job_setup_failure_is_not_reported_as_signal_one(
     assert exit_code == ruff_ratchet.EXIT_EXTERNAL
     assert "Windows job setup failed" in captured.err
     assert "signal 1" not in captured.err
+
+
+def test_checkout_shadow_module_does_not_count_as_installed_ruff(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(ruff_ratchet.sys, "path", [str(tmp_path), *ruff_ratchet.sys.path])
+    (tmp_path / "ruff.py").write_text("shadow\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        ruff_ratchet.importlib.util,
+        "find_spec",
+        lambda name: (
+            object() if name == "ruff" and str(tmp_path) in ruff_ratchet.sys.path else None
+        ),
+    )
+
+    assert ruff_ratchet._module_available_outside_checkout("ruff", tmp_path) is False
