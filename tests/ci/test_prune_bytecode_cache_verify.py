@@ -10,6 +10,7 @@ from __future__ import annotations
 import importlib.util
 import marshal
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -245,6 +246,79 @@ def test_refuses_to_run_with_an_interpreter_bytecode_prefix(
     _write_pyc(workspace, cache_root, "tests/test_ok.py", PYTEST_TAG)
     monkeypatch.setattr(sys, "pycache_prefix", str(tmp_path / "prefix"))
     assert _verify(workspace, cache_root) == 2
+
+
+def test_a_prefix_exits_2_before_a_planted_pytest_pyc_can_run(tmp_path: Path) -> None:
+    """The prefix guard must run before `import pytest`, so a planted pyc never runs.
+
+    In-process tests cannot see import order because pytest is already imported
+    there. This one starts a real interpreter with the prefix set and a planted
+    timestamp pyc for pytest/__init__.py at the path that interpreter derives.
+    """
+    workspace, cache_root = _paths(tmp_path)
+    prefix = tmp_path / "prefix"
+    canary = tmp_path / "canary.txt"
+    pytest_spec = importlib.util.find_spec("pytest")
+    assert pytest_spec is not None and pytest_spec.origin is not None
+    source = Path(pytest_spec.origin)
+    planted = (
+        prefix
+        / source.parent.relative_to(source.anchor)
+        / f"{source.stem}.{sys.implementation.cache_tag}.pyc"
+    )
+    planted.parent.mkdir(parents=True)
+    text = source.read_text(encoding="utf-8").replace("from __future__ import annotations\n", "", 1)
+    code = compile(
+        f"from __future__ import annotations\nopen({str(canary)!r}, 'w').close()\n{text}",
+        str(source),
+        "exec",
+    )
+    stat_result = source.stat()
+    planted.write_bytes(
+        importlib.util.MAGIC_NUMBER
+        + (0).to_bytes(4, "little")
+        + (int(stat_result.st_mtime) & 0xFFFFFFFF).to_bytes(4, "little")
+        + (stat_result.st_size & 0xFFFFFFFF).to_bytes(4, "little")
+        + marshal.dumps(code)
+    )
+
+    def pytest_pycs() -> list[str]:
+        return sorted(
+            str(path)
+            for path in prefix.rglob("*.pyc")
+            if {"pytest", "_pytest"} & set(path.relative_to(prefix).parts)
+        )
+
+    before = pytest_pycs()
+    assert len(before) == 1
+    tree_before = sorted(cache_root.rglob("*"))
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(Path(prune.__file__)),
+            "--verify-only",
+            "--workspace",
+            str(workspace),
+            "--cache-root",
+            str(cache_root),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+        env={
+            "PATH": os.environ.get("PATH", ""),
+            "HOME": str(tmp_path),
+            "PYTHONPYCACHEPREFIX": str(prefix),
+        },
+    )
+
+    assert result.returncode == 2, result.stderr
+    assert "no bytecode cache prefix" in result.stderr
+    assert not canary.exists(), "the planted pytest pyc ran before the prefix guard"
+    assert pytest_pycs() == before
+    assert sorted(cache_root.rglob("*")) == tree_before
 
 
 def test_rejects_a_file_set_that_changes_between_the_two_scans(

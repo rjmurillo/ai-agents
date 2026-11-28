@@ -307,7 +307,7 @@ class TestArtifactAndCacheIdentity:
     def test_the_verify_step_is_the_read_only_mode_of_the_prune_script(self) -> None:
         command = " ".join(str(_step("Verify pytest bytecode candidate")["run"]).split())
         assert command.startswith(
-            "uv run --frozen python scripts/ci/prune_bytecode_cache.py --verify-only "
+            "uv run --frozen python -E scripts/ci/prune_bytecode_cache.py --verify-only "
         )
 
     def test_the_candidate_name_matches_no_download_pattern_in_the_workflow(self) -> None:

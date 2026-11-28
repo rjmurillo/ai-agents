@@ -31,7 +31,12 @@ cannot use them to reach arbitrary directories.
 without removing anything: a rejected entry, an empty candidate, or a file set
 that changes between two scans exits 1. It exits 2 when a bytecode cache prefix
 is set for the verifying interpreter, because Python could then read the
-candidate as bytecode. The check never imports or executes candidate files.
+candidate as bytecode. That check runs before pytest is imported: pytest is
+imported lazily, so with a prefix set nothing under the candidate root is read
+or written before the exit. The publisher also starts the interpreter with -E,
+which ignores PYTHONPYCACHEPREFIX at startup. With -E the interpreter never
+reads the candidate as bytecode, and the in-script check still sees the
+variable and exits 2. The check never imports or executes candidate files.
 It does decode each payload with marshal.loads, as the prune does. That call
 does not run the payload, but marshal is not designed for untrusted data, so a
 hostile payload can crash this process, which fails closed. The decode adds no
@@ -58,8 +63,6 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-
-import pytest
 
 EXIT_OK = 0
 EXIT_LOGIC = 1
@@ -100,6 +103,10 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def _current_tags() -> frozenset[str]:
+    # Imported here, not at module level: --verify-only must check the bytecode
+    # prefix before this import can read a planted pyc for pytest.
+    import pytest
+
     cache_tag = sys.implementation.cache_tag
     if not cache_tag:
         raise RuntimeError("sys.implementation.cache_tag is empty")
@@ -266,6 +273,7 @@ def _source_hash_matches(data: bytes, source: Path) -> bool:
 
 def _payload_is_code(data: bytes) -> bool:
     try:
+        # pytest's own _read_pyc decodes the same bytes in every consuming leg.
         payload = marshal.loads(data[16:])
     except Exception:
         return False

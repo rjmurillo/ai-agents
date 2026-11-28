@@ -545,7 +545,7 @@ jobs:
       # Observed in this file: the only bytecode save is the publisher job below,
       # which runs on a push to main after the required test-result job succeeded
       # and after a read-only verification of the staged tree. No pull request
-      # job saves. Assumed from GitHub's documented cache scoping, not measured
+      # job has a save step. Assumed from GitHub's documented cache scoping, not measured
       # here: a pull request run writes only its own merge-ref scope, and a later
       # run of the same pull request can read that scope even after the writing
       # code was removed; a fork pull request does not write the main scope. Not
@@ -746,15 +746,24 @@ jobs:
   # publish must never change the required verdict. `!cancelled()` is the
   # repository's cancellation guard for a job that reads a dependency result and
   # downloads an artifact (tests/workflows/test_aggregator_cancellation_guard.py);
-  # the explicit test-result term still requires success. It never restores the cache,
-  # never sets PYTHONPYCACHEPREFIX, and never imports or executes candidate
-  # files. The candidate is downloaded straight to the cache path because the
+  # the explicit test-result term still requires success. It never restores the cache
+  # and never sets PYTHONPYCACHEPREFIX. The verify step starts the interpreter
+  # with -E, so an inherited PYTHONPYCACHEPREFIX cannot make Python read the
+  # candidate as bytecode, and the script checks the variable before it imports
+  # pytest and exits 2 when it is set. The candidate is downloaded straight to the cache path because the
   # cache version is derived from the path string: a differently named staging
   # directory would save an entry no restore can match. On this fresh runner that
   # path is private to this job, so it is the staging directory. The verify and
   # save steps are adjacent and nothing runs between them. The verify step is
   # read-only, rejects any entry that is not a current pytest pyc, an empty tree,
   # or a file set that changes during the check, and fails the job closed.
+  # After "Re-run failed jobs" this job cannot succeed when the primary leg did
+  # not re-run. The candidate artifact name carries run_attempt, so the name for
+  # attempt N does not exist, the download fails, and the job fails closed. The
+  # run then concludes failure while the required context stays green, and
+  # testmon_seed_trust.py keeps only runs whose conclusion is success, so that
+  # commit supplies no testmon seed. INFERRED from this file and GitHub rerun
+  # semantics, not observed on a hosted run.
   publish-bytecode-cache:
     name: Publish pytest bytecode cache
     needs: test-result
@@ -792,7 +801,7 @@ jobs:
           path: ${{ runner.temp }}/pytest-bytecode-cache${{ github.workspace }}
       - name: Verify pytest bytecode candidate
         run: >-
-          uv run --frozen python scripts/ci/prune_bytecode_cache.py
+          uv run --frozen python -E scripts/ci/prune_bytecode_cache.py
           --verify-only
           --workspace "${{ github.workspace }}"
           --cache-root "${{ runner.temp }}/pytest-bytecode-cache${{ github.workspace }}"
