@@ -266,13 +266,19 @@ After exhaustion, keep invalidating old receipts. Route any new decision to a hu
 ## Observe mode and evaluation
 
 Observe never posts `APPROVED` or alters merge eligibility.
+That promise covers repository mode `observe`, where no fence runs.
+Under repository mode `enforce`, an `observe` rule grants nothing: its PR needs human clearance, like an unmatched PR.
 Post a deduplicated comment with `WOULD APPROVE` or `HOLD`, the head, rule ID, and reason.
 Use one decision comment per evaluated head. Label it advisory.
+When same-head evidence changes, such as checks turning green, re-evaluate and edit that comment in place.
+Record each verdict with its evidence fingerprint and time.
+Promotion scoring uses the last verdict recorded before the human decision on that head.
 Measure Richard's decision independently of model output where practical.
 Retain repository and PR IDs, timestamps, head and base SHAs, policy digest, and input fingerprints.
 Log evidence IDs, decision reasons, provider and model identifiers, latency, and capped usage.
 Log the observed human decision and source, eligibility outcome, and write or read-back state.
-Restrict audit access to operators. Retain online records for 90 days initially.
+Restrict audit access to operators. Retain online audit records for 90 days initially.
+The 90-day limit does not apply to the budget ledger. Keep it while the PR is open, so lifetime caps hold past audit expiry.
 Do not log tokens, raw prompts, patches, sensitive labels, or unfiltered review text.
 
 Name the corpus **ai-agents approval replay v1**.
