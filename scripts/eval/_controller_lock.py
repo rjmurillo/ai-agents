@@ -27,6 +27,7 @@ import importlib
 import os
 import stat
 import sys
+import unicodedata
 from collections.abc import Iterator
 from pathlib import Path
 from types import ModuleType
@@ -35,16 +36,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _controller_config import ControllerError
 
-
-def _optional(name: str) -> ModuleType | None:
-    try:
-        return importlib.import_module(name)
-    except ImportError:
-        return None
-
-
-_FCNTL = _optional("fcntl")
-_MSVCRT = _optional("msvcrt")
+_FCNTL: ModuleType | None
+_MSVCRT: ModuleType | None
+try:
+    _FCNTL = importlib.import_module("fcntl")
+except ImportError:
+    _FCNTL = None
+try:
+    _MSVCRT = importlib.import_module("msvcrt")
+except ImportError:
+    _MSVCRT = None
 STATE_LOCK = "controller.lock"
 # A waiter retries only when the file was swapped between its open and its
 # lock. A loop that keeps losing that race is tampering, not contention.
@@ -141,7 +142,7 @@ def exclusive(path: Path, busy: str) -> Iterator[None]:
 def state_lock(state: Path) -> Iterator[None]:
     """Hold the one-controller lock on `state`, creating it private if absent."""
     state.mkdir(parents=True, exist_ok=True)
-    os.chmod(state, 0o700)
+    os.chmod(state, stat.S_IRWXU)
     busy = f"another controller is running against {state}; wait for it or use a fresh state_dir"
     with exclusive(state / STATE_LOCK, busy):
         yield
@@ -149,9 +150,11 @@ def state_lock(state: Path) -> Iterator[None]:
 
 def artifact_lock_path(artifact: Path) -> Path:
     path = Path(os.path.realpath(artifact))
-    # The directory anchors the lock. Case folding also covers case aliases
-    # on filesystems where Python's normcase does not fold (such as APFS).
-    digest = hashlib.sha256(os.fsencode(path.name.casefold())).hexdigest()
+    # The directory anchors the lock. A canonical caseless key also covers
+    # case and Unicode normalization aliases that `realpath` keeps as typed,
+    # on filesystems that treat them as one name (such as APFS).
+    name = unicodedata.normalize("NFD", unicodedata.normalize("NFD", path.name).casefold())
+    digest = hashlib.sha256(os.fsencode(name)).hexdigest()
     return path.with_name(f".eval-controller-{digest}.lock")
 
 

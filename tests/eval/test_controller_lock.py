@@ -106,6 +106,10 @@ def test_a_file_replaced_between_open_and_lock_is_retried(
     monkeypatch.setattr(lock, "_try_lock", swap_once)
     with lock.exclusive(path, "busy"):
         held = os.stat(path)
+        # The lock is on the replacement, not on the unlinked original.
+        with pytest.raises(ControllerError, match="^taken$"):
+            with lock.exclusive(path, "taken"):
+                pass
     assert swaps == [path]
     assert held.st_size == 0
 
@@ -214,6 +218,13 @@ def test_artifact_lock_folds_case_in_the_name(tmp_path: Path) -> None:
     assert lock.artifact_lock_path(tmp_path / "A.json") == lock.artifact_lock_path(
         tmp_path / "a.json"
     )
+
+
+def test_artifact_lock_folds_unicode_normalization_in_the_name(tmp_path: Path) -> None:
+    composed = tmp_path / "caf\u00e9.md"
+    decomposed = tmp_path / "cafe\u0301.md"
+    assert lock.artifact_lock_path(composed) == lock.artifact_lock_path(decomposed)
+    assert lock.artifact_lock_path(composed) != lock.artifact_lock_path(tmp_path / "cafe.md")
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX link counts")

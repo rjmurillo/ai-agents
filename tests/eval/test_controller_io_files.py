@@ -252,3 +252,14 @@ def test_collect_into_tolerates_a_link_removed_before_its_unlink(
     problems = io.collect_into(source, destination)
     assert problems == [f"collect destination {destination} existed before collection"]
     assert destination.read_text(encoding="utf-8") == "r"
+
+
+@posix_only
+def test_quarantine_is_never_made_through_a_state_dir_swapped_for_a_link(tmp_path: Path) -> None:
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    state = tmp_path / "state"
+    state.symlink_to(outside, target_is_directory=True)
+    with pytest.raises(ControllerError, match="no quarantine made"):
+        io.collect_or_quarantine(["{run_dir}/r.xml"], {}, state / "run", state, "quarantine-x-")
+    assert list(outside.iterdir()) == []

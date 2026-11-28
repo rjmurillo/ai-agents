@@ -232,6 +232,9 @@ def collect_or_quarantine(
     """
     if not templates or is_real_dir(run_dir):
         return run_dir, collect_all(templates, values, run_dir)
+    if not is_real_dir(state):
+        message = f"{state} is not a plain directory; no quarantine made"
+        raise ControllerError(message, EXIT_EXTERNAL)
     try:
         quarantine = Path(tempfile.mkdtemp(prefix=prefix, dir=state))
     except OSError as exc:

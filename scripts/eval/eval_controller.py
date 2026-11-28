@@ -294,6 +294,9 @@ class Controller:
             raise
         document = self._results(self.incumbent)
         tasks = self.state / "tasks.txt"
+        # A refused split leaves this behind with no split.json; replace it.
+        with contextlib.suppress(FileNotFoundError):
+            tasks.unlink()
         write_private(tasks, "\n".join(sorted(document["results"])) + "\n")
         args = ["split", "--tasks", str(tasks), "--seed", config.seed]
         args += ["--sel-ratio", config.sel_ratio, "--out", str(self.state / "split.json")]

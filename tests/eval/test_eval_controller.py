@@ -1542,3 +1542,24 @@ def test_ledger_directory_swapped_for_a_link_stops_the_gate(tmp_path: Path) -> N
     assert ec.main(["run", "--config", str(config)]) == ec.EXIT_CONFIG
     assert "ledger directory was replaced" in _events(tmp_path)[-1]["error"]
     assert list(outside.iterdir()) == []
+
+
+def test_a_refused_split_does_not_block_a_corrected_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, _ = _setup(tmp_path, {}, steps=1)
+    real = ec.optimizer
+
+    def refuse_split(args: list[str], timeout: int, env: Any = None) -> tuple[int, dict[str, Any]]:
+        if args[0] == "split":
+            return 1, {}
+        return real(args, timeout, env)
+
+    monkeypatch.setattr(ec, "optimizer", refuse_split)
+    assert ec.main(["run", "--config", str(config)]) == ec.EXIT_EXTERNAL
+    state = tmp_path / "state"
+    assert (state / "tasks.txt").is_file()
+    assert not (state / "split.json").exists()
+    monkeypatch.setattr(ec, "optimizer", real)
+    assert ec.main(["run", "--config", str(config)]) == 0
+    assert (state / "split.json").is_file()
