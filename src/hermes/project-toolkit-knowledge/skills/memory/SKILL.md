@@ -105,8 +105,9 @@ For deeper guidance on picking a tier, see
    For a measured contradiction, name the entry `decision-<slug>` and record
    five fields: the question, the conventional answer with its citation, the
    first-principles position, the evidence, and the decision with where it
-   lives in the code. Write it to the repository store in step 4 first; a
-   memory service may hold a copy, never the only one.
+   lives in the code. Always write it to the repository store in step 4
+   first, even when a memory service is available; that service may then
+   hold a copy, never the only one.
 2. Use the destination authorized by the user or repository. If neither names
    one, use an available write capability only when its permission and project
    scope are clear. Use the capability's actual tool schema. A global account
@@ -116,7 +117,7 @@ For deeper guidance on picking a tier, see
 3. Search the destination for the same fact before writing. Update a matching
    entry when supported. Save one self-contained note and verify it landed.
    If the result of a write is ambiguous, check that destination before retrying.
-4. If no writable project tool is available or the chosen store is local, use the established repository
+4. For a contradiction, or when no writable project tool is available or the chosen store is local, use the established repository
    memory directory. If the repository has none, use
    `.project-toolkit/memory/notes/<topic>/<descriptive-name>.md` from its root.
    Check for an existing note first. Create the directory only when saving.
