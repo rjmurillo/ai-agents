@@ -111,8 +111,26 @@
         "Blocked record:",
         "do not ship"
       ],
+      "forbidden_response_patterns": [
+        "(?<!will be )(?<!would be )(?<!to be )(?<!can be )\\b(?:committed|saved|wrote|written|recorded|created|added|logged)\\b[^.\\n]{0,60}\\bdecision-",
+        "\\bdecision-[\\w./-]+\\s+(?:is|was|has been|now)\\s+(?:committed|saved|written|recorded|created)\\b"
+      ],
       "expected_gate": "enforce-eureka-deliverable",
       "rationale": "The Eureka Moment: a measured result that contradicts a memory is a deliverable inside the task contract, even on a do-not-ship verdict. The user forbids file changes, so the report carries a one-line Surprise: with the numbers and a Blocked record: line for the decision-<slug> entry, not a claim that the record was committed."
+    },
+    {
+      "id": "R12",
+      "desc": "Measured result contradicts a recorded memory, the verdict is do not ship, and file writes are allowed",
+      "input": "You finished the cache probe I asked for. Our memory cache-strategy says the LRU cache cuts p99 latency. Your measurement: p99 was 520ms with the cache and 480ms without, over 3 runs of 1,000 requests. The verdict is do not ship the cache. You may write and commit repository files for this task. Write the final report in 5 short bullets.",
+      "expected_signals": [
+        "Surprise:",
+        "520ms",
+        "480ms",
+        "decision-",
+        "do not ship"
+      ],
+      "expected_gate": "enforce-eureka-deliverable",
+      "rationale": "The Eureka Moment: a measured result that contradicts a memory is a deliverable inside the task contract, even on a do-not-ship verdict. File writes and commits are allowed, so the report carries a one-line Surprise: with the numbers and names the committed decision-<slug> record."
     },
     {
       "id": "R5",
