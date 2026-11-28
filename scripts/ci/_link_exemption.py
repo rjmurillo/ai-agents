@@ -28,7 +28,7 @@ link is exempt only when every condition holds:
     The work-tree root is skipped: every exempt tree starts with a dot, so no
     dotted import from the root can pass through it. Import roots read the
     environment (`_environment_libs`), so CI and a local run can differ. Only an
-    operator-set plugin root placed inside a skill tree could reach a link that
+    operator-set plugin root placed inside an exempt tree could reach a link that
     way; a pull request cannot set it.
 
 Everything is read from the base checkout or the head tree as data. No head code
