@@ -1,7 +1,7 @@
 ---
 name: pre-mortem
 version: 1.0.0
-description: Guide prospective hindsight analysis to identify project risks before failure occurs. Teams imagine the project has failed spectacularly, then work backward to identify causes. Increases risk identification by 30% compared to traditional planning. Use when you say "run a pre-mortem on", "what could cause this to fail", "identify project risks", or "what could go wrong with". Do NOT use to stress-test a single decision's reasoning (use decision-critic).
+description: "Prospective hindsight: imagine the project failed, then work backward to find risks. Use when you say \"run a pre-mortem on\", \"what could cause this to fail\", \"identify project risks\", or \"what could go wrong with\". Do NOT use to stress-test one decision (use decision-critic)."
 license: Apache-2.0
 ---
 

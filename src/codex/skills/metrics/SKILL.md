@@ -1,6 +1,6 @@
 ---
 name: metrics
-description: Collect agent usage metrics from git history and generate health reports. Use when measuring agent adoption, reviewing system health, or producing periodic dashboards. Collects Invocation Rate, Coverage, Infrastructure Review, and Usage Distribution. Use when you say "collect agent metrics", "generate metrics dashboard", or "weekly metrics report". Do NOT use to grade code quality (use quality-grades).
+description: "Collect agent usage metrics from git history (Invocation Rate, Coverage, Infrastructure Review, Usage Distribution) and generate health reports. Use when you say \"collect agent metrics\" or \"weekly metrics report\". Do NOT use to grade code quality (use quality-grades)."
 license: Apache-2.0
 metadata:
   routing:

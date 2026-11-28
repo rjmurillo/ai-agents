@@ -1,7 +1,7 @@
 ---
 name: work-operating-model
 version: 1.0.0
-description: "Run a 5-layer interview to elicit how a team actually works (rhythms, decisions, dependencies, institutional knowledge, friction) and emit a structured operating model. Use when you say \"elicit operating model\", \"interview team operating model\", \"how does this team actually work\", or \"validate operating model\". Do NOT use for code analysis (use the analyst agent), external audience narratives (use the explainer agent), or retrospectives (use the retrospective agent)."
+description: "Run a 5-layer interview on how a team works and emit an operating model. Use when you say \"elicit operating model\", \"how does this team actually work\", or \"validate operating model\". Do NOT use for code analysis (use the analyst agent), external narratives (use the explainer agent), or retrospectives (use the retrospective agent)."
 license: Apache-2.0
 metadata:
   routing:

@@ -1,13 +1,7 @@
 ---
 name: memory
 version: 0.4.0
-description: Thin router for the tiered memory system. Points callers at the
-  focused sub-skills for each operation, Tier 1 search, the reflexion write path,
-  the memory-first gate, maintenance, consolidation, and durable fact retention. Use when you ask "remember this", "retain a decision", "what
-  do we know about X", "recall prior context", or "search memory" and are not
-  sure which operation you need. Use memory-search for a plain lookup when
-  available. Do NOT use for citations (use memory-enhancement) or narrative
-  reports across systems (use memory-documentary).
+description: "Thin router for the tiered memory system; picks the focused sub-skill. Use when you ask \"remember this\", \"retain a decision\", \"what do we know about X\", or \"recall prior context\" and are unsure which operation you need. Do NOT use for citations (use memory-enhancement) or cross-system reports (use memory-documentary)."
 license: Apache-2.0
 metadata:
   capability:
