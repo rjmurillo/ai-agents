@@ -201,6 +201,7 @@ from scripts.validation.evidence import (
     CheckOutcome,
     GateResult,
 )
+from scripts.validation.skill_frontmatter import validate_skill_frontmatter
 
 if TYPE_CHECKING:
     import argparse
@@ -733,6 +734,10 @@ _SEQUENCE: tuple[_Gate, ...] = (
         "Skill Tree Layout (.claude/skills)",
         _root_only(validate_skill_tree_layout),
     ),
+    # GP-003 and claude-agents.md MUST 2: every SKILL.md in every shipped tree
+    # carries name, description, a top-level SemVer version, and a license.
+    # The validator had no caller before this row.
+    _Gate("Skill Frontmatter (all skill trees)", _root_only(validate_skill_frontmatter)),
     # Vendored installs cannot resolve this repository's issue or PR numbers, and
     # the numbers can collide with the consumer's own issues.
     _Gate(

@@ -25,7 +25,7 @@ priority: high
 ## MUST
 
 1. **Edit agent templates, then regenerate**. `src/claude/agents/*.md` is generated from each agent's Claude template per ADR-109. To change an agent, edit the template, run `uv run python build/scripts/build_all.py`, and commit the regenerated outputs. A block both the Claude and Copilot variants share lives in `templates/agents/partials/`. Before ADR-109 (through 2026-09-11), 31 percent of agent-related commits did not touch the template; this measurement describes that pre-generated state and is kept as history only.
-2. **Skill schema**. Every skill MUST have a `SKILL.md` with frontmatter fields `name`, `version`, `description` per `.agents/steering/claude-skills.md`.
+2. **Skill schema**. Every skill MUST have a `SKILL.md` with frontmatter fields `name`, `version`, `description`, and `license` per `.agents/steering/claude-skills.md` (GP-003). `version` is a top-level SemVer string. `scripts/validation/skill_frontmatter.py` enforces it.
 3. **Skill tests**. New skills MUST include pytest coverage under `tests/skills/<name>/`; CI tests do not ship with skills.
 4. **File cap per PR**. Skill additions SHOULD ship ≤10 files per PR (see `.agents/steering/claude-skills.md`).
 5. **No internal references in `src/claude/`**. Files under `src/claude/` MUST NOT reference `.agents/` paths that will not exist for downstream installers.
