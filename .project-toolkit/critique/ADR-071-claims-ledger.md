@@ -62,3 +62,13 @@ Rows added on 2026-11-26 after the panel round of that date, for sentences the r
 | A Claude plugin-load case skips when claude is not on PATH | behavior | `sed -n '311,313p' tests/e2e/test_plugin_load_smoke.py \| sed 's/^ *//'` | VERIFIED: skip = pytest.mark.skipif( / not (_RUN and shutil.which(cli)), / reason=f"needs RUN_CLI_E2E=1 and the {cli} CLI on PATH (real auth + credits)", |
 | Renovate automerges a Copilot pin bump | behavior | `sed -n '40,51p' renovate.json \| tr -d ' ' \| tr '\n' ' '` | VERIFIED: "matchPackageNames":[ "@anthropic-ai/claude-code", "@github/copilot", "@openai/codex", "@earendil-works/pi-coding-agent" ], "matchUpdateTypes":[ "major", "minor", "patch" ], "automerge":true, |
 | No workflow or action references the Copilot pin directory, so no job installs the pinned version | absence | `git grep -c 'cli-smoke/copilot' -- .github/workflows .github/actions \| wc -l; git grep -n -i 'npm.*copilot\\|copilot.*npm' -- .github/workflows \| wc -l` | VERIFIED: 0 / 0 |
+
+## Evidence anchor, rows of 2026-11-27
+
+Commands ran on 2026-11-27 Pacific time (2026-11-28 UTC) in the working tree of branch `ci/delete-agent-env-jobs` at head `a2071b896c` (2026-11-27) with the wording change uncommitted. These rows cover the two phrases added to ADR-071 line 637: the pull request that holds commit `3f145f26fd`, and the fetch that makes the commit readable. The last row's command creates a bare repository in the current directory and fetches by the upstream URL, so it gives the same result from a fork clone. It ran in an empty directory outside this checkout, so nothing local could supply the commit. The pull request head was `3f1420e19f` when the rows ran. A later push moves that ref, and the commit stays an ancestor while the branch history is not rewritten.
+
+| Claim | Kind | Check | Result |
+| --- | --- | --- | --- |
+| Commit 3f145f26fd is on the branch of pull request 7654: it is an ancestor of the head that the pull request ref names | behavior | `git ls-remote origin refs/pull/7654/head \| cut -c1-10; git merge-base --is-ancestor 3f145f26fd 3f1420e19f; echo $?` | VERIFIED: 3f1420e19f / 0 |
+| main does not hold commit 3f145f26fd at 3e34da85c5 (2026-11-28 UTC) | absence | `git rev-parse --short=10 origin/main; git merge-base --is-ancestor 3f145f26fd origin/main; echo $?` | VERIFIED: 3e34da85c5 / 1 |
+| A fetch of refs/pull/7654/head alone makes the commit readable | behavior | `git init -q --bare probe.git; git -C probe.git fetch -q --filter=blob:none https://github.com/rjmurillo/ai-agents.git refs/pull/7654/head; git -C probe.git cat-file -t 3f145f26fd; git -C probe.git show -s --format=%cs 3f145f26fd` | VERIFIED: commit / 2026-11-25 |

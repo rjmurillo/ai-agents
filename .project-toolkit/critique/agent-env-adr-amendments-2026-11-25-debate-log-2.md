@@ -181,3 +181,30 @@ The pointer clarification above edited one line in each of ADR-071, ADR-083, ADR
 The change is frontmatter only. No body text changed and no line count changed. The seats voted on the pointer wording above. They did not vote again on the date field.
 
 ADR-057 keeps `date: 2026-11-26`. Its last edit is the merge resolution of that date. The advisory Doc Date Drift check still flags ADR-057 line 4, because it compares the field with the commit date of `HEAD`.
+
+## Evidence anchor, 2026-11-27
+
+Round 3 of `/review` on `75bd8d5739` (2026-11-27) counted one medium finding on the decision-rigor axis. ADR-071:637 and ADR-083:131 cite commit `3f145f26fd` (2026-11-25) as the evidence for the deletion. That commit is on the branch of pull request #7654 and not on `main`. If the pull request lands as a squash merge, a plain clone of `main` cannot resolve the cite.
+
+Owner decision, 2026-11-27: add the pull request reference to those two ADR lines only. The claims ledgers and the debate logs that repeat the bare SHA stay as written.
+
+Each line now says the commit is "on the branch of pull request #7654" and adds one sentence: "If `main` does not hold that commit, a fetch of `refs/pull/7654/head` from `rjmurillo/ai-agents` makes it readable." The sentence is conditional. It does not say how the pull request will merge.
+
+No decision text changed. No line count changed: ADR-071 stays at 850 lines and ADR-083 at 500. The frontmatter `date` field already reads 2026-11-27 in both.
+
+Gates before the seats: three new rows in each of `ADR-071-claims-ledger.md` and `ADR-083-claims-ledger.md`, under "Evidence anchor, rows of 2026-11-27". The refuting seat reran the three rows and refuted none. It noted that the rows do not recheck the deletion itself. The ledger rows of 2026-11-26 cover that claim.
+
+First vote, on the wording "`git fetch origin refs/pull/7654/head` makes it readable". Architect vote: Accept. Critic vote: Disagree-and-Commit. Neither seat raised a P0 or a P1. The critic's dissent: in a fork clone `origin` is the fork, which has no such ref, so the fetch fails there.
+
+The wording changed to name the repository in place of `origin`. Second vote, on the final wording. Architect vote: Accept. Critic vote: Accept. Neither seat raised a P0 or a P1.
+
+### P2, applied
+
+- Both ledger intros gave the run date in Pacific time and the `main` commit date in UTC. They now name both time zones.
+- Row 3 fetched by `git remote get-url origin`, which names the fork in a fork clone. The command now holds the upstream URL, and it was rerun in a new empty directory with the same result.
+
+### P2, not changed
+
+- GitHub keeps `refs/pull/7654/head` after a merge or a close: INFERRED. No seat tested it, and no row claims it.
+- "On the branch" holds while the branch history is not rewritten. This branch takes merges only.
+- The new ADR-071 ledger table uses a `Check` column and the ADR-083 one a `Command` column. Each follows the tables above it in its own file.
