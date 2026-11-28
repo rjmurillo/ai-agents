@@ -19,7 +19,7 @@ Original plan specified PowerShell scripts:
 
 Implemented as Python per ADR-042:
 - `scripts/security/invoke_security_retrospective.py`
-- `scripts/security/invoke_precommit_security.py`
+- `scripts/security/invoke_precommit_security.py` (retired after later review found no live caller)
 
 ### Rationale
 

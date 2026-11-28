@@ -56,12 +56,12 @@
 - Agent attempted manual detection, failed
 
 **Fix Applied**:
-- `invoke_precommit_security.py` now fetches CodeQL alerts as Step 0
+- `.agents/governance/SECURITY-REVIEW-PROTOCOL.md` Step 0 tells the security agent to fetch open CodeQL alerts before manual review, and points `/review` at the CodeQL pre-step `src/claude/skills/review/scripts/codeql_prestep.py` (the dormant `invoke_precommit_security.py` that once did this was retired)
 - Security report includes "CodeQL Findings" section
 - Benchmarks test agent REVIEW capability, not detection
 
 ## Related
 
 - `.project-toolkit/analysis/756-codeql-vs-custom-detection-analysis.md`
-- `scripts/security/invoke_precommit_security.py`
+- `.agents/governance/SECURITY-REVIEW-PROTOCOL.md` (Step 0: fetch CodeQL alerts)
 - `.project-toolkit/security/benchmarks/README.md` (clarifies benchmark purpose)

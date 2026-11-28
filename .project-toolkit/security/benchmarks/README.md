@@ -89,15 +89,7 @@ uv run pytest .project-toolkit/security/benchmarks/ -v
 
 ### CodeQL Integration
 
-The security agent workflow now fetches CodeQL alerts before manual review:
-
-```bash
-# Pre-commit security check with CodeQL integration
-python scripts/security/invoke_precommit_security.py
-
-# Skip CodeQL fetch (offline mode)
-python scripts/security/invoke_precommit_security.py --skip-codeql
-```
+The security agent workflow now fetches CodeQL alerts before manual review. In `/review`, the security axis reads CodeQL results through the pre-step `src/claude/skills/review/scripts/codeql_prestep.py` (ADR-041 amendment 2026-11-09). It prints one JSON outcome: `CURRENT`, `CLEAN`, `FINDINGS`, `STALE`, `NOT ANALYZED`, or `SKIPPED`. `STALE`, `NOT ANALYZED`, and `SKIPPED` are never clean.
 
 This ensures the agent reviews all automated findings before producing its assessment.
 
@@ -139,7 +131,7 @@ vulnerable_code_here
 
 ## Verification Procedure
 
-1. Fetch CodeQL alerts via `invoke_precommit_security.py` (automated detection)
+1. Read CodeQL results through the `/review` pre-step `codeql_prestep.py` (automated detection)
 2. Run security agent on `vulnerable_samples/` directory (interpretation)
 3. Collect agent review in `.project-toolkit/security/SR-benchmark-*.md`
 4. Evaluate interpretation quality:

@@ -1,7 +1,8 @@
 """Timeout hardening for the security gate (issue #2810).
 
-A wedged network call on the pre-commit security path must not hang every
-commit, and a pathological semgrep run must not hang the scan.
+A pathological semgrep run must not hang the pre-push scan. The surviving
+cases cover ``run_semgrep`` only. A PSScriptAnalyzer timeout case went with
+the retired ``invoke_precommit_security.py`` script.
 
 This module also covered an MCP stdio client's read timeouts, including the
 Windows case where ``select`` does not work on pipes. That client was the
@@ -18,34 +19,12 @@ from unittest.mock import patch
 
 import pytest
 
-from scripts.security.invoke_precommit_security import PreCommitSecurityCheck
 from scripts.security.run_semgrep import SemgrepScanError, SemgrepScanner
+from tests.semgrep_fixtures import (
+    stub_pinned_semgrep_executable,  # noqa: F401  (fixture, applied by usefixtures below)
+)
 
-
-@pytest.fixture(autouse=True)
-def _stub_pinned_executable():
-    """Stub semgrep executable resolution for every test in this module.
-
-    ``_resolve_semgrep_executable`` verifies the resolved binary against the
-    pyproject.toml pin, which costs a ``semgrep --version`` subprocess. The
-    tests below mock ``subprocess.run`` to script the *scan* call, so an
-    unstubbed probe consumes that mock and the scan never runs. Resolution has
-    its own coverage in ``tests/test_run_semgrep_pinning.py``; here it is an
-    external boundary and is stubbed like one.
-    """
-    with patch(
-        "scripts.security.run_semgrep._resolve_semgrep_executable",
-        return_value="/pinned/semgrep",
-    ):
-        yield
-
-
-def test_ensure_psscriptanalyzer_timeout_returns_false() -> None:
-    # Construct before patching so the ctor's git repo-root lookup is real.
-    check = PreCommitSecurityCheck(skip_codeql=True)
-    timeout = subprocess.TimeoutExpired(cmd="pwsh", timeout=120)
-    with patch("subprocess.run", side_effect=timeout):
-        assert check._ensure_psscriptanalyzer() is False
+pytestmark = pytest.mark.usefixtures("stub_pinned_semgrep_executable")
 
 
 def test_run_semgrep_timeout_fails_closed() -> None:

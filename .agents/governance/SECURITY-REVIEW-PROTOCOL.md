@@ -27,13 +27,10 @@ When external reviewers (Gemini Code Assist, human reviewers) identify vulnerabi
 
 ### Step 0: Check CodeQL Alerts FIRST (Required)
 
-**BEFORE manual code review**, security agent MUST fetch CodeQL alerts:
+**BEFORE manual code review**, security agent MUST fetch CodeQL alerts. In `/review`, the security axis reads CodeQL results through the pre-step `src/claude/skills/review/scripts/codeql_prestep.py` (ADR-041 amendment 2026-11-09). It prints one JSON outcome: `CURRENT`, `CLEAN`, `FINDINGS`, `STALE`, `NOT ANALYZED`, or `SKIPPED`. `STALE`, `NOT ANALYZED`, and `SKIPPED` are never clean.
 
 ```bash
-# Automated via pre-commit hook
-python scripts/security/invoke_precommit_security.py
-
-# Or via GitHub API directly
+# Direct read through the GitHub API
 gh api repos/{owner}/{repo}/code-scanning/alerts \
   --jq '.[] | select(.state=="open")'
 ```
