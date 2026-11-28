@@ -92,6 +92,13 @@ Both corpora move: the D2 corpus `tests/evals/skill-scenarios/*.json` (59 files,
 | `forbidden_routes` | `tool_used` grader, same `tool`, `min: 0`, `max: 0`, `arm: both` | One grader per forbidden route. |
 | `expected_gate` | `regex` grader on `last_message` only when the gate is a literal contract string (command, path, exit code, fixed label). Otherwise folded into the `llm` criteria. | Reviewed in the C1 diff. |
 | `expected_signals` | Dropped as keyword regexes. A signal that is a contract string becomes a `regex` grader. Others feed the `llm` criteria text. | Pure keyword matching tests the judge's vocabulary, not behavior. |
+| `expected_order` (2 autoplan scenarios) | One `tool_order` grader per consecutive pair, each side `{tool: Skill, input_match: <skill idiom>}`, `arm: both` | Subject to the same smoke-pass decision rule as `expected_route`. |
+| `decision` (10 scenarios, spec and skillforge) | `expected` becomes a `regex` grader on `last_message` per expected label; each `evidence_all` pattern becomes a `regex` grader; `options` is kept in the prompt as the old runner presented it | `known_good`, `known_good_variants`, `known_bad`, `keyword_stuffed`, and `right_token_bad_evidence` are converter self-test strings, not graders: conversion fails when a good string misses a pattern or a bad string matches all of them. |
+| `proof_points` (1 scenario) | Each `pattern` becomes a `regex` grader on `last_message`; its `desc` names the grader | |
+| `verdict_options` (verdict corpus) | Kept in the prompt as `eval-prompt-change.py` presents it; C1 copies that framing, no rewording | |
+| `expected_verdict` (verdict corpus) | `regex` grader on `last_message` for the label | A fixed label is a contract string. |
+| `expected_reason_contains` (verdict corpus, 181 of 219) | `regex` grader, `match: contains`, pattern escaped | |
+| Any other key | Conversion fails | The keys above cover every key present at 2bec8b73e (2026-11-28) in both corpora. |
 
 Every case sets `allowed_tools: [Skill, Read, Glob, Grep]` (read-only, matches "do not modify any files") and `max_turns: 6`. `allowed_tools` must list `Skill`, because a scored grader with `min >= 1` needs its tool allowed. Every case gets one `llm` grader (weight 1) for the verdict. Per ADR-058, that grader is advisory: the gate recomputes from deterministic graders only (item 6). A case with no deterministic grader is `advisory-only`: it runs, it is reported, it is not gated, and the PR C1 body lists the count.
 
@@ -122,7 +129,7 @@ Split rule for C2: stratified by `family` where present, then by case id hash, t
 Decision: replace `results.json` with a schema-2 receipt, and move the gate's data source. Breaking, per the owner's constraint. Semantics carry over unchanged: floors of 8 cases and 6 carried, scenario freeze, `retired.json`, append-only history, `_JUDGE_PATHS`.
 
 Receipt `evals/skill-rewrites/<skill>/receipt.json` (schema 2):
-`schema`, `skill`, `prompt_surface_sha256`, `cases_sha256`, `split_fingerprint`, `base_commit`, `claude_version` (from `claudeVersion`), `served_model` and `served_model_verified` (read from the trace, item 5), `ablation`, `runs`, `aggregate_sha256`, `gate` (per-case recomputed outcome, flake rate, flips), `trust` (noise floor, mechanism probe, oracle and known-bad result), `cost_usd` (sum of `costUsd` plus `judgeCostUsd`).
+`schema`, `skill`, `prompt_surface_sha256`, `skill_tree_sha256` (every tracked file in the skill directory, scripts included), `cases_sha256`, `split_fingerprint`, `base_commit`, `claude_version` (from `claudeVersion`), `served_model` and `served_model_verified` (read from the trace, item 5), `ablation`, `runs`, `aggregate_sha256`, `gate` (per-case recomputed outcome, flake rate, flips), `trust` (noise floor, mechanism probe, oracle and known-bad result), `cost_usd` (sum of `costUsd` plus `judgeCostUsd`).
 The raw `aggregate-result.json` is stored beside it with `tracePath` fields kept and the trace files left out of git.
 
 Gate change: `check_skill_rewrite_evidence.py` stops calling `load_runner()` (which imports `eval-prompt-change.py` by path). It validates the receipt, recomputes `prompt_surface_sha256` and `cases_sha256` from the tree, checks the floors, the freeze, and `retired.json`, and recomputes the headline from `aggregate-result.json` instead of trusting the receipt. `_SKILL_PATH_PATTERNS` and `_JUDGE_PATHS` change to name `evals/skills/<skill>/` in place of `tests/evals/skill-scenarios/` and `tests/evals/<skill>-scenarios.json`.
@@ -201,7 +208,7 @@ New or changed modules in `src/claude/skills/skillopt/scripts/`, all stdlib:
 I did not open every `_skillopt_*.py` file. The plan's PR B task 1 reads them before the design is fixed. File names above are from the directory listing at 2bec8b73e.
 
 What each gain does, with its host-schema workaround (the schema has no served-model field, no CI, no failure class, and no split):
-- Noise floor. The schema reports only means, and per-run scores sit in `arms.*[].score`. skillopt reruns the sel cases of an unchanged skill once, takes the per-case paired difference, and reports the 95 percent half-width (1.96 times the standard error of the mean difference). A gain at or below the floor is noise.
+- Noise floor. The schema reports only means, and per-run scores sit in `arms.*[].score`. skillopt reruns the sel cases of an unchanged skill once, takes the per-case paired difference, and computes the floor exactly as ADR-057 Amendment 2026-11-28 item 5 defines it: per-case deterministic pass fractions in the with-skill arm, s from two unchanged baseline samples, floor = max(t(0.975, df) times s divided by sqrt(m), 1/m). A gain at or below the floor is noise.
 - Mechanism probe. Build a scratch plugin copy without the target skill and rerun. The with-arm score must drop below the baseline by more than the floor. If it does not, the cases do not test the skill, and the pass is refused.
 - Oracle and known-bad. Before the first full pass, run one case whose regex grader is trivially satisfiable (must score 1.0) and one inverted copy (must score 0.0). A harness that cannot do both is broken.
 - Headline recompute. The gate sums `graders[]` (`passed`, `weight`, `scored`) and does not trust `score`. A mismatch with `aggregates.score` fails the pass.
@@ -322,7 +329,7 @@ Every hillclimb pass writes `evals/skill-rewrites/<skill>/receipt.json` only aft
 14. When a sel pass would exceed `sel_budget`, skillopt shall refuse it.
 15. When any case flips from pass to fail between the baseline and a candidate, the gate shall block the candidate, whatever the mean change.
 16. When `skillopt traces --split sel` is invoked in a proposer context, skillopt shall refuse.
-17. When a skill rewrite PR changes a skill under `src/claude/skills/<skill>/`, `check_skill_rewrite_evidence.py` shall require a schema-2 receipt whose `prompt_surface_sha256` and `cases_sha256` match the tree.
+17. When a skill rewrite PR changes a skill under `src/claude/skills/<skill>/`, `check_skill_rewrite_evidence.py` shall require a schema-2 receipt whose `prompt_surface_sha256`, `skill_tree_sha256`, and `cases_sha256` match the tree.
 18. The receipt shall carry no scenario count below the floor of 8 cases and 6 carried.
 19. When a case is edited in the same PR as its skill rewrite and the case is not in `retired.json`, the gate shall fail.
 20. When the receipt `claude_version` is missing, the gate shall fail.
