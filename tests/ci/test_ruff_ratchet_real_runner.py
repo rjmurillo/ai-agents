@@ -20,6 +20,7 @@ from tests.ci.ruff_ratchet_test_helpers import _install_hung_popen, _install_noo
 def test_real_runner_ruff_timeout_exits_external_with_partial_output(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    monkeypatch.setattr(ruff_ratchet, "_module_available_outside_checkout", lambda _n, _r: True)
     child = _install_hung_popen(monkeypatch, b'[{"code": "E5', b"warning: slow\n")
 
     exit_code = ruff_ratchet.run_ruff(["scripts/a.py"], tmp_path, {})
@@ -59,6 +60,7 @@ def test_hung_popen_fixture_reaches_communicate_under_simulated_windows(
     """The Windows branch must not kill the runner-contract fake before use."""
     from scripts.validation import subprocess_runner
 
+    monkeypatch.setattr(ruff_ratchet, "_module_available_outside_checkout", lambda _n, _r: True)
     child = _install_hung_popen(monkeypatch, b"", b"")
     monkeypatch.setattr(subprocess_runner.os, "name", "nt")
     monkeypatch.setattr(subprocess_runner.sys, "platform", "win32")
@@ -96,6 +98,7 @@ def test_real_runner_missing_ruff_module_exits_external(
         def __exit__(self, *_exc: object) -> None:
             return None
 
+    monkeypatch.setattr(ruff_ratchet, "_module_available_outside_checkout", lambda _n, _r: True)
     _install_noop_windows_job(monkeypatch)
     monkeypatch.setattr(
         subprocess_runner.subprocess,

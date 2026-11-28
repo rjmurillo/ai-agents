@@ -116,6 +116,7 @@ def test_passes_when_changed_python_files_are_clean(
     assert exit_code == ruff_ratchet.EXIT_OK
     assert recorder.commands[1] == [
         sys.executable,
+        "-E",
         "-P",
         "-m",
         "ruff",
@@ -137,6 +138,7 @@ def test_run_ruff_separates_options_from_dash_prefixed_paths(
     assert exit_code == ruff_ratchet.EXIT_OK
     assert recorder.commands[0] == [
         sys.executable,
+        "-E",
         "-P",
         "-m",
         "ruff",

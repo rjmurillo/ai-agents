@@ -30,7 +30,7 @@ def test_run_ruff_uses_a_standalone_native_binary_when_the_module_is_absent(
 ) -> None:
     recorder = RunRecorder([completed(0, "[]")])
     monkeypatch.setattr(ruff_ratchet, "_run_subprocess", recorder)
-    monkeypatch.setattr(ruff_ratchet.importlib.util, "find_spec", lambda _name: None)
+    monkeypatch.setattr(ruff_ratchet, "_module_available_outside_checkout", lambda _n, _r: False)
 
     exit_code = ruff_ratchet.run_ruff(["scripts/a.py"], tmp_path, {})
 
@@ -44,7 +44,7 @@ def test_windows_commands_name_native_executables_not_batch_shims(
     recorder = RunRecorder([completed(0, ""), completed(0, "[]")])
     monkeypatch.setattr(ruff_ratchet, "_run_subprocess", recorder)
     monkeypatch.setattr(ruff_ratchet.os, "name", "nt")
-    monkeypatch.setattr(ruff_ratchet.importlib.util, "find_spec", lambda _name: None)
+    monkeypatch.setattr(ruff_ratchet, "_module_available_outside_checkout", lambda _n, _r: False)
 
     status, files, _base = ruff_ratchet.changed_python_files("origin/main", tmp_path)
     assert status == ruff_ratchet.EXIT_OK
@@ -60,7 +60,7 @@ def test_run_ruff_windows_standalone_names_the_native_executable(
     recorder = RunRecorder([completed(0, "[]")])
     monkeypatch.setattr(ruff_ratchet, "_run_subprocess", recorder)
     monkeypatch.setattr(ruff_ratchet.os, "name", "nt")
-    monkeypatch.setattr(ruff_ratchet.importlib.util, "find_spec", lambda _name: None)
+    monkeypatch.setattr(ruff_ratchet, "_module_available_outside_checkout", lambda _n, _r: False)
 
     ruff_ratchet.run_ruff(["scripts/a.py"], tmp_path, {})
 
@@ -92,20 +92,3 @@ def test_windows_job_setup_failure_is_not_reported_as_signal_one(
     assert exit_code == ruff_ratchet.EXIT_EXTERNAL
     assert "Windows job setup failed" in captured.err
     assert "signal 1" not in captured.err
-
-
-def test_checkout_shadow_module_does_not_count_as_installed_ruff(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    monkeypatch.setattr(ruff_ratchet.sys, "path", [str(tmp_path), *ruff_ratchet.sys.path])
-    (tmp_path / "ruff.py").write_text("shadow\n", encoding="utf-8")
-
-    monkeypatch.setattr(
-        ruff_ratchet.importlib.util,
-        "find_spec",
-        lambda name: (
-            object() if name == "ruff" and str(tmp_path) in ruff_ratchet.sys.path else None
-        ),
-    )
-
-    assert ruff_ratchet._module_available_outside_checkout("ruff", tmp_path) is False

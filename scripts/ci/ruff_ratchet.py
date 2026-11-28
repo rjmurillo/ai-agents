@@ -39,7 +39,6 @@ Exit codes (AGENTS.md contract):
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 import os
 import re
@@ -77,6 +76,24 @@ _GIT_TIMEOUT_SECONDS = 60
 # the whole repository in a few seconds, so 180s leaves room for a loaded CI
 # runner and a very large change without letting a hung ruff stall the job.
 _RUFF_TIMEOUT_SECONDS = 180
+
+# Interpreter flags for every child that imports ruff (CWE-427). ``-P`` drops
+# the working directory and script directory from ``sys.path``. ``-E`` ignores
+# ``PYTHONPATH`` and every other ``PYTHON*`` variable, which ``-P`` leaves in
+# place and which rank ahead of site-packages. Together they keep a ``ruff``
+# module in the checkout from shadowing the installed one. ``-I`` would also
+# drop user site-packages, where a ``pip install --user ruff`` lives.
+_ISOLATED_PYTHON_FLAGS = ("-E", "-P")
+
+# Child source for the import probe: exit 0 when argv[1] resolves to a module.
+_PROBE_SOURCE = (
+    "import importlib.util, sys; sys.exit(0 if importlib.util.find_spec(sys.argv[1]) else 1)"
+)
+
+# A bare interpreter start and one ``find_spec``. A probe that does not answer
+# in this time counts as "not installed", so the gate then uses the native
+# ruff binary and fails closed with exit 3 when that is absent too.
+_PROBE_TIMEOUT_SECONDS = 30
 
 # Cap on partial stdout echoed after a timeout or an unexpected exit.
 _PARTIAL_OUTPUT_LIMIT = 2000
@@ -251,19 +268,29 @@ def report(
 
 
 def _module_available_outside_checkout(name: str, repo_root: Path) -> bool:
-    """Probe import availability without the checkout path ``-P`` excludes."""
-    root = os.path.realpath(repo_root)
-    original = sys.path[:]
-    narrowed: list[str] = []
-    for entry in original:
-        candidate = os.path.realpath(entry or os.getcwd())
-        if candidate != root:
-            narrowed.append(entry)
-    sys.path[:] = narrowed
+    """Ask a child started like the ruff child whether ``name`` is installed.
+
+    The parent's ``sys.path`` holds the repository root (see the top of this
+    file) and the parent's own ``PYTHONPATH``, so an in-process ``find_spec``
+    answers for a different import path than the ruff child sees. The probe
+    runs with the same interpreter, flags, and working directory as that child,
+    so both resolve ``name`` through the same path.
+    """
+    probe = [sys.executable, *_ISOLATED_PYTHON_FLAGS, "-c", _PROBE_SOURCE, name]
     try:
-        return importlib.util.find_spec(name) is not None
-    finally:
-        sys.path[:] = original
+        completed = subprocess.run(
+            probe,
+            check=False,
+            cwd=repo_root,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=_PROBE_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return completed.returncode == 0
 
 
 def run_ruff(
@@ -280,7 +307,7 @@ def run_ruff(
     # .cmd or .bat shim is never selected: Windows may parse list-form batch
     # arguments as shell input, and Git-controlled filenames are in this list.
     if _module_available_outside_checkout("ruff", repo_root):
-        program = [sys.executable, "-P", "-m", "ruff"]
+        program = [sys.executable, *_ISOLATED_PYTHON_FLAGS, "-m", "ruff"]
     else:
         program = [_native_program("ruff")]
     command = [*program, "check", "--output-format=json", "--", *files]
