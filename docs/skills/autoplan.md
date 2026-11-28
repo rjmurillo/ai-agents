@@ -46,7 +46,7 @@ Every run ends with one summary block, not a stream of narration:
 | Open sovereignty questions | Decisions that need you, with 2 to 3 options and trade-offs |
 | Evidence | Tests run and their counts, gates passed, artifacts produced |
 
-Decisions fall into three classes. Mechanical decisions have one defensible answer (run tests, fix lint, sync a mirror) and are made silently. Taste decisions have low reversal cost (naming, small refactor shape) and are made, then surfaced in the final gate. Sovereignty decisions (architecture, new ADRs, breaking changes, security posture, anything external or irreversible) stop the run and ask you.
+Decisions fall into four classes. Mechanical decisions have one defensible answer (run tests, fix lint, sync a mirror) and are made silently. Taste decisions have low reversal cost (naming, small refactor shape) and are made, then surfaced in the final gate. PR approval decisions (an architecture, ADR, rule, breaking, or security change in the repo) are implemented, then surfaced for approval at the top of the PR. Sovereignty decisions (your stated direction, a destructive or production action outside the repo, a required human approval) stop the blocked action and ask you.
 
 ## Advanced use
 

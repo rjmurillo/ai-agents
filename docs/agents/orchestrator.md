@@ -83,7 +83,7 @@ Agents it can route to, by capability:
 
 A standard lifecycle routes sequentially: `/spec`, then `milestone-planner`, then `critic` as a plan gate, then `implementer`, then `qa`, then `critic` for readiness. At the plan gate, `APPROVED` or `APPROVED_WITH_CONCERNS` goes to `implementer`, `NEEDS_REVISION` goes back to `milestone-planner`, and `BLOCKED` is resolved first. Independent subtasks run in parallel with a fan-in synthesis.
 
-Every delegation uses a work order with these fields: `DELEGATE TO`, `OBJECTIVE`, `NON-GOALS`, `CONTEXT`, `RISK TIER`, `ACCEPTANCE`, `STOP CONDITIONS`, `ESCALATE TO`, `ROLLBACK`, `EXPECTED OUTPUT`, `CONSTRAINTS`, `TIMEBOX`, and `TODO`. Non-trivial work without an objective, acceptance criteria, or risk tier is not routed. Workers return a completion record under 30 lines with artifacts, commands run, deltas, residual risks, confidence, and acceptance status. A return that lacks the record fails closed.
+Every delegation uses a work order with these fields: `DELEGATE TO`, `OBJECTIVE`, `NON-GOALS`, `CONTEXT`, `RISK TIER`, `ACCEPTANCE`, `STOP CONDITIONS`, `ESCALATE TO`, `ROLLBACK`, `EXPECTED OUTPUT`, `CONSTRAINTS`, `TIMEBOX`, and `TODO`. Non-trivial work without an objective, acceptance criteria, or risk tier is not routed. A worker fixes every defect on its path, with tests, and lists each fix in its receipt. Workers return a completion record under 30 lines with artifacts, commands run, deltas, residual risks, confidence, and acceptance status. A return that lacks the record fails closed.
 
 Cost and effort routing follows task shape and verifier strength, not a vendor default: Bounded, Specified, Judgment, and Escalate tiers. The model labels in the source are advisory.
 

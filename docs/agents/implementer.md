@@ -77,7 +77,7 @@ Evidence rules: every claim in code, comments, tests, or PR text rests on tool o
 
 Mirror obligation: before it writes a fix it names the inverse case the fix could break and closes it in the same diff. If the change broadens detection, it adds a no-over-fire check. If it changes a contract, it flips the tests that asserted the old contract.
 
-Quality standards: cyclomatic complexity of 10 or less, methods of 60 lines or less, and no nested code. Test coverage targets are 100 percent for security-critical code, 80 percent for business logic, and 60 percent for docs and glue. It follows SOLID, DRY, and YAGNI, and it does not add features, error handling for impossible cases, or speculative abstractions. It refactors only code it touches for the task.
+Quality standards: cyclomatic complexity of 10 or less, methods of 60 lines or less, and no nested code. Test coverage targets are 100 percent for security-critical code, 80 percent for business logic, and 60 percent for docs and glue. It follows SOLID, DRY, and YAGNI, and it does not add features, error handling for impossible cases, or speculative abstractions. It fixes a defect it finds on its path in the same work, and it keeps taste changes out.
 
 Security flagging: the agent runs CWE-22, CWE-78, authorization, and secret-handling checks before coding and before handoff. It stops and returns `SECURITY_FLAG` when a change would weaken or bypass a safeguard, widen a trust boundary, handle credential values, or add path, command, auth, or secret-handling mechanisms. When a change only touches a sensitive surface, it finishes the work and flags it in the handoff.
 
