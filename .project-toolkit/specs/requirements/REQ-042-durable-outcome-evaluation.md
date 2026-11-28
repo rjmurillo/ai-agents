@@ -27,7 +27,7 @@ tags:
 
 Issue #5768, filed by rjmurillo under epic #5456. Gate 5 of the v0.7.0
 disposition ledger needs a reduced-control comparison on identical tasks
-(`.project-toolkit/metrics/control-plane-dispositions-v0.7.0.md:948`).
+(`.project-toolkit/metrics/control-plane-dispositions-v0.7.0.md:947`).
 Issue #5424 needs a result record contract before its runner can emit rows.
 
 ### Q2 Status Quo
