@@ -12,8 +12,8 @@ a gate whose work never ran, the same outcome as the 2026-08-02 Instruction
 Budget incident (`.claude/rules/ci-scripts.md`, "Path filters gate the diff,
 never the tree"), reached by a different route.
 
-This is a surface inventory, not a prohibition: three jobs hold the permission
-for a real reason and are listed below with that reason. The gate is set
+This is a surface inventory, not a prohibition: one job holds the permission
+for a real reason and is listed below with that reason. The gate is set
 equality, matching `test_workflow_job_permissions.py`. A new entry fails until
 someone writes down why the job needs to publish, and a removed entry fails
 until the line goes too, so a job that loses the permission cannot silently get
@@ -22,13 +22,6 @@ it back.
 What this does NOT close: a job holding the permission can still publish under a
 required context's name today. Only the `integration_id` pin closes that. This
 gate makes the set of such jobs a reviewed decision instead of an accident.
-
-The sharpest instance on the list is `claude.yml`'s `claude-response`, which
-inherits both scopes and runs an LLM agent over pull request and comment text on
-a `pull_request` trigger. An injection that reached the Checks API from there
-would mint a required context (ASI01, CWE-94). That predates this gate and is
-not made worse by it; it is named here so nobody reads the allowlist as a
-statement that the three entries are harmless.
 
 One assumption this resolver rests on: a job that declares no `permissions:`
 block at any level resolves to the repository's default `GITHUB_TOKEN` scope,
@@ -66,15 +59,6 @@ _PR_TRIGGERS = frozenset({"pull_request", "pull_request_target"})
 # the same change that removes the permission.
 _ALLOWED: frozenset[tuple[str, str]] = frozenset(
     {
-        # Both inherit `checks: write` and `statuses: write` from claude.yml's
-        # workflow-level block, so neither can be scoped without touching the
-        # other. They are already carried in `test_workflow_job_permissions.py`'s
-        # `_GRANDFATHERED` set as silent inheritors. Whether the Claude Code
-        # action needs either scope is unverified here and worth its own change;
-        # this workflow runs the agent loop itself, so narrowing it blind is the
-        # riskier move.
-        ("claude.yml", "check-authorization"),
-        ("claude.yml", "claude-response"),
         # Publishes the "CodeQL Analysis Report" check run through
         # dorny/test-reporter when no scannable file changed. The permission is
         # used, and the name it publishes is not a required context; the four
