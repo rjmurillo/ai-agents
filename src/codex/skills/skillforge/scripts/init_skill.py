@@ -41,8 +41,10 @@ from types import ModuleType
 SKILL_MD_TEMPLATE = """\
 ---
 name: {name}
+version: 0.1.0
 description: >
   TODO: Say what this skill does. Use when TODO: user intent and trigger contexts.
+license: TODO
 ---
 
 # {title}
