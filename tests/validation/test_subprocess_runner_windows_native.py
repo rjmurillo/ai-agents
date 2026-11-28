@@ -17,6 +17,11 @@ pytestmark = [
 
 
 def _assert_process_exited(pid: int) -> None:
+    # The module skip already keeps non-Windows runs out. This explicit check
+    # lets type checkers skip the Windows-only ctypes APIs below.
+    if sys.platform != "win32":
+        pytest.skip("requires native Windows jobs")
+
     # Query only the two process IDs emitted by the benign test program.
     from ctypes import wintypes
 
