@@ -398,3 +398,97 @@ def test_a_scan_of_another_root_is_not_held_to_this_checkouts_baseline(
     assert checker.main(["--repo-root", str(repo)]) == 0
     counts = {"templates/skills": sites.LegacyCounts(5)}
     assert checker.legacy_ratchet_messages(repo.resolve(), counts) == []
+
+
+# --- text after the closing parenthesis is not passed to the script ----------
+
+
+@pytest.mark.parametrize(
+    "after",
+    [' --head "$BRANCH"', " -x", " $VAR", " ../input.json", " .env", " > out.txt --flag"],
+)
+def test_arguments_after_the_closing_parenthesis_are_reported(tmp_path: Path, after: str) -> None:
+    [offense] = _scan(tmp_path, {"README.md": f"Run `{render_locator(_BAR)}{after}` now.\n"})
+    assert "README.md:1" in offense
+    assert "malformed locator" in offense
+    assert "after the script path, before '; fi; done'" in offense
+    assert "\u2014" not in offense
+    assert "\u2013" not in offense
+
+
+def test_arguments_after_the_closing_parenthesis_are_reported_in_a_fenced_block(
+    tmp_path: Path,
+) -> None:
+    text = f'```bash\n{render_locator(_BAR)} --head "$BRANCH"\n```\n'
+    [offense] = _scan(tmp_path, {"README.md": text})
+    assert "README.md:2" in offense
+
+
+@pytest.mark.parametrize(
+    "template",
+    [
+        "{loc}",
+        "`{loc}`",
+        "Run `{loc}` and read the output.",
+        "| step | `{loc}` |",
+        'RESULT="$( {loc} )"',
+        "{loc} && echo done",
+        "{loc} || exit 1",
+        "{loc}; echo done",
+        "{loc} | head -n 5",
+        "{loc} > out.txt",
+        "{loc} 2>&1",
+        "{loc} < in.txt",
+        "{loc} # note",
+        '"{loc}"',
+        "'{loc}'",
+        "<!-- {loc} -->",
+        "<!-- {loc} --!>",
+        "if {loc} then echo ok; fi",
+        "for f in a b; do {loc} done",
+        "bash -c '{loc} ' --",
+        "{loc} > out.txt 2>&1",
+    ],
+)
+def test_text_that_is_not_arguments_after_the_tail_is_clean(tmp_path: Path, template: str) -> None:
+    line = template.replace("{loc}", render_locator(_BAR, "--flag"))
+    assert _scan(tmp_path, {"README.md": f"{line}\n"}) == []
+
+
+def test_a_declaration_marker_suppresses_the_stray_arguments_offense(tmp_path: Path) -> None:
+    text = (
+        "<!-- plugin-root-interpreter: example of the wrong shape -->\n"
+        f"`{render_locator(_BAR)} --x`\n"
+    )
+    assert _scan(tmp_path, {"README.md": text}) == []
+
+
+def test_stray_arguments_in_shipped_yaml_still_report_the_yaml_rule(tmp_path: Path) -> None:
+    path = ".claude/skills/foo/demo.yaml"
+    [offense] = _scan(tmp_path, {path: f"run: {render_locator(_BAR)} --x\n"})
+    assert "completion gate" in offense
+
+
+def test_the_invocation_carries_the_stray_text_as_its_problem() -> None:
+    [found] = sites.find_locator_invocations(f"{render_locator(_BAR)} --x")
+    assert found.problem is not None
+    assert "--x" in found.problem
+    [clean] = sites.find_locator_invocations(render_locator(_BAR, "--x"))
+    assert clean.problem is None
+
+
+def test_cli_exits_1_on_arguments_after_the_closing_parenthesis(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _no_other_allowances(monkeypatch)
+    repo = make_repo(tmp_path, {**_STDLIB, "README.md": f'`{render_locator(_BAR)} --head "$B"`\n'})
+    assert checker.main(["--repo-root", str(repo)]) == 1
+    assert "before '; fi; done'" in capsys.readouterr().err
+
+
+def test_cli_exits_0_when_arguments_sit_inside_the_locator(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _no_other_allowances(monkeypatch)
+    repo = make_repo(tmp_path, {**_STDLIB, "README.md": f"`{render_locator(_BAR, '--x')}`\n"})
+    assert checker.main(["--repo-root", str(repo)]) == 0

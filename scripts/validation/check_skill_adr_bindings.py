@@ -747,7 +747,7 @@ def _write_baseline_command(repo_root: Path, adr_dir: Path, baseline_path: Path)
 
     A ratchet may only fall.
     `.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md` MUST NOT 4
-    forbids raising a count baseline, and the shared `scripts/ci/count_ratchet.py:1016`
+    forbids raising a count baseline, and the shared `scripts/ci/count_ratchet.py:1026`
     enforces it by reaching its writer only inside ``if count < baseline:``. Without this,
     the remedy line this gate itself prints is a one-command way to legalise a new violation.
 

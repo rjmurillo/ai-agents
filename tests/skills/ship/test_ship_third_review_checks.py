@@ -150,7 +150,13 @@ class TestPipelineKeepsRoomForLaterCalls:
     @pytest.fixture
     def github_pr(self, make_repo, fakes):
         make_repo(GITHUB)
-        pr = {"number": 9, "state": "OPEN", "author": {"login": "me"}, "url": "u"}
+        pr = {
+            "number": 9,
+            "state": "OPEN",
+            "author": {"login": "me"},
+            "url": "u",
+            "baseRefName": "main",
+        }
         fakes.rule("gh", ["pr", "view"], {"stdout": json.dumps(pr)})
         fakes.rule("gh", ["api", "user"], {"stdout": "me\n"})
         _head(fakes, 9)
@@ -217,7 +223,13 @@ class TestListsSayWhenTheyAreCut:
     @pytest.fixture
     def github_pr(self, make_repo, fakes):
         make_repo(GITHUB)
-        pr = {"number": 9, "state": "OPEN", "author": {"login": "me"}, "url": "u"}
+        pr = {
+            "number": 9,
+            "state": "OPEN",
+            "author": {"login": "me"},
+            "url": "u",
+            "baseRefName": "main",
+        }
         fakes.rule("gh", ["pr", "view"], {"stdout": json.dumps(pr)})
         fakes.rule("gh", ["api", "user"], {"stdout": "me\n"})
         _head(fakes, 9)
@@ -296,7 +308,13 @@ class TestReviewedNoteOrder:
     @pytest.fixture
     def non_draft_pr(self, make_repo, fakes):
         make_repo(GITHUB)
-        pr = {"number": 9, "state": "OPEN", "author": {"login": "me"}, "url": "u"}
+        pr = {
+            "number": 9,
+            "state": "OPEN",
+            "author": {"login": "me"},
+            "url": "u",
+            "baseRefName": "main",
+        }
         fakes.rule("gh", ["pr", "view"], {"stdout": json.dumps(pr)})
         fakes.rule("gh", ["api", "user"], {"stdout": "me\n"})
 

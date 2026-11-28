@@ -1,7 +1,7 @@
 ---
 name: reflect
 version: 1.0.0
-description: CRITICAL learning capture. Extracts HIGH/MED/LOW confidence patterns from conversations to prevent repeating mistakes and preserve what works. Use PROACTIVELY after user corrections ("no", "wrong"), after praise ("perfect", "exactly"), when discovering edge cases, or when skills are heavily used. Without reflection, valuable learnings are LOST forever. Acts as continuous improvement engine for all skills. Invoke EARLY and OFTEN - every correction is a learning opportunity. Do NOT use to extract a session episode (use memory-reflexion).
+description: "Learning capture: extracts confidence-rated patterns from conversations. Use proactively after user corrections (\"no\", \"wrong\"), praise (\"perfect\", \"exactly\"), or discovered edge cases. Do NOT use to extract a session episode (use memory-reflexion)."
 license: Apache-2.0
 metadata:
   timelessness: 8/10
@@ -49,6 +49,12 @@ Use this skill when:
 - User corrects your output ("no", "wrong", "not like that")
 - User praises specific output ("perfect", "exactly")
 - Edge cases are discovered during work
+- A measured result contradicts a memory, ADR, skill, or common guidance. Log
+  it with the `memory-gate` skill's contradiction log, or, when that skill is
+  not installed, as a `decision-<slug>` entry through the `memory` skill's
+  Write a Durable Project Fact procedure with the same five fields, even when
+  the task ends at "do not ship". The log skips the Phase 2 threshold: one measured result is enough.
+  A change to a skill file still waits for Phase 3 approval
 - Session end after skill-heavy work
 - Want to capture learnings before they are lost
 

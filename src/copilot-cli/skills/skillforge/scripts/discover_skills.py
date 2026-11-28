@@ -69,7 +69,7 @@ try:
     HAS_CONSTANTS = True
 except ImportError:
     HAS_CONSTANTS = False
-    SEMVER_REGEX = r"^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$"
+    SEMVER_REGEX = r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*)?(\+[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?\Z"
     VALID_AGENT_TYPES = {"Explore", "Plan", "general-purpose"}
 
 
@@ -358,11 +358,12 @@ def extract_frontmatter(content: str) -> dict[str, Any]:
 
 def get_version(frontmatter: dict[str, Any]) -> str:
     """Extract version from frontmatter, checking both root and metadata."""
-    # First check root level (legacy/deprecated)
+    # Root level is the canonical location (GP-003; ADR-040 reversed the
+    # metadata move on 2026-04-30).
     if "version" in frontmatter:
         return str(frontmatter["version"])
 
-    # Then check metadata.version (preferred location)
+    # Fall back to metadata.version, which older or third-party skills use.
     if "metadata" in frontmatter and isinstance(frontmatter["metadata"], dict):
         version = frontmatter["metadata"].get("version")
         if version:

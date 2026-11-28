@@ -1,9 +1,9 @@
 ---
 name: validation-authority
-description: Treat upstream validators as authoritative. Align local config to them. Use when validation fails unexpectedly, before modifying validator behavior, or when tempted to change upstream tool code. Do NOT use to classify who owns a file (use analysis-provenance).
+version: 1.0.0
+description: "Treat upstream validators as authoritative and align local config to them. Use when validation fails unexpectedly or before modifying validator behavior. Do NOT use to classify who owns a file (use analysis-provenance)."
 license: Apache-2.0
 metadata:
-  version: 1.0.0
   source: Session 366 retrospective
   id: Validation-Authority-001
   routing:
