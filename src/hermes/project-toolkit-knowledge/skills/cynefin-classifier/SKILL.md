@@ -1,7 +1,7 @@
 ---
 name: cynefin-classifier
 version: 1.0.0
-description: Classify problems into Cynefin Framework domains (Clear, Complicated, Complex, Chaotic, Confusion) and recommend appropriate response strategies. Use when unsure how to approach a problem, facing analysis paralysis, or needing to choose between expert analysis and experimentation.
+description: "Classify problems into Cynefin domains (Clear, Complicated, Complex, Chaotic, Confusion) and recommend a response strategy. Use when unsure how to approach a problem or choosing between expert analysis and experimentation."
 license: Apache-2.0
 ---
 

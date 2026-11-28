@@ -1,7 +1,7 @@
 ---
 name: spec-generator
 version: 1.0.1
-description: Transform feature descriptions into 3-tier specifications (Requirements, Design, Tasks) using EARS syntax, with schema-validated frontmatter on every emitted file. Reads the canonical spec schema before writing and rejects any out-of-range enum value. Use when you say "generate spec", "formalize requirements", or "create requirements/design/tasks". Do NOT use to decide what to build or to run the gates that precede it (use spec, which invokes this to write the artifacts), or to audit a spec for ambiguity (use requirements-interview).
+description: "Turn feature descriptions into 3-tier specs (Requirements, Design, Tasks) in EARS syntax. Use when you say \"generate spec\", \"formalize requirements\", or \"create requirements/design/tasks\". Do NOT use to decide what to build or run the gates before it (use spec, which invokes this) or to audit a spec for ambiguity (use requirements-interview)."
 license: Apache-2.0
 user-invocable: true
 metadata:

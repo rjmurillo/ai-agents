@@ -82,9 +82,10 @@ def test_pointer_vars_are_unset_without_tmp_path() -> None:
 def test_only_suite_owned_git_config_survives() -> None:
     """``GIT_CONFIG_*`` applies to every git command, so nothing inherited may survive.
 
-    The suite deliberately owns one injection, ``commit.gpgsign=false``, which
-    keeps host signing configuration from rejecting fixture commits (#2548).
-    Everything else in the family is inherited and must be gone.
+    The suite deliberately owns ``commit.gpgsign=false`` (#2548) plus
+    ``gc.auto=0`` and ``maintenance.auto=false`` (suppressing auto-maintenance
+    subprocesses in throwaway test repos). Everything else in the family is
+    inherited and must be gone.
     """
     assert "GIT_CONFIG_PARAMETERS" not in os.environ
     observed = {

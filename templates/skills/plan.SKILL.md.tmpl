@@ -1,7 +1,7 @@
 ---
 name: plan
 version: 1.0.0
-description: Decompose a spec into milestones and atomic tasks with dependency ordering, risk register, and complexity sizing. Use when you say `plan how to build this`, `break this into milestones`, or `decompose this spec`, and run it after spec. Do NOT use to decide what to build (use spec), to write the code (use build), or to run or resume an approved plan file through script-driven delegation (use planner).
+description: "Decompose a spec into milestones and atomic tasks with dependency order, risk register, and sizing. Use when you say `plan how to build this`, `break this into milestones`, or `decompose this spec`, after spec. Do NOT use to decide what to build (use spec), write code (use build), or run a plan file through delegation (use planner)."
 license: Apache-2.0
 allowed-tools: Task, Skill, Read, Write, Glob, Grep
 argument-hint: spec-output-or-issue-number
