@@ -3,17 +3,23 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
 
-from tests.test_skill_description_budget import (
+_SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
+if str(_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS))
+
+import skill_description_budget as budget  # noqa: E402
+
+from tests.test_skill_description_budget import (  # noqa: E402
     _REPO,
     _ROOT_CLAUDE,
     _ROOT_COPILOT,
     _budget_repo,
     _write_skill,
-    budget,
 )
 
 # --- listing chars and host fit (PR #7871) -------------------------------------
