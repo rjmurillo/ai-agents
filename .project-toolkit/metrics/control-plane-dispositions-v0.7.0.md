@@ -99,9 +99,8 @@ merge after it.
 ### #5404, terminal-state contract
 
 - Class: `KEEP`
-- Owner: `.claude/rules/builder-ethos.md` (Task Completion Contract
-  section), `.claude/rules/voice.md` (Completion-Tail Audit section),
-  ADR-105
+- Owner: `.claude/rules/core.md` (Task Completion Contract and
+  Completion-Tail Audit sections), ADR-105 and ADR-129
 - Consumers: every agent template composing task-completion semantics
   (orchestrator, critic, qa, implementer); every skill lifecycle command
 - Evidence: PR #5506 (`fix(rules): add terminal-state invariant to stop
