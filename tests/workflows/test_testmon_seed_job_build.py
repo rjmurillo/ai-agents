@@ -20,10 +20,18 @@ def test_the_build_step_calls_the_tested_script_with_the_cap_and_own_budget() ->
 
 
 def test_the_seed_does_not_inherit_the_local_worker_reserve() -> None:
-    """The isolated seed keeps its fixed cap rather than the local worker policy."""
-    env = seed_step("Build the testmon database")["env"]
-    assert git_hook_policy.PYTEST_CPU_RESERVE_ENV not in env
-    assert git_hook_policy.PYTEST_WORKERS_ENV not in env
+    """The isolated seed keeps its fixed cap rather than the local worker policy.
+
+    The seed subprocess inherits workflow, job, and step env, so all three are checked.
+    """
+    scopes = {
+        "workflow": workflow().get("env") or {},
+        "job": seed_job().get("env") or {},
+        "step": seed_step("Build the testmon database")["env"],
+    }
+    for scope, env in scopes.items():
+        assert git_hook_policy.PYTEST_CPU_RESERVE_ENV not in env, scope
+        assert git_hook_policy.PYTEST_WORKERS_ENV not in env, scope
 
 
 def test_the_workflow_holds_no_branching_for_the_build_outcome() -> None:
