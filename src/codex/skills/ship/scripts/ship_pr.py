@@ -76,6 +76,7 @@ BODY_MARKER = checks_mod.BODY_MARKER
 # The run budget caps the push, less the PR create's reserve. A timeout kills its hooks.
 PUSH_TIMEOUT_SECONDS = 540
 PR_RESERVE_SECONDS = 120
+PR_TIMEOUT_SECONDS = 180  # the PR create's own cap; off Windows a timeout kills its group
 _EXTERNAL_RETURN_CODES = (124, 126, 127)  # timeout, cannot run, not found
 _RERUN_NOTE = "rerun publish; it detects an existing PR"
 _UNSURE_PUSH_NOTE = "check the remote, then rerun publish"
@@ -290,7 +291,7 @@ def _create_github(
         argv.extend(["--body-file", str(body)])
     if args.draft:
         argv.append("--draft")
-    done = common.run(argv, cwd=ctx.root, timeout=180)
+    done = common.run(argv, cwd=ctx.root, timeout=PR_TIMEOUT_SECONDS, group=not common.on_windows())
     # new_pr.py echoes the title before gh prints the new PR URL, so a title
     # holding a PR URL must not win: take the last URL printed.
     matches = list(_GITHUB_PR_URL_RE.finditer(done.stdout))
@@ -326,7 +327,7 @@ def _create_ado(
         "--draft",
         "true" if args.draft else "false",
     ]
-    done = common.run(argv, cwd=ctx.root, timeout=180)
+    done = common.run(argv, cwd=ctx.root, timeout=PR_TIMEOUT_SECONDS, group=not common.on_windows())
     if done.returncode != 0:
         halt = _create_halt(done)
         return result.stop(halt.reason, halt.code, halt.detail)

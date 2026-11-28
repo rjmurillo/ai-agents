@@ -157,6 +157,11 @@ Owns everything `/push-pr` did after the body is written.
   It pushes rather than stops there, because a stop would block every publish on that host. The cost is no serialization with the commit guard there.
 - GitHub create calls `new_pr.py` as today.
 - ADO create builds a fixed argument list and runs it without a shell.
+- Off Windows each create runs in a new session, as the push does.
+  A create that passes its cap (180 seconds, or the time left in the run budget) is killed with its process group, `gh` or `az` included.
+  So no create process is left running after `STOP: pr-create-failed`. The PR may already exist, so the detail says to rerun `publish`.
+  A Ctrl-C, or a SIGTERM, SIGHUP, or SIGQUIT to the script, kills that group too. The script then ends with no terminal line.
+  On Windows the create has no process group, so a timeout kills the direct child only.
 - On Windows, `az` is `az.cmd`, which runs through cmd.exe. The scripts find it on absolute `PATH` entries only, never the current directory.
   Every argument is double-quoted, and an argument holding `%`, `!`, a quote, a line break, or a trailing backslash is refused (exit 126, so a STOP).
   `check`, which `publish` reruns, fails such a title or body file path first, so the refusal never comes after the push.
