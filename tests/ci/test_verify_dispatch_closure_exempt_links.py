@@ -246,6 +246,26 @@ class TestLinksThatStillFail:
 
         self._reported(base, head, ".claude/skills/fresh")
 
+    @pytest.mark.parametrize(
+        ("verifier", "link"),
+        [
+            (".claude/rules/run.py", ".claude/rules/core.md"),
+            (".github/instructions/run.py", ".github/instructions/core.instructions.md"),
+        ],
+    )
+    def test_a_rule_link_under_an_import_root(
+        self, skill_trees: tuple[Path, Path], verifier: str, link: str
+    ) -> None:
+        base, head = skill_trees
+        config = yaml.safe_load((base / CONFIG).read_text(encoding="utf-8"))
+        config["scripts"]["claude_code"]["top"] = f"python3 {verifier}"
+        write(base, CONFIG, yaml.safe_dump(config))
+        write(base, verifier, "X = 1\n")
+        _rebase_head(base, head, "a verifier in a rule install tree makes it an import root")
+        _new_rule_links(head)
+
+        self._reported(base, head, link)
+
     def test_a_link_under_a_lib_install_tree(self, skill_trees: tuple[Path, Path]) -> None:
         base, head = skill_trees
         _new_skill(head, "yaml", plugin="src/claude/lib", install=".claude/lib")
