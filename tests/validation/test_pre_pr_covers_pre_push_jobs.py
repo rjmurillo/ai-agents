@@ -103,18 +103,6 @@ EXEMPT: dict[str, str] = {
         "Advisory report on registered worktrees, run through report_advisory_result. "
         "It reports machine state and does not block the push."
     ),
-    "python-tests": (
-        "Runs the pytest suite with testmon selection under a 15 minute cap. pre_pr "
-        "deliberately skips the suite because CI's pytest legs run it, apart from "
-        "the Rule Lossless Fixtures gate, which runs test_rule_templates_lossless.py. "
-        "Other structural tests can still fail in this python-tests hook after a "
-        "green pre_pr, so run the tests that cover the files you changed before "
-        "pushing."
-    ),
-    "zero-collection-tests": (
-        "One pytest collection over testpaths, about 38 seconds measured. "
-        "pre-pr-validation has a four minute run budget against a 192 second baseline."
-    ),
     "python-lint-advisory": (
         "Advisory ruff report over pushed files. Findings do not block the push. "
         "pre-commit python-check runs ruff on staged files, and Count Ratchets "
@@ -194,7 +182,7 @@ def test_the_hook_scan_finds_the_known_jobs() -> None:
     """A scan that finds nothing would pass the test above for the wrong reason."""
     jobs = pre_push_jobs()
     assert len(jobs) > 20
-    for known in ("python-tests", "security-scan", "pre-pr-validation", "count-ratchets"):
+    for known in ("python-type-check", "security-scan", "pre-pr-validation", "count-ratchets"):
         assert known in jobs
 
 

@@ -1,7 +1,7 @@
 ---
 name: adr-generator
 version: 1.1.0
-description: Invoke before you write or edit any ADR file, even when nobody names an ADR. Creates or amends Architectural Decision Records, then hands off to adr-review. Use when a plan step needs an ADR, or for "draft ADR-NNN", "amend ADR-NNN", "supersede ADR-NNN", "write an ADR", "document these design choices", or "record why we chose this". Do NOT use to review an ADR or apply findings in an open debate round (use adr-review).
+description: "Invoke before you write or edit any ADR file, even when nobody names one. Creates or amends ADRs, then hands off to adr-review. Use for \"draft ADR-NNN\", \"amend ADR-NNN\", \"supersede ADR-NNN\", or \"write an ADR\". Do NOT use to review an ADR or apply findings in a debate round (use adr-review)."
 license: Apache-2.0
 metadata:
   domains: [architecture, documentation, governance, decision-records]
