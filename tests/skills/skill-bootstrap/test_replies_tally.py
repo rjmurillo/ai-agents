@@ -253,7 +253,7 @@ def test_modified_evidence_is_refused(tmp_path: Path, capsys: pytest.CaptureFixt
         evidence.read_text(encoding="utf-8").replace(OFFER, "Shall we"), encoding="utf-8"
     )
     code, payload, _ = tally(capsys, run_dir, labels)
-    assert code == 1 and problem_codes(payload) == {"evidence_modified"}
+    assert (code, payload["message"]) == (2, "evidence_modified")
 
 
 def test_unusable_inputs_are_config_errors(

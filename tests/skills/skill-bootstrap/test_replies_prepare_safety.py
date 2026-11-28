@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import stat
+import sys
 from pathlib import Path
 
 import pytest
@@ -31,6 +32,7 @@ def store(tmp_path: Path) -> Path:
     return tmp_path / "projects" / "proj-a"
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX mode bits")
 def test_run_dir_is_private_and_stdout_holds_no_text(
     store: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

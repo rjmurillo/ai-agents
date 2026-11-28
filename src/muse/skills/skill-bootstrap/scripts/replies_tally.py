@@ -68,11 +68,13 @@ def load_run(run_dir: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     if not isinstance(manifest, dict) or manifest.get("schema") != RUN_SCHEMA:
         raise ConfigError("run_manifest_schema")
     if hashlib.sha256(blob).hexdigest() != manifest.get("evidence_sha256"):
-        raise ValidationError([{"id": None, "code": "evidence_modified"}])
+        raise ConfigError("evidence_modified")
     try:
         rows = [json.loads(line) for line in blob.decode("utf-8").splitlines() if line.strip()]
     except (ValueError, RecursionError) as exc:
         raise ConfigError("run_dir_unreadable") from exc
+    if any(not isinstance(r, dict) or not isinstance(r.get("id"), str) for r in rows):
+        raise ConfigError("run_dir_unreadable")
     return manifest, rows
 
 
@@ -83,7 +85,7 @@ def read_labels(path: Path) -> list[Any]:
         doc = json.loads(path.read_text(encoding="utf-8"))
     except OSError as exc:
         raise ConfigError("labels_unreadable") from exc
-    except ValueError as exc:
+    except (ValueError, RecursionError) as exc:
         raise ConfigError("labels_not_json") from exc
     if not isinstance(doc, dict) or doc.get("schema") != LABELS_SCHEMA:
         raise ConfigError("labels_schema")
@@ -164,7 +166,7 @@ def _stratum_stats(
     for stratum in manifest["strata"]:
         cell = cells.get((stratum["kind"], stratum["flagged"]), Counter())
         if cell["n"] != stratum["sampled"]:
-            raise ValidationError([{"id": None, "code": "manifest_sample_mismatch"}])
+            raise ConfigError("manifest_sample_mismatch")
         out.append({**stratum, "cell": cell})
     return out
 
@@ -201,12 +203,14 @@ def _interval(resolved: list[dict[str, Any]], rate: float, pop: int) -> list[flo
 
     A stratum with all friction or all none would give zero variance, so only the
     variance term uses the adjusted proportion (x + 0.5) / (m + 1) there. The point
-    estimate is unchanged.
+    estimate is unchanged. A stratum resolved in full (a census) adds no variance and
+    is skipped, so a tiny stratum does not void the interval.
     """
-    if any(_m(s) < 2 for s in resolved):
+    sampled = [s for s in resolved if _m(s) < s["population"]]
+    if any(_m(s) < 2 for s in sampled):
         return None
     var = 0.0
-    for s in resolved:
+    for s in sampled:
         m, big_n, x = _m(s), s["population"], s["cell"]["friction"]
         p = (x + 0.5) / (m + 1) if x in (0, m) else x / m
         var += big_n**2 * (1 - min(1.0, m / big_n)) * p * (1 - p) / (m - 1)

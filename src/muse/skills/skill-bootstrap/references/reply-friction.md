@@ -43,7 +43,8 @@ Transcripts hold the reader's prompts, code, and pasted content.
   0700 and 0600, on POSIX only.
 - One carve-out from counts and codes only: the keys of `population.entrypoints`
   and `subagent_meta`. They are short identifiers read from transcript
-  metadata, pattern-bounded to 40 characters at most.
+  metadata, pattern-bounded to 40 characters at most. `prepare` also echoes
+  the `--run-dir` path you passed, so choose a path that holds no secret.
 - Quotes go in the local report file only. Never put reply or prompt text in
   a pull request, issue, commit, or any outside service. Counts, model names,
   and file names are fine.
