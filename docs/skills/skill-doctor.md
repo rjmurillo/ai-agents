@@ -71,7 +71,7 @@ A conversation counts as failed when any applicable raw score is below 0.5. A fa
 
 If the executing harness is unsupported, the skill stops before it reads any history. If no sessions are sampled, it reports that and does not invent scores. It also discloses sampling and partial collection.
 
-`--export-corpus` is the feed for [`panning-for-gold`](panning-for-gold.md) session corpus mode. It writes whole, redacted messages and refuses a path inside the skill directory. The T3 and Gemini antigravity sources (`--t3-home`, `--gemini-home`) read only with this flag, never reach scoring, and export only with `--all-conversations` because they record no repository path. The file holds full conversation text, so keep it out of any repository.
+`--export-corpus` is the feed for [`panning-for-gold`](panning-for-gold.md) session corpus mode. It writes whole, redacted messages and refuses a path inside the skill directory, a path that names `inventory.json` or `audit_manifest.json` under `--out`, and a path inside `--out/transcripts`. The T3 and Gemini antigravity sources (`--t3-home`, `--gemini-home`) read only with this flag, never reach scoring, and export only with `--all-conversations` because they record no repository path. The file holds full conversation text, so keep it out of any repository.
 
 When [`skill-bootstrap`](skill-bootstrap.md) invokes this skill, it reuses that run's scope, omits `--open`, and returns the report path.
 

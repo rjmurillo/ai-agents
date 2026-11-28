@@ -48,7 +48,7 @@ This skill analyzes. It does not read session stores. A separate producer writes
 1. **Feed**: get a corpus file. Never read whole transcripts; use bounded `grep` and `sed`.
 2. **Extract**: `pan.py prefilter --corpus <file> --lens contradiction --out <dir>` drops injected text, keeps windows with a surprise signal and a number, dedupes, and writes batches.
 3. **Evaluate**: judge each batch, then verify each candidate against a transcript proof line and the contradicted artifact on current main. A claim confirmed only by agreement is not verified.
-4. **Synthesize**: write each kept finding as a decision memory through the memory-gate skill's contradiction log. Artifacts still wrong on main become issue candidates listed in the gold-found file.
+4. **Synthesize**: write each kept finding as a decision memory through the memory-gate skill's contradiction log. Where that skill is not installed (Hermes does not ship it), list each KEEP finding in the gold-found file in the same record shape and stop there. Artifacts still wrong on main become issue candidates listed in the gold-found file.
 
 Filing an issue or opening a pull request for a candidate is a separate step. It needs explicit user approval for each item.
 

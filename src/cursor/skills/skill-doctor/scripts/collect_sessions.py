@@ -58,7 +58,7 @@ from session_common import (
     skill_variants,
     truncate,
 )
-from session_corpus import corpus_export, discard_partial
+from session_corpus import corpus_export, discard_partial, refuse_output_collision
 from session_corpus_sources import collect_corpus_sources
 from session_databases import (
     MAX_WARP_CONVERSATION_BYTES,
@@ -446,6 +446,8 @@ def _run() -> None:
     homes["droid"] = Path(args.factory_home).expanduser()
     homes["hermes"] = resolve_hermes_home(args.hermes_home)
     out = Path(args.out).expanduser()
+    if args.export_corpus:
+        refuse_output_collision(args.export_corpus, out)
     (out / "transcripts").mkdir(parents=True, exist_ok=True)
     repos = [] if args.all_conversations else resolve_repos(args.repo)
     collection = Collection(args, repos, _discover(args, repos, homes))

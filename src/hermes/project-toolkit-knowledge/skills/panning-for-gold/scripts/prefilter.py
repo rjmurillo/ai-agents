@@ -7,9 +7,10 @@ measured result contradicting a stated belief. Pure standard library, no model
 call. Survivors are written as batch files for an LLM judge.
 
 Tier 1 keeps a window with a strong surprise signal plus a number. Tier 2 keeps
-a weaker signal only when the window also names a belief, contrasts it, and
-compares two numbers. User turns are mostly prompts and pasted notices, so they
-need a much higher score than assistant turns.
+a window with two weaker signals plus a number, or one weaker signal when the
+window also names a belief, contrasts it, and compares two numbers. User turns
+are mostly prompts and pasted notices, so they need a much higher score than
+assistant turns.
 
 EXIT CODES (ADR-035):
     0 - Success
@@ -19,8 +20,10 @@ EXIT CODES (ADR-035):
 
 from __future__ import annotations
 
+import fnmatch
 import hashlib
 import json
+import os
 import re
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -39,7 +42,7 @@ MIN_PARAGRAPH_CHARS: Final[int] = 40
 TIER1_SCORE: Final[int] = 3
 TIER2_SCORE: Final[int] = 2
 USER_MIN_SCORE: Final[int] = 7
-DEDUPE_PREFIX_CHARS: Final[int] = 300
+PRIVATE_FILE_MODE: Final[int] = 0o600
 
 SIG = re.compile(
     r"surpris|contradict|counter-?intuitive|turns out|actually (?:worse|better|hurt|slower|faster|lower|higher)|"
@@ -88,8 +91,8 @@ INJECTED = re.compile(
 # Token shapes redacted again here, so a corpus from any producer is safe to batch.
 SECRET = re.compile(
     r"(?:(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}"
-    r"|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}"
-    r"|xox[abps]-[A-Za-z0-9-]{10,}|(?i:bearer\s+|authorization:\s*token\s+)[A-Za-z0-9._-]{20,})"
+    r"|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"
+    r"|xox[abps]-[A-Za-z0-9-]{10,}|(?i:bearer\s+|authorization:\s*token\s+)[A-Za-z0-9._~+/=-]{20,})"
 )
 
 
@@ -163,12 +166,24 @@ def extract_windows(text: str) -> list[str]:
     return windows
 
 
+def _signal_slice(paragraph: str) -> str:
+    """Return at most WINDOW_MAX_CHARS of `paragraph`, centered so a signal and a number survive."""
+    if len(paragraph) <= WINDOW_MAX_CHARS:
+        return paragraph
+    for match in SIG.finditer(paragraph):
+        start = max(0, match.start() - WINDOW_MAX_CHARS // 2)
+        piece = paragraph[start : start + WINDOW_MAX_CHARS]
+        if SIG.search(piece) and NUM.search(piece):
+            return piece
+    return paragraph[:WINDOW_MAX_CHARS]
+
+
 def fit_window(before: str, paragraph: str, after: str) -> str:
     """Join context around the signal paragraph and keep that paragraph inside the cap."""
     window = "\n".join(part for part in (before, paragraph, after) if part)
     if len(window) <= WINDOW_MAX_CHARS:
         return window
-    core = paragraph[:WINDOW_MAX_CHARS]
+    core = _signal_slice(paragraph)
     room = WINDOW_MAX_CHARS - len(core)
     lead = before[len(before) - room // 2 :] if room // 2 and before else ""
     tail = after[: max(0, room - len(lead) - 2)] if after else ""
@@ -190,7 +205,9 @@ def tier_of(window: str, role: str) -> int | None:
 
 
 def dedupe_key(window: str) -> str:
-    squeezed = re.sub(r"\W+", "", window.lower())[:DEDUPE_PREFIX_CHARS]
+    """Hash the whole window. Case and punctuation fold, but a decimal point stays distinct."""
+    marked = re.sub(r"(?<=\d)\.(?=\d)", "d", window.lower())
+    squeezed = re.sub(r"\W+", "", marked)
     return hashlib.sha256(squeezed.encode("utf-8")).hexdigest()
 
 
@@ -280,7 +297,23 @@ def write_batches(batches: list[list[dict[str, Any]]], out_dir: Path) -> None:
             json.dumps({"hid": f"{number:03d}-{index:03d}", **row}, ensure_ascii=False)
             for index, row in enumerate(batch)
         ]
-        (out_dir / batch_name(number)).write_text("\n".join(lines) + "\n", encoding="utf-8")
+        write_private(out_dir / batch_name(number), "\n".join(lines) + "\n")
+
+
+def write_private(path: Path, text: str) -> None:
+    """Write transcript-derived text readable by the owner only, as the corpus exporter does."""
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, PRIVATE_FILE_MODE)
+    with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:
+        stream.write(text)
+    os.chmod(path, PRIVATE_FILE_MODE)
+
+
+def output_paths(corpus: Path, out_dir: Path) -> bool:
+    """True when `corpus` is a file the run would write under `out_dir`."""
+    resolved = corpus.resolve()
+    if resolved.parent != out_dir.resolve():
+        return False
+    return resolved.name == "manifest.json" or fnmatch.fnmatch(resolved.name, "batch-*.jsonl")
 
 
 def existing_batches(out_dir: Path) -> list[Path]:
@@ -291,6 +324,8 @@ def run_prefilter(corpus: Path, lens: str, out_dir: Path, max_batch_chars: int) 
     """Filter `corpus`, write batches and manifest.json under `out_dir`."""
     if lens not in LENSES:
         raise CorpusError(f"unknown lens {lens!r}")
+    if output_paths(corpus, out_dir):
+        raise OSError(f"--corpus {corpus} is a file this run would overwrite in {out_dir}")
     stats = PrefilterStats()
     kept = select_windows(read_corpus(corpus), stats)
     batches = make_batches(kept, max_batch_chars)
@@ -299,5 +334,5 @@ def run_prefilter(corpus: Path, lens: str, out_dir: Path, max_batch_chars: int) 
     out_dir.mkdir(parents=True, exist_ok=True)
     write_batches(batches, out_dir)
     manifest = {"lens": lens, "max_batch_chars": max_batch_chars, **stats.__dict__}
-    (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    write_private(out_dir / "manifest.json", json.dumps(manifest, indent=2) + "\n")
     return stats

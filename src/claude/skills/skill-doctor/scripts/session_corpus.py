@@ -26,13 +26,14 @@ from typing import Any, TextIO
 CORPUS_ROLES = frozenset({"user", "assistant"})
 SKILL_ROOT = Path(__file__).resolve().parents[1]
 REDACTION = "[REDACTED]"
+OUTPUT_FILES = frozenset({"inventory.json", "audit_manifest.json"})
 
 # Token shapes that must not reach a corpus file: OpenAI-style keys, GitHub tokens,
 # AWS access key ids, JWTs, Slack tokens, and bearer or token auth headers.
 SECRET = re.compile(
     r"(?:(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}"
-    r"|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}"
-    r"|xox[abps]-[A-Za-z0-9-]{10,}|(?i:bearer\s+|authorization:\s*token\s+)[A-Za-z0-9._-]{20,})"
+    r"|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"
+    r"|xox[abps]-[A-Za-z0-9-]{10,}|(?i:bearer\s+|authorization:\s*token\s+)[A-Za-z0-9._~+/=-]{20,})"
 )
 
 
@@ -53,9 +54,11 @@ class CorpusCapture:
         self.line = 0
 
     def record(self, role: str, text: str, ts: Any) -> None:
+        self.record_at(self.line or len(self.rows) + 1, role, text, ts)
+
+    def record_at(self, line: Any, role: str, text: str, ts: Any) -> None:
         if role not in CORPUS_ROLES or not text.strip():
             return
-        line = self.line or len(self.rows) + 1
         if hasattr(ts, "isoformat"):
             ts = ts.isoformat()
         self.rows.append({"role": role, "text": text, "ts": ts, "line": line})
@@ -104,6 +107,16 @@ def _checked_target(raw: str) -> Path:
     if target.is_dir():
         _refuse(f"--export-corpus needs a file path, got a directory: {target}")
     return target
+
+
+def refuse_output_collision(raw: str, out: Path) -> None:
+    """Refuse an export path that names a file the collector writes under `out`."""
+    target = Path(raw).expanduser().resolve()
+    root = out.expanduser().resolve()
+    if target.parent == root and target.name in OUTPUT_FILES:
+        _refuse(f"--export-corpus names a report file under --out: {target}")
+    if target.is_relative_to(root / "transcripts"):
+        _refuse(f"--export-corpus must not write inside the transcripts directory: {target}")
 
 
 @contextmanager

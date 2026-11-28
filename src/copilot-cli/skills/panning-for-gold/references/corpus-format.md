@@ -45,10 +45,14 @@ python3 pan.py prefilter --corpus <corpus.jsonl> --lens contradiction --out <bat
 ```
 
 - Drops text a harness injected (system reminders, task notices, environment blocks).
-- Keeps windows with a surprise signal plus a number. A weaker signal needs a stated belief, a contrast, and a comparison of two numbers.
-- Removes duplicates by a hash of the normalized text.
+- Keeps windows with a surprise signal plus a number. Two weaker signals plus a number also pass. A single weaker signal needs a stated belief, a contrast, and a comparison of two numbers.
+- Removes duplicates by a hash of the whole normalized window (case and punctuation folded, decimal points kept). Two windows that differ in any digit or decimal point both stay.
 - Writes `batch-NNN.jsonl` files and `manifest.json`. Each batch row adds `hid` (`<batch>-<index>`), `tier`, `score`, `key`, and a window `text` of at most 1100 characters.
 
-The ids are stable for the same corpus and options. Use a fresh `--out` directory for each run: the command refuses a directory that already holds batch files.
+The ids are stable for the same corpus and options. Use a fresh `--out` directory for each run: the command refuses a directory that already holds batch files, and it refuses a `--corpus` that is a `batch-*.jsonl` or `manifest.json` file inside `--out`. Batch files and `manifest.json` are written readable by the owner only (mode 0600).
+
+## Locators and proof lookup
+
+The verify step in `references/contradiction-lens.md` searches the source transcript with `grep`. That works only when `path` is a readable JSONL file and `line` is a physical line in it. A row whose `path` is a label such as `t3:<thread-id>`, or a database file, has no text file to search. Its candidates end in `cannot_verify`, not `no_measurement`, unless the producer also supplies a text transcript. The row `text` is still enough for the judge step.
 
 The batches are transcript-derived text. Keep them out of version control.

@@ -27,7 +27,7 @@ The prefilter is cheap and loose. Expect most windows to fail the judge.
 
 Job: read one batch file and decide which windows hold a eureka. Strict precision first, but keep every window where an observed number or behavior contradicted a stated belief. Typical yield is 0 to 5 per batch. Zero is fine.
 
-For context, open the source at `path` and `line` with a bounded slice of at most 3000 characters. The date comes from `ts`.
+For context, open the source at `path` and `line` with a bounded slice of at most 3000 characters. This works only for a JSONL file path with a physical line. For a label path such as `t3:<thread-id>` or a database path, judge from the row `text` alone. The date comes from `ts`.
 
 Dedupe: list the titles of existing `decision-*` memories first. If a candidate is clearly the same finding as a saved title, still emit it and set `already_saved` to that memory name. Do not drop it here. Verification makes that call.
 
@@ -62,7 +62,7 @@ Pin the main revision before you start: record its SHA and commit date, and read
 
 For each candidate:
 
-1. **Transcript.** `grep` the transcript for the distinctive numbers or strings in `evidence`. Confirm the measurement ran: a tool call whose output shows the numbers, not an assertion. Record the line number and a quote of at most 300 characters.
+1. **Transcript.** When `path` is a readable JSONL file, `grep` the transcript for the distinctive numbers or strings in `evidence`. Confirm the measurement ran: a tool call whose output shows the numbers, not an assertion. Record the line number and a quote of at most 300 characters. When `path` is a label (`t3:<thread-id>`) or a database, no transcript file exists to search: drop the candidate with `cannot_verify` and say so in `drop_note`. Do not use `no_measurement` for it.
 2. **Main state.** Find the doc, memory, ADR row, script, gate, or config the claim names. Record the command, the output line that decides it, and `path:line` of the wrong state when it is still wrong. State is one of `still_wrong`, `fixed`, `superseded`, `not_a_repo_artifact` (a general finding with no wrong artifact), or `cannot_tell`.
 3. **Dedupe.** `grep -rli` the memory tree for two or three distinctive keywords. Open the best hits. Report `duplicate_of` when the same finding with the same measured substance is already recorded. Report `related` for adjacent memories the new record should link.
 4. **Verdict.** `KEEP` or `DROP`.
@@ -78,7 +78,7 @@ Drop-reason codes (use exactly one):
 | `already_recorded` | A duplicate memory exists. |
 | `privacy` | See the privacy drop below. |
 | `not_reproducible` | What the transcript or main shows contradicts the claim. |
-| `cannot_verify` | Transcript hits are ambiguous or unreadable. |
+| `cannot_verify` | Transcript hits are ambiguous or unreadable, or `path` names no searchable transcript file. |
 
 KEEP when the measurement happened and the finding is worth a decision memory. A finding can be KEEP even when the artifact is already fixed: the lesson stays, and `issue_needed` is false.
 

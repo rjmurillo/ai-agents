@@ -413,3 +413,84 @@ def test_lens_fields_appear_in_gold_found(tmp_path: Path) -> None:
     )
     text = synthesis.build_gold_found(threads, evaluations, source="s")
     assert "- **Strength**: strong" in text and "- **Claim**: The map alone scored 22/30" in text
+
+
+# ---- review fixes: late signals, whole-window dedupe, private files, collisions ----
+
+
+def test_signal_after_the_cap_in_one_long_paragraph_survives(tmp_path: Path) -> None:
+    text = "padding " * 400 + "The result was wrong about the docs, measured at 12 ms across runs."
+    result = kept(tmp_path, [row(text)])
+    assert len(result) == 1
+    assert "wrong about" in result[0]["text"] and "12 ms" in result[0]["text"]
+    assert len(result[0]["text"]) <= prefilter.WINDOW_MAX_CHARS
+
+
+def test_fit_window_centers_on_a_late_signal_with_its_number() -> None:
+    paragraph = "x " * 700 + "it was surprising: 100 ms vs 200 ms " + "y " * 100
+    window = prefilter.fit_window("", paragraph, "")
+    assert "surprising" in window and "100 ms" in window
+    assert len(window) <= prefilter.WINDOW_MAX_CHARS
+
+
+def test_windows_sharing_a_long_prefix_but_differing_later_both_survive(tmp_path: Path) -> None:
+    shared = "We measured the cache layer under the same load and the same harness. " * 6
+    first = shared + "It was surprising: 100 ms vs 200 ms on the first run."
+    second = shared + "It was surprising: 300 ms vs 900 ms on the second run."
+    assert len(kept(tmp_path, [row(first), row(second, line=2)])) == 2
+
+
+def test_dedupe_key_separates_1_2_ms_from_12_ms() -> None:
+    assert prefilter.dedupe_key("took 1.2 ms") != prefilter.dedupe_key("took 12 ms")
+
+
+def test_dedupe_key_still_folds_case_and_spacing() -> None:
+    assert prefilter.dedupe_key("A  b!") == prefilter.dedupe_key("a b")
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX file modes")
+def test_batch_and_manifest_files_are_owner_only(tmp_path: Path) -> None:
+    kept(tmp_path, [row(STRONG_TEXT)])
+    out = tmp_path / "out"
+    for path in [*out.glob("batch-*.jsonl"), out / "manifest.json"]:
+        assert path.stat().st_mode & 0o777 == 0o600
+
+
+def test_cli_refuses_a_corpus_named_manifest_json_inside_out(tmp_path: Path) -> None:
+    out = tmp_path / "out"
+    out.mkdir()
+    corpus = write_corpus(out, [row(STRONG_TEXT)], name="manifest.json")
+    before = corpus.read_text(encoding="utf-8")
+    assert cli(tmp_path, corpus) == 2
+    assert corpus.read_text(encoding="utf-8") == before
+
+
+def test_cli_refuses_a_corpus_named_like_a_batch_inside_out(tmp_path: Path) -> None:
+    out = tmp_path / "out"
+    out.mkdir()
+    corpus = write_corpus(out, [row(STRONG_TEXT)], name="batch-000.jsonl")
+    assert cli(tmp_path, corpus) == 2
+
+
+@pytest.mark.parametrize(
+    "secret",
+    [
+        "eyJhbGciOiJIUzI1NiJ9." + "p" * 12,
+        "Bearer " + "ab/c+d=" * 5,
+    ],
+)
+def test_short_header_jwts_and_slash_bearer_values_are_redacted(
+    tmp_path: Path, secret: str
+) -> None:
+    result = kept(tmp_path, [row(f"{STRONG_TEXT} Header {secret} was sent.")])
+    assert secret.split()[-1] not in result[0]["text"]
+    assert "[REDACTED]" in result[0]["text"]
+
+
+def test_inventory_template_validates_as_copied(tmp_path: Path) -> None:
+    template = Path(__file__).resolve().parents[3] / (
+        "src/claude/skills/panning-for-gold/references/inventory-template.md"
+    )
+    copy = tmp_path / "inventory.md"
+    copy.write_text(template.read_text(encoding="utf-8"), encoding="utf-8")
+    assert pan.main(["validate", "--inventory", str(copy)]) == 0

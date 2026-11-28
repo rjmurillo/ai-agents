@@ -69,7 +69,7 @@ The skill analyzes; it does not read session stores. A producer writes a JSONL c
 | Feed | Get a corpus file. Bounded `grep` and `sed` only; never read a whole transcript. |
 | Extract | `pan.py prefilter` drops injected text, keeps windows with a surprise signal and a number, removes duplicates, and writes batches. |
 | Evaluate | Judge each batch. Verify each candidate with a transcript proof line and a check of the contradicted artifact on current main. |
-| Synthesize | Write each kept finding as a decision memory through the memory-gate skill's contradiction log. |
+| Synthesize | Write each kept finding as a decision memory through the memory-gate skill's contradiction log. Where that skill is not installed, such as Hermes, list each KEEP finding in the gold-found file. |
 
 Artifacts still wrong on main become issue candidates in the `gold-found` file. Filing an issue or opening a pull request is a separate step that needs your approval for each item. The procedures are in [`contradiction-lens.md`](../../src/claude/skills/panning-for-gold/references/contradiction-lens.md). Inventory threads take four optional lens fields: `Claim`, `Conventional view`, `Evidence`, and `Strength`.
 
@@ -93,7 +93,7 @@ uv run python .claude/skills/panning-for-gold/scripts/pan.py --help
 | `validate` | `--inventory` | Validate an inventory file. |
 | `merge` | `--pass1`, `--final`, `--output`, `--force` | Merge the pass1 and final inventories. |
 | `synth` | `--inventory`, `--evaluations`, `--output`, `--source`, `--force` | Build the `gold-found` file. `--source` sets a label in the metadata block. |
-| `prefilter` | `--corpus`, `--lens`, `--out`, `--max-batch-chars` | Cut a session corpus into judge batches. `--out` must not already hold batch files. |
+| `prefilter` | `--corpus`, `--lens`, `--out`, `--max-batch-chars` | Cut a session corpus into judge batches. `--out` must not already hold batch files, and `--corpus` must not be a `batch-*.jsonl` or `manifest.json` file inside `--out`. Output files are owner-only (mode 0600). |
 
 Example:
 

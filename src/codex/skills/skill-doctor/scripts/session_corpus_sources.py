@@ -50,7 +50,7 @@ def t3_database(home: Path) -> Path:
 
 def open_t3_database(path: Path) -> sqlite3.Connection:
     """Open read-only. Not immutable: a running T3 server keeps writing its WAL."""
-    connection = sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True, timeout=2)
+    connection = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True, timeout=2)
     connection.execute("PRAGMA query_only = ON")
     return connection
 
@@ -143,7 +143,11 @@ def parse_gemini_session(path: Path) -> Any:
         return None
     state = SessionState(bounded=False)
     for record in records:
-        role = GEMINI_ROLES.get(record.get("type"))
+        kind = record.get("type")
+        if kind is not None and not isinstance(kind, str):
+            record_collection_issue("malformed_records")
+            continue
+        role = GEMINI_ROLES.get(kind)
         content = record.get("content")
         if role is None or not isinstance(content, str):
             continue

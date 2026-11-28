@@ -22,6 +22,7 @@ from session_common import (
     logical_skill_name,
     looks_injected,
 )
+from session_corpus import current_capture
 
 
 def _blocks(content: Any) -> list[Any]:
@@ -198,12 +199,37 @@ def _codex_turn_role(payload: Any) -> str | None:
     return None
 
 
-def _codex_event(state: SessionState, payload: dict[str, Any], events: dict[str, int]) -> None:
+def _codex_event(
+    state: SessionState,
+    payload: dict[str, Any],
+    events: dict[str, int],
+    pending: dict[str, list[tuple[Any, str, Any]]],
+    stamp: tuple[Any, Any],
+) -> None:
     event_roles = {"user_message": "user", "agent_message": "assistant"}
     if payload.get("type") in event_roles:
-        events[event_roles[payload["type"]]] += 1
+        role = event_roles[payload["type"]]
+        events[role] += 1
+        text = payload.get("message")
+        if isinstance(text, str) and text.strip() and not (role == "user" and looks_injected(text)):
+            pending[role].append((stamp[0], text, stamp[1]))
     elif payload.get("type") == "task_complete":
         _codex_completion(state, payload)
+
+
+def _codex_event_only_rows(capture: Any, pending: dict[str, list[tuple[Any, str, Any]]]) -> None:
+    """Export event text for a role that has no `response_item` text, so no turn lands twice."""
+    if capture is None:
+        return
+    added = False
+    for role, rows in pending.items():
+        if any(row["role"] == role for row in capture.rows):
+            continue
+        for line, text, ts in rows:
+            capture.record_at(line, role, text, ts)
+            added = True
+    if added:
+        capture.rows.sort(key=lambda row: row["line"] if isinstance(row["line"], int) else 0)
 
 
 def parse_codex_session(path: Path, _skill_names: Any, include_subagents: bool) -> Any:
@@ -215,6 +241,8 @@ def parse_codex_session(path: Path, _skill_names: Any, include_subagents: bool) 
     # Older rollouts carry both record kinds for one turn; prefer the event count.
     events = {"user": 0, "assistant": 0}
     items = {"user": 0, "assistant": 0}
+    capture = current_capture()
+    pending: dict[str, list[tuple[Any, str, Any]]] = {"user": [], "assistant": []}
     for obj in records:
         payload = obj.get("payload") or {}
         if not isinstance(payload, dict):
@@ -239,12 +267,14 @@ def parse_codex_session(path: Path, _skill_names: Any, include_subagents: bool) 
                 return None
             meta["thread_source"] = "subagent" if child else meta["thread_source"]
         elif kind == "event_msg":
-            _codex_event(state, payload, events)
+            line = capture.line if capture is not None else 0
+            _codex_event(state, payload, events, pending, (line, obj.get("timestamp")))
         elif kind == "response_item":
             role = _codex_turn_role(payload)
             if role:
                 items[role] += 1
             _codex_response(state, payload)
+    _codex_event_only_rows(capture, pending)
     state.stats["user_turns"] = events["user"] or items["user"]
     state.stats["assistant_turns"] = events["assistant"] or items["assistant"]
     return state.finish(meta or {"id": path.stem, "cwd": None, "started_at": state.first_ts})
