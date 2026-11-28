@@ -150,17 +150,10 @@ def _split_hook_arguments(rest: list[str], from_git: bool) -> tuple[list[str], l
 
 # The lefthook.yml tag on the pre-push jobs that guard refs and repository
 # state, not tree content. A push that only deletes refs runs just those jobs.
-# tests/test_lefthook_runner.py lists every pre-push job as a ref guard or a
+# tests/test_lefthook_delete_only.py lists every pre-push job as a ref guard or a
 # tree job, so a new job fails a test until someone puts it in one list.
 REF_GUARD_TAG = "ref-guard"
 _SCOPE_FLAGS = ("--job", "--tag", "--command")
-
-
-def _caller_chose_scope(flags: list[str]) -> bool:
-    """Return True when the caller already limited which jobs Lefthook runs."""
-    return any(
-        item == flag or item.startswith(f"{flag}=") for item in flags for flag in _SCOPE_FLAGS
-    )
 
 
 def _deleted_ref_count(stdin_bytes: bytes, flags: list[str]) -> int:
@@ -170,7 +163,7 @@ def _deleted_ref_count(stdin_bytes: bytes, flags: list[str]) -> int:
     block cleanup. Returns 0 for any ref line that updates or creates a ref,
     and when the caller already chose jobs.
     """
-    if _caller_chose_scope(flags):
+    if any(item == flag or item.startswith(f"{flag}=") for item in flags for flag in _SCOPE_FLAGS):
         return 0
     updates = parse_ref_lines(stdin_bytes)
     if not all(update.is_delete for update in updates):
