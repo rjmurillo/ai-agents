@@ -3,8 +3,9 @@
 
 The live eval script measures whether each moved book reference remains reachable
 through the progressive-disclosure skill route. This gate stores consecutive
-activation failures across scheduled runs so ADR-088 has an enforceable rollback
-trigger instead of prose-only intent.
+activation failures across runs in a state file, so ADR-088's rollback trigger
+is a recorded streak, not prose-only intent. No workflow runs it on a schedule
+since 2026-11-25: see `scripts/eval/README.md`.
 """
 
 from __future__ import annotations
@@ -31,18 +32,18 @@ MOVED_REFERENCE_IDS = (
 )
 
 OWNER = "agent-qa"
-CADENCE = "weekly Monday 06:30 UTC and pull_request dry-run gate"
+CADENCE = "manual, see scripts/eval/README.md"
 DEFAULT_THRESHOLD = 2
 ROLLBACK_VERDICTS = {"FAIL_THRESHOLD", "FAIL_NO_DELTA", "NO_POSITIVE_CASES", "NO_RESULT"}
 EXTERNAL_VERDICTS = {"FAIL_JUDGE_ERRORS"}
 RESTORATION_PR_POLICY = (
     "When any moved reference reaches the consecutive activation failure "
-    "threshold, the scheduled workflow fails and opens or updates the rollback "
-    "tracking issue. agent-qa owns the next restoration PR, which must restore "
-    "the failing book reference to the always-on rule surface or strengthen the "
-    "skill trigger and include this gate's report. The workflow blocks merge for "
-    "any PR that touches the skill, scenarios, or gate while the threshold still "
-    "fails."
+    "threshold, the gate reports it and, with --fail-on-threshold, exits 1. No "
+    "scheduled workflow runs this gate since 2026-11-25, so nothing opens the "
+    "rollback tracking issue or blocks a merge unattended. agent-qa owns the "
+    "next restoration PR, which must restore the failing book reference to the "
+    "always-on rule surface or strengthen the skill trigger and include this "
+    "gate's report."
 )
 
 

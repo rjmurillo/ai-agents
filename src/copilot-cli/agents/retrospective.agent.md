@@ -59,8 +59,8 @@ every-session entry:
 - A merge was reverted or force-fixed
 - The user corrected the work explicitly
 
-The Post-PR Retrospective workflow adds a fifth on its own, firing on PR close
-for non-bot, non-fork pull requests.
+The Post-PR Retrospective workflow used to add a fifth, firing on PR close. It
+was deleted on 2026-11-25, so only the four triggers above start an analysis.
 
 ## Retrospective Flow
 

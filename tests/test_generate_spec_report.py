@@ -324,7 +324,7 @@ class TestMainWithSpecs:
 # ---------------------------------------------------------------------------
 # Tests: main - infrastructure failure (issue #5738)
 #
-# The review is advisory (ai-spec-review.yml); these tests govern the PR
+# The review was advisory (the deleted ai-spec-review.yml); these tests govern the PR
 # comment channel that operators actually read. Before this fix,
 # an infra failure rendered the raw AI-review verdict (CRITICAL_FAIL)
 # unlabeled, indistinguishable from a real code-quality rejection.

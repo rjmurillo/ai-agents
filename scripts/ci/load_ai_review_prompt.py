@@ -10,8 +10,8 @@ from pathlib import Path
 EXIT_OK = 0
 EXIT_CONFIG = 2
 PROMPT_OUTPUT_PATH = Path("/tmp/ai-review-prompt.md")
-# Anchored on this file, not the cwd: the pr-maintenance job runs this script from
-# a trusted copy while the workspace may hold a PR head.
+# Anchored on this file, not the cwd: the ai-review action runs this script from
+# its own root (AI_REVIEW_ROOT) while the workspace may hold a PR head.
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_PROMPT_PATH = _REPO_ROOT / ".github" / "prompts" / "default-ai-review.md"
 FALLBACK_PROMPT = (

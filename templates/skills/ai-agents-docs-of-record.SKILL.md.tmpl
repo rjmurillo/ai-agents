@@ -121,8 +121,8 @@ Two skills, different jobs. `reflect` captures corrections and praise
 mid-conversation while context is hot. `retrospective` produces the full
 artifact (timeline, Five Whys, learning matrix) in `.project-toolkit/retrospective/`.
 
-Retrospectives are written on demand: `/retrospective` here, plus the Post-PR
-Retrospective workflow in CI. Until a later change a Stop hook also wrote a skeleton
+Retrospectives are written on demand with `/retrospective`. The Post-PR Retrospective
+workflow was deleted on 2026-11-25. Until a later change a Stop hook also wrote a skeleton
 at session end stamped `<!-- RETRO-STATE: skeleton-pending-fill -->`; that hook is deleted, but skeletons it already wrote are still
 placeholders rather than records, so fill them with `/retrospective fill YYYY-MM-DD`.
 

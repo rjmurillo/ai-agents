@@ -1,7 +1,7 @@
 """Contract test: Validate Spec Coverage holds no model, secret, or environment.
 
 Issue #6182. The check's verdict comes from scripts/ci/spec_coverage_verdict.py.
-The model review lives in ai-spec-review.yml and only comments.
+The model review workflow (ai-spec-review.yml) was deleted.
 """
 
 from __future__ import annotations
@@ -15,7 +15,6 @@ import yaml
 
 _WORKFLOWS = Path(__file__).resolve().parents[2] / ".github" / "workflows"
 _VALIDATION = _WORKFLOWS / "ai-spec-validation.yml"
-_REVIEW = _WORKFLOWS / "ai-spec-review.yml"
 _AI_REVIEW_ACTION = "./.github/actions/ai-review"
 _DISPOSITIONS = (
     Path(__file__).resolve().parents[2] / ".project-toolkit" / "pr-checks" / "dispositions.json"
@@ -29,11 +28,6 @@ def _load(path: Path) -> dict[Any, Any]:
 @pytest.fixture(scope="module")
 def validate_job() -> dict[str, Any]:
     return _load(_VALIDATION)["jobs"]["validate-spec"]
-
-
-@pytest.fixture(scope="module")
-def review_job() -> dict[str, Any]:
-    return _load(_REVIEW)["jobs"]["review-spec"]
 
 
 def _verdict_step(job: dict[str, Any]) -> dict[str, Any]:
@@ -92,42 +86,6 @@ class TestValidateSpecIsDeterministic:
         assert step["if"] == "steps.should-run.outputs.skip != 'true'"
 
 
-class TestReviewSpecIsAdvisory:
-    def test_job_runs_behind_the_claude_environment(self, review_job: dict[str, Any]) -> None:
-        assert review_job["environment"] == "agent-claude"
-
-    def test_both_model_steps_swallow_failures(self, review_job: dict[str, Any]) -> None:
-        model_steps = [s for s in review_job["steps"] if s.get("uses") == _AI_REVIEW_ACTION]
-
-        assert {s["id"] for s in model_steps} == {"trace", "completeness"}
-        assert all(s["continue-on-error"] is True for s in model_steps)
-
-    def test_no_step_fails_the_job_on_a_verdict(self, review_job: dict[str, Any]) -> None:
-        text = _REVIEW.read_text(encoding="utf-8")
-        assert "check_spec_failures" not in text
-        assert "Check for Failures" not in text
-
-    def test_run_is_cancelled_by_a_newer_run_for_the_same_pr(self) -> None:
-        concurrency = _load(_REVIEW)["concurrency"]
-
-        assert concurrency["cancel-in-progress"] is True
-        assert "pull_request.number" in concurrency["group"]
-
-    def test_review_has_no_pull_request_trigger(self) -> None:
-        """The agent-claude approval is never given, so a pull request run only
-        waited and blocked auto-merge. Reviewers dispatch it with a PR number."""
-        review = _load(_REVIEW)[True]
-
-        assert "pull_request" not in review
-        assert "pull_request_target" not in review
-
-    def test_workflow_triggers_include_dispatch_and_no_merge_group(self) -> None:
-        review = _load(_REVIEW)[True]
-
-        assert "pr_number" in review["workflow_dispatch"]["inputs"]
-        assert "merge_group" not in review
-
-
 def test_dispositions_waiver_for_the_check_is_gone() -> None:
     dispositions = json.loads(_DISPOSITIONS.read_text(encoding="utf-8"))
 
@@ -142,10 +100,3 @@ def test_validation_workflow_requests_read_only_pull_request_scope() -> None:
 
 def test_debounce_job_declares_no_environment() -> None:
     assert "environment" not in _load(_VALIDATION)["jobs"]["debounce"]
-
-
-def test_report_step_receives_both_review_outcomes(review_job: dict[str, Any]) -> None:
-    step = next(s for s in review_job["steps"] if s.get("id") == "report")
-
-    assert step["env"]["TRACE_OUTCOME"] == "${{ steps.trace.outcome }}"
-    assert step["env"]["COMPLETENESS_OUTCOME"] == "${{ steps.completeness.outcome }}"
