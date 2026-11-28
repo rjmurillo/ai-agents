@@ -89,5 +89,9 @@ BODY_MAX_LINES = 500
 # - Cannot have consecutive hyphens (checked separately)
 NAME_REGEX = r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
 
-# Semver regex (supports pre-release versions like 1.0.0-beta.1)
-SEMVER_REGEX = r"^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$"
+# SemVer 2.0.0 (https://semver.org): no leading zeros in numeric parts, hyphens
+# allowed in pre-release and build identifiers (1.0.0-rc-hotfix). ASCII digits
+# only, and \Z so a trailing newline does not pass. discover_skills.py and
+# validate-skill.py keep a byte-identical fallback copy for when this module
+# cannot be imported; tests/skills/skillforge/test_semver_regex.py pins them.
+SEMVER_REGEX = r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*)?(\+[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?\Z"
