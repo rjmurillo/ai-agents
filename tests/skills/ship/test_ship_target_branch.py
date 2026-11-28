@@ -280,15 +280,9 @@ class TestAdoSeveralActivePrs:
         assert values(lines, "BASE") == ["main"]
         assert values(lines, "MODE") == ["contributor"]
 
-    @pytest.mark.parametrize(
-        ("drafts", "shown"),
-        [
-            ((True, False), "false"),
-            ((False, True), "false"),
-            ((True, None), "unknown"),
-            ((True, True), "true"),
-        ],
-    )
+    DRAFT_CASES = [((True, False), "false"), ((False, True), "false"), ((True, None), "unknown")]
+
+    @pytest.mark.parametrize(("drafts", "shown"), [*DRAFT_CASES, ((True, True), "true")])
     def test_the_draft_state_covers_every_pr_the_push_updates(
         self, ado, scripts, capsys, drafts, shown
     ):
