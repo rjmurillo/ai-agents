@@ -83,6 +83,17 @@ def _ado_row_for_base(rows: list[object], base: str | None) -> object:
     return (matching or rows)[0]
 
 
+def _ado_draft(rows: list[object]) -> bool | None:
+    """True only when every active PR is a draft: a push updates every PR from the branch.
+
+    False when any of them is ready, None when the state of one is unknown.
+    """
+    states = [row.get("isDraft") if isinstance(row, dict) else None for row in rows]
+    if any(state is False for state in states):
+        return False
+    return True if all(state is True for state in states) else None
+
+
 def ado_pr(root: Path, branch: str, base: str | None = None) -> PrQuery | common.Completed | str:
     done = common.run(
         [
@@ -117,7 +128,7 @@ def ado_pr(root: Path, branch: str, base: str | None = None) -> PrQuery | common
     url = f"{web_url}/pullrequest/{pr_id}" if web_url else ""
     raw_created_by = first.get("createdBy")
     created_by = raw_created_by if isinstance(raw_created_by, dict) else {}
-    draft = first.get("isDraft") if isinstance(first.get("isDraft"), bool) else None
+    draft = _ado_draft(data)
     target = str(first.get("targetRefName") or "")
     target = target[len("refs/heads/") :] if target.startswith("refs/heads/") else ""
     return (pr_id, url, str(created_by.get("uniqueName") or ""), draft, target)

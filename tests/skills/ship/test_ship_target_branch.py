@@ -279,3 +279,25 @@ class TestAdoSeveralActivePrs:
         assert values(lines, "PR") == ["1"]
         assert values(lines, "BASE") == ["main"]
         assert values(lines, "MODE") == ["contributor"]
+
+    @pytest.mark.parametrize(
+        ("drafts", "shown"),
+        [
+            ((True, False), "false"),
+            ((False, True), "false"),
+            ((True, None), "unknown"),
+            ((True, True), "true"),
+        ],
+    )
+    def test_the_draft_state_covers_every_pr_the_push_updates(
+        self, ado, scripts, capsys, drafts, shown
+    ):
+        first, second = _ado_row(1, "main", "me"), _ado_row(2, "release/2", "me")
+        for row, draft in zip((first, second), drafts, strict=True):
+            if draft is not None:
+                row["isDraft"] = draft
+        ado.rule("az", ["repos", "pr", "list"], {"stdout": _ado_rows(first, second)})
+        code, lines = invoke(scripts[1], ["--base", "release/2"], capsys)
+        assert code == 0, lines
+        assert values(lines, "PR") == ["2"]
+        assert values(lines, "PR_DRAFT") == [shown]
