@@ -257,8 +257,8 @@ If a step fails, read the exit code first, then `.Error.Message`:
 | Exit | Meaning | What to do |
 |------|---------|------------|
 | 1 | Logic error, such as a moved head or a merged PR | Read `.Error.Message`. Fix the input or re-read the PR state. |
-| 2 | Bad arguments or config, or "not found" for scripts that look up a PR, issue, or milestone | Read `.Error.Message`. Fix the flag or the number. |
-| 3 | GitHub or network failure | Retry once. If it repeats, run the transport check from step 1. |
+| 2 | Bad arguments or config | Read `.Error.Message`. Fix the flag. |
+| 3 | GitHub or network failure, or a PR, issue, or milestone that does not exist | Read `.Error.Type`. `NotFound` means the object or result is absent; fix the input and do not retry. Otherwise retry once. If it repeats, run the transport check from step 1. |
 | 4 | Not signed in | Sign `gh` in, then run the transport check again. |
 | 100 | Script-specific refusal: not mergeable (`merge_pr.py`) or rerun refused (`rerun_failed_jobs.py`) | Do not retry the same call. Diagnose with `why_pr_blocked.py`, or use the fallback the script prints. |
 

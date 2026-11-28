@@ -35,8 +35,8 @@ The watcher, `pr_wait.py`, prints one line per real event and nothing else on st
 | --- | --- | --- |
 | `0` | The `--until` condition is met, or the PR merged | Recheck the merge gate on the current head |
 | `1` | A new blocker: a failed or missing required check, DIRTY, closed, or (for `ready`) unresolved threads, BEHIND, draft, or a review requirement | Act, push, start the watcher again |
-| `2` | Bad input, PR not found, another watcher on this PR, `gh` not on PATH, or a bad `why_pr_blocked.py` payload | Fix the input. Do not start a second watcher. |
-| `3` | GitHub was unreachable for 10 polls in a row | Check the rate limit, then start again |
+| `2` | Bad input, another watcher on this PR, `gh` not on PATH, or a bad `why_pr_blocked.py` payload | Fix the input. Do not start a second watcher. |
+| `3` | The PR does not exist (a `not found:` line, never retried), or GitHub was unreachable for 10 polls in a row | Fix the PR number. For an outage, check the rate limit, then start again. |
 | `4` | `gh` is not authenticated | Sign in to `gh`, then start again |
 
 ## Advanced use

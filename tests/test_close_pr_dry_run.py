@@ -15,13 +15,15 @@ pytestmark = pytest.mark.usefixtures("stub_git_probes", "tmp_path_is_temp_root")
 _DRY = ["--pull-request", "5", "--dry-run"]
 
 
-@pytest.mark.parametrize(("stdout", "stderr", "code"), PR_VIEW_FAILURE_CASES)
-def test_failed_pr_view_exit_code(stdout, stderr, code):
-    """A failed PR lookup maps to the ADR-035 code and never closes the PR."""
+@pytest.mark.parametrize(("stdout", "stderr", "not_found"), PR_VIEW_FAILURE_CASES)
+def test_failed_pr_view_exit_code(capsys, stdout, stderr, not_found):
+    """A failed PR lookup exits 3, names a missing PR only when it is missing,
+    and never closes the PR."""
     replies = [_completed(rc=1, stdout=stdout, stderr=stderr)]  # any later gh call raises
     with pytest.raises(SystemExit) as exc:
         run_close(["--pull-request", "999999"], replies)
-    assert exc.value.code == code
+    assert exc.value.code == 3
+    assert ("PR #999999 not found in" in capsys.readouterr().err) is not_found
 
 
 class TestDryRun:
@@ -64,7 +66,7 @@ class TestDryRun:
     def test_dry_run_still_fails_when_the_pr_is_missing(self):
         with pytest.raises(SystemExit) as exc:
             run_close(_DRY, [_completed(rc=1, stderr="Could not resolve to a PullRequest")])
-        assert exc.value.code == 2
+        assert exc.value.code == 3
 
     def test_dry_run_comment_lookup_failure_exits_3(self):
         with pytest.raises(SystemExit) as exc:

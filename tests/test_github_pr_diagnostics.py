@@ -1229,12 +1229,12 @@ class TestEditPrBodyStaleWriteGuard:
         assert rc == 0
         mock_update.assert_called_once()
 
-    def test_not_found_returns_2(self):
+    def test_not_found_returns_3_with_not_found_type(self):
         with (
             patch(f"{_edit_mod.__name__}.assert_gh_authenticated"),
             patch(f"{_edit_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
             patch(f"{_edit_mod.__name__}.fetch_current_body", return_value=None),
-            patch(f"{_edit_mod.__name__}.write_skill_error"),
+            patch(f"{_edit_mod.__name__}.write_skill_error") as mock_error,
         ):
             rc = _edit_mod.main(
                 [
@@ -1244,7 +1244,23 @@ class TestEditPrBodyStaleWriteGuard:
                     "something",
                 ]
             )
-        assert rc == 2
+        assert rc == 3
+        assert mock_error.call_args.args[1] == 3
+        assert mock_error.call_args.kwargs["error_type"] == "NotFound"
+
+    def test_fetch_api_failure_returns_3_with_api_error_type(self):
+        with (
+            patch(f"{_edit_mod.__name__}.assert_gh_authenticated"),
+            patch(f"{_edit_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
+            patch(
+                f"{_edit_mod.__name__}.fetch_current_body",
+                side_effect=RuntimeError("HTTP 502 Bad Gateway"),
+            ),
+            patch(f"{_edit_mod.__name__}.write_skill_error") as mock_error,
+        ):
+            rc = _edit_mod.main(["--pull-request", "9999", "--body", "something"])
+        assert rc == 3
+        assert mock_error.call_args.kwargs["error_type"] == "ApiError"
 
     def test_dry_run_does_not_write(self):
         with (
@@ -1529,3 +1545,46 @@ class TestEditPrBodyStaleWriteGuard:
         output = json.loads(capsys.readouterr().out)
         assert rc == 3
         assert output["Error"]["Message"] == "rate limited, retry in 30s"
+
+
+# ===========================================================================
+# ADR-035: audit_closing_claims.py empty fleet is exit 3 NotFound
+# ===========================================================================
+
+
+class TestAuditClosingClaimsExitCodes:
+    """An empty open-PR fleet is a remote miss (3); a local write failure stays 2."""
+
+    def _patches(self, pr_nodes):
+        name = _audit_mod.__name__
+        return (
+            patch(f"{name}.assert_gh_authenticated"),
+            patch(f"{name}.resolve_repo_params", return_value=_MOCK_REPO),
+            patch(f"{name}.fetch_repo_squash_setting", return_value="PR_BODY"),
+            patch(f"{name}.fetch_open_prs", return_value=pr_nodes),
+        )
+
+    def test_no_open_prs_exits_3_with_not_found_type(self, capsys):
+        p = self._patches([])
+        with p[0], p[1], p[2], p[3]:
+            rc = _audit_mod.main(["--output-format", "json"])
+        assert rc == 3
+        envelope = json.loads(capsys.readouterr().out)
+        assert envelope["Error"]["Code"] == 3
+        assert envelope["Error"]["Type"] == "NotFound"
+
+    def test_artifact_write_failure_stays_exit_2(self, capsys, tmp_path):
+        p = self._patches([{"number": 1}])
+        missing_dir = tmp_path / "no-such-dir" / "out.json"
+        with (
+            p[0],
+            p[1],
+            p[2],
+            p[3],
+            patch(f"{_audit_mod.__name__}._collect_pr_claims", return_value=[]),
+        ):
+            rc = _audit_mod.main(["--output-format", "json", "--artifact", str(missing_dir)])
+        assert rc == 2
+        envelope = json.loads(capsys.readouterr().out)
+        assert envelope["Error"]["Code"] == 2
+        assert envelope["Error"]["Type"] == "General"

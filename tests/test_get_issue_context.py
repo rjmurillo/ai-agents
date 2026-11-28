@@ -89,7 +89,7 @@ def test_happy_path(mock_run, capsys):
 
 
 @patch("subprocess.run")
-def test_issue_not_found(mock_run):
+def test_issue_not_found(mock_run, capsys):
     mock_run.side_effect = [
         _completed(rc=0),  # gh auth status
         _completed(stdout="https://github.com/owner/repo\n"),  # git remote
@@ -98,7 +98,23 @@ def test_issue_not_found(mock_run):
 
     with pytest.raises(SystemExit) as exc_info:
         main(["--issue", "999"])
-    assert exc_info.value.code == 2
+    assert exc_info.value.code == 3
+    assert json.loads(capsys.readouterr().out)["Error"]["Type"] == "NotFound"
+
+
+@patch("subprocess.run")
+def test_issue_view_api_failure_is_apierror_not_notfound(mock_run, capsys):
+    """Negative control: a non-404 gh failure exits 3 with Type ApiError."""
+    mock_run.side_effect = [
+        _completed(rc=0),  # gh auth status
+        _completed(stdout="https://github.com/owner/repo\n"),  # git remote
+        _completed(rc=1, stderr="HTTP 502: Bad Gateway"),  # gh issue view
+    ]
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--issue", "999"])
+    assert exc_info.value.code == 3
+    assert json.loads(capsys.readouterr().out)["Error"]["Type"] == "ApiError"
 
 
 @patch("subprocess.run")

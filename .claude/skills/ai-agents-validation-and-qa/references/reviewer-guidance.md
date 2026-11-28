@@ -1,6 +1,6 @@
 # Reviewer Guidance: What Not to Flag
 
-<!-- vendor-portability: contributor-facing reference for the rjmurillo/ai-agents repo itself. It names upstream-only paths under .project-toolkit, scripts, templates, tests, src, lefthook.yml, pyproject.toml, .markdownlint-cli2.yaml, and .github because its audience is reviewers of this repo, not plugin consumers. Declared paths: .project-toolkit/memory/episodes, .project-toolkit/security/benchmarks/vulnerable_samples, scripts/ci/diff_line_scope.py, .markdownlint-cli2.yaml, src/claude/agents/qa.md, src/claude/skills/github/scripts/pr/get_pr_comments_by_reviewer.py, src/vs-code-agents, scripts/validation/skill_frontmatter.py, tests/validation/test_check_serena_memory_worktree_scope_failure_modes.py, docs/SKILL-AUTHORING.md -->
+<!-- vendor-portability: contributor-facing reference for the rjmurillo/ai-agents repo itself. It names upstream-only paths under .project-toolkit, scripts, templates, tests, src, lefthook.yml, pyproject.toml, .markdownlint-cli2.yaml, and .github because its audience is reviewers of this repo, not plugin consumers. Declared paths: .project-toolkit/memory/episodes, .project-toolkit/security/benchmarks/vulnerable_samples, scripts/ci/diff_line_scope.py, .markdownlint-cli2.yaml, src/claude/agents/qa.md, src/claude/skills/github/scripts/pr/get_pr_review_threads.py, src/vs-code-agents, scripts/validation/skill_frontmatter.py, tests/validation/test_check_serena_memory_worktree_scope_failure_modes.py, docs/SKILL-AUTHORING.md -->
 
 Read this before you review a pull request in this repo.
 Each item below is a finding that reviewers kept raising and maintainers kept dismissing.
@@ -42,10 +42,10 @@ The repo verified each reason against the code on 2026-11-26.
    The rendered `src/claude/agents/qa.md` uses that form on purpose.
 8. **`sys.exit(2)` for a config or environment error.**
    ADR-035 defines exit 2 as a usage, config, or environment error.
-   Some older GitHub skill scripts still use 2 for "Not found", in the docstring and the code.
-   One is `src/claude/skills/github/scripts/pr/get_pr_comments_by_reviewer.py`.
-   ADR-035 maps not-found to 3, so those scripts are legacy, not a precedent.
-   Judge a new exit code against ADR-035, not against them.
+   ADR-035 maps a missing remote object (PR, issue, milestone) to 3, not 2.
+   A script that prints a JSON envelope marks that case with `Error.Type` `NotFound`.
+   One example is `src/claude/skills/github/scripts/pr/get_pr_review_threads.py`.
+   Flag a new script that exits 2 for a missing remote object.
 9. **Negative directives in agent and prompt files.**
    "Do not X" and "Never X" are normal prompt style here.
    No rule or validator requires affirmative phrasing.

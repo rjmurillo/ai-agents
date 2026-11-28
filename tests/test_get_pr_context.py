@@ -201,7 +201,7 @@ class TestMainErrors:
                 main(["--pull-request", "1"])
             assert exc.value.code == 4
 
-    def test_pr_not_found_exits_2(self):
+    def test_pr_not_found_exits_3(self, capsys):
         auth_patch, repo_patch = _patch_auth_and_repo()
         with (
             auth_patch,
@@ -213,17 +213,22 @@ class TestMainErrors:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "999"])
-            assert exc.value.code == 2
+            assert exc.value.code == 3
+        assert "PR #999 not found" in capsys.readouterr().err
 
     @pytest.mark.parametrize(
-        ("stderr", "expected"),
+        ("stderr", "not_found"),
         [
-            ("GraphQL: Could not resolve to a PullRequest with the number of 999.", 2),
-            ("gh: Not Found (HTTP 404)", 2),
-            ("Could not resolve host: api.github.com", 3),
+            # Positive: both gh wordings of a missing PR carry Type NotFound.
+            ("GraphQL: Could not resolve to a PullRequest with the number of 999.", True),
+            ("gh: Not Found (HTTP 404)", True),
+            # Negative controls: a transport fault and a server error exit 3
+            # with no NotFound envelope, so a caller can tell them apart.
+            ("Could not resolve host: api.github.com", False),
+            ("HTTP 502: Bad Gateway", False),
         ],
     )
-    def test_lookup_failure_exit_codes(self, stderr, expected):
+    def test_lookup_failure_exit_codes(self, capsys, stderr, not_found):
         auth_patch, repo_patch = _patch_auth_and_repo()
         with (
             auth_patch,
@@ -234,8 +239,15 @@ class TestMainErrors:
             ),
         ):
             with pytest.raises(SystemExit) as exc:
-                main(["--pull-request", "999"])
-            assert exc.value.code == expected
+                main(["--pull-request", "999", "--output-format", "json"])
+        assert exc.value.code == 3
+        out = capsys.readouterr().out
+        if not_found:
+            envelope = json.loads(out)
+            assert envelope["Error"]["Code"] == 3
+            assert envelope["Error"]["Type"] == "NotFound"
+        else:
+            assert '"NotFound"' not in out
 
     def test_api_failure_exits_3(self):
         """Generic API error (no 'not found' in message) exits with code 3."""
@@ -411,7 +423,7 @@ class TestMainErrors:
         [
             ([], 3),
             ({}, 3),
-            ({"repository": {"pullRequest": None}}, 2),
+            ({"repository": {"pullRequest": None}}, 3),
             ({"repository": {"pullRequest": []}}, 3),
             ({"repository": {"pullRequest": {}}}, 3),
         ],
@@ -1719,9 +1731,9 @@ class TestFocusedFieldMode:
         gh_graphql.assert_not_called()
 
 
-@pytest.mark.parametrize(("stdout", "stderr", "code"), PR_VIEW_FAILURE_CASES)
-def test_failed_pr_view_exit_code(stdout, stderr, code):
-    """A failed PR lookup maps to the ADR-035 code."""
+@pytest.mark.parametrize(("stdout", "stderr", "not_found"), PR_VIEW_FAILURE_CASES)
+def test_failed_pr_view_exit_code(capsys, stdout, stderr, not_found):
+    """A failed PR lookup exits 3; only a missing PR carries Type NotFound."""
     auth_patch, repo_patch = _patch_auth_and_repo()
     with (
         auth_patch,
@@ -1732,5 +1744,6 @@ def test_failed_pr_view_exit_code(stdout, stderr, code):
         ),
     ):
         with pytest.raises(SystemExit) as exc:
-            main(["--pull-request", "999999"])
-    assert exc.value.code == code
+            main(["--pull-request", "999999", "--output-format", "json"])
+    assert exc.value.code == 3
+    assert ('"NotFound"' in capsys.readouterr().out) is not_found

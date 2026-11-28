@@ -413,7 +413,7 @@ class TestMain:
                 main(["--pull-request", "1"])
             assert exc.value.code == 4
 
-    def test_pr_not_found_returns_2(self, capsys):
+    def test_pr_not_found_returns_3(self, capsys):
         with (
             patch(
                 "get_pr_checks.assert_gh_authenticated",
@@ -430,7 +430,10 @@ class TestMain:
             ),
         ):
             rc = main(["--pull-request", "999"])
-        assert rc == 2
+        assert rc == 3
+        envelope = json.loads(capsys.readouterr().out)
+        assert envelope["Error"]["Type"] == "NotFound"
+        assert envelope["Error"]["Code"] == 3
 
     def test_transport_fault_returns_3(self, capsys):
         """'Could not resolve host' is a network fault, not a missing PR."""
@@ -789,8 +792,8 @@ class TestMain:
         output = json.loads(capsys.readouterr().out)
         assert output["Data"]["HasChecks"] is False
 
-    def test_pr_not_in_response_returns_2(self, capsys):
-        """PR not found in GraphQL response returns exit code 2."""
+    def test_pr_not_in_response_returns_3(self, capsys):
+        """PR not found in GraphQL response returns exit code 3 with Type NotFound."""
         gql_data = {"repository": {"pullRequest": None}}
         with (
             patch(
@@ -806,9 +809,10 @@ class TestMain:
             ),
         ):
             rc = main(["--pull-request", "42"])
-        assert rc == 2
+        assert rc == 3
         output = json.loads(capsys.readouterr().out)
         assert output["Success"] is False
+        assert output["Error"]["Type"] == "NotFound"
 
     def test_pending_checks_returns_0(self, capsys):
         """Pending checks (no --wait) return exit code 0 with pending count in output."""
@@ -3871,9 +3875,10 @@ class TestFailureEnvelopeSchema:
             rc = main(["--pull-request", "999", "--output-format", "json"])
         captured = capsys.readouterr()
         envelope = json.loads(captured.out)
-        assert rc == 2
+        assert rc == 3
         assert captured.err == ""
         assert envelope["Error"]["Type"] == "NotFound"
+        assert envelope["Error"]["Code"] == 3
         assert list(envelope["Data"]) == expected
         assert envelope["Data"]["Number"] == 999
         assert envelope["Data"]["Owner"] == "o"
@@ -3927,7 +3932,8 @@ class TestFailureEnvelopeSchema:
         ):
             rc = main(["--pull-request", "5", "--wait", "--output-format", "json"])
         envelope = json.loads(capsys.readouterr().out)
-        assert rc == 2
+        assert rc == 3
+        assert envelope["Error"]["Type"] == "NotFound"
         assert list(envelope["Data"]) == expected
 
 

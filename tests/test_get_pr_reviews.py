@@ -242,17 +242,17 @@ class TestMain:
         assert data["reviews"] == []
 
     @pytest.mark.parametrize(
-        ("stderr", "expected"),
+        ("stderr", "expected", "expected_type"),
         [
-            ("server error", 3),
-            ("Could not resolve not found", 2),
-            ("gh: Not Found (HTTP 404)", 2),
-            ("GraphQL: Could not resolve to a PullRequest", 2),
-            ("Could not resolve host: api.github.com", 3),
-            ("not logged in", 4),
+            ("server error", 3, "ApiError"),
+            ("Could not resolve not found", 3, "NotFound"),
+            ("gh: Not Found (HTTP 404)", 3, "NotFound"),
+            ("GraphQL: Could not resolve to a PullRequest", 3, "NotFound"),
+            ("Could not resolve host: api.github.com", 3, "ApiError"),
+            ("not logged in", 4, "AuthError"),
         ],
     )
-    def test_api_failure_exit_codes(self, stderr, expected):
+    def test_api_failure_exit_codes(self, stderr, expected, expected_type, capsys):
         with (
             patch(f"{_MODULE}.assert_gh_authenticated"),
             patch(
@@ -267,6 +267,7 @@ class TestMain:
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "10"])
             assert exc.value.code == expected
+        assert json.loads(capsys.readouterr().out)["Error"]["Type"] == expected_type
 
     def test_timeout_exits_3_with_api_error(self, capsys):
         with (

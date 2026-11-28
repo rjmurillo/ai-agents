@@ -235,9 +235,9 @@ class TestLookupFailures:
     @pytest.mark.parametrize(
         ("stdout", "stderr", "code"),
         [
-            pytest.param("", _GH_MISSING_PR, 2, id="gh-missing-pr"),
-            pytest.param(_GH_MISSING_PR, "", 2, id="marker-on-stdout-fallback"),
-            pytest.param("", "gh: Not Found (HTTP 404)", 2, id="legacy-any-case"),
+            pytest.param("", _GH_MISSING_PR, 3, id="gh-missing-pr"),
+            pytest.param(_GH_MISSING_PR, "", 3, id="marker-on-stdout-fallback"),
+            pytest.param("", "gh: Not Found (HTTP 404)", 3, id="legacy-any-case"),
             pytest.param("", "HTTP 403: Resource not accessible by integration", 4, id="auth"),
             pytest.param("", "HTTP 502: Bad Gateway", 3, id="external-error"),
             pytest.param("", _GH_MISSING_REPO, 3, id="missing-repo"),
@@ -271,10 +271,10 @@ class TestReopenFailures:
         assert env["Error"]["Type"] == "ApiError"
         assert "head branch was deleted" in env["Error"]["Message"]
 
-    def test_reopen_not_found_exits_2(self, capsys):
+    def test_reopen_not_found_exits_3(self, capsys):
         fake = FakeGh(reopen=completed(stderr=_GH_MISSING_PR, rc=1))
         rc = run_main(["--pull-request", "50"], fake)
-        assert rc == 2
+        assert rc == 3
         assert envelope(capsys)["Error"]["Type"] == "NotFound"
 
     @pytest.mark.parametrize("hung", ["view", "reopen"])

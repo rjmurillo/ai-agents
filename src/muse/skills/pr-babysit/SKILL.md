@@ -175,8 +175,8 @@ Exit codes:
 |------|---------|-----------|
 | 0 | `--until` condition met, or the PR merged | Recheck the merge gate on the current head |
 | 1 | A new blocker: a required check failed or never reported, DIRTY, closed, or (ready) unresolved threads, BEHIND, draft, a required review, or changes requested | Act, push, then start the watcher again |
-| 2 | Bad input, PR not found, another `pr_wait.py` already watches this PR, `gh` not on PATH, or a `why_pr_blocked.py` payload missing a key | Fix the input; do not start a second watcher; report a payload break |
-| 3 | GitHub stayed unreachable for 10 polls in a row | Check the rate limit, then start again |
+| 2 | Bad input, another `pr_wait.py` already watches this PR, `gh` not on PATH, or a `why_pr_blocked.py` payload missing a key | Fix the input; do not start a second watcher; report a payload break |
+| 3 | The PR does not exist (stdout `not found:`, never retried), or GitHub stayed unreachable for 10 polls in a row | Fix the PR number; for an outage, check the rate limit, then start again |
 | 4 | `gh` is not authenticated | Sign in to `gh`, then start again |
 
 `--until`: `ready` (default) needs required checks green, no unresolved

@@ -3,7 +3,7 @@
 
 ``check_milestone`` runs before the issue exists. It confirms the milestone
 with the lookup in ``set_issue_milestone.py``, so a misspelled milestone exits
-2 and creates nothing; a retry after fixing the argument is safe.
+3 with Type NotFound and creates nothing; a retry after fixing the argument is safe.
 
 ``assign_milestone`` runs after creation and calls ``gh issue edit
 --milestone``. Its failure envelope carries the created issue number, so
@@ -86,7 +86,7 @@ def check_milestone(owner: str, repo: str, milestone: str | None, fmt: str) -> i
     if milestone in titles:
         return None
     message = f"Milestone '{milestone}' does not exist in {owner}/{repo}. No issue was created."
-    return _error(message, 2, "NotFound", fmt, extra)
+    return _error(message, 3, "NotFound", fmt, extra)
 
 
 def assign_milestone(

@@ -1,17 +1,11 @@
 #!/usr/bin/env python3
-"""Get context and metadata for a GitHub Pull Request.
-
-Retrieves PR information including:
-- Basic metadata (number, title, body, state, author)
-- Branch information (head branch, head SHA, base, commits)
-- Labels and reviewers
-- Optionally includes diff or changed files
+"""Get context and metadata for a GitHub Pull Request, with optional diff or files.
 
 Exit codes follow ADR-035:
     0 - Success
     1 - Invalid parameters / logic error
-    2 - Not found
-    3 - External error (API failure)
+    2 - Config or usage error
+    3 - External error (API failure, or the PR was not found)
     4 - Auth error
 """
 
@@ -22,7 +16,7 @@ import json
 import os
 import subprocess
 import sys
-from typing import Any, TypeAlias, cast
+from typing import Any, NoReturn, TypeAlias, cast
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from skill_bootstrap import ensure_plugin_paths
@@ -43,6 +37,7 @@ from github_core.not_found import is_pr_not_found
 from github_core.output import (
     add_output_format_arg,
     get_output_format,
+    write_skill_error,
     write_skill_output,
 )
 from pr_context_helpers import (
@@ -57,6 +52,19 @@ from pr_context_helpers import (
 )
 
 JsonObject: TypeAlias = dict[str, Any]
+
+
+class _PrNotFoundError(Exception):
+    """A missing PR, distinct from other exit 3 failures."""
+
+
+def _exit_pr_not_found(message: str, fmt: str) -> NoReturn:
+    write_skill_error(
+        message, 3, error_type="NotFound", output_format=fmt, script_name="get_pr_context.py"
+    )
+    error_and_exit(message, 3)
+
+
 _MAX_REVIEW_THREAD_PAGES = 50
 
 _FULL_JSON_FIELDS = (
@@ -119,7 +127,7 @@ def _review_threads_page(
 
     pull_request = cast(JsonObject, repository).get("pullRequest")
     if pull_request is None:
-        error_and_exit(f"PR #{pr} not found in {owner}/{repo}", 2)
+        raise _PrNotFoundError(f"PR #{pr} not found in {owner}/{repo}")
     if not isinstance(pull_request, dict):
         error_and_exit(
             f"Failed to get review threads for PR #{pr}: pullRequest invalid",
@@ -166,7 +174,7 @@ def _load_pr_data(repo_flag: str, pr: int, json_fields: str) -> JsonObject:
     if pr_result.returncode != 0:
         err_msg = pr_result.stderr or pr_result.stdout
         if is_pr_not_found(err_msg):
-            error_and_exit(f"PR #{pr} not found in {repo_flag}", 2)
+            raise _PrNotFoundError(f"PR #{pr} not found in {repo_flag}")
         error_and_exit(f"Failed to get PR #{pr}: {err_msg}", 3)
 
     try:
@@ -369,9 +377,12 @@ def main(argv: list[str] | None = None) -> int:
     repo_flag = f"{owner}/{repo}"
     fmt = get_output_format(args.output_format)
 
-    pr_data = _load_pr_data(
-        repo_flag, pr, requested_json_fields(selected_fields, _FULL_JSON_FIELDS)
-    )
+    try:
+        pr_data = _load_pr_data(
+            repo_flag, pr, requested_json_fields(selected_fields, _FULL_JSON_FIELDS)
+        )
+    except _PrNotFoundError as exc:
+        _exit_pr_not_found(str(exc), fmt)
     if selected_fields:
         write_skill_output(
             focused_context(pr_data, selected_fields),
@@ -390,11 +401,13 @@ def main(argv: list[str] | None = None) -> int:
     auto_merge = pr_data.get("autoMergeRequest")
     reviews_raw = pr_data.get("reviews") or []
     status_checks = _status_checks(pr_data, pr)
-    (
-        review_thread_total_count,
-        review_thread_returned_count,
-        review_thread_unresolved_count,
-    ) = _review_thread_counts(owner, repo, pr)
+    try:
+        thread_counts = _review_thread_counts(owner, repo, pr)
+    except _PrNotFoundError as exc:
+        _exit_pr_not_found(str(exc), fmt)
+    review_thread_total_count, review_thread_returned_count, review_thread_unresolved_count = (
+        thread_counts
+    )
     review_counts = _review_counts(reviews_raw)
 
     data: dict[str, object] = {

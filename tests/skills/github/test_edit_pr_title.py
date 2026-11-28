@@ -100,3 +100,29 @@ class TestMain:
     def test_blank_title_exit_2(self, mod):
         rc = _run(mod, ["--pull-request", "7", "--title", "   "])
         assert rc == 2
+
+
+class TestPrNotFound:
+    @staticmethod
+    def _run_with_stderr(mod, stderr):
+        def fake_run(cmd, **kwargs):
+            return type("R", (), {"returncode": 1, "stdout": "", "stderr": stderr})()
+
+        with (
+            patch.object(mod, "assert_gh_authenticated"),
+            patch.object(mod, "resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", side_effect=fake_run),
+        ):
+            return mod.main(["--pull-request", "7", "--title", "fix: x"])
+
+    def test_missing_pr_exits_3_with_not_found_type(self, mod, capsys):
+        rc = self._run_with_stderr(mod, "gh: Not Found (HTTP 404)")
+        assert rc == 3
+        envelope = json.loads(capsys.readouterr().out)
+        assert envelope["Error"]["Type"] == "NotFound"
+        assert envelope["Error"]["Code"] == 3
+
+    def test_server_error_exits_3_with_api_error_type(self, mod, capsys):
+        rc = self._run_with_stderr(mod, "HTTP 502: Bad Gateway")
+        assert rc == 3
+        assert json.loads(capsys.readouterr().out)["Error"]["Type"] == "ApiError"

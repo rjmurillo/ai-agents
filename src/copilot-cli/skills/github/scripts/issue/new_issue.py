@@ -29,8 +29,10 @@ Exit codes follow ADR-035:
     1 - Logic failure after argument parsing
     2 - Usage/configuration error (invalid CLI args, file not found, missing or
         invalid --source, missing or hedged Step 0 evidence, conflicting
-        source label, milestone not found; no issue is created)
-    3 - External error (API failure, milestone query or assignment failure)
+        source label; no issue is created)
+    3 - External error (API failure, milestone query or assignment failure,
+        or the milestone does not exist; Error.Type is NotFound for a missing
+        milestone, ApiError otherwise; no issue is created)
     4 - Auth error (not authenticated)
 """
 
@@ -128,7 +130,8 @@ examples:
 exit codes:
   0  success
   2  usage/configuration error
-  3  external error (API failure, milestone query or assignment failure)
+  3  external error (API failure, milestone query or assignment failure,
+     or milestone not found; see Error.Type)
   4  auth error (not authenticated)
 """
 

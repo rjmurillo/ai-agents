@@ -5,9 +5,10 @@ Retrieves issue information including title, body, labels, milestone, state.
 
 Exit codes follow ADR-035:
     0 - Success
-    1 - Invalid parameters / logic error
-    2 - Not found
-    3 - External error (API failure)
+    1 - Logic error
+    2 - Config or usage error
+    3 - External error (API failure, or the issue was not found;
+        Error.Type is NotFound for a missing issue, ApiError otherwise)
     4 - Auth error (not authenticated)
 """
 
@@ -37,6 +38,19 @@ from github_core import (
 
 GH_TIMEOUT_SECONDS = _env_timeout_seconds()
 
+# gh words a missing issue two ways: REST reports "Not Found (HTTP 404)", and
+# GraphQL reports "Could not resolve to an issue or pull request with the
+# number of N". "Could not resolve host" is a transport fault and must not match.
+_ISSUE_NOT_FOUND_MARKERS = (
+    "not found",
+    "could not resolve to an issue",
+)
+
+
+def _is_issue_not_found(text: str) -> bool:
+    lowered = text.lower()
+    return any(marker in lowered for marker in _ISSUE_NOT_FOUND_MARKERS)
+
 
 _HELP_EPILOG = """\
 examples:
@@ -45,8 +59,8 @@ examples:
 
 exit codes:
   0  success
-  2  not found
-  3  external error (API failure)
+  2  config or usage error
+  3  external error (API failure, or the issue was not found; see Error.Type)
   4  auth error (not authenticated)
 """
 
@@ -64,13 +78,28 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _usage_error(message: str, fmt: str) -> None:
+    """Report a usage error (exit 2, InvalidParams) before auth or any gh call."""
+    write_skill_error(
+        message,
+        2,
+        error_type="InvalidParams",
+        output_format=fmt,
+        script_name="get_issue_context.py",
+    )
+    raise SystemExit(2)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    fmt = get_output_format(args.output_format)
+    if args.issue <= 0:
+        # gh reads a negative number as a flag, so reject it here.
+        _usage_error("--issue must be a positive integer", fmt)
 
     assert_gh_authenticated()
     resolved = resolve_repo_params(args.owner, args.repo)
     owner, repo = resolved.owner, resolved.repo
-    fmt = get_output_format(args.output_format)
 
     fields = "number,title,body,state,author,labels,milestone,assignees,createdAt,updatedAt"
     try:
@@ -102,14 +131,27 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit(3) from err
 
     if result.returncode != 0:
+        # A reported miss and any other gh failure (network, server, rate
+        # limit) both exit 3 per ADR-035. Error.Type separates them:
+        # NotFound versus ApiError.
+        detail = (result.stderr or result.stdout or "").strip()
+        if _is_issue_not_found(detail):
+            write_skill_error(
+                f"Issue #{args.issue} not found in {owner}/{repo}",
+                3,
+                error_type="NotFound",
+                output_format=fmt,
+                script_name="get_issue_context.py",
+            )
+            raise SystemExit(3)
         write_skill_error(
-            f"Issue #{args.issue} not found or API error (exit code {result.returncode})",
-            2,
-            error_type="NotFound",
+            f"Failed to get issue #{args.issue} (gh exit {result.returncode}): {detail}",
+            3,
+            error_type="ApiError",
             output_format=fmt,
             script_name="get_issue_context.py",
         )
-        raise SystemExit(2)
+        raise SystemExit(3)
 
     try:
         issue_data = json.loads(result.stdout)

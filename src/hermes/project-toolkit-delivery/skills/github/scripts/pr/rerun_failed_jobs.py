@@ -59,11 +59,11 @@ Behavior:
 Output uses the standard skill envelope (ADR-056). Exit codes follow ADR-035:
     0 - Success (reruns requested, or no failed runs to rerun)
     1 - PR not open, job not in run, or only in-progress runs
-    2 - Bad arguments (ADR-035 usage error, ``reason: invalid_params``), or PR, run,
-        or job not found on a read (the sibling scripts' convention; branch on
-        ``Data.reason``). Argparse type errors print usage on stderr and carry
-        no envelope.
-    3 - External error (API failure, timeout, incomplete pagination, a failed POST)
+    2 - Bad arguments (ADR-035 usage error, ``reason: invalid_params``). Argparse
+        type errors print usage on stderr and carry no envelope.
+    3 - External error (API failure, timeout, incomplete pagination, a failed POST),
+        or PR, run, or job not found on a read (``Error.Type`` NotFound,
+        ``reason: not_found``). Do not retry a NotFound.
     4 - Auth error
   100 - Script-specific: GitHub refused the rerun (run cannot be retried)
 """
@@ -163,7 +163,7 @@ exit codes:
   0  reruns requested, or no failed runs to rerun
   1  PR not open, job not in run, or only in-progress runs
   2  bad arguments
-  3  external error
+  3  external error, or PR, run, or job not found (reason not_found; do not retry)
   4  auth error
   100  GitHub refused the rerun; do not retry, use a fallback
 """
@@ -214,7 +214,7 @@ def _fail_api(ctx: _Ctx, what: str, exc: Exception, **extra: Any) -> NoReturn:
     if is_auth_failure_text(text):
         _emit_error(ctx, f"Not authorized: {what}: {detail}", 4, "AuthError", "auth", **extra)
     if is_pr_not_found(text):
-        _emit_error(ctx, f"Not found: {what}: {detail}", 2, "NotFound", "not_found", **extra)
+        _emit_error(ctx, f"Not found: {what}: {detail}", 3, "NotFound", "not_found", **extra)
     if is_rate_limit_refusal(text):
         _emit_error(ctx, f"{what}: {detail}", 3, "RateLimitError", "rate_limited", **extra)
     _emit_error(ctx, f"{what} failed: {detail}", 3, "ApiError", "api_error", **extra)

@@ -134,7 +134,7 @@ class TestDismissPrReview:
         rc = _run(mod, _ARGV, fail_dismiss=True)
         assert rc == 3
 
-    def test_review_not_found_exit_2(self, mod, capsys):
+    def test_review_not_found_exit_3(self, mod, capsys):
         def fake_run(cmd, **kwargs):
             return type("R", (), {"returncode": 1, "stdout": "", "stderr": "404 Not Found"})()
 
@@ -144,7 +144,25 @@ class TestDismissPrReview:
             patch("subprocess.run", side_effect=fake_run),
         ):
             rc = mod.main(_ARGV)
-        assert rc == 2
+        assert rc == 3
+        envelope = json.loads(capsys.readouterr().out)
+        assert envelope["Error"]["Type"] == "NotFound"
+        assert envelope["Error"]["Code"] == 3
+
+    def test_review_fetch_server_error_is_api_error_not_not_found(self, mod, capsys):
+        def fake_run(cmd, **kwargs):
+            return type(
+                "R", (), {"returncode": 1, "stdout": "", "stderr": "HTTP 502 Bad Gateway"}
+            )()
+
+        with (
+            patch.object(mod, "assert_gh_authenticated"),
+            patch.object(mod, "resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", side_effect=fake_run),
+        ):
+            rc = mod.main(_ARGV)
+        assert rc == 3
+        assert json.loads(capsys.readouterr().out)["Error"]["Type"] == "ApiError"
 
 
 class TestNullPullRequest:

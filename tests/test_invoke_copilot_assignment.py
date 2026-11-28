@@ -209,7 +209,7 @@ def test_empty_config_fails_fast(mock_run):
 
 
 @patch("subprocess.run")
-def test_issue_not_found(mock_run):
+def test_issue_not_found_exits_3_with_notfound_type(mock_run, capsys):
     mock_run.side_effect = [
         _completed(rc=0),  # auth
         _completed(stdout="https://github.com/o/r\n"),  # remote
@@ -218,8 +218,27 @@ def test_issue_not_found(mock_run):
 
     with patch.object(_mod, "_load_synthesis_config", return_value=_test_config()):
         with pytest.raises(SystemExit) as exc_info:
-            main(["--issue-number", "999"])
-    assert exc_info.value.code == 2
+            main(["--issue-number", "999", "--output-format", "json"])
+    assert exc_info.value.code == 3
+    envelope = json.loads(capsys.readouterr().out)
+    assert envelope["Error"]["Type"] == "NotFound"
+    assert envelope["Error"]["Code"] == 3
+
+
+@patch("subprocess.run")
+def test_issue_fetch_api_failure_is_not_notfound(mock_run, capsys):
+    """Negative control: a non-404 gh failure exits 3 without Type NotFound."""
+    mock_run.side_effect = [
+        _completed(rc=0),  # auth
+        _completed(stdout="https://github.com/o/r\n"),  # remote
+        _completed(rc=1, stderr="HTTP 502: Bad Gateway"),  # issue fetch
+    ]
+
+    with patch.object(_mod, "_load_synthesis_config", return_value=_test_config()):
+        with pytest.raises(SystemExit) as exc_info:
+            main(["--issue-number", "999", "--output-format", "json"])
+    assert exc_info.value.code == 3
+    assert "NotFound" not in capsys.readouterr().out
 
 
 @patch("subprocess.run")

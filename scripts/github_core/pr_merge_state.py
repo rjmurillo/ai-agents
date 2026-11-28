@@ -61,10 +61,11 @@ Stricter/looser/different than canonical
   uses :func:`github_core.api.is_auth_failure_text`, which requires an explicit
   marker, and maps everything else to exit 3.
 - No exit code is assigned to ``MERGED``, ``UNMERGED``, or ``NOT_FOUND``.
-  Callers disagree on those by design: ``test_pr_merged.py`` exits 2 on
-  ``NOT_FOUND`` (its documented contract), while ``close_issue.py`` treats it
-  as a failed claim (exit 1). ``PrMergeState.exit_code`` is populated only for
-  ``PROBE_FAILED``, where ADR-035 fixes the answer at 3 (external) or 4 (auth).
+  Callers disagree on those by design: ``test_pr_merged.py`` exits 3 on
+  ``NOT_FOUND`` with ``Error.Type`` ``NotFound`` (its documented contract), while
+  ``close_issue.py`` treats it as a failed claim (exit 1). ``PrMergeState.exit_code``
+  is populated only for ``PROBE_FAILED``, where ADR-035 fixes the answer at 3 (external)
+  or 4 (auth).
 
 Not to be confused with ``scripts/ci/check_pr_merge_state.py``. That script
 asks whether an open PR for a pushed branch *can* merge (GitHub's

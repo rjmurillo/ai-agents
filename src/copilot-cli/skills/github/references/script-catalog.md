@@ -10,7 +10,7 @@ of the skill's script directory, the last four in `issue`. Run every script with
 
 | Script | Purpose | Key Parameters |
 |--------|---------|----------------|
-| `check_pr_live_state.py` | Re-triage probe before acting on a queued PR. Exit 0 safe to act, exit 1 skip (merged, closed, or superseded by main), exit 2 not found | `--pull-request`, `--skip-fetch`, `--expected-head-sha`, `--expected-base-ref`, `--expected-base-sha` |
+| `check_pr_live_state.py` | Re-triage probe before acting on a queued PR. Exit 0 safe to act, exit 1 skip (merged, closed, or superseded by main), exit 3 not found (`Error.Type` `NotFound`) or API failure | `--pull-request`, `--skip-fetch`, `--expected-head-sha`, `--expected-base-ref`, `--expected-base-sha` |
 | `check_pr_round_cap.py` | Round and wall-clock circuit breaker for the pr-autofix thread loop. Exit 0 under both caps, exit 1 a cap is exceeded | `--pull-request`, `--max-rounds`, `--max-hours`, `--reset`, `--worktree`, `--dry-run` |
 | `run_completion_gate.py` | Run the `/pr-review` completion criteria from a config file and print one result per criterion. Exit 0 all pass, exit 1 any fails, exit 3 unverified | `--config`, `--pull-request`, `--json`, `--evidence-path`, `--trusted-ref`, `--verify-config-only` |
 | `check_review_thread_resolution_shas.py` | Verify that commits cited in resolved review threads are in the PR head | `--pull-request`, `--repo-path` |
@@ -86,7 +86,7 @@ adds the marker. Read the action to learn whether a change would happen.
 | `close_pr.py` | `would_close` | reports `wouldComment` and `commentDuplicate`, reads existing comments, and posts nothing; a real run skips an identical closing comment already posted by the same author (any bot when `GET /user` is denied), reports `commentPosted`, `commentSkipped`, and `existingCommentId`, and exits 3 leaving the PR open when the comment lookup or post fails |
 | `new_pr.py` | text line `Dry run: would create PR` | runs the pre-creation validations; writes no audit log; exits 2 with `--prepare-body-file` |
 | `new_pr_review_comment.py` | `would_post` | reads the PR head commit and every review comment; `would_skip` (reason `duplicate`) when the same author already posted the same body at the path, line, and side |
-| `post_pr_comment_reply.py` | `would_post` | reads the PR or comment first (exit 2 if missing, or if the comment is on another PR); names the endpoint and body length; `would_skip` (reason `duplicate`) when the same author already posted the same body in the thread or PR conversation |
+| `post_pr_comment_reply.py` | `would_post` | reads the PR or comment first (exit 3 if missing, or if the comment is on another PR); names the endpoint and body length; `would_skip` (reason `duplicate`) when the same author already posted the same body in the thread or PR conversation |
 | `add_pr_review_thread_reply.py` | `would_post` | reads the thread and applies the `--pull-request` and `--expected-*` guards as a real run does; `would_skip` when a real run skips (not found, resolved, another PR), exit 1 when the PR identity moved; with `--resolve` also reports `resolve_action: would_resolve`; posts, resolves, and disarms auto-merge nothing |
 | `resolve_pr_review_thread.py` | `would_resolve`, `would_skip` | reads the thread state as a real run does (`would_skip` for not found, already resolved, wrong PR); `--pull-request` pages every thread, exits 3 if a page cannot be read, and lists a per-thread `would_resolve` or `would_skip` |
 | `set_pr_auto_merge.py` | `WouldEnable`, `WouldDisable`, `NoChange` | enabling on a closed or merged PR exits 3, as a real run does |
@@ -117,8 +117,8 @@ Parameters: `--pull-request`, `--review-id`, `--message` (all required),
 `--skip-thread-check`, `--dry-run`, `--owner`, `--repo`.
 
 Exit 0 dismissed or no-op (already dismissed); 1 wrong state or unresolved
-threads; 2 not found or blank message; 3 API failure, including a thread
-check that could not run; 4 auth.
+threads; 2 blank message; 3 review not found (`Error.Type` `NotFound`) or API
+failure, including a thread check that could not run; 4 auth.
 
 ## edit_pr_title.py
 
@@ -132,8 +132,8 @@ because the REST API offers no conditional write for pull requests.
 Parameters: `--pull-request`, `--title` (required), `--expected-title`,
 `--dry-run`, `--owner`, `--repo`.
 
-Exit 0 updated or no-op; 1 stale write; 2 not found or blank title; 3 API
-failure; 4 auth.
+Exit 0 updated or no-op; 1 stale write; 2 blank title; 3 PR not found
+(`Error.Type` `NotFound`) or API failure; 4 auth.
 
 ## get_branch_protection.py
 
@@ -148,7 +148,7 @@ warning instead of a false clean bill.
 
 Parameters: `--branch` (default main), `--owner`, `--repo`.
 
-Exit 0 success; 2 usage error; 3 API failure; 4 auth.
+Exit 0 success; 2 usage error (blank `--branch`); 3 API failure, or the branch does not exist (`Error.Type` `NotFound`); 4 auth.
 
 ## get_workflow_runs.py (actions/)
 
@@ -171,4 +171,5 @@ Approving stays a human action in the GitHub UI.
 
 Parameters: `--run-id` (required), `--owner`, `--repo`.
 
-Exit 0 success; 2 run not found; 3 API failure; 4 auth.
+Exit 0 success; 2 usage error; 3 run not found (`Error.Type` `NotFound`) or API
+failure; 4 auth.

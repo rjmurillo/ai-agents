@@ -215,9 +215,9 @@ PR scripts and `github_core` import with the SDK blocked.
 | `invoke_pr_comment_processing.py` | Process AI triage | `--pr-number`, `--verdict`, `--findings-json`, `--dry-run` |
 | `new_pr.py` | Create PR, validated | `--title`, `--body`, `--body-file`, `--prepare-body-file`, `--preflight`, `--base`, `--head`, `--draft`, `--skip-validation`, `--audit-reason`, `--validation-base`, `--dry-run` |
 | `validate_pr_description.py` | Validate PR description | `--title`, `--body`, `--body-file`, `--fail-on-violation` |
-| `update_pr_branch.py` | Server-side "Update branch". Exit 0 requested, done, or current; exit 1 PR not open or head differs from `--expected-head-sha` (`head_moved`); exit 2 not found; exit 3 other API failure or `--wait` timeout; exit 4 auth. Unattended callers pass the SHA | `--pull-request`, `--expected-head-sha`, `--wait`, `--timeout-seconds`, `--dry-run` |
+| `update_pr_branch.py` | Server-side "Update branch". Exit 0 requested, done, or current; exit 1 PR not open or head differs from `--expected-head-sha` (`head_moved`); exit 2 usage error; exit 3 not found (`Error.Type` `NotFound`), other API failure, or `--wait` timeout; exit 4 auth. Unattended callers pass the SHA | `--pull-request`, `--expected-head-sha`, `--wait`, `--timeout-seconds`, `--dry-run` |
 | `rerun_failed_jobs.py` | Rerun failed Actions jobs. Exit 1 run in progress; exit 100 `cannot_be_retried` (no retry, prints fallbacks). Never use an empty commit | `--pull-request` or `--run-id`, `--job-id`, `--dry-run` |
-| `set_pr_ready.py` | Draft to ready, or back. Exit 0 done or no-op; 1 not open or `head_moved`; 2 not found; 3 API or unverified; 4 auth | `--pull-request`, `--expected-head-sha`, `--draft`, `--dry-run` |
+| `set_pr_ready.py` | Draft to ready, or back. Exit 0 done or no-op; 1 not open or `head_moved`; 2 usage error; 3 not found (`Error.Type` `NotFound`), API failure, or unverified; 4 auth | `--pull-request`, `--expected-head-sha`, `--draft`, `--dry-run` |
 | `close_pr.py` | Close PR with comment | `--pull-request`, `--comment`, `--dry-run` |
 | `reopen_pr.py` | Reopen a closed PR (merged is exit 1) | `--pull-request`, `--comment`, `--dry-run` |
 | `merge_pr.py` | Merge pinned to the reviewed head, then read back and audited (ADR-112) | `--pull-request`, `--expected-head-sha`, `--strategy`, `--delete-branch`, `--auto`, `--dry-run` |
@@ -317,7 +317,7 @@ All scripts output structured JSON wrapped in a standard envelope per ADR-051.
 {
   "Success": false,
   "Data": null,
-  "Error": { "Message": "PR not found", "Code": 2, "Type": "NotFound" },
+  "Error": { "Message": "PR not found", "Code": 3, "Type": "NotFound" },
   "Metadata": { "Script": "get_pr_checks.py", "Version": "1.0.0", "Timestamp": "..." }
 }
 ```

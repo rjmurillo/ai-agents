@@ -182,10 +182,10 @@ class TestIdempotentPost:
         assert "to check for a duplicate" in err["Message"]
         assert fake.posted == []
 
-    def test_listing_404_exits_2(self, repo_ready_real_check, capsys):
+    def test_listing_404_exits_3(self, repo_ready_real_check, capsys):
         fake = _FakeGh(list_result=_completed(rc=1, stderr="gh: Not Found (HTTP 404)"))
 
-        assert _run(fake) == 2
+        assert _run(fake) == 3
 
         assert _envelope(capsys)["Error"]["Type"] == "NotFound"
         assert fake.posted == []

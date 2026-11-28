@@ -5,26 +5,15 @@ Usage:
     pr_wait.py <pr> [--repo owner/name] [--until ready|green|any-change]
                [--interval SECONDS]
 
-<pr> is a PR number or a PR URL. Without --repo, the repository comes from the
-URL or from the current checkout. Stdout carries only events, one line each, so
-a host monitor (for example Claude Code's Monitor tool) wakes the agent once
-per real event. Progress and transient errors go to stderr.
+The PR can be a number or URL. The repo defaults to the URL or current checkout.
+Stdout carries events. Stderr carries progress and transient faults.
+Polls read a GraphQL snapshot and the ``why_pr_blocked.py`` merge gate.
+The interval uses ``gh event listen`` when available and sleeps otherwise.
 
-Each poll reads one GraphQL snapshot through ``github_core.api.gh_graphql``
-and the merge gate from the github skill's ``why_pr_blocked.py``. Between polls
-it waits on ``gh event listen`` when available, else sleeps (github_core.api).
-
---until
-  ready       required checks pass on the current head, no unresolved review
-              thread, and the branch is not BEHIND, DIRTY, or a draft (default)
-  green       required checks pass on the current head
-  any-change  ready, but also stop after the first poll that prints an event
-
-Events: head, check (a required check failed), green, comment, review,
-thread, activity (more arrived than one poll lists), base, merge-state
-(BEHIND or DIRTY), ready (precedes a ready exit 0), blocked (precedes
-exit 1), merged, closed, and unreachable (precedes exit 3).
-Comments, reviews, and threads by the PR author or by you are skipped.
+--until ready (default) requires green checks, no unresolved threads,
+and a branch that is current, clean, and not a draft. ``green`` only checks CI.
+``any-change`` also stops at the first poll that emits an event.
+Activity from the PR author or current viewer is skipped.
 
 Exit codes (ADR-035):
   0  the --until condition is met, or the PR merged
@@ -34,18 +23,18 @@ Exit codes (ADR-035):
      after required checks pass. A ready exit waits SETTLE_SECONDS after this
      watcher first saw the head, so review bots can post. A blocker already
      reported does not exit again; the watcher waits for it to clear.
-  2  bad arguments, the PR does not exist, another pr_wait already watches
-     this PR, gh is not on PATH, or why_pr_blocked.py returned a payload
-     missing a key
-  3  GitHub stayed unreachable for MAX_FAILED_POLLS consecutive polls
+  2  bad arguments, another pr_wait already watches this PR, gh is not on
+     PATH, or why_pr_blocked.py failed with a config error or returned a
+     payload missing a key
+  3  GitHub stayed unreachable for MAX_FAILED_POLLS consecutive polls (stdout
+     line starts with ``unreachable:``), or the PR does not exist (stdout line
+     starts with ``not found:``). A missing PR exits at once and is never
+     retried; do not retry it.
   4  gh is not authenticated
 
-State lives in the user state directory under ``pr-babysit``. A lock makes a
-second watcher for the same PR exit at once. A state file lets a watcher
-restarted within STALE_STATE_SECONDS report what arrived while none ran.
-A first run, or a run after a longer gap, records the existing comments,
-reviews, and threads and reports only newer ones. It reports the current
-check and merge state at once.
+A per-PR lock and state file live under ``pr-babysit`` in user state.
+A restart within STALE_STATE_SECONDS resumes; otherwise it records a new baseline.
+The first poll always reports current check and merge state.
 """
 
 from __future__ import annotations
@@ -332,6 +321,16 @@ def why_pr_blocked_path() -> Path:
     return Path(__file__).resolve().parents[2] / "github" / "scripts" / "pr" / "why_pr_blocked.py"
 
 
+def _is_not_found_envelope(stdout: str) -> bool:
+    """Distinguish a missing PR from a retryable exit 3."""
+    try:
+        payload = json.loads(stdout)
+    except ValueError:
+        return False
+    error = payload.get("Error") if isinstance(payload, dict) else None
+    return isinstance(error, dict) and error.get("Type") == "NotFound"
+
+
 def fetch_gate(owner: str, name: str, number: int) -> Json:
     """Run why_pr_blocked.py and return its Data payload."""
     result = subprocess.run(
@@ -356,8 +355,10 @@ def fetch_gate(owner: str, name: str, number: int) -> Json:
     )
     detail = (result.stderr or result.stdout).strip().splitlines()
     last = detail[-1] if detail else ""
+    if result.returncode == 3 and _is_not_found_envelope(result.stdout):
+        raise LookupError(f"PR {owner}/{name}#{number} not found")
     if result.returncode == 2:
-        raise LookupError(f"why_pr_blocked: {last}")
+        raise SetupError(f"why_pr_blocked config error: {last}")
     if result.returncode == 4:
         raise AuthError(f"why_pr_blocked: {last}")
     if result.returncode not in (0, 1):
@@ -417,7 +418,8 @@ def watch(state: State, state_path: Path, target: tuple[str, str, int], args: An
             poll = poll_once(state, target, args.until, baseline)
         except LookupError as exc:
             log(str(exc))
-            return 2
+            print(f"not found: {str(exc)[:200]}", flush=True)
+            return 3
         except (ContractError, SetupError) as exc:
             log(str(exc))
             return 2

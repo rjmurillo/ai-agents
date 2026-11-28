@@ -160,7 +160,7 @@ class TestMain:
                 main(["--pull-request", "1"])
             assert exc.value.code == 4
 
-    def test_pr_not_found_returns_2(self, capsys):
+    def test_pr_not_found_returns_3(self, capsys):
         with (
             patch(
                 "get_pr_review_threads.assert_gh_authenticated",
@@ -177,10 +177,10 @@ class TestMain:
             ),
         ):
             rc = main(["--pull-request", "999"])
-        assert rc == 2
+        assert rc == 3
         envelope = _parse_envelope(capsys.readouterr().out)
         _assert_envelope_shape(envelope, success=False)
-        assert envelope["Error"]["Code"] == 2
+        assert envelope["Error"]["Code"] == 3
         assert envelope["Error"]["Type"] == "NotFound"
 
     def test_transport_fault_returns_3(self, capsys):
@@ -317,8 +317,8 @@ class TestMain:
         assert envelope["Error"]["Code"] == 3
         assert envelope["Error"]["Type"] == "ApiError"
 
-    def test_threads_none_returns_2(self, capsys):
-        """PR found but reviewThreads nodes is None returns code 2."""
+    def test_threads_none_returns_3_api_error(self, capsys):
+        """PR found but reviewThreads nodes is None is a malformed response, not a missing PR."""
         data = {
             "repository": {
                 "pullRequest": {
@@ -340,13 +340,14 @@ class TestMain:
             ),
         ):
             rc = main(["--pull-request", "50"])
-        assert rc == 2
+        assert rc == 3
         envelope = _parse_envelope(capsys.readouterr().out)
         _assert_envelope_shape(envelope, success=False)
-        assert envelope["Error"]["Type"] == "NotFound"
+        assert envelope["Error"]["Type"] == "ApiError"
+        assert "not found" not in envelope["Error"]["Message"].lower()
 
-    def test_missing_pull_request_returns_2(self, capsys):
-        """Missing pullRequest in response returns code 2."""
+    def test_missing_pull_request_returns_3(self, capsys):
+        """Missing pullRequest in response returns code 3 with Type NotFound."""
         data = {"repository": {}}
         with (
             patch(
@@ -362,10 +363,11 @@ class TestMain:
             ),
         ):
             rc = main(["--pull-request", "50"])
-        assert rc == 2
+        assert rc == 3
         envelope = _parse_envelope(capsys.readouterr().out)
         _assert_envelope_shape(envelope, success=False)
         assert envelope["Error"]["Type"] == "NotFound"
+        assert envelope["Error"]["Code"] == 3
 
     def test_paginates_across_multiple_pages(self, capsys):
         """The PR #1887 cliff: a >100-thread PR must report all threads, not page 1.

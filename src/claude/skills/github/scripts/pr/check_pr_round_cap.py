@@ -48,7 +48,8 @@ The pure logic (markers, reset detection, ACT/ESCALATE decision) lives in
 
 Exit codes follow ADR-035, mirroring `check_pr_live_state.py`: 0 = round
 recorded, under both caps (ACT); 1 = a cap is exceeded (ESCALATE);
-2 = PR not found; 3 = external error (API failure); 4 = auth error.
+2 = config or usage error; 3 = external error (API failure, or the PR was not
+found, with Error.Type NotFound); 4 = auth error.
 """
 
 from __future__ import annotations
@@ -80,6 +81,7 @@ from github_core.api import (
     resolve_repo_params,
     safe_log_str,
 )
+from github_core.not_found import is_pr_not_found
 from github_core.orphaned_commits import scan_if_escalated, worktree_runner
 from github_core.output import (
     add_output_format_arg,
@@ -446,10 +448,11 @@ def _load_comments_or_exit(
             duration_ms,
             safe_log_str(str(exc)),
         )
+        not_found = is_pr_not_found(str(exc))
         _emit_error(
             f"Failed to fetch PR comments: {exc}",
             3,
-            "ApiError",
+            "NotFound" if not_found else "ApiError",
             output_format,
             pr_number,
             owner,

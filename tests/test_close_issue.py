@@ -403,7 +403,7 @@ class TestMain:
 
         assert _mod._comment_base_dir() == workspace.resolve()
 
-    def test_issue_not_found_exits_2(self, capsys):
+    def test_issue_not_found_exits_3(self, capsys):
         with (
             patch(
                 "close_issue.assert_gh_authenticated",
@@ -419,10 +419,10 @@ class TestMain:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--issue", "404"])
-            assert exc.value.code == 2
+            assert exc.value.code == 3
         env = _envelope(capsys)
         assert env["Success"] is False
-        assert env["Error"]["Code"] == 2
+        assert env["Error"]["Code"] == 3
         assert env["Error"]["Type"] == "NotFound"
 
     def test_issue_state_auth_failure_exits_4(self, capsys):
@@ -1576,14 +1576,15 @@ class TestDryRun:
         assert rc == 0
         assert "dryRun" not in _envelope(capsys)["Data"]
 
-    def test_dry_run_still_propagates_state_lookup_failure(self):
+    def test_dry_run_still_propagates_state_lookup_failure(self, capsys):
         with pytest.raises(SystemExit) as exc:
             self._run(
                 ["--issue", "50", "--dry-run"],
                 [_completed(stderr="Could not resolve to an Issue", rc=1)],
             )
 
-        assert exc.value.code == 2
+        assert exc.value.code == 3
+        assert _envelope(capsys)["Error"]["Type"] == "NotFound"
 
     def test_dry_run_still_fails_on_a_bad_claim(self, capsys):
         with _patch_pr_reader(_pr_open(1024)):

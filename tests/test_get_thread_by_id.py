@@ -50,7 +50,15 @@ class TestMain:
                 main(["--thread-id", "PRRT_abc"])
             assert exc.value.code == 4
 
-    def test_thread_not_found_exits_2(self):
+    @pytest.mark.parametrize(
+        ("error", "not_found"),
+        [
+            ("Could not resolve to a node with the global id of 'PRRT_abc'", True),
+            # Negative control: a DNS fault is an outage, not a missing thread.
+            ("Could not resolve host: api.github.com", False),
+        ],
+    )
+    def test_thread_lookup_failure_exits_3(self, capsys, error, not_found):
         with (
             patch(
                 "get_thread_by_id.assert_gh_authenticated",
@@ -61,14 +69,15 @@ class TestMain:
             ),
             patch(
                 "get_thread_by_id.gh_graphql",
-                side_effect=RuntimeError("Could not resolve to a node"),
+                side_effect=RuntimeError(error),
             ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--thread-id", "PRRT_abc"])
-            assert exc.value.code == 2
+            assert exc.value.code == 3
+        assert ("not found" in capsys.readouterr().err) is not_found
 
-    def test_null_node_exits_2(self):
+    def test_null_node_exits_3(self):
         with (
             patch(
                 "get_thread_by_id.assert_gh_authenticated",
@@ -84,7 +93,7 @@ class TestMain:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--thread-id", "PRRT_abc"])
-            assert exc.value.code == 2
+            assert exc.value.code == 3
 
     def test_success(self, capsys):
         thread_data = {

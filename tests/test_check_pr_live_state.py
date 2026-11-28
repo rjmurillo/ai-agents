@@ -436,8 +436,8 @@ class TestMain:
                 main(["--pull-request", "1"])
         assert exc.value.code == 4
 
-    def test_pr_not_found_exits_2(self, capsys):
-        # GraphQL returns an empty pullRequest: exit code 2.
+    def test_pr_not_found_exits_3(self, capsys):
+        # GraphQL returns an empty pullRequest: exit code 3 with Type NotFound.
         with patch("check_pr_live_state.assert_gh_authenticated"):
             with patch(
                 "check_pr_live_state.resolve_repo_params",
@@ -449,17 +449,20 @@ class TestMain:
                 ):
                     with pytest.raises(SystemExit) as exc:
                         main(["--pull-request", "999"])
-        assert exc.value.code == 2
+        assert exc.value.code == 3
+        envelope = json.loads(capsys.readouterr().out)
+        assert envelope["Error"]["Type"] == "NotFound"
+        assert envelope["Error"]["Code"] == 3
 
     @pytest.mark.parametrize(
-        ("message", "expected"),
+        ("message", "expected_type"),
         [
-            ("GraphQL: Could not resolve to a PullRequest with the number of 999.", 2),
-            ("Could not resolve host: api.github.com", 3),
-            ("network timeout", 3),
+            ("GraphQL: Could not resolve to a PullRequest with the number of 999.", "NotFound"),
+            ("Could not resolve host: api.github.com", "ApiError"),
+            ("network timeout", "ApiError"),
         ],
     )
-    def test_graphql_error_exit_codes(self, message, expected):
+    def test_graphql_error_exit_codes(self, message, expected_type, capsys):
         with patch("check_pr_live_state.assert_gh_authenticated"):
             with patch(
                 "check_pr_live_state.resolve_repo_params",
@@ -471,7 +474,8 @@ class TestMain:
                 ):
                     with pytest.raises(SystemExit) as exc:
                         main(["--pull-request", "999"])
-        assert exc.value.code == expected
+        assert exc.value.code == 3
+        assert json.loads(capsys.readouterr().out)["Error"]["Type"] == expected_type
 
     def test_open_pr_not_superseded_exits_0(self, capsys):
         pr = {

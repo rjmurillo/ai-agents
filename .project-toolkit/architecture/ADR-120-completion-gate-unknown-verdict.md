@@ -1,7 +1,7 @@
 ---
 id: ADR-120
 status: accepted
-date: 2026-11-04
+date: 2026-11-27
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -41,8 +41,8 @@ is at the 500-line cap, so this decision has its own record.
 4. **Evidence scope.** The REST body, `GitHub access is not enabled for this session`,
    refuses the session, so it covers exits 2, 3, and 4. The GraphQL body, `This GraphQL
    query is not enabled for this session`, refuses one query shape, so it covers exit 2
-   only. An exit 3 beside it can be a quota or a 5xx. ADR-100 measured this split in
-   its paragraph "Two different 403s". `api_error` counts as exit 3, because
+   only. An exit 3 beside it can be a quota, a 5xx, or a missing PR. ADR-100 measured
+   this split in its paragraph "Two different 403s". `api_error` counts as exit 3, because
    `get_unresolved_review_threads.py` reports a failed `gh` call at exit 0. It is not
    `fetched_pages_complete`, because a PR can set that field false with no API failure:
    a thread with over 100 comments in `check_review_thread_resolution_shas.py`, or the
@@ -100,7 +100,8 @@ verdict there. That is deliberate. A false verdict is worse than none.
   `repository-completion-proof` skill requires `all_passed: true`, which fails safe.
   No Python or workflow caller reads the gate's exit code.
 - In a refused session a broken verifier reads `unknown`. Verifier exit 2 also means
-  "PR not found" or "lib missing". It still never passes, and the hand check runs.
+  "lib missing", and exit 3 also means "PR not found". Neither ever passes, and the
+  hand check runs. See the 2026-11-27 amendment.
 - The refusal is session-wide, not per row. Decision 8 is what keeps that safe.
 
 ### Residual risk
@@ -111,6 +112,25 @@ verdict there. That is deliberate. A false verdict is worse than none.
   ship a fake `gh`. Verifiers already trust the same binary, so the probe adds no new
   capability. On Windows a bare lookup can also search the cwd, as `_run_git` does.
 - This has not run in a real refused session. A fake `gh` replayed captured bodies.
+
+## Amendment 2026-11-27: a missing PR exits 3, not 2
+
+ADR-035 maps a missing remote object to exit 3. Some github skill scripts used 2 for
+a missing PR, such as `get_pr_context.py`. They now exit 3 and mark the case with
+`Error.Type` `NotFound` when they print a JSON envelope. Exit 2 keeps usage and
+config errors, such as a missing lib.
+
+The gate code does not change. `_unanswered_exit` in `run_completion_gate.py` treats
+any exit above 1 as no answer. A missing PR stays unanswered, so it never passes
+while the criterion keeps `fail_open: false`, as Decision 1 and every shipped
+criterion do. In a session the REST probe finds refused, exits 2, 3, and 4 all read
+`unknown`. The GraphQL probe explains only exit 2, so under a GraphQL-only refusal a
+missing PR moves from `unknown` to `failed`. Both outcomes fail safe. The not-found
+classifier does not match either refusal body, so a refused session should not reach
+the not-found branch. This is inferred; no live refused session has run it.
+
+The gate never reads `Error.Type`. Decision 3 bars verifier output as refusal
+evidence, because a PR author can reach that text.
 
 ## Reversibility
 
@@ -126,3 +146,5 @@ a real failure, or if the org connects the Claude GitHub App.
 - `.project-toolkit/critique/ADR-120-debate-log.md`
 - `.project-toolkit/critique/ADR-120-debate-log-2.md`
 - `.project-toolkit/critique/ADR-120-debate-log-3.md`
+- `.project-toolkit/critique/ADR-120-debate-log-4.md`
+- `.project-toolkit/critique/ADR-120-claims-ledger.md`

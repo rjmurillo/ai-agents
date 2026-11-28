@@ -8,8 +8,8 @@ requested reviewers, and submitted reviews. Critical for avoiding
 Exit codes follow ADR-035:
     0 - Success
     1 - Invalid parameters / logic error
-    2 - Not found
-    3 - External error (API failure)
+    2 - Config or usage error
+    3 - External error (API failure, or the PR was not found)
     4 - Auth error
 """
 
@@ -218,7 +218,7 @@ def _pull_request_data(response: dict[str, Any], pr: int) -> dict[str, Any]:
     repository = response.get("repository")
     pull_request = repository.get("pullRequest") if isinstance(repository, dict) else None
     if not isinstance(pull_request, dict):
-        error_and_exit(f"PR #{pr} not found", 2)
+        error_and_exit(f"PR #{pr} not found", 3)
     assert isinstance(pull_request, dict)
     return pull_request
 

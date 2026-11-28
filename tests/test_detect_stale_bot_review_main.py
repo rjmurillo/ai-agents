@@ -277,6 +277,18 @@ class TestMain:
         fake = _siblings(_pr(), (0, _checks()), None, [])
         assert _run_main(fake) == 3
 
+    def test_missing_pr_exits_3_not_found(self, capsys):
+        def fake(script, args):
+            raise _mod._PrNotFoundError("get_pr_context.py: PR #7 not found")
+
+        assert _run_main(fake) == 3
+        assert json.loads(capsys.readouterr().out)["Error"]["Type"] == "NotFound"
+
+    def test_sibling_failure_is_api_error_not_not_found(self, capsys):
+        # Negative control: an ordinary sibling failure keeps Type ApiError.
+        assert _run_main(_siblings(None, (0, _checks()), [], [])) == 3
+        assert json.loads(capsys.readouterr().out)["Error"]["Type"] == "ApiError"
+
     def test_sibling_timeout_exits_3(self):
         def fake(script, args):
             raise subprocess.TimeoutExpired(cmd=script, timeout=1)
@@ -316,6 +328,17 @@ class TestRunSibling:
     def test_non_object_envelope_yields_none(self):
         with patch(f"{_MODULE}.subprocess.run", return_value=self._completed("[1]")):
             assert _mod._run_sibling("x.py", []) == (0, None)
+
+    def test_not_found_envelope_raises(self):
+        payload = json.dumps({"Success": False, "Error": {"Type": "NotFound", "Message": "gone"}})
+        with patch(f"{_MODULE}.subprocess.run", return_value=self._completed(payload, 3)):
+            with pytest.raises(_mod._PrNotFoundError, match="x.py: gone"):
+                _mod._run_sibling("x.py", [])
+
+    def test_api_error_envelope_does_not_raise(self):
+        payload = json.dumps({"Success": False, "Error": {"Type": "ApiError"}})
+        with patch(f"{_MODULE}.subprocess.run", return_value=self._completed(payload, 3)):
+            assert _mod._run_sibling("x.py", []) == (3, None)
 
     def test_envelope_without_object_data_yields_none(self):
         payload = json.dumps({"Success": False, "Data": None})

@@ -13,8 +13,9 @@ If a marker exists in existing comments, behavior depends on --update-if-exists:
 Exit codes follow ADR-035:
     0 - Success (includes idempotent skip)
     1 - Invalid parameters / logic error
-    2 - File not found
-    3 - External error (API failure)
+    2 - Config or usage error (for example, the body file is missing)
+    3 - External error (API failure, or the issue was not found; stderr only,
+        no envelope)
     4 - Auth error (not authenticated, permission denied 403)
 """
 
@@ -172,8 +173,8 @@ examples:
 
 exit codes:
   0  success (includes idempotent skip)
-  2  file not found
-  3  external error (API failure)
+  2  config or usage error (for example, the body file is missing)
+  3  external error (API failure, or the issue was not found)
   4  auth error (not authenticated, permission denied 403)
 """
 

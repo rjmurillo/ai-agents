@@ -88,10 +88,20 @@ class TestPullRequestRerun:
         assert [r["run_id"] for r in env["Data"]["reruns"]] == [1, 2]
         assert len(client.post_calls) == 2
 
-    def test_unknown_pr_exits_two(self, capsys):
+    def test_unknown_pr_exits_three(self, capsys):
         client = FakeClient({PR_ENDPOINT: RuntimeError("gh api GET failed: Not Found (HTTP 404)")})
-        assert run_main(["--pull-request", "7"], client) == 2
-        assert envelope(capsys)["Error"]["Type"] == "NotFound"
+        assert run_main(["--pull-request", "7"], client) == 3
+        env = envelope(capsys)
+        assert env["Error"]["Type"] == "NotFound"
+        assert env["Error"]["Code"] == 3
+        assert env["Data"]["reason"] == "not_found"
+
+    def test_pr_server_error_exits_three_as_api_error_not_not_found(self, capsys):
+        client = FakeClient({PR_ENDPOINT: RuntimeError("gh api GET failed: HTTP 502")})
+        assert run_main(["--pull-request", "7"], client) == 3
+        env = envelope(capsys)
+        assert env["Error"]["Type"] == "ApiError"
+        assert env["Data"]["reason"] == "api_error"
 
     def test_pr_without_head_sha_exits_three(self, capsys):
         client = FakeClient({PR_ENDPOINT: {"state": "open", "head": {}}})
@@ -241,9 +251,10 @@ class TestRunId:
         assert envelope(capsys)["Data"]["reason"] == "no_failed_runs"
         assert client.post_calls == []
 
-    def test_missing_run_exits_two(self, capsys):
+    def test_missing_run_exits_three(self, capsys):
         client = FakeClient({"repos/o/r/actions/runs/42": RuntimeError("Not Found (HTTP 404)")})
-        assert run_main(["--run-id", "42"], client) == 2
+        assert run_main(["--run-id", "42"], client) == 3
+        assert envelope(capsys)["Error"]["Type"] == "NotFound"
 
     def test_run_refusal_exits_100(self, capsys):
         client = FakeClient(

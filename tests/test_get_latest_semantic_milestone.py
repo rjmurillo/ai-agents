@@ -9,6 +9,8 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 _SCRIPTS_DIR = (
     Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "milestone"
 )
@@ -64,10 +66,11 @@ def test_no_milestones(mock_run, capsys):
     ]
 
     rc = main([])
-    assert rc == 2
+    assert rc == 3
     output = json.loads(capsys.readouterr().out)
     assert output["Success"] is False
-    assert output["Error"]["Code"] == 2
+    assert output["Error"]["Code"] == 3
+    assert output["Error"]["Type"] == "NotFound"
     assert output["Data"]["found"] is False
 
 
@@ -86,11 +89,31 @@ def test_no_semantic_milestones(mock_run, capsys):
     ]
 
     rc = main([])
-    assert rc == 2
+    assert rc == 3
     output = json.loads(capsys.readouterr().out)
     assert output["Success"] is False
-    assert output["Error"]["Code"] == 2
+    assert output["Error"]["Code"] == 3
+    assert output["Error"]["Type"] == "NotFound"
     assert output["Data"]["found"] is False
+
+
+@patch("subprocess.run")
+def test_api_failure_is_not_notfound(mock_run, capsys):
+    """Negative control: a failed milestones read exits 3 with no NotFound envelope.
+
+    The gh call itself fails, so the script's own read path runs and must not
+    mistake an outage for an empty milestone list.
+    """
+    mock_run.side_effect = [
+        _completed(rc=0),
+        _completed(stdout="https://github.com/o/r\n"),
+        _completed(stderr="gh: Bad Request (HTTP 400)", rc=1),
+    ]
+
+    with pytest.raises(SystemExit) as exc_info:
+        main([])
+    assert exc_info.value.code == 3
+    assert "NotFound" not in capsys.readouterr().out
 
 
 @patch("subprocess.run")

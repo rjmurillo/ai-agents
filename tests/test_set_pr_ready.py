@@ -215,16 +215,16 @@ class TestExitCodeContract:
         assert envelope(capsys)["Error"]["Type"] == "InvalidParams"
         assert fake.calls == []
 
-    def test_exit_2_when_pr_not_found_on_read(self, capsys):
+    def test_exit_3_when_pr_not_found_on_read(self, capsys):
         fake = FakeGh(views=[completed(stderr="GraphQL: Could not resolve to a PullRequest", rc=1)])
         rc = run_main(["--pull-request", "7"], fake)
-        assert rc == 2
+        assert rc == 3
         assert envelope(capsys)["Error"]["Type"] == "NotFound"
 
-    def test_exit_2_when_pr_not_found_on_mutation(self, capsys):
+    def test_exit_3_when_pr_not_found_on_mutation(self, capsys):
         fake = FakeGh(ready=completed(stderr="GraphQL: Could not resolve to a PullRequest", rc=1))
         rc = run_main(["--pull-request", "7"], fake)
-        assert rc == 2
+        assert rc == 3
         assert envelope(capsys)["Error"]["Type"] == "NotFound"
 
     @pytest.mark.parametrize(

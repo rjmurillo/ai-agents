@@ -13,8 +13,8 @@ text through the skill surface. This script fills that gap.
 Exit codes follow ADR-035:
     0 - Success
     1 - Invalid parameters / logic error
-    2 - Not found
-    3 - External error (API failure)
+    2 - Config or usage error
+    3 - External error (API failure, or the PR was not found)
     4 - Auth error
 """
 
@@ -77,8 +77,8 @@ examples:
 exit codes:
   0  success
   1  invalid parameters / logic error
-  2  not found
-  3  external error (API failure)
+  2  config or usage error
+  3  external error (API failure, or PR not found)
   4  auth error
 """
 
@@ -113,7 +113,7 @@ def _is_auth_error(message: str) -> bool:
 
 def _exit_code_for(message: str, *, not_found: bool) -> tuple[int, str]:
     if not_found:
-        return 2, "NotFound"
+        return 3, "NotFound"
     if _is_auth_error(message):
         return 4, "AuthError"
     return 3, "ApiError"

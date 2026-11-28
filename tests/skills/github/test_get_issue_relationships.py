@@ -122,7 +122,7 @@ class TestGetIssueRelationships:
         result = json.loads(capsys.readouterr().out)
         assert result["Data"]["parent"] is None
 
-    def test_issue_null_exits_2_not_found(self, _import_module, capsys):
+    def test_issue_null_exits_3_not_found(self, _import_module, capsys):
         mod = _import_module
         with (
             patch("get_issue_relationships.assert_gh_authenticated"),
@@ -133,13 +133,13 @@ class TestGetIssueRelationships:
             ),
         ):
             rc = mod.main(["--issue", "5", "--output-format", "json"])
-        assert rc == 2
+        assert rc == 3
         result = json.loads(capsys.readouterr().out)
         assert result["Success"] is False
-        assert result["Error"]["Code"] == 2
+        assert result["Error"]["Code"] == 3
         assert result["Error"]["Type"] == "NotFound"
 
-    def test_could_not_resolve_exits_2_not_found(self, _import_module, capsys):
+    def test_could_not_resolve_exits_3_not_found(self, _import_module, capsys):
         mod = _import_module
         with (
             patch("get_issue_relationships.assert_gh_authenticated"),
@@ -150,7 +150,7 @@ class TestGetIssueRelationships:
             ),
         ):
             rc = mod.main(["--issue", "5", "--output-format", "json"])
-        assert rc == 2
+        assert rc == 3
         result = json.loads(capsys.readouterr().out)
         assert result["Error"]["Type"] == "NotFound"
 

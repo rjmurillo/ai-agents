@@ -25,7 +25,8 @@ type list so an unrecognized rule is still visible.
 Exit codes follow ADR-035. Reads only, so exit 1 cannot occur:
     0 - Protection state reported; an unprotected branch is a success answer
     2 - --branch is blank
-    3 - The API read failed in a way that makes the verdict unknown
+    3 - The API read failed in a way that makes the verdict unknown, or the
+        branch does not exist (Error.Type is NotFound for a missing branch)
     4 - Auth error
 """
 
@@ -156,8 +157,8 @@ examples:
 
 exit codes:
   0  success
-  2  usage or configuration error
-  3  external service or API error
+  2  usage or configuration error (blank --branch)
+  3  external error (API failure, or the branch was not found; see Error.Type)
   4  auth error
 """
 
@@ -185,14 +186,25 @@ def quote_branch(branch: str) -> str:
     return urllib.parse.quote(branch, safe="")
 
 
-def _branch_reject_reason(owner: str, repo: str, branch: str) -> str:
-    """Return the exit-2 reason for an unusable branch argument, or empty."""
-    if not branch.strip():
-        return "--branch must not be blank"
+def _branch_missing_reason(owner: str, repo: str, branch: str) -> str:
+    """Return the exit-3 NotFound reason when the remote has no such branch, or empty."""
     branch_obj, branch_error = gh_api_get(f"repos/{owner}/{repo}/branches/{quote_branch(branch)}")
     if branch_obj is None and ("404" in branch_error or "Not Found" in branch_error):
         return f"Branch '{branch}' not found in {owner}/{repo}; a mistyped branch is not an unprotected one"
     return ""
+
+
+def _branch_rejection(owner: str, repo: str, branch: str) -> tuple[str, int, str] | None:
+    """Return (message, exit code, Error.Type) for an unusable --branch, or None.
+
+    A blank value is a usage error (2). A branch the remote lacks is exit 3
+    NotFound (ADR-035), so a typo never reads as an unprotected branch.
+    """
+    if not branch.strip():
+        return "--branch must not be blank", 2, "InvalidParams"
+    if missing_reason := _branch_missing_reason(owner, repo, branch):
+        return missing_reason, 3, "NotFound"
+    return None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -203,15 +215,12 @@ def main(argv: list[str] | None = None) -> int:
     resolved = resolve_repo_params(args.owner, args.repo)
     owner, repo = resolved.owner, resolved.repo
 
-    if branch_error := _branch_reject_reason(owner, repo, args.branch):
+    if rejection := _branch_rejection(owner, repo, args.branch):
+        message, code, error_type = rejection
         write_skill_error(
-            branch_error,
-            2,
-            error_type="InvalidParams" if not args.branch.strip() else "NotFound",
-            output_format=fmt,
-            script_name=_SCRIPT_NAME,
+            message, code, error_type=error_type, output_format=fmt, script_name=_SCRIPT_NAME
         )
-        return 2
+        return code
 
     protection, protection_error = gh_api_get(
         f"repos/{owner}/{repo}/branches/{quote_branch(args.branch)}/protection"

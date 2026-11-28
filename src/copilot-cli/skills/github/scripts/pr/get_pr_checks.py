@@ -20,8 +20,8 @@ Exit codes follow ADR-035:
         when --base-branch '' skipped the ruleset or the merge ref is unusable, and a
         gate must read RequiredState instead of the exit code alone.
     1 - One or more checks failed
-    2 - PR not found
-    3 - API error
+    2 - Config or usage error
+    3 - External error (API failure, or the PR was not found)
     7 - Timeout reached (with --wait)
 """
 
@@ -1093,18 +1093,11 @@ def _handle_fetch_error(
     repo: str | None = None,
 ) -> int | None:
     """Return an exit code if check_data carries an error, else None."""
-    codes = {"NotFound": 2, "ApiError": 3}
     error = check_data.get("Error")
-    if error not in codes:
+    if error not in ("NotFound", "ApiError"):
         return None
-    _emit_failure(
-        check_data["Message"],
-        codes[error],
-        error,
-        fmt,
-        failure_data(pr_number, owner, repo),
-    )
-    return codes[error]
+    _emit_failure(check_data["Message"], 3, error, fmt, failure_data(pr_number, owner, repo))
+    return 3
 
 
 def _resolve_repo_or_fail(args: argparse.Namespace, fmt: str) -> tuple[str, str]:

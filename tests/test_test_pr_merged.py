@@ -163,7 +163,7 @@ class TestMain:
         output = json.loads(capsys.readouterr().out)
         assert output["merged"] is True
 
-    def test_pr_not_found_exits_2(self):
+    def test_pr_not_found_exits_3_with_not_found_envelope(self, capsys):
         graphql_data = {"repository": {"pullRequest": None}}
         with (
             patch(
@@ -175,11 +175,37 @@ class TestMain:
             ),
             _patch_graphql(return_value=graphql_data),
         ):
-            with pytest.raises(SystemExit) as exc:
-                main(["--pull-request", "999"])
-            assert exc.value.code == 2
+            rc = main(["--pull-request", "999"])
+        assert rc == 3
+        captured = capsys.readouterr()
+        envelope = json.loads(captured.out)
+        assert envelope["Success"] is False
+        assert envelope["Error"]["Type"] == "NotFound"
+        assert envelope["Error"]["Code"] == 3
+        assert "not found" in captured.err
 
-    def test_graphql_error_exits_3(self):
+    @pytest.mark.parametrize(("fmt", "wants_json"), [("human", False), ("json", True)])
+    def test_pr_not_found_envelope_follows_output_format(self, capsys, fmt, wants_json):
+        """Human mode gets the stderr message only; JSON mode also gets the envelope."""
+        graphql_data = {"repository": {"pullRequest": None}}
+        with (
+            patch("test_pr_merged.assert_gh_authenticated"),
+            patch(
+                "test_pr_merged.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            _patch_graphql(return_value=graphql_data),
+        ):
+            rc = main(["--pull-request", "999", "--output-format", fmt])
+        assert rc == 3
+        captured = capsys.readouterr()
+        assert "not found" in captured.err
+        if wants_json:
+            assert json.loads(captured.out)["Error"]["Type"] == "NotFound"
+        else:
+            assert captured.out == ""
+
+    def test_graphql_error_exits_3(self, capsys):
         with (
             patch(
                 "test_pr_merged.assert_gh_authenticated",
@@ -193,6 +219,8 @@ class TestMain:
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "1"])
             assert exc.value.code == 3
+        # Control: an outage is also exit 3 but never prints a NotFound envelope.
+        assert "NotFound" not in capsys.readouterr().out
 
     def test_pr_merged_with_exit_zero_flag_returns_0(self, capsys):
         """--exit-zero-on-merged is a deprecated no-op (issue #2308).

@@ -12,8 +12,8 @@ already established (issue #2455).
 Exit codes follow ADR-035:
     0 - round recorded, under both caps (ACT)
     1 - a cap is exceeded (ESCALATE)
-    2 - PR not found (unused by this script; reserved for contract parity)
-    3 - External error (API failure)
+    2 - Config or usage error
+    3 - External error (API failure, or the PR was not found: Error.Type NotFound)
     4 - Auth error
 """
 
@@ -341,6 +341,20 @@ class TestMain(MainHarness):
         assert out["Success"] is False
         assert out["Error"]["Code"] == 3
         assert out["Error"]["Type"] == "ApiError"
+
+    def test_comment_fetch_pr_not_found_exits_three_with_not_found_type(self, capsys):
+        patches = self._patch_common(
+            list_comments_error=RoundCapStoreError(
+                "comment list exited 1: gh: Not Found (HTTP 404)"
+            ),
+        )
+        with patches[0], patches[1], patches[2]:
+            with pytest.raises(SystemExit) as exc_info:
+                main(["--pull-request", "7", "--output-format", "json"])
+        assert exc_info.value.code == 3
+        out = json.loads(capsys.readouterr().out)
+        assert out["Error"]["Code"] == 3
+        assert out["Error"]["Type"] == "NotFound"
 
     def test_state_persist_failure_emits_json_error_envelope_and_exits_three(self, capsys):
         patches = self._patch_common(list_comments_result=[])

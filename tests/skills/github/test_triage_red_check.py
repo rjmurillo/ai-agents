@@ -638,14 +638,16 @@ class TestCancelledOnMain:
 
 
 class TestFailurePaths:
-    def test_branch_not_found_exits_two(self):
+    def test_branch_not_found_exits_three(self):
         response = {"repository": {"ref": None}}
         rc, envelope = _run_main(
             _single_response(response),
             ["--check-name", "X", "--branch", "nope", "--output-format", "json"],
         )
-        assert rc == 2
+        assert rc == 3
         assert envelope.get("Success") is False
+        assert envelope["Error"]["Type"] == "NotFound"
+        assert envelope["Error"]["Code"] == 3
 
     def test_history_depth_out_of_range_exits_two(self):
         rc, _ = _run_main(

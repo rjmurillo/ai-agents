@@ -34,14 +34,15 @@ def test_main_exits_four_on_snapshot_auth_failure(
     assert pw.main(["5", "--repo", "o/r"]) == 4
 
 
-def test_main_exits_two_on_null_pull_request(
-    isolated_state: Path, monkeypatch: pytest.MonkeyPatch
+def test_main_exits_three_on_null_pull_request(
+    isolated_state: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     import github_core.api as api
 
     monkeypatch.setattr(api, "gh_graphql", lambda *_a, **_k: {"repository": {"pullRequest": None}})
 
-    assert pw.main(["5", "--repo", "o/r"]) == 2
+    assert pw.main(["5", "--repo", "o/r"]) == 3
+    assert capsys.readouterr().out.startswith("not found:")
 
 
 def test_transient_failures_reset_after_a_good_poll(

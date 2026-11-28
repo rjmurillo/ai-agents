@@ -67,19 +67,19 @@ class TestGetPrNodeId:
             node_id, data = get_pr_node_id("o", "r", 42)
         assert node_id == "PR_abc"
 
-    def test_pr_not_found_exits_2(self):
+    def test_pr_not_found_exits_3(self):
         with patch(
             "set_pr_auto_merge.gh_graphql",
             return_value={"repository": {"pullRequest": None}},
         ):
             with pytest.raises(SystemExit) as exc:
                 get_pr_node_id("o", "r", 999)
-            assert exc.value.code == 2
+            assert exc.value.code == 3
 
     @pytest.mark.parametrize(
         ("message", "expected"),
         [
-            ("GraphQL request failed: Could not resolve to a PullRequest with the number of 9.", 2),
+            ("GraphQL request failed: Could not resolve to a PullRequest with the number of 9.", 3),
             ("GraphQL request failed: Could not resolve host: api.github.com", 3),
             ("GraphQL request failed: server error", 3),
         ],

@@ -1,7 +1,10 @@
-"""Shared gh pull request lookup failures and the ADR-035 code each maps to.
+"""Shared gh pull request lookup failures and how each one must classify.
 
-A PR script that reads ``gh pr view`` must exit 2 when the PR does not exist
-and 3 for any other failure, including a missing repository.
+A PR script that reads ``gh pr view`` exits 3 for every lookup failure
+(ADR-035 external error). Exit 2 stays reserved for usage and config errors.
+Since exit 3 alone cannot tell a missing PR from an outage, each case also
+says whether the script must report it as not-found. A consumer asserts that
+signal too, so a broken classifier fails in both directions.
 """
 
 from __future__ import annotations
@@ -15,12 +18,12 @@ GH_MISSING_PR = (
 )
 GH_MISSING_REPO = "GraphQL: Could not resolve to a Repository with the name 'o/r'. (repository)"
 
-# (stdout, stderr, expected exit code) for one failed `gh pr view`.
+# (stdout, stderr, reported as not-found) for one failed `gh pr view`; exit is 3.
 PR_VIEW_FAILURE_CASES = [
-    pytest.param("", GH_MISSING_PR, 2, id="gh-missing-pr"),
-    pytest.param(GH_MISSING_PR, "", 2, id="marker-on-stdout-fallback"),
-    pytest.param("", "not found", 2, id="legacy-wording"),
-    pytest.param("", "gh: Not Found (HTTP 404)", 2, id="legacy-any-case"),
-    pytest.param("", "HTTP 502: Bad Gateway", 3, id="external-error"),
-    pytest.param("", GH_MISSING_REPO, 3, id="missing-repo"),
+    pytest.param("", GH_MISSING_PR, True, id="gh-missing-pr"),
+    pytest.param(GH_MISSING_PR, "", True, id="marker-on-stdout-fallback"),
+    pytest.param("", "not found", True, id="legacy-wording"),
+    pytest.param("", "gh: Not Found (HTTP 404)", True, id="legacy-any-case"),
+    pytest.param("", "HTTP 502: Bad Gateway", False, id="external-error"),
+    pytest.param("", GH_MISSING_REPO, False, id="missing-repo"),
 ]

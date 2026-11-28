@@ -8,8 +8,8 @@ and comment type.
 Exit codes follow ADR-035:
     0 - Success
     1 - Invalid parameters
-    2 - Not found
-    3 - API error
+    2 - Config or usage error
+    3 - External error (API failure, or the PR was not found)
     4 - Auth error
 """
 
@@ -110,7 +110,7 @@ def _fetch_pr_author(owner: str, repo: str, pr_number: int) -> tuple[str, int | 
     repository = response.get("repository")
     pull_request = repository.get("pullRequest") if isinstance(repository, dict) else None
     if not isinstance(pull_request, dict):
-        error_and_exit(f"PR #{pr_number} not found", 2)
+        error_and_exit(f"PR #{pr_number} not found", 3)
     assert isinstance(pull_request, dict)
     author = pull_request.get("author")
     if author is None:
@@ -347,8 +347,8 @@ examples:
 
 exit codes:
   0  success
-  2  not found
-  3  API error
+  2  config or usage error
+  3  external error (API failure, or PR not found)
   4  auth error
 """
 

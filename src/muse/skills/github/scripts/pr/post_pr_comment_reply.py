@@ -7,8 +7,8 @@ Posts replies using the correct endpoint for thread preservation:
 
 Exit codes follow ADR-035:
     0 - Success
-    2 - Config/usage error (invalid parameters, file not found, comment or PR not found)
-    3 - External error (API failure)
+    2 - Config/usage error (invalid parameters, body file not found)
+    3 - External error (API failure, or the comment or PR was not found)
     4 - Auth error
 """
 
@@ -59,8 +59,9 @@ comment_id.
 
 exit codes:
   0  success (posted, previewed with --dry-run, or skipped as a duplicate)
-  2  config/usage error, or the pull request or comment was not found
-  3  external error (API failure, including a failed duplicate check: nothing is posted)
+  2  config/usage error
+  3  external error (API failure, including a failed duplicate check: nothing is
+     posted; or the pull request or comment was not found)
   4  auth error
 """
 
@@ -134,10 +135,10 @@ def _check_target_exists(owner: str, repo: str, pr: int, comment_id: int) -> Non
         error_and_exit("Timed out after 30s reading the reply target; nothing was posted.", 3)
     if result.returncode != 0:
         if _is_not_found(result):
-            error_and_exit(_not_found_message(owner, repo, pr, comment_id), 2)
+            error_and_exit(_not_found_message(owner, repo, pr, comment_id), 3)
         error_and_exit(f"Failed to read the reply target: {result.stderr or result.stdout}", 3)
     if comment_id and not _comment_belongs_to_pr(result.stdout, pr):
-        error_and_exit(_not_found_message(owner, repo, pr, comment_id), 2)
+        error_and_exit(_not_found_message(owner, repo, pr, comment_id), 3)
 
 
 def _comment_belongs_to_pr(comment_json: str, pr: int) -> bool:
@@ -171,7 +172,7 @@ def _read_all_comments(endpoint: str, what: str, not_found: str) -> list[dict[st
         error_and_exit(_lookup_failure(what, f"timed out after {LOOKUP_TIMEOUT_SECONDS}s"), 3)
     if result.returncode != 0:
         if _is_not_found(result):
-            error_and_exit(not_found, 2)
+            error_and_exit(not_found, 3)
         detail = sanitize_failure_detail(result.stderr or result.stdout, limit=400)
         error_and_exit(_lookup_failure(what, detail or "no output from gh"), 3)
     try:
@@ -217,7 +218,7 @@ def _find_duplicate(
         )
         thread = thread_comments(reviews, comment_id)
         if thread is None:
-            error_and_exit(not_found, 2)
+            error_and_exit(not_found, 3)
         candidates = thread or []
     else:
         endpoint = f"repos/{owner}/{repo}/issues/{pr}/comments"
@@ -316,7 +317,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if result.returncode != 0:
         if _is_not_found(result):
-            error_and_exit(_not_found_message(owner, repo, pr, args.comment_id), 2)
+            error_and_exit(_not_found_message(owner, repo, pr, args.comment_id), 3)
         error_and_exit(f"Failed to post comment: {result.stderr or result.stdout}", 3)
 
     response = json.loads(result.stdout)
