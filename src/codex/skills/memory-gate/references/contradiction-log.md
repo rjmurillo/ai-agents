@@ -36,7 +36,7 @@ Why log: the next reader (you in three months, or another agent next session) wi
 
 If any step fails, the record is blocked. The steps are: write `decision-<short-slug>.md`, update `memory-index.md`, and commit both. Causes include a read-only file or checkout, no commit access, and a rejected commit hook. Do two things:
 
-1. Put a comment block with the same five fields in the file the decision applies to. Use the reply instead when that file does not exist, cannot be written, or has no safe comment syntax (for example JSON).
+1. Put a comment block with the same five fields in the file the decision applies to. Use the reply instead when that file must not be edited: it does not exist, cannot be written, is generated (regeneration discards the comment), or has no safe comment syntax (for example JSON).
 2. Add one line to the reply: `Blocked record: decision-<short-slug>, <cause>`. The parent session or the user then commits the file.
 
 A blocked record is reported, not silently dropped. The comment is worse than a memory entry (less searchable, no graph) but better than losing the reasoning.
