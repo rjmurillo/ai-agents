@@ -16,11 +16,21 @@ Fail-closed behavior: an unresolvable diff base, a git failure, or ruff output
 that will not parse all block on every finding, so the gate is never weaker
 than the whole-file check it replaces.
 
+Deadlines: the git name-list, line-map and ruff calls run through
+the shared process-group-aware runner
+``scripts.validation.subprocess_runner._run_subprocess`` with explicit timeouts.
+A timeout requests cleanup of the owned process group or Windows job and is
+an external failure (exit 3), never a pass. Windows cleanup downgrades emit
+an explicit warning. The partial output the child wrote before the deadline
+is printed. A timed-out git call does not retry against the fallback ref: the
+second call would only double the wait.
+
 Exit codes (AGENTS.md contract):
     0 - ok (no findings, or only findings outside the change)
     1 - a finding intersects an added or modified line
     2 - config error (repo root is not a git worktree, bad args)
-    3 - external error (git or ruff could not run, unparseable ruff output)
+    3 - external error (git or ruff could not run or timed out, unparseable
+        ruff output)
 """
 
 from __future__ import annotations
@@ -41,6 +51,10 @@ from scripts.ci.diff_line_scope import (
     intersects_changed_lines,
     normalize_path,
 )
+from scripts.validation.subprocess_runner import (
+    _WINDOWS_JOB_SETUP_FAILED,
+    _run_subprocess,
+)
 
 EXIT_OK = 0
 EXIT_VIOLATIONS = 1
@@ -49,6 +63,65 @@ EXIT_EXTERNAL = 3
 
 _ZERO_SHA = re.compile(r"^0+$")
 _FALLBACK_BASE_REF = "origin/main"
+
+# ``git diff --name-only`` reads refs and trees and writes a name list. It
+# returns in well under a second on a healthy checkout; 60s covers a cold
+# object cache on a large repository and still fails a wedged git fast.
+_GIT_TIMEOUT_SECONDS = 60
+
+# One ruff invocation lints every changed file in a single process. Ruff lints
+# the whole repository in a few seconds, so 180s leaves room for a loaded CI
+# runner and a very large change without letting a hung ruff stall the job.
+_RUFF_TIMEOUT_SECONDS = 180
+
+# Interpreter flags for every child that imports ruff (CWE-427). ``-P`` drops
+# the working directory and script directory from ``sys.path``. ``-E`` ignores
+# ``PYTHONPATH`` and every other ``PYTHON*`` variable, which ``-P`` leaves in
+# place and which rank ahead of site-packages. Together they keep a ``ruff``
+# module in the checkout from shadowing the installed one. ``-I`` would also
+# drop user site-packages, where a ``pip install --user ruff`` lives.
+_ISOLATED_PYTHON_FLAGS = ("-E", "-P")
+
+# Child source for the import probe: exit 0 when argv[1] resolves to a module.
+_PROBE_SOURCE = (
+    "import importlib.util, sys; sys.exit(0 if importlib.util.find_spec(sys.argv[1]) else 1)"
+)
+
+# A bare interpreter start and one ``find_spec``. A probe that does not answer
+# in this time counts as "not installed", so the gate then uses the native
+# ruff binary and fails closed with exit 3 when that is absent too.
+_PROBE_TIMEOUT_SECONDS = 30
+
+# Cap on partial stdout echoed after a timeout or an unexpected exit.
+_PARTIAL_OUTPUT_LIMIT = 2000
+
+
+def _print_partial_stdout(tool: str, stdout: str) -> None:
+    if stdout.strip():
+        print(
+            f"{tool} partial stdout (first {_PARTIAL_OUTPUT_LIMIT} chars):\n"
+            f"{stdout[:_PARTIAL_OUTPUT_LIMIT]}",
+            file=sys.stderr,
+        )
+
+
+def _native_program(name: str) -> str:
+    """Name the native executable, never a Windows batch shim."""
+    return f"{name}.exe" if os.name == "nt" else name
+
+
+def _print_signal_diagnostic(tool: str, returncode: int, stderr: str) -> None:
+    """Explain a signal death that produced no runner diagnostic of its own."""
+    runner_markers = (
+        "Command timed out after",
+        "Command not found:",
+        _WINDOWS_JOB_SETUP_FAILED,
+    )
+    if returncode < 0 and not any(marker in stderr for marker in runner_markers):
+        print(
+            f"error: {tool} terminated by signal {-returncode}; no result was produced",
+            file=sys.stderr,
+        )
 
 
 def default_base_ref() -> str:
@@ -65,23 +138,28 @@ def git_diff_name_only(base_ref: str, repo_root: Path) -> subprocess.CompletedPr
     # ``-z`` emits NUL-separated raw names. Without it git C-quotes any path
     # holding a quote, a backslash, or a control character, and the quoted form
     # never matches the path ruff reports, so the file silently left the scope.
-    return subprocess.run(
-        [
-            "git",
-            "-C",
-            str(repo_root),
-            "diff",
-            "--name-only",
-            "-z",
-            "--diff-filter=ACMR",
-            f"{base_ref}...HEAD",
-        ],
-        check=False,
-        capture_output=True,
-        text=True,
-        errors="replace",
-        encoding="utf-8",
-    )
+    command = [
+        _native_program("git"),
+        "-C",
+        str(repo_root),
+        "diff",
+        "--name-only",
+        "-z",
+        "--diff-filter=ACMR",
+        f"{base_ref}...HEAD",
+    ]
+    returncode, stdout, stderr = _run_subprocess(command, timeout=_GIT_TIMEOUT_SECONDS)
+    return subprocess.CompletedProcess(command, returncode, stdout, stderr)
+
+
+def _bounded_line_diff(command: list[str]) -> subprocess.CompletedProcess[str]:
+    """Use the same native git and deadline as the name-list operation."""
+    command = [_native_program(command[0]), *command[1:]]
+    returncode, stdout, stderr = _run_subprocess(command, timeout=_GIT_TIMEOUT_SECONDS)
+    result = subprocess.CompletedProcess(command, returncode, stdout, stderr)
+    if returncode < 0:
+        result.check_returncode()
+    return result
 
 
 def changed_python_files(base_ref: str, repo_root: Path) -> tuple[int, list[str], str]:
@@ -94,11 +172,16 @@ def changed_python_files(base_ref: str, repo_root: Path) -> tuple[int, list[str]
     """
     resolved = base_ref
     result = git_diff_name_only(base_ref, repo_root)
-    if result.returncode != 0 and base_ref != _FALLBACK_BASE_REF:
+    # Only a git exit code (> 0) means the ref did not resolve. The runner's
+    # sentinel (-1: timeout or git missing) and a signal death (< 0) say
+    # nothing about the ref, so retrying would only repeat the wait.
+    if result.returncode > 0 and base_ref != _FALLBACK_BASE_REF:
         resolved = _FALLBACK_BASE_REF
         result = git_diff_name_only(_FALLBACK_BASE_REF, repo_root)
     if result.returncode != 0:
         print(result.stderr.strip(), file=sys.stderr)
+        _print_signal_diagnostic("git diff", result.returncode, result.stderr)
+        _print_partial_stdout("git", result.stdout)
         return EXIT_EXTERNAL, [], resolved
 
     files = [
@@ -191,6 +274,32 @@ def report(
     return blocking
 
 
+def _module_available_outside_checkout(name: str, repo_root: Path) -> bool:
+    """Ask a child started like the ruff child whether ``name`` is installed.
+
+    The parent's ``sys.path`` holds the repository root (see the top of this
+    file) and the parent's own ``PYTHONPATH``, so an in-process ``find_spec``
+    answers for a different import path than the ruff child sees. The probe
+    runs with the same interpreter, flags, and working directory as that child,
+    so both resolve ``name`` through the same path.
+    """
+    probe = [sys.executable, *_ISOLATED_PYTHON_FLAGS, "-c", _PROBE_SOURCE, name]
+    try:
+        completed = subprocess.run(
+            probe,
+            check=False,
+            cwd=repo_root,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=_PROBE_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return completed.returncode == 0
+
+
 def run_ruff(
     files: Sequence[str],
     repo_root: Path,
@@ -200,25 +309,40 @@ def run_ruff(
         print("No changed Python files found. Ruff ratchet passed.")
         return EXIT_OK
 
-    result = subprocess.run(
-        ["ruff", "check", "--output-format=json", "--", *files],
-        check=False,
-        capture_output=True,
+    # Prefer the installed module through the current Python executable. When
+    # that interpreter does not ship ruff, use the native standalone binary. A
+    # .cmd or .bat shim is never selected: Windows may parse list-form batch
+    # arguments as shell input, and Git-controlled filenames are in this list.
+    if _module_available_outside_checkout("ruff", repo_root):
+        program = [sys.executable, *_ISOLATED_PYTHON_FLAGS, "-m", "ruff"]
+    else:
+        program = [_native_program("ruff")]
+    command = [*program, "check", "--output-format=json", "--", *files]
+    returncode, stdout, stderr = _run_subprocess(
+        command,
+        timeout=_RUFF_TIMEOUT_SECONDS,
         cwd=repo_root,
-        text=True,
-        errors="replace",
-        encoding="utf-8",
     )
-    if result.stderr:
-        print(result.stderr, file=sys.stderr, end="")
+    if stderr:
+        # A timeout stderr ends with the runner's marker and no newline.
+        print(stderr.rstrip("\n"), file=sys.stderr)
 
-    if result.returncode not in (0, 1):
+    if returncode not in (0, 1):
+        # Timeout (-1 plus the marker), missing ruff, a signal death, or a
+        # ruff usage error. Show what ruff wrote so the failure is diagnosable.
+        _print_signal_diagnostic("ruff", returncode, stderr)
+        if stdout.strip():
+            print(
+                f"ruff partial stdout (first {_PARTIAL_OUTPUT_LIMIT} chars):\n"
+                f"{stdout[:_PARTIAL_OUTPUT_LIMIT]}",
+                file=sys.stderr,
+            )
         return EXIT_EXTERNAL
-    if result.returncode == 0:
+    if returncode == 0:
         print(f"Ruff ratchet passed for {len(files)} changed Python file(s).")
         return EXIT_OK
 
-    if not result.stdout.strip():
+    if not stdout.strip():
         print(
             "error: ruff exited 1 (violations found) but produced no JSON output",
             file=sys.stderr,
@@ -226,7 +350,7 @@ def run_ruff(
         return EXIT_EXTERNAL
 
     try:
-        findings = json.loads(result.stdout)
+        findings = json.loads(stdout)
     except json.JSONDecodeError as error:
         print(f"error: could not parse ruff JSON output: {error}", file=sys.stderr)
         return EXIT_EXTERNAL
@@ -276,7 +400,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     status, files, resolved_base_ref = changed_python_files(args.base_ref, repo_root)
     if status != EXIT_OK:
         return status
-    changed_lines = changed_line_map(resolved_base_ref, repo_root, files)
+    try:
+        changed_lines = changed_line_map(
+            resolved_base_ref, repo_root, files, run=_bounded_line_diff
+        )
+    except subprocess.CalledProcessError as error:
+        stderr = error.stderr or ""
+        if stderr:
+            print(stderr.rstrip("\n"), file=sys.stderr)
+        _print_signal_diagnostic("git line map", error.returncode, stderr)
+        _print_partial_stdout("git line map", error.stdout or "")
+        return EXIT_EXTERNAL
     if changed_lines is None:
         print(
             f"warning: diff base {resolved_base_ref} unresolvable; "

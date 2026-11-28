@@ -45,7 +45,7 @@ from __future__ import annotations
 
 import re
 import subprocess
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 # Unified diff (``--unified=0``) markers. ``+++ b/<path>`` names the file. The
@@ -180,6 +180,8 @@ def parse_changed_lines(diff_text: str) -> dict[str, set[int]]:
 def git_diff_unified_zero(
     base_ref: str,
     repo_root: Path,
+    *,
+    run: Callable[[list[str]], subprocess.CompletedProcess[str]] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run the zero-context diff the line map is parsed from.
 
@@ -188,21 +190,25 @@ def git_diff_unified_zero(
     file with a full ``@@ -0,0 +1,N @@`` hunk. Every latent finding in a
     renamed file would then look like an authored line and block the push,
     which is the defect this module exists to stop. Callers filter the parsed
-    map instead.
+    map instead. Callers with a process ownership or deadline contract can
+    supply their own command runner.
     """
+    command = [
+        "git",
+        "-C",
+        str(repo_root),
+        "-c",
+        "core.quotePath=false",
+        "diff",
+        "--unified=0",
+        "--no-color",
+        "--find-renames",
+        f"{base_ref}...HEAD",
+    ]
+    if run is not None:
+        return run(command)
     return subprocess.run(
-        [
-            "git",
-            "-C",
-            str(repo_root),
-            "-c",
-            "core.quotePath=false",
-            "diff",
-            "--unified=0",
-            "--no-color",
-            "--find-renames",
-            f"{base_ref}...HEAD",
-        ],
+        command,
         check=False,
         capture_output=True,
         text=True,
@@ -215,6 +221,8 @@ def changed_line_map(
     base_ref: str,
     repo_root: Path,
     paths: Sequence[str],
+    *,
+    run: Callable[[list[str]], subprocess.CompletedProcess[str]] | None = None,
 ) -> dict[str, set[int]] | None:
     """Return added or modified line numbers per path versus ``base_ref``.
 
@@ -224,7 +232,7 @@ def changed_line_map(
     """
     if not paths:
         return {}
-    result = git_diff_unified_zero(base_ref, repo_root)
+    result = git_diff_unified_zero(base_ref, repo_root, run=run)
     if result.returncode != 0:
         return None
     wanted = {normalize_path(path) for path in paths}

@@ -80,12 +80,15 @@ def _resolve_windows(name: str, env: dict[str, str]) -> str | None:
     """Scan PATH applying PATHEXT, mimicking the shell resolution CreateProcess skips.
 
     Returns the first matching path, or ``None`` when no candidate exists. A name
-    that already carries a known extension is matched directly; otherwise each
-    PATHEXT extension is appended in order. Matching is case-insensitive, as on
-    Windows. Directories are scanned in PATH order, extensions in PATHEXT order.
+    that already carries a native suffix (.exe or .com) or a PATHEXT extension
+    is matched directly; otherwise each PATHEXT extension is appended in order.
+    Matching is case-insensitive, as on Windows. Directories are scanned in PATH
+    order, extensions in PATHEXT order.
     """
     pathext = _windows_pathext(env)
-    has_ext = any(name.lower().endswith(ext.lower()) for ext in pathext)
+    has_ext = name.lower().endswith((".exe", ".com")) or any(
+        name.lower().endswith(ext.lower()) for ext in pathext
+    )
     targets = [name] if has_ext else [name + ext for ext in pathext]
     directories = [d for d in env.get("PATH", "").split(_WIN_LIST_SEP) if d]
     for directory in directories:

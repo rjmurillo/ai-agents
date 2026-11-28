@@ -1,0 +1,25 @@
+{
+  "author_family": "anthropic",
+  "branch": "t3/ws3b-ruff-ratchet-timeout",
+  "counts": {
+    "dropped": 0,
+    "kept": 0,
+    "overlap": 0,
+    "raw": 0,
+    "sol_only": 0
+  },
+  "critic_sha256": "34534cfc785da592cdfd457001c4b42806da5ed2346bf258fc04669130e4d6b8",
+  "dropped": [],
+  "failure_class": "rate-limit",
+  "findings": [],
+  "head_sha": "1343b78a3d17cf4c96639aa673a97cce94403901",
+  "key": "t3/ws3b-ruff-ratchet-timeout",
+  "model": "gpt-6.2-sol",
+  "overlap_rule": "same file and line within 3 of a critic path:line or range",
+  "pr": "",
+  "round": 1,
+  "schema_version": 2,
+  "status": "unavailable",
+  "timestamp": "2026-11-26T06:04:16Z",
+  "verdict": ""
+}
