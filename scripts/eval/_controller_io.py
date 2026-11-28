@@ -1,12 +1,13 @@
 """Digests, subprocesses, and artifact I/O for `eval_controller.py`.
 
-Split from the controller so each file stays reviewable. Nothing here decides
-an accept; it runs children with bounded time, digests protected paths, and
-reads and writes the artifact without following planted links.
+It runs children with bounded time and digests protected paths. It provides
+file helpers that reject leaf links and moves reports into the run directory.
 """
 
 from __future__ import annotations
 
+import contextlib
+import errno
 import hashlib
 import json
 import os
@@ -30,6 +31,7 @@ from _controller_config import (
     REPO_ROOT,
     Config,
     ControllerError,
+    resolve,
 )
 
 _TAIL = 400
@@ -38,6 +40,17 @@ _TAIL = 400
 _MAX_JSON_BYTES = 16 * 1024 * 1024
 # Variables a Windows child needs to start at all; kept whatever the allowlist.
 _WINDOWS_BASE_ENV = ("SYSTEMROOT", "COMSPEC", "PATHEXT", "TEMP", "TMP", "WINDIR")
+# Every controller open of a file a child could have replaced: never follow a
+# link at the leaf, never block on a FIFO, never translate line endings.
+_OPEN_FLAGS = (
+    getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_BINARY", 0)
+)
+# What `os.open` reports for a leaf link (ELOOP on Linux and macOS, EMLINK on
+# FreeBSD), a FIFO with no reader, a missing or taken name, or a directory.
+# Windows reports a directory as EACCES.
+_REFUSED = {errno.ELOOP, errno.EMLINK, errno.ENXIO, errno.ENOENT, errno.EEXIST, errno.EISDIR}
+if os.name == "nt":
+    _REFUSED.add(errno.EACCES)
 
 
 def _walk(root: Path) -> list[Path]:
@@ -59,6 +72,83 @@ def _walk(root: Path) -> list[Path]:
         base = Path(current)
         entries.extend(base / name for name in (*dirs, *files))
     return sorted(entries)
+
+
+def _open_regular(path: Path, flags: int) -> tuple[int, os.stat_result] | None:
+    """Open `path` as a regular file, or return None.
+
+    None covers a link at the leaf, a FIFO, a directory, a device, and a
+    missing file; the caller names the refusal. Any other open error, such as
+    a full disk or a denied permission, raises with its cause. The type check reads the open
+    descriptor, so the file checked is the file then read or written. Windows
+    has no `O_NOFOLLOW`, so a leaf link is refused there by a check first.
+    """
+    if not getattr(os, "O_NOFOLLOW", 0) and os.path.islink(path):
+        return None
+    try:
+        handle = os.open(path, flags | _OPEN_FLAGS, 0o600)
+    except OSError as exc:
+        # A link, FIFO, missing file, or taken name is a refusal the caller
+        # names. Anything else, such as a full disk, is reported as itself.
+        if exc.errno in _REFUSED:
+            return None
+        message = f"could not open {path}: {exc.strerror or exc}"
+        raise ControllerError(message, EXIT_EXTERNAL) from exc
+    info = os.fstat(handle)
+    if not stat.S_ISREG(info.st_mode):
+        os.close(handle)
+        return None
+    return handle, info
+
+
+def read_private(path: Path, what: str) -> bytes:
+    """Read a file the controller wrote, refusing a link, FIFO, or hard link."""
+    opened = _open_regular(path, os.O_RDONLY)
+    if opened is not None and opened[1].st_nlink != 1:
+        os.close(opened[0])
+        opened = None
+    if opened is None:
+        raise ControllerError(f"{what} {path} is not a regular file with one link")
+    with os.fdopen(opened[0], "rb") as stream:
+        return stream.read()
+
+
+def write_private(path: Path, text: str | bytes, *, append: bool = False) -> None:
+    """Create (or append to) a controller file without writing through a plant.
+
+    A new file is an exclusive create, which fails on anything already at the
+    path, link included. An append refuses a link, FIFO, or hard link.
+    """
+    mode = os.O_APPEND if append else os.O_EXCL
+    opened = _open_regular(path, os.O_WRONLY | os.O_CREAT | mode)
+    if opened is not None and opened[1].st_nlink != 1:
+        os.close(opened[0])
+        opened = None
+    if opened is None:
+        raise ControllerError(f"{path} is not a regular file the controller made; not writing it")
+    with os.fdopen(opened[0], "ab" if append else "wb") as stream:
+        stream.write(text.encode("utf-8") if isinstance(text, str) else text)
+
+
+def is_real_dir(path: Path) -> bool:
+    """Whether `path` is a directory reached through no link at all.
+
+    Callers pass paths under the resolved `state_dir`, so any link swapped in
+    for the leaf or a directory above it makes the real path differ.
+    """
+    return os.path.realpath(path) == str(path) and path.is_dir()
+
+
+def _file_digest(path: Path) -> str:
+    opened = _open_regular(path, os.O_RDONLY)
+    if opened is None:
+        # Raced from a file to something else; an unequal digest refuses.
+        return "unreadable"
+    sha = hashlib.sha256()
+    with os.fdopen(opened[0], "rb") as stream:
+        for block in iter(lambda: stream.read(1 << 20), b""):
+            sha.update(block)
+    return sha.hexdigest()
 
 
 def tree_digest(paths: Sequence[Path], exclude: Path | None = None) -> str:
@@ -83,10 +173,99 @@ def tree_digest(paths: Sequence[Path], exclude: Path | None = None) -> str:
             elif entry.is_dir():
                 sha.update(f"dir:{entry}\n".encode())
             elif entry.is_file():
-                sha.update(f"{entry}:{hashlib.sha256(entry.read_bytes()).hexdigest()}\n".encode())
+                sha.update(f"{entry}:{_file_digest(entry)}\n".encode())
             else:
                 sha.update(f"missing:{entry}\n".encode())
     return sha.hexdigest()
+
+
+def collect_into(source: Path, destination: Path) -> list[str]:
+    """Move one scorer output to `destination`; return what went wrong.
+
+    `shutil.move` follows a link at the destination and moves the report into
+    whatever directory it names, which can be outside state. A link there is
+    removed before the move, so the report still leaves the checkout; anything
+    else there is left alone. Either way the run fails.
+    """
+    problems: list[str] = []
+    if os.path.lexists(destination):
+        problems.append(f"collect destination {destination} existed before collection")
+        if not destination.is_symlink():
+            return problems
+        # A leftover child may remove the link first; that is not an error.
+        with contextlib.suppress(FileNotFoundError):
+            destination.unlink()
+    try:
+        shutil.move(str(source), str(destination))
+    except OSError as exc:
+        problems.append(f"could not move scorer output {source}: {exc}")
+    return problems
+
+
+def collect_all(templates: Sequence[str], values: Mapping[str, str], run_dir: Path) -> list[str]:
+    """Move every `collect` output into `run_dir`; return what went wrong.
+
+    Each path is attempted on its own, so one missing or unmovable report
+    never leaves a later one, with its held-out outcomes, in the checkout.
+    The caller has checked that `run_dir` is still a real directory.
+    """
+    problems: list[str] = []
+    for index, template in enumerate(templates):
+        source = resolve(fill(template, values))
+        if not (source.exists() or source.is_symlink()):
+            problems.append(f"scorer output {source} was not produced")
+            continue
+        # The scorer knows `run_dir`, so it may have planted the destination.
+        problems.extend(collect_into(source, run_dir / str(index)))
+    return problems
+
+
+def collect_or_quarantine(
+    templates: Sequence[str], values: Mapping[str, str], run_dir: Path, state: Path, prefix: str
+) -> tuple[Path, list[str]]:
+    """Move `collect` outputs into `run_dir`, or into a quarantine if it was replaced.
+
+    Returns the directory the reports went to and any collection problems. A
+    replaced `run_dir` must not leave held-out reports in the checkout, so
+    they go to a new directory in `state`. `mkdtemp` picks a random name and
+    creates it exclusively, so the scorer cannot plant it ahead of time.
+    """
+    if not templates or is_real_dir(run_dir):
+        return run_dir, collect_all(templates, values, run_dir)
+    if not is_real_dir(state):
+        message = f"{state} is not a plain directory; no quarantine made"
+        raise ControllerError(message, EXIT_EXTERNAL)
+    try:
+        quarantine = Path(tempfile.mkdtemp(prefix=prefix, dir=state))
+    except OSError as exc:
+        message = f"could not make a quarantine in {state}: {exc}"
+        raise ControllerError(message, EXIT_EXTERNAL) from exc
+    if not is_real_dir(quarantine):
+        raise ControllerError(f"{quarantine} is not a plain directory", EXIT_EXTERNAL)
+    return quarantine, collect_all(templates, values, quarantine)
+
+
+def refuse_stale_reports(templates: Sequence[str], values: Mapping[str, str], label: str) -> None:
+    # A report already sitting at a collect path belongs to some earlier run.
+    # Collecting it would gate on the wrong results.
+    for template in templates:
+        stale = resolve(fill(template, values))
+        if stale.exists() or stale.is_symlink():
+            raise ControllerError(
+                f"scorer output {stale} exists before {label} was scored; "
+                "use a collect path that names the run (`{run_id}`) or clear it"
+            )
+
+
+def contained_inputs(
+    templates: Sequence[str], values: Mapping[str, str], run_dir: Path
+) -> list[str]:
+    inputs = [fill(item, values) for item in templates]
+    for item in inputs:
+        # The template check at load is lexical; `{run_dir}/../x` passes it.
+        if run_dir.resolve() not in Path(item).resolve().parents:
+            raise ControllerError(f"extract input {item} is outside the run directory")
+    return inputs
 
 
 def fill(template: str, values: Mapping[str, str]) -> str:
@@ -260,13 +439,17 @@ def read_artifact(path: Path) -> bytes:
     """Read the artifact, refusing a symlink, a hard link, or a non-file.
 
     A hard link would let the proposer make a denied file's bytes the
-    candidate, and read them through the artifact path.
+    candidate, and read them through the artifact path. The checks read the
+    open descriptor, so a link swapped in after them is never read.
     """
-    if path.is_symlink() or not path.is_file():
+    opened = _open_regular(path, os.O_RDONLY)
+    if opened is None:
         raise ControllerError(f"artifact {path} is no longer a regular file")
-    if path.stat().st_nlink > 1:
-        raise ControllerError(f"artifact {path} has more than one hard link")
-    return path.read_bytes()
+    handle, info = opened
+    with os.fdopen(handle, "rb") as stream:
+        if info.st_nlink > 1:
+            raise ControllerError(f"artifact {path} has more than one hard link")
+        return stream.read()
 
 
 def clear_dir(directory: Path) -> None:

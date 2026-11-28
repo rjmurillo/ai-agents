@@ -207,13 +207,20 @@ def validate_duplicate_code(repo_root: Path) -> bool:
 
 
 def validate_unused_dependencies(repo_root: Path) -> bool:
-    """Run deptry in the same optional-dependency environment as the workflow."""
+    """Run deptry in an isolated optional-dependency environment matching CI.
+
+    Uses ``--isolated`` so ``--extra eval`` (which pulls in ``openai``) never
+    mutates the worktree's ``.venv`` in place; leaving ``openai`` in ``.venv``
+    causes pytest-testmon to reject CI's ``--extra dev`` seed DB and fall back
+    to running the entire test suite locally.
+    """
     return _run_workflow_validator(
         repo_root,
         "scripts/validation/check_unused_dependencies.py",
         interpreter=(
             "uv",
             "run",
+            "--isolated",
             "--frozen",
             "--extra",
             "dev",
@@ -407,7 +414,8 @@ def validate_skill_description_budget(repo_root: Path) -> bool:
 
     Runs the command the ``Run skill description budget`` step of
     ``skill-passive-compliance.yml`` runs. The pytest suite asserts the same
-    budget file, so a branch over it failed the pre-push test job first.
+    budget file in CI (``pytest.yml``); running it here catches budget overruns
+    before push.
     """
     return _run_workflow_validator(
         repo_root,

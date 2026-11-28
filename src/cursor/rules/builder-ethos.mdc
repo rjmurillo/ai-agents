@@ -82,7 +82,7 @@ Two AI models agreeing on a change is a strong signal. It is not a mandate. The 
 
 ## 4. Task Completion Contract
 
-`core.md` owns the Task Completion Contract: forming the contract, precedence, finding disposition, the terminal predicate, and reactivation. It loads on every request.
+`core.md` owns the Task Completion Contract: forming the contract, precedence, finding disposition, the terminal predicate, and reactivation. It loads on every request. Drive-by fixes and defect PRs follow the `avoiding-manufactured-work` skill's Drive-By Fixes classes; default no.
 
 ## 5. Thinking and Execution Discipline
 

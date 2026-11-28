@@ -1,12 +1,13 @@
 # avoiding-manufactured-work
 
-Checks whether follow-up work has a real consumer. It also sorts any finding that appears after a task is done into one of four classes, so each finding gets a named outcome.
+Checks whether follow-up work has a real consumer. It also sorts any finding that appears after a task is done into one of four classes, so each finding gets a named outcome. It also bounds drive-by fixes: what you may fix while you are in the code, and what you must leave alone.
 
 ## When to use it
 
 - A worker produced a plan, issue, PR, backlog item, research artifact, or follow-up task, and you need to know if a user, acceptance criterion, or blocked decision asked for it.
 - You hold a finding that surfaced after the task was terminal and need to classify it.
-- Trigger phrases: `is this work manufactured`, `does this follow-up have a consumer`, `classify this post-completion finding`, `should I file this follow-up`.
+- You found something to fix that the request did not name, and need to know whether it goes in this PR, its own PR, or nowhere.
+- Trigger phrases: `is this work manufactured`, `does this follow-up have a consumer`, `classify this post-completion finding`, `should I file this follow-up`, `should I fix this while I am here`.
 
 ## When not to use it
 
@@ -43,6 +44,17 @@ Next action: <smallest action, or none>
 
 If no consumer exists, the skill stops. It does not create a task, issue, PR, memo, or research artifact.
 
+For a drive-by fix, the skill sorts it into one of four classes. The default answer is no.
+
+| Class | Covers | Where it goes |
+| --- | --- | --- |
+| Tidy | A readability fix in code you edit that leaves behavior unchanged | Same PR, its own commit, named in the PR body |
+| Needed | Callers, tests, docs, or generated output the change needs to be correct | Same PR |
+| Defect | A confirmed defect with a named impact and its own proof | Separate branch and PR when you may open one, else named in the PR body |
+| Taste | Style, naming taste, whole-file formatting, cross-module renames | Not done, no issue, no branch |
+
+Test Needed first. One drive-by fix never spawns another. About 20 to 30 lines of cleanup means stop and reassess. Once the requested change is proven, the work stops.
+
 ## Advanced use
 
 The skill also owns the procedure that `core.md` hands it for post-completion findings. Classify in this order, testing Blocker first:
@@ -68,6 +80,7 @@ Checklist the skill ends with:
 - The proposed action is the smallest one that unblocks that consumer.
 - Any post-completion finding was tested against Blocker first.
 - Every finding reached a stated disposition.
+- Each drive-by fix has a class, and no fix spawned another.
 
 [`ai-agents-external-claims`](ai-agents-external-claims.md) points here to stop a deliverable that no consumer demanded.
 

@@ -157,7 +157,7 @@ These bind today.
 | [ADR-101](ADR-101-enforcement-planes.md) | Enforcement Planes | 2026-11-01 | Adopt enforcement plane classification as this repository's rule for gate design, and treat the control plane's current gaps as prerequisites rather than as background. |
 | [ADR-102](ADR-102-session-qa-binding-field-precedence.md) | Replace session_qa_binding()'s Field-Equality Raise with Documented Precedence and a Diagnostic | 2026-08-21 | Delete the equality raise. |
 | [ADR-103](ADR-103-skill-output-python-contract-correction.md) | Skill Output Format Standardization, Python Contract Correction | 2026-08-25 | Supersede ADR-056 items 2 and 6, and its enforcement scope, as follows. |
-| [ADR-104](ADR-104-gate-tier-placement-and-budgets.md) | Gate Tier Placement | 2026-08-25 | Three tiers, each with a stated job. |
+| [ADR-104](ADR-104-gate-tier-placement-and-budgets.md) | Gate Tier Placement | 2026-11-26 | Three tiers, each with a stated job. |
 | [ADR-105](ADR-105-terminal-state-completion-contract.md) | Terminal-State Completion Contract | 2026-11-26 | Put the whole completion contract on the always-on rule path, and keep exactly one operational procedure delegated to the skill that already owned it. |
 | [ADR-106](ADR-106-serena-only-memory-architecture.md) | Serena-Only Memory Architecture | 2026-09-08 | The memory-first principle survives unchanged. |
 | [ADR-107](ADR-107-canonical-skill-contracts-and-harness-projections.md) | Canonical Skill Contracts and Generated Harness Projections | 2026-09-09 | Issue #5603 requires this record to distinguish semantic contract, harness projection, capability profile, advisory model tactic, host authorization, and generated or vendor output. |
