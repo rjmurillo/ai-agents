@@ -444,13 +444,13 @@ def _spawn(
         ) as child:
             try:
                 if cancel is not None:
-                    cancel.arm()
+                    cancel.arm(child)
                 out, err = child.communicate(stdin_text, timeout=timeout)
             except subprocess.TimeoutExpired:
-                _signals.kill_child(child, group)
+                _signals.kill_child(child, cancel)
                 return Completed(124, "", f"{argv[0]}: timed out after {timeout:g}s")
             except BaseException:  # KeyboardInterrupt or a trapped signal: never orphan it
-                _signals.kill_child(child, group)
+                _signals.kill_child(child, cancel)
                 raise
     except FileNotFoundError:
         return Completed(127, "", f"{argv[0]}: not found")

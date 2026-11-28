@@ -5,20 +5,26 @@ reaches it; ``run`` must kill the child's process group when one arrives. A
 handler that raises is unsafe while the child is being created: the exception
 can leave ``Popen.__init__`` after the fork, or the gap between ``__enter__``
 and the ``try`` that owns the cleanup, and the child would outlive the push
-lock.
+lock. It is also unsafe while the cleanup runs: a second signal that raised
+before ``os.killpg`` would skip the kill (CWE-364).
 
 ``Cancellation`` has two modes:
 
-* deferring, from ``__enter__``: a handler records the first signal number and
+* recording, from ``__enter__``: a handler records the first signal number and
   returns;
-* raising, from ``arm``, which ``run`` calls inside the cleanup scope: SIGINT
-  raises KeyboardInterrupt and the others raise ``SystemExit(128 + n)``. A
-  signal recorded earlier is raised at once, so ``kill_child`` runs.
+* raising, from ``arm(child)``, which ``run`` calls inside the cleanup scope. A
+  handler first switches every handler back to recording, then kills the child's
+  process group, then raises: KeyboardInterrupt for SIGINT, ``SystemExit(128 + n)``
+  for the others. The child is dead before any exception exists, and a further
+  signal is recorded, never raised. A signal recorded earlier takes the same path
+  at once.
 
 A signal the caller set to SIG_IGN stays ignored (``nohup``). ``__exit__``
 restores every handler, then raises a signal recorded but never raised, so an
-early return or a Popen failure cannot swallow it. Handlers, not a signal mask:
-a mask survives exec into the child, while a caught handler resets to default.
+early return or a Popen failure cannot swallow it. When an exception is already
+propagating, ``__exit__`` keeps it and drops the recorded signal. Handlers, not
+a signal mask: a mask survives exec into the child, while a caught handler
+resets to default.
 
 Stdlib only, Python 3.10 floor. SIGHUP and SIGQUIT do not exist on Windows, so
 they are looked up by name, and ``run`` builds a ``Cancellation`` only for a
@@ -31,14 +37,10 @@ import contextlib
 import os
 import signal
 import subprocess
-from types import FrameType
+from types import FrameType, TracebackType
 from typing import Any
 
 _CANCEL_SIGNALS = ("SIGINT", "SIGTERM", "SIGHUP", "SIGQUIT")
-
-
-def _exit_on_signal(signum: int, _frame: FrameType | None) -> None:
-    raise SystemExit(128 + signum)
 
 
 class Cancellation:
@@ -47,6 +49,7 @@ class Cancellation:
     def __init__(self) -> None:
         self._saved: dict[int, Any] = {}
         self._pending: int | None = None
+        self._child: subprocess.Popen[str] | None = None
 
     def __enter__(self) -> Cancellation:
         for name in _CANCEL_SIGNALS:
@@ -56,35 +59,60 @@ class Cancellation:
             self._saved[signum] = signal.signal(signum, self._record)
         return self
 
-    def __exit__(self, *_exc: object) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        _exc: BaseException | None,
+        _tb: TracebackType | None,
+    ) -> None:
         for signum, handler in self._saved.items():
             signal.signal(signum, signal.SIG_DFL if handler is None else handler)
-        self.raise_pending()
+        if exc_type is None:
+            self.raise_pending()
 
     def _record(self, signum: int, _frame: FrameType | None) -> None:
         if self._pending is None:
             self._pending = signum
 
-    def arm(self) -> None:
-        """Switch to raising mode, then raise a signal recorded while deferring."""
+    def defer(self) -> None:
+        """Record, never raise, any further cancelling signal."""
         for signum in self._saved:
-            raising = signal.default_int_handler if signum == signal.SIGINT else _exit_on_signal
-            signal.signal(signum, raising)
-        self.raise_pending()
+            signal.signal(signum, self._record)
+
+    def arm(self, child: subprocess.Popen[str]) -> None:
+        """Switch to raising mode for ``child``, then cancel on a signal recorded while recording."""
+        self._child = child
+        for signum in self._saved:
+            signal.signal(signum, self._cancel)
+        pending, self._pending = self._pending, None
+        if pending is not None:
+            self._cancel(pending, None)
+
+    def _cancel(self, signum: int, _frame: FrameType | None) -> None:
+        """Stop recording, kill a running child's group, then raise: no signal can skip the kill."""
+        self.defer()
+        child = self._child
+        if child is not None and child.returncode is None:
+            kill_child(child, self)
+        _raise(signum)
 
     def raise_pending(self) -> None:
         """Raise the recorded signal once: KeyboardInterrupt for SIGINT, else SystemExit."""
         signum, self._pending = self._pending, None
-        if signum is None:
-            return
-        if signum == signal.SIGINT:
-            raise KeyboardInterrupt
-        raise SystemExit(128 + signum)
+        if signum is not None:
+            _raise(signum)
 
 
-def kill_child(child: subprocess.Popen[str], group: bool) -> None:
-    """Kill ``child``, and with ``group`` its whole process group."""
-    if group:
+def _raise(signum: int) -> None:
+    if signum == signal.SIGINT:
+        raise KeyboardInterrupt
+    raise SystemExit(128 + signum)
+
+
+def kill_child(child: subprocess.Popen[str], cancel: Cancellation | None) -> None:
+    """Kill ``child``; when ``cancel`` is set, record any signal first and kill its whole process group."""
+    if cancel is not None:
+        cancel.defer()
         with contextlib.suppress(OSError):  # ESRCH: gone; EPERM: only zombies left
             os.killpg(child.pid, signal.SIGKILL)
     child.kill()
