@@ -38,24 +38,66 @@ if [ -z "${base_owner:-}" ] || [ -z "${base_repo:-}" ] ||
   echo "Set base_owner, base_repo, pull_request, and review_base_ref explicitly." >&2
   exit 2
 fi
+# Use an operator-approved, installed plugin root outside the reviewed checkout.
+trusted_plugin_root="${CLAUDE_PLUGIN_ROOT:-${COPILOT_PLUGIN_ROOT:-}}"
+case "$review_base_ref" in
+  -*) echo "Invalid review_base_ref: option-shaped value." >&2; exit 2 ;;
+esac
+base_sha="$(git rev-parse --verify --end-of-options "$review_base_ref^{commit}")" || exit 2
 head_sha="$(git rev-parse HEAD)" || exit 2
-changed_files="$(git diff --name-only --merge-base "$review_base_ref" HEAD)" || exit 2
+
+# ADR-041: guard scanner inputs before reading any results.
+python3 -I - "$trusted_plugin_root" "$base_sha" <<'PYTHON' || exit 2
+import pathlib
+import subprocess
+import sys
+
+root = pathlib.Path(subprocess.check_output(
+    ["git", "rev-parse", "--show-toplevel"], text=True).strip()).resolve()
+plugin = pathlib.Path(sys.argv[1])
+required = (
+    "lib/ptk_run.py",
+    "skills/github/scripts/pr/get_pr_code_scanning_alerts.py",
+    "skills/review/scripts/codeql_scanner_guard.py",
+)
+if not plugin.is_absolute() or plugin.resolve().is_relative_to(root) or any(
+    not (plugin / name).is_file()
+    or not (plugin / name).resolve().is_relative_to(plugin.resolve())
+    for name in required
+):
+    sys.exit("CodeQL: SKIPPED (trusted plugin installation unavailable)")
+sys.path.insert(0, str(plugin / "skills/review/scripts"))
+import codeql_scanner_guard as guard
+
+try:
+    files = guard.changed_files(root, sys.argv[2])
+    links = guard.changed_symlinks(root, sys.argv[2])
+except guard.GitError:
+    sys.exit("CodeQL: SKIPPED (diff could not be computed)")
+if guard.guarded_paths(files, links):
+    sys.exit("CodeQL: SKIPPED (scanner inputs modified)")
+PYTHON
+
+changed_files="$(git diff --name-only --merge-base "$base_sha" HEAD)" || exit 2
 tree_state=dirty
-status="$(git status --porcelain)" || exit 2
+status="$(git status --porcelain --untracked-files=all)" || exit 2
 if [ -z "$status" ]; then
   tree_state=clean
 fi
 
 # The GitHub skill reads every open alert and verifies PR merge-ref freshness.
 printf '%s\n' "$changed_files" |
-  python3 .claude/lib/ptk_run.py skills/github/scripts/pr/get_pr_code_scanning_alerts.py \
+  python3 -I "$trusted_plugin_root/lib/ptk_run.py" skills/github/scripts/pr/get_pr_code_scanning_alerts.py \
     --owner "$base_owner" --repo "$base_repo" --pull-request "$pull_request" \
     --head-sha "$head_sha" --tree-state "$tree_state" \
     --changed-files-from - --output-format json
 ```
 
-Use the `github` skill's transport preflight before running this block.
+Use the `github` skill's transport preflight from the same trusted installation before running this block. Do not fall back to checkout scripts.
 PR scans require explicit base-repository parameters, including in detached checkouts.
+Use an absolute `CLAUDE_PLUGIN_ROOT` or `COPILOT_PLUGIN_ROOT` from an operator-approved installation; never select one from the reviewed checkout.
+If the guard refuses the scan, report `SKIPPED` without reading alerts.
+Source: [ADR-041](../../.project-toolkit/architecture/ADR-041-codeql-integration.md), amendment 2026-11-09.
 Exit 0 alone is not a clean scan; inspect `Data.outcome`.
 Only `CURRENT` carries alerts, including counts for findings outside the diff.
 Report `STALE`, `NOT ANALYZED`, and `SKIPPED` without claiming a clean scan.

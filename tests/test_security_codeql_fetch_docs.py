@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -85,31 +86,24 @@ def test_codeql_fetch_passes_upstream_scope_from_fork_checkout(
     root = _repo(tmp_path)
     launcher = root / ".claude/lib/ptk_run.py"
     launcher.parent.mkdir(parents=True)
-    launcher.write_text(
-        "import json, sys\nprint(json.dumps({'argv': sys.argv[1:], 'files': sys.stdin.read()}))\n",
-        encoding="utf-8",
-    )
+    launcher.write_text("# Checkout marker, not a launcher.\n", encoding="utf-8")
     _git(root, "add", "-A")
     _git(root, "commit", "-qm", "launcher")
     _git(root, "remote", "add", "origin", "https://github.com/alice/ai-agents.git")
     _git(root, "remote", "add", "upstream", "https://github.com/rjmurillo/ai-agents.git")
     if detached:
         _git(root, "checkout", "--detach")
+    _git(root, "config", "status.showUntrackedFiles", "no")
     if dirty:
         (root / "untracked.txt").write_text("dirty\n", encoding="utf-8")
-    env = {
-        **os.environ,
-        "GH_REPO": "another/repository",
-        "base_owner": "rjmurillo",
-        "base_repo": "ai-agents",
-        "pull_request": "42",
-        "review_base_ref": "main",
-    }
+    env = _scan_env(tmp_path)
+    env["GH_REPO"] = "another/repository"
 
     result = _execute_block(root, relative, env)
 
     assert result.returncode == 0, result.stderr
     captured = json.loads(result.stdout)
+    assert captured["launcher"] == str(tmp_path / "installed-plugin/lib/ptk_run.py")
     argv = captured["argv"]
     assert argv[0] == "skills/github/scripts/pr/get_pr_code_scanning_alerts.py"
     assert argv[argv.index("--owner") + 1] == "rjmurillo"
@@ -119,3 +113,90 @@ def test_codeql_fetch_passes_upstream_scope_from_fork_checkout(
     assert argv[argv.index("--tree-state") + 1] == ("dirty" if dirty else "clean")
     assert argv[argv.index("--changed-files-from") + 1] == "-"
     assert ".claude/lib/ptk_run.py" in captured["files"].splitlines()
+
+
+def _scan_env(tmp_path: Path) -> dict[str, str]:
+    plugin = tmp_path / "installed-plugin"
+    launcher = plugin / "lib/ptk_run.py"
+    launcher.parent.mkdir(parents=True)
+    launcher.write_text(
+        "import json, sys\n"
+        "print(json.dumps({'launcher': __file__, 'argv': sys.argv[1:], "
+        "'files': sys.stdin.read()}))\n",
+        encoding="utf-8",
+    )
+    target = plugin / "skills/github/scripts/pr/get_pr_code_scanning_alerts.py"
+    target.parent.mkdir(parents=True)
+    target.write_text("# Reader marker.\n", encoding="utf-8")
+    guard = Path("skills/review/scripts/codeql_scanner_guard.py")
+    (plugin / guard).parent.mkdir(parents=True)
+    shutil.copyfile(REPO_ROOT / "src/claude" / guard, plugin / guard)
+    return {
+        **os.environ,
+        "CLAUDE_PLUGIN_ROOT": str(plugin),
+        "COPILOT_PLUGIN_ROOT": "",
+        "base_owner": "rjmurillo",
+        "base_repo": "ai-agents",
+        "pull_request": "42",
+        "review_base_ref": "main",
+    }
+
+
+@pytest.mark.parametrize("relative", DOCUMENTS)
+@pytest.mark.parametrize("base_ref", ["--help", "missing-ref"])
+def test_codeql_fetch_rejects_invalid_base_ref(
+    relative: str, tmp_path: Path, base_ref: str
+) -> None:
+    root = _repo(tmp_path)
+    env = _scan_env(tmp_path)
+    env["review_base_ref"] = base_ref
+
+    result = _execute_block(root, relative, env)
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert result.stderr
+
+
+@pytest.mark.parametrize("relative", DOCUMENTS)
+@pytest.mark.parametrize("location", ["missing", "checkout"])
+def test_codeql_fetch_requires_trusted_installation(
+    relative: str, tmp_path: Path, location: str
+) -> None:
+    root = _repo(tmp_path)
+    env = _scan_env(tmp_path)
+    if location == "checkout":
+        plugin = root / ".claude"
+        shutil.copytree(env["CLAUDE_PLUGIN_ROOT"], plugin)
+        env["CLAUDE_PLUGIN_ROOT"] = str(plugin)
+    else:
+        env["CLAUDE_PLUGIN_ROOT"] = ""
+
+    result = _execute_block(root, relative, env)
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "SKIPPED (trusted plugin installation unavailable)" in result.stderr
+
+
+@pytest.mark.parametrize("relative", DOCUMENTS)
+@pytest.mark.parametrize("change", ["committed", "staged", "untracked"])
+def test_codeql_fetch_skips_modified_scanner_inputs(
+    relative: str, tmp_path: Path, change: str
+) -> None:
+    root = _repo(tmp_path)
+    env = _scan_env(tmp_path)
+    scanner_input = root / ".github/workflows/example.yml"
+    scanner_input.parent.mkdir(parents=True)
+    scanner_input.write_text("# Documentation fixture.\n", encoding="utf-8")
+    _git(root, "config", "status.showUntrackedFiles", "no")
+    if change in ("committed", "staged"):
+        _git(root, "add", "-A")
+    if change == "committed":
+        _git(root, "commit", "-qm", "scanner config")
+
+    result = _execute_block(root, relative, env)
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "SKIPPED (scanner inputs modified)" in result.stderr
