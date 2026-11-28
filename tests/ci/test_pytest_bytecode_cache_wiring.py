@@ -31,9 +31,10 @@ CACHE_SHA = "55cc8345863c7cc4c66a329aec7e433d2d1c52a9"
 RUNNER_TEMP = "${{ runner.temp }}"
 PREFIX = f"{RUNNER_TEMP}/pytest-bytecode-cache"
 WORKSPACE = "${{ github.workspace }}"
-PYTHON_VERSION_OUTPUT = "steps.setup-code-env.outputs.python-version"
+PYTHON_RUNTIME_OUTPUT = "steps.pytest-bytecode-config.outputs.python-runtime"
 UNIQUE_SUFFIX = "${{ github.run_id }}-${{ github.run_attempt }}"
 PYTEST_CONFIG_FINGERPRINT = "steps.pytest-bytecode-config.outputs.fingerprint"
+REQ009_ENFORCEMENT_STEP = "Enforce REQ-009 module coverage at 100% (PR #1989 user requirement)"
 HASH_FILES = re.compile(r"hashFiles\(([^)]*)\)")
 PINNED_USES = re.compile(r"^\s*(?:-\s*)?uses:\s+\S+@[0-9a-f]{40}\s+#\s+\S+")
 
@@ -69,7 +70,7 @@ def _key_hashes_test_sources(key: str) -> bool:
 
 
 def _key_tracks_python(key: str) -> bool:
-    return PYTHON_VERSION_OUTPUT in key
+    return PYTHON_RUNTIME_OUTPUT in key
 
 
 def _is_inside(path: str, root: Path) -> bool:
@@ -206,7 +207,7 @@ class TestRestoreOnEveryLeg:
         restore_keys = _restore()["with"]["restore-keys"]
         assert restore_keys.startswith(KEY_PREFIX)
         assert restore_keys.endswith("-")
-        assert PYTHON_VERSION_OUTPUT in restore_keys
+        assert PYTHON_RUNTIME_OUTPUT in restore_keys
         assert PYTEST_CONFIG_FINGERPRINT in restore_keys
         assert "run_id" not in restore_keys
         assert "hashFiles" not in restore_keys
@@ -224,9 +225,10 @@ class TestPytestConfigurationFingerprint:
     def test_the_fingerprint_script_is_checked_in(self) -> None:
         assert (REPO_ROOT / "scripts" / "ci" / "pytest_bytecode_cache_fingerprint.py").is_file()
 
-    def test_the_step_writes_the_output_the_key_reads(self) -> None:
+    def test_the_step_writes_the_outputs_the_key_reads(self) -> None:
         assert self._fingerprint()["id"] == "pytest-bytecode-config"
         assert "fingerprint" in PYTEST_CONFIG_FINGERPRINT
+        assert "python-runtime" in PYTHON_RUNTIME_OUTPUT
 
     def test_the_fingerprint_runs_before_the_restore_on_every_leg(self) -> None:
         names = _names()
@@ -293,10 +295,10 @@ class TestSaveFromThePrimaryLegOnMain:
         condition = " ".join(str(_save()["if"]).split())
         assert "||" not in condition
         assert set(condition.split(" && ")) == {
+            "success()",
             "matrix.primary",
             "github.event_name == 'push'",
             "github.ref == 'refs/heads/main'",
-            "steps.run-pytest.outcome == 'success'",
         }
 
     def test_the_save_never_runs_for_pull_requests(self) -> None:
@@ -312,6 +314,10 @@ class TestSaveFromThePrimaryLegOnMain:
     def test_the_save_runs_after_pytest_and_uses_the_pinned_action(self) -> None:
         assert _names().index("Run pytest") < _names().index("Save pytest bytecode cache")
         assert _save()["uses"] == f"actions/cache/save@{CACHE_SHA}"
+
+    def test_the_save_runs_after_the_final_test_verdict(self) -> None:
+        names = _names()
+        assert names.index(REQ009_ENFORCEMENT_STEP) < names.index("Save pytest bytecode cache")
 
 
 class TestExcludedCollectionBeforePrune:
@@ -336,6 +342,12 @@ class TestExcludedCollectionBeforePrune:
         names = _names()
         assert names.index("Collect excluded tests for bytecode cache") < names.index(
             "Prune pytest bytecode cache"
+        )
+
+    def test_the_collection_runs_after_the_final_test_verdict(self) -> None:
+        names = _names()
+        assert names.index(REQ009_ENFORCEMENT_STEP) < names.index(
+            "Collect excluded tests for bytecode cache"
         )
 
 

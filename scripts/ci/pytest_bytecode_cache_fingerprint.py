@@ -10,6 +10,7 @@ still validates every cached bytecode header against its source hash.
 EXIT CODES (ADR-035):
   0 - fingerprint written or printed
   2 - configuration file missing, unreadable as TOML, or malformed
+  3 - output file cannot be written
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ import argparse
 import hashlib
 import json
 import os
+import platform
 import sys
 from collections.abc import Mapping
 from pathlib import Path
@@ -27,6 +29,7 @@ import tomllib
 
 EXIT_OK = 0
 EXIT_CONFIG = 2
+EXIT_EXTERNAL = 3
 CONFIG_FILE = "pyproject.toml"
 FORMAT_VERSION = 1
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -76,13 +79,20 @@ def fingerprint_file(path: Path) -> str:
     return fingerprint_options(load_pytest_ini_options(path), pytest.__version__)
 
 
+def python_runtime() -> str:
+    """Return the interpreter implementation and exact version running pytest."""
+    return f"{platform.python_implementation().lower()}-{platform.python_version()}"
+
+
 def _write_output(value: str) -> None:
     output = os.environ.get("GITHUB_OUTPUT", "")
     if output:
         with open(output, "a", encoding="utf-8") as stream:
             stream.write(f"fingerprint={value}\n")
+            stream.write(f"python-runtime={python_runtime()}\n")
     else:
         print(f"fingerprint={value}")
+        print(f"python-runtime={python_runtime()}")
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -102,7 +112,7 @@ def main(argv: list[str] | None = None) -> int:
         _write_output(value)
     except OSError as exc:
         print(f"error: could not write fingerprint output: {exc}", file=sys.stderr)
-        return EXIT_CONFIG
+        return EXIT_EXTERNAL
     return EXIT_OK
 
 

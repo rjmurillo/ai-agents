@@ -54,15 +54,27 @@ def test_the_digest_is_canonical_json_of_the_effective_inputs() -> None:
     assert fingerprint.fingerprint_options(options, "9.2.0") == hashlib.sha256(encoded).hexdigest()
 
 
-def test_main_writes_a_hex_fingerprint_to_github_output(tmp_path: Path, monkeypatch) -> None:
+def test_main_writes_a_hex_fingerprint_and_runtime_to_github_output(
+    tmp_path: Path, monkeypatch
+) -> None:
     pyproject = _write_pyproject(tmp_path / "pyproject.toml")
     output = tmp_path / "github-output.txt"
     monkeypatch.setenv("GITHUB_OUTPUT", str(output))
 
     assert fingerprint.main(["--pyproject", str(pyproject)]) == 0
 
-    line = output.read_text(encoding="utf-8").strip()
-    assert re.fullmatch(r"fingerprint=[0-9a-f]{64}", line)
+    fingerprint_line, runtime_line = output.read_text(encoding="utf-8").splitlines()
+    assert re.fullmatch(r"fingerprint=[0-9a-f]{64}", fingerprint_line)
+    assert runtime_line == f"python-runtime={fingerprint.python_runtime()}"
+    assert re.fullmatch(r"python-runtime=[a-z0-9]+-[0-9]+\.[0-9]+\.[0-9]+", runtime_line)
+
+
+def test_an_output_write_failure_is_an_external_error(tmp_path: Path, monkeypatch, capsys) -> None:
+    pyproject = _write_pyproject(tmp_path / "pyproject.toml")
+    monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "missing" / "github-output.txt"))
+
+    assert fingerprint.main(["--pyproject", str(pyproject)]) == 3
+    assert "could not write fingerprint output" in capsys.readouterr().err
 
 
 def test_a_missing_pyproject_is_a_configuration_error(tmp_path: Path) -> None:

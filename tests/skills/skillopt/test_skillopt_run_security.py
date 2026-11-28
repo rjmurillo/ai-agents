@@ -235,14 +235,19 @@ class TestRunIsolation:
         assert skillopt.main(run_argv(eval_path, bundle_of(tmp_path), out)) == 0
         assert results_of(out) == {"a": True}
 
-    def test_stale_bytecode_in_the_bundle_is_not_loaded(self, tmp_path: Path) -> None:
-        import importlib.util
+    def test_stale_bytecode_in_the_bundle_is_not_loaded(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         import py_compile
+
+        monkeypatch.setenv("PYTHONPYCACHEPREFIX", str(tmp_path / "outer-prefix"))
 
         bundle = bundle_of(tmp_path)
         module = bundle / "mod.py"
         module.write_text("VALUE = 'stale'\n", encoding="utf-8")
-        pyc = Path(importlib.util.cache_from_source(str(module)))
+        pyc = bundle / "__pycache__" / f"mod.{sys.implementation.cache_tag}.pyc"
+        pyc.parent.mkdir()
+        assert pyc.is_relative_to(bundle)
         py_compile.compile(
             str(module),
             cfile=str(pyc),

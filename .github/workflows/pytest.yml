@@ -527,7 +527,9 @@ jobs:
       # does not include in that validation. The cached commands pin pyproject.toml,
       # and this step fingerprints its parsed pytest table plus the pytest version,
       # so unrelated project metadata and unrelated lock-file changes do not rotate
-      # the cache. The setup step output carries the Python version.
+      # the cache. The fingerprint step also emits the exact Python runtime
+      # pytest uses, and the key consumes that output rather than the setup
+      # action's PATH interpreter.
       - name: Fingerprint pytest bytecode cache configuration
         id: pytest-bytecode-config
         run: uv run --frozen python scripts/ci/pytest_bytecode_cache_fingerprint.py
@@ -536,8 +538,8 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ${{ runner.temp }}/pytest-bytecode-cache${{ github.workspace }}
-          key: pytest-bytecode-${{ runner.os }}-${{ runner.arch }}-${{ steps.setup-code-env.outputs.python-version }}-${{ steps.pytest-bytecode-config.outputs.fingerprint }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: pytest-bytecode-${{ runner.os }}-${{ runner.arch }}-${{ steps.setup-code-env.outputs.python-version }}-${{ steps.pytest-bytecode-config.outputs.fingerprint }}-
+          key: pytest-bytecode-${{ runner.os }}-${{ runner.arch }}-${{ steps.pytest-bytecode-config.outputs.python-runtime }}-${{ steps.pytest-bytecode-config.outputs.fingerprint }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: pytest-bytecode-${{ runner.os }}-${{ runner.arch }}-${{ steps.pytest-bytecode-config.outputs.python-runtime }}-${{ steps.pytest-bytecode-config.outputs.fingerprint }}-
 
       - name: Run pytest
         id: run-pytest
@@ -591,55 +593,6 @@ jobs:
           if-no-files-found: ignore
           overwrite: true
           retention-days: 7
-
-      # Only the primary leg (split-1) writes. Its full-pool collection imports
-      # and rewrites the modules assigned to every split group before deselection,
-      # so the save keeps that already-paid work instead of discarding it. A
-      # targeted collection fills the dedicated and unpartitioned modules that the
-      # split pool ignores. One writer avoids a merge and the parallel-writer race.
-      # Pull requests never save, so a fork cannot seed bytecode that later runs
-      # restore. The unique run key lets the restore prefix select the newest main
-      # save. The step sits below the flaky-rerun steps because the rerun must
-      # follow Run pytest directly. This is the only
-      # step that writes this key. Its if: allows a write only from the primary
-      # leg of a push to refs/heads/main after Run pytest succeeds. Later legs run
-      # what it saved. The path is the checkout subtree of the prefix, the same
-      # path the restore step reads. The prune step enforces one invariant before
-      # the save: every file in that subtree is pytest-rewritten bytecode for this
-      # interpreter and pytest tag whose source exists now. Ordinary interpreter
-      # bytecode is removed because its timestamp validation cannot rule out a
-      # same-second same-size source edit. A nonzero prune stops this job, so the
-      # save never runs after a failed prune.
-      - name: Collect excluded tests for bytecode cache
-        if: >-
-          matrix.primary
-          && github.event_name == 'push' && github.ref == 'refs/heads/main'
-          && steps.run-pytest.outcome == 'success'
-        env:
-          PYTEST_NON_TMP_ROOT: ${{ runner.temp }}/ai-agents-pytest-excluded-collect
-          PYTHONPYCACHEPREFIX: ${{ runner.temp }}/pytest-bytecode-cache
-        run: >-
-          uv run --frozen python scripts/ci/collect_excluded_test_bytecode.py
-
-      - name: Prune pytest bytecode cache
-        if: >-
-          matrix.primary
-          && github.event_name == 'push' && github.ref == 'refs/heads/main'
-          && steps.run-pytest.outcome == 'success'
-        run: >-
-          uv run --frozen python scripts/ci/prune_bytecode_cache.py
-          --workspace "${{ github.workspace }}"
-          --cache-root "${{ runner.temp }}/pytest-bytecode-cache${{ github.workspace }}"
-
-      - name: Save pytest bytecode cache
-        if: >-
-          matrix.primary
-          && github.event_name == 'push' && github.ref == 'refs/heads/main'
-          && steps.run-pytest.outcome == 'success'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: ${{ runner.temp }}/pytest-bytecode-cache${{ github.workspace }}
-          key: pytest-bytecode-${{ runner.os }}-${{ runner.arch }}-${{ steps.setup-code-env.outputs.python-version }}-${{ steps.pytest-bytecode-config.outputs.fingerprint }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       # Issue #5610. The count-ratchet registry deadline is calibrated against
       # a wall-clock measurement, and a wall clock taken inside the `-n auto
@@ -695,6 +648,58 @@ jobs:
           coverage report --data-file=artifacts/.coverage.pin-req009
           --include=src/claude/skills/github/scripts/pr/wait_for_unresolved_zero.py
           --fail-under=100
+
+      # Only the primary leg (split-1) writes. Its full-pool collection imports
+      # and rewrites the modules assigned to every split group before deselection,
+      # so the save keeps that already-paid work instead of discarding it. A
+      # targeted collection fills the dedicated and unpartitioned modules that the
+      # split pool ignores. One writer avoids a merge and the parallel-writer race.
+      # Pull requests never save, so a fork cannot seed bytecode that later runs
+      # restore. The unique run key lets the restore prefix select the newest main
+      # save. The step sits below the flaky-rerun steps because the rerun must
+      # follow Run pytest directly. This is the only
+      # step that writes this key. Its if: allows a write only from the primary
+      # leg of a push to refs/heads/main after every prior test verdict succeeds.
+      # Later legs run
+      # what it saved. The path is the checkout subtree of the prefix, the same
+      # path the restore step reads. The prune step enforces one invariant before
+      # the save: every file in that subtree is pytest-rewritten bytecode for this
+      # interpreter and pytest tag whose source exists now. Ordinary interpreter
+      # bytecode is removed because its timestamp validation cannot rule out a
+      # same-second same-size source edit. A nonzero prune stops this job, so the
+      # save never runs after a failed prune. The whole collect-prune-save block
+      # sits after the final coverage verdict so a later failure cannot publish
+      # bytecode from a red run.
+      - name: Collect excluded tests for bytecode cache
+        if: >-
+          success()
+          && matrix.primary
+          && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          PYTEST_NON_TMP_ROOT: ${{ runner.temp }}/ai-agents-pytest-excluded-collect
+          PYTHONPYCACHEPREFIX: ${{ runner.temp }}/pytest-bytecode-cache
+        run: >-
+          uv run --frozen python scripts/ci/collect_excluded_test_bytecode.py
+
+      - name: Prune pytest bytecode cache
+        if: >-
+          success()
+          && matrix.primary
+          && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: >-
+          uv run --frozen python scripts/ci/prune_bytecode_cache.py
+          --workspace "${{ github.workspace }}"
+          --cache-root "${{ runner.temp }}/pytest-bytecode-cache${{ github.workspace }}"
+
+      - name: Save pytest bytecode cache
+        if: >-
+          success()
+          && matrix.primary
+          && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ${{ runner.temp }}/pytest-bytecode-cache${{ github.workspace }}
+          key: pytest-bytecode-${{ runner.os }}-${{ runner.arch }}-${{ steps.pytest-bytecode-config.outputs.python-runtime }}-${{ steps.pytest-bytecode-config.outputs.fingerprint }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Upload test results
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
