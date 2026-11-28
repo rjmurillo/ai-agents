@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 import time
 from collections.abc import Callable
@@ -46,6 +47,9 @@ _HOSTILE: dict[str, str] = {
 }
 
 
+# The two tests below keep a clock on purpose. The cost they guard is backtracking inside the
+# regex engine, and no count sees it: a blank run rescanned from every line start runs the same
+# bytecode as the shipped patterns. A loaded runner can fail them with correct code.
 def test_twenty_hostile_bodies_go_through_extract_reason_in_under_a_second() -> None:
     assert len(_HOSTILE) == 20
     started = time.perf_counter()
@@ -61,13 +65,60 @@ def test_each_hostile_body_costs_well_under_a_second(name: str) -> None:
     assert time.perf_counter() - started < 0.5, name
 
 
+_MAX_OPTIONAL_ITEMS = 2  # the blank before the hole and the blank after it
+
+
+def _why_not_linear(pattern: str) -> list[str]:
+    """What lets ``pattern`` cost more than a fixed number of steps per start position.
+
+    A repeat (``*``, ``+`` or ``{``) can rescan a run from every start. A ``?`` cannot, but each
+    one doubles the ways a failed match is retried. A pattern with no repeat and a few ``?``
+    is linear whatever the input holds, so this needs no clock.
+    """
+    bare = re.sub(r"\[[^\]]*\]", "", re.sub(r"\\.", "", pattern))
+    reasons = [f"repeats with {mark}" for mark in "*+{" if mark in bare]
+    if bare.count("?") > _MAX_OPTIONAL_ITEMS:
+        reasons.append(
+            f"has {bare.count('?')} optional items, over the limit of {_MAX_OPTIONAL_ITEMS}"
+        )
+    return reasons
+
+
 def test_the_hole_patterns_are_linear_on_a_long_run_of_blanks() -> None:
+    for pattern in (adr_reason._HOLE, adr_reason._HOLE_BEFORE_PUNCT):
+        assert _why_not_linear(pattern.pattern) == [], pattern.pattern
     hole = adr_reason._URL_HOLE
-    started = time.perf_counter()
-    for text in (" " * 20000, " " * 10000 + hole + " " * 10000, hole + " " * 20000):
-        adr_reason._HOLE.sub(" ", text)
-        adr_reason._HOLE_BEFORE_PUNCT.sub(r"\1", text)
-    assert time.perf_counter() - started < 0.3
+    blanks = " " * 10000
+    # The patterns still run on the long texts: a hole takes one blank from each side with it.
+    for case, text, filled in (
+        ("no hole", blanks + blanks, blanks + blanks),
+        ("hole in the middle", blanks + hole + blanks, blanks[1:] + " " + blanks[1:]),
+        ("hole at the start", hole + blanks + blanks, " " + blanks[1:] + blanks),
+    ):
+        assert adr_reason._HOLE.sub(" ", text) == filled, case
+        assert adr_reason._HOLE_BEFORE_PUNCT.sub(r"\1", text) == text, case
+    assert adr_reason._HOLE_BEFORE_PUNCT.sub(r"\1", blanks + hole + " ." + blanks) == (
+        blanks[1:] + "." + blanks
+    )
+
+
+@pytest.mark.parametrize(
+    ("pattern", "expected"),
+    [
+        # Negative controls. The first is the upstream form: it takes seconds on the texts
+        # above, where the shipped patterns take milliseconds.
+        (r"\s*\ue000\s*", ["repeats with *"]),
+        (r"\s+\ue000", ["repeats with +"]),
+        (r"\s{0,}\ue000", ["repeats with {"]),
+        (r"\s{1,5000}\ue000", ["repeats with {"]),
+        (r"\s?\s?\s?\ue000", ["has 3 optional items, over the limit of 2"]),
+        (r"\*\+\{\?\?\?[*+{?]\ue000\s?", []),  # escaped and in a class: none of these repeats
+    ],
+)
+def test_the_linear_check_fails_a_pattern_that_can_rescan(
+    pattern: str, expected: list[str]
+) -> None:
+    assert _why_not_linear(pattern) == expected
 
 
 @pytest.mark.parametrize(

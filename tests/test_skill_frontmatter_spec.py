@@ -3,6 +3,10 @@
 The agreement test runs one fixture set through this validator and through
 skillforge's conformance suite, the repository's other reader of the spec, and
 fails when their MUST verdicts differ.
+
+`version` and `license` are optional in the spec but required here by GP-003
+(.agents/governance/golden-principles.md). Fixtures that should pass carry
+both through `GP003`, and `TestGp003RequiredFields` covers the stricter rule.
 """
 
 from __future__ import annotations
@@ -15,16 +19,19 @@ from types import ModuleType
 import pytest
 
 from scripts.validation.skill_frontmatter import (
+    SEMVER_PATTERN,
     split_allowed_tools,
     validate_allowed_tools,
     validate_compatibility,
     validate_description,
     validate_license,
     validate_skill_file,
+    validate_version,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILLFORGE_SCRIPTS = ROOT / ".claude" / "skills" / "skillforge" / "scripts"
+GP003 = "version: 1.0.0\nlicense: MIT\n"
 
 
 class TestAllowedTools:
@@ -55,7 +62,7 @@ class TestAllowedTools:
         assert validate_allowed_tools({"Read": True}) != []
 
 
-class TestOptionalFields:
+class TestFieldTypes:
     @pytest.mark.parametrize(
         ("value", "ok"),
         [("Requires git", True), ("y" * 500, True), ("y" * 501, False), ("", False), (None, False)],
@@ -63,13 +70,78 @@ class TestOptionalFields:
     def test_compatibility(self, value: object, ok: bool) -> None:
         assert (validate_compatibility(value) == []) is ok
 
-    def test_license_must_be_a_string(self) -> None:
+    def test_license_must_be_a_non_empty_string(self) -> None:
         assert validate_license("MIT") == []
-        assert validate_license("") == []
-        assert validate_license(["MIT"]) != []
+        assert validate_license("") == ["license is empty"]
+        assert validate_license("   ") == ["license is empty"]
+        assert validate_license(["MIT"]) == ["license must be a string, got list"]
+        assert validate_license(None) == ["Missing required field: license (GP-003)"]
 
     def test_description_must_be_a_string(self) -> None:
         assert validate_description(True) == ["description must be a string, got bool"]
+
+
+class TestGp003RequiredFields:
+    """GP-003 requires a top-level SemVer `version` and a `license` in every SKILL.md."""
+
+    @pytest.mark.parametrize("value", ["1.0.0", "0.1.0", "4.1.0", "1.0.0-rc-hotfix", "2.0.0+b.1"])
+    def test_semver_strings_pass(self, value: str) -> None:
+        assert validate_version(value) == []
+
+    @pytest.mark.parametrize("value", ["01.0.0", "1.0", "v1.0.0", "1.0.0-", "", "1.0.0\n"])
+    def test_non_semver_strings_fail(self, value: str) -> None:
+        assert validate_version(value) == [
+            f"version is not a SemVer 2.0.0 string: {value!r} (use 1.0.0 form)"
+        ]
+
+    def test_missing_version_fails(self) -> None:
+        assert validate_version(None) == [
+            "Missing required field: version (GP-003; top level, not under metadata)"
+        ]
+
+    @pytest.mark.parametrize(("raw", "kind"), [("1.0", "float"), ("1", "int"), ("true", "bool")])
+    def test_unquoted_non_string_version_fails(self, tmp_path: Path, raw: str, kind: str) -> None:
+        skill_file = tmp_path / "typed-version" / "SKILL.md"
+        skill_file.parent.mkdir()
+        skill_file.write_text(
+            f"---\nname: typed-version\ndescription: d\nversion: {raw}\nlicense: MIT\n---\n",
+            encoding="utf-8",
+        )
+
+        result = validate_skill_file(skill_file)
+
+        assert any(e.startswith(f"version must be a string, got {kind}") for e in result.errors)
+
+    def test_version_only_under_metadata_fails(self, tmp_path: Path) -> None:
+        skill_file = tmp_path / "meta-version" / "SKILL.md"
+        skill_file.parent.mkdir()
+        skill_file.write_text(
+            "---\nname: meta-version\ndescription: d\nlicense: MIT\n"
+            "metadata:\n  version: 1.0.0\n---\n",
+            encoding="utf-8",
+        )
+
+        result = validate_skill_file(skill_file)
+
+        assert result.errors == [
+            "Missing required field: version (GP-003; top level, not under metadata)"
+        ]
+
+    def test_missing_license_fails(self, tmp_path: Path) -> None:
+        skill_file = tmp_path / "no-license" / "SKILL.md"
+        skill_file.parent.mkdir()
+        skill_file.write_text(
+            "---\nname: no-license\ndescription: d\nversion: 1.0.0\n---\n", encoding="utf-8"
+        )
+
+        result = validate_skill_file(skill_file)
+
+        assert result.errors == ["Missing required field: license (GP-003)"]
+
+    def test_pattern_matches_the_skillforge_constant(self) -> None:
+        constants = _load_skillforge_constants()
+
+        assert SEMVER_PATTERN.pattern == constants.SEMVER_REGEX
 
 
 class TestTypedValues:
@@ -77,7 +149,8 @@ class TestTypedValues:
         skill_file = tmp_path / "q-skill" / "SKILL.md"
         skill_file.parent.mkdir()
         skill_file.write_text(
-            '---\nname: "q-skill"\ndescription: "Quoted: fine"\n---\n', encoding="utf-8"
+            '---\nname: "q-skill"\ndescription: "Quoted: fine"\n' + GP003 + "---\n",
+            encoding="utf-8",
         )
 
         result = validate_skill_file(skill_file)
@@ -111,7 +184,7 @@ class TestYaml12Scalars:
     ) -> None:
         skill_file = tmp_path / directory / "SKILL.md"
         skill_file.parent.mkdir()
-        skill_file.write_text(f"---\n{frontmatter}---\n", encoding="utf-8")
+        skill_file.write_text(f"---\n{frontmatter}{GP003}---\n", encoding="utf-8")
 
         result = validate_skill_file(skill_file)
 
@@ -125,6 +198,15 @@ class TestYaml12Scalars:
         result = validate_skill_file(skill_file)
 
         assert "description must be a string, got bool" in result.errors
+
+
+def _load_skillforge_constants() -> ModuleType:
+    name = "skillforge_constants_for_semver_agreement"
+    spec = importlib.util.spec_from_file_location(name, SKILLFORGE_SCRIPTS / "_constants.py")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def _load_conformance() -> ModuleType:
@@ -179,7 +261,9 @@ def test_must_verdicts_agree_with_the_conformance_suite(tmp_path: Path, director
     conformance = _load_conformance()
     skill = tmp_path / directory
     skill.mkdir()
-    (skill / "SKILL.md").write_text(f"---\n{FIXTURES[directory]}---\n\n# Body\n", encoding="utf-8")
+    (skill / "SKILL.md").write_text(
+        f"---\n{FIXTURES[directory]}{GP003}---\n\n# Body\n", encoding="utf-8"
+    )
 
     frontmatter_ok = validate_skill_file(skill / "SKILL.md").passed
     results, _notes = conformance.evaluate(skill, "spec", set())
