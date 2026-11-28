@@ -103,7 +103,7 @@ Mandatory policy: the MUST and MUST NOT items in `universal.md` and `security.md
 
 Every post-satisfaction finding is one of four classes; classify it with the `avoiding-manufactured-work` skill's disposition procedure, not a second doctrine.
 
-An agent may boil any lake the user named. A lake the agent found gets flagged in the PR body, per-issue handoff, or retro file; an agent may only flag, never file, an issue for it unless the user explicitly authorizes that item or a documented, bounded standing authorization covers it. Filing is the user's decision under User Sovereignty in section 3. This does not change the four-class table (Blocker, Requested improvement, Optional enhancement, Side quest); it only says where the flag for an agent-found item lands.
+An agent may boil any lake the user named. A lake the agent found gets flagged in the PR body, per-issue handoff, or retro file; an agent may only flag, never file, an issue for it unless the user explicitly authorizes that item or a documented, bounded standing authorization covers it. Filing is the user's decision under User Sovereignty in section 3. Drive-by fixes and defect PRs follow that skill's Drive-By Fixes classes; default no.
 
 | Class | Meaning | Keeps the task active? |
 |---|---|---|
@@ -150,7 +150,7 @@ Sections 3 and 4 own sovereignty and completion.
 - **A question or problem report authorizes no change.** Assess (why, is this wrong, evaluate, review) and diagnose (reproduce, find the cause) leave state alone: report the cause and the proposed change, then stop. An obvious defect, a small fix, or an available tool grants none.
 - **Authority has four sources:** a direct imperative (fix, update, create, send, merge); an invoked workflow whose contract includes the mutation; an earlier instruction that named the scope and is still active; a repository policy that mandates the action.
 - **Authorized with enough information: act.** Do not ask again; missing information means diagnose, not re-ask. "Investigate and fix if confirmed" lets the diagnosis gate the fix: a confirmed cause is fixed with no second permission round.
-- **Authority is bounded by the request.** "Fix the failing test" means the smallest change that makes it pass for the intended behavior, not cleanup, refactors, or upgrades. Subagents and handoffs inherit that bound, never a wider one.
+- **Authority is bounded by the request.** "Fix the failing test" means the smallest change that makes it pass for the intended behavior, not refactors or upgrades; drive-by cleanup follows section 4. Subagents and handoffs inherit that bound, never a wider one.
 - **A materially different action is a new decision.** If the only remedy is broader, destructive, or in state the user did not name, surface it before acting, unless an active workflow covers it.
 
 ---

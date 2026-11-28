@@ -1,8 +1,10 @@
 """Tests for scripts/validation/check_rule_adr_citations.py (issue #5200).
 
 pos: each non-accepted status cited with a binding signal is flagged, including
-the shapes of the issue's two live instances. neg: accepted ADRs, code spans,
-fences, comments, frontmatter, paths, bibliography and lineage clauses are not.
+the shapes of the issue's two live instances, a compliance verb, and a terse
+`label: ADR-NNN` pointer; a number with no tracked record is flagged. neg:
+accepted ADRs, code spans, fences, comments, frontmatter, paths, bibliography
+and lineage clauses are not.
 edge: mixed binding and historical citations, heading scope, wrapped sentences,
 unknown numbers, and unclassified mentions (reported, never failed). Ratchet and
 CLI: known passes, new fails, stale fails, unusable scope exits 2 or 3.
@@ -194,11 +196,6 @@ def test_inline_references_label_is_bibliography() -> None:
 # --------------------------------------------------------------------------
 
 
-def test_terse_agents_md_pointer_is_unclassified() -> None:
-    """AGENTS.md:16 `pins: ADR-080` carries no signal either way."""
-    assert _kinds("Effort|by task shape|pins: ADR-080\n") == [(80, UNCLASSIFIED, 1)]
-
-
 def test_unknown_adr_number_is_counted_not_flagged() -> None:
     unknown: set[int] = set()
     assert _kinds("Authors MUST comply with ADR-999.\n", unknown) == []
@@ -253,6 +250,7 @@ def _make_repo(tmp_path: Path, files: dict[str, str]) -> Path:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
         _git(tmp_path, "add", "--force", "--", rel)
+    _git(tmp_path, "add", "--force", "--", ".project-toolkit/architecture")
     return tmp_path
 
 
@@ -282,8 +280,8 @@ def test_known_violation_passes_and_names_the_scope(
     code = _run(repo, _baseline(tmp_path, ["CLAUDE.md::ADR-078"]))
     out = capsys.readouterr().out
     assert code == EXIT_OK
-    assert "1 binding violation(s) (1 known)" in out
-    assert "1 of 1 tracked rule file(s)" in out
+    assert "1 binding violation(s) and 0 missing record(s), 1 failing (1 known)" in out
+    assert "1 of 1 tracked instruction file(s)" in out
 
 
 def test_new_violation_fails_and_names_the_line(
@@ -321,7 +319,7 @@ def test_clean_tree_with_empty_baseline_passes(tmp_path: Path) -> None:
 def test_unclassified_does_not_fail_and_verbose_lists_it(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    repo = _make_repo(tmp_path, {"AGENTS.md": "Effort|pins: ADR-078\n"})
+    repo = _make_repo(tmp_path, {"AGENTS.md": "Effort|see the debate (ADR-078)\n"})
     code = _run(repo, _baseline(tmp_path, []), "--verbose")
     out = capsys.readouterr().out
     assert code == EXIT_OK
@@ -342,6 +340,7 @@ def test_unclassified_does_not_fail_and_verbose_lists_it(
         "templates/rules/a.md",
         ".claude/rules/a.md",
         "src/claude/rules/a.md",
+        ".github/copilot-instructions.md",
         ".github/instructions/a.instructions.md",
         "src/copilot-cli/instructions/a.instructions.md",
     ],
@@ -444,7 +443,8 @@ def test_adapter_is_false_on_every_non_ok_exit(tmp_path: Path) -> None:
 
 def test_the_shipped_baseline_matches_the_tracked_tree() -> None:
     """ci-scripts MUST 13: the gate passes against the full corpus, and the
-    baseline holds exactly the binding citations the tree produces."""
+    baseline holds exactly the binding citations the tree produces. A missing
+    record is never baselined, so the tree must hold none."""
     repo_root = Path(__file__).resolve().parents[2]
     statuses = gate.adr_statuses(repo_root, repo_root / ".project-toolkit" / "architecture")
     result = gate.scan(repo_root, statuses)
@@ -453,6 +453,7 @@ def test_the_shipped_baseline_matches_the_tracked_tree() -> None:
     baseline = gate.read_baseline(gate._BASELINE_PATH)
     assert isinstance(baseline, set), baseline
     assert baseline == {c.key for c in result.binding}
+    assert result.missing == []
     assert main(["--repo-root", str(repo_root)]) == EXIT_OK
 
 
