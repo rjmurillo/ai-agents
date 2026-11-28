@@ -89,6 +89,9 @@ What do you need?
 ├─► Record what happened in a completed session?
 │   └─► memory-reflexion sub-skill (Tier 2 episode extraction)
 │
+├─► A measured result contradicts a memory, ADR, skill, or common guidance?
+│   └─► memory-gate contradiction log (decision-<slug>), or the write procedure below if memory-gate is unavailable
+│
 ├─► Store new factual knowledge directly?
 │   └─► Follow the project memory write procedure below
 │
@@ -112,6 +115,8 @@ For deeper guidance on picking a tier, see
 1. Keep a verified decision, result, or reusable lesson. Record what happened,
    the reason, the date, and the evidence. Put required behavior in rules or
    instructions. Keep secrets, private data, and transcripts out of notes.
+   For a measured contradiction, follow the contradiction order below instead
+   of steps 2 to 4.
 2. Use the destination authorized by the user or repository. If neither names
    one, use an available write capability only when its permission and project
    scope are clear. Use the capability's actual tool schema. A global account
@@ -119,14 +124,30 @@ For deeper guidance on picking a tier, see
 3. Search the destination for the same fact before writing. Update a matching
    entry when supported. Save one self-contained note and verify it landed.
    If the result of a write is ambiguous, check that destination before retrying.
-4. If no writable project tool is available or the chosen store is local, use the established repository
+4. When no writable project tool is available or the chosen store is local, use the established repository
    memory directory. If the repository has none, use
    `.project-toolkit/memory/notes/<topic>/<descriptive-name>.md` from its root.
    Check for an existing note first. Create the directory only when saving.
    Confirm the destination resolves inside the current checkout before writing.
    Follow the repository's policy for version control.
 5. State what you saved and where. When storage is unavailable, report the
-   gap. Delete or rename records only when the user asks.
+   gap. For a contradiction, also return the five fields and the intended
+   `decision-<slug>` entry name to the parent session or the user. Delete or
+   rename records only when the user asks.
+
+Contradiction order:
+
+1. Name the entry `decision-<slug>` and record five fields: the question, the
+   conventional answer with its citation, the first-principles position, the
+   evidence, and the decision with where it lives in the code.
+2. Write it to the repository location in step 4 first, with the search and
+   verification in step 3, even when a memory service is available. Write
+   nothing to a memory service before this write lands.
+3. After the repository write lands, if a memory service is available, apply
+   the destination and permission checks in step 2 to it, then confirm it is
+   bound to the current checkout. When both hold, copy the entry there too.
+   When either fails, skip the copy and report the gap.
+4. If the repository write fails, write to no memory service. Follow step 5.
 
 ### Serena in Repositories That Already Use It
 

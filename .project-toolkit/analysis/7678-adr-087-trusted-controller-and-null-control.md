@@ -158,8 +158,8 @@ directories, because those hold per-task outcomes for the held-out group.
   group emptied and its id was reused.
 - `os.replace` keeps the mode bits but not extended attributes, ACLs, or
   ownership.
-- Two controller runs on one artifact are not locked against each other; the
-  launcher must run one at a time per artifact.
+- The controller locks both the state directory and the resolved artifact.
+  These locks coordinate controller runs. Other writers must cooperate.
 - Child output files are not size-capped while the child runs; only what the
   controller reads back is bounded.
 

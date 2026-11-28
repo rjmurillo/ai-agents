@@ -1,0 +1,169 @@
+"""Cross-process locks that keep two controllers off one state_dir or artifact.
+
+Two controllers on one `state_dir` each read the other's writes as tampering,
+and both can pass the fresh-session check before either writes `split.json`.
+Two controllers on one artifact, each with its own `state_dir`, restore over
+each other's accepted bytes. So a run holds two locks for its whole life: one
+on `state_dir`, and one on the artifact's real path.
+
+Both are operating-system file locks: `fcntl.flock` on POSIX, `msvcrt.locking`
+on Windows. The system drops either when the holder exits, so a killed run
+leaves nothing that blocks the next one. A platform with neither refuses to
+run rather than run unlocked.
+
+Release only closes the descriptor; lock files stay in place. The controller
+never unlinks a path a child could have replaced. An acquire still checks that
+the file it locked is the one at the path, and retries if something swapped
+it. Windows refuses to replace a file another process holds open, so the
+check is POSIX only.
+"""
+
+from __future__ import annotations
+
+import contextlib
+import errno
+import hashlib
+import importlib
+import os
+import stat
+import sys
+import unicodedata
+from collections.abc import Iterator
+from pathlib import Path
+from types import ModuleType
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from _controller_config import ControllerError
+
+_FCNTL: ModuleType | None
+_MSVCRT: ModuleType | None
+try:
+    _FCNTL = importlib.import_module("fcntl")
+except ImportError:
+    _FCNTL = None
+try:
+    _MSVCRT = importlib.import_module("msvcrt")
+except ImportError:
+    _MSVCRT = None
+STATE_LOCK = "controller.lock"
+# A waiter retries only when the file was swapped between its open and its
+# lock. A loop that keeps losing that race is tampering, not contention.
+_ATTEMPTS = 8
+# `msvcrt.locking` reports a byte someone else holds as EACCES; EDEADLOCK is
+# the same condition under its CRT name.
+_WINDOWS_BUSY = {errno.EACCES, getattr(errno, "EDEADLOCK", errno.EDEADLK)}
+
+
+def _try_lock(handle: int, path: Path) -> bool:
+    """Lock `handle` without waiting. False means another process holds it."""
+    try:
+        if _FCNTL is not None:
+            _FCNTL.flock(handle, _FCNTL.LOCK_EX | _FCNTL.LOCK_NB)
+        elif _MSVCRT is not None:
+            # Locks one byte from the current position, which is 0: the file
+            # is never read, written, or seeked.
+            _MSVCRT.locking(handle, _MSVCRT.LK_NBLCK, 1)
+        else:
+            raise ControllerError(
+                "this platform has neither fcntl nor msvcrt file locks; "
+                "the controller will not run without one"
+            )
+    except BlockingIOError:
+        return False
+    except OSError as exc:
+        if _FCNTL is None and exc.errno in _WINDOWS_BUSY:
+            return False
+        raise ControllerError(f"could not lock {path}: {exc.strerror or exc}") from exc
+    return True
+
+
+def _still_at(handle: int, path: Path) -> bool:
+    if _FCNTL is None:
+        return True
+    try:
+        here = os.stat(path, follow_symlinks=False)
+    except FileNotFoundError:
+        return False
+    held = os.fstat(handle)
+    return (here.st_dev, here.st_ino) == (held.st_dev, held.st_ino)
+
+
+def _open(path: Path) -> int:
+    flags = os.O_CREAT | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0)
+    try:
+        if os.path.islink(path):
+            raise ControllerError(f"could not open lock file {path}: symbolic link")
+        handle = os.open(path, flags, 0o600)
+        try:
+            info = os.fstat(handle)
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                raise ControllerError(f"could not open lock file {path}: expected one regular file")
+        except BaseException:
+            os.close(handle)
+            raise
+        return handle
+    except OSError as exc:
+        # ELOOP is what O_NOFOLLOW reports for a link planted at the path.
+        raise ControllerError(f"could not open lock file {path}: {exc.strerror or exc}") from exc
+
+
+@contextlib.contextmanager
+def exclusive(path: Path, busy: str) -> Iterator[None]:
+    """Hold an exclusive lock on `path`, or raise `ControllerError(busy)`."""
+    for _ in range(_ATTEMPTS):
+        handle = _open(path)
+        try:
+            locked = _try_lock(handle, path)
+        except BaseException:
+            os.close(handle)
+            raise
+        if not locked:
+            os.close(handle)
+            raise ControllerError(busy)
+        if _still_at(handle, path):
+            break
+        os.close(handle)
+    else:
+        raise ControllerError(f"lock file {path} kept being replaced; refusing to run")
+    try:
+        yield
+    finally:
+        # The file stays, so release never touches a path that could have
+        # been swapped for a link. `msvcrt` regions are unlocked before close,
+        # as its documentation asks; `flock` drops with the descriptor.
+        if _FCNTL is None and _MSVCRT is not None:
+            with contextlib.suppress(OSError):
+                _MSVCRT.locking(handle, _MSVCRT.LK_UNLCK, 1)
+        os.close(handle)
+
+
+@contextlib.contextmanager
+def state_lock(state: Path) -> Iterator[None]:
+    """Hold the one-controller lock on `state`, creating it private if absent."""
+    state.mkdir(parents=True, exist_ok=True)
+    os.chmod(state, stat.S_IRWXU)
+    busy = f"another controller is running against {state}; wait for it or use a fresh state_dir"
+    with exclusive(state / STATE_LOCK, busy):
+        yield
+
+
+def artifact_lock_path(artifact: Path) -> Path:
+    path = Path(os.path.realpath(artifact))
+    # The directory anchors the lock. A canonical caseless key also covers
+    # case and Unicode normalization aliases that `realpath` keeps as typed,
+    # on filesystems that treat them as one name (such as APFS).
+    name = unicodedata.normalize("NFD", unicodedata.normalize("NFD", path.name).casefold())
+    digest = hashlib.sha256(os.fsencode(name)).hexdigest()
+    return path.with_name(f".eval-controller-{digest}.lock")
+
+
+@contextlib.contextmanager
+def artifact_lock(artifact: Path) -> Iterator[None]:
+    """Hold the one-controller lock on `artifact`, keyed by its real path."""
+    busy = (
+        f"another controller is running against {artifact}; "
+        "run one controller per artifact, whatever its state_dir"
+    )
+    with exclusive(artifact_lock_path(artifact), busy):
+        yield
