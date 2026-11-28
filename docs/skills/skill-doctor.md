@@ -33,6 +33,7 @@ For `check ADR drift` alone, the skill skips both questions, confirms the reposi
 - `report.html` in a fresh temp directory, with the scorecard, findings, and suggested skill edits. A Share button saves a PNG locally. The skill ends by printing the absolute path.
 - A grade across efficiency, code quality, procedure compliance, verbosity, and skill coverage, plus an overall score.
 - Candidate edits, each with status `unevaluated`, a unified diff, and handoff prompts for [`skillopt`](skillopt.md) or [`skillforge`](skillforge.md).
+- With `--export-corpus`, a JSONL file of every collected user and assistant message, redacted and untruncated, for [`panning-for-gold`](panning-for-gold.md).
 - A spoken summary of the grade and three findings, plus the renderer's `evaluation:` line.
 - For ADR drift, an `ADR drift` section: findings by group (Setup, Numbering, Links, History) with a suggested fix each. History findings are candidates, not verdicts. Truncated history and unreadable paths are shown. The section never changes the grade.
 
@@ -52,7 +53,7 @@ uv run python .claude/skills/skill-doctor/scripts/render_report.py --help
 
 | Script | Purpose |
 | --- | --- |
-| `collect_sessions.py` | Collect journals into `inventory.json` and bounded transcripts |
+| `collect_sessions.py` | Collect journals into `inventory.json` and bounded transcripts; `--export-corpus` also writes full-text JSONL |
 | `audit_scores.py` | Validate `scores.json` and compute aggregates |
 | `assemble_report.py` | Fill the `report.json` numbers and audit sections |
 | `render_report.py` | Render `report.json` into `report.html`; `--open` requests a browser |
@@ -60,7 +61,7 @@ uv run python .claude/skills/skill-doctor/scripts/render_report.py --help
 | `public_export.py` | Write an aggregate-only summary that is safe to share |
 | `adr_drift.py` | `locate` ADR folders, `scan` a repository into a JSON file |
 
-Collector scope flags: `--repo PATH` (repeatable), `--all-conversations`, `--include-global-skills`, `--harness auto|all|claude|codex|copilot|warp|pi|grok|zcode|hermes|droid|muse`, `--days` (default 14), `--max-sessions` (default 100), `--top-level-quota` (default 40; slots kept for top-level sessions so subagent sessions cannot crowd them out, `0` pools both types), `--per-skill` (default 10), `--no-skill` (default 20), `--min-idle-minutes` (default 15; sessions newer than that are skipped), `--no-include-subagents`, and `--out`. Subagent sessions are collected by default and graded apart from top-level sessions; `--no-include-subagents` drops them. Copilot folds its inline child events only when you pass `--include-subagents`. Exit `0` is success, `1` is invalid input or an unsupported claim, and `2` is bad arguments or an unreadable file. Size review batches by transcript bytes, not count: `audit_batches.py assign --max-batch-bytes 150000` keeps each scorer under about 150 KB, below the point where calibration runs compacted.
+Collector scope flags: `--repo PATH` (repeatable), `--all-conversations`, `--include-global-skills`, `--harness auto|all|claude|codex|copilot|warp|pi|grok|zcode|hermes|droid|muse|t3|gemini`, `--days` (default 14), `--max-sessions` (default 100), `--top-level-quota` (default 40; slots kept for top-level sessions so subagent sessions cannot crowd them out, `0` pools both types), `--per-skill` (default 10), `--no-skill` (default 20), `--min-idle-minutes` (default 15; sessions newer than that are skipped), `--no-include-subagents`, `--export-corpus PATH`, and `--out`. Subagent sessions are collected by default and graded apart from top-level sessions; `--no-include-subagents` drops them. Copilot folds its inline child events only when you pass `--include-subagents`. Exit `0` is success, `1` is invalid input or an unsupported claim, and `2` is bad arguments or an unreadable file. Size review batches by transcript bytes, not count: `audit_batches.py assign --max-batch-bytes 150000` keeps each scorer under about 150 KB, below the point where calibration runs compacted.
 
 `adr_drift.py` never writes into the scanned repository; `scan` writes only its `--out` file, which must sit outside it, and writes it whole or not at all. Exit codes: `0` ok, `2` bad arguments, unreadable input, a disallowed `--out`, a result over 5,000,000 bytes, or not a git repository, `3` a git command failed or timed out. `scan` reads 300 commits by default (`--max-commits`, `--since`) and reports `truncated` when it stopped early. The scan file also lists `read_errors` for files and folders it could not read, and `locate.rejected` for refused paths, each with its reason (for example, a folder outside the repository or an ADR file outside its folder). `report.json` names each scan file by path, and `render_report.py` reads it from the report folder (exit `2` on a missing, unreadable, or outside path). An ADR-only report needs `"mode": "adr_only"`. This skill checks ADR health only: finding decisions that no ADR records is skill-bootstrap's job.
 
@@ -69,6 +70,8 @@ Undocumented decisions come from [`skill-bootstrap`](skill-bootstrap.md): Step 1
 A conversation counts as failed when any applicable raw score is below 0.5. A failure caused only by a provider cutoff does not count. A passing conversation can support only a `Cut:` candidate, which removes a wasted instruction or step.
 
 If the executing harness is unsupported, the skill stops before it reads any history. If no sessions are sampled, it reports that and does not invent scores. It also discloses sampling and partial collection.
+
+`--export-corpus` is the feed for [`panning-for-gold`](panning-for-gold.md) session corpus mode. It writes whole, redacted messages and refuses a path inside the skill directory, a path that names `inventory.json` or `audit_manifest.json` under `--out`, and a path inside `--out/transcripts`. The T3 and Gemini antigravity sources (`--t3-home`, `--gemini-home`) read only with this flag, never reach scoring, and export only with `--all-conversations` because they record no repository path. The file holds full conversation text, so keep it out of any repository.
 
 When [`skill-bootstrap`](skill-bootstrap.md) invokes this skill, it reuses that run's scope, omits `--open`, and returns the report path.
 

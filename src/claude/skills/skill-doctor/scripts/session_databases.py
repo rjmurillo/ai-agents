@@ -21,6 +21,7 @@ from session_common import (
     looks_injected,
     record_collection_issue,
 )
+from session_corpus import current_capture
 from warp_decoder import ProtobufDecodeError, decode_task
 
 MAX_WARP_CONVERSATION_BYTES = 32 * 1024 * 1024
@@ -308,7 +309,10 @@ def parse_hermes_session(
     except _SchemaError:
         record_collection_issue("schema_failures")
         return None
-    if state.stats["assistant_turns"] < 1 or state.stats["tool_calls"] < 1:
+    # Corpus export keeps chat-only sessions; Collection.add still drops them from scoring.
+    if current_capture() is None and (
+        state.stats["assistant_turns"] < 1 or state.stats["tool_calls"] < 1
+    ):
         return None
     first = state.first_ts or parse_epoch_timestamp(session_row["started_at"])
     last = (

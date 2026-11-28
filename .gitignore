@@ -240,6 +240,9 @@ evals/*/runs/sweep-*
 # pytest-testmon local state (pre-push impact analysis, issue #6239), plus its SQLite sidecars.
 .testmondata*
 
+# panning-for-gold workspace: holds transcript-derived text, never commit it.
+.panning/
+
 # Eval controller artifact locks (scripts/eval/README.md). They stay beside
 # the artifact after a run, by design.
 .eval-controller-*.lock

@@ -8,6 +8,8 @@ sessions, and/or Muse session journals, discovers installed skills, and emits:
   <out>/inventory.json        - skills, per-session stats, sampling decisions
   <out>/transcripts/<id>.md   - condensed transcripts for sampled sessions
   <out>/audit_manifest.json   - only with --audit-manifest: scope, catalog, provenance
+  <path>                      - only with --export-corpus: full-text JSONL of user and
+                                assistant messages, redacted, for panning-for-gold
 
 Everything runs locally; nothing is uploaded. python3, stdlib only.
 Copyright (c) 2026 Denver Technologies, Inc. MIT license, see ../LICENSE.
@@ -29,7 +31,7 @@ from pathlib import Path
 from typing import Any
 
 from audit_manifest import export_manifest
-from repository_scope import print_scope_roots, resolve_repository_scope
+from repository_scope import resolve_repository_scope
 from session_common import (
     CLAUDE_CODE_EDIT_TOOLS,
     CODE_EDIT_HINTS,
@@ -56,6 +58,8 @@ from session_common import (
     skill_variants,
     truncate,
 )
+from session_corpus import corpus_export, discard_partial, refuse_output_collision
+from session_corpus_sources import collect_corpus_sources
 from session_databases import (
     MAX_WARP_CONVERSATION_BYTES,
     find_hermes_sessions,
@@ -105,7 +109,8 @@ from session_json import (
 )
 from session_muse import find_muse_session_files, parse_muse_session
 from session_sampling import apply_strata, sample_sessions
-from session_threads import child_flag, print_thread_summary, summarize_threads
+from session_summary import print_summary
+from session_threads import child_flag, summarize_threads
 
 __all__ = [
     "CLAUDE_CODE_EDIT_TOOLS",
@@ -189,6 +194,7 @@ class Collection:
         self.scanned = 0
         self.in_scope = self.skipped_idle = 0
         self.warp_databases: list[Path] = []
+        self.exporter: Any = None
         self.per_thread: dict[str, Any] = {}
 
     def add(self, harness: str, parsed: Any, file: str, modified_at: str) -> None:
@@ -197,6 +203,8 @@ class Collection:
         meta, stats, entries, skills_used = parsed
         if not self.args.all_conversations and not self.matches(harness, meta):
             return
+        if self.exporter:
+            self.exporter.write_session(harness, meta, file)
         self.in_scope += 1
         if stats["assistant_turns"] < 1 or stats["tool_calls"] < 1:
             return
@@ -332,6 +340,8 @@ def _collect(collection: Collection, homes: Any, cutoff: datetime) -> None:
         root = home / subdir if subdir else home
         collection.files(name, home, root, finder, parser, cutoff, f"{message} {root}")
     collection.hermes(cutoff)
+    if collection.exporter:
+        collect_corpus_sources(collection, cutoff)
 
 
 def _discover(args: Any, repos: Any, homes: Any) -> Any:
@@ -423,31 +433,6 @@ def _inventory(
     return inventory
 
 
-def _print_summary(inventory: Any, args: Any, repos: Any, out: Path) -> None:
-    if inventory["collection_issues"]:
-        issues = ", ".join(
-            f"{key}={value}" for key, value in inventory["collection_issues"].items()
-        )
-        print(f"warning: partial collection: {issues}", file=sys.stderr)
-    stats = inventory["stats"]
-    scope = (
-        "all conversations" if args.all_conversations else ", ".join(str(repo) for repo in repos)
-    )
-    print(f"scope:             {scope}")
-    print_scope_roots(inventory["scope_resolution"])
-    print(f"sources:           {', '.join(inventory['sources'])}")
-    print(f"skills found:      {stats['skills_found']} ({stats['skills_used']} used in window)")
-    print(
-        f"sessions in window: {stats['session_records_in_window']} records, "
-        f"{stats['sessions_in_scope']} in scope, {stats['sessions_considered']} scoreable"
-    )
-    print(f"sessions sampled:  {stats['sessions_sampled']} -> {out / 'transcripts'}")
-    print_thread_summary(inventory)
-    if inventory["sampling"]["notice"]:
-        print(f"warning: {inventory['sampling']['notice']}", file=sys.stderr)
-    print(f"inventory:         {out / 'inventory.json'}")
-
-
 def _run() -> None:
     args = parse_args()
     clear_cwd_resolution_cache()
@@ -461,14 +446,19 @@ def _run() -> None:
     homes["droid"] = Path(args.factory_home).expanduser()
     homes["hermes"] = resolve_hermes_home(args.hermes_home)
     out = Path(args.out).expanduser()
+    if args.export_corpus:
+        refuse_output_collision(args.export_corpus, out)
     (out / "transcripts").mkdir(parents=True, exist_ok=True)
     repos = [] if args.all_conversations else resolve_repos(args.repo)
     collection = Collection(args, repos, _discover(args, repos, homes))
-    _collect(collection, homes, datetime.now(timezone.utc) - timedelta(days=args.days))
+    with corpus_export(args) as collection.exporter:
+        _collect(collection, homes, datetime.now(timezone.utc) - timedelta(days=args.days))
     if not collection.sources:
+        if collection.exporter is not None:
+            discard_partial(collection.exporter.target)
         _fatal(
             "no supported session source found "
-            "(Copilot, Claude Code, Codex, Warp, Pi, Grok, ZCode, Droid, Hermes, or Muse)"
+            "(Copilot, Claude Code, Codex, Warp, Pi, Grok, ZCode, Droid, Hermes, Muse, T3, or Gemini)"
         )
     if args.all_conversations:
         collection.repos = infer_session_repos(collection.sessions)
@@ -483,7 +473,7 @@ def _run() -> None:
     _write_transcripts(collection.sessions, sampled, out / "transcripts")
     inventory = _inventory(collection, homes, sampled, per_harness, sampling)
     (out / "inventory.json").write_text(json.dumps(inventory, indent=2), encoding="utf-8")
-    _print_summary(inventory, args, collection.repos, out)
+    print_summary(inventory, args, collection.repos, out)
     if args.audit_manifest:
         export_manifest(inventory, args, out)
 

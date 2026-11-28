@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote
 
+from session_codex_events import codex_event, codex_event_only_rows
 from session_common import (
     CLAUDE_CODE_EDIT_TOOLS,
     GENERIC_EDIT_TOOLS,
@@ -22,6 +23,7 @@ from session_common import (
     logical_skill_name,
     looks_injected,
 )
+from session_corpus import current_capture
 
 
 def _blocks(content: Any) -> list[Any]:
@@ -164,28 +166,6 @@ def _codex_response(state: SessionState, payload: Any) -> None:
         state.output(out if isinstance(out, str) else json.dumps(out))
 
 
-def _codex_error_reason(info: Any) -> str:
-    if isinstance(info, str) and info:
-        return info
-    if isinstance(info, dict) and info:
-        return str(next(iter(info)))
-    return "error"
-
-
-def _codex_completion(state: SessionState, payload: dict[str, Any]) -> None:
-    """`task_complete.error.codex_error_info` marks a provider cutoff; a clean one resumes."""
-    error = payload.get("error")
-    if not error:
-        state.resume()
-        return
-    if not isinstance(error, dict):
-        state.terminate("error", str(error))
-        return
-    state.terminate(
-        _codex_error_reason(error.get("codex_error_info")), str(error.get("message") or "")
-    )
-
-
 def _codex_turn_role(payload: Any) -> str | None:
     # Developer messages and injected user context are not turns.
     if payload.get("type") != "message":
@@ -198,14 +178,6 @@ def _codex_turn_role(payload: Any) -> str | None:
     return None
 
 
-def _codex_event(state: SessionState, payload: dict[str, Any], events: dict[str, int]) -> None:
-    event_roles = {"user_message": "user", "agent_message": "assistant"}
-    if payload.get("type") in event_roles:
-        events[event_roles[payload["type"]]] += 1
-    elif payload.get("type") == "task_complete":
-        _codex_completion(state, payload)
-
-
 def parse_codex_session(path: Path, _skill_names: Any, include_subagents: bool) -> Any:
     try:
         records = iter_jsonl_records(path)
@@ -215,6 +187,8 @@ def parse_codex_session(path: Path, _skill_names: Any, include_subagents: bool) 
     # Older rollouts carry both record kinds for one turn; prefer the event count.
     events = {"user": 0, "assistant": 0}
     items = {"user": 0, "assistant": 0}
+    capture = current_capture()
+    pending: dict[str, list[tuple[Any, str, Any]]] = {"user": [], "assistant": []}
     for obj in records:
         payload = obj.get("payload") or {}
         if not isinstance(payload, dict):
@@ -239,12 +213,14 @@ def parse_codex_session(path: Path, _skill_names: Any, include_subagents: bool) 
                 return None
             meta["thread_source"] = "subagent" if child else meta["thread_source"]
         elif kind == "event_msg":
-            _codex_event(state, payload, events)
+            line = capture.line if capture is not None else 0
+            codex_event(state, payload, events, pending, (line, obj.get("timestamp")))
         elif kind == "response_item":
             role = _codex_turn_role(payload)
             if role:
                 items[role] += 1
             _codex_response(state, payload)
+    codex_event_only_rows(capture, pending)
     state.stats["user_turns"] = events["user"] or items["user"]
     state.stats["assistant_turns"] = events["assistant"] or items["assistant"]
     return state.finish(meta or {"id": path.stem, "cwd": None, "started_at": state.first_ts})

@@ -38,6 +38,7 @@ from session_common import (
     iter_jsonl_records,
     record_collection_issue,
 )
+from session_corpus import current_capture
 
 
 def find_muse_session_files(muse_home: Path, cutoff: datetime) -> Any:
@@ -277,8 +278,13 @@ def _muse_event(
 
 
 def parse_muse_session(path: Path, _skill_names: Any, _include_subagents: bool) -> Any:
+    capture = current_capture()
+    records: list[Any] = []
+    lines: list[Any] = []
     try:
-        records = list(_muse_records(path))
+        for record in _muse_records(path):
+            records.append(record)
+            lines.append(capture.line if capture is not None else 0)
     except OSError:
         return None
     state = SessionState()
@@ -293,7 +299,9 @@ def parse_muse_session(path: Path, _skill_names: Any, _include_subagents: bool) 
     calls = _run_calls(records)
     started_ids = _started_call_ids(records)
     emitted: set[Any] = set()
-    for obj in records:
+    for obj, line in zip(records, lines, strict=True):
+        if capture is not None:
+            capture.line = line
         state.timestamp(_muse_timestamp(obj.get("recorded_at")))
         payload = obj.get("payload")
         if isinstance(payload, dict):

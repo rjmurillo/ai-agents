@@ -10,6 +10,10 @@ A thread block has this shape:
     - **Context**: <one sentence>
     - **Initial take**: <one sentence>
 
+The contradiction lens adds four optional fields, each omitted unless set:
+Claim, Conventional view, Evidence, and Strength (strong | medium | weak).
+An inventory without them parses and renders as before.
+
 EXIT CODES (ADR-035):
     0 - Success
     1 - Logic error (malformed inventory)
@@ -30,7 +34,11 @@ REQUIRED_FIELDS: Final[tuple[str, ...]] = (
     "Initial take",
 )
 
+OPTIONAL_FIELDS: Final[tuple[str, ...]] = ("Claim", "Conventional view", "Evidence", "Strength")
+KNOWN_FIELDS: Final[tuple[str, ...]] = REQUIRED_FIELDS + OPTIONAL_FIELDS
+
 VALID_SIGNALS: Final[frozenset[str]] = frozenset({"high", "medium", "low"})
+VALID_STRENGTHS: Final[frozenset[str]] = frozenset({"strong", "medium", "weak"})
 
 _THREAD_HEADER_RE = re.compile(r"^##\s+Thread\s+(\d+):\s*(.+?)\s*$")
 _FIELD_RE = re.compile(r"^-\s+\*\*([^*]+)\*\*:\s*(.*)$")
@@ -46,6 +54,10 @@ class Thread:
     quote: str
     context: str
     initial_take: str
+    claim: str = ""
+    conventional_view: str = ""
+    evidence: str = ""
+    strength: str = ""
 
     @property
     def key(self) -> str:
@@ -93,6 +105,12 @@ def parse_inventory(content: str) -> list[Thread]:
             raise InventoryError(
                 f"Thread {current_header[0]} ({current_header[1]!r}) has invalid Signal: {signal!r}"
             )
+        strength = current_fields.get("Strength", "").strip().lower()
+        if strength and strength not in VALID_STRENGTHS:
+            raise InventoryError(
+                f"Thread {current_header[0]} ({current_header[1]!r}) has "
+                f"invalid Strength: {strength!r}"
+            )
         quote_value = current_fields["Quote"].strip()
         if len(quote_value) >= 2 and quote_value.startswith('"') and quote_value.endswith('"'):
             quote_value = quote_value[1:-1]
@@ -104,6 +122,10 @@ def parse_inventory(content: str) -> list[Thread]:
                 quote=quote_value,
                 context=current_fields["Context"].strip(),
                 initial_take=current_fields["Initial take"].strip(),
+                claim=current_fields.get("Claim", "").strip(),
+                conventional_view=current_fields.get("Conventional view", "").strip(),
+                evidence=current_fields.get("Evidence", "").strip(),
+                strength=strength,
             )
         )
 
@@ -122,7 +144,7 @@ def parse_inventory(content: str) -> list[Thread]:
         if field is not None:
             name = field.group(1).strip()
             value = field.group(2).strip()
-            if name in REQUIRED_FIELDS:
+            if name in KNOWN_FIELDS:
                 current_fields[name] = value
                 current_field_name = name
             else:
@@ -191,9 +213,24 @@ def merge(pass1: list[Thread], final: list[Thread]) -> list[Thread]:
                 quote=original.quote,
                 context=original.context,
                 initial_take=original.initial_take,
+                claim=original.claim,
+                conventional_view=original.conventional_view,
+                evidence=original.evidence,
+                strength=original.strength,
             )
         )
     return merged
+
+
+def optional_field_lines(thread: Thread) -> list[str]:
+    """Render the lens fields that are set, in schema order."""
+    values = (
+        ("Claim", thread.claim),
+        ("Conventional view", thread.conventional_view),
+        ("Evidence", thread.evidence),
+        ("Strength", thread.strength),
+    )
+    return [f"- **{name}**: {value}" for name, value in values if value]
 
 
 def render_inventory(threads: list[Thread], source: str = "merged") -> str:
@@ -216,6 +253,7 @@ def render_inventory(threads: list[Thread], source: str = "merged") -> str:
                 f'- **Quote**: "{t.quote}"',
                 f"- **Context**: {t.context}",
                 f"- **Initial take**: {t.initial_take}",
+                *optional_field_lines(t),
                 "",
             ]
         )

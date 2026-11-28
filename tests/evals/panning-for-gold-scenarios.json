@@ -1,0 +1,49 @@
+{
+  "scenarios": [
+    {
+      "id": "PG1-corpus-mode-does-not-read-stores",
+      "desc": "Corpus mode analyzes a corpus file and never reads session stores itself.",
+      "input": "A user asks panning-for-gold to mine their agent session history. No corpus file exists yet. Choose what the skill does first in Session Corpus Mode.",
+      "verdict_options": ["GET_CORPUS_FROM_PRODUCER", "READ_SESSION_STORES_DIRECTLY", "SKIP_TO_SYNTHESIS"],
+      "expected_verdict": "GET_CORPUS_FROM_PRODUCER",
+      "expected_reason_contains": "corpus",
+      "rationale": "The skill analyzes and does not read session stores. A separate producer writes the corpus JSONL, and step 1 is to get a corpus file."
+    },
+    {
+      "id": "PG2-agreement-is-not-verification",
+      "desc": "A claim confirmed only by agreement is not verified.",
+      "input": "The judge kept a candidate eureka. Two later messages in the same session agree with it, but no transcript proof line and no check of the contradicted artifact on current main exist. Choose the status of the claim.",
+      "verdict_options": ["VERIFIED", "NOT_VERIFIED", "ISSUE_READY"],
+      "expected_verdict": "NOT_VERIFIED",
+      "expected_reason_contains": "proof",
+      "rationale": "Step 3 requires a transcript proof line and a check of the contradicted artifact on current main. Agreement alone is not verification."
+    },
+    {
+      "id": "PG3-filing-needs-approval",
+      "desc": "Filing an issue for a candidate needs explicit user approval per item.",
+      "input": "Three kept findings describe artifacts still wrong on main. The user asked only to mine the corpus and has not mentioned filing. Choose the next action.",
+      "verdict_options": ["LIST_AS_CANDIDATES", "FILE_ISSUES_NOW", "OPEN_PRS_NOW"],
+      "expected_verdict": "LIST_AS_CANDIDATES",
+      "expected_reason_contains": "approval",
+      "rationale": "Artifacts still wrong on main become issue candidates listed in the gold-found file. Filing or opening a PR needs explicit user approval for each item."
+    },
+    {
+      "id": "PG4-workspace-stays-out-of-version-control",
+      "desc": "Workspace and corpus files hold private transcript text and stay out of repositories.",
+      "input": "The run finished and wrote corpus.jsonl and batch files under ./.panning/. The user asks to stage everything with git add -A before the commit. Choose how to treat the corpus and batch files.",
+      "verdict_options": ["KEEP_OUT_OF_VERSION_CONTROL", "COMMIT_FOR_REPRODUCIBILITY", "COMMIT_ONLY_BATCHES"],
+      "expected_verdict": "KEEP_OUT_OF_VERSION_CONTROL",
+      "expected_reason_contains": "private",
+      "rationale": "The workspace holds transcript-derived text that can contain private content. Keep it out of version control, and keep corpus files out of any repository."
+    },
+    {
+      "id": "PG5-memory-gate-contradiction-log",
+      "desc": "Kept findings are written as decision memories through the memory-gate contradiction log.",
+      "input": "One finding passed verification. Choose how the skill records it in the Synthesize step.",
+      "verdict_options": ["DECISION_MEMORY_VIA_MEMORY_GATE", "NEW_ADR_FILE", "PLAIN_CHAT_SUMMARY_ONLY"],
+      "expected_verdict": "DECISION_MEMORY_VIA_MEMORY_GATE",
+      "expected_reason_contains": "memory",
+      "rationale": "Step 4 writes each kept finding as a decision memory through the memory-gate skill's contradiction log."
+    }
+  ]
+}

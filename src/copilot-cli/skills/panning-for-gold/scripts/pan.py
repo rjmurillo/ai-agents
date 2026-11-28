@@ -6,6 +6,7 @@ Subcommands:
     validate  - Validate an inventory file against the schema.
     merge     - Merge pass1 and final inventories, write the result.
     synth     - Build the gold-found file from inventory + evaluations.
+    prefilter - Cut a session corpus (JSONL) into batches for the contradiction lens.
 
 EXIT CODES (ADR-035):
     0 - Success
@@ -31,6 +32,13 @@ from inventory import (  # noqa: E402
     merge,
     read_inventory,
     render_inventory,
+)
+from prefilter import (  # noqa: E402
+    DEFAULT_MAX_BATCH_CHARS,
+    LENSES,
+    CorpusError,
+    existing_batches,
+    run_prefilter,
 )
 from synthesis import (  # noqa: E402
     SynthesisError,
@@ -166,10 +174,46 @@ def cmd_synth(args: argparse.Namespace) -> int:
     return 0
 
 
+def _positive_int(value: str) -> int:
+    try:
+        number = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not an integer: {value!r}") from None
+    if number < 1:
+        raise argparse.ArgumentTypeError("must be 1 or greater")
+    return number
+
+
+def cmd_prefilter(args: argparse.Namespace) -> int:
+    """Cut a session corpus into batch files for the contradiction lens."""
+    corpus = Path(args.corpus)
+    out_dir = Path(args.out)
+    if not corpus.is_file():
+        print(f"ERROR: corpus not found: {corpus}", file=sys.stderr)
+        return 2
+    if existing_batches(out_dir):
+        print(f"ERROR: {out_dir} already holds batch files; use a fresh --out", file=sys.stderr)
+        return 2
+    try:
+        stats = run_prefilter(corpus, args.lens, out_dir, args.max_batch_chars)
+    except CorpusError as exc:
+        print(f"INVALID: {exc}", file=sys.stderr)
+        return 1
+    except OSError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+    print(
+        f"Prefiltered {stats.rows_read} row(s): {stats.windows_kept} window(s) kept "
+        f"in {stats.batches} batch(es) -> {out_dir}"
+    )
+    return 0
+
+
 _HELP_EPILOG = """\
 examples:
   %(prog)s init --workspace panning
   %(prog)s validate --inventory inventory.md
+  %(prog)s prefilter --corpus corpus.jsonl --lens contradiction --out batches
 
 exit codes:
   0  ok
@@ -210,6 +254,18 @@ def build_parser() -> argparse.ArgumentParser:
     p_synth.add_argument("--source", help="Source label for the metadata block.")
     p_synth.add_argument("--force", action="store_true", help="Overwrite output if present.")
     p_synth.set_defaults(func=cmd_synth)
+
+    p_pre = sub.add_parser("prefilter", help="Cut a session corpus into judge batches.")
+    p_pre.add_argument("--corpus", required=True, help="Path to the corpus JSONL.")
+    p_pre.add_argument("--lens", required=True, choices=LENSES, help="Lens to filter for.")
+    p_pre.add_argument("--out", required=True, help="Fresh directory for batch files.")
+    p_pre.add_argument(
+        "--max-batch-chars",
+        type=_positive_int,
+        default=DEFAULT_MAX_BATCH_CHARS,
+        help=f"Close a batch past this many text characters (default: {DEFAULT_MAX_BATCH_CHARS}).",
+    )
+    p_pre.set_defaults(func=cmd_prefilter)
 
     return parser
 
