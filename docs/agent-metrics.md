@@ -358,7 +358,7 @@ Zero-Intervention Rate = (Agent PRs with 0 interventions / Agent PRs in the row)
 
 - Script: `scripts/agent_pr_intervention_metrics.py`, run as `scripts/update_reviewer_signal_stats.py --agent-intervention`
 - Report: `.project-toolkit/metrics/agent-pr-intervention.md`, with the full definitions and known limits
-- Workflow: `.github/workflows/update-reviewer-stats.yml`
+- Workflow: none. `.github/workflows/update-reviewer-stats.yml` was deleted on 2026-11-25, so this report no longer refreshes. Run the script by hand.
 - Issue: #7154
 
 ---

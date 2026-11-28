@@ -1,9 +1,9 @@
-"""Run the ai-spec-review head-data export for real against a local fake origin.
+"""Run the spec head-data export for real against a local fake origin.
 
-Issue #6506 workflow-ci-04: the review job checks out the base commit and
-receives the pull request head as data. The YAML-shape tests cannot tell
-whether the export works, so this runs the step's script and then the spec
-loader from the exported tree.
+Issue #6506 workflow-ci-04: the review job of ``ai-spec-review.yml`` (deleted
+2026-11-25) checked out the base commit and received the pull request head as
+data. No YAML-shape test could tell whether the export worked, so this runs the
+exporter script and then the spec loader from the exported tree.
 """
 
 from __future__ import annotations
@@ -15,13 +15,10 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ai-spec-review.yml"
 LOADER = REPO_ROOT / "scripts" / "ci" / "spec_load_content.py"
 EXPORTER = REPO_ROOT / "scripts" / "ci" / "spec_review_export_head.py"
-STEP_NAME = "Fetch pull request head as data"
 PR_NUMBER = "7"
 
 
@@ -43,14 +40,6 @@ def _git(cwd: Path, *args: str) -> str:
         },
     )
     return result.stdout.strip()
-
-
-def test_the_workflow_step_runs_the_exporter() -> None:
-    data: dict[str, Any] = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
-    steps = {step.get("name"): step for step in data["jobs"]["review-spec"]["steps"]}
-
-    assert steps[STEP_NAME]["run"].strip() == "python3 scripts/ci/spec_review_export_head.py"
-    assert steps[STEP_NAME]["if"] == "github.event_name == 'pull_request'"
 
 
 @pytest.fixture

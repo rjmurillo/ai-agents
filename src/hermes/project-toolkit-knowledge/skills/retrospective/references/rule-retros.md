@@ -18,7 +18,7 @@ Event-triggered, never scheduled. Four triggers warrant a full retrospective:
 3. A merge was reverted or force-fixed.
 4. The user corrected the work explicitly.
 
-One more fires on its own: the Post-PR Retrospective workflow runs on PR close, and escalates depth for an unmerged close, a rework marker in the title, or heavy review comment density. It skips bot and fork pull requests.
+The Post-PR Retrospective workflow used to fire on PR close as a fifth trigger. It was deleted on 2026-11-25, so only the four triggers above start an analysis.
 
 A day on which none of those fired owes no retrospective. A pre-push gate used to demand one per calendar day or per session; it was removed because the artifact it produced on a quiet day recorded nothing and cost every push. A retro written to satisfy a counter is worse than no retro: it dilutes the corpus the failure canon and the `retrospective` skill read.
 

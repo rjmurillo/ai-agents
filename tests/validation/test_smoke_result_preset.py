@@ -11,24 +11,17 @@ from tests.lib.smoke_result_env import FORK_MESSAGE, apply_green
 
 Capsys = pytest.CaptureFixture[str]
 
-COUNT_MESSAGE = (
-    "CLI smoke passed with {count} prompt checks quota-skipped. Load tests passed on every leg."
-)
 EXPECTED_ARGV = [
     "--check", "CHANGES_RESULT", "success", "Smoke path filter result: {value}",
     "--skip-when", "RUN", "false",
     "--skip-message", "No smoke path changed; CLI smoke legs skipped.",
     "--skippable-check", "AUTHORIZE_RESULT", "success", "Trusted-context gate result: {value}",
     "--guarded-check", "AUTHORIZE_RESULT", "success", "TRUSTED", "true", FORK_MESSAGE,
-    "--guarded-check", "EVENT_NAME", "workflow_dispatch", "SMOKE_RESULT", "success",
-    "Claude and Copilot smoke result: {value}",
     "--skippable-check", "CODEX_RESULT", "success", "Codex smoke result: {value}",
     "--skippable-check", "HOOKS_RESULT", "success",
     "Claude hook discovery smoke result: {value}",
     "--skippable-check", "PI_RESULT", "success", "Pi smoke result: {value}",
     "--success-message", "CLI smoke passed for every leg that ran.",
-    "--count-dir", "quota-skips",
-    "--count-message", COUNT_MESSAGE,
 ]  # fmt: skip
 
 
