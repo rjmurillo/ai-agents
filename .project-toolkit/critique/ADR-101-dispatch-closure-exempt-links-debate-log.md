@@ -323,6 +323,8 @@ The `/review` pass on the final tip (security axis PASS, correctness WARN with n
 
 ## Amendment 2026-11-28: rule install links join the exemption (PR #7730)
 
+**Superseded at merge 357beb945 (2026-11-28)**: PR #7838 (121b25496) landed the same exemption on main first. The merge kept main's `scripts/ci/_link_exemption.py`, its test, and ADR-101, so PR #7730 no longer changes them. The record below is kept as history.
+
 **Trigger**: CodeRabbit review 6095946480 on PR #7730 (thread on `scripts/ci/_link_exemption.py:54`). The PR added `rules` and `instructions-github` to `EXEMPT_ROW_CLASSES`, and this ADR says a new exempt install tree needs a failing pull request and an amendment here. The failing pull request is #7730 itself: run 46108424270 on head 5f0809ccb9 reported `2 new symlinks`, `.claude/rules/core.md` and `.github/instructions/core.instructions.md`, with 0 files differing.
 
 **Change**: one amendment appended to the 2026-11-16 paragraph (the ADR is at its 500-line size cap, so the text stays on that line). A new negative test, `test_a_rule_link_under_an_import_root`, shows each rule link is still reported when its install tree is an import root. Negative control: with the verifier moved to `tools/run.py`, both parametrized cases fail; restored, both pass. The file has 30 tests, all passing.

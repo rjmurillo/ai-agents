@@ -98,7 +98,7 @@ Stop conditions:
 
 For tidy fixes, name the readability gain and check that behavior stays the same. For defects and needed fixes, name what breaks and how you will prove the fix.
 
-Authority for class 3: a second PR is state the user did not name (the core rule, section `## Task Intent`). It needs a user order or workflow contract that covers opening PRs for defects found along the way; an order to ship the requested change alone does not. One class 3 PR per task. A second confirmed defect is named in the PR body, not opened. In a question, review, or diagnosis, or once the task is terminal, name the defect, its impact, and its proof in the report instead (the core rule, section `## Task Intent`). Filing an issue still follows the flag rule in the core rule, section `### Finding disposition`: flag an issue the agent found, and file it only when the user authorizes that item or a bounded standing authorization covers it.
+Authority for class 3: a second PR is state the user did not name (the core rule, section `## Task Intent`). It needs a user order or workflow contract that covers opening PRs for defects found along the way; an order to ship the requested change alone does not. One class 3 PR per task. A second confirmed defect is named in the PR body, not opened. In a request that asks only for assessment, review, or diagnosis, or once the task is terminal, name the defect, its impact, and its proof in the report instead (the core rule, section `## Task Intent`). Filing an issue still follows the flag rule in the core rule, section `### Finding disposition`: flag an issue the agent found, and file it only when the user authorizes that item or a bounded standing authorization covers it.
 
 Practice behind the classes:
 

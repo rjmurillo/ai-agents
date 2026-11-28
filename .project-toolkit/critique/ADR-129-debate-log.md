@@ -183,7 +183,7 @@ Final byte-reserve check: reduced panel accepted the one-character compression.
 
 **Trigger**: CodeRabbit review 6095946480 on PR #7730 (thread on ADR-129 lines 105-107). The Reversal bullet said to restore the prior `voice` and `builder-ethos` rules, while Rollback names one revert of PR #7730.
 
-**Change**: Reversal now names the PR revert and gives the measured reason a partial restore fails: main holds `voice` at 13,659 bytes and `builder-ethos` at 11,187 bytes at a09c8807a4, and the always-on `.md` corpus had 670 bytes of headroom under 34,600 at 5f0809ccb9. Rollback now states that the repo merges by squash only, that the revert raises the `.md` ceiling to 83,000 so `test_no_ceiling_rose_against_the_base_ref` fails until the owner approves the raise (issue #4345), and that the revert also removes the ADR-101 rule-link exemption. No decision text changes.
+**Change**: Reversal now names the PR revert and gives the measured reason a partial restore fails: main holds `voice` at 13,659 bytes and `builder-ethos` at 11,187 bytes at a09c8807a4, and the always-on `.md` corpus had 670 bytes of headroom under 34,600 at 5f0809ccb9. Rollback now states that the repo merges by squash only, that the revert raises the `.md` ceiling to 83,000 so `test_no_ceiling_rose_against_the_base_ref` fails until the owner approves the raise (issue #4345), and that the revert also removes the ADR-101 rule-link exemption. No decision text changes. (Superseded by the next amendment: the exemption landed through PR #7838, so the revert leaves it in place.)
 
 **Panel**: the same six-seat panel that reviewed the ADR-101 amendment in `ADR-101-dispatch-closure-exempt-links-debate-log.md` reviewed this edit.
 
@@ -193,5 +193,22 @@ Final byte-reserve check: reduced panel accepted the one-character compression.
 | critic | Disagree-and-Commit | squash-only merge confirmed, so one revert holds |
 | analyst | Disagree-and-Commit | byte claim now measured, with SHA and date |
 | independent-thinker, security, high-level-advisor | Accept or Disagree-and-Commit | no finding on this edit beyond line wrapping, which is fixed |
+
+**Outcome**: Consensus, no Block. ADR-129 status unchanged.
+
+## Amendment 2026-11-28: Rollback no longer claims the ADR-101 exemption
+
+**Trigger**: CodeRabbit review 6096929981 on PR #7730 (thread on ADR-129 lines 368-369). Rollback said the revert removes the `rules` and `instructions-github` link exemption in ADR-101.
+
+**Change**: PR #7838 (121b25496) landed that exemption on main, and the merge in 357beb945 kept main's version, so `git diff origin/main...HEAD` on 2026-11-28 shows no change to `scripts/ci/_link_exemption.py` or ADR-101. Rollback now says the revert leaves the exemption in place. The sentence that a later rule link fails dispatch closure is removed. No decision text changes.
+
+**Panel**: reduced panel (architect, critic), because the edit touches no executable enforcement and no rule another gate reads.
+
+Also corrected: the Negative consequence that dispatch closure fails on any new rule now says this held before PR #7838.
+
+| Seat | Verdict | Finding applied |
+|---|---|---|
+| architect | Accept | confirmed no diff to `_link_exemption.py` or ADR-101 and that 121b25496 is on main; flagged the ADR-101 debate log amendment, now marked superseded |
+| critic | Disagree-and-Commit | flagged the dispatch-closure Negative consequence and the earlier amendment's revert claim; both now corrected |
 
 **Outcome**: Consensus, no Block. ADR-129 status unchanged.

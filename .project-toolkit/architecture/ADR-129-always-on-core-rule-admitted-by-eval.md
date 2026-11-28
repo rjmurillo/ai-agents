@@ -331,8 +331,9 @@ already includes the partial.
   scored text by one reworded sentence.
 - An author editing a rule file loads neither `voice` nor `builder-ethos` (item 3).
 - The change touches 75 files at d3c2d82df9 (2026-11-26), most of them generated.
-- `Verify dispatch closure against base` fails on any new rule, because the rule
-  adds generated symlinks. It is not a required check.
+- Before PR #7838 (121b25496), `Verify dispatch closure against base` failed on
+  any new rule, because the rule adds generated symlinks. #7838 exempts the
+  `rules` and `instructions-github` install links. It is not a required check.
 
 ### Neutral
 
@@ -364,10 +365,11 @@ scenarios or a recorded reason, and the Task Intent exception has its rerun.
 Rollback is one revert of PR #7730, which merges as one squash commit. No data
 format changes. The revert raises the `.md` ceiling from 34,600 back to 83,000,
 so `test_no_ceiling_rose_against_the_base_ref` fails on it until the owner
-approves the raise and the commit body says why (issue #4345). The revert also
-removes the `rules` and `instructions-github` link exemption in ADR-101, so a
-rule link added after the revert fails dispatch closure again. Putting one rule
-back alone must fit the lowered ceilings, because the ratchet forbids a raise.
+approves the raise and the commit body says why (issue #4345). The revert
+leaves the `rules` and `instructions-github` link exemption in ADR-101 in
+place: PR #7838 landed it on main, and this PR does not change it. Putting one
+rule back alone must fit the lowered ceilings, because the ratchet forbids a
+raise.
 
 ## Related Decisions
 
