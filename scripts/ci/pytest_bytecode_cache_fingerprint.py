@@ -4,8 +4,9 @@
 The workflow pins cached pytest commands to ``pyproject.toml``. Hashing the
 whole file would rotate the performance cache for unrelated project metadata,
 so this script hashes only the parsed pytest table plus the pytest version.
-The output is a step input to the cache key, never a trust decision: pytest
-still validates every cached bytecode header against its source hash.
+The output is a step input to the cache key, never a trust decision. pytest
+checks each cached bytecode header against its source hash, which is a
+freshness check and does not authenticate the payload or its producer.
 
 EXIT CODES (ADR-035):
   0 - fingerprint written or printed

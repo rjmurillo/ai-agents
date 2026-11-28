@@ -27,6 +27,16 @@ directory, or a privileged bind mount, between validation and deletion. Those
 cases cannot follow a symlink to victim files, and unprivileged cache writers
 cannot use them to reach arbitrary directories.
 
+--verify-only is the publisher's gate. It applies the same per-file predicate
+without removing anything: a rejected entry, an empty candidate, or a file set
+that changes between two scans exits 1. It exits 2 when a bytecode cache prefix
+is set for the verifying interpreter, because Python could then read the
+candidate as bytecode. The check never imports or executes candidate files.
+It does decode each payload with marshal.loads, as the prune does. That call
+does not run the payload, but marshal is not designed for untrusted data, so a
+hostile payload can crash this process, which fails closed. The decode adds no
+authentication: it confirms only that the bytes parse as a code object.
+
 EXIT CODES (ADR-035):
   0 - success
   1 - logic failure or invalid bytecode cache state that cannot be classified
@@ -81,6 +91,11 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--workspace", type=Path, required=True)
     parser.add_argument("--cache-root", type=Path, required=True)
+    parser.add_argument(
+        "--verify-only",
+        action="store_true",
+        help="read-only: exit nonzero unless every entry is a current pytest pyc",
+    )
     return parser
 
 
@@ -373,6 +388,62 @@ def prune_cache(cache_root: Path, workspace: Path) -> tuple[PruneSummary, list[s
     return summary, errors
 
 
+def verify_cache(cache_root: Path, workspace: Path) -> tuple[int, list[str]]:
+    """Read-only check that every entry is a current pytest pyc. Returns (pycs, rejected).
+
+    Nothing is opened for writing, deleted, imported, or executed. The file set
+    is scanned twice and any difference between the two scans is rejected, so a
+    writer that adds or removes an entry during verification fails the run.
+    """
+    tags = _current_tags()
+    rejected: list[str] = []
+    with _opened_root_directory(cache_root) as root_fd:
+        first = _scan(cache_root, root_fd)
+        for path in first.files:
+            relative = path.relative_to(cache_root)
+            try:
+                with _opened_parent_directory(cache_root, path, root_fd) as parent_fd:
+                    current = _is_current_pyc(
+                        path, cache_root, workspace, tags, parent_fd=parent_fd
+                    )
+            except (OSError, ValueError):
+                current = False
+            if not current:
+                rejected.append(f"rejected cache entry: {relative}")
+        second = _scan(cache_root, root_fd)
+    if set(second.files) != set(first.files):
+        rejected.append("cache file set changed during verification")
+    return first.pyc_count, rejected
+
+
+def _publisher_environment_error() -> str | None:
+    """Return a message when this interpreter could read the candidate as bytecode."""
+    if sys.pycache_prefix or os.environ.get("PYTHONPYCACHEPREFIX"):
+        return "verification must run with no bytecode cache prefix set"
+    return None
+
+
+def _verify_main(workspace: Path, cache_root: Path) -> int:
+    environment_error = _publisher_environment_error()
+    if environment_error is not None:
+        print(f"error: {environment_error}", file=sys.stderr)
+        return EXIT_CONFIG
+    try:
+        pycs, rejected = verify_cache(cache_root, workspace)
+    except RuntimeError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return EXIT_LOGIC
+    except OSError as exc:
+        print(f"error: could not scan the bytecode cache: {exc}", file=sys.stderr)
+        return EXIT_EXTERNAL
+    if pycs == 0:
+        rejected.append("candidate holds no pytest bytecode")
+    print(f"prune_bytecode_cache: verify pycs={pycs} rejected={len(rejected)}")
+    for message in rejected:
+        print(f"error: {message}", file=sys.stderr)
+    return EXIT_LOGIC if rejected else EXIT_OK
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
@@ -380,6 +451,8 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_CONFIG
+    if args.verify_only:
+        return _verify_main(workspace, cache_root)
 
     try:
         summary, errors = prune_cache(cache_root, workspace)

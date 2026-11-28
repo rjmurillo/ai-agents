@@ -522,7 +522,9 @@ jobs:
       # cost at about 0.5 s for one pytest process.
       # The key leaves out tests/ on purpose: pytest compares each rewritten .pyc
       # header with the source hash and the interpreter magic number and recompiles
-      # any mismatch, so a stale restore costs time and never changes a test result.
+      # any mismatch, so a stale restore of an honest cache costs time and does not
+      # change a test result. That sentence says nothing about a cache an attacker
+      # wrote: see the trust note above this step.
       # Assertion rewriting also depends on the pytest configuration, which pytest
       # does not include in that validation. The cached commands pin pyproject.toml,
       # and this step fingerprints its parsed pytest table plus the pytest version,
@@ -530,6 +532,25 @@ jobs:
       # the cache. The fingerprint step also emits the exact Python runtime
       # pytest uses, and the key consumes that output rather than the setup
       # action's PATH interpreter.
+      # Trust note (WS6B finding F1, a residual risk the owner accepted with
+      # cross-run restore). pytest reads a restored pyc, checks the magic number,
+      # the flags and the source hash, then executes the code object during
+      # collection. The source hash is a freshness check: it is computed from the
+      # source file and stored in the pyc header, so a writer can pair a payload
+      # with a correct header. It authenticates neither the payload nor the
+      # producer. What a cache writer needs: the ability to save an Actions cache
+      # entry under a key this restore can match, in a scope this job can read.
+      # That is a step in a job of this repository that holds the cache token, in
+      # the scope of the main branch or of the pull request being tested.
+      # Observed in this file: the only bytecode save is the publisher job below,
+      # which runs on a push to main after the required test-result job succeeded
+      # and after a read-only verification of the staged tree. No pull request
+      # job saves. Assumed from GitHub's documented cache scoping, not measured
+      # here: a pull request run writes only its own merge-ref scope, and a later
+      # run of the same pull request can read that scope even after the writing
+      # code was removed; a fork pull request does not write the main scope. Not
+      # established: whether any other writer exists, and what the live caches
+      # hold. This restore therefore still executes bytes it cannot authenticate.
       - name: Fingerprint pytest bytecode cache configuration
         id: pytest-bytecode-config
         run: uv run --frozen python scripts/ci/pytest_bytecode_cache_fingerprint.py
@@ -649,27 +670,28 @@ jobs:
           --include=src/claude/skills/github/scripts/pr/wait_for_unresolved_zero.py
           --fail-under=100
 
-      # Only the primary leg (split-1) writes. Its full-pool collection imports
-      # and rewrites the modules assigned to every split group before deselection,
-      # so the save keeps that already-paid work instead of discarding it. A
-      # targeted collection fills the dedicated and unpartitioned modules that the
-      # split pool ignores. One writer avoids a merge and the parallel-writer race.
-      # Pull requests never save, so a fork cannot seed bytecode that later runs
-      # restore. The unique run key lets the restore prefix select the newest main
-      # save. The step sits below the flaky-rerun steps because the rerun must
-      # follow Run pytest directly. This is the only
-      # step that writes this key. Its if: allows a write only from the primary
-      # leg of a push to refs/heads/main after every prior test verdict succeeds.
-      # Later legs run
-      # what it saved. The path is the checkout subtree of the prefix, the same
-      # path the restore step reads. The prune step enforces one invariant before
-      # the save: every file in that subtree is pytest-rewritten bytecode for this
+      # Only the primary leg (split-1) produces bytecode, and it never publishes
+      # it. Its full-pool collection imports and rewrites the modules assigned to
+      # every split group before deselection, and a targeted collection fills the
+      # dedicated and unpartitioned modules the split pool ignores, so the saved
+      # tree keeps that already-paid work. One producer avoids a merge and the
+      # parallel-writer race. This leg is a candidate producer only: the steps
+      # below run after the final coverage verdict, pre-filter the tree with the
+      # prune script, and upload it as a run-local artifact. The artifact is not a
+      # cache entry. Only the publish-bytecode-cache job saves one, from a
+      # separate runner, after test-result succeeded for the whole run and after
+      # it re-verifies the downloaded tree (WS6B F2 and F3). Code in this job can
+      # change the tree, so the prune here is a filter, not an authority. In this
+      # file as it stands on main, pull requests, merge groups and manual runs do
+      # not reach these steps. A pull request can edit its own copy of this
+      # workflow, so that bounds what main publishes, not what a pull request's
+      # own runs write to their own cache scope (see the trust note). The path is
+      # the checkout subtree of the prefix, the same path the restore step reads. The prune
+      # keeps a file only when it is pytest-rewritten bytecode for this
       # interpreter and pytest tag whose source exists now. Ordinary interpreter
       # bytecode is removed because its timestamp validation cannot rule out a
       # same-second same-size source edit. A nonzero prune stops this job, so the
-      # save never runs after a failed prune. The whole collect-prune-save block
-      # sits after the final coverage verdict so a later failure cannot publish
-      # bytecode from a red run.
+      # upload never runs after a failed prune.
       - name: Collect excluded tests for bytecode cache
         if: >-
           success()
@@ -680,7 +702,6 @@ jobs:
           PYTHONPYCACHEPREFIX: ${{ runner.temp }}/pytest-bytecode-cache
         run: >-
           uv run --frozen python scripts/ci/collect_excluded_test_bytecode.py
-
       - name: Prune pytest bytecode cache
         if: >-
           success()
@@ -690,17 +711,18 @@ jobs:
           uv run --frozen python scripts/ci/prune_bytecode_cache.py
           --workspace "${{ github.workspace }}"
           --cache-root "${{ runner.temp }}/pytest-bytecode-cache${{ github.workspace }}"
-
-      - name: Save pytest bytecode cache
+      - name: Upload pytest bytecode candidate
         if: >-
           success()
           && matrix.primary
           && github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
+          name: pytest-bytecode-candidate-${{ runner.os }}-${{ runner.arch }}-${{ steps.pytest-bytecode-config.outputs.python-runtime }}-${{ steps.pytest-bytecode-config.outputs.fingerprint }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/pytest-bytecode-cache${{ github.workspace }}
-          key: pytest-bytecode-${{ runner.os }}-${{ runner.arch }}-${{ steps.pytest-bytecode-config.outputs.python-runtime }}-${{ steps.pytest-bytecode-config.outputs.fingerprint }}-${{ github.run_id }}-${{ github.run_attempt }}
-
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
       - name: Upload test results
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
@@ -717,6 +739,68 @@ jobs:
           overwrite: true
           retention-days: 7
 
+  # WS6B F2 and F3: the only job that writes the bytecode cache. It runs on a
+  # separate runner from every test leg, only on a push to main, and only after
+  # the required test-result job reported success, so a red run publishes
+  # nothing. It is deliberately not in test-result's needs: a slow or failed
+  # publish must never change the required verdict. `!cancelled()` is the
+  # repository's cancellation guard for a job that reads a dependency result and
+  # downloads an artifact (tests/workflows/test_aggregator_cancellation_guard.py);
+  # the explicit test-result term still requires success. It never restores the cache,
+  # never sets PYTHONPYCACHEPREFIX, and never imports or executes candidate
+  # files. The candidate is downloaded straight to the cache path because the
+  # cache version is derived from the path string: a differently named staging
+  # directory would save an entry no restore can match. On this fresh runner that
+  # path is private to this job, so it is the staging directory. The verify and
+  # save steps are adjacent and nothing runs between them. The verify step is
+  # read-only, rejects any entry that is not a current pytest pyc, an empty tree,
+  # or a file set that changes during the check, and fails the job closed.
+  publish-bytecode-cache:
+    name: Publish pytest bytecode cache
+    needs: test-result
+    if: >-
+      !cancelled()
+      && needs.test-result.result == 'success'
+      && github.event_name == 'push'
+      && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@aebdcf6156ab6691adf63218240e476564a1ed4c # v2.23.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-git-hooks: false
+      # Recomputed here with the same launcher the test legs use. The key inputs
+      # never come from the downloaded artifact.
+      - name: Fingerprint pytest bytecode cache configuration
+        id: pytest-bytecode-config
+        run: uv run --frozen python scripts/ci/pytest_bytecode_cache_fingerprint.py
+      - name: Download pytest bytecode candidate
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: pytest-bytecode-candidate-${{ runner.os }}-${{ runner.arch }}-${{ steps.pytest-bytecode-config.outputs.python-runtime }}-${{ steps.pytest-bytecode-config.outputs.fingerprint }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/pytest-bytecode-cache${{ github.workspace }}
+      - name: Verify pytest bytecode candidate
+        run: >-
+          uv run --frozen python scripts/ci/prune_bytecode_cache.py
+          --verify-only
+          --workspace "${{ github.workspace }}"
+          --cache-root "${{ runner.temp }}/pytest-bytecode-cache${{ github.workspace }}"
+      - name: Save pytest bytecode cache
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ${{ runner.temp }}/pytest-bytecode-cache${{ github.workspace }}
+          key: pytest-bytecode-${{ runner.os }}-${{ runner.arch }}-${{ steps.pytest-bytecode-config.outputs.python-runtime }}-${{ steps.pytest-bytecode-config.outputs.fingerprint }}-${{ github.run_id }}-${{ github.run_attempt }}
   coverage:
     name: Combine Python coverage
     needs: test

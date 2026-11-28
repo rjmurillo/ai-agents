@@ -1,15 +1,19 @@
 """Wiring tests for the pytest assertion-rewrite bytecode cache in pytest.yml.
 
-The cache is a performance cache only. pytest validates every rewritten .pyc
+The cache is a performance cache. pytest validates every rewritten .pyc
 against the source hash (`_pytest/assertion/rewrite.py`, `_read_pyc`) and
-recompiles a mismatch, so a stale restore costs time and never changes a test
-outcome. These tests pin the design that depends on that property: no hash of
-tests/ in the key, one save from the primary leg on a main push, and a prefix
-outside the checkout that the pytest child really inherits.
+recompiles a mismatch, so a stale restore of an honest cache costs time and does
+not change a test outcome. That is a freshness check, not authentication: a
+writer can pair a payload with a correct header (see the trust note in
+pytest.yml). These tests pin the design that depends on that property: no hash of
+tests/ in the key, one candidate upload from the primary leg on a main push, and a
+prefix outside the checkout that the pytest child really inherits. The publisher
+job that saves the cache is pinned in test_pytest_bytecode_publisher_wiring.py.
 """
 
 from __future__ import annotations
 
+import fnmatch
 import importlib.util
 import re
 import subprocess
@@ -28,6 +32,10 @@ from tests.ci.pytest_split_workflow_helpers import WORKFLOW, steps_using, workfl
 REPO_ROOT = Path(__file__).resolve().parents[2]
 KEY_PREFIX = "pytest-bytecode-"
 CACHE_SHA = "55cc8345863c7cc4c66a329aec7e433d2d1c52a9"
+UPLOAD_SHA = "cf430e030ddbb5b0abf93d22962f4752f3646cd9"
+PUBLISHER = "publish-bytecode-cache"
+UPLOAD_STEP = "Upload pytest bytecode candidate"
+CANDIDATE_PREFIX = "pytest-bytecode-candidate-"
 RUNNER_TEMP = "${{ runner.temp }}"
 PREFIX = f"{RUNNER_TEMP}/pytest-bytecode-cache"
 WORKSPACE = "${{ github.workspace }}"
@@ -61,7 +69,7 @@ def _restore() -> dict[str, Any]:
 
 
 def _save() -> dict[str, Any]:
-    (step,) = _bytecode("actions/cache/save")
+    (step,) = _bytecode("actions/cache/save", PUBLISHER)
     return step
 
 
@@ -282,17 +290,26 @@ class TestKeyDesign:
         assert _save()["with"]["key"] == _restore()["with"]["key"]
 
 
-class TestSaveFromThePrimaryLegOnMain:
+class TestCandidateUploadFromThePrimaryLegOnMain:
+    """The test job produces a candidate artifact. It never writes the cache."""
+
+    @staticmethod
+    def _upload() -> dict[str, Any]:
+        return _step(UPLOAD_STEP)
+
+    def test_the_test_job_holds_no_cache_save(self) -> None:
+        assert _bytecode("actions/cache/save", "test") == []
+
     def test_exactly_one_bytecode_save_exists_across_the_workflow(self) -> None:
         saves = [
             (job, step["name"])
             for job in workflow_jobs()
             for step in _bytecode("actions/cache/save", job)
         ]
-        assert saves == [("test", "Save pytest bytecode cache")]
+        assert saves == [(PUBLISHER, "Save pytest bytecode cache")]
 
-    def test_the_save_condition_is_exactly_primary_push_main_success(self) -> None:
-        condition = " ".join(str(_save()["if"]).split())
+    def test_the_upload_condition_is_exactly_primary_push_main_success(self) -> None:
+        condition = " ".join(str(self._upload()["if"]).split())
         assert "||" not in condition
         assert set(condition.split(" && ")) == {
             "success()",
@@ -301,8 +318,8 @@ class TestSaveFromThePrimaryLegOnMain:
             "github.ref == 'refs/heads/main'",
         }
 
-    def test_the_save_never_runs_for_pull_requests(self) -> None:
-        condition = str(_save()["if"])
+    def test_the_upload_never_runs_for_pull_requests(self) -> None:
+        condition = str(self._upload()["if"])
         for event in ("pull_request", "merge_group", "workflow_dispatch", "schedule"):
             assert event not in condition
 
@@ -311,13 +328,44 @@ class TestSaveFromThePrimaryLegOnMain:
         primary = [leg for leg in legs if leg.get("primary")]
         assert [leg["partition"] for leg in primary] == ["split-1"]
 
-    def test_the_save_runs_after_pytest_and_uses_the_pinned_action(self) -> None:
-        assert _names().index("Run pytest") < _names().index("Save pytest bytecode cache")
-        assert _save()["uses"] == f"actions/cache/save@{CACHE_SHA}"
-
-    def test_the_save_runs_after_the_final_test_verdict(self) -> None:
+    def test_the_upload_runs_after_the_final_test_verdict_and_uses_the_pinned_action(self) -> None:
         names = _names()
-        assert names.index(REQ009_ENFORCEMENT_STEP) < names.index("Save pytest bytecode cache")
+        assert names.index(REQ009_ENFORCEMENT_STEP) < names.index(UPLOAD_STEP)
+        assert names.index("Run pytest") < names.index(UPLOAD_STEP)
+        assert self._upload()["uses"] == f"actions/upload-artifact@{UPLOAD_SHA}"
+
+    def test_the_upload_carries_the_tree_the_restore_reads(self) -> None:
+        with_ = self._upload()["with"]
+        assert with_["path"] == _restore()["with"]["path"]
+        assert with_["include-hidden-files"] is True
+        assert with_["if-no-files-found"] == "error"
+        assert with_["retention-days"] == 1
+        assert "overwrite" not in with_, "a duplicate name must fail, not replace"
+
+    def test_the_artifact_name_binds_the_cache_key_inputs(self) -> None:
+        name = self._upload()["with"]["name"]
+        assert name == CANDIDATE_PREFIX + _restore()["with"]["key"].removeprefix(KEY_PREFIX)
+        assert name.endswith(UNIQUE_SUFFIX)
+        assert PYTHON_RUNTIME_OUTPUT in name
+        assert PYTEST_CONFIG_FINGERPRINT in name
+
+    def test_one_candidate_upload_exists_and_no_consumer_pattern_matches_it(self) -> None:
+        uploads = [
+            (job, step["name"])
+            for job in workflow_jobs()
+            for step in steps_using(job, "actions/upload-artifact")
+            if str(step["with"]["name"]).startswith(CANDIDATE_PREFIX)
+        ]
+        assert uploads == [("test", UPLOAD_STEP)]
+        patterns = [
+            step["with"]["pattern"]
+            for job in workflow_jobs()
+            for step in steps_using(job, "actions/download-artifact")
+            if "pattern" in step["with"]
+        ]
+        assert patterns
+        for pattern in patterns:
+            assert not fnmatch.fnmatchcase(CANDIDATE_PREFIX + "x", pattern)
 
 
 class TestExcludedCollectionBeforePrune:
@@ -331,14 +379,14 @@ class TestExcludedCollectionBeforePrune:
     def test_the_collection_script_is_checked_in(self) -> None:
         assert (REPO_ROOT / "scripts" / "ci" / "collect_excluded_test_bytecode.py").is_file()
 
-    def test_the_collection_condition_matches_the_save_condition_exactly(self) -> None:
-        assert self._collect()["if"] == _save()["if"]
+    def test_the_collection_condition_matches_the_upload_condition_exactly(self) -> None:
+        assert self._collect()["if"] == _step(UPLOAD_STEP)["if"]
 
     def test_the_collection_uses_the_same_bytecode_prefix_as_run_pytest(self) -> None:
         assert self._collect()["env"]["PYTHONPYCACHEPREFIX"] == PREFIX
         assert self._collect()["env"]["PYTEST_NON_TMP_ROOT"].startswith(RUNNER_TEMP)
 
-    def test_the_collection_runs_before_prune_so_invalid_files_never_save(self) -> None:
+    def test_the_collection_runs_before_prune_so_invalid_files_never_upload(self) -> None:
         names = _names()
         assert names.index("Collect excluded tests for bytecode cache") < names.index(
             "Prune pytest bytecode cache"
@@ -351,7 +399,7 @@ class TestExcludedCollectionBeforePrune:
         )
 
 
-class TestPruneBeforeCacheSave:
+class TestPruneBeforeCandidateUpload:
     @staticmethod
     def _prune() -> dict[str, Any]:
         return _step("Prune pytest bytecode cache")
@@ -362,11 +410,9 @@ class TestPruneBeforeCacheSave:
     def test_the_prune_script_is_checked_in(self) -> None:
         assert (REPO_ROOT / "scripts" / "ci" / "prune_bytecode_cache.py").is_file()
 
-    def test_the_prune_runs_directly_before_the_save(self) -> None:
+    def test_the_prune_runs_directly_before_the_upload(self) -> None:
         names = _names()
-        assert names.index("Prune pytest bytecode cache") + 1 == names.index(
-            "Save pytest bytecode cache"
-        )
+        assert names.index("Prune pytest bytecode cache") + 1 == names.index(UPLOAD_STEP)
 
     def test_the_prune_uses_the_same_launcher_as_run_pytest(self) -> None:
         pytest_command = " ".join(str(_step("Run pytest")["run"]).split())
@@ -376,10 +422,10 @@ class TestPruneBeforeCacheSave:
             "uv run --frozen python scripts/ci/prune_bytecode_cache.py "
         )
 
-    def test_the_prune_condition_matches_the_save_condition_exactly(self) -> None:
-        assert self._prune()["if"] == _save()["if"]
+    def test_the_prune_condition_matches_the_upload_condition_exactly(self) -> None:
+        assert self._prune()["if"] == _step(UPLOAD_STEP)["if"]
 
-    def test_the_prune_targets_the_saved_path_inside_the_workspace(self) -> None:
+    def test_the_prune_targets_the_uploaded_path_inside_the_workspace(self) -> None:
         command = " ".join(str(self._prune()["run"]).split())
         assert '--workspace "${{ github.workspace }}"' in command
         assert (
@@ -387,10 +433,10 @@ class TestPruneBeforeCacheSave:
             in command
         )
 
-    def test_the_prune_and_save_failures_are_not_ignored(self) -> None:
+    def test_the_prune_and_upload_failures_are_not_ignored(self) -> None:
         assert "continue-on-error" not in self._prune()
-        assert "continue-on-error" not in _save()
-        assert "always()" not in str(_save()["if"])
+        assert "continue-on-error" not in _step(UPLOAD_STEP)
+        assert "always()" not in str(_step(UPLOAD_STEP)["if"])
 
 
 class TestPermissionsAndPinningUnchanged:
