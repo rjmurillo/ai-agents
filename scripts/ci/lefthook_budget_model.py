@@ -56,7 +56,8 @@ LEFTHOOK = REPO_ROOT / "lefthook.yml"
 # `test_the_roster_matches_what_the_config_actually_routes` requires the two to
 # agree in both directions, so a job crossing the boundary fails a test that
 # names it instead of changing a number quietly. At the time of writing they
-# agree exactly: on 2026-11-26, 13 pre-push jobs clamped and 14 not.
+# agree exactly: on 2026-11-27, 12 pre-push jobs clamped and 13 not (plugin-scanner
+# and count-ratchets left the hook that day).
 CONTAINER_UNCLAMPED_JOBS = frozenset(
     {
         "repo-health",
@@ -71,7 +72,6 @@ CONTAINER_UNCLAMPED_JOBS = frozenset(
         "import-boundaries",
         "worktree-gc-report",
         "branch-config-prune-report",
-        "plugin-scanner",
         "python-lint-advisory",
     }
 )

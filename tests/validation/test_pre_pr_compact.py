@@ -25,8 +25,13 @@ from pathlib import Path
 import pytest
 import yaml
 
-from scripts.validation import pre_pr
-from scripts.validation.evidence import REASON_ALREADY_RUN, REASON_SCRIPT_ABSENT, CheckOutcome
+from scripts.validation import pre_pr, pre_pr_state
+from scripts.validation.evidence import (
+    REASON_ALREADY_RUN,
+    REASON_CI_OWNED,
+    REASON_SCRIPT_ABSENT,
+    CheckOutcome,
+)
 from scripts.validation.pre_pr_state import ValidationState
 
 _VALIDATION_DIR = Path(__file__).resolve().parents[2] / "scripts" / "validation"
@@ -192,6 +197,29 @@ def test_sequence_skip_for_an_already_run_gate_still_prints_by_default(
     pre_pr_sequence.run_all_validations(Path("."), args, state, pre_pr.run_validation)
 
     assert f"[SKIP] {gate.name}" in capsys.readouterr().out
+
+
+def test_sequence_skip_for_a_ci_owned_gate_stays_visible_under_compact(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A CI-owned skip proved nothing locally, so compact mode must not hide it."""
+    gate = next(g for g in pre_pr_sequence._SEQUENCE if g.ci_owned_by)
+    monkeypatch.setenv(pre_pr_sequence.FAST_STAGE_RAN_ENV, "1")
+    monkeypatch.setattr(pre_pr_sequence, "_SEQUENCE", (gate,))
+    args = argparse.Namespace(quick=False, compact=True)
+    state = ValidationState(compact=True)
+
+    pre_pr_sequence.run_all_validations(Path("."), args, state, pre_pr.run_validation)
+
+    assert f"[SKIP] {gate.name}" in capsys.readouterr().out
+    assert state.skipped == 1
+
+
+def test_a_ci_owned_skip_is_not_quiet() -> None:
+    outcome = CheckOutcome.skipped("Gate", reason=REASON_CI_OWNED, detail="owned by CI")
+
+    assert pre_pr_state.is_quiet(outcome) is False
+    assert ValidationState(compact=True).hides(outcome) is False
 
 
 def test_compact_flag_parses_and_defaults_off() -> None:

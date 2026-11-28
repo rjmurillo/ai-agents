@@ -41,7 +41,6 @@ import push_file_list  # noqa: E402
 
 FAST_STAGE_FLAG = "AI_AGENTS_PRE_PR_FAST_STAGE_RAN"
 EXPECTED_DEFERRALS = {
-    "Count Ratchets": "count-ratchets",
     "Unreachable Code Detection": "python-unreachable-statements",
     "Path Normalization": "path-normalization",
     "Planning Artifacts": "planning-artifacts",
@@ -251,12 +250,15 @@ class TestEveryDeferralIsSound:
 
         def lookup(hook: str, name: str) -> dict[str, Any] | None:
             job = real_lookup(hook, name)
-            if name == "count-ratchets" and job is not None:
+            if name == "python-unreachable-statements" and job is not None:
                 return {**job, key: value}
             return job
 
         monkeypatch.setattr(sys.modules[__name__], "_job_named", lookup)
-        assert any("Count Ratchets" in item and f"{key}=" in item for item in _unsound_deferrals())
+        assert any(
+            "Unreachable Code Detection" in item and f"{key}=" in item
+            for item in _unsound_deferrals()
+        )
 
 
 @pytest.mark.parametrize("key", ["glob", "skip"])
@@ -270,14 +272,14 @@ def test_the_rule_rejects_a_target_under_a_conditional_group(
                 {
                     "name": "outer",
                     key: "**/*.py" if key == "glob" else ["merge"],
-                    "group": {"jobs": [{"name": "count-ratchets", "run": "true"}]},
+                    "group": {"jobs": [{"name": "python-unreachable-statements", "run": "true"}]},
                 }
             ]
         }
     }
     monkeypatch.setattr(sys.modules[__name__], "_config", lambda: config)
     assert any(
-        "Count Ratchets" in item and f"{key}=" in item and "'outer'" in item
+        "Unreachable Code Detection" in item and f"{key}=" in item and "'outer'" in item
         for item in _unsound_deferrals()
     )
 

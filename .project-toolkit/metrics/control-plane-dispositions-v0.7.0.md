@@ -321,13 +321,13 @@ different owners and states.
 - Owner: `scripts/validation/pre_pr_sequence.py`
 - Consumers: `lefthook.yml` pre-push hook, `pre_pr.py` (direct invocation),
   CI
-- Evidence: `scripts/validation/pre_pr_sequence.py:884-895` reads `fast_stage_ran` and skips with `continue`.
-  `lefthook.yml:728` sets `AI_AGENTS_PRE_PR_FAST_STAGE_RAN: "1"`.
-  `tests/validation/test_pre_pr_sequence_registry.py:197-205` defines `FAST_STAGE_DUPLICATES`.
-  The set names Count Ratchets, Unreachable Code Detection, Path Normalization, Planning Artifacts, and Em/en-dash Prohibition.
-  `tests/validation/test_pre_pr_sequence_registry.py:300-324` defines `TestFastStageDeferral`.
-- **Current outcome protected**: the five fast-stage lefthook jobs
-  (`count-ratchets`, `unreachable-code-detection`, `path-normalization`,
+- Evidence: `scripts/validation/pre_pr_sequence.py:899-910` reads `fast_stage_ran` and skips with `continue`.
+  `lefthook.yml:703` sets `AI_AGENTS_PRE_PR_FAST_STAGE_RAN: "1"`.
+  `tests/validation/test_pre_pr_sequence_registry.py:202-209` defines `FAST_STAGE_DUPLICATES`.
+  The set names Unreachable Code Detection, Path Normalization, Planning Artifacts, and Em/en-dash Prohibition; Count Ratchets moved to `CI_OWNED_GATES` on 2026-11-27 (ADR-104), and CI owns it.
+  `tests/validation/test_pre_pr_sequence_registry.py:304-331` defines `TestFastStageDeferral`.
+- **Current outcome protected**: the four fast-stage lefthook jobs
+  (`unreachable-code-detection`, `path-normalization`,
   `planning-artifacts`, `em/en-dash-prohibition`) do not re-run a second
   time inside the same pre-push hook invocation via `pre-pr-validation`.
 - **Evidence failure occurs**: the duplicate-run defect was real (see the
