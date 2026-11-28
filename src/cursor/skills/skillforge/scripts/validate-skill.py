@@ -321,7 +321,7 @@ class SkillValidator:
             NAME_MAX_LENGTH = 64  # noqa: N806
             DESCRIPTION_MAX_LENGTH = 1024  # noqa: N806
             COMPATIBILITY_MAX_LENGTH = 500  # noqa: N806
-            SEMVER_REGEX = r"^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$"  # noqa: N806
+            SEMVER_REGEX = r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*)?(\+[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?\Z"  # noqa: N806
             NAME_REGEX = r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"  # noqa: N806
 
         # Check required fields

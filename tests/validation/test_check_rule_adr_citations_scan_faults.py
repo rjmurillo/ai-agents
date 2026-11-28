@@ -68,7 +68,7 @@ def test_a_skipped_tracked_file_is_listed_and_fails_the_run(
 
     err = capsys.readouterr().err
     assert "AGENTS.md: [rule-adr-citation] tracked file is not a regular file" in err
-    assert "skipped 1 of 2 tracked rule file(s)" in err
+    assert "skipped 1 of 2 tracked instruction file(s)" in err
 
 
 def test_an_in_repo_symlink_to_a_regular_file_is_scanned_not_reported(
