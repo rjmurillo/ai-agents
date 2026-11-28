@@ -7,8 +7,9 @@ re-exports ``push_lock``.
 from __future__ import annotations
 
 import contextlib
+import errno
 import os
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from types import ModuleType
 
@@ -34,32 +35,37 @@ def push_lock_path(branch: str) -> Path | None:
 
 
 @contextlib.contextmanager
-def push_lock(branch: str) -> Iterator[str]:
-    """Take the shared push lock for ``branch`` without waiting; yield its state.
+def push_lock(branch: str, report: Callable[[str], None] | None = None) -> Iterator[str]:
+    """Take the shared push lock without waiting; yield held, busy, or unavailable.
 
-    ``held`` means this process has it. Children never inherit it, so a daemon
-    that git or a hook starts cannot keep it after the push. ``busy`` means
-    another push of the branch holds it now. ``unavailable`` means this host
-    cannot take it: no flock, no HOME, an unwritable lock directory, or a
-    failed lock call.
+    Children never inherit the lock. If unavailable, call ``report`` (when
+    provided) with the first failing operation and, for OS errors, its errno name.
     """
-    path = push_lock_path(branch)
     fd = -1
-    if _fcntl is not None and path is not None:
-        with contextlib.suppress(OSError):
-            path.parent.mkdir(parents=True, exist_ok=True)
-            fd = os.open(path, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
-    if fd < 0 or _fcntl is None:
-        yield "unavailable"
-        return
-    state = "held"
+    state = "unavailable"
+    cause = "no-flock"
     try:
-        _fcntl.flock(fd, _fcntl.LOCK_EX | _fcntl.LOCK_NB)
-    except BlockingIOError:
-        state = "busy"
-    except OSError:  # such as ENOLCK on a home directory with no lock support
-        state = "unavailable"
-    try:
+        try:
+            if _fcntl is not None:
+                cause = "no-home"
+                path = push_lock_path(branch)
+                if path is not None:
+                    cause = "mkdir-failed"
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    cause = "open-failed"
+                    fd = os.open(path, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
+                    cause = "flock-failed"
+                    try:
+                        _fcntl.flock(fd, _fcntl.LOCK_EX | _fcntl.LOCK_NB)
+                    except BlockingIOError:
+                        state = "busy"
+                    else:
+                        state = "held"
+        except OSError as exc:
+            cause = f"{cause} {errno.errorcode.get(exc.errno, 'OSError')}"
+        if state == "unavailable" and report is not None:
+            report(cause)
         yield state
     finally:
-        os.close(fd)
+        if fd >= 0:
+            os.close(fd)
