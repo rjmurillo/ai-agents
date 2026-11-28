@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import yaml
-
 from scripts.ci.ruleset_required_contexts import REQUIRED_CONTEXTS
+from tests.ci.workflow_yaml import load_jobs
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -48,11 +47,7 @@ ALLOWED_STEP_IF = {"scripts/ci/ruff_ratchet.py": "matrix.primary"}
 
 
 def workflow_jobs(workflow: str) -> dict[str, dict]:
-    data = yaml.safe_load((_WORKFLOWS / workflow).read_text(encoding="utf-8"))
-    assert isinstance(data, dict)
-    jobs = data.get("jobs")
-    assert isinstance(jobs, dict)
-    return jobs
+    return load_jobs(_WORKFLOWS / workflow)
 
 
 def continues_on_error(node: dict) -> bool:
@@ -73,8 +68,9 @@ def _rollup_enforces(rollup: dict, job_id: str) -> bool:
     The job ``if:`` must be exactly ``always()`` or ``!cancelled()``. Any other
     term, such as ``&& needs.<job_id>.result == 'success'``, skips the rollup
     when the need fails, and GitHub counts a skipped required check as passing.
-    The result must be read in a step's ``run`` or ``env``, not in an ``if:``;
-    a rollup that never reads ``needs.<job_id>.result`` (or ``needs.*.result``)
+    The result must be read in the ``run`` or ``env`` of a step that has no
+    ``if:`` and no ``continue-on-error``; other steps are skipped entirely. A
+    rollup that never reads ``needs.<job_id>.result`` (or ``needs.*.result``)
     passes anyway.
     """
     condition = str(rollup.get("if", "")).strip()
@@ -87,7 +83,7 @@ def _rollup_enforces(rollup: dict, job_id: str) -> bool:
         for step in rollup.get("steps", [])
         if step.get("if") is None and not continues_on_error(step)
     ]
-    text = yaml.safe_dump(reads)
+    text = repr(reads)
     return f"needs.{job_id}.result" in text or "needs.*.result" in text
 
 

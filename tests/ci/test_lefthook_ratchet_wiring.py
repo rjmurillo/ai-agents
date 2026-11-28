@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -37,8 +38,10 @@ def _walk_jobs(jobs: object) -> list[dict]:
     return found
 
 
-# Job name, and the command fragment the job ran (d31aa71e60, 2026-11-27). The
-# fragment catches the same command moved under another job name.
+# The last main commit whose pre-push hook still ran the removed jobs (2026-11-27).
+_BASE_COMMIT = "d31aa71e60"
+# Job name, and the command fragment the job ran at _BASE_COMMIT. The fragment
+# catches the same command moved under another job name.
 _REMOVED_HOOK_JOBS = (
     ("count-ratchets", "git_hook_policy.py count-ratchets"),
     ("plugin-scanner", "check_plugin_scanner_score.py"),
@@ -77,17 +80,17 @@ class TestCountRatchetsAreOwnedByCi:
         self, removed: str, command: str
     ) -> None:
         """Negative control: on the base the fragment found the removed job."""
-        import subprocess
-
         base = subprocess.run(
-            ["git", "show", "d31aa71e60:lefthook.yml"],
+            ["git", "show", f"{_BASE_COMMIT}:lefthook.yml"],
             cwd=REPO_ROOT,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
         )
         if base.returncode != 0:
-            pytest.skip("base commit d31aa71e60 not in this clone (shallow checkout)")
+            pytest.skip(f"base commit {_BASE_COMMIT} not in this clone (shallow checkout)")
         jobs = _walk_jobs(yaml.safe_load(base.stdout)["pre-push"]["jobs"])
         assert [str(j.get("name")) for j in jobs if command in str(j.get("run", ""))] == [removed]
 

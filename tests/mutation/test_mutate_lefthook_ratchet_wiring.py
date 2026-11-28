@@ -17,6 +17,9 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 _LEFTHOOK_REL = Path("lefthook.yml")
 _WORKFLOW_REL = Path(".github/workflows/pr-validation.yml")
 _TEST_PATH = "tests/ci/test_lefthook_ratchet_wiring.py"
+# A kept pre-push job; renaming it to a removed job reintroduces that job.
+_KEPT_JOB = "          - name: python-lint-advisory"
+_REMOVED_JOBS = ("count-ratchets", "plugin-scanner")
 
 
 def _run_wiring_tests(repo_root: Path) -> tuple[int, str]:
@@ -42,18 +45,7 @@ def mutation_repo() -> Iterator[Path]:
     ("target", "old", "new", "should_fail"),
     [
         # Reintroducing either removed heavy job in the hook must fail.
-        (
-            _LEFTHOOK_REL,
-            "          - name: python-lint-advisory",
-            "          - name: count-ratchets",
-            True,
-        ),
-        (
-            _LEFTHOOK_REL,
-            "          - name: python-lint-advisory",
-            "          - name: plugin-scanner",
-            True,
-        ),
+        *((_LEFTHOOK_REL, _KEPT_JOB, f"          - name: {job}", True) for job in _REMOVED_JOBS),
         # Breaking CI ownership of one ratchet script must fail.
         (
             _WORKFLOW_REL,
