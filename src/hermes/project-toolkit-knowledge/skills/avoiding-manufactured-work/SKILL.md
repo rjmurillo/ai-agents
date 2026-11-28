@@ -1,7 +1,7 @@
 ---
 name: avoiding-manufactured-work
 version: 1.1.0
-description: "Stop manufactured work after a deliverable looks done and classify post-completion findings into the four contract classes. Use when a worker produced a plan, issue, PR, backlog item, or follow-up task and you must verify a real user, criterion, or blocked decision demanded it. Also bounds mid-task drive-by fixes."
+description: "Stop manufactured work after a deliverable looks done and classify post-completion findings into the four contract classes. Use when a worker produced a plan, issue, PR, backlog item, or follow-up task and you must verify a real user, criterion, or blocked decision demanded it. Also bounds drive-by fixes."
 license: Apache-2.0
 ---
 
