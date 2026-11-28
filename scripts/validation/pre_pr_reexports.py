@@ -81,6 +81,8 @@ from checks_tooling import (
     validate_skill_routing_roles_declarations,
 )
 
+from scripts.validation.skill_frontmatter import validate_skill_frontmatter
+
 __all__ = [
     "validate_agent_content_parity",
     "validate_agent_source_parity",
@@ -129,6 +131,7 @@ __all__ = [
     "validate_skill_skip_clauses",
     "validate_host_marketplaces",
     "validate_skill_tree_layout",
+    "validate_skill_frontmatter",
     "validate_skill_trigger_resolution",
     "validate_agent_skill_docs",
     "validate_agent_skill_doc_review",

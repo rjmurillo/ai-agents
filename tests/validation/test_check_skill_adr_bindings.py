@@ -589,7 +589,7 @@ def test_pos_every_terminal_line_carries_the_examined_count(
 
 def test_neg_write_baseline_refuses_to_raise_the_ceiling(repo: Path) -> None:
     """`ci-scripts.md` MUST NOT 4 forbids raising a count baseline, and the shared
-    `scripts/ci/count_ratchet.py:1016` enforces it by reaching its writer only
+    `scripts/ci/count_ratchet.py:1026` enforces it by reaching its writer only
     inside `if count < baseline:`. Without this refusal the remedy line the gate
     itself prints is a one-command way to legalise a new violation."""
     for index in range(3):

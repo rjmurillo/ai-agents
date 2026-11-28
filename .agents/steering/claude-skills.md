@@ -58,9 +58,10 @@ license: Apache-2.0
 ---
 ```
 
-Required fields: `name`, `version`, `description`.
-Optional fields: `model`, `model-rationale` (required whenever `model` is set),
-`license`.
+Required fields (GP-003): `name`, `version`, `description`, `license`.
+`version` is a SemVer 2.0.0 string at the top level, not under `metadata`.
+The pre-PR `Skill Frontmatter` gate enforces all four in every skill tree.
+Optional fields: `model`, `model-rationale` (required whenever `model` is set).
 
 **Model policy (ADR-080)**: omit `model:` and inherit the harness model. A
 skill may not carry a versioned id (`claude-sonnet-4-6`); the eval harness
@@ -153,7 +154,7 @@ Reference files provide domain knowledge. They do not contain executable logic.
 
 Before submitting a skill PR, verify:
 
-- [ ] SKILL.md has valid frontmatter (name, version, description)
+- [ ] SKILL.md has valid frontmatter (name, version, description, license)
 - [ ] No duplicate skill exists with overlapping purpose
 - [ ] Scripts use Python for new code (ADR-042)
 - [ ] Tests exist and pass
