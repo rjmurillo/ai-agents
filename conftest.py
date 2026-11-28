@@ -19,6 +19,8 @@ from pathlib import Path, PurePosixPath
 
 import pytest
 
+from scripts.testing.packed_refs import PackedRefsUnresolvedError, lookup_packed_ref
+
 PROJECT_ROOT = Path(__file__).resolve().parent
 
 # Issue #6889: fail the run when a stray <tempdir>/.git appears.
@@ -157,13 +159,13 @@ def _common_git_dir(git_dir: Path) -> Path:
 
 
 def _resolve_ref(common_dir: Path, ref_name: str) -> str | None:
-    """Object id for `ref_name`'s loose ref file; None only for a genuinely unborn ref.
+    """Object id for `ref_name` (loose ref first, then sorted `packed-refs`); None if unborn.
 
-    Never scans `packed-refs`: this runs in every test's autouse fixture, and parsing it to
-    find one ref costs an O(n) scan of every packed ref per test. A `packed-refs` file
-    existing makes the ref unprovable here, so we raise and fall back to Git; no such file
-    proves the ref absent everywhere at O(1) -- legal unborn HEAD (`man gitrepository-layout`,
-    `HEAD`: "legal if the named branch name does not (yet) exist").
+    Loose ref files always take precedence over `packed-refs` (Git's read order). When no
+    loose file exists, `lookup_packed_ref` binary-searches a sorted `packed-refs` file in
+    O(log N) seeks and raises `PackedRefsUnresolvedError` on unsorted, malformed, or
+    unreadable files so the caller falls back to `git rev-parse HEAD`. Returning `None`
+    proves the ref absent everywhere -- legal unborn HEAD (`man gitrepository-layout`).
     """
     ref_path = common_dir.joinpath(*ref_name.split("/"))
     content = _read_optional_text(ref_path, "could not read loose ref file")
@@ -172,19 +174,20 @@ def _resolve_ref(common_dir: Path, ref_name: str) -> str | None:
         if not _OBJECT_ID_PATTERN.match(content):
             raise _HeadFastPathUnresolvedError("loose ref file does not hold a plain object id")
         return content
-    packed_refs_mode = _fast_path_stat_mode(common_dir / "packed-refs", "packed-refs unreadable")
-    if packed_refs_mode is not None:
-        raise _HeadFastPathUnresolvedError("ref may be packed; not scanning packed-refs")
-    return None
+    try:
+        return lookup_packed_ref(common_dir / "packed-refs", ref_name)
+    except PackedRefsUnresolvedError as exc:
+        raise _HeadFastPathUnresolvedError(str(exc)) from exc
 
 
 def _direct_read_repo_head() -> str | None:
     """Resolve HEAD via direct filesystem reads: no subprocess for proven cases.
 
-    Raises `_HeadFastPathUnresolvedError` for anything unproven (reftable, malformed data, a
-    packed-only ref, any read failure) so the caller falls back to `git rev-parse HEAD`; `None`
-    means legal unborn HEAD. The reftable check runs first because such repos keep a dummy
-    `refs/heads/.invalid` HEAD (reftable.adoc, git/git) that would otherwise misread as unborn.
+    Raises `_HeadFastPathUnresolvedError` for anything unproven (reftable, malformed data, an
+    unsorted `packed-refs`, any read failure) so the caller falls back to `git rev-parse HEAD`;
+    `None` means legal unborn HEAD. The reftable check runs first because such repos keep a
+    dummy `refs/heads/.invalid` HEAD (reftable.adoc, git/git) that would otherwise misread as
+    unborn.
     """
     try:
         git_dir = _project_git_dir()

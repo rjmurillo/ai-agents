@@ -338,12 +338,12 @@ This is a different mechanism from the per-file case above. That one is about
 errors you added to one file; this one is about a repo-wide number your branch
 never touched.
 
-The cost is the wait, not the ordering. These ratchets sit in the same
-`parallel: true` pre-push group as `python-tests` (`lefthook.yml`), so they do
-not run after the suite, but `git push` does not return until every job in the
-group finishes. A measured run put `python-tests` at 946 seconds against 2.6
-seconds for `taste-count-ratchet`, so you wait out the suite to be told your
-branch is behind.
+The cost is the wait, not the ordering. These ratchets sit in a
+`parallel: true` pre-push group (`lefthook.yml`), and `git push` does not
+return until every job in the group finishes. Pre-push no longer runs pytest
+(ADR-104 amendment, 2026-11-26), so the slowest sibling is now
+`pre-pr-validation`. Before that change, a measured run put `python-tests` at
+946 seconds against 2.6 seconds for `taste-count-ratchet`.
 
 Rebase before you push, or run the gates yourself first. They take about
 2 seconds:
@@ -889,11 +889,11 @@ each invocation exits 1 with an authentication message and the job finishes in
 roughly 13 to 17 seconds. A run that actually reaches the CLI takes about 28
 seconds or more for two tests.
 
-Both jobs are siblings of `python-tests` inside one `parallel: true` group, so
-they race it rather than follow it. That does not make the failure cheap: the
-group only returns when its slowest member does, and `python-tests` takes about
-18 minutes. A 13-second auth failure still costs the full suite's wall time
-before the ref is rejected. Provision the token on the push instead:
+Both jobs sit inside one `parallel: true` group, so they race their siblings
+rather than follow them. That does not make the failure cheap: the group only
+returns when its slowest member does. A 13-second auth failure still costs the
+slowest sibling's wall time before the ref is rejected. Provision the token on
+the push instead:
 
 ```bash
 COPILOT_GITHUB_TOKEN="$(gh auth token)" git push origin HEAD:"$(git branch --show-current)"
@@ -949,23 +949,19 @@ seconds. The same two tests passed in 27.92 seconds under `RUN_CLI_E2E=1` with
 `COPILOT_GITHUB_TOKEN` set, and skipped silently with the token set but
 `RUN_CLI_E2E` unset. Those four durations are author-reported from the push
 console; no log artifact is committed.
-## Editing any `.claude/rules/*.md` file changes a number the doctrine asserts
+## Changing a rule's scope changes the always-on membership the doctrine lists
 
-`model-context-doctrine.md` states the shipped plugin tree's always-on size as
-a literal byte count, and `tests/validation/test_always_on_corpus_claims.py`
-measures the tree and asserts the prose matches. Editing a rule changes that
-measurement, so a one-paragraph clarification to an unrelated rule turns the
-guard red.
+`model-context-doctrine.md` lists which rules load on every turn, and
+`tests/validation/test_always_on_corpus_claims.py` asserts that the
+list matches the generated `.github/instructions` tree. It also fails when
+the doctrine mentions bytes, `instruction_budget`, or 8KB. Changing a rule's
+`paths:` scope can change that membership, so a small scope edit to an
+unrelated rule turns the guard red.
 
-The trap is where it fires. The guard lives in `python-tests`, so it costs the
-full suite before the ref is rejected. Nothing in the pre-commit set catches
-it, and the edit itself looks unrelated to any figure.
-
-Four rules are narrowly scoped in `.github/instructions` and always-on in the
-plugin tree: `governance`, `push-lock`, `secret-redaction`, and `session-logs`.
-Editing one of those moves the plugin figure while leaving the
-`.github/instructions` figure alone, which is why the two numbers in that
-paragraph drift independently.
+The trap is where it fires. Nothing in the pre-commit set catches it, and the
+edit looks unrelated to the doctrine. Pre-push catches it: the pre-PR
+`Always-on Corpus Claims` gate runs this test file on every push, even though
+pre-push no longer runs the full pytest suite (ADR-104 amendment, 2026-11-26).
 
 Check it in under a second before pushing:
 
@@ -973,18 +969,18 @@ Check it in under a second before pushing:
 uv run --frozen python -m pytest tests/validation/test_always_on_corpus_claims.py -q
 ```
 
-When it fails, take the measured value from the assertion message, update the
-sentence in `.claude/skills/context-optimizer/references/model-context-doctrine.md`,
-and rerun `build/scripts/generate_skills.py` so the `src/copilot-cli/` mirror
-matches. Update the vendor-cost figure in the same sentence: it is the plugin
-count minus the `.github/instructions` count, and no test checks it.
+When it fails, update the source of every membership statement the test
+reads:
 
-Two details the failure output does not explain. The at-source total is larger
-than the shipped total because `generate_rules.py` strips the `priority:` key on
-the way out, so the same rule is smaller in the plugin tree than on disk. And the
-two 8KB multipliers move independently: the `.py`-edit multiplier can hold steady
-while the always-on one shifts, so re-measure both rather than assuming one
-tracks the other.
+- the table in `.claude/skills/context-optimizer/references/model-context-doctrine.md`;
+- the membership table in `templates/rules/canonical-source-mirror.md`;
+- `.serena/memories/architecture/always-on-membership-lives-in-the-mirror.md`;
+- the loading sentence in `templates/skills/software-engineering-library.SKILL.md.tmpl`
+  (the test reads its rendered `SKILL.md`).
+
+Then run `uv run python build/scripts/build_all.py` to regenerate the rule and
+skill mirrors. Write no byte or budget figure in the doctrine; the test
+rejects one.
 ## An empty `endingCommit` breaks the episode store on the next push
 
 The pre-commit hook extracts an episode from every staged session log. It reads
