@@ -1,7 +1,7 @@
 ---
 name: memory-gate
 version: 0.1.0
-description: "Memory-First Gate (BLOCKING) and Chesterton's Fence protocol: search memory before changing existing code, constraints, or protocol. Use when you say `memory-first gate`, `search memory before changing`, or `chesterton fence check`. Do NOT use for plain lookups (use memory-search) or recording a session (use memory-reflexion)."
+description: "Memory-First Gate (BLOCKING) and Chesterton's Fence: search memory before changing code, constraints, or protocol. Use when you say `memory-first gate`, `search memory before changing`, `chesterton fence check`, or `log this contradiction`. Do NOT use for plain lookups (use memory-search) or recording a session (use memory-reflexion)."
 license: Apache-2.0
 metadata:
   adr: ADR-063, ADR-070, ADR-106
@@ -33,6 +33,8 @@ Use this skill when the user says:
 - `memory-first gate` to apply the BLOCKING pre-change check
 - `search memory before changing` to recover historical context first
 - `chesterton fence check` to investigate why a system exists before removing it
+- `log this contradiction` when evidence disproves a memory, ADR, skill, or
+  common guidance (see the contradiction log in References)
 
 ## Memory-First Gate (BLOCKING)
 

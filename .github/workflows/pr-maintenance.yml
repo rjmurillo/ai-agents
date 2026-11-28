@@ -7,16 +7,11 @@ on:
   workflow_dispatch:     # Manual trigger
     inputs:
       max_prs:
-        description: 'Max PRs to process'
+        description: 'Max PRs to discover'
         type: number
         default: 20
-      process_conflicts:
-        description: 'Auto-resolve merge conflicts'
-        type: boolean
-        default: true
 
-# Issue #2520: least privilege. Only process-prs writes (push merges, comment
-# on PRs); discover-prs and summarize are read-only. Job-level blocks below.
+# Issue #2520: least privilege. Both jobs are read-only. Job-level blocks below.
 permissions:
   contents: read
 
@@ -40,8 +35,6 @@ jobs:
       pull-requests: read
       statuses: read
     outputs:
-      matrix: ${{ steps.discover.outputs.matrix }}
-      has-prs: ${{ steps.discover.outputs.has-prs }}
       summary-json: ${{ steps.discover.outputs.summary }}
 
     steps:
@@ -62,13 +55,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           result=$(python3 .github/scripts/invoke_pr_maintenance.py --max-prs "$PR_MAX_PRS" --output-json)
-          matrix_json=$(echo "$result" | jq -c '{include: .prs}')
-
-          echo "matrix=$matrix_json" >> "$GITHUB_OUTPUT"
-
-          has_prs=$(echo "$result" | jq -r '.prs | length > 0')
-          echo "has-prs=$has_prs" >> "$GITHUB_OUTPUT"
-
           echo "summary=$result" >> "$GITHUB_OUTPUT"
 
           echo "Found $(echo "$result" | jq -r '.summary.total') open PRs"
@@ -95,157 +81,9 @@ jobs:
           --findings-exit 1
           -- python3 scripts/maintenance/detect_orphan_commits.py --limit 50
 
-  # Job 2: Process PRs in parallel (matrix strategy)
-  process-prs:
-    needs: discover-prs
-    if: needs.discover-prs.outputs.has-prs == 'true'
-    runs-on: ubuntu-26.04-arm
-    environment: agent-claude
-    # Budget: ceil(sum(3 * step timeout + 1.5) + 5) for 5, 10.
-    timeout-minutes: 53
-    # The only job that mutates state: pushes merge commits, comments on PRs,
-    # and the ai-review action reads workflow status (actions: read).
-    permissions:
-      contents: write
-      pull-requests: write
-      issues: write
-      actions: read
-    strategy:
-      matrix: ${{ fromJson(needs.discover-prs.outputs.matrix) }}
-      fail-fast: false
-      max-parallel: 3
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 0
-
-      - name: Configure git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-      - name: Checkout trusted push helper
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          ref: ${{ github.sha }}
-          path: .trusted-helper
-          fetch-depth: 1
-          persist-credentials: false
-
-      - name: "Auto-resolve conflicts for PR #${{ matrix.number }}"
-        id: auto-resolve
-        if: matrix.hasConflicts == true && (inputs.process_conflicts != false)
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ matrix.number }}
-          HEAD_REF: ${{ matrix.headRefName }}
-          BASE_REF: ${{ matrix.baseRefName }}
-          REPO_OWNER: ${{ github.repository_owner }}
-          REPO_NAME: ${{ github.event.repository.name }}
-        run: python3 .trusted-helper/scripts/ci/run_pr_conflict_resolver.py
-
-      - name: Prepare conflict context for AI analysis
-        id: conflict-context
-        if: steps.auto-resolve.outputs.needs_ai == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          HEAD_REF: ${{ matrix.headRefName }}
-          BASE_REF: ${{ matrix.baseRefName }}
-          BLOCKED_FILES_JSON: ${{ steps.auto-resolve.outputs.blocked_files }}
-        run: python3 .trusted-helper/scripts/ci/prepare_conflict_context.py
-
-      - name: AI conflict analysis
-        id: ai-analysis
-        if: steps.auto-resolve.outputs.needs_ai == 'true'
-        uses: ./.trusted-helper/.github/actions/ai-review
-        with:
-          agent: analyst
-          context-type: pr-diff
-          pr-number: ${{ matrix.number }}
-          additional-context: |
-            ## Merge Conflict Analysis Request
-
-            The following files have conflicts that could not be auto-resolved:
-            ${{ steps.auto-resolve.outputs.blocked_files }}
-
-            ${{ steps.conflict-context.outputs.conflict_context }}
-          prompt-file: .trusted-helper/.github/prompts/merge-conflict-analysis.md
-          timeout-minutes: 5
-          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-
-      - name: Apply AI conflict resolution
-        if: steps.auto-resolve.outputs.needs_ai == 'true' && steps.ai-analysis.outputs.verdict == 'PASS'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          AI_FINDINGS: ${{ steps.ai-analysis.outputs.findings }}
-          PR_NUMBER: ${{ matrix.number }}
-          HEAD_REF: ${{ matrix.headRefName }}
-          BASE_REF: ${{ matrix.baseRefName }}
-        run: python3 .trusted-helper/scripts/ci/apply_ai_conflict_resolution.py
-
-      - name: Report unresolvable conflicts
-        if: steps.auto-resolve.outputs.needs_ai == 'true' && steps.ai-analysis.outputs.verdict != 'PASS'
-        env:
-          PR_NUMBER: ${{ matrix.number }}
-          AI_VERDICT: ${{ steps.ai-analysis.outputs.verdict }}
-          BLOCKED_FILES: ${{ steps.auto-resolve.outputs.blocked_files }}
-        run: |
-          # Issue #2520: blocked_files carries PR-controlled file paths; route
-          # through env, not run-block interpolation (CWE-78).
-          echo "::error::PR #${PR_NUMBER}: Conflicts require manual resolution"
-          echo "::error::AI verdict: ${AI_VERDICT}"
-          echo "::error::Blocked files: ${BLOCKED_FILES}"
-          echo "Use /merge-resolver ${PR_NUMBER} for manual resolution"
-          exit 1
-
-      # Detect human CHANGES_REQUESTED reviews: informational only, no longer gates bot.
-      # Human-out-of-the-loop is the goal; the bot processes review comments unconditionally
-      # when conflicts are clear (or were auto-resolved). See removal of triage:approved gate.
-      - name: "Detect human CHANGES_REQUESTED for PR #${{ matrix.number }}"
-        id: approval-gate
-        if: |
-          matrix.hasConflicts != true ||
-          steps.auto-resolve.outputs.needs_ai != 'true' ||
-          steps.ai-analysis.outputs.verdict == 'PASS'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ matrix.number }}
-        run: python3 .trusted-helper/scripts/ci/detect_human_changes_requested.py
-
-      - name: "Process PR comments for PR #${{ matrix.number }}"
-        id: process-comments
-        # Process review comments whenever conflicts are clear (or were auto-resolved).
-        # The triage:approved human-approval gate has been removed; see PR #1841.
-        if: |
-          matrix.hasConflicts != true ||
-          steps.auto-resolve.outputs.needs_ai != 'true' ||
-          steps.ai-analysis.outputs.verdict == 'PASS'
-        uses: ./.trusted-helper/.github/actions/ai-review
-        with:
-          agent: pr-comment-responder
-          context-type: pr-diff
-          pr-number: ${{ matrix.number }}
-          prompt-file: .trusted-helper/.github/prompts/pr-comment-triage.md
-          execute-script: .trusted-helper/.claude/skills/github/scripts/pr/invoke_pr_comment_processing.py
-          timeout-minutes: 10
-          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-
-      - name: Comment processing result
-        if: steps.process-comments.outcome == 'success' || steps.process-comments.outcome == 'failure'
-        env:
-          PR_NUMBER: ${{ matrix.number }}
-          STEP_OUTCOME: ${{ steps.process-comments.outcome }}
-          AI_VERDICT: ${{ steps.process-comments.outputs.verdict }}
-        run: |
-          # Issue #2520: AI verdict is model output (untrusted); env-route it.
-          echo "PR #${PR_NUMBER} comment processing: ${STEP_OUTCOME}"
-          echo "Verdict: ${AI_VERDICT}"
-
-  # Job 3: Post-processing summary
+  # Job 2: Post-processing summary
   summarize:
-    needs: [discover-prs, process-prs]
+    needs: discover-prs
     if: always()
     runs-on: ubuntu-26.04-arm
     timeout-minutes: 5

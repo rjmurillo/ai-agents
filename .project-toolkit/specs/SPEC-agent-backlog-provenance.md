@@ -77,7 +77,7 @@ Issue generators discovered that #5698 does not name. Adjudicated in-scope (ackn
 
 - **GitHub workflows with `issues: write`**: 13 files under `.github/workflows/` at HEAD on 2026-09-15 (ai-metrics-analysis, artifact-insight-scanner, claude, copilot-context-synthesis, drift-detection, milestone-tracking, post-pr-retrospective, pr-maintenance, pr-validation, pytest, quality-grades, ruleset-context-drift, software-engineering-library-activation; measured with a grep for `issues: write` over `.github/workflows/*.yml`). They create issues under the github-actions login, already distinguishable by login.
 
-Adjudicated out-of-scope: `claude.yml` (runs on issues.opened but only answers mentions; it is not a generator).
+Adjudicated out-of-scope: `claude.yml` (ran on issues.opened but only answered mentions; it was not a generator, and the owner deleted it on 2026-11-25).
 
 Blast-radius count after adjudication: 0. No Step 0.5 halt.
 

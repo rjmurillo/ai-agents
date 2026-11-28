@@ -28,10 +28,10 @@ Richard Murillo (repository owner) requested it on 2026-10-31. He asked to adapt
 
 ### Q2
 
-Today, three surfaces exist and none sees tool-side friction:
+This requirement was written against three surfaces, and none sees tool-side friction:
 
 1. `invoke_reflect_nudge.py` (Stop, #5817) scans human turns for correction and preference regexes. It prints an advisory. It never reads tool results.
-2. `post-pr-retrospective.yml` runs only when a PR closes.
+2. `post-pr-retrospective.yml` ran only when a PR closed. The owner deleted it on 2026-11-25, so this surface no longer exists.
 3. `/retrospective fill` and `/retrospective` run only when a human types them.
 
 So the owner must notice friction, remember it, and invoke `/retrospective` by hand.
@@ -114,7 +114,7 @@ Method: every component named by a prior-art result was compared against Q3 and 
 | `templates/hooks/dispatch_groups.json` | in-scope | Gains a `plugin-*` Stop group with `surface: "plugin"` |
 | `retrospective` skill | in-scope | The advisory's target; already ships |
 | `invoke_auto_retrospective.py` | out-of-scope | Deleted; must stay deleted |
-| `post-pr-retrospective.yml` | out-of-scope | PR-close path; unchanged |
+| `post-pr-retrospective.yml` | out-of-scope | PR-close path; deleted 2026-11-25, not by this requirement |
 | `invoke_context_loader.py` skeleton count | out-of-scope | Reads legacy skeletons only |
 | Copilot `hooks.json` | out-of-scope | Deferred; no non-blocking channel documented |
 
@@ -376,7 +376,7 @@ No network, no model call, no writes inside any repository.
 - Copilot CLI registration.
 - PostToolUse or PostToolUseFailure hooks (ADR-084 rule 6).
 - User interrupts as a signal. They counted 0 in the Q5 corpus.
-- Changing `post-pr-retrospective.yml` or the `/retrospective` skill.
+- Changing the `/retrospective` skill, or restoring `post-pr-retrospective.yml` (deleted 2026-11-25).
 - A judge model in either consumer (TokenEconomizer uses one; this spec uses deterministic counts).
 - Tool pruning. It can deny `Skill` and `Agent`, which routing depends on, and ADR-084 rule 6 applies.
 - A hook trigger for consumer A. It would be a per-call event, which must clear ADR-084 rule 6's additional bar and needs its own decision.

@@ -664,9 +664,9 @@ the body re-triggers the check on `pull_request: edited`, so no new commit is
 needed. "Re-run jobs" replays the old event with the old body, so edit the body
 (even whitespace) to get a fresh run.
 
-The `AI-SPEC-VALIDATION` comment comes from the advisory model review in
-`ai-spec-review.yml`. It never reports this check's verdict. Read the check's
-job log or step summary instead.
+An `AI-SPEC-VALIDATION` comment on an older PR came from the advisory model
+review in `ai-spec-review.yml`, since deleted. It never reported this check's
+verdict. Read the check's job log or step summary instead.
 ## Never put a literal pipe inside a Markdown table cell
 
 Escape it as `\|` or reword. A bare `|` breaks rendering and trips bot

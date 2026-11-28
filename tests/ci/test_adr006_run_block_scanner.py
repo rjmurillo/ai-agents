@@ -257,8 +257,8 @@ class TestProseInOutputCommandsIsNotLogic:
     def test_redirect_outside_the_quotes_is_still_logic(self) -> None:
         """Negative: only the quoted text is blanked, never the redirect.
 
-        This is the live ``copilot-context-synthesis.yml`` shape: pure echo
-        lines that assemble the job summary. Output assembly is a deliberate
+        This was the ``copilot-context-synthesis.yml`` shape (workflow deleted
+        2026-11-25): pure echo lines that assemble the job summary. Output assembly is a deliberate
         ``_LOGIC`` marker and must survive.
         """
         block = _run_block(

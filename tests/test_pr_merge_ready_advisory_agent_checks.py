@@ -32,12 +32,19 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = REPO_ROOT / ".github" / "workflows"
 # The loader resolves its own realpath, which is the canonical src/claude tree (ADR-119).
 CONFIG_PATH = "src/claude/skills/pr-review/pr-review-config.yaml"
-LISTED = ".github/workflows/ai-spec-review.yml"
+LISTED = ".github/workflows/ai-spec-validation.yml"
 # Listed on purpose (owner decision, issue 6182) but holds no model job: the
 # deterministic Validate Spec Coverage check. The test pins that it stays so.
-DETERMINISTIC_LISTED = ".github/workflows/ai-spec-validation.yml"
+# It is the same workflow as LISTED: no listed workflow holds a model job now.
+DETERMINISTIC_LISTED = LISTED
+# Listed workflows with no provider-gated job: the deterministic spec check and the
+# CLI smoke, whose Claude and Copilot legs were deleted with their agent-* approvals.
+LISTED_WITHOUT_GATED_JOBS = frozenset(
+    {DETERMINISTIC_LISTED, ".github/workflows/plugin-cli-smoke.yml"}
+)
 UNLISTED = ".github/workflows/pytest.yml"
-AGENT_CHECK = "Review Spec Coverage (Advisory)"
+# The check name of the one job LISTED still runs.
+SPEC_CHECK = "Validate Spec Coverage"
 
 
 def _resource(workflow_file: str, owner: str = "o", repo: str = "r") -> str:
@@ -114,8 +121,8 @@ def _readiness(pr_data: dict, listed: set[str], include_non_required: bool = Fal
 def test_listed_workflow_check_never_blocks(
     status: str, conclusion: str | None, include_non_required: bool
 ) -> None:
-    """FAILED is intended to be non-blocking: an agent verdict is advisory."""
-    pr_data = _pr_with(_row(AGENT_CHECK, conclusion, status))
+    """FAILED is intended to be non-blocking: a listed workflow's check is advisory."""
+    pr_data = _pr_with(_row(SPEC_CHECK, conclusion, status))
     result = _readiness(pr_data, {LISTED}, include_non_required)
     assert result["CanMerge"] is True, result["Reasons"]
     assert result["UndisposedNonRequiredFailures"] == []
@@ -136,39 +143,39 @@ def test_unlisted_workflow_failure_still_blocks() -> None:
 
 def test_unlisted_workflow_using_a_listed_job_name_still_blocks() -> None:
     """Spoof: the job name matches a listed workflow's job, the workflow does not."""
-    pr_data = _pr_with(_row(AGENT_CHECK, "FAILURE", workflow=UNLISTED))
+    pr_data = _pr_with(_row(SPEC_CHECK, "FAILURE", workflow=UNLISTED))
     result = _readiness(pr_data, {LISTED})
     assert result["CanMerge"] is False
-    assert result["UndisposedNonRequiredFailures"] == [AGENT_CHECK]
+    assert result["UndisposedNonRequiredFailures"] == [SPEC_CHECK]
 
 
 def test_a_name_shared_with_an_unlisted_workflow_is_not_exempt() -> None:
     pr_data = _pr_with(
-        _row(AGENT_CHECK, "FAILURE", workflow=LISTED),
-        _row(AGENT_CHECK, "FAILURE", workflow=UNLISTED),
+        _row(SPEC_CHECK, "FAILURE", workflow=LISTED),
+        _row(SPEC_CHECK, "FAILURE", workflow=UNLISTED),
     )
     result = _readiness(pr_data, {LISTED})
     assert result["CanMerge"] is False
 
 
 def test_status_context_with_a_listed_job_name_still_blocks() -> None:
-    pr_data = _pr_with(_status_context(AGENT_CHECK, "FAILURE"))
+    pr_data = _pr_with(_status_context(SPEC_CHECK, "FAILURE"))
     result = _readiness(pr_data, {LISTED})
     assert result["CanMerge"] is False
-    assert result["UndisposedNonRequiredFailures"] == [AGENT_CHECK]
+    assert result["UndisposedNonRequiredFailures"] == [SPEC_CHECK]
 
 
 def test_a_status_context_cannot_ride_beside_a_listed_check_row() -> None:
     pr_data = _pr_with(
-        _row(AGENT_CHECK, "FAILURE", workflow=LISTED),
-        _status_context(AGENT_CHECK, "FAILURE"),
+        _row(SPEC_CHECK, "FAILURE", workflow=LISTED),
+        _status_context(SPEC_CHECK, "FAILURE"),
     )
     result = _readiness(pr_data, {LISTED})
     assert result["CanMerge"] is False
 
 
 def test_check_run_without_a_workflow_run_still_blocks() -> None:
-    pr_data = _pr_with(_row(AGENT_CHECK, "FAILURE", workflow=None))
+    pr_data = _pr_with(_row(SPEC_CHECK, "FAILURE", workflow=None))
     result = _readiness(pr_data, {LISTED})
     assert result["CanMerge"] is False
 
@@ -176,14 +183,14 @@ def test_check_run_without_a_workflow_run_still_blocks() -> None:
 @pytest.mark.parametrize(
     "resource",
     [
-        "/other/repo/actions/workflows/ai-spec-review.yml",
-        "/o/r/actions/workflows/sub/ai-spec-review.yml",
+        "/other/repo/actions/workflows/ai-spec-validation.yml",
+        "/o/r/actions/workflows/sub/ai-spec-validation.yml",
         "/o/r/actions/workflows/",
-        "/o/r/ai-spec-review.yml",
+        "/o/r/ai-spec-validation.yml",
     ],
 )
 def test_a_resource_path_from_another_repo_or_shape_is_not_exempt(resource: str) -> None:
-    pr_data = _pr_with(_row(AGENT_CHECK, "FAILURE", workflow=None, resource=resource))
+    pr_data = _pr_with(_row(SPEC_CHECK, "FAILURE", workflow=None, resource=resource))
     result = _readiness(pr_data, {LISTED})
     assert result["CanMerge"] is False
 
@@ -196,7 +203,7 @@ def test_unlisted_pending_still_blocks_when_non_required_count() -> None:
 
 def test_a_listed_check_does_not_hide_an_unlisted_failure_beside_it() -> None:
     pr_data = _pr_with(
-        _row(AGENT_CHECK, "FAILURE"),
+        _row(SPEC_CHECK, "FAILURE"),
         _row("Run Python Tests", "FAILURE", workflow=UNLISTED),
     )
     result = _readiness(pr_data, {LISTED})
@@ -205,7 +212,7 @@ def test_a_listed_check_does_not_hide_an_unlisted_failure_beside_it() -> None:
 
 
 def test_empty_list_exempts_nothing() -> None:
-    pr_data = _pr_with(_row(AGENT_CHECK, "FAILURE"))
+    pr_data = _pr_with(_row(SPEC_CHECK, "FAILURE"))
     assert _readiness(pr_data, set())["CanMerge"] is False
 
 
@@ -216,10 +223,10 @@ def test_empty_list_exempts_nothing() -> None:
 
 @pytest.mark.parametrize(("status", "conclusion"), [("COMPLETED", "FAILURE"), ("WAITING", None)])
 def test_listed_but_required_check_still_blocks(status: str, conclusion: str | None) -> None:
-    pr_data = _pr_with(_row(AGENT_CHECK, conclusion, status, required=True))
+    pr_data = _pr_with(_row(SPEC_CHECK, conclusion, status, required=True))
     result = _readiness(pr_data, {LISTED})
     assert result["CanMerge"] is False
-    assert any(AGENT_CHECK in reason for reason in result["Reasons"])
+    assert any(SPEC_CHECK in reason for reason in result["Reasons"])
 
 
 # ---------------------------------------------------------------------------
@@ -409,7 +416,8 @@ def _triggers(doc: dict) -> set[str]:
 # requires a reviewer. agent-approval is deleted (ADR-114 Decision 11 item 6).
 PROVIDER_ENVIRONMENTS = frozenset({"agent-claude", "agent-codex", "agent-droid", "agent-copilot"})
 RETIRED_ENVIRONMENT = "agent-approval"
-# The CLI smoke picks its environment from the matrix leg, one per CLI.
+# A matrix job picks its environment per leg with this expression. No workflow
+# uses it now. It stays here so a matrix job that declares it again counts as gated.
 MATRIX_ENVIRONMENT = "agent-${{ matrix.cli }}"
 # Stored secret each provider's model calls read, derived from the workflows.
 PROVIDER_SECRETS = {
@@ -418,26 +426,10 @@ PROVIDER_SECRETS = {
     "droid": ("FACTORY_API_KEY",),
     "copilot": ("COPILOT_GITHUB_TOKEN",),
 }
-# Every gated job and the provider environment it must declare. Jobs that read
-# no provider secret in YAML (the Copilot synthesis scripts, claude.yml's
-# action) are pinned here by name.
-EXPECTED_JOB_ENVIRONMENTS = {
-    ("ai-metrics-analysis.yml", "analyze-metrics"): "agent-claude",
-    ("ai-spec-review.yml", "review-spec"): "agent-claude",
-    ("artifact-insight-scanner.yml", "scan-artifacts"): "agent-claude",
-    ("autoplan-route-eval.yml", "full-suite"): "agent-claude",
-    ("claude.yml", "claude-response"): "agent-claude",
-    ("copilot-context-synthesis.yml", "synthesize-single"): "agent-copilot",
-    ("copilot-context-synthesis.yml", "sweep-missed"): "agent-copilot",
-    ("plugin-cli-smoke.yml", "smoke"): MATRIX_ENVIRONMENT,
-    ("post-pr-retrospective.yml", "retrospective"): "agent-claude",
-    ("pr-maintenance.yml", "process-prs"): "agent-claude",
-    ("skill-overlap-eval.yml", "run-eval"): "agent-claude",
-    ("slash-command-quality.yml", "validate-slash-commands"): "agent-claude",
-    ("software-engineering-library-activation.yml", "activation-gate"): "agent-claude",
-    # Sits in agent-claude for historical reasons (it once read BOT_PAT). It calls no model.
-    ("update-reviewer-stats.yml", "update-stats"): "agent-claude",
-}
+# Every gated job and the provider environment it must declare. Empty: the owner
+# deleted every job that ran in an agent-* environment on 2026-11-25 (ADR-057
+# amendment of that date). A job that declares one again must be added here on purpose.
+EXPECTED_JOB_ENVIRONMENTS: dict[tuple[str, str], str] = {}
 
 
 def _is_gated(job: dict) -> bool:
@@ -463,15 +455,15 @@ def _provider_of_secret(text: str) -> set[str]:
 def _provider_environment_violations(docs: dict[str, dict]) -> tuple[list[str], int]:
     """Return (violations, jobs checked) for jobs that read a provider secret.
 
-    The matrix job reads one secret per leg; test_cli_smoke_security.py
-    pins each leg's credential, so it is skipped here.
+    A matrix job gets no pass: its per-leg environment expression matches no
+    single provider environment, so it is reported.
     """
     violations: list[str] = []
     checked = 0
     for path, doc in docs.items():
         for job_id, job in (doc.get("jobs") or {}).items():
             providers = _provider_of_secret(yaml.safe_dump(job))
-            if not providers or job.get("environment") == MATRIX_ENVIRONMENT:
+            if not providers:
                 continue
             checked += 1
             environment = job.get("environment")
@@ -505,7 +497,7 @@ def test_every_listed_path_exists_and_gates_its_model_jobs() -> None:
     docs = _workflow_docs()
     for entry in _shipped_entries():
         assert entry["path"] in docs, entry["path"]
-        if entry["path"] == DETERMINISTIC_LISTED:
+        if entry["path"] in LISTED_WITHOUT_GATED_JOBS:
             assert not _gated_jobs(docs[entry["path"]]), f"{entry['path']} gained a model job"
             continue
         assert _gated_jobs(docs[entry["path"]]), f"{entry['path']} has no provider-gated job"
@@ -525,8 +517,8 @@ def test_every_pull_request_workflow_with_a_provider_gated_job_is_listed() -> No
         for path, doc in _workflow_docs().items()
         if "pull_request" in _triggers(doc) and _gated_jobs(doc)
     }
-    assert listed - {DETERMINISTIC_LISTED} == expected
-    assert DETERMINISTIC_LISTED in listed
+    assert listed - LISTED_WITHOUT_GATED_JOBS == expected
+    assert LISTED_WITHOUT_GATED_JOBS <= listed
 
 
 SMOKE = ".github/workflows/plugin-cli-smoke.yml"
@@ -535,7 +527,7 @@ PROMOTION_APPLICABILITY = REPO_ROOT / ".agents" / "governance" / "promotion-appl
 
 
 def test_the_cli_smoke_is_listed_as_advisory() -> None:
-    """Owner decision 2026-11-05: the smoke needs provider credentials and an approval."""
+    """Owner decision 2026-11-05: no critical path depends on the CLI smoke."""
     assert SMOKE in {e["path"] for e in _shipped_entries()}
 
 
@@ -545,16 +537,6 @@ def test_the_cli_smoke_is_not_a_required_ruleset_context() -> None:
     assert entries
     assert SMOKE not in {e["workflow"] for e in entries}
     assert "CLI Smoke Result" not in {e["job"] for e in entries}
-
-
-def test_claude_workflow_is_gated_by_agent_claude_and_listed_as_advisory() -> None:
-    """claude.yml triggers on pull_request and waits for approval, so a rejected
-    or timed-out approval must not leave a blocking check (ADR-114 Decision 3)."""
-    doc = _workflow_docs()[".github/workflows/claude.yml"]
-    assert _gated_jobs(doc) == ["claude-response"]
-    assert "pull_request" in _triggers(doc)
-    listed = {e["path"] for e in _shipped_entries()}
-    assert ".github/workflows/claude.yml" in listed
 
 
 def test_no_workflow_uses_the_retired_agent_approval_environment() -> None:
@@ -581,10 +563,16 @@ def test_each_gated_job_declares_the_environment_matching_its_provider() -> None
 
 
 def test_jobs_reading_a_provider_secret_declare_that_provider_environment() -> None:
-    """Drift: a job that reads a provider secret must sit in that provider's environment."""
-    violations, checked = _provider_environment_violations(_workflow_docs())
+    """Drift: a job that reads a provider secret must sit in that provider's environment.
+
+    No job reads a provider secret now, so the checked count is zero and cannot
+    carry a floor. The floor moves to the scan: it must load workflows and jobs.
+    """
+    docs = _workflow_docs()
+    violations, _ = _provider_environment_violations(docs)
     assert violations == []
-    assert checked >= 8
+    assert docs
+    assert sum(len(doc.get("jobs") or {}) for doc in docs.values()) > 0
 
 
 @pytest.mark.parametrize(
@@ -626,41 +614,25 @@ def test_a_job_with_no_provider_secret_is_not_checked() -> None:
     assert _provider_environment_violations({"fake.yml": {"jobs": {"j": job}}}) == ([], 0)
 
 
-def test_the_matrix_environment_resolves_to_provider_environments_only() -> None:
-    doc = _workflow_docs()[".github/workflows/plugin-cli-smoke.yml"]
-    smoke = doc["jobs"]["smoke"]
-    clis = smoke["strategy"]["matrix"]["cli"]
-    assert {f"agent-{cli}" for cli in clis} <= PROVIDER_ENVIRONMENTS
-
-
-def test_the_thirteen_gated_workflows_are_exactly_the_policy_set() -> None:
+def test_no_workflow_runs_a_job_in_a_provider_environment() -> None:
+    """The owner deleted every job in an agent-* environment on 2026-11-25 (ADR-057)."""
     gated = {path for path, doc in _workflow_docs().items() if _gated_jobs(doc)}
-    assert gated == {
-        f".github/workflows/{name}.yml"
-        for name in (
-            "ai-spec-review",
-            "slash-command-quality",
-            "post-pr-retrospective",
-            "software-engineering-library-activation",
-            "ai-metrics-analysis",
-            "pr-maintenance",
-            "artifact-insight-scanner",
-            "autoplan-route-eval",
-            "skill-overlap-eval",
-            "plugin-cli-smoke",
-            "copilot-context-synthesis",
-            "claude",
-            "update-reviewer-stats",
-        )
+    assert gated == set()
+
+
+def test_a_matrix_job_in_a_provider_environment_is_gated_and_reported() -> None:
+    """Negative: a matrix job that picks an agent-* environment per leg cannot slip by."""
+    job = {
+        "environment": MATRIX_ENVIRONMENT,
+        "strategy": {"matrix": {"cli": ["claude", "copilot"]}},
+        "steps": [{"env": {"KEY": "${{ secrets.ANTHROPIC_API_KEY }}"}}],
     }
-
-
-def test_copilot_context_synthesis_is_gated_but_not_listed() -> None:
-    path = ".github/workflows/copilot-context-synthesis.yml"
-    doc = _workflow_docs()[path]
-    assert sorted(_gated_jobs(doc)) == ["sweep-missed", "synthesize-single"]
-    assert "pull_request" not in _triggers(doc)
-    assert path not in {e["path"] for e in _shipped_entries()}
+    doc = {"jobs": {"smoke": job}}
+    assert _gated_jobs(doc) == ["smoke"]
+    violations, checked = _provider_environment_violations({"fake.yml": doc})
+    assert checked == 1
+    assert len(violations) == 1
+    assert "fake.yml:smoke" in violations[0]
 
 
 # ---------------------------------------------------------------------------
@@ -721,8 +693,8 @@ def _paged_readiness(first: dict, second: dict, listed: set[str]) -> dict:
 
 
 def test_unlisted_row_on_a_later_page_blocks_a_listed_same_name_row() -> None:
-    first = _row(AGENT_CHECK, "FAILURE", workflow=LISTED)
-    second = _row(AGENT_CHECK, "FAILURE", workflow=UNLISTED)
+    first = _row(SPEC_CHECK, "FAILURE", workflow=LISTED)
+    second = _row(SPEC_CHECK, "FAILURE", workflow=UNLISTED)
     result = _paged_readiness(first, second, {LISTED})
     assert result["CanMerge"] is False
     assert result["fetched_pages_complete"] is True
@@ -730,7 +702,7 @@ def test_unlisted_row_on_a_later_page_blocks_a_listed_same_name_row() -> None:
 
 def test_listed_row_on_a_later_page_is_exempt() -> None:
     first = _row("Run Python Tests", "SUCCESS", workflow=UNLISTED)
-    second = _row(AGENT_CHECK, "FAILURE", workflow=LISTED)
+    second = _row(SPEC_CHECK, "FAILURE", workflow=LISTED)
     result = _paged_readiness(first, second, {LISTED})
     assert result["CanMerge"] is True
 
@@ -743,17 +715,17 @@ def test_both_queries_select_the_workflow_resource_path() -> None:
 
 
 def test_row_without_a_check_suite_key_blocks() -> None:
-    row = _row(AGENT_CHECK, "FAILURE")
+    row = _row(SPEC_CHECK, "FAILURE")
     del row["checkSuite"]
     assert _readiness(_pr_with(row), {LISTED})["CanMerge"] is False
 
 
 def test_uppercase_owner_and_repo_prefix_still_matches() -> None:
     row = _row(
-        AGENT_CHECK,
+        SPEC_CHECK,
         "FAILURE",
         workflow=None,
-        resource="/O/R/actions/workflows/ai-spec-review.yml",
+        resource="/O/R/actions/workflows/ai-spec-validation.yml",
     )
     assert _readiness(_pr_with(row), {LISTED})["CanMerge"] is True
 
@@ -761,19 +733,19 @@ def test_uppercase_owner_and_repo_prefix_still_matches() -> None:
 @pytest.mark.parametrize(
     "resource",
     [
-        "/o/r/actions/workflows/ai-spec-review.yml/",
-        "/o/r/actions/workflows/ai-spec-review.yml?query=1",
+        "/o/r/actions/workflows/ai-spec-validation.yml/",
+        "/o/r/actions/workflows/ai-spec-validation.yml?query=1",
         "/o/r/actions/workflows/AI-SPEC-VALIDATION.YML",
-        "/o/r/actions/workflows/../ai-spec-review.yml",
+        "/o/r/actions/workflows/../ai-spec-validation.yml",
     ],
 )
 def test_malformed_resource_paths_are_not_exempt(resource: str) -> None:
-    row = _row(AGENT_CHECK, "FAILURE", workflow=None, resource=resource)
+    row = _row(SPEC_CHECK, "FAILURE", workflow=None, resource=resource)
     assert _readiness(_pr_with(row), {LISTED})["CanMerge"] is False
 
 
 def test_ignore_ci_does_not_read_the_trusted_list() -> None:
-    pr_data = _pr_with(_row(AGENT_CHECK, "FAILURE"))
+    pr_data = _pr_with(_row(SPEC_CHECK, "FAILURE"))
     with (
         patch("test_pr_merge_ready.gh_graphql", return_value=pr_data),
         patch("test_pr_merge_ready._load_advisory_agent_workflows") as loader,
@@ -810,14 +782,14 @@ def _node(name: str, required: bool, conclusion: str = "FAILURE") -> dict:
 
 def test_why_pr_blocked_ignores_a_failing_non_required_check() -> None:
     why = _why_pr_blocked()
-    result = why.diagnose({"CheckNodes": [_node(AGENT_CHECK, required=False)]}, None)
+    result = why.diagnose({"CheckNodes": [_node(SPEC_CHECK, required=False)]}, None)
     assert result["FailingRequired"] == []
 
 
 def test_why_pr_blocked_reports_a_failing_required_check_even_from_a_listed_name() -> None:
     why = _why_pr_blocked()
-    result = why.diagnose({"CheckNodes": [_node(AGENT_CHECK, required=True)]}, None)
-    assert result["FailingRequired"] == [AGENT_CHECK]
+    result = why.diagnose({"CheckNodes": [_node(SPEC_CHECK, required=True)]}, None)
+    assert result["FailingRequired"] == [SPEC_CHECK]
 
 
 # ---------------------------------------------------------------------------

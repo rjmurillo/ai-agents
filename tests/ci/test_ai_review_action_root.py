@@ -1,8 +1,8 @@
 """The ai-review action and its scripts anchor on their own tree, not the workspace.
 
-Counterpart of ``test_pr_maintenance_trusted_code.py``: that module pins the
-workflow wiring, this one pins the action and script behavior that makes a
-``.trusted-helper`` caller safe.
+Counterpart of the deleted ``test_pr_maintenance_trusted_code.py``: that module
+pinned the workflow wiring, this one pins the action and script behavior that
+makes a ``.trusted-helper`` caller safe.
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""Outcomes of the plugin-cli-smoke preset: success, quota skips, skips, forks, failed legs."""
+"""Outcomes of the plugin-cli-smoke preset: success, skips, forks, failed legs."""
 
 from __future__ import annotations
 
@@ -12,9 +12,6 @@ from tests.lib.smoke_result_env import FORK_MESSAGE, apply_green
 Capsys = pytest.CaptureFixture[str]
 
 SUCCESS = "CLI smoke passed for every leg that ran."
-QUOTA_NOTICE = (
-    "::notice::CLI smoke passed with 2 prompt checks quota-skipped. Load tests passed on every leg."
-)
 NO_CHANGE = "No smoke path changed; CLI smoke legs skipped."
 
 
@@ -36,24 +33,15 @@ def run_preset(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: Capsys):
     ("overrides", "rc", "out"),
     [
         ({}, 0, SUCCESS),
-        ({"RUN": "false", "SMOKE_RESULT": "skipped", "AUTHORIZE_RESULT": "skipped"}, 0, NO_CHANGE),
-        # The Claude and Copilot legs need an environment approval, so a pull
-        # request skips them by design and the rest of the smoke still decides.
-        ({"EVENT_NAME": "pull_request", "SMOKE_RESULT": "skipped"}, 0, SUCCESS),
+        ({"RUN": "false", "AUTHORIZE_RESULT": "skipped"}, 0, NO_CHANGE),
     ],
-    ids=["all-green", "no-smoke-path", "pull-request-skips-approval-legs"],
+    ids=["all-green", "no-smoke-path"],
 )
 def test_passing_outcomes_print_one_line(
     run_preset, overrides: dict[str, str], rc: int, out: str
 ) -> None:
     code, text = run_preset(**overrides)
     assert (code, text.strip()) == (rc, out)
-
-
-def test_quota_skips_print_the_count_notice(run_preset, tmp_path: Path) -> None:
-    (tmp_path / "quota-skips").mkdir()
-    (tmp_path / "quota-skips" / "n.txt").write_text("2\n", encoding="utf-8")
-    assert run_preset() == (0, QUOTA_NOTICE + "\n")
 
 
 @pytest.mark.parametrize(
@@ -66,16 +54,12 @@ def test_quota_skips_print_the_count_notice(run_preset, tmp_path: Path) -> None:
         (
             {
                 "TRUSTED": "false",
-                "SMOKE_RESULT": "skipped",
                 "CODEX_RESULT": "skipped",
                 "HOOKS_RESULT": "skipped",
                 "PI_RESULT": "skipped",
             },
             f"::error::{FORK_MESSAGE}",
         ),
-        ({"SMOKE_RESULT": "failure"}, "[SMOKE_RESULT=failure]"),
-        ({"SMOKE_RESULT": "skipped"}, "[SMOKE_RESULT=skipped]"),
-        ({"EVENT_NAME": "pull_request", "CODEX_RESULT": "failure"}, "[CODEX_RESULT=failure]"),
         ({"CODEX_RESULT": "failure"}, "[CODEX_RESULT=failure]"),
         ({"HOOKS_RESULT": "failure"}, "[HOOKS_RESULT=failure]"),
         ({"HOOKS_RESULT": "skipped"}, "[HOOKS_RESULT=skipped]"),
@@ -85,9 +69,6 @@ def test_quota_skips_print_the_count_notice(run_preset, tmp_path: Path) -> None:
     ids=[
         "broken-filter",
         "fork",
-        "smoke-leg-failed",
-        "smoke-leg-skipped-on-dispatch",
-        "pull-request-codex-still-gates",
         "codex-leg-failed",
         "hooks-leg-failed",
         "hooks-leg-skipped",
