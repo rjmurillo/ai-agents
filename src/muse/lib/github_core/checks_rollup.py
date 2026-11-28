@@ -11,11 +11,11 @@ This is documented in issue #2325 and PR #1887 retrospective.
 
 from __future__ import annotations
 
-import json
 import re
-import subprocess
 from collections import defaultdict
 from datetime import datetime, timezone
+
+from .branch_rules import fetch_branch_rules, required_contexts_from_rules
 
 # A GitHub Actions check-run details URL carries the workflow run identity:
 #   https://github.com/OWNER/REPO/actions/runs/<runId>/job/<jobId>
@@ -188,49 +188,13 @@ def fetch_ruleset_required_contexts(
     repos that use rulesets instead of branch protection).
 
     Returns a sorted list of context strings, or None if the API call fails,
-    times out, or ``gh`` cannot be started
+    times out, ``gh`` cannot be started, or the branch path is unsafe
     (callers should treat None as unknown rather than empty). Refs issue #4359.
     """
-    endpoint = f"repos/{owner}/{repo}/rules/branches/{branch}?per_page=100"
-    try:
-        result = subprocess.run(
-            ["gh", "api", "--paginate", "--slurp", endpoint],
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=30,
-        )
-    except (subprocess.TimeoutExpired, OSError):
+    rules = fetch_branch_rules(owner, repo, branch)
+    if rules is None:
         return None
-    if result.returncode != 0:
-        return None
-    try:
-        payload = json.loads(result.stdout)
-    except json.JSONDecodeError:
-        return None
-    if not isinstance(payload, list):
-        return None
-    rules = (
-        [rule for page in payload for rule in page]
-        if payload and all(isinstance(page, list) for page in payload)
-        else payload
-    )
-
-    contexts: list[str] = []
-    for rule in rules:
-        if not isinstance(rule, dict):
-            continue
-        if rule.get("type") != "required_status_checks":
-            continue
-        params = rule.get("parameters") or {}
-        for check_entry in params.get("required_status_checks") or []:
-            if isinstance(check_entry, dict):
-                ctx = check_entry.get("context")
-            else:
-                ctx = None
-            if ctx and isinstance(ctx, str):
-                contexts.append(ctx)
-    return sorted(set(contexts))
+    return required_contexts_from_rules(rules)
 
 
 def find_missing_required(

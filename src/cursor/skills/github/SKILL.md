@@ -456,7 +456,7 @@ author gets `source:human`. It only labels.
 | Raw `gh notify` or notifications API | 403 with app tokens | Use `get_actionable_items.py` |
 | Retrying `gh` after a session refusal | The refusal has no reset; retries only burn the budget | Run the transport preflight, then use the GitHub MCP operations |
 | Reporting a PR blocked because a call failed | An unreachable API is unknown, not a verdict | Name the transport failure |
-| Treating `mergeStateStatus: blocked` as self-explanatory | It is a cached, often-stale field. `why_pr_blocked.py` does not query `reviewDecision` or the required-approving-review count | Run `why_pr_blocked.py` first and resolve unresolved threads with `resolve_pr_review_thread.py`. Details: `references/api-reference.md`, "Blocked PR diagnosis" |
+| Treating `mergeStateStatus: blocked` as self-explanatory | It is a cached, often-stale field. `why_pr_blocked.py` does not read classic protection or required approval counts | Run `why_pr_blocked.py` first and resolve unresolved threads with `resolve_pr_review_thread.py`. Details: `references/api-reference.md`, "Blocked PR diagnosis" |
 
 ---
 

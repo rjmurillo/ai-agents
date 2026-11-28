@@ -112,7 +112,7 @@ In a network-restricted sandbox, the read-only scripts under `scripts/pr/` run w
 - A reply to a review thread does not resolve it. When the thread is yours to resolve (bot-authored, or explicitly approved), call `resolve_pr_review_thread.py` after the reply. See [`pr-comment-responder`](pr-comment-responder.md).
 - Post several reactions with batch mode in `add_comment_reaction.py`, not one call each.
 - Use `--marker` on `post_issue_comment.py` to avoid duplicate comments.
-- `mergeStateStatus: blocked` is a cached field. Run `why_pr_blocked.py` first.
+- `mergeStateStatus: blocked` is a cached field. Run `why_pr_blocked.py` first. It names failing or missing required checks, unresolved threads, merge conflicts, and a review requesting changes. It counts that review only when the base branch has a `pull_request` ruleset rule. It does not read classic branch protection or required approval counts.
 
 To test a workflow locally with `act`, the skill bundles `test_workflow_locally.py`:
 

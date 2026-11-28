@@ -52,7 +52,7 @@ Parameters: `--set`, `--expected-current`, `--dry-run`, `--output-format {json,h
 
 ### `why_pr_blocked.py`
 
-Diagnose a `mergeable_state`/`mergeStateStatus: blocked` PR: decomposes it into missing/failing/pending required checks, unresolved review threads, or merge conflicts, and says explicitly when none of those hold (the field can be stale).
+Diagnose a `mergeable_state`/`mergeStateStatus: blocked` PR: decomposes it into missing/failing/pending required checks, unresolved review threads, merge conflicts, or an enforced review requesting changes, and says explicitly when none of those hold (the field can be stale).
 
 Parameters: `--pull-request`, `--base-branch`, `--output-format {json,human,auto}`
 

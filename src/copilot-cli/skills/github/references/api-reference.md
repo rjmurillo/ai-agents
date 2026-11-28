@@ -173,10 +173,13 @@ Check for merge conflicts or failing required checks. Use `get_pr_context.py` to
 
 ## Blocked PR diagnosis
 
-`mergeable_state` and `mergeStateStatus: blocked` are cached and frequently stale. `why_pr_blocked.py` decomposes them into required checks, review threads, and merge conflicts. It does not query `reviewDecision` or the required-approving-review count, so a repository that requires approvals can still be blocked on that when the script reports no cause.
+`mergeable_state` and `mergeStateStatus: blocked` are cached and frequently stale. `why_pr_blocked.py` decomposes a blocked state into required checks, review threads, merge conflicts, and a review requesting changes. It counts `CHANGES_REQUESTED` only when the base branch has a `pull_request` ruleset rule. It reports `ReviewDecision` and `ChangesRequestedBlocking` either way. It does not read classic branch protection or the required-approving-review count. So `REVIEW_REQUIRED` is reported but never counted.
 
 - GitHub's "A conversation must be resolved before this pull request can be merged" message means unresolved review threads: resolve them with `resolve_pr_review_thread.py`.
-- If the script reports no cause and the PR is still blocked, compare `get_pr_context.py`'s `review_decision` field with the target branch's required-approving-review count.
+- `RulesetContextsAvailable` false means the rules were not read, so `ChangesRequestedBlocking` false is then unknown, not a verdict.
+- The review is judged against the PR base branch only. `RulesBranch` is the branch whose rules were read: the PR base branch by default, the `--base-branch` value when you pass one, or an empty string when no rules were read. `ChangesRequestedBlocking` false is a verdict only when `RulesBranch` equals `BaseBranch`.
+- When `--base-branch` names another branch, its rules supply the required checks only. `ChangesRequestedBlocking` stays false because the review rule is unknown. If the decision is `CHANGES_REQUESTED`, the summary names the branch that was read and says the review rule is unknown.
+- If the script reports no cause and the PR is still blocked, compare `ReviewDecision` with the branch's required approvals from `get_branch_protection.py`. For a bot review, run `detect_stale_bot_review.py`. It reports a dismissal handoff for a human and never dismisses.
 
 ## rerun_failed_jobs.py details
 

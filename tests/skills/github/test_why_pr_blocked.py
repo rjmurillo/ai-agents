@@ -39,6 +39,19 @@ diagnose = _mod.diagnose
 fetch_pr_data = _mod.fetch_pr_data
 
 
+def _rules(contexts=(), *, pull_request=False):
+    """Build raw ruleset rules so the real extractors run in main()."""
+    rules = [
+        {
+            "type": "required_status_checks",
+            "parameters": {"required_status_checks": [{"context": c} for c in contexts]},
+        }
+    ]
+    if pull_request:
+        rules.append({"type": "pull_request", "parameters": {"required_approving_review_count": 0}})
+    return rules
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -54,8 +67,12 @@ def _gql_pr(
     thread_page_info: dict | None = None,
     base_branch: str = "main",
     committed_date: str | None = None,
+    review_decision: str | None = None,
 ) -> dict:
-    """Build a minimal GraphQL response for why_pr_blocked."""
+    """Build a minimal GraphQL response for why_pr_blocked.
+
+    The ``reviewDecision`` key is omitted unless ``review_decision`` is given.
+    """
     response: dict = {
         "repository": {
             "pullRequest": {
@@ -94,6 +111,8 @@ def _gql_pr(
         }
     }
 
+    if review_decision is not None:
+        response["repository"]["pullRequest"]["reviewDecision"] = review_decision
     if committed_date is not None:
         commit = response["repository"]["pullRequest"]["commits"]["nodes"][0]["commit"]
         commit["committedDate"] = committed_date
@@ -591,20 +610,6 @@ class TestBuildParser:
 
 
 class TestMain:
-    def _patch_env(self, gql_data, *, ruleset=None):
-        return (
-            patch("why_pr_blocked.assert_gh_authenticated"),
-            patch(
-                "why_pr_blocked.resolve_repo_params",
-                return_value=RepoInfo(owner="o", repo="r"),
-            ),
-            patch("why_pr_blocked.gh_graphql", return_value=gql_data),
-            patch(
-                "why_pr_blocked.fetch_ruleset_required_contexts",
-                return_value=ruleset,
-            ),
-        )
-
     def test_no_blocker_exits_0(self, capsys):
         gql = _gql_pr(
             merge_state_status="BLOCKED",
@@ -619,8 +624,8 @@ class TestMain:
             ),
             patch("why_pr_blocked.gh_graphql", return_value=gql),
             patch(
-                "why_pr_blocked.fetch_ruleset_required_contexts",
-                return_value=["Validate PR"],
+                "why_pr_blocked.fetch_branch_rules",
+                return_value=_rules(["Validate PR"]),
             ),
         ):
             rc = main(["--pull-request", "42", "--output-format", "json"])
@@ -646,8 +651,8 @@ class TestMain:
             ),
             patch("why_pr_blocked.gh_graphql", return_value=gql),
             patch(
-                "why_pr_blocked.fetch_ruleset_required_contexts",
-                return_value=["Run Python Tests", "Validate PR"],
+                "why_pr_blocked.fetch_branch_rules",
+                return_value=_rules(["Run Python Tests", "Validate PR"]),
             ),
         ):
             rc = main(["--pull-request", "42", "--output-format", "json"])
@@ -671,8 +676,8 @@ class TestMain:
             ),
             patch("why_pr_blocked.gh_graphql", return_value=gql),
             patch(
-                "why_pr_blocked.fetch_ruleset_required_contexts",
-                return_value=ruleset,
+                "why_pr_blocked.fetch_branch_rules",
+                return_value=_rules(ruleset),
             ),
         ):
             rc = main(["--pull-request", "42", "--output-format", "human"])
@@ -752,8 +757,8 @@ class TestMain:
             ),
             patch("why_pr_blocked.gh_graphql", return_value=gql),
             patch(
-                "why_pr_blocked.fetch_ruleset_required_contexts",
-                return_value=["Validate PR"],
+                "why_pr_blocked.fetch_branch_rules",
+                return_value=_rules(["Validate PR"]),
             ),
         ):
             rc = main(["--pull-request", "42", "--output-format", "json"])
@@ -762,19 +767,40 @@ class TestMain:
         data = json.loads(capsys.readouterr().out)["Data"]
         assert "Validate PR" in data["FailingRequired"]
 
-    def test_pending_required_exits_1(self, capsys):
-        gql = _gql_pr(
-            merge_state_status="BLOCKED",
-            overall_state="PENDING",
-            check_nodes=[
+    @pytest.mark.parametrize(
+        ("merge_state", "overall_state", "check_node", "expected_field", "expected_value"),
+        [
+            pytest.param(
+                "BLOCKED",
+                "PENDING",
                 _check_run_node(
                     "Validate PR",
                     "",
                     required=True,
                     run_number=101,
                     status="IN_PROGRESS",
-                )
-            ],
+                ),
+                "PendingRequired",
+                ["Validate PR"],
+                id="pending-required",
+            ),
+            pytest.param(
+                "DIRTY",
+                "SUCCESS",
+                _check_run_node("Validate PR", "SUCCESS"),
+                "MergeStateStatus",
+                "DIRTY",
+                id="dirty-merge-state",
+            ),
+        ],
+    )
+    def test_pending_or_dirty_exits_1(
+        self, capsys, merge_state, overall_state, check_node, expected_field, expected_value
+    ):
+        gql = _gql_pr(
+            merge_state_status=merge_state,
+            overall_state=overall_state,
+            check_nodes=[check_node],
         )
         with (
             patch("why_pr_blocked.assert_gh_authenticated"),
@@ -784,8 +810,8 @@ class TestMain:
             ),
             patch("why_pr_blocked.gh_graphql", return_value=gql),
             patch(
-                "why_pr_blocked.fetch_ruleset_required_contexts",
-                return_value=["Validate PR"],
+                "why_pr_blocked.fetch_branch_rules",
+                return_value=_rules(["Validate PR"]),
             ),
         ):
             rc = main(["--pull-request", "42", "--output-format", "json"])
@@ -793,7 +819,7 @@ class TestMain:
         assert rc == 1
         data = json.loads(capsys.readouterr().out)["Data"]
         assert data["HasBlocker"] is True
-        assert data["PendingRequired"] == ["Validate PR"]
+        assert data[expected_field] == expected_value
 
     def test_unresolved_threads_exits_1(self, capsys):
         gql = _gql_pr(
@@ -809,8 +835,8 @@ class TestMain:
             ),
             patch("why_pr_blocked.gh_graphql", return_value=gql),
             patch(
-                "why_pr_blocked.fetch_ruleset_required_contexts",
-                return_value=[],
+                "why_pr_blocked.fetch_branch_rules",
+                return_value=_rules([]),
             ),
         ):
             rc = main(["--pull-request", "42", "--output-format", "json"])
@@ -818,31 +844,6 @@ class TestMain:
         assert rc == 1
         data = json.loads(capsys.readouterr().out)["Data"]
         assert data["UnresolvedThreads"] == 2
-
-    def test_dirty_merge_state_exits_1(self, capsys):
-        gql = _gql_pr(
-            merge_state_status="DIRTY",
-            overall_state="SUCCESS",
-            check_nodes=[_check_run_node("Validate PR", "SUCCESS")],
-        )
-        with (
-            patch("why_pr_blocked.assert_gh_authenticated"),
-            patch(
-                "why_pr_blocked.resolve_repo_params",
-                return_value=RepoInfo(owner="o", repo="r"),
-            ),
-            patch("why_pr_blocked.gh_graphql", return_value=gql),
-            patch(
-                "why_pr_blocked.fetch_ruleset_required_contexts",
-                return_value=["Validate PR"],
-            ),
-        ):
-            rc = main(["--pull-request", "42", "--output-format", "json"])
-
-        assert rc == 1
-        data = json.loads(capsys.readouterr().out)["Data"]
-        assert data["HasBlocker"] is True
-        assert data["MergeStateStatus"] == "DIRTY"
 
     def test_uses_pr_base_branch_by_default(self, capsys):
         gql = _gql_pr(
@@ -858,8 +859,8 @@ class TestMain:
             ),
             patch("why_pr_blocked.gh_graphql", return_value=gql),
             patch(
-                "why_pr_blocked.fetch_ruleset_required_contexts",
-                return_value=["Release Validation"],
+                "why_pr_blocked.fetch_branch_rules",
+                return_value=_rules(["Release Validation"]),
             ) as mock_fetch,
         ):
             rc = main(["--pull-request", "42", "--output-format", "json"])
@@ -877,7 +878,7 @@ class TestMain:
                 return_value=RepoInfo(owner="o", repo="r"),
             ),
             patch("why_pr_blocked.gh_graphql", return_value=gql),
-            patch("why_pr_blocked.fetch_ruleset_required_contexts", return_value=None),
+            patch("why_pr_blocked.fetch_branch_rules", return_value=None),
         ):
             rc = main(["--pull-request", "9999", "--output-format", "json"])
 
@@ -894,7 +895,7 @@ class TestMain:
                 "why_pr_blocked.gh_graphql",
                 side_effect=RuntimeError("server error"),
             ),
-            patch("why_pr_blocked.fetch_ruleset_required_contexts", return_value=None),
+            patch("why_pr_blocked.fetch_branch_rules", return_value=None),
         ):
             rc = main(["--pull-request", "42", "--output-format", "json"])
 
@@ -914,7 +915,7 @@ class TestMain:
             ),
             patch("why_pr_blocked.gh_graphql", return_value=gql),
             patch(
-                "why_pr_blocked.fetch_ruleset_required_contexts",
+                "why_pr_blocked.fetch_branch_rules",
                 return_value=None,
             ),
         ):
@@ -937,7 +938,7 @@ class TestMain:
                 return_value=RepoInfo(owner="o", repo="r"),
             ),
             patch("why_pr_blocked.gh_graphql", return_value=gql),
-            patch("why_pr_blocked.fetch_ruleset_required_contexts") as mock_fetch,
+            patch("why_pr_blocked.fetch_branch_rules") as mock_fetch,
         ):
             rc = main(
                 [
@@ -965,8 +966,8 @@ class TestMain:
             ),
             patch("why_pr_blocked.gh_graphql", return_value=gql),
             patch(
-                "why_pr_blocked.fetch_ruleset_required_contexts",
-                return_value=[],
+                "why_pr_blocked.fetch_branch_rules",
+                return_value=_rules([]),
             ),
         ):
             rc = main(["--pull-request", "42", "--output-format", "human"])
@@ -1091,7 +1092,7 @@ class TestQueuedVsAbsent:
                 return_value=RepoInfo(owner="o", repo="r"),
             ),
             patch("why_pr_blocked.gh_graphql", return_value=gql),
-            patch("why_pr_blocked.fetch_ruleset_required_contexts", return_value=_RULESET),
+            patch("why_pr_blocked.fetch_branch_rules", return_value=_rules(_RULESET)),
         ):
             rc = main(["--pull-request", "42", "--output-format", fmt, *extra])
         captured = capsys.readouterr()
@@ -1127,3 +1128,434 @@ class TestQueuedVsAbsent:
         assert rc == 1
         assert data["QueuedRequired"] == []
         assert data["AbsentRequired"] == ["Validate PR"]
+
+
+# ---------------------------------------------------------------------------
+# Tests: review decision (CHANGES_REQUESTED counts only with a pull_request rule)
+# ---------------------------------------------------------------------------
+
+_GREEN_CHECKS = [_check_run_node("Validate PR", "SUCCESS")]
+_PRE_EXISTING_KEYS = {
+    "Number",
+    "Owner",
+    "Repo",
+    "BaseBranch",
+    "MergeStateStatus",
+    "OverallState",
+    "MissingRequired",
+    "QueuedRequired",
+    "AbsentRequired",
+    "HeadCommittedAt",
+    "FailingRequired",
+    "PendingRequired",
+    "IndeterminateRequired",
+    "BlockingRuns",
+    "UnresolvedThreads",
+    "HasBlocker",
+    "RulesetContextsAvailable",
+}
+
+
+class TestReviewDecisionDiagnose:
+    def test_empty_string_decision_normalizes_to_none(self):
+        result = diagnose({"ReviewDecision": ""}, [], pull_request_rule=True)
+        assert result["ReviewDecision"] is None
+        assert result["ChangesRequestedBlocking"] is False
+
+    def test_missing_decision_is_none(self):
+        assert diagnose({}, [])["ReviewDecision"] is None
+
+    @pytest.mark.parametrize("rule", [None, False])
+    def test_not_blocking_without_a_confirmed_rule(self, rule):
+        result = diagnose({"ReviewDecision": "CHANGES_REQUESTED"}, [], pull_request_rule=rule)
+        assert result["ReviewDecision"] == "CHANGES_REQUESTED"
+        assert result["ChangesRequestedBlocking"] is False
+
+    def test_blocking_only_for_changes_requested_with_rule(self):
+        result = diagnose({"ReviewDecision": "CHANGES_REQUESTED"}, [], pull_request_rule=True)
+        assert result["ChangesRequestedBlocking"] is True
+
+    @pytest.mark.parametrize("decision", ["APPROVED", "REVIEW_REQUIRED", "", None])
+    def test_other_decisions_never_block(self, decision):
+        result = diagnose({"ReviewDecision": decision}, [], pull_request_rule=True)
+        assert result["ChangesRequestedBlocking"] is False
+
+    def test_two_positional_arguments_still_work(self):
+        result = diagnose({"CheckNodes": []}, [])
+        assert result["ChangesRequestedBlocking"] is False
+        assert result["ReviewDecision"] is None
+
+    def test_grace_seconds_stays_third_positional(self):
+        result = diagnose({"HeadCommittedAt": None}, ["X"], 0)
+        assert result["AbsentRequired"] == ["X"]
+
+
+class TestReviewDecisionFetch:
+    def test_query_requests_review_decision(self):
+        assert "reviewDecision" in _mod._PR_QUERY
+
+    def test_fetch_returns_decision(self):
+        gql = _gql_pr(review_decision="CHANGES_REQUESTED")
+        with patch("why_pr_blocked.gh_graphql", return_value=gql):
+            assert fetch_pr_data("o", "r", 42)["ReviewDecision"] == "CHANGES_REQUESTED"
+
+    def test_absent_key_gives_none_without_crash(self):
+        gql = _gql_pr()
+        assert "reviewDecision" not in gql["repository"]["pullRequest"]
+        with patch("why_pr_blocked.gh_graphql", return_value=gql):
+            assert fetch_pr_data("o", "r", 42)["ReviewDecision"] is None
+
+
+class TestReviewDecisionMain:
+    @staticmethod
+    def _run(
+        capsys,
+        *,
+        decision,
+        rule,
+        check_nodes=None,
+        args=(),
+        fmt="json",
+        omit_decision=False,
+        base="main",
+    ):
+        """Run main() with one patched rules read and return (rc, out, err, mock)."""
+        gql = _gql_pr(
+            overall_state="SUCCESS",
+            check_nodes=_GREEN_CHECKS if check_nodes is None else check_nodes,
+            review_decision=None if omit_decision else decision,
+            base_branch=base,
+        )
+        rules = None if rule is None else _rules(["Validate PR"], pull_request=rule)
+        with (
+            patch("why_pr_blocked.assert_gh_authenticated"),
+            patch(
+                "why_pr_blocked.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("why_pr_blocked.gh_graphql", return_value=gql),
+            patch("why_pr_blocked.fetch_branch_rules", return_value=rules) as rules_mock,
+        ):
+            rc = main(["--pull-request", "42", "--output-format", fmt, *args])
+        captured = capsys.readouterr()
+        return rc, captured.out, captured.err, rules_mock
+
+    def test_changes_requested_with_rule_blocks(self, capsys):
+        rc, out, _, rules_mock = self._run(capsys, decision="CHANGES_REQUESTED", rule=True)
+        data = json.loads(out)["Data"]
+        assert rc == 1
+        assert data["HasBlocker"] is True
+        assert data["ChangesRequestedBlocking"] is True
+        assert data["ReviewDecision"] == "CHANGES_REQUESTED"
+        rules_mock.assert_called_once_with("o", "r", "main")
+
+    def test_blocked_human_summary_names_review_and_stale_bot_script(self, capsys):
+        rc, out, err, _ = self._run(capsys, decision="CHANGES_REQUESTED", rule=True, fmt="human")
+        text = out + err
+        assert rc == 1
+        assert "a review requesting changes" in text
+        assert "detect_stale_bot_review.py classifies a bot review and never dismisses" in text
+
+    def test_blocked_human_summary_never_tells_reader_to_dismiss(self, capsys):
+        """Negative control: the agent-facing text must not instruct a dismissal."""
+        _, out, err, _ = self._run(capsys, decision="CHANGES_REQUESTED", rule=True, fmt="human")
+        assert "or dismiss it" not in out + err
+        assert "a human dismisses it" in out + err
+
+    def test_changes_requested_without_rule_does_not_block(self, capsys):
+        rc, out, _, _ = self._run(capsys, decision="CHANGES_REQUESTED", rule=False)
+        data = json.loads(out)["Data"]
+        assert rc == 0
+        assert data["HasBlocker"] is False
+        assert data["ChangesRequestedBlocking"] is False
+        assert data["ReviewDecision"] == "CHANGES_REQUESTED"
+
+    def test_not_counted_human_summary_names_classic_protection(self, capsys):
+        rc, out, err, _ = self._run(capsys, decision="CHANGES_REQUESTED", rule=False, fmt="human")
+        text = out + err
+        assert rc == 0
+        assert "not counted" in text
+        assert "classic branch protection is not read" in text
+        assert "no review requesting changes under a pull_request ruleset rule" in text
+
+    def test_not_counted_note_appears_in_blocked_summary(self, capsys):
+        """Another blocker exists and the review is not counted: the note is still named."""
+        rc, out, err, _ = self._run(
+            capsys,
+            decision="CHANGES_REQUESTED",
+            rule=False,
+            check_nodes=[_check_run_node("Validate PR", "FAILURE")],
+            fmt="human",
+        )
+        text = out + err
+        assert rc == 1
+        assert "1 failing required check(s)" in text
+        assert ". Review decision is CHANGES_REQUESTED but not counted" in text
+        assert "no pull_request ruleset rule on the base branch" in text
+
+    def test_blocked_summary_has_no_note_when_review_is_counted(self, capsys):
+        """Negative control: a counted review adds no not-counted note."""
+        _, out, err, _ = self._run(capsys, decision="CHANGES_REQUESTED", rule=True, fmt="human")
+        assert "not counted" not in out + err
+
+    def test_rules_read_failure_exits_3_with_existing_message(self, capsys):
+        rc, out, _, rules_mock = self._run(capsys, decision="CHANGES_REQUESTED", rule=None)
+        payload = json.loads(out)
+        assert rc == 3
+        assert payload["Error"]["Type"] == "ApiError"
+        assert (
+            payload["Error"]["Message"] == "Failed to read required checks for base branch 'main'"
+        )
+        assert rules_mock.call_count == 1
+
+    @pytest.mark.parametrize("branch", ["..", "x//y", "a/./b"])
+    def test_unsafe_base_branch_exits_2_without_reading_rules(self, capsys, branch):
+        rc, out, _, rules_mock = self._run(
+            capsys, decision="CHANGES_REQUESTED", rule=True, args=("--base-branch", branch)
+        )
+        error = json.loads(out)["Error"]
+        assert rc == 2
+        assert error["Type"] == "InvalidParams"
+        assert f"Invalid base branch {branch!r}" in error["Message"]
+        rules_mock.assert_not_called()
+
+    def test_slash_base_branch_still_reads_rules(self, capsys):
+        """The override equals the PR base: the rules are read and the review counts."""
+        rc, out, _, rules_mock = self._run(
+            capsys,
+            decision="CHANGES_REQUESTED",
+            rule=True,
+            base="release/1.2",
+            args=("--base-branch", "release/1.2"),
+        )
+        data = json.loads(out)["Data"]
+        assert rc == 1
+        assert data["ChangesRequestedBlocking"] is True
+        assert data["BaseBranch"] == "release/1.2"
+        rules_mock.assert_called_once_with("o", "r", "release/1.2")
+
+    def test_override_with_rule_does_not_invent_a_review_blocker(self, capsys):
+        """The other branch enforces reviews; that says nothing about the PR base."""
+        rc, out, _, rules_mock = self._run(
+            capsys,
+            decision="CHANGES_REQUESTED",
+            rule=True,
+            base="release/1.2",
+            args=("--base-branch", "main"),
+        )
+        data = json.loads(out)["Data"]
+        assert rc == 0
+        assert data["HasBlocker"] is False
+        assert data["ChangesRequestedBlocking"] is False
+        assert data["ReviewDecision"] == "CHANGES_REQUESTED"
+        assert data["BaseBranch"] == "release/1.2"
+        # JSON carries no summary: RulesBranch != BaseBranch is the unknown signal.
+        assert data["RulesBranch"] == "main"
+        rules_mock.assert_called_once_with("o", "r", "main")
+
+    def test_override_pass_summary_reads_as_one_sentence(self, capsys):
+        """Pin the PASS text: the fixed clause stays, and the note qualifies it."""
+        _, out, err, _ = self._run(
+            capsys,
+            decision="CHANGES_REQUESTED",
+            rule=True,
+            base="release/1.2",
+            args=("--base-branch", "main"),
+            fmt="human",
+        )
+        assert (
+            "no review requesting changes under a pull_request ruleset rule). "
+            "PR may be mergeable regardless of mergeStateStatus. "
+            "Review decision is CHANGES_REQUESTED but not counted: rules were read from "
+            "'main' (--base-branch), not the PR base branch 'release/1.2', so the review "
+            "rule is unknown."
+        ) in out + err
+
+    def test_override_without_rule_prints_no_verdict_from_the_other_branch(self, capsys):
+        """The other branch has no rule: the note must say unknown, not 'no rule'."""
+        rc, out, err, rules_mock = self._run(
+            capsys,
+            decision="CHANGES_REQUESTED",
+            rule=False,
+            base="release/1.2",
+            args=("--base-branch", "main"),
+            fmt="human",
+        )
+        text = out + err
+        assert rc == 0
+        assert "not counted: rules were read from 'main' (--base-branch)" in text
+        assert "not the PR base branch 'release/1.2'" in text
+        assert "the review rule is unknown" in text
+        assert "no pull_request ruleset rule on the base branch" not in text
+        rules_mock.assert_called_once_with("o", "r", "main")
+
+    def test_override_still_supplies_required_checks(self, capsys):
+        """The override keeps its job: required contexts come from that branch."""
+        rc, out, err, _ = self._run(
+            capsys,
+            decision="CHANGES_REQUESTED",
+            rule=True,
+            base="release/1.2",
+            check_nodes=[_check_run_node("Validate PR", "FAILURE")],
+            args=("--base-branch", "main"),
+            fmt="human",
+        )
+        text = out + err
+        assert rc == 1
+        assert "1 failing required check(s)" in text
+        assert "a review requesting changes" not in text
+        assert "rules were read from 'main' (--base-branch)" in text
+
+    def test_override_json_keeps_required_contexts_available(self, capsys):
+        _, out, _, _ = self._run(
+            capsys,
+            decision="CHANGES_REQUESTED",
+            rule=True,
+            base="release/1.2",
+            args=("--base-branch", "main"),
+        )
+        assert json.loads(out)["Data"]["RulesetContextsAvailable"] is True
+
+    @pytest.mark.parametrize("decision", ["APPROVED", "REVIEW_REQUIRED", None])
+    def test_override_adds_no_note_without_changes_requested(self, capsys, decision):
+        """Negative control: the unknown note belongs to CHANGES_REQUESTED only."""
+        rc, out, err, _ = self._run(
+            capsys,
+            decision=decision,
+            rule=True,
+            base="release/1.2",
+            args=("--base-branch", "main"),
+            fmt="human",
+        )
+        assert rc == 0
+        assert "not counted" not in out + err
+
+    @pytest.mark.parametrize(
+        ("base_enforces", "args", "want_rc", "want_blocking", "want_read"),
+        [
+            # PR base enforces reviews, the other branch does not.
+            (True, (), 1, True, "release/1.2"),
+            (True, ("--base-branch", "main"), 0, False, "main"),
+            # PR base does not enforce reviews, the other branch does.
+            (False, (), 0, False, "release/1.2"),
+            (False, ("--base-branch", "main"), 0, False, "main"),
+        ],
+    )
+    def test_two_branches_with_different_pull_request_rules(
+        self, capsys, base_enforces, args, want_rc, want_blocking, want_read
+    ):
+        """The verdict follows the PR base; the other branch's rule never sets it."""
+        rules_by_branch = {
+            "release/1.2": _rules(["Validate PR"], pull_request=base_enforces),
+            "main": _rules(["Validate PR"], pull_request=not base_enforces),
+        }
+        gql = _gql_pr(
+            overall_state="SUCCESS",
+            check_nodes=_GREEN_CHECKS,
+            review_decision="CHANGES_REQUESTED",
+            base_branch="release/1.2",
+        )
+        with (
+            patch("why_pr_blocked.assert_gh_authenticated"),
+            patch(
+                "why_pr_blocked.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("why_pr_blocked.gh_graphql", return_value=gql),
+            patch(
+                "why_pr_blocked.fetch_branch_rules",
+                side_effect=lambda _owner, _repo, branch: rules_by_branch[branch],
+            ) as rules_mock,
+        ):
+            rc = main(["--pull-request", "42", "--output-format", "json", *args])
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert rc == want_rc
+        assert data["ChangesRequestedBlocking"] is want_blocking
+        assert data["BaseBranch"] == "release/1.2"
+        assert data["RulesBranch"] == want_read
+        rules_mock.assert_called_once_with("o", "r", want_read)
+
+    def test_override_with_surrounding_spaces_equal_to_base_counts(self, capsys):
+        """Edge: the flag value is stripped before it is compared with the PR base."""
+        rc, out, _, rules_mock = self._run(
+            capsys, decision="CHANGES_REQUESTED", rule=True, args=("--base-branch", " main ")
+        )
+        data = json.loads(out)["Data"]
+        assert rc == 1
+        assert data["ChangesRequestedBlocking"] is True
+        assert data["RulesBranch"] == data["BaseBranch"] == "main"
+        rules_mock.assert_called_once_with("o", "r", "main")
+
+    def test_override_differs_only_by_case_is_another_branch(self, capsys):
+        """Edge: Git ref names are case-sensitive, so 'Main' is not the PR base 'main'."""
+        rc, out, _, _ = self._run(
+            capsys, decision="CHANGES_REQUESTED", rule=True, args=("--base-branch", "Main")
+        )
+        assert rc == 0
+        assert json.loads(out)["Data"]["ChangesRequestedBlocking"] is False
+
+    def test_changes_requested_makes_exactly_one_rules_read(self, capsys):
+        _, _, _, rules_mock = self._run(capsys, decision="CHANGES_REQUESTED", rule=True)
+        assert rules_mock.call_count == 1
+
+    def test_empty_base_branch_makes_zero_reads_and_names_note(self, capsys):
+        rc, out, err, rules_mock = self._run(
+            capsys,
+            decision="CHANGES_REQUESTED",
+            rule=True,
+            args=("--base-branch", ""),
+            fmt="human",
+        )
+        assert rc == 0
+        rules_mock.assert_not_called()
+        assert "base branch rules were not read" in out + err
+
+    def test_empty_base_branch_json_is_not_blocking(self, capsys):
+        rc, out, _, rules_mock = self._run(
+            capsys, decision="CHANGES_REQUESTED", rule=True, args=("--base-branch", "")
+        )
+        data = json.loads(out)["Data"]
+        assert rc == 0
+        assert data["ChangesRequestedBlocking"] is False
+        assert data["RulesetContextsAvailable"] is False
+        assert data["ReviewDecision"] == "CHANGES_REQUESTED"
+        assert data["RulesBranch"] == ""
+        assert data["BaseBranch"] == "main"
+        assert rules_mock.call_count == 0
+
+    @pytest.mark.parametrize("decision", [None, "", "APPROVED", "REVIEW_REQUIRED"])
+    def test_other_decisions_make_one_read_and_never_block(self, capsys, decision):
+        rc, out, _, rules_mock = self._run(capsys, decision=decision, rule=True)
+        data = json.loads(out)["Data"]
+        assert rc == 0
+        assert data["ChangesRequestedBlocking"] is False
+        assert data["HasBlocker"] is False
+        assert data["ReviewDecision"] == (decision or None)
+        assert rules_mock.call_count == 1
+
+    def test_review_and_failing_check_both_named(self, capsys):
+        rc, out, err, _ = self._run(
+            capsys,
+            decision="CHANGES_REQUESTED",
+            rule=True,
+            check_nodes=[_check_run_node("Validate PR", "FAILURE")],
+            fmt="human",
+        )
+        text = out + err
+        assert rc == 1
+        assert "1 failing required check(s)" in text
+        assert "a review requesting changes" in text
+
+    def test_absent_review_decision_key_does_not_crash(self, capsys):
+        rc, out, _, _ = self._run(capsys, decision=None, rule=True, omit_decision=True)
+        data = json.loads(out)["Data"]
+        assert rc == 0
+        assert data["ReviewDecision"] is None
+
+    def test_output_contract_keeps_old_keys_and_adds_three(self, capsys):
+        _, out, _, _ = self._run(capsys, decision="APPROVED", rule=True)
+        data = json.loads(out)["Data"]
+        added = {"ReviewDecision", "ChangesRequestedBlocking", "RulesBranch"}
+        assert _PRE_EXISTING_KEYS <= set(data)
+        assert set(data) == _PRE_EXISTING_KEYS | added
+        assert data["RulesBranch"] == data["BaseBranch"] == "main"
