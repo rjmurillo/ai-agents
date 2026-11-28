@@ -71,6 +71,27 @@ The skill also covers two related steps:
 - **Forming the contract.** Before non-trivial work, record the smallest task contract: the user goal and deliverables, explicit constraints and acceptance criteria, mandatory policy, and the minimum inferred success criteria. Once work starts, the criteria stay fixed unless you change them or a mandatory policy was omitted.
 - **Reactivation.** A terminal task reopens only when evidence falsifies a named frozen criterion, a mandatory policy adds a blocker, or you reopen it or make a new request. Reviewer preference, optional hardening, a new context, or leftover budget cannot reopen it.
 
+### The friction report script
+
+`friction_report.py` computes the parts of a friction report that the session transcript holds. The agent decides which items are real friction and writes `Permanent fix:`.
+
+| Subcommand | What it prints |
+| --- | --- |
+| `candidates` | One `Hit:` / `Did instead:` / `Permanent fix:` block for each failed shell call that a later call worked around. `Permanent fix:` holds a placeholder. Below the blocks, it lists calls that the harness marked as success but whose output states a failure. |
+| `scripts` | Inline programs that ran 2 or more times, and script files written under a scratch path. A recurring one belongs in the host script location. |
+| `check` | Problems in a finished friction block, one per line. It reads `--file PATH` or standard input. A block with a missing line, an empty value, or a placeholder fails. |
+
+`candidates` and `scripts` read the newest transcript for the working directory. `--transcript PATH` selects a different one. `--format json` gives machine output. Commands, errors, and paths in the output are redacted for secret shapes and cut to a fixed length.
+
+| Exit code | Meaning |
+| --- | --- |
+| 0 | Done. `candidates` and `scripts` also return 0 when they find nothing. `check` returns 0 for a valid block. |
+| 1 | `check` found problems. |
+| 2 | Bad arguments, a missing or unreadable transcript or file, or no transcript for the working directory. |
+| 3 | I/O error while reading the transcript. |
+
+The output is a list of leads. A candidate can be a false positive, and a workaround can be missing.
+
 Checklist the skill ends with:
 
 - The work product is named concretely.

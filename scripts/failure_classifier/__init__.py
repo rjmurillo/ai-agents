@@ -39,8 +39,34 @@ from scripts.failure_classifier.friction import (
     partial_budget,
 )
 from scripts.failure_classifier.transcript import events_from_records, stop_feedback_count
+from scripts.failure_classifier.workarounds import (
+    KIND_ALTERNATIVE,
+    KIND_FIX_THEN_RETRY,
+    InlineScriptGroup,
+    ScratchScript,
+    ScriptInventory,
+    UnmarkedFailure,
+    WorkaroundCandidate,
+    inline_script_inventory,
+    redact_text,
+    unmarked_failures,
+    validate_friction_block,
+    workaround_candidates,
+)
 
 __all__ = [
+    "KIND_ALTERNATIVE",
+    "KIND_FIX_THEN_RETRY",
+    "InlineScriptGroup",
+    "ScratchScript",
+    "ScriptInventory",
+    "UnmarkedFailure",
+    "WorkaroundCandidate",
+    "inline_script_inventory",
+    "redact_text",
+    "validate_friction_block",
+    "unmarked_failures",
+    "workaround_candidates",
     "DENIAL_MARKERS",
     "EDIT_TOOLS",
     "FINGERPRINT_MAX_CHARS",
