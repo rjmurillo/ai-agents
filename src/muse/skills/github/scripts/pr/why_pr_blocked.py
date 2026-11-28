@@ -522,6 +522,10 @@ def diagnose(
     both when no ``pull_request`` rule exists and when the rules were not read.
     ``RulesetContextsAvailable`` tells the two apart: False means the rules were
     not read, so a False ``ChangesRequestedBlocking`` is unknown, not a verdict.
+    ``main`` also passes None when ``--base-branch`` names a branch other than
+    the PR base: those rules feed the required checks only. ``main`` reports
+    the branch it read as ``RulesBranch``, so a caller compares it with
+    ``BaseBranch`` to learn that the review rule is unknown.
     """
     nodes = pr_data.get("CheckNodes") or []
 
@@ -634,7 +638,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--base-branch",
         default=None,
         help="Base branch to read the ruleset from (default: PR base branch). "
-        "Pass empty string to skip ruleset fetch.",
+        "Pass empty string to skip ruleset fetch. The review decision is judged "
+        "only against the PR base branch: a different branch here leaves the "
+        "review rule unknown.",
     )
     parser.add_argument(
         "--missing-grace-seconds",
@@ -665,8 +671,13 @@ def _missing_summary_parts(absent: list[str], queued: list[str]) -> list[str]:
     return parts
 
 
-def _unblocked_review_note(result: dict, pull_request_rule: bool | None) -> str:
-    """Explain a CHANGES_REQUESTED decision that was not counted as a blocker."""
+def _unblocked_review_note(
+    result: dict, pull_request_rule: bool | None, rules_branch: str = ""
+) -> str:
+    """Explain a CHANGES_REQUESTED decision that was not counted as a blocker.
+
+    ``rules_branch`` is the branch whose rules were read, or "" when none were.
+    """
     if result["ReviewDecision"] != _CHANGES_REQUESTED or result["ChangesRequestedBlocking"]:
         return ""
     prefix = f" Review decision is {_CHANGES_REQUESTED} but not counted: "
@@ -675,8 +686,25 @@ def _unblocked_review_note(result: dict, pull_request_rule: bool | None) -> str:
             f"{prefix}no pull_request ruleset rule on the base branch "
             "(classic branch protection is not read)."
         )
-    # pull_request_rule is None only when the base branch is unknown, so no rules were read.
+    pr_base = result["BaseBranch"] or ""
+    if rules_branch and rules_branch != pr_base:
+        return (
+            f"{prefix}rules were read from {rules_branch!r} (--base-branch), not the "
+            f"PR base branch {pr_base or 'unknown'!r}, so the review rule is unknown."
+        )
+    # Otherwise pull_request_rule is None because no rules were read.
     return f"{prefix}base branch rules were not read."
+
+
+def _review_rule(rules: list, rules_branch: str, pr_base: str) -> bool | None:
+    """Return whether the PR base branch enforces reviews, or None when unknown.
+
+    The review decision belongs to the PR base branch. Rules read from another
+    branch (``--base-branch``) say nothing about it, so the answer is unknown.
+    """
+    if rules_branch != pr_base:
+        return None
+    return rules_require_pull_request(rules)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -713,11 +741,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 3
 
-    base_branch = (
-        args.base_branch.strip()
-        if args.base_branch is not None
-        else str(pr_data.get("BaseBranch") or "")
-    )
+    pr_base = str(pr_data.get("BaseBranch") or "")
+    base_branch = args.base_branch.strip() if args.base_branch is not None else pr_base
     if base_branch and branch_rules_endpoint(owner, repo, base_branch) is None:
         write_skill_error(
             f"Invalid base branch {base_branch!r}: empty, '.' or '..' path segment",
@@ -746,7 +771,7 @@ def main(argv: list[str] | None = None) -> int:
     pull_request_rule: bool | None = None
     if rules is not None:
         ruleset_contexts = required_contexts_from_rules(rules)
-        pull_request_rule = rules_require_pull_request(rules)
+        pull_request_rule = _review_rule(rules, base_branch, pr_base)
 
     result = diagnose(pr_data, ruleset_contexts, args.missing_grace_seconds, pull_request_rule)
 
@@ -775,7 +800,7 @@ def main(argv: list[str] | None = None) -> int:
             "no unresolved threads; no review requesting changes under a pull_request "
             "ruleset rule). "
             "PR may be mergeable regardless of mergeStateStatus."
-            f"{_unblocked_review_note(result, pull_request_rule)}"
+            f"{_unblocked_review_note(result, pull_request_rule, base_branch)}"
         )
         status = "PASS"
     else:
@@ -801,7 +826,7 @@ def main(argv: list[str] | None = None) -> int:
         hint = _rerun_hint(blocking_runs)
         if hint:
             summary = f"{summary}. {hint}"
-        note = _unblocked_review_note(result, pull_request_rule)
+        note = _unblocked_review_note(result, pull_request_rule, base_branch)
         if note:
             summary = f"{summary}.{note}"
         status = "FAIL"
@@ -811,6 +836,9 @@ def main(argv: list[str] | None = None) -> int:
         "Owner": owner,
         "Repo": repo,
         "BaseBranch": result["BaseBranch"],
+        # The branch whose rules were read, "" when none were. The review
+        # verdict holds only when this equals BaseBranch.
+        "RulesBranch": base_branch,
         "MergeStateStatus": result["MergeStateStatus"],
         "OverallState": result["OverallState"],
         "MissingRequired": missing,

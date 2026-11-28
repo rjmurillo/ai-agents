@@ -1217,12 +1217,14 @@ class TestReviewDecisionMain:
         args=(),
         fmt="json",
         omit_decision=False,
+        base="main",
     ):
         """Run main() with one patched rules read and return (rc, out, err, mock)."""
         gql = _gql_pr(
             overall_state="SUCCESS",
             check_nodes=_GREEN_CHECKS if check_nodes is None else check_nodes,
             review_decision=None if omit_decision else decision,
+            base_branch=base,
         )
         rules = None if rule is None else _rules(["Validate PR"], pull_request=rule)
         with (
@@ -1318,14 +1320,179 @@ class TestReviewDecisionMain:
         rules_mock.assert_not_called()
 
     def test_slash_base_branch_still_reads_rules(self, capsys):
-        rc, _, _, rules_mock = self._run(
+        """The override equals the PR base: the rules are read and the review counts."""
+        rc, out, _, rules_mock = self._run(
             capsys,
             decision="CHANGES_REQUESTED",
             rule=True,
+            base="release/1.2",
             args=("--base-branch", "release/1.2"),
         )
+        data = json.loads(out)["Data"]
         assert rc == 1
+        assert data["ChangesRequestedBlocking"] is True
+        assert data["BaseBranch"] == "release/1.2"
         rules_mock.assert_called_once_with("o", "r", "release/1.2")
+
+    def test_override_with_rule_does_not_invent_a_review_blocker(self, capsys):
+        """The other branch enforces reviews; that says nothing about the PR base."""
+        rc, out, _, rules_mock = self._run(
+            capsys,
+            decision="CHANGES_REQUESTED",
+            rule=True,
+            base="release/1.2",
+            args=("--base-branch", "main"),
+        )
+        data = json.loads(out)["Data"]
+        assert rc == 0
+        assert data["HasBlocker"] is False
+        assert data["ChangesRequestedBlocking"] is False
+        assert data["ReviewDecision"] == "CHANGES_REQUESTED"
+        assert data["BaseBranch"] == "release/1.2"
+        # JSON carries no summary: RulesBranch != BaseBranch is the unknown signal.
+        assert data["RulesBranch"] == "main"
+        rules_mock.assert_called_once_with("o", "r", "main")
+
+    def test_override_pass_summary_reads_as_one_sentence(self, capsys):
+        """Pin the PASS text: the fixed clause stays, and the note qualifies it."""
+        _, out, err, _ = self._run(
+            capsys,
+            decision="CHANGES_REQUESTED",
+            rule=True,
+            base="release/1.2",
+            args=("--base-branch", "main"),
+            fmt="human",
+        )
+        assert (
+            "no review requesting changes under a pull_request ruleset rule). "
+            "PR may be mergeable regardless of mergeStateStatus. "
+            "Review decision is CHANGES_REQUESTED but not counted: rules were read from "
+            "'main' (--base-branch), not the PR base branch 'release/1.2', so the review "
+            "rule is unknown."
+        ) in out + err
+
+    def test_override_without_rule_prints_no_verdict_from_the_other_branch(self, capsys):
+        """The other branch has no rule: the note must say unknown, not 'no rule'."""
+        rc, out, err, rules_mock = self._run(
+            capsys,
+            decision="CHANGES_REQUESTED",
+            rule=False,
+            base="release/1.2",
+            args=("--base-branch", "main"),
+            fmt="human",
+        )
+        text = out + err
+        assert rc == 0
+        assert "not counted: rules were read from 'main' (--base-branch)" in text
+        assert "not the PR base branch 'release/1.2'" in text
+        assert "the review rule is unknown" in text
+        assert "no pull_request ruleset rule on the base branch" not in text
+        rules_mock.assert_called_once_with("o", "r", "main")
+
+    def test_override_still_supplies_required_checks(self, capsys):
+        """The override keeps its job: required contexts come from that branch."""
+        rc, out, err, _ = self._run(
+            capsys,
+            decision="CHANGES_REQUESTED",
+            rule=True,
+            base="release/1.2",
+            check_nodes=[_check_run_node("Validate PR", "FAILURE")],
+            args=("--base-branch", "main"),
+            fmt="human",
+        )
+        text = out + err
+        assert rc == 1
+        assert "1 failing required check(s)" in text
+        assert "a review requesting changes" not in text
+        assert "rules were read from 'main' (--base-branch)" in text
+
+    def test_override_json_keeps_required_contexts_available(self, capsys):
+        _, out, _, _ = self._run(
+            capsys,
+            decision="CHANGES_REQUESTED",
+            rule=True,
+            base="release/1.2",
+            args=("--base-branch", "main"),
+        )
+        assert json.loads(out)["Data"]["RulesetContextsAvailable"] is True
+
+    @pytest.mark.parametrize("decision", ["APPROVED", "REVIEW_REQUIRED", None])
+    def test_override_adds_no_note_without_changes_requested(self, capsys, decision):
+        """Negative control: the unknown note belongs to CHANGES_REQUESTED only."""
+        rc, out, err, _ = self._run(
+            capsys,
+            decision=decision,
+            rule=True,
+            base="release/1.2",
+            args=("--base-branch", "main"),
+            fmt="human",
+        )
+        assert rc == 0
+        assert "not counted" not in out + err
+
+    @pytest.mark.parametrize(
+        ("base_enforces", "args", "want_rc", "want_blocking", "want_read"),
+        [
+            # PR base enforces reviews, the other branch does not.
+            (True, (), 1, True, "release/1.2"),
+            (True, ("--base-branch", "main"), 0, False, "main"),
+            # PR base does not enforce reviews, the other branch does.
+            (False, (), 0, False, "release/1.2"),
+            (False, ("--base-branch", "main"), 0, False, "main"),
+        ],
+    )
+    def test_two_branches_with_different_pull_request_rules(
+        self, capsys, base_enforces, args, want_rc, want_blocking, want_read
+    ):
+        """The verdict follows the PR base; the other branch's rule never sets it."""
+        rules_by_branch = {
+            "release/1.2": _rules(["Validate PR"], pull_request=base_enforces),
+            "main": _rules(["Validate PR"], pull_request=not base_enforces),
+        }
+        gql = _gql_pr(
+            overall_state="SUCCESS",
+            check_nodes=_GREEN_CHECKS,
+            review_decision="CHANGES_REQUESTED",
+            base_branch="release/1.2",
+        )
+        with (
+            patch("why_pr_blocked.assert_gh_authenticated"),
+            patch(
+                "why_pr_blocked.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("why_pr_blocked.gh_graphql", return_value=gql),
+            patch(
+                "why_pr_blocked.fetch_branch_rules",
+                side_effect=lambda _owner, _repo, branch: rules_by_branch[branch],
+            ) as rules_mock,
+        ):
+            rc = main(["--pull-request", "42", "--output-format", "json", *args])
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert rc == want_rc
+        assert data["ChangesRequestedBlocking"] is want_blocking
+        assert data["BaseBranch"] == "release/1.2"
+        assert data["RulesBranch"] == want_read
+        rules_mock.assert_called_once_with("o", "r", want_read)
+
+    def test_override_with_surrounding_spaces_equal_to_base_counts(self, capsys):
+        """Edge: the flag value is stripped before it is compared with the PR base."""
+        rc, out, _, rules_mock = self._run(
+            capsys, decision="CHANGES_REQUESTED", rule=True, args=("--base-branch", " main ")
+        )
+        data = json.loads(out)["Data"]
+        assert rc == 1
+        assert data["ChangesRequestedBlocking"] is True
+        assert data["RulesBranch"] == data["BaseBranch"] == "main"
+        rules_mock.assert_called_once_with("o", "r", "main")
+
+    def test_override_differs_only_by_case_is_another_branch(self, capsys):
+        """Edge: Git ref names are case-sensitive, so 'Main' is not the PR base 'main'."""
+        rc, out, _, _ = self._run(
+            capsys, decision="CHANGES_REQUESTED", rule=True, args=("--base-branch", "Main")
+        )
+        assert rc == 0
+        assert json.loads(out)["Data"]["ChangesRequestedBlocking"] is False
 
     def test_changes_requested_makes_exactly_one_rules_read(self, capsys):
         _, _, _, rules_mock = self._run(capsys, decision="CHANGES_REQUESTED", rule=True)
@@ -1352,6 +1519,8 @@ class TestReviewDecisionMain:
         assert data["ChangesRequestedBlocking"] is False
         assert data["RulesetContextsAvailable"] is False
         assert data["ReviewDecision"] == "CHANGES_REQUESTED"
+        assert data["RulesBranch"] == ""
+        assert data["BaseBranch"] == "main"
         assert rules_mock.call_count == 0
 
     @pytest.mark.parametrize("decision", [None, "", "APPROVED", "REVIEW_REQUIRED"])
@@ -1383,9 +1552,10 @@ class TestReviewDecisionMain:
         assert rc == 0
         assert data["ReviewDecision"] is None
 
-    def test_output_contract_keeps_old_keys_and_adds_two(self, capsys):
+    def test_output_contract_keeps_old_keys_and_adds_three(self, capsys):
         _, out, _, _ = self._run(capsys, decision="APPROVED", rule=True)
         data = json.loads(out)["Data"]
+        added = {"ReviewDecision", "ChangesRequestedBlocking", "RulesBranch"}
         assert _PRE_EXISTING_KEYS <= set(data)
-        assert {"ReviewDecision", "ChangesRequestedBlocking"} <= set(data)
-        assert set(data) == _PRE_EXISTING_KEYS | {"ReviewDecision", "ChangesRequestedBlocking"}
+        assert set(data) == _PRE_EXISTING_KEYS | added
+        assert data["RulesBranch"] == data["BaseBranch"] == "main"
