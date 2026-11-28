@@ -50,3 +50,9 @@ Resolved all remaining blockers: preflight identity mismatches refuse before cha
 Consensus uses the round 2 non-blocking votes, carried forward, and the two round 3 rechecks. It is not a fresh six-seat round 3 review. ADR-087 remains proposed because the original Open Requirements are outside this review. ADR-127 keeps its frontmatter unchanged per owner D1; the pointer follows the accepted amendment and changes no executable enforcement.
 
 Implementation owners: PR B owns accounting, scoring and trust conformance tests; PR C1 owns the gate, receipt verification, trace exclusions and consumer migration; PR C2 owns frozen manifest, reviewed spend allocation and baseline/hillclimb execution. The proposed ADR-087's isolation and ledger custody limits remain open. No paid eval pass ran in PR A.
+
+## Post-consensus edit, 2026-11-28 (non-frontmatter, logged per AGENTS.md)
+
+Editor: workstream owner, after the parent session's review of PR #7888. Formatting only; no amendment text changed, so the consensus above stands.
+
+- Restored the original line wrapping of eight pre-existing paragraphs that the first PR A commit had reflowed to single lines. They are outside the 2026-11-28 amendment, and the reflow made the diff show 23 unrelated deletions.

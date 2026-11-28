@@ -371,7 +371,8 @@ requirement 12 stays open for them.
 
 ### What the mechanism protects against, and what it does not
 
-This is a discipline control against accidental overfitting by a cooperating optimizer. It is not a security boundary against an adversarial one.
+This is a discipline control against accidental overfitting by a cooperating
+optimizer. It is not a security boundary against an adversarial one.
 
 **Held-out membership is public, and has to be.** `split` publishes `opt` on
 stdout because the loop cannot edit toward a group it cannot name. The task
@@ -889,15 +890,38 @@ The corrected state of the evidence is one measured path, not three:
   The 2026-11-25 amendment records the first such pair.
 - **Hook path, deterministic by construction.**
 
-The error is more useful than the claim would have been, and it belongs in this ADR rather than in a commit message. The report schema already carried the field that falsifies the comparison. The tool that performed the comparison never read it. Nothing in the design would have stopped the next person from repeating the mistake, and the person who made it had just spent a session arguing that a property reported but not enforced is not a property. Open requirement 12 already named the missing piece, that the seam carries no corpus identity. This is the first evidence of what that costs, and it raised the requirement from a budget-accounting nicety to a correctness gap: the same absence that lets two unrelated corpora share a ledger also lets two unrelated corpora be compared to each other. Decision Requirement 5 closes the comparison half on the one path whose scorer publishes an identity.
+The error is more useful than the claim would have been, and it belongs in this
+ADR rather than in a commit message. The report schema already carried the field
+that falsifies the comparison. The tool that performed the comparison never read
+it. Nothing in the design would have stopped the next person from repeating the
+mistake, and the person who made it had just spent a session arguing that a
+property reported but not enforced is not a property. Open requirement 12
+already named the missing piece, that the seam carries no corpus identity. This
+is the first evidence of what that costs, and it raised the requirement from a
+budget-accounting nicety to a correctness gap: the same absence that lets two
+unrelated corpora share a ledger also lets two unrelated corpora be compared to
+each other. Decision Requirement 5 closes the comparison half on the one path
+whose
+scorer publishes an identity.
 
 ### What follows for anyone running this loop
 
-A `gate` ACCEPT is only as trustworthy as the benchmark underneath it. Say that plainly rather than burying it: `optimize-artifact.py gate` with no `--max-p` is a guard against an optimizing agent gaming its own benchmark, and it is not a guard against the benchmark being noisy. Those are different threats and only the first one is closed by default. On the one path where a control was actually run, the default issued an ACCEPT for gains that a no-op reproduced.
+A `gate` ACCEPT is only as trustworthy as the benchmark underneath it. Say that
+plainly rather than burying it: `optimize-artifact.py gate` with no `--max-p` is
+a guard against an optimizing agent gaming its own benchmark, and it is not a
+guard against the benchmark being noisy. Those are different threats and only
+the first one is closed by default. On the one path where a control was actually
+run, the default issued an ACCEPT for gains that a no-op reproduced.
 
-Until requirement 6 lands, a run of this loop against `rule_results` or `agent_results` is worth citing only alongside a null control, and `--max-p` should be supplied. The hook path needs neither, because it is deterministic.
+Until requirement 6 lands, a run of this loop against `rule_results` or
+`agent_results` is worth citing only alongside a null control, and `--max-p`
+should be supplied. The hook path needs neither, because it is deterministic.
 
-The ADR stays proposed. The rule path is live-validated; requirement 6 is why it cannot move further. A single-sample scorer at this benchmark size cannot distinguish an edit from noise, and that is a property of the benchmark rather than of the gate. That claim now rests on one benchmark, measured, rather than on two, one of which was not measuring what it said.
+The ADR stays proposed. The rule path is live-validated; requirement 6 is why it
+cannot move further. A single-sample scorer at this benchmark size cannot
+distinguish an edit from noise, and that is a property of the benchmark rather
+than of the gate. That claim now rests on one benchmark, measured, rather than
+on two, one of which was not measuring what it said.
 
 ## References
 
@@ -932,7 +956,8 @@ ADR-088 moved the book-derived rule cited above into the `software-engineering-l
 
 ## Amendment 2026-11-25
 
-Issue #7642 asked the owner whether this ADR is still wanted. The owner said yes. The status stays `proposed`.
+Issue #7642 asked the owner whether this ADR is still wanted. The owner said
+yes. The status stays `proposed`.
 
 ### Tracking
 
@@ -942,7 +967,13 @@ in the analysis file linked below.
 
 ### Open Requirement 1: the controller
 
-`scripts/eval/eval_controller.py` inverts the loop. The launcher runs the controller, which runs the scorer, `extract`, `split`, and `gate`. The agent runs as a child proposer. Each step it gets optimize-group results, step and budget counts, optional optimize-group task files, and the last decision, so a gated candidate teaches it one bit. Everything else stays in a controller state directory. The cap and ledger root come from launcher config. The owner chose this over a separate OS user or a protected CI job (#7642, decision D2).
+`scripts/eval/eval_controller.py` inverts the loop. The launcher runs the
+controller, which runs the scorer, `extract`, `split`, and `gate`. The agent
+runs as a child proposer. Each step it gets optimize-group results, step and
+budget counts, optional optimize-group task files, and the last decision, so a
+gated candidate teaches it one bit. Everything else stays in a controller state
+directory. The cap and ledger root come from launcher config. The owner chose
+this over a separate OS user or a protected CI job (#7642, decision D2).
 
 **The boundary is conditional.** Python cannot stop a same-user process from
 reading a file. The held-out group is withheld only under the rule
@@ -956,11 +987,17 @@ and can forge its own results. The stronger Decision form holds only for a
 controller-run loop under the rule; a direct `optimize-artifact.py` loop keeps
 the weaker bound.
 
-The noise threat stays open (`max_p` is optional; Open Requirement 6 covers rules only). Detail: `.project-toolkit/analysis/7678-adr-087-trusted-controller-and-null-control.md`.
+The noise threat stays open (`max_p` is optional; Open Requirement 6 covers
+rules only). Detail: `.project-toolkit/analysis/7678-adr-087-trusted-controller-and-null-control.md`.
 
 ### First valid agent-path null control
 
-Two architect-spike runs agree on `fixture_set_sha` (`f6310eb016cb`) and `agent_prompt_sha` (`dfcb7790a0e8`). Gated against each other on three held-out tasks, the gate returned REJECT on a tie at 0/3, p = 1.0. Both reports flag `halt-due-to-flakiness`, and three all-failing tasks tie almost by construction. This is a low-power noise-floor observation, not a false-accept rate. Numbers are in the analysis file.
+Two architect-spike runs agree on `fixture_set_sha` (`f6310eb016cb`) and
+`agent_prompt_sha` (`dfcb7790a0e8`). Gated against each other on three held-out
+tasks, the gate returned REJECT on a tie at 0/3, p = 1.0. Both reports flag
+`halt-due-to-flakiness`, and three all-failing tasks tie almost by construction.
+This is a low-power noise-floor observation, not a false-accept rate. Numbers
+are in the analysis file.
 
 ## Amendment 2026-11-28
 

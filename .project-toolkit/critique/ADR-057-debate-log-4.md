@@ -50,3 +50,9 @@ Resolved all remaining blockers: preflight identity mismatches refuse before cha
 Consensus uses the round 2 non-blocking votes, carried forward, and the two round 3 rechecks. It is not a fresh six-seat round 3 review. ADR-087 remains proposed because the original Open Requirements are outside this review. ADR-127 keeps its frontmatter unchanged per owner D1; the pointer follows the accepted amendment and changes no executable enforcement.
 
 Implementation owners: PR B owns accounting, scoring and trust conformance tests; PR C1 owns the gate, receipt verification, trace exclusions and consumer migration; PR C2 owns frozen manifest, reviewed spend allocation and baseline/hillclimb execution. The proposed ADR-087's isolation and ledger custody limits remain open. No paid eval pass ran in PR A.
+
+## Post-consensus edit, 2026-11-28 (non-frontmatter, logged per AGENTS.md)
+
+Editor: workstream owner, after the parent session's review of PR #7888. This is a wording change only; no gate, number, or rule changed, so the consensus above stands.
+
+- Amendment 2026-11-28, opening paragraph: "the 8 most used skills" became "8 skills the owner selects in PR C2 ... selection is a PR C2 input and outside this amendment". Reason: the coordinator for the related threads ruled that this ADR change must not take on skill portfolio choices, and the selection input (organic usage against eval activity, capability form, JTBD ownership, shipping constraints) belongs to PR C2.
