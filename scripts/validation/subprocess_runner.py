@@ -397,7 +397,13 @@ def _run_in_group(
                 combined = f"{partial_stderr}\n{marker}" if partial_stderr else marker
                 return _SENTINEL_EXIT, partial_stdout, combined
         except BaseException:
-            _terminate(proc, windows_job)
+            try:
+                _terminate(proc, windows_job)
+            finally:
+                # Popen.__exit__ closes both pipes. A Windows reader thread that
+                # still blocks on one makes that close block too, so release the
+                # live streams first, as the timeout path does (CWE-667).
+                _abandon_live_pipe_streams(proc)
             raise
         finally:
             if windows_job is not None:
