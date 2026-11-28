@@ -31,6 +31,15 @@ pre-push`` this program reads the ref lines git writes to stdin, asks
 as ``--file`` arguments. The ref lines are replayed to Lefthook unchanged. When
 the list cannot be built the push stops with exit 1. It never skips.
 
+Delete-only pushes: a delete pushes no code, so jobs that inspect the working
+tree can only block cleanup. When every ref line is a delete and the caller
+passed no ``--job``, ``--tag``, ``--command``, or file flag, this program adds
+``--tag ref-guard`` and prints one stderr line. ``lefthook.yml`` tags the jobs
+that guard refs and repository state, so it stays the one source of truth for
+what runs (ADR-086).
+The ref guards, including the protected-branch check, still run. A push that
+mixes a delete with an update, or has an empty stdin, runs every job as before.
+
 Failure report (issue #6734, item 5): ``run <hook>`` goes through
 ``lefthook_failure_report.py``, which names the failed stage and job and prints a
 rerun command.
@@ -61,6 +70,7 @@ from push_file_list import (  # noqa: E402
     PushFileListError,
     caller_chose_files,
     lefthook_file_args,
+    parse_ref_lines,
 )
 
 EXIT_FILE_LIST = 1
@@ -138,22 +148,55 @@ def _split_hook_arguments(rest: list[str], from_git: bool) -> tuple[list[str], l
     return rest, []
 
 
+# The lefthook.yml tag on the pre-push jobs that guard refs and repository
+# state, not tree content. A push that only deletes refs runs just those jobs.
+# tests/test_lefthook_delete_only.py lists every pre-push job as a ref guard or a
+# tree job, so a new job fails a test until someone puts it in one list.
+REF_GUARD_TAG = "ref-guard"
+_SCOPE_FLAGS = ("--job", "--tag", "--command")
+
+
+def _deleted_ref_count(stdin_bytes: bytes, flags: list[str]) -> int:
+    """Return how many refs a delete-only push deletes, or 0 when the full hook runs.
+
+    A delete pushes no code, so a job that inspects the working tree can only
+    block cleanup. Returns 0 for any ref line that updates or creates a ref,
+    and when the caller already chose jobs.
+    """
+    if any(item == flag or item.startswith(f"{flag}=") for item in flags for flag in _SCOPE_FLAGS):
+        return 0
+    updates = parse_ref_lines(stdin_bytes)
+    if not all(update.is_delete for update in updates):
+        return 0
+    return len(updates)
+
+
 def _child_arguments(arguments: list[str], stdin_bytes: bytes | None) -> list[str]:
     """Return what Lefthook receives: for pre-push, the file list and a ``--`` boundary.
 
     ``--`` ends Lefthook's flags, so git's arguments always reach ``{1}`` and
     ``{2}`` and never act as a flag. With an empty stdin there is no push and
-    no file list. Raises :class:`PushFileListError` when the list cannot be built.
+    no file list. A push that only deletes refs also gets ``--tag ref-guard``
+    and one stderr line that says so.
+    Raises :class:`PushFileListError` when the list cannot be built.
     """
     if hook_name(arguments) != "pre-push":
         return arguments
     flags, git_arguments = _split_hook_arguments(arguments[2:], bool(stdin_bytes))
     file_args: list[str] = []
+    tag_args: list[str] = []
     if stdin_bytes and not caller_chose_files(flags):
         remote = git_arguments[0] if git_arguments else None
         file_args = lefthook_file_args(stdin_bytes, remote)
+        deleted = _deleted_ref_count(stdin_bytes, flags)
+        if deleted:
+            sys.stderr.write(
+                "lefthook_runner: pre-push skipped the tree jobs because the push only "
+                f"deletes refs ({deleted}). Only jobs tagged {REF_GUARD_TAG} run.\n"
+            )
+            tag_args = ["--tag", REF_GUARD_TAG]
     boundary = ["--", *git_arguments] if git_arguments else []
-    return [*arguments[:2], *file_args, *flags, *boundary]
+    return [*arguments[:2], *file_args, *tag_args, *flags, *boundary]
 
 
 # The command the shim runs, from lefthook.yml. Git hooks run at the repository root.
