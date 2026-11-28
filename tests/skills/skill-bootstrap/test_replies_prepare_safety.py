@@ -47,6 +47,42 @@ def test_run_dir_is_private_and_stdout_holds_no_text(
         assert fragment not in out
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX mode bits")
+@pytest.mark.parametrize("caller_umask", [0o000, 0o022, 0o177, 0o277, 0o700])
+def test_run_dir_mode_is_owner_only_under_any_caller_umask(
+    store: Path, tmp_path: Path, caller_umask: int
+) -> None:
+    store.mkdir(parents=True)
+    before = os.umask(caller_umask)
+    try:
+        run_dir = replies_sample.make_run_dir(str(tmp_path / "run"), [store], tmp_path)
+        restored = os.umask(caller_umask)
+    finally:
+        os.umask(before)
+    assert stat.S_IMODE(run_dir.stat().st_mode) == 0o700
+    assert restored == caller_umask
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX mode bits")
+def test_run_dir_restores_the_umask_when_mkdir_fails(
+    store: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store.mkdir(parents=True)
+
+    def refuse(self: Path, mode: int = 0o777) -> None:
+        raise PermissionError("synthetic refusal")
+
+    monkeypatch.setattr(Path, "mkdir", refuse)
+    before = os.umask(0o027)
+    try:
+        with pytest.raises(PermissionError):
+            replies_sample.make_run_dir(str(tmp_path / "run"), [store], tmp_path)
+        restored = os.umask(0o027)
+    finally:
+        os.umask(before)
+    assert restored == 0o027
+
+
 def test_run_dir_refusals(
     store: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -124,8 +124,13 @@ def make_run_dir(raw: str, stores: list[Path], cwd: Path) -> Path:
         raise ConfigError("run_dir_inside_source_or_repo")
     if not target.parent.is_dir():
         raise ConfigError("run_dir_parent_missing")
-    # The process umask can only clear bits from this mode, so no later chmod is needed.
-    target.mkdir(mode=0o700)
+    # A caller umask that clears owner bits would leave a directory the run cannot write.
+    # Hold the umask at 0o077 for the one call, so the mode is exactly owner-only.
+    previous = os.umask(0o077)
+    try:
+        target.mkdir(mode=0o700)
+    finally:
+        os.umask(previous)
     return target
 
 
