@@ -22,6 +22,12 @@ UPSTREAM_URLS = [
     "ssh://git@github.com:22/upstream/project.git/",
     "https://token@github.com/UPSTREAM/project.git",
 ]
+# The same repository, octo/repo, named through an ssh alias or the port-443 ssh host.
+ALIAS_ORIGINS = [
+    "git@work-gh:octo/repo.git",
+    "ssh://git@ssh.github.com:443/octo/repo.git",
+    "git@work-gh:OCTO/Repo.git",
+]
 
 
 def _open_pr(fakes, url: str, target: str = "main", number: int = 42) -> None:
@@ -155,6 +161,36 @@ class TestOriginOwnsThePr:
         argv = json.loads(probe.read_text(encoding="utf-8"))["argv"]
         assert argv[-2:] == ["--base", "refs/remotes/origin/main"]
 
+    @pytest.mark.parametrize("origin", ALIAS_ORIGINS)
+    def test_an_origin_on_an_alias_host_still_runs_the_paths_check_on_origin(
+        self, make_repo, fakes, scripts, capsys, body_file, tmp_path, monkeypatch, origin
+    ):
+        repo = make_repo(origin)
+        _seed_ref(repo, "refs/remotes/origin/main")
+        _open_pr(fakes, "https://github.com/octo/repo/pull/42")
+        probe = tmp_path / "probe.json"
+        monkeypatch.setenv("SHIP_VALIDATOR_PROBE", str(probe))
+        code, lines = _check(scripts, capsys, repo, body_file)
+        assert code == 0, lines
+        assert _paths_line(lines) == "paths=PASS"
+        argv = json.loads(probe.read_text(encoding="utf-8"))["argv"]
+        assert argv[-2:] == ["--base", "refs/remotes/origin/main"]
+
+    def test_a_fork_with_an_alias_upstream_remote_still_uses_that_remote(
+        self, make_repo, fakes, scripts, capsys, body_file, tmp_path, monkeypatch
+    ):
+        repo = make_repo(FORK)
+        git(repo, "remote", "add", "upstream", "git@work-gh:upstream/project.git")
+        _seed_ref(repo, "refs/remotes/upstream/main")
+        _open_pr(fakes, UPSTREAM_PR)
+        probe = tmp_path / "probe.json"
+        monkeypatch.setenv("SHIP_VALIDATOR_PROBE", str(probe))
+        code, lines = _check(scripts, capsys, repo, body_file)
+        assert code == 0, lines
+        assert _paths_line(lines) == "paths=PASS"
+        argv = json.loads(probe.read_text(encoding="utf-8"))["argv"]
+        assert argv[-2:] == ["--base", "refs/remotes/upstream/main"]
+
     def test_a_new_pr_goes_to_origin(self, make_repo, fakes, scripts, capsys, body_file):
         repo = make_repo(FORK)
         fakes.no_pr_github()
@@ -199,6 +235,52 @@ class TestUpstreamRepo:
 
     def test_no_pr_keeps_origin(self, context, scripts):
         assert scripts[1].pr_query_mod.repo_mod.upstream(*context(FORK, None, "")) is None
+
+    @pytest.mark.parametrize("origin", ALIAS_ORIGINS)
+    def test_the_same_owner_and_repository_on_an_alias_host_keeps_origin(
+        self, context, scripts, origin
+    ):
+        ctx = context(origin, 42, "https://github.com/octo/repo/pull/42")
+        assert scripts[1].pr_query_mod.repo_mod.upstream(*ctx) is None
+
+    def test_a_different_owner_on_an_alias_host_is_still_a_fork(self, context, scripts):
+        ctx = context("git@work-gh:me/repo.git", 42, "https://github.com/octo/repo/pull/42")
+        found = scripts[1].pr_query_mod.repo_mod.upstream(*ctx)
+        assert found is not None
+        assert found.key == ("github.com", "octo", "repo")
+
+
+class TestRemoteFor:
+    """``remote_for`` prefers the exact host, then accepts the same owner and repository."""
+
+    @staticmethod
+    def _ref(scripts):
+        return scripts[1].pr_query_mod.repo_mod.pr_repo(UPSTREAM_PR, 42)
+
+    def test_an_alias_host_remote_is_found_by_owner_and_repository(self, make_repo, scripts):
+        repo = make_repo(FORK)
+        git(repo, "remote", "add", "upstream", "git@work-gh:Upstream/Project.git")
+        found = scripts[1].pr_query_mod.repo_mod.remote_for(repo, self._ref(scripts))
+        assert found == "upstream"
+
+    def test_the_exact_host_wins_over_an_earlier_alias_match(self, make_repo, scripts):
+        repo = make_repo(FORK)
+        git(repo, "remote", "add", "aaa-alias", "ssh://git@ssh.github.com:443/upstream/project.git")
+        git(repo, "remote", "add", "zzz-exact", UPSTREAM_URLS[0])
+        found = scripts[1].pr_query_mod.repo_mod.remote_for(repo, self._ref(scripts))
+        assert found == "zzz-exact"
+
+    def test_the_first_alias_match_is_used_when_no_host_matches(self, make_repo, scripts):
+        repo = make_repo(FORK)
+        git(repo, "remote", "add", "aaa", "git@work-gh:upstream/project.git")
+        git(repo, "remote", "add", "bbb", "git@other-gh:upstream/project.git")
+        found = scripts[1].pr_query_mod.repo_mod.remote_for(repo, self._ref(scripts))
+        assert found == "aaa"
+
+    def test_origin_of_a_different_owner_never_matches(self, make_repo, scripts):
+        repo = make_repo("git@work-gh:me/project.git")
+        found = scripts[1].pr_query_mod.repo_mod.remote_for(repo, self._ref(scripts))
+        assert found is None
 
 
 class TestBaseRemote:

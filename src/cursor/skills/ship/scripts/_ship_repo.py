@@ -43,6 +43,16 @@ class RepoRef:
         """The identity to compare: host, owner, and repository names are case-insensitive."""
         return (self.host.lower(), self.owner.lower(), self.repo.lower())
 
+    @property
+    def slug(self) -> tuple[str, str]:
+        """Owner and repository, case-insensitive, with no host.
+
+        A remote can name its host by an ssh config alias (``git@work-gh:o/r.git``) or a
+        port-443 ssh host (``ssh.github.com``), so the host of a remote and of a PR URL
+        can differ for one repository. The slug ignores the host for that case.
+        """
+        return (self.owner.lower(), self.repo.lower())
+
 
 def pr_repo(url: str, pr: int) -> RepoRef | None:
     """The repository that owns PR ``pr``, read from its URL; None when the URL is not that PR's."""
@@ -77,21 +87,34 @@ def _remote_repo(root: Path, name: str) -> RepoRef | None:
 def upstream(root: Path, pr: int | None, pr_url: str) -> RepoRef | None:
     """The repository that owns the open PR when origin is another one, else None.
 
+    Origin counts as the PR's repository when it names the same owner and repository,
+    case-insensitive, whatever its host: an ssh alias or ``ssh.github.com:443`` is
+    still that repository. A different owner is a fork, so the PR's repository returns.
+
     None also covers a PR URL that does not parse (Azure DevOps) and an origin
     URL that does not name an owner and repository: both keep ``origin``.
     """
     owner = None if pr is None else pr_repo(pr_url, pr)
     origin = _remote_repo(root, "origin") if owner is not None else None
-    if owner is None or origin is None or owner.key == origin.key:
+    if owner is None or origin is None or owner.slug == origin.slug:
         return None
     return owner
 
 
 def remote_for(root: Path, repo: RepoRef) -> str | None:
-    """A git remote whose URL names ``repo``, or None."""
+    """A git remote whose URL names ``repo``, or None.
+
+    A remote that matches host, owner, and repository wins. Failing that, the first remote
+    with the same owner and repository on another host (an alias or a port) is accepted.
+    """
     names = common.git(["remote"], cwd=root).stdout.split()
+    same_slug = None
     for name in names:
         found = _remote_repo(root, name) if _REMOTE_NAME_RE.fullmatch(name) else None
-        if found is not None and found.key == repo.key:
+        if found is None:
+            continue
+        if found.key == repo.key:
             return name
-    return None
+        if same_slug is None and found.slug == repo.slug:
+            same_slug = name
+    return same_slug
