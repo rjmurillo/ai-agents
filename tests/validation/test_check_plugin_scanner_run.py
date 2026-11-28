@@ -6,7 +6,7 @@ verdicts. These tests start real child processes.
 Coverage:
 
 - positive: ``_run`` returns a child's output; the shared budget caps each
-  step and fits inside the lefthook cap with the post-kill drain added.
+  step and, with the post-kill drain added, ends within three minutes.
 - negative: a spent budget is an external error (exit 3); a timeout kills the
   child's whole process group, grandchildren included.
 - edge: a group that exits between the timeout and the kill is tolerated; a
@@ -76,11 +76,12 @@ def test_budget_caps_each_step() -> None:
     assert gate.Deadline(5).remaining(gate.GIT_TIMEOUT_SECONDS) <= 5
 
 
-def test_budget_fits_inside_the_lefthook_cap() -> None:
-    """The script must report its own timeout before lefthook kills it at 3m."""
-    hook = (REPO_ROOT / "lefthook.yml").read_text(encoding="utf-8")
-    job = hook[hook.index("- name: plugin-scanner") :]
-    assert job.splitlines()[1].strip() == "timeout: 3m"
+def test_budget_ends_within_three_minutes() -> None:
+    """An on-demand run reports its own timeout within the old 3m hook bound.
+
+    The pre-push job was removed on 2026-11-27 (ADR-104); the bound stays so a
+    developer running the script by hand never waits longer than the hook did.
+    """
     assert gate.TOTAL_BUDGET_SECONDS + gate.DRAIN_SECONDS < 180
 
 

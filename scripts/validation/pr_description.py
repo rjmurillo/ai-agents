@@ -196,7 +196,7 @@ FILE_MENTION_PATTERNS: list[re.Pattern[str]] = [
 #   e.g. `.claude/skills/security-scan/scripts/scan_vulnerabilities.py`
 #   for example `scripts/validate_session_json.py`
 #   as documented in `scripts/ai_review_common/cache_guard.py`
-#   see `scripts/validation/checks_ratchet.py:71`
+#   see `scripts/validation/checks_ratchet.py:74`
 #
 # The pattern is matched globally and the matching span is replaced with
 # `<CITE>` before FILE_MENTION_PATTERNS runs. This prevents the path from

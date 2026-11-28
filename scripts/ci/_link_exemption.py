@@ -13,8 +13,8 @@ link is exempt only when every condition holds:
   * its parent is the install tree of a `link: true` row in the base checkout's
     `templates/platforms/binplace.yaml` (the workflow runs from the base, so the
     file on disk is the base ref's), and that row's class is in
-    `EXEMPT_ROW_CLASSES`: only the two skill rows, the only shape a failing pull
-    request has shown (#7392, #7396). Verifiers do live under the Claude Code
+    `EXEMPT_ROW_CLASSES`: the skill rows shown by #7392 and #7396, plus the two
+    rule rows shown by #7730. Verifiers do live under the Claude Code
     skill tree; the closure-path check below keeps a link off their paths;
   * its link text is exactly what binplace writes for that row
     (`relpath(<plugin_tree>/<name>, <install_tree>)`);
@@ -28,7 +28,7 @@ link is exempt only when every condition holds:
     The work-tree root is skipped: every exempt tree starts with a dot, so no
     dotted import from the root can pass through it. Import roots read the
     environment (`_environment_libs`), so CI and a local run can differ. Only an
-    operator-set plugin root placed inside a skill tree could reach a link that
+    operator-set plugin root placed inside an exempt tree could reach a link that
     way; a pull request cannot set it.
 
 Everything is read from the base checkout or the head tree as data. No head code
@@ -47,11 +47,11 @@ import yaml
 
 BINPLACE = "templates/platforms/binplace.yaml"
 
-# The binplace row classes whose links may be exempt: the two skill rows. Keyed by
-# class so this file names no install path; binplace.yaml owns those. Add a class
-# only with a failing pull request that shows the need, and with a test that its
-# install tree is not an import root.
-EXEMPT_ROW_CLASSES = frozenset({"skills", "skills-codex"})
+# The binplace row classes whose links may be exempt. Keyed by class so this
+# file names no install path; binplace.yaml owns those. Add a class only with a
+# failing pull request that shows the need, and with a test that its install
+# tree is not an import root.
+EXEMPT_ROW_CLASSES = frozenset({"skills", "skills-codex", "rules", "instructions-github"})
 
 
 def link_rows(tool_root: Path) -> dict[str, str]:

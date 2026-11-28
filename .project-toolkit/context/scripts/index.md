@@ -15,6 +15,6 @@
 [Dependencies]
 |Plugin lib source: `scripts/{github_core,hook_utilities,ai_review_common}`, `... (see: .project-toolkit/context/scripts/details/dependencies.md)
 [Architecture]
-|`_SEQUENCE`: a tuple of `_Gate(name, run, skip_when_quick, already_run_by, no... (see: .project-toolkit/context/scripts/details/architecture.md)
+|`_SEQUENCE`: a tuple of `_Gate(name, run, skip_when_quick, already_run_by, ci... (see: .project-toolkit/context/scripts/details/architecture.md)
 [Commands]
 |(see detail file) (see: .project-toolkit/context/scripts/details/commands.md)

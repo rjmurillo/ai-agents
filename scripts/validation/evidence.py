@@ -102,6 +102,7 @@ __all__ = [
     "REASON_AUTH_UNAVAILABLE",
     "REASON_BASE_REF_UNRESOLVED",
     "REASON_BRANCH_UNDETERMINED",
+    "REASON_CI_OWNED",
     "REASON_DIFF_FAILED",
     "REASON_ENTRIES_UNREADABLE",
     "REASON_ENV_BYPASS",
@@ -187,6 +188,10 @@ REASON_INCOMPLETE_EVIDENCE: Final = "evidence.incomplete"
 REASON_AUTH_UNAVAILABLE: Final = "auth.unavailable"
 REASON_QUICK_MODE: Final = "policy.quick_mode"
 REASON_ALREADY_RUN: Final = "policy.already_run"
+#: A heavy whole-tree gate skipped in the pre-push hook because a named CI job
+#: owns it. Unlike ``REASON_ALREADY_RUN``, nothing proved the check locally, so
+#: the skip stays visible (owner ruling 2026-11-27: CI is the test authority).
+REASON_CI_OWNED: Final = "policy.ci_owned"
 REASON_VALIDATOR_RAISED: Final = "validator.raised"
 REASON_LEGACY_BOOLEAN: Final = "legacy.boolean_contract"
 REASON_NO_OUTCOMES: Final = "aggregate.no_outcomes"

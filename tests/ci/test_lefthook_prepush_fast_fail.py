@@ -4,7 +4,7 @@ The pre-push hook declares ``piped: true``, so lefthook runs its top-level
 entries in order and a failing entry (job or group) skips everything after
 it. Issue #5066 leans on that to stage the hook: cheap blocking gates run
 first, the expensive jobs (workflow-local-run, python-type-check, the e2e
-smokes, count-ratchets, pre-pr-validation, whose Generated Artifact Staleness
+smokes, pre-pr-validation, whose Generated Artifact Staleness
 gate runs ``build_all.py --check`` internally since issue #5079 retired the
 standalone ``build-all-check`` job) run last, so a failure that is detectable
 in seconds never waits on multi-minute gates.
@@ -81,10 +81,8 @@ EXPENSIVE_JOBS = frozenset(
 )
 EXPENSIVE_STAGE_ROSTER = EXPENSIVE_JOBS | frozenset(
     {
-        "count-ratchets",
         "worktree-gc-report",
         "branch-config-prune-report",
-        "plugin-scanner",
         "python-lint-advisory",
         "additions-advisory",
         "bot-cascade-advisory",
@@ -206,39 +204,27 @@ class TestStageOrdering:
         group = entry.get("group")
         assert isinstance(group, dict) and group.get("parallel") is True
 
-    def test_scanner_precedes_parallel_compute_jobs_without_losing_stage_jobs(self) -> None:
-        # AC2/AC4/AC5: isolate the scanner without serializing its siblings
-        # or pulling the long workflow/CLI jobs into the compute lane.
+    def test_expensive_stage_is_one_flat_parallel_group_with_the_exact_roster(self) -> None:
+        # plugin-scanner and count-ratchets left the hook on 2026-11-27 (CI owns
+        # them), so the piped compute lane that isolated the scanner is gone and
+        # every expensive job sits directly in the one parallel group.
         config = _load_config()
-        index = _entry_index_of(config, "plugin-scanner")
+        index = _entry_index_of(config, "pre-pr-validation")
         assert index is not None
         stage = _top_level_entries(config)[index]
         assert stage["group"].get("parallel") is True
+        assert not stage["group"].get("piped")
         outer_jobs = stage["group"]["jobs"]
-        outer_names = {job["name"] for job in outer_jobs if "name" in job}
-        assert outer_names == {
-            "workflow-local-run",
-            "hook-anchoring-e2e",
-            "plugin-load-e2e",
-        }
-        lanes = [job["group"] for job in outer_jobs if "group" in job]
-        assert len(lanes) == 1
-        lane = lanes[0]
-        assert lane.get("piped") is True
-        assert not lane.get("parallel")
-        assert len(lane["jobs"]) == 2
-        scanner, compute = lane["jobs"]
-        assert scanner["name"] == "plugin-scanner"
-        assert compute["group"].get("parallel") is True
-        assert not compute["group"].get("piped")
-        compute_jobs = compute["group"]["jobs"]
-        compute_names = [job["name"] for job in compute_jobs]
-        expected_compute = EXPENSIVE_STAGE_ROSTER - outer_names - {"plugin-scanner"}
-        assert set(compute_names) == expected_compute
-        assert len(compute_names) == len(expected_compute)
-        stage_names = [job["name"] for job in _jobs_in_entry(stage)]
+        assert all("group" not in job for job in outer_jobs)
+        stage_names = [job["name"] for job in outer_jobs]
         assert set(stage_names) == EXPENSIVE_STAGE_ROSTER
         assert len(stage_names) == len(EXPENSIVE_STAGE_ROSTER)
+
+    @pytest.mark.parametrize("removed", ["plugin-scanner", "count-ratchets"])
+    def test_removed_heavy_jobs_stay_out_of_the_hook(self, removed: str) -> None:
+        # Owner ruling 2026-11-27: CI is the test authority. A reintroduced job
+        # puts 33s to 62s of wall clock back on every push.
+        assert _entry_index_of(_load_config(), removed) is None
 
     def test_detector_flags_a_fast_gate_scheduled_after_the_expensive_stage(self) -> None:
         # Negative control: the index comparison must actually invert on a
