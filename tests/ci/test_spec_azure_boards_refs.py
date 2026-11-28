@@ -240,7 +240,7 @@ def _step(workflow: str, job: str, name: str) -> dict:
 
 
 class TestWorkflowWiring:
-    """An AB-only pull request reaches the loader and the verdict."""
+    """The verdict step reads the extractor's output, and an AB-only body loads."""
 
     def test_verdict_step_reads_has_specs_from_the_same_extractor(self) -> None:
         step = _step("ai-spec-validation.yml", "validate-spec", "Decide spec coverage verdict")
@@ -248,7 +248,7 @@ class TestWorkflowWiring:
         assert step["env"]["HAS_SPECS"] == "${{ steps.spec-ref.outputs.has_specs }}"
 
     def test_ab_only_body_reaches_the_validation_path_end_to_end(self, tmp_path: Path) -> None:
-        """Chain the real extractor into the real loader, as the workflow does."""
+        """Chain the real extractor into the real loader. No workflow runs the loader."""
         outputs = _extract(tmp_path, "Fixes AB#123")
         assert outputs["has_specs"] == "true"
 

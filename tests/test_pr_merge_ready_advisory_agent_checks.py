@@ -121,7 +121,7 @@ def _readiness(pr_data: dict, listed: set[str], include_non_required: bool = Fal
 def test_listed_workflow_check_never_blocks(
     status: str, conclusion: str | None, include_non_required: bool
 ) -> None:
-    """FAILED is intended to be non-blocking: an agent verdict is advisory."""
+    """FAILED is intended to be non-blocking: a listed workflow's check is advisory."""
     pr_data = _pr_with(_row(SPEC_CHECK, conclusion, status))
     result = _readiness(pr_data, {LISTED}, include_non_required)
     assert result["CanMerge"] is True, result["Reasons"]
