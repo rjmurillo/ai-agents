@@ -45,11 +45,11 @@ class TestAliasOrigin:
         argv = json.loads(probe.read_text(encoding="utf-8"))["argv"]
         assert argv[-2:] == ["--base", "refs/remotes/origin/main"]
 
-    def test_a_fork_with_an_alias_upstream_remote_still_uses_that_remote(
+    def test_a_fork_with_a_port_443_upstream_remote_uses_that_remote(
         self, make_repo, fakes, scripts, capsys, body_file, tmp_path, monkeypatch
     ):
         repo = make_repo(FORK)
-        git(repo, "remote", "add", "upstream", "git@work-gh:upstream/project.git")
+        git(repo, "remote", "add", "upstream", "ssh://git@ssh.github.com:443/upstream/project.git")
         _seed_ref(repo, "refs/remotes/upstream/main")
         _open_pr(fakes, UPSTREAM_PR)
         probe = tmp_path / "probe.json"
@@ -59,6 +59,19 @@ class TestAliasOrigin:
         assert _paths_line(lines) == "paths=PASS"
         argv = json.loads(probe.read_text(encoding="utf-8"))["argv"]
         assert argv[-2:] == ["--base", "refs/remotes/upstream/main"]
+
+    @pytest.mark.parametrize(
+        "url", ["https://gitlab.com/upstream/project.git", "git@work-gh:upstream/project.git"]
+    )
+    def test_a_fork_with_only_another_host_remote_does_not_read_it(
+        self, make_repo, fakes, scripts, capsys, body_file, url
+    ):
+        repo = make_repo(FORK)
+        git(repo, "remote", "add", "mirror", url)
+        _seed_ref(repo, "refs/remotes/mirror/main")
+        _open_pr(fakes, UPSTREAM_PR)
+        _code, lines = _check(scripts, capsys, repo, body_file)
+        assert "has no matching git remote" in _paths_line(lines)
 
 
 class TestAliasUpstream:
@@ -86,33 +99,42 @@ class TestAliasUpstream:
 
 
 class TestRemoteFor:
-    """``remote_for`` prefers the exact host, then accepts the same owner and repository."""
+    """``remote_for`` takes the exact host, or the port-443 ssh host of the PR host, never another."""
 
     @staticmethod
     def _ref(scripts):
         return scripts[1].repo_mod.pr_repo(UPSTREAM_PR, 42)
 
-    def test_an_alias_host_remote_is_found_by_owner_and_repository(self, make_repo, scripts):
+    def test_the_port_443_ssh_host_is_found_by_owner_and_repository(self, make_repo, scripts):
         repo = make_repo(FORK)
-        git(repo, "remote", "add", "upstream", "git@work-gh:Upstream/Project.git")
+        git(repo, "remote", "add", "upstream", "ssh://git@ssh.github.com:443/Upstream/Project.git")
         found = scripts[1].repo_mod.remote_for(repo, self._ref(scripts))
         assert found == "upstream"
 
-    def test_the_exact_host_wins_over_an_earlier_alias_match(self, make_repo, scripts):
+    def test_the_exact_host_wins_over_an_earlier_port_443_match(self, make_repo, scripts):
         repo = make_repo(FORK)
-        git(repo, "remote", "add", "aaa-alias", "ssh://git@ssh.github.com:443/upstream/project.git")
+        git(repo, "remote", "add", "aaa-443", "ssh://git@ssh.github.com:443/upstream/project.git")
         git(repo, "remote", "add", "zzz-exact", UPSTREAM_URLS[0])
         found = scripts[1].repo_mod.remote_for(repo, self._ref(scripts))
         assert found == "zzz-exact"
 
-    def test_the_first_alias_match_is_used_when_no_host_matches(self, make_repo, scripts):
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "https://gitlab.com/upstream/project.git",
+            "git@work-gh:upstream/project.git",
+            "git@ssh.gitlab.com:upstream/project.git",
+        ],
+    )
+    def test_the_same_owner_and_repository_on_another_host_never_matches(
+        self, make_repo, scripts, url
+    ):
         repo = make_repo(FORK)
-        git(repo, "remote", "add", "aaa", "git@work-gh:upstream/project.git")
-        git(repo, "remote", "add", "bbb", "git@other-gh:upstream/project.git")
+        git(repo, "remote", "add", "mirror", url)
         found = scripts[1].repo_mod.remote_for(repo, self._ref(scripts))
-        assert found == "aaa"
+        assert found is None
 
     def test_origin_of_a_different_owner_never_matches(self, make_repo, scripts):
-        repo = make_repo("git@work-gh:me/project.git")
+        repo = make_repo("ssh://git@ssh.github.com:443/me/project.git")
         found = scripts[1].repo_mod.remote_for(repo, self._ref(scripts))
         assert found is None

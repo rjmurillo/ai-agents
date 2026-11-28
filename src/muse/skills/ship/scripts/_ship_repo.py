@@ -105,19 +105,21 @@ def remote_for(root: Path, repo: RepoRef) -> str | None:
     """A git remote whose URL names ``repo``, or None.
 
     A remote that matches host, owner, and repository wins. Failing that, the first remote
-    with the same owner and repository on another host (an alias or a port) is accepted.
+    on the port-443 ssh host of the PR host (``ssh.github.com`` for ``github.com``) with the
+    same owner and repository is accepted. A remote on any other host, a mirror or an ssh
+    config alias, never matches: its ref can be stale, so the caller stops instead.
     """
     names = common.git(["remote"], cwd=root).stdout.split()
-    same_slug = None
+    port_443 = None
     for name in names:
         found = _remote_repo(root, name) if _REMOTE_NAME_RE.fullmatch(name) else None
         if found is None:
             continue
         if found.key == repo.key:
             return name
-        if same_slug is None and found.slug == repo.slug:
-            same_slug = name
-    return same_slug
+        if port_443 is None and found.key == (f"ssh.{repo.key[0]}", *repo.slug):
+            port_443 = name
+    return port_443
 
 
 def base_remote(root: Path, pr: int | None, pr_url: str) -> tuple[str | None, str]:
