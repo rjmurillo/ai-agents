@@ -229,7 +229,9 @@ def test_main_builds_the_line_map_from_the_ref_that_resolved(
     monkeypatch.setattr(ruff_ratchet, "_run_subprocess", recorder)
     seen: list[str] = []
 
-    def record_base_ref(base_ref: str, _root: Path, _paths: object) -> dict[str, set[int]]:
+    def record_base_ref(
+        base_ref: str, _root: Path, _paths: object, **_kwargs: object
+    ) -> dict[str, set[int]]:
         seen.append(base_ref)
         return {}
 

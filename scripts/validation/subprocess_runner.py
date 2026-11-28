@@ -14,7 +14,9 @@ On timeout the child's process tree dies, not only the direct child (issue
 #6412). ``subprocess.run(timeout=)`` kills just the direct child, so a
 ``gh act`` grandchild kept its ports bound after the gate that started it had
 already failed. On POSIX the group gets SIGTERM, a short grace window, then
-SIGKILL. Windows uses a job object to terminate the tree. A descendant that
+SIGKILL. Windows uses a job object to terminate the tree when assignment and termination
+succeed. If either fails with a direct-child fallback, a warning reports that
+cleanup cannot guarantee descendant termination. A descendant that
 started its own POSIX session is outside the group, so the child that started
 it must forward the stop itself (``run_workflow_local_test`` does). While a
 child runs on the main thread, a SIGTERM to this process becomes ``SystemExit``
@@ -70,10 +72,10 @@ _ERROR_ACCESS_DENIED = 5
 # signal death: the child never produced an exit status of its own.
 _WINDOWS_JOB_SETUP_FAILED = "Windows job setup failed"
 
-# Printed once when the child already sits in a job that forbids nesting, so it
-# runs without a job of its own. A timeout then kills only the direct child.
+# Printed once when assignment is denied. A constrained parent job may be
+# the cause, but access denied alone does not establish that.
 _WINDOWS_JOB_UNOWNED_NOTICE = (
-    "warning: Windows job assignment denied (the process is already in a job); "
+    "warning: Windows job assignment denied (a constrained parent job may be the cause); "
     "a timeout will stop only the direct child, not its descendants"
 )
 
@@ -262,7 +264,12 @@ def _terminate(proc: _Child, windows_job: _WindowsJob | None = None) -> None:
     if windows_job is not None:
         try:
             windows_job.terminate()
-        except OSError:
+        except OSError as error:
+            print(
+                f"warning: Windows job termination failed ({error}); "
+                "stopping only the direct child, descendant cleanup is not guaranteed",
+                file=sys.stderr,
+            )
             proc.kill()
         return
     if sys.platform == "win32" or not _SUPPORTS_PGROUP:
@@ -373,9 +380,9 @@ def _run_in_group(
                         getattr(error, "_ai_agents_job_assignment_failed", False)
                     ) or "AssignProcessToJobObject" in str(error)
                     if _windows_error_number(error) == _ERROR_ACCESS_DENIED and assignment_failure:
-                        # A child of a UI-limited job is already inside that job, and
-                        # Windows forbids the nested assignment. Refusing to run every
-                        # validator is worse than the pre-job-object cleanup contract:
+                        # A UI-limited parent job can prevent nested assignment,
+                        # but the access-denied error does not identify its cause.
+                        # Preserve the pre-job-object cleanup contract:
                         # resume it unowned and let timeout cleanup kill the direct child.
                         # The notice goes to this process's stderr, never into the
                         # returned stderr that callers match on.
@@ -433,10 +440,11 @@ def _run_subprocess(
     callers that only want to add a variable should merge it with
     ``os.environ`` themselves before passing it in.
 
-    On a timeout the child's process tree is killed, so a grandchild
-    such as the ``gh-act`` artifact server does not survive to hold its ports
-    (issue #6412). The partial stdout and stderr the child flushed before the
-    timeout are preserved (issue #4955) instead of being discarded. The timeout
+    On timeout the owned process group or Windows job is terminated (issue
+    #6412). Windows assignment denial or job termination failure falls back
+    to direct-child termination and emits a warning to the caller's stderr.
+    The partial stdout and stderr the child flushed before the timeout are
+    preserved (issue #4955) instead of being discarded. The timeout
     stays a failure: the exit code is ``-1`` and the ``Command timed out after
     Ns`` marker stays in the returned stderr, after any partial stderr the
     child produced.

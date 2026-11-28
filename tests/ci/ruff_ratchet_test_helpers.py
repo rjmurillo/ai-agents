@@ -73,7 +73,7 @@ def make_changed_file(tmp_path: Path, name: str = "scripts/a.py") -> None:
 
 
 def stub_line_map(monkeypatch: pytest.MonkeyPatch, lines: dict[str, set[int]]) -> None:
-    monkeypatch.setattr(ruff_ratchet, "changed_line_map", lambda *_args: lines)
+    monkeypatch.setattr(ruff_ratchet, "changed_line_map", lambda *_args, **_kwargs: lines)
 
 
 class _HungPopen:

@@ -11,18 +11,26 @@ from scripts.cli_exec import resolve_executable
 from tests.ci.ruff_ratchet_test_helpers import RunRecorder, completed
 
 
+@pytest.mark.parametrize("pathext", [".CMD;.EXE", ".CMD"])
 def test_windows_git_exe_resolution_bypasses_a_cmd_shim(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, pathext: str
 ) -> None:
     """The explicit native name resolves exactly even when PATHEXT prefers .cmd."""
     monkeypatch.setattr(ruff_ratchet.os, "name", "nt")
     (tmp_path / "git.cmd").write_text("@echo off\n", encoding="utf-8")
     (tmp_path / "git.exe").write_text("native\n", encoding="utf-8")
-    env = {"PATH": str(tmp_path), "PATHEXT": ".CMD;.EXE"}
+    env = {"PATH": str(tmp_path), "PATHEXT": pathext}
 
     resolved = resolve_executable(ruff_ratchet._native_program("git"), windows=True, env=env)
 
     assert resolved.lower().endswith("git.exe")
+
+
+@pytest.mark.parametrize("name", ["git.exe", "ruff.exe"])
+def test_explicit_native_name_missing_without_native_pathext(tmp_path: Path, name: str) -> None:
+    env = {"PATH": str(tmp_path), "PATHEXT": ".CMD"}
+    with pytest.raises(FileNotFoundError):
+        resolve_executable(name, windows=True, env=env)
 
 
 def test_run_ruff_uses_a_standalone_native_binary_when_the_module_is_absent(
@@ -52,6 +60,8 @@ def test_windows_commands_name_native_executables_not_batch_shims(
         ruff_ratchet.run_ruff(files, tmp_path, {})
 
     assert recorder.commands[0][0] == "git.exe"
+    ruff_ratchet._bounded_line_diff(["git", "diff"])
+    assert recorder.commands[1][0] == "git.exe"
 
 
 def test_run_ruff_windows_standalone_names_the_native_executable(

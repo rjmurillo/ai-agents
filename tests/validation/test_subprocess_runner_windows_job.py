@@ -229,7 +229,7 @@ class TestRunSubprocessWindowsJob:
         assert events == ["job", "resume", "terminate", "close"]
 
     def test_failed_job_termination_kills_the_direct_child(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
         events: list[str] = []
         proc = _TimedOutPopen(None, None, drained=None)
@@ -258,6 +258,10 @@ class TestRunSubprocessWindowsJob:
         assert proc.killed is True
         assert events == ["terminate", "close"]
         assert stderr == "Command timed out after 7s"
+        diagnostic = capsys.readouterr().err
+        assert "Windows job termination failed" in diagnostic
+        assert "denied" in diagnostic
+        assert "descendant cleanup is not guaranteed" in diagnostic
 
     def test_windows_job_assigns_the_suspended_process_before_resume(
         self, monkeypatch: pytest.MonkeyPatch

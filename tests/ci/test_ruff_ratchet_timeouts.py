@@ -35,6 +35,62 @@ def test_git_diff_runs_under_an_explicit_deadline(
     assert recorder.timeouts == [ruff_ratchet._GIT_TIMEOUT_SECONDS]
 
 
+@pytest.mark.parametrize(
+    "failure, diagnostic",
+    [
+        (timed_out(60, "partial diff", "git progress"), "Command timed out after 60s"),
+        (completed(-1, stderr="Command not found: git"), "Command not found: git"),
+        (completed(-15), "git line map terminated by signal 15"),
+        (completed(-1, stderr="Windows job setup failed: denied"), "Windows job setup failed"),
+    ],
+)
+def test_line_map_external_failure_stops_before_ruff(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    failure: subprocess.CompletedProcess[str],
+    diagnostic: str,
+) -> None:
+    (tmp_path / ".git").mkdir()
+    make_changed_file(tmp_path)
+    recorder = RunRecorder([completed(0, names("scripts/a.py")), failure])
+    monkeypatch.setattr(ruff_ratchet, "_run_subprocess", recorder)
+
+    assert ruff_ratchet.main(["--repo-root", str(tmp_path)]) == ruff_ratchet.EXIT_EXTERNAL
+    assert recorder.timeouts == [ruff_ratchet._GIT_TIMEOUT_SECONDS] * 2
+    assert "--unified=0" in recorder.commands[1]
+    captured = capsys.readouterr()
+    assert diagnostic in captured.err
+    if failure.stdout:
+        assert failure.stdout in captured.err
+    if failure.stderr:
+        assert failure.stderr in captured.err
+
+
+def test_line_map_success_preserves_scope_and_deadline(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    (tmp_path / ".git").mkdir()
+    make_changed_file(tmp_path)
+    recorder = RunRecorder(
+        [
+            completed(0, names("scripts/a.py")),
+            completed(0, "+++ b/scripts/a.py\n@@ -0,0 +3,2 @@\n"),
+        ]
+    )
+    monkeypatch.setattr(ruff_ratchet, "_run_subprocess", recorder)
+    seen = []
+
+    def check_scope(files: list[str], root: Path, lines: dict[str, set[int]]) -> int:
+        seen.append((files, root, lines))
+        return ruff_ratchet.EXIT_OK
+
+    monkeypatch.setattr(ruff_ratchet, "run_ruff", check_scope)
+    assert ruff_ratchet.main(["--repo-root", str(tmp_path)]) == ruff_ratchet.EXIT_OK
+    assert recorder.timeouts == [ruff_ratchet._GIT_TIMEOUT_SECONDS] * 2
+    assert seen == [(["scripts/a.py"], tmp_path.resolve(), {"scripts/a.py": {3, 4}})]
+
+
 def test_ruff_runs_under_an_explicit_deadline_in_the_repo_root(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

@@ -16,17 +16,14 @@ Fail-closed behavior: an unresolvable diff base, a git failure, or ruff output
 that will not parse all block on every finding, so the gate is never weaker
 than the whole-file check it replaces.
 
-Deadlines: the git name-list call and the ruff call in this module run through
+Deadlines: the git name-list, line-map and ruff calls run through
 the shared process-group-aware runner
 ``scripts.validation.subprocess_runner._run_subprocess`` with explicit timeouts.
-A timeout kills the child's whole process group and is an external failure
-(exit 3), never a pass. The partial output the child wrote before the deadline
+A timeout requests cleanup of the owned process group or Windows job and is
+an external failure (exit 3), never a pass. Windows cleanup downgrades emit
+an explicit warning. The partial output the child wrote before the deadline
 is printed. A timed-out git call does not retry against the fallback ref: the
 second call would only double the wait.
-
-Not covered here: ``scripts.ci.diff_line_scope.git_diff_unified_zero``, which
-``changed_line_map`` calls from ``main``, still runs ``subprocess.run`` with no
-timeout. It lives in another module and has no injectable runner.
 
 Exit codes (AGENTS.md contract):
     0 - ok (no findings, or only findings outside the change)
@@ -153,6 +150,16 @@ def git_diff_name_only(base_ref: str, repo_root: Path) -> subprocess.CompletedPr
     ]
     returncode, stdout, stderr = _run_subprocess(command, timeout=_GIT_TIMEOUT_SECONDS)
     return subprocess.CompletedProcess(command, returncode, stdout, stderr)
+
+
+def _bounded_line_diff(command: list[str]) -> subprocess.CompletedProcess[str]:
+    """Use the same native git and deadline as the name-list operation."""
+    command = [_native_program(command[0]), *command[1:]]
+    returncode, stdout, stderr = _run_subprocess(command, timeout=_GIT_TIMEOUT_SECONDS)
+    result = subprocess.CompletedProcess(command, returncode, stdout, stderr)
+    if returncode < 0:
+        result.check_returncode()
+    return result
 
 
 def changed_python_files(base_ref: str, repo_root: Path) -> tuple[int, list[str], str]:
@@ -393,7 +400,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     status, files, resolved_base_ref = changed_python_files(args.base_ref, repo_root)
     if status != EXIT_OK:
         return status
-    changed_lines = changed_line_map(resolved_base_ref, repo_root, files)
+    try:
+        changed_lines = changed_line_map(
+            resolved_base_ref, repo_root, files, run=_bounded_line_diff
+        )
+    except subprocess.CalledProcessError as error:
+        stderr = error.stderr or ""
+        if stderr:
+            print(stderr.rstrip("\n"), file=sys.stderr)
+        _print_signal_diagnostic("git line map", error.returncode, stderr)
+        _print_partial_stdout("git line map", error.stdout or "")
+        return EXIT_EXTERNAL
     if changed_lines is None:
         print(
             f"warning: diff base {resolved_base_ref} unresolvable; "
