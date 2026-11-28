@@ -99,7 +99,7 @@ class TestAliasUpstream:
 
 
 class TestRemoteFor:
-    """``remote_for`` takes the exact host, or the port-443 ssh host of the PR host, never another."""
+    """``remote_for`` takes the exact host or the PR host's port-443 ssh host, never another."""
 
     @staticmethod
     def _ref(scripts):
