@@ -70,6 +70,13 @@ _ERROR_ACCESS_DENIED = 5
 # signal death: the child never produced an exit status of its own.
 _WINDOWS_JOB_SETUP_FAILED = "Windows job setup failed"
 
+# Printed once when the child already sits in a job that forbids nesting, so it
+# runs without a job of its own. A timeout then kills only the direct child.
+_WINDOWS_JOB_UNOWNED_NOTICE = (
+    "warning: Windows job assignment denied (the process is already in a job); "
+    "a timeout will stop only the direct child, not its descendants"
+)
+
 # Seconds to wait for the pipes to close after the kill. A grandchild that
 # started its own session survives the group kill and keeps the pipe open, so
 # an unbounded read would hang the gate this wrapper exists to bound.
@@ -370,6 +377,9 @@ def _run_in_group(
                         # Windows forbids the nested assignment. Refusing to run every
                         # validator is worse than the pre-job-object cleanup contract:
                         # resume it unowned and let timeout cleanup kill the direct child.
+                        # The notice goes to this process's stderr, never into the
+                        # returned stderr that callers match on.
+                        print(_WINDOWS_JOB_UNOWNED_NOTICE, file=sys.stderr)
                         try:
                             _resume_windows_process(proc)
                         except OSError as resume_error:

@@ -130,7 +130,7 @@ def _install_noop_windows_job(monkeypatch: pytest.MonkeyPatch) -> None:
         def close(self) -> None:
             pass
 
-    monkeypatch.setattr(subprocess_runner, "_WindowsJob", _NoopJob, raising=False)
+    monkeypatch.setattr(subprocess_runner, "_WindowsJob", _NoopJob)
 
 
 def _install_hung_popen(

@@ -24,7 +24,7 @@ class TestRunSubprocessWindowsJob:
         monkeypatch.setattr(subprocess_runner, "_SUPPORTS_PGROUP", False)
 
     def test_child_starts_suspended_and_joins_the_job_before_it_runs(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
         events: list[object] = []
 
@@ -68,7 +68,7 @@ class TestRunSubprocessWindowsJob:
                 events.append("close")
 
         self._simulate_windows(monkeypatch)
-        monkeypatch.setattr(subprocess_runner, "_WindowsJob", _Job, raising=False)
+        monkeypatch.setattr(subprocess_runner, "_WindowsJob", _Job)
         monkeypatch.setattr(subprocess, "Popen", popen_factory)
 
         exit_code, stdout, stderr = _run_subprocess(["/fake"], timeout=5)
@@ -80,9 +80,10 @@ class TestRunSubprocessWindowsJob:
         assert spawn[1] & 0x200, "CREATE_NEW_PROCESS_GROUP must isolate console events"
         assert spawn[2] is False
         assert events[1:] == [("job", 123), "resume", "communicate", "close"]
+        assert subprocess_runner._WINDOWS_JOB_UNOWNED_NOTICE not in capsys.readouterr().err
 
     def test_job_setup_failure_kills_the_suspended_child_and_fails_closed(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
         events: list[str] = []
 
@@ -111,7 +112,7 @@ class TestRunSubprocessWindowsJob:
             raise OSError(6, "denied")
 
         self._simulate_windows(monkeypatch)
-        monkeypatch.setattr(subprocess_runner, "_WindowsJob", fail_job, raising=False)
+        monkeypatch.setattr(subprocess_runner, "_WindowsJob", fail_job)
         monkeypatch.setattr(subprocess, "Popen", lambda *_a, **_k: _SuspendedPopen())
 
         exit_code, stdout, stderr = _run_subprocess(["/fake"], timeout=5)
@@ -119,6 +120,7 @@ class TestRunSubprocessWindowsJob:
         assert (exit_code, stdout) == (-1, "")
         assert events == ["kill", "wait"]
         assert "Windows job setup failed" in stderr
+        assert subprocess_runner._WINDOWS_JOB_UNOWNED_NOTICE not in capsys.readouterr().err
 
     def test_timeout_terminates_the_job_tree_instead_of_only_the_direct_child(
         self, monkeypatch: pytest.MonkeyPatch
@@ -141,7 +143,7 @@ class TestRunSubprocessWindowsJob:
                 events.append("close")
 
         self._simulate_windows(monkeypatch)
-        monkeypatch.setattr(subprocess_runner, "_WindowsJob", _Job, raising=False)
+        monkeypatch.setattr(subprocess_runner, "_WindowsJob", _Job)
 
         exit_code, _stdout, stderr = _run_subprocess(["/fake"], timeout=7)
 
@@ -151,7 +153,7 @@ class TestRunSubprocessWindowsJob:
         assert stderr == "Command timed out after 7s"
 
     def test_access_denied_assignment_resumes_the_child_without_a_job(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """A validator inside a UI-limited job can still run without nesting."""
         events: list[str] = []
@@ -180,7 +182,7 @@ class TestRunSubprocessWindowsJob:
             raise OSError(5, "AssignProcessToJobObject failed")
 
         self._simulate_windows(monkeypatch)
-        monkeypatch.setattr(subprocess_runner, "_WindowsJob", deny_assignment, raising=False)
+        monkeypatch.setattr(subprocess_runner, "_WindowsJob", deny_assignment)
         monkeypatch.setattr(
             subprocess_runner,
             "_resume_windows_process",
@@ -192,6 +194,9 @@ class TestRunSubprocessWindowsJob:
 
         assert (exit_code, stdout, stderr) == (0, "out", "")
         assert events == ["resume-process", "communicate"]
+        # The downgrade is visible on this process's stderr, and the returned
+        # stderr that callers match on stays untouched.
+        assert subprocess_runner._WINDOWS_JOB_UNOWNED_NOTICE in capsys.readouterr().err
 
     def test_interrupt_during_resume_terminates_the_owned_job(
         self, monkeypatch: pytest.MonkeyPatch
@@ -215,7 +220,7 @@ class TestRunSubprocessWindowsJob:
                 events.append("close")
 
         self._simulate_windows(monkeypatch)
-        monkeypatch.setattr(subprocess_runner, "_WindowsJob", _Job, raising=False)
+        monkeypatch.setattr(subprocess_runner, "_WindowsJob", _Job)
         monkeypatch.setattr(subprocess, "Popen", _fake_popen(proc))
 
         with pytest.raises(KeyboardInterrupt):
@@ -244,7 +249,7 @@ class TestRunSubprocessWindowsJob:
                 events.append("close")
 
         self._simulate_windows(monkeypatch)
-        monkeypatch.setattr(subprocess_runner, "_WindowsJob", _Job, raising=False)
+        monkeypatch.setattr(subprocess_runner, "_WindowsJob", _Job)
         monkeypatch.setattr(subprocess, "Popen", _fake_popen(proc))
 
         exit_code, _stdout, stderr = _run_subprocess(["/fake"], timeout=7)
@@ -295,6 +300,7 @@ class TestRunSubprocessWindowsJob:
             assert use_last_error is True
             return {"kernel32": kernel32, "ntdll": ntdll}[name]
 
+        # ctypes.WinDLL exists only on Windows, so the attribute may be absent here.
         monkeypatch.setattr(subprocess_runner.ctypes, "WinDLL", load_library, raising=False)
 
         fake_process = cast(subprocess.Popen[str], SimpleNamespace(_handle=456))
