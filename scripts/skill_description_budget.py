@@ -311,11 +311,14 @@ def _is_positive_int(value: object) -> bool:
 
 
 def _parse_root_budget(root: str, entry: object) -> RootBudget:
-    limit = entry.get("max_total_chars") if isinstance(entry, dict) else None
-    if not _is_positive_int(limit):
+    fields = entry if isinstance(entry, dict) else {}
+    limit = fields.get("max_total_chars")
+    if not isinstance(limit, int) or not _is_positive_int(limit):
         raise BudgetFileError(f"root {root!r} needs a positive integer 'max_total_chars'")
-    ceiling = entry.get("max_listing_chars") if "max_listing_chars" in entry else None
-    if "max_listing_chars" in entry and not _is_positive_int(ceiling):
+    if "max_listing_chars" not in fields:
+        return RootBudget(max_total_chars=limit)
+    ceiling = fields["max_listing_chars"]
+    if not isinstance(ceiling, int) or not _is_positive_int(ceiling):
         raise BudgetFileError(f"root {root!r} needs a positive integer 'max_listing_chars'")
     return RootBudget(max_total_chars=limit, max_listing_chars=ceiling)
 
