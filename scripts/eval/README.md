@@ -1111,15 +1111,19 @@ ADR-088 moved these eight book-derived references behind `software-engineering-l
 
 Owner: `agent-qa`.
 
-Cadence: weekly Monday 06:30 UTC through
-`.github/workflows/software-engineering-library-activation.yml`, with a
-`pull_request` dry-run wiring gate for changes to the skill, fixtures, eval script,
-or workflow.
+Cadence: manual. The CI workflow that ran this weekly was removed on 2026-11-25
+with every other job gated by an `agent-*` environment. Run `software_engineering_library_activation_ci.py`
+and the gate script by hand when the skill, fixtures, or eval script change.
 
-Persistent state lives in the GitHub Actions cache at
-`.eval-state/software-engineering-library-activation-state.json`. The state records
+Persistent state lives in a local file at
+`.eval-state/software-engineering-library-activation-state.json`, relative to the
+directory you run from. The Actions cache that carried it between weekly runs went
+away with the workflow, so separate checkouts do not share a rollback streak. Run
+from one checkout to accumulate one. The state records
 one entry per moved reference with `consecutive_activation_failures`,
-`last_verdict`, `last_run_id`, and `last_checked_at`. `FAIL_THRESHOLD`,
+`last_verdict`, `last_run_id`, and `last_checked_at`. A manual run has no workflow
+run id, so it records `last_run_id` as `unknown`; `last_checked_at` tells manual runs
+apart, and the alert body says the run was manual instead of linking a run page. `FAIL_THRESHOLD`,
 `FAIL_NO_DELTA`, `NO_POSITIVE_CASES`, and `NO_RESULT` increment the rollback streak.
 `FAIL_JUDGE_ERRORS` is treated as an external eval failure and does not increment
 the activation rollback streak.
@@ -1148,16 +1152,13 @@ the least restrained state available: rolling back would move the reference
 further from what the missing pool was supposed to measure. Add the negative
 scenario instead.
 
-The workflow runs all eight scenario files live on the weekly schedule and feeds
-`activation-results.json` into
+A manual run of all eight scenario files feeds `activation-results.json` into
 `scripts/eval/software_engineering_library_activation_gate.py`. A reference that
 reaches two consecutive activation failures trips the rollback threshold.
 
-When the threshold trips, the workflow uploads the eval report, opens or updates a
-rollback tracking issue, and fails the repository gate. The restoration PR must
-restore the failing book reference to the always-on rule surface or strengthen the
-skill trigger and scenario coverage. It must include the latest gate report and pass
-this workflow before merge.
+When the threshold trips, the restoration PR must restore the failing book reference
+to the always-on rule surface or strengthen the skill trigger and scenario coverage.
+It must include the latest gate report.
 
 ## Autoplan Route Eval
 
@@ -1196,13 +1197,12 @@ The runner has no spend cap flag. `--dry-run` prints the call count first, and `
 
 Each family reports `scenarios`, `reachable` (every named route is an installed skill or agent), `exercised` (the run has a result), `scored` (the cell was graded), and `passed` apart. Without `--model-results` the accuracy reads `not scored`, never zero. A model miss prints `MODEL-MISS` and does not change the exit code, so CI never gates on a judge. A failed resolver fixture still exits 1. The deterministic tests in `tests/eval/test_eval_autoplan_model_scenarios.py` load and validate the file and call no model.
 
-### Route-change gate and scheduled run (#6291)
+### Route-change gate (#6291)
 
-Three pieces close the loop for a changed route:
+Two pieces close the loop for a changed route:
 
 - `scripts/validation/check_route_scenario_coverage.py` diffs the `Intent | Route` table in `.claude/skills/autoplan/SKILL.md` against the merge base. A row that is new, or whose route text changed, needs a new or edited scenario in `autoplan.json` whose `expected_route` names one of the row's targets. A scenario counts as edited only when its `input`, `expected_route`, `expected_gate`, `expected_signals`, or `forbidden_routes` changes, so a rationale-only edit does not clear the failure. A row with no `Skill:`, `Agent:`, `subagent_type`, or `/command` target is satisfied by any edited scenario. A reworded intent with unchanged route text is a rename and is skipped. The failure names the route. Reproduce it locally with `python3 scripts/validation/check_route_scenario_coverage.py --base-ref origin/main`. Exit 1 means a route lacks a scenario, exit 2 means a bad input such as an unresolvable ref or a missing table.
 - `validate-rule-activation-coverage.yml` runs that gate on pull requests only, and runs `eval_autoplan_routes.py` without a model on every run as the fast subset (pull request, push to main, and `workflow_dispatch`, whenever the paths filter matches). The subset step has a 60 second budget and measures about 2 seconds.
-- `autoplan-route-eval.yml` runs the full model suite weekly and prints per-family accuracy to the job summary. A model miss stays advisory. The run fails when no results exist, when a resolver fixture fails, or when the results file cannot be read.
 
 ## Skill Overlap Eval
 
@@ -2330,7 +2330,7 @@ The config is launcher-owned JSON:
 | `workspace_dir` | The proposer's only input. Must be absent or empty at start, and must not contain the artifact. Emptied each step, then given `feedback.json` and optional `tasks/`. |
 | `scorer` | argv. `{run_id}`, `{run_dir}`, and `{artifact}` are filled in. |
 | `scorer_exit_codes` | Exit codes that count as a completed scoring run (default `[0]`). pytest and the rule scorer exit 1 on failures, so use `[0, 1]` there. |
-| `collect` | Paths the scorer writes outside `{run_dir}`. Each is moved to `{run_dir}/<index>`, every one attempted even if another is missing. A report already at a `collect` path before scoring stops the run, so include `{run_id}` in fixed paths. The proposer must not read them meanwhile: `policy` prints them as `deny_read_write_collect`; deny the directory each names. |
+| `collect` | Paths the scorer writes outside `{run_dir}`. Each is moved to `{run_dir}/<index>`, every one attempted even if another is missing. A report already at a `collect` path before scoring stops the run, so include `{run_id}` in fixed paths. Anything already at `{run_dir}/<index>` also fails the run; a link there is removed first, so a report never moves through it. The proposer must not read them meanwhile: `policy` prints them as `deny_read_write_collect`; deny the directory each names. |
 | `inputs` | `extract --input` paths. Each must start with `{run_dir}`; a report written elsewhere is named in `collect` and read from `{run_dir}/<index>`. |
 | `extract_args` | Extra `extract` flags, such as `--variant agent`. |
 | `proposer` | argv. `{feedback}`, `{artifact}`, `{workspace}`, and `{step}` are filled in. |
@@ -2360,14 +2360,32 @@ The controller refuses to gate when the artifact changed while it was scored.
 It refuses an artifact replaced by a symlink, a hard link, or a directory.
 Restores keep the artifact's mode and never follow a link. It digests
 `deny_paths`, `trusted_paths`, and every entry under `scripts/eval/` before the
-loop and again around every scoring run and step. The optimizer runs with
-`PYTHONPYCACHEPREFIX` under `state_dir`, so a planted bytecode cache in
-`scripts/eval/__pycache__` is never read. It also checks that scoring changed
-nothing in `state_dir` outside the new run's directory.
+loop and again around every scoring run and step. Each optimizer call gets a
+fresh `PYTHONPYCACHEPREFIX` directory under `state_dir`, removed after the
+call, so it does not reuse an earlier cache. It also checks that scoring
+changed nothing in `state_dir` outside the new run's directory.
 
-Run one controller per artifact at a time. Two runs with different
-`state_dir`s on the same artifact can restore over each other's accepted bytes;
-the controller does not lock the artifact across processes.
+The scorer runs inside `state_dir/runs/` and can leave links there.
+The controller checks that the run directory still resolves to itself.
+If it does not, the controller tries to move `collect` reports into a new
+`state_dir/quarantine-<run_id>-<random>` directory before stopping.
+It checks the ledger directory before invoking the gate. Controller file
+reads and writes reject leaf symlinks, hard links, and non-regular files.
+These checks do not replace isolation from a child that keeps running.
+
+The controller holds two locks throughout each run:
+
+- The state lock is `state_dir/controller.lock`. A second run there exits 2.
+- The artifact lock sits beside the resolved artifact. Its name derives
+  from the artifact filename and does not depend on the temp directory.
+  Another run on that artifact exits 2, even with a different `state_dir`.
+  `policy` lists the lock file under `deny_read_write`.
+
+The locks use `fcntl` on POSIX and `msvcrt` on Windows. The operating system
+releases them on process exit. Both lock files stay in place after release.
+Git ignores the artifact lock in this checkout.
+Do not remove a lock file while any controller could be using it. A platform without
+either locking primitive refuses to run.
 
 **The boundary is conditional.** Python cannot stop a same-user process from
 reading a file. The held-out group is withheld only when the launcher applies

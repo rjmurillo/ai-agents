@@ -237,3 +237,42 @@ class TestPlantedExe:
         monkeypatch.setenv("PATHEXT", ".exe;.CMD")
         (tmp_path / "gh.exe").write_bytes(b"")
         assert windows.planted_programs(tmp_path) == ["gh.exe"]
+
+
+class TestFindProgramExe:
+    """``find_program`` adds ``.exe`` to PATHEXT, as CreateProcess does."""
+
+    def test_an_installed_exe_is_found_when_pathext_omits_it(self, scripts, monkeypatch, tmp_path):
+        windows = scripts[0]._windows
+        monkeypatch.setenv("PATHEXT", ".BAT;.CMD")
+        monkeypatch.setenv("PATH", str(tmp_path))
+        (tmp_path / "git.EXE").write_bytes(b"")
+        assert windows.find_program("git") == str(tmp_path / "git.EXE")
+
+    def test_a_pathext_suffix_still_wins_over_the_exe_fallback(
+        self, scripts, monkeypatch, tmp_path
+    ):
+        windows = scripts[0]._windows
+        monkeypatch.setenv("PATHEXT", ".CMD")
+        monkeypatch.setenv("PATH", str(tmp_path))
+        (tmp_path / "az.CMD").write_bytes(b"")
+        (tmp_path / "az.EXE").write_bytes(b"")
+        assert windows.find_program("az") == str(tmp_path / "az.CMD")
+
+    def test_command_runs_an_installed_exe_when_pathext_omits_it(
+        self, scripts, monkeypatch, tmp_path
+    ):
+        windows = scripts[0]._windows
+        monkeypatch.setattr(windows, "on_windows", lambda: True)
+        monkeypatch.setenv("PATHEXT", ".BAT;.CMD")
+        monkeypatch.setenv("PATH", str(tmp_path))
+        (tmp_path / "git.EXE").write_bytes(b"")
+        assert windows.command(["git", "status"]) == [str(tmp_path / "git.EXE"), "status"]
+
+    def test_a_program_that_is_not_installed_is_still_not_found(
+        self, scripts, monkeypatch, tmp_path
+    ):
+        windows = scripts[0]._windows
+        monkeypatch.setenv("PATHEXT", ".BAT;.CMD")
+        monkeypatch.setenv("PATH", str(tmp_path))
+        assert windows.find_program("git") is None

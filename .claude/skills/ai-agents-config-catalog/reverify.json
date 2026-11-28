@@ -262,6 +262,18 @@
    "path": "scripts/validation/skill_size.py",
    "text": "RATIONALE_MIN_CHARS",
    "id": "R48"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/validation/git_hook_policy.py",
+   "text": "PYTEST_WORKER_CAP_ENV = \"AI_AGENTS_PYTEST_WORKER_CAP\"",
+   "id": "R49"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/validation/git_hook_policy.py",
+   "text": "PYTEST_CPU_RESERVE_ENV = \"AI_AGENTS_PYTEST_CPU_RESERVE\"",
+   "id": "R50"
   }
  ]
 }

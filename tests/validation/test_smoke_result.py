@@ -6,7 +6,7 @@ environment and exited 1 on the first mismatch. These tests pin the
 replacement contract: every check is evaluated so one run
 reports all failures, an unset variable fails its check rather than passing
 silently, and `{value}` interpolation reproduces the original annotations.
-Sibling files cover skippable checks, result annotations, and count notes.
+Sibling files cover skippable checks and result annotations.
 """
 
 from __future__ import annotations
