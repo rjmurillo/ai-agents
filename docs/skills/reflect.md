@@ -7,6 +7,7 @@ Captures learnings from the current conversation and stores them as skill memory
 - You correct the agent's output ("no", "wrong", "not like that").
 - You praise a specific output ("perfect", "exactly").
 - The agent finds an edge case, or skill-heavy work is ending.
+- A measured result contradicts a memory, ADR, skill, or common guidance. The skill points to the `memory-gate` contradiction log, or to the `memory` write procedure with the same five fields where `memory-gate` is not installed, even when the task ends at "do not ship". The log needs no signal threshold; a skill edit still waits for approval.
 - Trigger phrases: `reflect on this session`, `learn from this mistake`, `capture what we learned`, `improve skill {name}`, `what did we learn`.
 
 ## When not to use it
