@@ -27,6 +27,7 @@ from scripts.validation import pre_pr
 from scripts.validation.evidence import (
     REASON_ALREADY_RUN,
     REASON_BASE_REF_UNRESOLVED,
+    REASON_CI_OWNED,
     REASON_DIFF_FAILED,
     REASON_MALFORMED_OUTPUT,
     REASON_QUICK_MODE,
@@ -373,6 +374,58 @@ class TestFastStageSkipIsRecorded:
 
         (outcome,) = state.outcomes()
         assert outcome.state is EvidenceState.PASS
+
+
+class TestCiOwnedGateIsSkippedInTheHook:
+    """A gate with ``ci_owned_by`` is skipped only inside the pre-push hook.
+
+    Owner ruling 2026-11-27: CI is the test authority, so heavy whole-tree gates
+    that a named CI job owns are not re-run when pre_pr runs as the hook job.
+    """
+
+    @staticmethod
+    def _run(monkeypatch: pytest.MonkeyPatch, env: str | None) -> tuple[ValidationState, list[str]]:
+        if env is None:
+            monkeypatch.delenv(_FAST_STAGE_ENV, raising=False)
+        else:
+            monkeypatch.setenv(_FAST_STAGE_ENV, env)
+        calls: list[str] = []
+
+        def validator(_root: Path, _args: object) -> bool:
+            calls.append("ran")
+            return True
+
+        gate = _GATE("CI Owned Gate", validator, ci_owned_by="pytest.yml count-ratchet-guard")
+        state = ValidationState()
+        with patch("pre_pr_sequence._SEQUENCE", (gate,)):
+            run_all_validations(Path.cwd(), SimpleNamespace(quick=False), state, run_validation)
+        return state, calls
+
+    def test_the_hook_records_a_skip_naming_the_ci_job(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        state, calls = self._run(monkeypatch, "1")
+
+        (outcome,) = state.outcomes()
+        assert outcome.state is EvidenceState.SKIP
+        assert outcome.reason == REASON_CI_OWNED
+        assert "pytest.yml count-ratchet-guard" in outcome.detail
+        assert calls == []
+        assert (state.total, state.skipped) == (1, 1)
+        assert "[SKIP] CI Owned Gate" in capsys.readouterr().out
+
+    def test_a_direct_or_ci_caller_runs_the_gate(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        state, calls = self._run(monkeypatch, None)
+
+        (outcome,) = state.outcomes()
+        assert outcome.state is EvidenceState.PASS
+        assert calls == ["ran"]
+
+    def test_only_the_value_one_skips_the_gate(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        state, calls = self._run(monkeypatch, "true")
+
+        assert calls == ["ran"]
+        assert state.skipped == 0
 
 
 class TestMainWithAnEmptySequence:

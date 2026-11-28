@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -14,6 +15,13 @@ _VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"
 if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
 import checks_ratchet  # noqa: E402
+
+from scripts.ci.ruleset_required_contexts import REQUIRED_CONTEXTS  # noqa: E402
+from tests.ci.ratchet_test_helpers import (  # noqa: E402
+    ALLOWED_STEP_IF,
+    RATCHET_WORKFLOWS,
+    ci_owners_of,
+)
 
 
 def _walk_jobs(jobs: object) -> list[dict]:
@@ -30,32 +38,142 @@ def _walk_jobs(jobs: object) -> list[dict]:
     return found
 
 
-def _aggregate_job() -> dict | None:
+# The last main commit whose pre-push hook still ran the removed jobs (2026-11-27).
+_BASE_COMMIT = "d31aa71e60"
+# Job name, and the command fragment the job ran at _BASE_COMMIT. The fragment
+# catches the same command moved under another job name.
+_REMOVED_HOOK_JOBS = (
+    ("count-ratchets", "git_hook_policy.py count-ratchets"),
+    ("plugin-scanner", "check_plugin_scanner_score.py"),
+)
+
+
+def _pre_push_jobs() -> list[dict]:
     config = yaml.safe_load(_LEFTHOOK.read_text(encoding="utf-8"))
-    if not isinstance(config, dict):
-        return None
+    assert isinstance(config, dict)
     pre_push = config.get("pre-push")
-    if not isinstance(pre_push, dict):
-        return None
-    return next(
-        (job for job in _walk_jobs(pre_push.get("jobs")) if job.get("name") == "count-ratchets"),
-        None,
+    assert isinstance(pre_push, dict)
+    return _walk_jobs(pre_push.get("jobs"))
+
+
+class TestCountRatchetsAreOwnedByCi:
+    """Owner ruling 2026-11-27: CI is the test authority, so pre-push runs no ratchets.
+
+    This inverts the issue #4251 and #5482 contract, which asserted the
+    ratchets ran in the local hook. The contract now is: the hook does not run
+    them, and every registry entry runs unconditionally in a required CI job.
+    """
+
+    @pytest.mark.parametrize(("removed", "command"), _REMOVED_HOOK_JOBS)
+    def test_the_pre_push_hook_does_not_run_the_removed_job(
+        self, removed: str, command: str
+    ) -> None:
+        names = {str(job.get("name")) for job in _pre_push_jobs()}
+        assert removed not in names
+        offenders = [
+            str(job.get("name")) for job in _pre_push_jobs() if command in str(job.get("run", ""))
+        ]
+        assert offenders == []
+
+    @pytest.mark.parametrize(("removed", "command"), _REMOVED_HOOK_JOBS)
+    def test_the_command_fragment_matched_the_job_before_removal(
+        self, removed: str, command: str
+    ) -> None:
+        """Negative control: on the base the fragment found the removed job."""
+        base = subprocess.run(
+            ["git", "show", f"{_BASE_COMMIT}:lefthook.yml"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        if base.returncode != 0:
+            pytest.skip(f"base commit {_BASE_COMMIT} not in this clone (shallow checkout)")
+        jobs = _walk_jobs(yaml.safe_load(base.stdout)["pre-push"]["jobs"])
+        assert [str(j.get("name")) for j in jobs if command in str(j.get("run", ""))] == [removed]
+
+    @pytest.mark.parametrize(
+        "script", sorted(ratchet.script for ratchet in checks_ratchet.RATCHETS)
     )
-
-
-class TestAggregateRatchetWiring:
-    def test_job_invokes_the_authoritative_registry(self) -> None:
-        job = _aggregate_job()
-        assert job is not None
-        assert str(job.get("run")) == (
-            "uv run --frozen python scripts/validation/git_hook_policy.py count-ratchets"
+    def test_every_registry_script_runs_in_a_required_unconditional_ci_job(
+        self, script: str
+    ) -> None:
+        assert ci_owners_of(script), (
+            f"{script} has no required, unconditional CI job in "
+            f"{RATCHET_WORKFLOWS}. With the pre-push job removed, nothing "
+            "would enforce this ratchet before merge."
         )
 
-    def test_job_runs_for_every_push(self) -> None:
-        job = _aggregate_job()
-        assert job is not None
-        assert job.get("glob") is None
+    def test_the_owner_check_rejects_an_unknown_script(self) -> None:
+        """Negative control: a script no workflow runs has no owner."""
+        assert ci_owners_of("scripts/ci/no_such_ratchet.py") == []
 
+    def test_the_owner_check_rejects_a_conditional_step(self) -> None:
+        """Negative control: a step-level `if:` other than the allowed one disqualifies."""
+        assert ci_owners_of("scripts/ci/ruff_ratchet.py") == ["pytest.yml test"]
+        saved = dict(ALLOWED_STEP_IF)
+        try:
+            ALLOWED_STEP_IF.clear()
+            assert ci_owners_of("scripts/ci/ruff_ratchet.py") == []
+        finally:
+            ALLOWED_STEP_IF.update(saved)
+
+    _FIXTURE = (
+        "on: pull_request\n"
+        "jobs:\n"
+        "  good:\n"
+        "    name: {required}\n"
+        "    steps:\n"
+        "      - run: python3 scripts/ci/fixture_ratchet.py\n"
+        "  comment_only:\n"
+        "    name: {required}\n"
+        "    steps:\n"
+        "      - run: |\n"
+        "          # python3 scripts/ci/fixture_ratchet.py\n"
+        "  echo_only:\n"
+        "    name: {required}\n"
+        "    steps:\n"
+        "      - run: echo python3 scripts/ci/fixture_ratchet.py\n"
+        "  optional:\n"
+        "    name: Not A Required Context\n"
+        "    steps:\n"
+        "      - run: python3 scripts/ci/fixture_ratchet.py\n"
+        "  softjob:\n"
+        "    name: {required}\n"
+        "    continue-on-error: true\n"
+        "    steps:\n"
+        "      - run: python3 scripts/ci/fixture_ratchet.py\n"
+        "  softstep:\n"
+        "    name: {required}\n"
+        "    steps:\n"
+        "      - run: python3 scripts/ci/fixture_ratchet.py\n"
+        "        continue-on-error: ${{{{ github.event_name == 'push' }}}}\n"
+    )
+
+    def test_the_owner_check_rejects_unrequired_and_soft_failing_jobs(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Negative control: drive ``ci_owners_of`` on a fixture workflow.
+
+        Only ``good`` qualifies: ``optional`` is outside ``REQUIRED_CONTEXTS``,
+        ``softjob`` and ``softstep`` set ``continue-on-error``, and the other
+        two jobs mention the script without running it.
+        """
+        import tests.ci.ratchet_test_helpers as helpers
+
+        required = sorted(REQUIRED_CONTEXTS)[0]
+        assert "Not A Required Context" not in REQUIRED_CONTEXTS
+        (tmp_path / "fixture.yml").write_text(
+            self._FIXTURE.format(required=required), encoding="utf-8"
+        )
+        monkeypatch.setattr(helpers, "_WORKFLOWS", tmp_path)
+        monkeypatch.setattr(helpers, "RATCHET_WORKFLOWS", ("fixture.yml",))
+        assert ci_owners_of("scripts/ci/fixture_ratchet.py") == ["fixture.yml good"]
+
+
+class TestRegistryContents:
     def test_registry_retains_taste_and_type_ignore_ratchets(self) -> None:
         by_name = {ratchet.job_name: ratchet for ratchet in checks_ratchet.RATCHETS}
         assert by_name["taste-count-ratchet"].script == ("scripts/ci/taste_count_ratchet.py")
@@ -90,41 +208,6 @@ class TestAggregateRatchetWiring:
         by_name = {ratchet.job_name: ratchet for ratchet in checks_ratchet.RATCHETS}
         assert by_name["taste-count-ratchet"].uses_base_ref is True
         assert by_name["type-ignore-count-ratchet"].uses_base_ref is True
-
-
-class TestAggregateBudgetIsConsistentWithLefthook:
-    """The gate's own deadline must fire before lefthook kills the job (#5482).
-
-    If lefthook's timeout were the smaller of the two, it would kill the gate
-    mid-run with no attribution: the operator sees the job fail and not which
-    ratchet was responsible. The gate's deadline fires first precisely so the
-    failure names the offending entry.
-    """
-
-    def _count_ratchets_timeout_seconds(self) -> int:
-        config = yaml.safe_load((REPO_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
-        found: list[str] = []
-
-        def walk(node: object) -> None:
-            if isinstance(node, dict):
-                if node.get("name") == "count-ratchets":
-                    found.append(str(node.get("timeout", "")))
-                for value in node.values():
-                    walk(value)
-            elif isinstance(node, list):
-                for item in node:
-                    walk(item)
-
-        walk(config)
-        assert len(found) == 1, f"expected one count-ratchets job, found {found}"
-        return int(found[0].removesuffix("s"))
-
-    def test_lefthook_allows_more_time_than_the_aggregate_deadline(self) -> None:
-        assert self._count_ratchets_timeout_seconds() > checks_ratchet._AGGREGATE_TIMEOUT_SECONDS
-
-    def test_the_module_declares_the_lefthook_budget_it_assumes(self) -> None:
-        """Keep the two numbers from drifting apart silently."""
-        assert checks_ratchet._LEFTHOOK_TIMEOUT_SECONDS == self._count_ratchets_timeout_seconds()
 
 
 def ci_baseline_ratchet_scripts() -> list[str]:

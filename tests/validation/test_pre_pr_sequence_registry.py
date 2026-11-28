@@ -196,9 +196,11 @@ QUICK_SKIPPED: frozenset[str] = frozenset(
         "Agent Drift Detection",
     }
 )
+# Heavy whole-tree gates a CI job owns (owner ruling 2026-11-27): skipped, with a
+# visible [SKIP], when pre_pr runs inside the pre-push hook.
+CI_OWNED_GATES = frozenset({"Count Ratchets", "Generated Artifact Staleness"})
 FAST_STAGE_DUPLICATES = frozenset(
     {
-        "Count Ratchets",
         "Unreachable Code Detection",
         "Path Normalization",
         "Planning Artifacts",
@@ -305,9 +307,11 @@ class TestFastStageDeferral:
         recorded, state, out = _record()
 
         emitted = {name for name, _skip in recorded}
-        assert set(EXPECTED_ORDER) - emitted == FAST_STAGE_DUPLICATES
-        assert state.total == state.skipped == len(FAST_STAGE_DUPLICATES)
-        assert "count-ratchets" in out
+        assert set(EXPECTED_ORDER) - emitted == FAST_STAGE_DUPLICATES | CI_OWNED_GATES
+        assert state.total == state.skipped == len(FAST_STAGE_DUPLICATES | CI_OWNED_GATES)
+        assert "python-unreachable-statements" in out
+        for gate in CI_OWNED_GATES:
+            assert f"[SKIP] {gate}" in out
 
     def test_other_flag_values_run_every_gate(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv(pre_pr_sequence.FAST_STAGE_RAN_ENV, "true")
@@ -322,8 +326,8 @@ class TestFastStageDeferral:
         monkeypatch.setenv(pre_pr_sequence.FAST_STAGE_RAN_ENV, "1")
         recorded, state, _out = _record(quick=True)
 
-        assert set(name for name, _ in recorded).isdisjoint(FAST_STAGE_DUPLICATES)
-        assert state.total == state.skipped == len(FAST_STAGE_DUPLICATES)
+        assert set(name for name, _ in recorded).isdisjoint(FAST_STAGE_DUPLICATES | CI_OWNED_GATES)
+        assert state.total == state.skipped == len(FAST_STAGE_DUPLICATES | CI_OWNED_GATES)
 
 
 class TestPrePrReexportsEverySequenceValidator:
