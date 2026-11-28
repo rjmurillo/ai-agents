@@ -12,8 +12,11 @@ counts them.
   directory name
 - description: required string, 1-1024 characters; no XML tags, which the
   Claude platform rejects in skill metadata
+- version: required string, a SemVer 2.0.0 version such as `1.0.0`, at the
+  top level (GP-003 in .agents/governance/golden-principles.md; ADR-040 moved
+  it back from `metadata` on 2026-04-30)
+- license: required non-empty string (GP-003; the spec makes it optional)
 - compatibility: when present, a string of 1-500 characters
-- license: when present, a string
 
 The frontmatter is read with YAML 1.2 core-schema scalars, the schema the spec
 assumes: unquoted `on`, `off`, `yes`, `no`, and dates stay strings, while
@@ -29,7 +32,9 @@ values. This repository's skills carry harness fields and capability mappings
 on purpose; skillforge's ``conformance.py --profile project`` reports those as
 declared deviations.
 
-Runs on staged .claude/skills/*/SKILL.md files during pre-commit.
+Callers: the pre-PR `Skill Frontmatter` gate (`validate_skill_frontmatter`)
+and `tests/test_skill_frontmatter_corpus.py`, which CI runs on every PR. With
+no path it scans every tree in `_SKILL_TREE_PREFIXES`.
 
 Exit codes follow ADR-035:
     0 - Success: All skill frontmatter is valid
@@ -43,6 +48,8 @@ Reference: .project-toolkit/analysis/claude-code-skill-frontmatter-2026.md
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import os
 import re
 import subprocess
@@ -91,6 +98,16 @@ VALID_MODEL_ALIASES: frozenset[str] = frozenset(
 # Haiku is pinned to 4.5; Opus and Sonnet are pinned to 4.6.
 DATED_SNAPSHOT_PATTERN: re.Pattern[str] = re.compile(
     r"^claude-((opus|sonnet)-4-6|haiku-4-5)-\d{8}$"
+)
+
+# SemVer 2.0.0 (https://semver.org). The skillforge validator keeps the same
+# pattern as `SEMVER_REGEX` in .claude/skills/skillforge/scripts/_constants.py;
+# tests/test_skill_frontmatter_spec.py fails when the two differ. ASCII
+# digits only, and \Z so a trailing newline does not pass.
+SEMVER_PATTERN: re.Pattern[str] = re.compile(
+    r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
+    r"(-(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*)?"
+    r"(\+[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?\Z"
 )
 
 # Known tool names accepted in `allowed-tools`.
@@ -172,23 +189,29 @@ _Yaml12Loader.add_implicit_resolver(
 # XML tag detection pattern
 _XML_TAG_PATTERN: re.Pattern[str] = re.compile(r"<[^>]+>")
 _SKILL_FILE_PATTERN: re.Pattern[str] = re.compile(
-    r"(?:^|/)(?:\.claude|src/claude|src/copilot-cli)/skills/[^/]+/SKILL\.md$",
+    r"(?:^|/)(?:\.claude|src/(?:claude|copilot-cli|codex|cursor|muse)|src/hermes/[^/]+)"
+    r"/skills/[^/]+/SKILL\.md$",
     re.IGNORECASE,
 )
 
-# The two skill trees `_SKILL_FILE_PATTERN` matches. A default full scan covers
-# both, so all three discovery paths (staged, changed-files, full scan) answer
+# The skill trees `_SKILL_FILE_PATTERN` matches. A default full scan covers
+# all of them, so all three discovery paths (staged, changed-files, full scan) answer
 # the same question. Before issue #4015 the full scan fell through to a single
 # `--path` default of `.claude/skills` and measured 98 of 209 SKILL.md bodies,
 # then printed "All skill frontmatter validated successfully!", a sentence about
-# a corpus it never opened. This script has no lefthook or workflow caller, so
-# the default full scan is its only invocation path.
+# a corpus it never opened. The codex, cursor, muse, and hermes trees joined so
+# GP-003 holds on every shipped copy; ADR-115 debate log 4 found no scanner
+# read them, and the hermes copies of three skills had lost their version.
 # ADR-119: shipped skills are directory links under .claude/skills, which rglob
 # does not follow, so they are read at src/claude/skills.
 _SKILL_TREE_PREFIXES: tuple[str, ...] = (
     ".claude/skills",
     "src/claude/skills",
     "src/copilot-cli/skills",
+    "src/codex/skills",
+    "src/cursor/skills",
+    "src/muse/skills",
+    "src/hermes",
 )
 
 # Copilot CLI rejects non-string values for this skill field at load time.
@@ -396,11 +419,29 @@ def validate_compatibility(compatibility: object) -> list[str]:
     return []
 
 
+def validate_version(version: object) -> list[str]:
+    """Validate the required top-level 'version' field: a SemVer 2.0.0 string."""
+    if version is None:
+        return ["Missing required field: version (GP-003; top level, not under metadata)"]
+    if not isinstance(version, str):
+        return [
+            f"version must be a string, got {_type_name(version)} "
+            "(quote it, or use three parts such as 1.0.0)"
+        ]
+    if SEMVER_PATTERN.match(version) is None:
+        return [f"version is not a SemVer 2.0.0 string: {version!r} (use 1.0.0 form)"]
+    return []
+
+
 def validate_license(license_value: object) -> list[str]:
-    """Validate the optional 'license' field: a string, as the spec defines it."""
-    if isinstance(license_value, str):
-        return []
-    return [f"license must be a string, got {_type_name(license_value)}"]
+    """Validate the required 'license' field: a non-empty string (GP-003)."""
+    if license_value is None:
+        return ["Missing required field: license (GP-003)"]
+    if not isinstance(license_value, str):
+        return [f"license must be a string, got {_type_name(license_value)}"]
+    if not license_value.strip():
+        return ["license is empty"]
+    return []
 
 
 def validate_model(model: str | None) -> list[str]:
@@ -605,10 +646,10 @@ def validate_typed_fields(typed: dict[object, object], directory: str) -> list[s
     """Run the field checks on parsed YAML values."""
     errors = validate_name(typed.get("name"), directory)
     errors.extend(validate_description(typed.get("description")))
+    errors.extend(validate_version(typed.get("version")))
+    errors.extend(validate_license(typed.get("license")))
     if "compatibility" in typed:
         errors.extend(validate_compatibility(typed["compatibility"]))
-    if "license" in typed:
-        errors.extend(validate_license(typed["license"]))
     if "allowed-tools" in typed:
         errors.extend(validate_allowed_tools(typed["allowed-tools"]))
     model = typed.get("model")
@@ -653,6 +694,32 @@ def validate_skill_file(file_path: Path) -> FileValidationResult:
         print(f"      - {error}")
 
     return FileValidationResult(file_path=str(relative), passed=False, errors=all_errors)
+
+
+def validate_skill_frontmatter(repo_root: Path) -> bool:
+    """Pre-PR entry point: True when every SKILL.md in every scanned tree passes.
+
+    Matches the ``validate_*(repo_root) -> bool`` contract that ``pre_pr.py``
+    uses. Per-file lines are suppressed; only failures and a count print.
+    """
+    files = _skill_corpus.corpus_files(repo_root, _SKILL_TREE_PREFIXES)
+    if not files:
+        print(f"[FAIL] No SKILL.md found under {', '.join(_SKILL_TREE_PREFIXES)}")
+        return False
+    # Name absent trees, so a moved tree cannot pass as a smaller corpus.
+    print(_skill_corpus.corpus_summary(repo_root, _SKILL_TREE_PREFIXES))
+    failures: list[tuple[Path, list[str]]] = []
+    for file_path in files:
+        with contextlib.redirect_stdout(io.StringIO()):
+            result = validate_skill_file(file_path)
+        if not result.passed:
+            failures.append((file_path, result.errors))
+    for file_path, errors in failures:
+        print(f"[FAIL] {file_path.relative_to(repo_root).as_posix()}")
+        for error in errors:
+            print(f"  - {error}")
+    print(f"Skill frontmatter: {len(files) - len(failures)} of {len(files)} SKILL.md passed")
+    return not failures
 
 
 # ---------------------------------------------------------------------------
