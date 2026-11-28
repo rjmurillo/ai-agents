@@ -233,6 +233,8 @@ def _push(ctx: Context, result: common.Result) -> bool:
             result.stop("push-locked", common.EXIT_EXTERNAL, _LOCK_BUSY)
             return False
         result.add("PUSH_LOCK", lock)
+        if lock.cause:
+            result.add("PUSH_LOCK_CAUSE", f"{lock.cause} {lock.detail}")
         return _push_now(ctx, result)
 
 
