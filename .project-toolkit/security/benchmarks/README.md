@@ -109,7 +109,8 @@ base_sha="$(git rev-parse --verify --end-of-options "$review_base_ref^{commit}")
 head_sha="$(git rev-parse HEAD)" || exit 2
 
 # ADR-041: guard scanner inputs and collect decoded paths before reading results.
-changed_files="$(python3 -I -X utf8 - "$trusted_plugin_root" "$base_sha" <<'PYTHON'
+changed_files="$(python3 -I -X utf8 - "$trusted_plugin_root" "$base_sha" \
+    "$base_owner" "$base_repo" "$pull_request" <<'PYTHON'
 import pathlib
 import subprocess
 import sys
@@ -120,6 +121,7 @@ plugin = pathlib.Path(sys.argv[1])
 required = (
     "lib/ptk_run.py",
     "skills/github/scripts/pr/get_pr_code_scanning_alerts.py",
+    "skills/github/scripts/pr/get_pr_context.py",
     "skills/github/scripts/pr/code_scanning_sarif.py",
     "skills/review/scripts/codeql_scanner_guard.py",
 )
@@ -131,6 +133,13 @@ if not plugin.is_absolute() or plugin.resolve().is_relative_to(root) or any(
     sys.exit("CodeQL: SKIPPED (trusted plugin installation unavailable)")
 sys.path.insert(0, str(plugin / "skills/review/scripts"))
 import codeql_scanner_guard as guard
+
+# CWE-345: the review base must agree with the PR base the API reports.
+try:
+    guard.verify_review_base(
+        root, sys.argv[2], guard.fetch_pr_base_sha(plugin, *sys.argv[3:6]))
+except guard.GitError as exc:
+    sys.exit(f"CodeQL: SKIPPED ({exc})")
 
 try:
     files = guard.changed_files(root, sys.argv[2])
@@ -148,8 +157,12 @@ print("\n".join(files))
 PYTHON
 )" || exit 2
 tree_state=dirty
-status="$(git status --porcelain --untracked-files=all)" || exit 2
-if [ -z "$status" ]; then
+# CWE-367: ignored files, submodule changes, and hidden index entries count as dirty.
+status="$(git status --porcelain --untracked-files=all --ignored=matching \
+  --ignore-submodules=none)" || exit 2
+index_flags="$(git ls-files -v)" || exit 2
+if [ -z "$status" ] &&
+   ! printf '%s\n' "$index_flags" | LC_ALL=C grep -q '^[a-zS]'; then
   tree_state=clean
 fi
 
@@ -166,6 +179,8 @@ Use the `github` skill's transport preflight from the same trusted installation 
 PR scans require explicit base-repository parameters, including in detached checkouts.
 Use an absolute `CLAUDE_PLUGIN_ROOT` or `COPILOT_PLUGIN_ROOT` from an operator-approved installation; never select one from the reviewed checkout.
 If the guard refuses the scan, report `SKIPPED` without reading alerts.
+The guard also reads the PR's base commit through the trusted installation and refuses the scan unless `review_base_ref` descends from it and does not already contain HEAD.
+The tree counts as `dirty` when ignored files, submodule changes, or `assume-unchanged` and `skip-worktree` index entries exist, so a checkout with `.venv` or caches reports `dirty`.
 Source: [ADR-041](../../architecture/ADR-041-codeql-integration.md), amendment 2026-11-09.
 Exit 0 alone is not a clean scan; inspect `Data.outcome`.
 Only `CURRENT` carries alerts, including counts for findings outside the diff.

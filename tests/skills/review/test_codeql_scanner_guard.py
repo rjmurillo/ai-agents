@@ -214,6 +214,92 @@ class TestResolveBaseRef:
             guard.resolve_base_ref(repo, None)
 
 
+class TestVerifyReviewBase:
+    def _sha(self, repo, ref):
+        return git(repo, "rev-parse", ref)
+
+    def test_ref_equal_to_the_pr_base_passes(self, tmp_path):
+        repo = make_repo(tmp_path)
+        base = self._sha(repo, "origin/main")
+        guard.verify_review_base(repo, base, base)
+
+    def test_head_equal_to_the_pr_base_passes(self, tmp_path):
+        repo = make_repo(tmp_path)
+        head = self._sha(repo, "HEAD")
+        guard.verify_review_base(repo, head, head)
+
+    def test_newer_merged_base_passes(self, tmp_path):
+        repo = make_repo(tmp_path)
+        pr_base = self._sha(repo, "origin/main")
+        git(repo, "checkout", "main")
+        write(repo, "main-only.txt")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-m", "main moves")
+        newer = self._sha(repo, "HEAD")
+        git(repo, "checkout", "feature")
+        git(repo, "merge", "--no-edit", "main")
+        guard.verify_review_base(repo, newer, pr_base)
+
+    def test_ref_containing_head_fails_closed(self, tmp_path):
+        repo = make_repo(tmp_path)
+        pr_base = self._sha(repo, "origin/main")
+        with pytest.raises(guard.GitError, match="already contains HEAD"):
+            guard.verify_review_base(repo, self._sha(repo, "HEAD"), pr_base)
+
+    def test_ref_older_than_the_pr_base_fails_closed(self, tmp_path):
+        repo = make_repo(tmp_path)
+        old = self._sha(repo, "origin/main")
+        write(repo, "second.txt")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-m", "second")
+        with pytest.raises(guard.GitError, match="does not descend from the PR base"):
+            guard.verify_review_base(repo, old, self._sha(repo, "HEAD"))
+
+    @pytest.mark.parametrize("pr_base", ["", "main", "0" * 39, "G" * 40])
+    def test_malformed_pr_base_fails_closed(self, tmp_path, pr_base):
+        repo = make_repo(tmp_path)
+        with pytest.raises(guard.GitError, match="PR base SHA unavailable"):
+            guard.verify_review_base(repo, self._sha(repo, "origin/main"), pr_base)
+
+    def test_pr_base_missing_from_the_clone_fails_closed(self, tmp_path):
+        repo = make_repo(tmp_path)
+        with pytest.raises(guard.GitError):
+            guard.verify_review_base(repo, self._sha(repo, "origin/main"), "0" * 40)
+
+
+class TestFetchPrBaseSha:
+    def _plugin(self, tmp_path, body):
+        launcher = tmp_path / "plugin/lib/ptk_run.py"
+        launcher.parent.mkdir(parents=True)
+        launcher.write_text(body, encoding="utf-8")
+        return tmp_path / "plugin"
+
+    def test_reads_the_base_sha_from_the_reader_output(self, tmp_path):
+        plugin = self._plugin(
+            tmp_path,
+            "import json\nprint(json.dumps({'Data': {'base_sha': 'a' * 40}}))\n",
+        )
+        assert guard.fetch_pr_base_sha(plugin, "o", "r", "1") == "a" * 40
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "print('not json')\n",
+            "print('{}')\n",
+            "import json\nprint(json.dumps({'Data': {'base_sha': None}}))\n",
+            "import json\nprint(json.dumps({'Data': {'base_sha': 'short'}}))\n",
+            "import json, sys\nprint(json.dumps({'Data': {'base_sha': 'a' * 40}}))\nsys.exit(3)\n",
+        ],
+    )
+    def test_unusable_reader_output_fails_closed(self, tmp_path, body):
+        with pytest.raises(guard.GitError, match="PR base SHA unavailable"):
+            guard.fetch_pr_base_sha(self._plugin(tmp_path, body), "o", "r", "1")
+
+    def test_missing_launcher_fails_closed(self, tmp_path):
+        with pytest.raises(guard.GitError, match="PR base SHA unavailable"):
+            guard.fetch_pr_base_sha(tmp_path / "absent", "o", "r", "1")
+
+
 def test_run_git_reports_a_missing_git_binary(monkeypatch, tmp_path):
     def boom(*args, **kwargs):
         raise FileNotFoundError("git")

@@ -34,8 +34,10 @@ Standard library only: this module ships in the plugin tree.
 
 from __future__ import annotations
 
+import json
 import os
 import posixpath
+import re
 import subprocess
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -141,6 +143,102 @@ def resolve_base_ref(repo_root: Path, base_branch: str | None) -> str:
     ref = f"origin/{name}"
     run_git(repo_root, ["rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"])
     return ref
+
+
+PR_CONTEXT_SCRIPT = "skills/github/scripts/pr/get_pr_context.py"
+PR_FETCH_TIMEOUT_SECONDS = 60
+_COMMIT_ID = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
+
+
+def fetch_pr_base_sha(plugin_root: Path, owner: str, repo: str, pull_request: str) -> str:
+    """Return the PR's base commit id as the GitHub API reports it.
+
+    Runs ``get_pr_context.py`` through the launcher in the trusted plugin root, so no
+    code from the reviewed checkout runs. The working directory is the plugin root.
+
+    Raises:
+        GitError: the reader fails, times out, or returns no commit id.
+    """
+    command = [
+        "python3",
+        "-I",
+        str(plugin_root / "lib/ptk_run.py"),
+        PR_CONTEXT_SCRIPT,
+        "--owner",
+        owner,
+        "--repo",
+        repo,
+        "--pull-request",
+        pull_request,
+        "--output-format",
+        "json",
+    ]
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            timeout=PR_FETCH_TIMEOUT_SECONDS,
+            check=False,
+            cwd=plugin_root,
+            env={**os.environ, "LC_ALL": "C"},
+        )
+        base_sha = json.loads(result.stdout.decode("utf-8"))["Data"]["base_sha"]
+    except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError) as exc:
+        raise GitError("PR base SHA unavailable") from exc
+    if (
+        result.returncode != 0
+        or not isinstance(base_sha, str)
+        or not _COMMIT_ID.fullmatch(base_sha)
+    ):
+        raise GitError("PR base SHA unavailable")
+    return base_sha
+
+
+def _is_ancestor(repo_root: Path, ancestor: str, descendant: str) -> bool:
+    """True when ``ancestor`` is ``descendant`` or reachable from it.
+
+    Raises:
+        GitError: git cannot run, or fails for a reason other than "not an ancestor".
+    """
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repo_root), "merge-base", "--is-ancestor", ancestor, descendant],
+            capture_output=True,
+            timeout=GIT_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise GitError("git merge-base could not run") from exc
+    if result.returncode not in (0, 1):
+        raise GitError("git merge-base failed")
+    return result.returncode == 0
+
+
+def verify_review_base(repo_root: Path, review_base_sha: str, pr_base_sha: str) -> None:
+    """Fail closed unless the operator's review base agrees with the PR's base.
+
+    The diff base is the merge base of HEAD and ``review_base_sha``. A ref the
+    operator picked can be stale, wrong, or already contain HEAD, and any of those
+    shrinks or empties the diff the guard reads. The merge base is accepted when:
+
+    * the PR base commit is present locally and is an ancestor of the merge base
+      (a branch that merged a newer base branch moves the merge base forward and
+      still passes; a ref older than the PR base or unrelated to it fails), and
+    * the merge base is not HEAD itself, unless HEAD is the PR base commit (a ref
+      that already contains HEAD gives an empty diff).
+
+    Raises:
+        GitError: a check fails or cannot run. The message is safe to show.
+    """
+    if not _COMMIT_ID.fullmatch(pr_base_sha):
+        raise GitError("PR base SHA unavailable")
+    run_git(repo_root, ["cat-file", "-e", f"{pr_base_sha}^{{commit}}"])
+    head = head_sha(repo_root)
+    merge_base = run_git(repo_root, ["merge-base", "HEAD", review_base_sha]).strip()
+    if not _is_ancestor(repo_root, pr_base_sha, merge_base):
+        raise GitError("review base does not descend from the PR base")
+    if merge_base == head and head != pr_base_sha:
+        raise GitError("review base already contains HEAD")
 
 
 def _split_z(output: str) -> list[str]:

@@ -128,14 +128,19 @@ def _scan_env(tmp_path: Path) -> dict[str, str]:
     launcher = plugin / "lib/ptk_run.py"
     launcher.parent.mkdir(parents=True)
     launcher.write_text(
-        "import json, sys\n"
+        "import json, os, sys\n"
+        "if sys.argv[1].endswith('get_pr_context.py'):\n"
+        "    print(json.dumps({'Success': True, "
+        "'Data': {'base_sha': os.environ['FAKE_PR_BASE_SHA']}}))\n"
+        "    sys.exit(0)\n"
         "print(json.dumps({'launcher': __file__, 'argv': sys.argv[1:], "
         "'files': sys.stdin.read()}))\n",
         encoding="utf-8",
     )
-    target = plugin / "skills/github/scripts/pr/get_pr_code_scanning_alerts.py"
-    target.parent.mkdir(parents=True)
-    target.write_text("# Reader marker.\n", encoding="utf-8")
+    for script in ("get_pr_code_scanning_alerts.py", "get_pr_context.py"):
+        target = plugin / "skills/github/scripts/pr" / script
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("# Reader marker.\n", encoding="utf-8")
     normalizer = Path("skills/github/scripts/pr/code_scanning_sarif.py")
     shutil.copyfile(REPO_ROOT / "src/claude" / normalizer, plugin / normalizer)
     guard = Path("skills/review/scripts/codeql_scanner_guard.py")
@@ -149,7 +154,23 @@ def _scan_env(tmp_path: Path) -> dict[str, str]:
         "base_repo": "ai-agents",
         "pull_request": "42",
         "review_base_ref": "main",
+        "FAKE_PR_BASE_SHA": _sha(tmp_path / "repo", "main"),
     }
+
+
+def _sha(root: Path, ref: str) -> str:
+    """Resolve ``ref`` in ``root``; empty when the repository does not exist yet."""
+    if not root.is_dir():
+        return ""
+    result = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", ref],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+        timeout=30,
+    )
+    return result.stdout.strip()
 
 
 @pytest.mark.parametrize("relative", DOCUMENTS)
@@ -210,3 +231,167 @@ def test_codeql_fetch_skips_modified_scanner_inputs(
     assert result.returncode == 2
     assert result.stdout == ""
     assert "SKIPPED (scanner inputs modified)" in result.stderr
+
+
+def _tree_state(result: subprocess.CompletedProcess[str]) -> str:
+    assert result.returncode == 0, result.stderr
+    argv = json.loads(result.stdout)["argv"]
+    return str(argv[argv.index("--tree-state") + 1])
+
+
+def _commit_file(root: Path, name: str, text: str = "content\n") -> None:
+    (root / name).write_text(text, encoding="utf-8")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", f"add {name}")
+
+
+@pytest.mark.parametrize("relative", DOCUMENTS)
+@pytest.mark.parametrize("present", [False, True], ids=["absent", "present"])
+def test_codeql_fetch_reports_ignored_files_as_dirty(
+    relative: str, tmp_path: Path, present: bool
+) -> None:
+    root = _repo(tmp_path)
+    (root / ".git/info/exclude").write_text("ignored.txt\n", encoding="utf-8")
+    if present:
+        (root / "ignored.txt").write_text("hidden\n", encoding="utf-8")
+
+    result = _execute_block(root, relative, _scan_env(tmp_path))
+
+    assert _tree_state(result) == ("dirty" if present else "clean")
+
+
+@pytest.mark.parametrize("relative", DOCUMENTS)
+@pytest.mark.parametrize("flag", ["skip-worktree", "assume-unchanged"])
+@pytest.mark.parametrize("modified", [False, True], ids=["unmodified", "modified"])
+def test_codeql_fetch_refuses_clean_for_hidden_index_entries(
+    relative: str, tmp_path: Path, flag: str, modified: bool
+) -> None:
+    root = _repo(tmp_path)
+    _commit_file(root, "tracked.txt")
+    _git(root, "update-index", f"--{flag}", "tracked.txt")
+    if modified:
+        (root / "tracked.txt").write_text("changed behind git status\n", encoding="utf-8")
+
+    result = _execute_block(root, relative, _scan_env(tmp_path))
+
+    assert _tree_state(result) == "dirty"
+
+
+@pytest.mark.parametrize("relative", DOCUMENTS)
+def test_codeql_fetch_reports_a_plain_checkout_as_clean(relative: str, tmp_path: Path) -> None:
+    root = _repo(tmp_path)
+    _commit_file(root, "tracked.txt")
+    _git(root, "update-index", "--no-skip-worktree", "tracked.txt")
+
+    result = _execute_block(root, relative, _scan_env(tmp_path))
+
+    assert _tree_state(result) == "clean"
+
+
+@pytest.mark.parametrize("relative", DOCUMENTS)
+@pytest.mark.parametrize("modified", [False, True], ids=["unmodified", "modified"])
+def test_codeql_fetch_sees_submodule_changes_hidden_by_ignore_all(
+    relative: str, tmp_path: Path, modified: bool
+) -> None:
+    root = _repo(tmp_path)
+    inner = tmp_path / "inner"
+    inner.mkdir()
+    _git(inner, "init", "-q", "-b", "main")
+    _git(inner, "config", "user.email", "test@example.com")
+    _git(inner, "config", "user.name", "Test")
+    _commit_file(inner, "lib.txt")
+    _git(root, "-c", "protocol.file.allow=always", "submodule", "add", "-q", str(inner), "sub")
+    _git(root, "config", "-f", ".gitmodules", "submodule.sub.ignore", "all")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "add submodule")
+    if modified:
+        (root / "sub/lib.txt").write_text("changed inside submodule\n", encoding="utf-8")
+
+    result = _execute_block(root, relative, _scan_env(tmp_path))
+
+    assert _tree_state(result) == ("dirty" if modified else "clean")
+
+
+def _feature_commit(root: Path) -> None:
+    _commit_file(root, "feature.txt")
+
+
+def _advance_main(root: Path) -> None:
+    _git(root, "checkout", "-q", "main")
+    _commit_file(root, "main-only.txt")
+    _git(root, "checkout", "-q", "feature")
+
+
+@pytest.mark.parametrize("relative", DOCUMENTS)
+def test_codeql_fetch_accepts_a_branch_that_merged_a_newer_base(
+    relative: str, tmp_path: Path
+) -> None:
+    root = _repo(tmp_path)
+    pr_base = _sha(root, "main")
+    _feature_commit(root)
+    _advance_main(root)
+    _git(root, "merge", "-q", "--no-edit", "main")
+    env = _scan_env(tmp_path)
+    env["FAKE_PR_BASE_SHA"] = pr_base
+
+    result = _execute_block(root, relative, env)
+
+    assert result.returncode == 0, result.stderr
+    assert set(json.loads(result.stdout)["files"].splitlines()) == {"feature.txt"}
+
+
+@pytest.mark.parametrize("relative", DOCUMENTS)
+@pytest.mark.parametrize("ref", ["feature", "ahead"])
+def test_codeql_fetch_refuses_a_base_ref_that_contains_head(
+    relative: str, tmp_path: Path, ref: str
+) -> None:
+    root = _repo(tmp_path)
+    pr_base = _sha(root, "main")
+    _feature_commit(root)
+    _git(root, "branch", "ahead")
+    _git(root, "checkout", "-q", "ahead")
+    _commit_file(root, "ahead.txt")
+    _git(root, "checkout", "-q", "feature")
+    env = _scan_env(tmp_path)
+    env["FAKE_PR_BASE_SHA"] = pr_base
+    env["review_base_ref"] = ref
+
+    result = _execute_block(root, relative, env)
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "SKIPPED (review base already contains HEAD)" in result.stderr
+
+
+@pytest.mark.parametrize("relative", DOCUMENTS)
+def test_codeql_fetch_refuses_a_base_ref_older_than_the_pr_base(
+    relative: str, tmp_path: Path
+) -> None:
+    root = _repo(tmp_path)
+    _feature_commit(root)
+    pr_base = _sha(root, "HEAD")
+    _commit_file(root, "second.txt")
+    env = _scan_env(tmp_path)
+    env["FAKE_PR_BASE_SHA"] = pr_base
+
+    result = _execute_block(root, relative, env)
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "SKIPPED (review base does not descend from the PR base)" in result.stderr
+
+
+@pytest.mark.parametrize("relative", DOCUMENTS)
+@pytest.mark.parametrize("reported", ["", "not-a-sha", "0" * 40])
+def test_codeql_fetch_refuses_an_unusable_pr_base(
+    relative: str, tmp_path: Path, reported: str
+) -> None:
+    root = _repo(tmp_path)
+    env = _scan_env(tmp_path)
+    env["FAKE_PR_BASE_SHA"] = reported
+
+    result = _execute_block(root, relative, env)
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "SKIPPED (" in result.stderr
