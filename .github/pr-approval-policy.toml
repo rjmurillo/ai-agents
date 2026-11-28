@@ -1,0 +1,32 @@
+# PR approval policy. Spec: .project-toolkit/specs/SPEC-policy-driven-pr-approvals.md
+# Read from the default branch at an immutable commit, never from the PR branch.
+# Modes: off, observe, enforce. A rule mode cannot exceed the repository mode.
+# Observe records WOULD APPROVE or HOLD. It grants no approval and merges nothing.
+
+schema_version = 1
+mode = "observe"
+
+[budget]
+max_rounds = 3
+max_classifier_calls = 1
+max_spend_usd = 0.02
+deadline_seconds = 15
+
+[protected]
+# Adds to the fixed exclusions in scripts/pr_approval/engine.py. Cannot remove any.
+extra_paths = [".project-toolkit/security/**"]
+
+# Prose-only documentation from a registered independent author.
+[[rules]]
+id = "docs-prose-only"
+mode = "observe"
+effect = "allow"
+
+[rules.all]
+paths = ["docs/runbooks/*.md", "docs/design/**/*.md", "docs/patterns/**/*.md"]
+author_class = "independent"
+max_files = 5
+max_changed_lines = 100
+forbid_renames = true
+forbid_binary = true
+forbid_code_fences = true
