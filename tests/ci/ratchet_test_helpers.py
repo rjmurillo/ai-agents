@@ -64,17 +64,30 @@ def continues_on_error(node: dict) -> bool:
     return node.get("continue-on-error") not in (None, False)
 
 
+_RUN_AFTER_FAILURE = ("always()", "!cancelled()")
+
+
 def _rollup_enforces(rollup: dict, job_id: str) -> bool:
     """True when a rollup still runs after ``job_id`` fails and reads its result.
 
-    Without ``always()`` or ``!cancelled()`` the rollup is skipped when a need
-    fails, and GitHub counts a skipped required check as passing. A rollup that
-    never reads ``needs.<job_id>.result`` (or ``needs.*.result``) passes anyway.
+    The job ``if:`` must be exactly ``always()`` or ``!cancelled()``. Any other
+    term, such as ``&& needs.<job_id>.result == 'success'``, skips the rollup
+    when the need fails, and GitHub counts a skipped required check as passing.
+    The result must be read in a step's ``run`` or ``env``, not in an ``if:``;
+    a rollup that never reads ``needs.<job_id>.result`` (or ``needs.*.result``)
+    passes anyway.
     """
-    condition = str(rollup.get("if", ""))
-    if "always()" not in condition and "!cancelled()" not in condition:
+    condition = str(rollup.get("if", "")).strip()
+    if condition.startswith("${{") and condition.endswith("}}"):
+        condition = condition[3:-2]
+    if "".join(condition.split()) not in _RUN_AFTER_FAILURE:
         return False
-    text = yaml.safe_dump(rollup)
+    reads = [
+        {key: step.get(key) for key in ("run", "env")}
+        for step in rollup.get("steps", [])
+        if step.get("if") is None and not continues_on_error(step)
+    ]
+    text = yaml.safe_dump(reads)
     return f"needs.{job_id}.result" in text or "needs.*.result" in text
 
 

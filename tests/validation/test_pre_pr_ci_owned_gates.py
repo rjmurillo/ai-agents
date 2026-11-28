@@ -230,7 +230,30 @@ class TestOwnerProblemsNegativeControls:
         "    if: ${{ !cancelled() }}\n"
         "    steps:\n"
         "      - run: echo done\n"
+        "  gated_on_result:\n"
+        "    name: Run Python Tests\n"
+        "    needs: [inner]\n"
+        "    if: ${{ !cancelled() && needs.inner.result == 'success' }}\n"
+        "    steps:\n"
+        '      - run: test "${{ needs.inner.result }}" = success\n'
     )
+
+    def test_an_always_rollup_reading_every_result_makes_its_need_required(
+        self, workflows: Path
+    ) -> None:
+        """Positive control for the ``always()`` and ``needs.*.result`` forms."""
+        good = (
+            "on:\n"
+            "  pull_request:\n"
+            "jobs:\n" + self._ROLLUP_INNER + "  all_results:\n"
+            "    name: Run Python Tests\n"
+            "    needs: [inner]\n"
+            "    if: always()\n"
+            "    steps:\n"
+            "      - run: test \"${{ contains(needs.*.result, 'failure') }}\" = false\n"
+        )
+        (workflows / "always_rollup.yml").write_text(good, encoding="utf-8")
+        assert _owner_problems("always_rollup.yml inner", None, workflows) == []
 
     def test_a_valid_owner_has_no_problem(self, workflows: Path) -> None:
         assert _owner_problems("w.yml good", "build_all.py --check", workflows) == []

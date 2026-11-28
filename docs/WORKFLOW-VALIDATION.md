@@ -310,7 +310,8 @@ reaches CI without them.
 Total: 32 same-script duplicate check pairs across both tables (8 plus 24; the
 workflow YAML pair is a pre-commit hook, not a `_SEQUENCE` gate), against the
 "about 20 plus 5 ratchets" figure the issue carried from before #5132. Since
-2026-11-27 pre-push runs no ratchet: CI owns every registered ratchet (ADR-104).
+2026-11-27 pre-push runs none of the `checks_ratchet.RATCHETS` entries: CI owns
+them (ADR-104).
 
 ## See Also
 
