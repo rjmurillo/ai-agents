@@ -13,10 +13,11 @@
   },
   "Verify dispatch closure against base": {
     "disposition": "tracked-issue",
-    "reason": "PR #7523 adds one generated ADR-119 install link, .claude/lib/memory_enhancement, pointing at src/claude/lib/memory_enhancement, to ship per-prompt recall for issue #7493. verify_dispatch_closure.py examined 62 files at fc6a9a5b with 0 differing, 0 removed, and 0 unresolved loads; its only finding is that new symlink. _link_exemption.py exempts only the skills and skills-codex rows, so a lib link fails by design. The owner approved this waiver as decision D8 on 2026-11-23 for this PR only, instead of widening the exemption.",
+    "reason": "PR #7523 adds one generated ADR-119 install link, .claude/lib/memory_enhancement, pointing at src/claude/lib/memory_enhancement, to ship per-prompt recall for issue #7493. verify_dispatch_closure.py examined 62 files at fc6a9a5b with 0 differing, 0 removed, and 0 unresolved loads; its only finding is that new symlink. _link_exemption.py exempts only the skills and skills-codex rows, so a lib link fails by design. The owner approved this waiver as decision D8 on 2026-11-23 for this PR only, instead of widening the exemption. PR #7802 moves the branch rules read out of checks_rollup.py into the new module branch_rules.py, so why_pr_blocked.py can report an enforced changes-requested review from the same ruleset read (Refs #7580). verify_dispatch_closure.py examined 68 files at 03ea7fc489 (run 46107667204, 2026-11-28) with 2 differing, 0 removed, 2 not in the base ref, 0 new symlinks, and 0 unresolved loads. It reports DIFFERS for .claude/lib/github_core/checks_rollup.py and src/claude/lib/github_core/checks_rollup.py, and NEW for .claude/lib/github_core/branch_rules.py and src/claude/lib/github_core/branch_rules.py. The owner approved this closure change as decision D5 on 2026-11-28 for this PR only (ADR-127 PM thread, issue #7581). This waiver covers only the four files named above. A later push to PR #7802 that changes another closure file needs a new owner decision.",
     "expires": "2026-12-01",
     "pull_requests": [
-      7523
+      7523,
+      7802
     ]
   },
   "Renovate": {
