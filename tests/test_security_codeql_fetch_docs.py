@@ -87,6 +87,11 @@ def test_codeql_fetch_passes_upstream_scope_from_fork_checkout(
     launcher = root / ".claude/lib/ptk_run.py"
     launcher.parent.mkdir(parents=True)
     launcher.write_text("# Checkout marker, not a launcher.\n", encoding="utf-8")
+    source_files = ("src/café.py", "src/日本語.py")
+    (root / "src").mkdir()
+    for name in source_files:
+        (root / name).write_text("# Source file.\n", encoding="utf-8")
+    _git(root, "config", "core.quotePath", "true")
     _git(root, "add", "-A")
     _git(root, "commit", "-qm", "launcher")
     _git(root, "remote", "add", "origin", "https://github.com/alice/ai-agents.git")
@@ -112,7 +117,10 @@ def test_codeql_fetch_passes_upstream_scope_from_fork_checkout(
     assert re.fullmatch(r"[0-9a-f]{40}", argv[argv.index("--head-sha") + 1])
     assert argv[argv.index("--tree-state") + 1] == ("dirty" if dirty else "clean")
     assert argv[argv.index("--changed-files-from") + 1] == "-"
-    assert ".claude/lib/ptk_run.py" in captured["files"].splitlines()
+    expected = {".claude/lib/ptk_run.py", *source_files}
+    if dirty:
+        expected.add("untracked.txt")
+    assert set(captured["files"].splitlines()) == expected
 
 
 def _scan_env(tmp_path: Path) -> dict[str, str]:
@@ -128,6 +136,8 @@ def _scan_env(tmp_path: Path) -> dict[str, str]:
     target = plugin / "skills/github/scripts/pr/get_pr_code_scanning_alerts.py"
     target.parent.mkdir(parents=True)
     target.write_text("# Reader marker.\n", encoding="utf-8")
+    normalizer = Path("skills/github/scripts/pr/code_scanning_sarif.py")
+    shutil.copyfile(REPO_ROOT / "src/claude" / normalizer, plugin / normalizer)
     guard = Path("skills/review/scripts/codeql_scanner_guard.py")
     (plugin / guard).parent.mkdir(parents=True)
     shutil.copyfile(REPO_ROOT / "src/claude" / guard, plugin / guard)

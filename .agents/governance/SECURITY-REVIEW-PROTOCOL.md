@@ -46,8 +46,8 @@ esac
 base_sha="$(git rev-parse --verify --end-of-options "$review_base_ref^{commit}")" || exit 2
 head_sha="$(git rev-parse HEAD)" || exit 2
 
-# ADR-041: guard scanner inputs before reading any results.
-python3 -I - "$trusted_plugin_root" "$base_sha" <<'PYTHON' || exit 2
+# ADR-041: guard scanner inputs and collect decoded paths before reading results.
+changed_files="$(python3 -I -X utf8 - "$trusted_plugin_root" "$base_sha" <<'PYTHON'
 import pathlib
 import subprocess
 import sys
@@ -58,6 +58,7 @@ plugin = pathlib.Path(sys.argv[1])
 required = (
     "lib/ptk_run.py",
     "skills/github/scripts/pr/get_pr_code_scanning_alerts.py",
+    "skills/github/scripts/pr/code_scanning_sarif.py",
     "skills/review/scripts/codeql_scanner_guard.py",
 )
 if not plugin.is_absolute() or plugin.resolve().is_relative_to(root) or any(
@@ -76,9 +77,14 @@ except guard.GitError:
     sys.exit("CodeQL: SKIPPED (diff could not be computed)")
 if guard.guarded_paths(files, links):
     sys.exit("CodeQL: SKIPPED (scanner inputs modified)")
-PYTHON
+sys.path.insert(0, str(plugin / "skills/github/scripts/pr"))
+from code_scanning_sarif import normalize_repo_path
 
-changed_files="$(git diff --name-only --merge-base "$base_sha" HEAD)" || exit 2
+if any(normalize_repo_path(path) != path or path.splitlines() != [path] for path in files):
+    sys.exit("CodeQL: SKIPPED (changed paths cannot be represented losslessly)")
+print("\n".join(files))
+PYTHON
+)" || exit 2
 tree_state=dirty
 status="$(git status --porcelain --untracked-files=all)" || exit 2
 if [ -z "$status" ]; then
@@ -86,8 +92,9 @@ if [ -z "$status" ]; then
 fi
 
 # The GitHub skill reads every open alert and verifies PR merge-ref freshness.
+# The C locale selects Python UTF-8 mode through the launcher and reader.
 printf '%s\n' "$changed_files" |
-  python3 -I "$trusted_plugin_root/lib/ptk_run.py" skills/github/scripts/pr/get_pr_code_scanning_alerts.py \
+  LC_ALL=C python3 -I "$trusted_plugin_root/lib/ptk_run.py" skills/github/scripts/pr/get_pr_code_scanning_alerts.py \
     --owner "$base_owner" --repo "$base_repo" --pull-request "$pull_request" \
     --head-sha "$head_sha" --tree-state "$tree_state" \
     --changed-files-from - --output-format json
