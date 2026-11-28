@@ -27,9 +27,11 @@ exported tree before the scan: run directly, the scanner would apply it, but
 the catalog runs with ``trust_repository_policy`` false, so a suppression
 would raise only the local score.
 
-Every step shares ``TOTAL_BUDGET_SECONDS``, below the lefthook cap, so a slow
-run ends with exit 3 and a reason instead of a lefthook kill. The scanner runs
-in its own process group, and a timeout kills the whole group.
+Every step shares ``TOTAL_BUDGET_SECONDS``, so a slow run ends within three
+minutes with exit 3 and a reason instead of hanging. The pre-push hook stopped
+running this script on 2026-11-27 (ADR-104); CI's ``plugin-scanner.yml`` owns
+the score. The scanner runs in its own process group, and a timeout kills the
+whole group.
 
 Review trigger: when awesome-ai-plugins changes its pinned action commit,
 scanner version, or threshold, re-measure and refresh the catalog pin recorded
@@ -68,8 +70,8 @@ DEFAULT_MIN_SCORE = 80
 # The awesome-ai-plugins listing bar (SCANNER_GUIDE.md, since 2026-10-27).
 # Only the failure message reads it; the gate uses DEFAULT_MIN_SCORE.
 CATALOG_MIN_SCORE = 75
-# One deadline covers every step, so the script reports its own exit 3 before
-# the 3m lefthook cap kills it
+# One deadline covers every step, so an on-demand run reports its own exit 3
+# within three minutes, the bound the old 3m lefthook cap set
 # (.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md item 19). A timed-out
 # step can overrun it by DRAIN_SECONDS; the budget test checks the sum.
 TOTAL_BUDGET_SECONDS = 165
