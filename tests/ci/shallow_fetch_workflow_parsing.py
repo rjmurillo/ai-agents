@@ -51,9 +51,9 @@ def _is_root_checkout(step: Mapping[str, object]) -> bool:
     `actions/checkout` writes its own `.git` under `path:`, so a nested
     checkout has a separate `.git/shallow` and cannot graft the root
     repository. Aggregating both into one job-level depth would let a shallow
-    helper checkout stand in for the root one. `pr-maintenance.yml` line 120
-    is a live example: a `.trusted-helper` checkout at depth 1 sits in a job
-    whose root checkout is depth 0.
+    helper checkout stand in for the root one. The deleted `pr-maintenance.yml`
+    `process-prs` job was the live example: a `.trusted-helper` checkout at
+    depth 1 sat in a job whose root checkout was depth 0.
 
     An UNRESOLVED path counts as root. The alternative, excluding it, would
     let `path: ${{ inputs.dir }}` silently remove a job from the sweep, and a

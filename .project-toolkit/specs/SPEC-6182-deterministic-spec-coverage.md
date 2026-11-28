@@ -43,7 +43,7 @@ At 10x PR volume, a model call per PR costs 10x tokens and 10x approvals. A dete
 - **SpecCoverageCheck**: the `Validate Spec Coverage` job in `ai-spec-validation.yml`. Deterministic.
 - **SpecReference**: an issue or spec file the PR title or body links (`spec_extract_refs.py`).
 - **AcceptanceSection**: the PR body heading matching `acceptance( criteria)?` and its checkbox items (`acceptance_criteria.py`).
-- **SpecReview**: the model review job in `ai-spec-review.yml`. Advisory, comment only, gated by the `agent-claude` environment.
+- **SpecReview**: the model review job that ran in `ai-spec-review.yml` until the owner deleted it on 2026-11-25. It was advisory, comment only, gated by the `agent-claude` environment.
 - Decision rule: SpecCoverageCheck reads only the event payload and git. SpecReview never sets a failing conclusion from a verdict.
 
 ## Data model
@@ -88,8 +88,8 @@ The check writes the verdict, reason, and each unchecked criterion to the step s
 5. When the PR links a spec and any acceptance box is unchecked, the check shall fail and list each unchecked item.
 6. When the PR links a spec and every acceptance box is checked, the check shall pass.
 7. When run twice on the same inputs, the check shall return the same verdict and exit code.
-8. The model review shall run in `ai-spec-review.yml` behind `environment: agent-claude`, post a PR comment, and conclude success regardless of the model verdict or a model failure.
-9. `ai-spec-review.yml` shall be listed in `advisory_agent_workflows`.
+8. Retired 2026-11-25, when the owner deleted `ai-spec-review.yml`. As written: The model review shall run in `ai-spec-review.yml` behind `environment: agent-claude`, post a PR comment, and conclude success regardless of the model verdict or a model failure.
+9. Retired 2026-11-25 with criterion 8. As written: `ai-spec-review.yml` shall be listed in `advisory_agent_workflows`.
 10. The `Validate Spec Coverage` entry shall be removed from `dispositions.json`.
 
 ## Out of scope

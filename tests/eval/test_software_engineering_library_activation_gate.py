@@ -8,13 +8,10 @@ import sys
 from pathlib import Path
 
 import pytest
-import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "eval" / "software_engineering_library_activation_gate.py"
 CI_SCRIPT_PATH = REPO_ROOT / "scripts" / "eval" / "software_engineering_library_activation_ci.py"
-ADR006_SCANNER_PATH = REPO_ROOT / "scripts" / "ci" / "adr006_run_block_scanner.py"
-WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "software-engineering-library-activation.yml"
 
 
 def _ok():
@@ -45,10 +42,6 @@ def _load_ci_module():
     return _load_module("software_engineering_library_activation_ci", CI_SCRIPT_PATH)
 
 
-def _load_adr006_scanner():
-    return _load_module("adr006_run_block_scanner", ADR006_SCANNER_PATH)
-
-
 def _passing_results() -> dict[str, object]:
     return {
         "rules": {
@@ -77,7 +70,7 @@ def test_state_tracks_each_moved_reference_and_resets_passes(tmp_path: Path):
     )
 
     assert state["owner"] == "agent-qa"
-    assert state["cadence"] == "weekly Monday 06:30 UTC and pull_request dry-run gate"
+    assert state["cadence"] == "manual, see scripts/eval/README.md"
     assert sorted(state["references"]) == sorted(gate.MOVED_REFERENCE_IDS)
     assert state["references"]["refactoring"]["consecutive_activation_failures"] == 0
     assert state["references"]["refactoring"]["last_verdict"] == "PASS"
@@ -120,36 +113,6 @@ def test_judge_errors_do_not_increment_activation_failure_streak():
     assert reference_state["last_result_counted_for_rollback"] is False
 
 
-def test_workflow_runs_weekly_and_invokes_ci_wrapper():
-    workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
-    triggers = workflow[True]
-
-    assert triggers["schedule"] == [{"cron": "30 6 * * 1"}]
-    assert workflow["permissions"] == {
-        "contents": "read",
-        "issues": "write",
-        "actions": "read",
-    }
-
-    run_eval_step = next(
-        step
-        for step in workflow["jobs"]["activation-gate"]["steps"]
-        if step["name"] == "Run live activation eval"
-    )
-    alert_step = next(
-        step
-        for step in workflow["jobs"]["activation-gate"]["steps"]
-        if step["name"] == "Create or update rollback alert issue"
-    )
-
-    assert run_eval_step["run"] == (
-        "uv run python scripts/eval/software_engineering_library_activation_ci.py live-eval"
-    )
-    assert alert_step["run"] == (
-        "uv run python scripts/eval/software_engineering_library_activation_ci.py alert-issue"
-    )
-
-
 def test_ci_wrapper_covers_all_moved_reference_scenarios():
     ci = _load_ci_module()
 
@@ -159,18 +122,11 @@ def test_ci_wrapper_covers_all_moved_reference_scenarios():
     ]
 
 
-def test_workflow_does_not_add_adr006_run_block_violations():
-    scanner = _load_adr006_scanner()
-    blocks = scanner.scan_text(WORKFLOW_PATH.read_text(encoding="utf-8"))
-
-    assert [block.line for block in blocks if scanner.is_violation(block, 10)] == []
-
-
 def test_documentation_names_owner_cadence_state_and_restoration_pr_policy():
     readme = (REPO_ROOT / "scripts" / "eval" / "README.md").read_text(encoding="utf-8")
 
     assert "Owner: `agent-qa`" in readme
-    assert "Cadence: weekly Monday 06:30 UTC" in readme
+    assert "Cadence: manual" in readme
     assert "consecutive_activation_failures" in readme
     assert "restoration PR" in readme
 
@@ -344,6 +300,66 @@ class TestTheAlertBodyIsScratchAndNotRepositoryState:
         ci.alert_issue()
 
         assert paths and not paths[0].exists()
+
+
+class TestTheAlertBodyNamesWhereTheRunHappened:
+    """No workflow runs this gate since 2026-11-25, so most runs are manual.
+
+    A manual run has no run page and uploads nothing. The body must not print a
+    dead `actions/runs/unknown` link or send the reader to an uploaded artifact.
+    """
+
+    @staticmethod
+    def _bodies(monkeypatch, tmp_path: Path, open_issue: str) -> list[str]:
+        ci = _load_ci_module()
+        seen: list[str] = []
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(ci, "open_issue_number", lambda: open_issue)
+        monkeypatch.setattr(
+            ci,
+            "run",
+            lambda command, **kwargs: _record(
+                seen, Path(command[command.index("--body-file") + 1]).read_text(encoding="utf-8")
+            ),
+        )
+        ci.alert_issue()
+        return seen
+
+    @pytest.mark.parametrize("open_issue", ["", "3701"], ids=["create", "comment"])
+    def test_a_manual_run_prints_no_run_link(self, monkeypatch, tmp_path: Path, open_issue: str):
+        monkeypatch.delenv("GITHUB_RUN_ID", raising=False)
+
+        (body,) = self._bodies(monkeypatch, tmp_path, open_issue)
+
+        assert "Run: manual, outside GitHub Actions." in body
+        assert "actions/runs/" not in body
+        assert "uploaded" not in body
+        assert "`activation-gate-report.md`" in body
+
+    @pytest.mark.parametrize("open_issue", ["", "3701"], ids=["create", "comment"])
+    def test_a_numeric_run_id_still_prints_the_run_link(
+        self, monkeypatch, tmp_path: Path, open_issue: str
+    ):
+        """Negative control: a run inside Actions keeps its link."""
+        monkeypatch.setenv("GITHUB_RUN_ID", "30416078819")
+        monkeypatch.setenv("GITHUB_SERVER_URL", "https://github.com")
+        monkeypatch.setenv("GITHUB_REPOSITORY", "rjmurillo/ai-agents")
+
+        (body,) = self._bodies(monkeypatch, tmp_path, open_issue)
+
+        expected = "https://github.com/rjmurillo/ai-agents/actions/runs/30416078819"
+        assert f"Workflow run: {expected}" in body
+        assert "Run: manual" not in body
+
+    @pytest.mark.parametrize("hostile", ["--repo", "12 34", "", "١٢٣"])
+    def test_a_run_id_that_is_not_a_number_reads_as_manual(self, monkeypatch, hostile: str):
+        """Edge: a refused run id must not reach the body as a link."""
+        monkeypatch.setenv("GITHUB_RUN_ID", hostile)
+
+        source = _load_ci_module().run_source()
+
+        assert source.startswith("Run: manual")
+        assert "unknown" not in source
 
 
 class TestAMeasurementFailureDoesNotCountAsRuleUnderperformance:

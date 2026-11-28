@@ -240,48 +240,7 @@ def _step(workflow: str, job: str, name: str) -> dict:
 
 
 class TestWorkflowWiring:
-    """An AB-only pull request reaches the loader, the report, and the verdict."""
-
-    def test_extract_step_output_feeds_the_loader(self) -> None:
-        step = _step("ai-spec-review.yml", "review-spec", "Load Spec Content")
-
-        assert step["env"]["AZURE_REFS"] == "${{ steps.spec-ref.outputs.azure_refs }}"
-        # Issue #6506: the base-commit script runs from the workspace, with the
-        # PR head's spec trees as the working directory on pull_request.
-        assert (
-            step["run"]
-            .strip()
-            .endswith('python3 "$GITHUB_WORKSPACE/scripts/ci/spec_load_content.py"')
-        )
-        assert 'cd "$PR_HEAD_DATA"' in step["run"]
-
-    def test_extract_step_output_feeds_the_report(self) -> None:
-        step = _step("ai-spec-review.yml", "review-spec", "Generate Validation Report")
-
-        assert step["env"]["AZURE_REFS"] == "${{ steps.spec-ref.outputs.azure_refs }}"
-
-    def test_loader_runs_on_has_specs_and_model_steps_need_loadable(self) -> None:
-        """An AB-only body loads (and reports) but never reaches a model step."""
-        loader = _step("ai-spec-review.yml", "review-spec", "Load Spec Content")
-        assert "steps.spec-ref.outputs.has_specs == 'true'" in loader["if"]
-        for name in (
-            "Prepare Spec Context",
-            "\U0001f517 Requirements Traceability Check (Analyst Agent)",
-            "\u2705 Completeness Check (Critic Agent)",
-        ):
-            step = _step("ai-spec-review.yml", "review-spec", name)
-            assert "steps.load-spec.outputs.loadable == 'true'" in step["if"], name
-
-    def test_no_loadable_report_replaces_the_full_report_and_the_comment_still_posts(self) -> None:
-        """The advisory report must still post when nothing was loadable."""
-        none = _step("ai-spec-review.yml", "review-spec", "Generate No-Loadable Report")
-        full = _step("ai-spec-review.yml", "review-spec", "Generate Validation Report")
-        comment = _step("ai-spec-review.yml", "review-spec", "Post PR Comment")
-        assert "loadable == 'false'" in none["if"]
-        assert "loadable != 'false'" in full["if"]
-        assert "loadable" not in comment["if"]
-        assert none["run"] == "python3 scripts/ci/spec_no_loadable_report.py"
-        assert "report-none.outputs.report_file" in comment["env"]["REPORT_FILE"]
+    """The verdict step reads the extractor's output, and an AB-only body loads."""
 
     def test_verdict_step_reads_has_specs_from_the_same_extractor(self) -> None:
         step = _step("ai-spec-validation.yml", "validate-spec", "Decide spec coverage verdict")
@@ -289,7 +248,7 @@ class TestWorkflowWiring:
         assert step["env"]["HAS_SPECS"] == "${{ steps.spec-ref.outputs.has_specs }}"
 
     def test_ab_only_body_reaches_the_validation_path_end_to_end(self, tmp_path: Path) -> None:
-        """Chain the real extractor into the real loader, as the workflow does."""
+        """Chain the real extractor into the real loader. No workflow runs the loader."""
         outputs = _extract(tmp_path, "Fixes AB#123")
         assert outputs["has_specs"] == "true"
 

@@ -1,6 +1,6 @@
 """Find issues with the copilot-ready label.
 
-Replaces the inline bash block in copilot-context-synthesis.yml
+Replaces the inline bash block in copilot-context-synthesis.yml (deleted 2026-11-25)
 (ADR-006: no logic in YAML). Calls gh CLI to list open issues with the
 copilot-ready label, then writes space-separated issue numbers and a
 count to GITHUB_OUTPUT.

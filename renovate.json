@@ -56,7 +56,7 @@
         ".github/workflows/**",
         ".github/cli-smoke/**"
       ],
-      "description": "A workflow file can hold secrets or write tokens, and the CLI smoke pins in .github/cli-smoke/ run beside the smoke credentials, so bumps to them used to need a human approval (#6506 review-gates-15). Richard directed automerge for all Renovate updates on 2026-11-23, with CI as the gate, so these updates automerge like the rest. Renovate applies rules in order, so this rule sits after every rule that enables automerge.",
+      "description": "A workflow file can hold secrets or write tokens, and the CLI smoke pins in .github/cli-smoke/ ran beside the smoke credentials until the credentialed legs were deleted on 2026-11-25, so bumps to them used to need a human approval (#6506 review-gates-15). Richard directed automerge for all Renovate updates on 2026-11-23, with CI as the gate, so these updates automerge like the rest. Renovate applies rules in order, so this rule sits after every rule that enables automerge.",
       "automerge": true
     },
     {
