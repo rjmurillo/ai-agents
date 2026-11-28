@@ -1,7 +1,7 @@
 ---
 name: avoiding-manufactured-work
 version: 1.3.0
-description: "Stop manufactured work after a deliverable looks done and classify post-completion findings into the four contract classes builder-ethos.md delegates here. Use when a worker produced a plan, issue, PR, backlog item, or follow-up task and you must verify a real user, criterion, or blocked decision demanded it."
+description: "Stop manufactured work after a deliverable looks done and classify post-completion findings into the four contract classes builder-ethos.md delegates here. Use when a worker produced a plan, issue, PR, backlog item, or follow-up task and you must verify a real user, criterion, or blocked decision demanded it. Also bounds mid-task drive-by fixes."
 license: Apache-2.0
 ---
 
@@ -15,7 +15,7 @@ Pair this with the `front-gate-before-pipeline` pattern. Front-gate fires before
 
 ## Triggers
 
-`is this work manufactured`, `does this follow-up have a consumer`, `classify this post-completion finding`, `should I file this follow-up`
+`is this work manufactured`, `does this follow-up have a consumer`, `classify this post-completion finding`, `should I file this follow-up`, `should I fix this while I am here`
 
 ## Process
 
@@ -61,6 +61,36 @@ This section is that procedure. It maps each class onto the keep/shrink/defer/de
 Test the Blocker class first. A finding that falsifies mandatory safety or repository policy is a Blocker whether or not it sits inside the requested objective, so it never reaches the Side quest row and never maps to delete. Classify in table order: Blocker, then Requested improvement, then Optional enhancement, then Side quest.
 
 A defer or a delete is a disposition, not a silent drop. Name the finding and its class in the report, then stop. Naming it is not a reason to reopen the task; only the Reactivation section below can do that.
+
+A confirmed defect found nearby is class 3 under Drive-By Fixes below, not a Side quest to delete.
+
+## Drive-By Fixes
+
+Use this when you find something to change that the request did not name. Work the user asked for is the task, not a drive-by: plan it directly and leave these classes out of it. This is the canonical statement; the builder-ethos and voice rules point here. The default answer is no. An exception needs the evidence below. A preference is not evidence.
+
+| Class | What it covers | Where it goes |
+|---|---|---|
+| 1. Tidy | Tiny, behavior-preserving cleanup in code the change already touches, when it makes the requested diff easier to read: a typo, a missing type hint, a dead local, a clearer local name in the function you edit. Renaming things elsewhere in the file does not qualify. | Same PR, its own commit, named in the PR body. |
+| 2. Needed | Anything the requested change needs to be correct: callers, tests, docs, generated output. | Same PR. This is the change itself, not a drive-by. |
+| 3. Defect | A confirmed defect with a named impact and its own proof (a reproduction or failing test), when it changes behavior, needs a different reviewer or code owner, or must be revertable alone. | Separate branch and PR with its own proof, only with authority for that extra PR (see below). Otherwise name it, its impact, and its proof in the PR body. |
+| 4. Taste | Style or naming preference, whole-file formatting, cross-module renames, refactors with no named consumer. | Do not do it. No issue, no branch, no follow-up PR. |
+
+Classify in this order: class 2, then 3, then 1, then 4. If the requested change needs it to be correct, it is class 2 and stays in the PR, even when it is also a defect.
+
+Stop conditions:
+
+- Class 1 is a few lines. About 20 to 30 changed lines of class 1 cleanup across the whole PR diff is a signal to stop and reassess, not an allowance.
+- A drive-by fix never spawns another. Do not fix what the first fix revealed. If it is a confirmed defect, it is class 3; otherwise drop it.
+- Once the requested change is proven, stop. Do not sweep for more work, and do not offer follow-ups.
+
+For tidy fixes, name the readability gain and check that behavior stays the same. For defects and needed fixes, name what breaks and how you will prove the fix.
+
+Authority for class 3: a second PR is state the user did not name (builder-ethos section 6). It needs a user order or workflow contract that covers opening PRs for defects found along the way; an order to ship the requested change alone does not. One class 3 PR per task. A second confirmed defect is named in the PR body, not opened. In a question, review, or diagnosis, or once the task is terminal, name the defect, its impact, and its proof in the report instead (builder-ethos section 6). Filing an issue still follows the builder-ethos section 4 flag rule.
+
+Practice behind the classes:
+
+- Google Engineering Practices, [Small CLs](https://google.github.io/eng-practices/review/developer/small-cls.html), section "Separate Out Refactorings": refactorings go in a separate CL from feature changes or bug fixes, but "Small cleanups such as fixing a local variable name can be included inside of a feature change or bug fix CL."
+- Martin Fowler, [Opportunistic Refactoring](https://martinfowler.com/bliki/OpportunisticRefactoring.html): the camp site rule, "always leave the code behind in a better state than you found it." Classes 1 and 4 bound how far that reaches.
 
 ## Friction Report
 
@@ -126,3 +156,4 @@ Exit codes:
 - [ ] Any post-completion finding was tested against Blocker first.
 - [ ] Every finding reached a stated disposition; none was dropped silently.
 - [ ] Every workaround has a report. Omit the section when there were none.
+- [ ] Each drive-by fix has a Drive-By Fixes class, and no fix spawned another.
