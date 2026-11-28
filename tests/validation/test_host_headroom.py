@@ -3,15 +3,19 @@
 About 16 agents pushed from one host at once. Clean pushes failed on a testmon
 SQLite lock, the 180s pytest budget, and a semgrep-core target failure, then
 passed unchanged once the host was quiet. `host_headroom` caps how many heavy
-stages run at once and waits for load to drop before a stage starts its clock.
+stages run at once and waits for host CPU pressure to drop before a stage
+starts its clock.
 
 Coverage:
 
-- positive: a free slot and low load grant at once, with no wait and no output.
-- negative: a full slot set or high load makes the stage wait, and an exhausted
-  wait runs the stage anyway (never skips it) with a warning naming load.
+- positive: a free slot and low pressure grant at once, with no wait and no
+  output; Linux CPU PSI and `procs_running` ignore D-state (`in_iowait`) tasks.
+- negative: full slots fail closed with exit 3 (`HeadroomTimeoutError`) once
+  `wait_budget` expires instead of running uncapped; high CPU pressure waits
+  without hoarding a slot, and jittered polling avoids lockstep wakeups.
 - edge: bad settings are config errors, a slot frees on release, a zero budget
-  never sleeps, an unknown load never blocks, and the note names the load.
+  never sleeps, an unknown load never blocks, missing `/proc` files fall back
+  to `load_average`, and the note names the load.
 """
 
 from __future__ import annotations
@@ -65,6 +69,10 @@ def _settings(tmp_path: Path, *, slots: int = 2, max_load: float = 8.0) -> host_
     return host_headroom.Settings(slots=slots, max_load=max_load, slot_dir=tmp_path / "slots")
 
 
+def _midpoint(low: float, high: float) -> float:
+    return (low + high) / 2.0
+
+
 def test_free_slot_and_low_load_grant_at_once(tmp_path: Path) -> None:
     clock = _Clock()
     stream = io.StringIO()
@@ -84,31 +92,34 @@ def test_free_slot_and_low_load_grant_at_once(tmp_path: Path) -> None:
     assert stream.getvalue() == ""
 
 
-def test_full_slots_wait_then_run_anyway_with_a_load_warning(tmp_path: Path) -> None:
+def test_full_slots_fail_closed_instead_of_running_uncapped(tmp_path: Path) -> None:
+    """AC: exhausted wait_budget with all slots occupied exits 3, never runs uncapped."""
     settings = _settings(tmp_path, slots=1)
     clock = _Clock()
     stream = io.StringIO()
+    body_ran = False
     with host_headroom.heavy_stage_slot(
         "other", 0, settings=settings, load=lambda: 1.0, stream=io.StringIO()
     ) as held:
         assert held.slot == 0
-        with host_headroom.heavy_stage_slot(
-            "pytest",
-            30,
-            settings=settings,
-            clock=clock,
-            sleep=clock.sleep,
-            load=lambda: 1.0,
-            stream=stream,
-        ) as grant:
-            assert grant.slot is None
-            assert grant.headroom is False
-            assert grant.waited >= 30
-    assert sum(clock.sleeps) >= 30
+        with pytest.raises(host_headroom.HeadroomTimeoutError) as exc_info:
+            with host_headroom.heavy_stage_slot(
+                "pytest",
+                30,
+                settings=settings,
+                clock=clock,
+                sleep=clock.sleep,
+                load=lambda: 1.0,
+                stream=stream,
+            ):
+                body_ran = True
+    assert body_ran is False
+    assert exc_info.value.code == 3
+    assert sum(clock.sleeps) == pytest.approx(30.0)
     output = stream.getvalue()
     assert "waiting" in output
-    assert "running pytest anyway" in output
-    assert "load" in output
+    assert "no free heavy-stage slot" in output
+    assert "retry" in output
 
 
 def test_a_released_slot_is_free_again(tmp_path: Path) -> None:
@@ -131,6 +142,7 @@ def test_high_load_waits_until_it_drops(tmp_path: Path) -> None:
         clock=clock,
         sleep=clock.sleep,
         load=lambda: next(readings),
+        jitter=_midpoint,
         stream=stream,
     ) as grant:
         assert grant.headroom is True
@@ -154,6 +166,7 @@ def test_zero_wait_budget_never_sleeps(tmp_path: Path) -> None:
         stream=stream,
     ) as grant:
         assert grant.headroom is False
+        assert grant.slot == 0
     assert clock.sleeps == []
     assert "running pytest anyway" in stream.getvalue()
 
@@ -238,11 +251,11 @@ def test_load_note_says_when_load_is_unknown() -> None:
     assert "unavailable" in note
 
 
-# --- review round 1: a slot bounds concurrency even when load is high ---
+# --- bounded concurrency and no slot hoarding ---
 
 
-def test_high_load_still_takes_a_free_slot(tmp_path: Path) -> None:
-    """A stage that waits on load holds a slot, so an overdue stage counts toward the cap."""
+def test_high_load_takes_a_free_slot_only_when_executing(tmp_path: Path) -> None:
+    """AC: an overdue stage claims a free slot at timeout so it counts toward the cap."""
     clock = _Clock()
     stream = io.StringIO()
     with host_headroom.heavy_stage_slot(
@@ -260,26 +273,29 @@ def test_high_load_still_takes_a_free_slot(tmp_path: Path) -> None:
 
 
 def test_an_overdue_stage_keeps_later_stages_out_of_its_slot(tmp_path: Path) -> None:
+    """AC: an overdue holder still bounds concurrency; later stages fail closed."""
     settings = _settings(tmp_path, slots=1)
     with host_headroom.heavy_stage_slot(
         "first", 0, settings=settings, load=lambda: 50.0, stream=io.StringIO()
     ) as first:
         assert first.slot == 0
-        with host_headroom.heavy_stage_slot(
-            "second", 0, settings=settings, load=lambda: 1.0, stream=io.StringIO()
-        ) as second:
-            assert second.slot is None
-            assert second.headroom is False
+        with pytest.raises(host_headroom.HeadroomTimeoutError) as exc_info:
+            with host_headroom.heavy_stage_slot(
+                "second", 0, settings=settings, load=lambda: 1.0, stream=io.StringIO()
+            ):
+                pass
+        assert exc_info.value.code == 3
 
 
-def test_a_slot_is_held_while_the_stage_waits_for_load(tmp_path: Path) -> None:
+def test_no_slot_hoarding_while_waiting_on_load(tmp_path: Path) -> None:
+    """AC: waiting on high load does not hold a slot; rivals can acquire and execute."""
     settings = _settings(tmp_path, slots=1)
     clock = _Clock()
     seen: list[int | None] = []
     readings = iter([20.0, 20.0, 2.0])
 
     def load() -> float:
-        # A rival stage probes the slot while this one waits on load.
+        # While this stage is blocked on load, slot 0 must stay free for a rival.
         with host_headroom.heavy_stage_slot(
             "rival", 0, settings=settings, load=lambda: 1.0, stream=io.StringIO()
         ) as rival:
@@ -293,12 +309,12 @@ def test_a_slot_is_held_while_the_stage_waits_for_load(tmp_path: Path) -> None:
         clock=clock,
         sleep=clock.sleep,
         load=load,
+        jitter=_midpoint,
         stream=io.StringIO(),
     ) as grant:
         assert grant.slot == 0
         assert grant.headroom is True
-    assert len(seen) == 3
-    assert seen == [None, None, None]
+    assert seen == [0, 0, 0]
 
 
 # --- review round 1: the default load threshold scales with the CPU count ---
@@ -308,11 +324,22 @@ def test_a_slot_is_held_while_the_stage_waits_for_load(tmp_path: Path) -> None:
 def test_default_max_load_scales_with_cpus(tmp_path: Path, cpus: int) -> None:
     settings = host_headroom.read_settings({"HOME": str(tmp_path)}, cpus=cpus)
     assert settings.max_load == pytest.approx(cpus * host_headroom.DEFAULT_MAX_LOAD_PER_CPU)
+    assert settings.max_psi == pytest.approx(host_headroom.DEFAULT_MAX_CPU_PSI)
 
 
 def test_an_explicit_max_load_ignores_the_cpu_count(tmp_path: Path) -> None:
     settings = host_headroom.read_settings({host_headroom.MAX_LOAD_ENV: "5"}, cpus=48)
     assert settings.max_load == 5.0
+
+
+def test_max_psi_setting_override_and_validation(tmp_path: Path) -> None:
+    settings = host_headroom.read_settings(
+        {host_headroom.MAX_PSI_ENV: "40.5", host_headroom.SLOT_DIR_ENV: str(tmp_path)}
+    )
+    assert settings.max_psi == 40.5
+    for bad in ("-1", "nan", "inf", "busy"):
+        with pytest.raises(ValueError, match=host_headroom.MAX_PSI_ENV):
+            host_headroom.read_settings({host_headroom.MAX_PSI_ENV: bad})
 
 
 def test_load_note_default_threshold_uses_the_cpu_count(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -377,7 +404,9 @@ def test_other_stages_counts_foreign_holders_only(tmp_path: Path) -> None:
 def test_a_foreign_holder_still_takes_a_slot_from_the_cap(tmp_path: Path) -> None:
     settings = _settings(tmp_path, slots=1)
     with _foreign_hold(settings, 0):
-        with host_headroom.heavy_stage_slot(
-            "pytest", 0, settings=settings, load=lambda: 1.0, stream=io.StringIO()
-        ) as grant:
-            assert grant.slot is None
+        with pytest.raises(host_headroom.HeadroomTimeoutError) as exc_info:
+            with host_headroom.heavy_stage_slot(
+                "pytest", 0, settings=settings, load=lambda: 1.0, stream=io.StringIO()
+            ):
+                pass
+    assert exc_info.value.code == 3

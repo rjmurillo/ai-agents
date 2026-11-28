@@ -1,7 +1,7 @@
 ---
 name: windows-image-updater
 version: 1.0.0
-description: Automates Windows container image migration for OneBranch pipelines. Bumps AdoPipelineGeneration package, regenerates pipeline configs via ConfigGen, and verifies old image reference is removed. Use for LTSC2019 to LTSC2022 migration, container image updates, OneBranch pipeline image upgrades. Do NOT use to validate an Azure DevOps pipeline (use pipeline-validator).
+description: "Migrate Windows container images for OneBranch pipelines: bump AdoPipelineGeneration, regenerate configs via ConfigGen, verify the old image is gone. Use for LTSC2019 to LTSC2022 migration or OneBranch image upgrades. Do NOT use to validate an Azure DevOps pipeline (use pipeline-validator)."
 license: Apache-2.0
 ---
 

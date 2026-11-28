@@ -17,11 +17,11 @@ from pathlib import Path
 import pytest
 
 from scripts.testing.mutation_workspace import isolated_mutation_worktree
-from tests.mutation._adr_debate_harness import _TARGET_REL, REPO_ROOT
+from tests.mutation._adr_debate_harness import _EVIDENCE_REL, _TARGET_REL, REPO_ROOT
 
 
 @pytest.fixture()
 def scratch_worktree() -> Iterator[Path]:
     """Provide a marked scratch git worktree; remove it after the test."""
-    with isolated_mutation_worktree(REPO_ROOT, [_TARGET_REL]) as workspace:
+    with isolated_mutation_worktree(REPO_ROOT, [_TARGET_REL, _EVIDENCE_REL]) as workspace:
         yield workspace.root

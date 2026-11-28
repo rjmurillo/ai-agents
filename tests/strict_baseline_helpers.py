@@ -27,9 +27,8 @@ PYPROJECT = REPO_ROOT / "pyproject.toml"
 # Shrink-only pins. Lower each number when you fix debt; never raise it to make
 # an entry fit. Adding an entry without editing these constants fails the
 # length tests below, so the growth shows up in the diff a reviewer reads.
-# 81 is 79 plus the two src/muse/lib copies that #7041 added on main while
-# this PR was open; they mirror src/claude/lib files already listed.
-EXPECTED_C901_BASELINE_ENTRIES = 80
+# The count includes src/muse/lib copies that mirror src/claude/lib files already listed.
+EXPECTED_C901_BASELINE_ENTRIES = 79
 # 159 is the complete count for this PR, not growth: the first cut counted 144
 # and missed the modules that fail only an error code (type-arg,
 # no-any-return, call-overload). Those now count, which is 148, plus the 10

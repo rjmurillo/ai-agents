@@ -1,7 +1,7 @@
 ---
 name: decision-critic
 version: 1.0.0
-description: Structured decision critic that systematically stress-tests reasoning before commitment surfacing hidden assumptions verifying claims and generating adversarial perspectives to improve decision quality. Do NOT use to surface failure risks pre-launch (use pre-mortem), probe why a constraint exists (use chestertons-fence), ask the user to choose (use decision-question), or review a plan file or diff (use the critic agent).
+description: "Stress-test reasoning before commitment: hidden assumptions, claim checks, adversarial perspectives. Do NOT use for pre-launch failure risks (use pre-mortem), why a constraint exists (use chestertons-fence), asking the user to choose (use decision-question), or reviewing a plan file or diff (use the critic agent)."
 license: Apache-2.0
 ---
 
