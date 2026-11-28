@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 import json
 import os
+import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -212,3 +215,31 @@ def remote_has_branch(tmp_path: Path) -> bool:
         check=False,
     )
     return done.returncode == 0
+
+
+def alive(pid: int) -> bool:
+    """True while ``pid`` runs. A zombie (Z), or a task the kernel is releasing (X), is gone."""
+    try:
+        stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+    except OSError:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        return True
+    return stat.rsplit(")", 1)[1].split()[0] not in ("Z", "X")
+
+
+def assert_dead(pid_file: Path) -> None:
+    """The child a hook or helper left dies within a bounded poll, so a slow reaper cannot flake."""
+    pid = int(pid_file.read_text(encoding="utf-8"))
+    deadline = time.monotonic() + 10
+    while alive(pid) and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert not alive(pid), "the child outlived the command that started it"
+
+
+def reap(pid_file: Path) -> None:
+    if pid_file.exists():
+        with contextlib.suppress(ProcessLookupError, ValueError):
+            os.kill(int(pid_file.read_text(encoding="utf-8")), signal.SIGKILL)
