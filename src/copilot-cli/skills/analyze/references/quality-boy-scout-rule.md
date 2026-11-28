@@ -55,7 +55,7 @@ When reporting findings, classify improvements by scope:
 |---------------|--------|---------|
 | Tidy fix | Optional; same PR, own commit, named in its body | Fix a typo in code you edit |
 | Refactor the change needs | Same PR, as part of the change | Extract a method the new code calls |
-| Large refactor the change does not need | Do not do it; it is class 4 taste | Restructure module boundaries |
+| Large refactor the change does not need | Class 4 taste: do not do it. A confirmed defect is class 3 instead | Restructure module boundaries |
 | Architecture change | ADR required | Change data flow pattern |
 
 ## Related Concepts

@@ -49,7 +49,7 @@ Apply the focus areas below when the diff adds or changes executable code (funct
 Ground findings in the project's code-quality artifacts. All paths are under `.claude/` and ship with vendored installs:
 
 - `code-qualities-assessment` skill: scores maintainability through five foundational qualities (cohesion, coupling, encapsulation, testability, non-redundancy) with quantifiable rubrics. `/review` can select it or pin it always-on; use this canonical axis to read the same change with the same lens before the skill runs, and defer to the skill's scored output when the two disagree.
-- `.claude/skills/chestertons-fence/references/boy-scout-rule.md`: the Boy Scout Rule reference. Leave the codebase cleaner than you found it, scoped only to the code you touch. Use it to check that any cleanup the diff makes stays small, safe, and inside files it already changes. Cleanup the author did not make is not a finding.
+- `.claude/skills/chestertons-fence/references/boy-scout-rule.md`: the Boy Scout Rule reference. Leave the codebase cleaner than you found it, scoped only to the code you touch. Use it to check that unrequested cleanup in the diff stays small, safe, and inside files it already changes. Cleanup the author did not make is not a finding.
 - `.claude/skills/decision-critic/references/quality-boy-scout-rule.md` and `.claude/skills/analyze/references/quality-boy-scout-rule.md`: the same Boy Scout Rule expressed for the decision-critic and analyze workflows. Either restates the scoped-improvement contract if the chestertons-fence copy is unavailable in a given install.
 
 ## Analysis Focus Areas
