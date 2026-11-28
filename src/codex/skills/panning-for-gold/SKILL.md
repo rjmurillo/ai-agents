@@ -1,7 +1,7 @@
 ---
 name: panning-for-gold
 version: 1.0.0
-description: "Triage raw unstructured input (transcripts, brain dumps) into thread inventories and a gold-found file. Use when you say \"pan for gold\", \"triage transcript\", \"synthesize gold-found\", or \"mine eureka moments\". Do NOT use for structured input like specs or ADRs (use analyst or spec-generator)."
+description: "Triage raw unstructured input (transcripts, brain dumps) into thread inventories and a gold-found file. Use when you say \"pan for gold\", \"triage transcript\", or \"synthesize gold-found\". Do NOT use for structured input like specs or ADRs (use analyst or spec-generator)."
 license: Apache-2.0
 metadata:
   routing:
