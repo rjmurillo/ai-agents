@@ -699,7 +699,7 @@ pre-push:
               # them failing blocks the push. The two heavy whole-tree gates CI
               # owns (Count Ratchets, Generated Artifact Staleness) are skipped
               # here with policy.ci_owned; see ci_owned_by in pre_pr_sequence.py.
-              # Direct pre_pr.py and CI calls leave this unset and run all gates.
+              # A direct pre_pr.py run leaves this unset and runs all gates.
               AI_AGENTS_PRE_PR_FAST_STAGE_RAN: "1"
               # This job's run budget in seconds: its timeout (above) less
               # the headroom wait. Its only reader is the generated-staleness
@@ -735,9 +735,9 @@ pre-push:
           # scripts run unconditionally in required jobs (`pytest.yml`
           # `count-ratchet-guard` and `test`, `pr-validation.yml` `validate-pr`).
           # `plugin-scanner` is owned by `.github/workflows/plugin-scanner.yml`
-          # job `scan`, unconditional on every PR and push to main, but NOT a
+          # job `scan`, on every PR and push to main (no merge_group), but NOT a
           # required context, so a low score does not block a merge. Measured
-          # 2026-11-27: count-ratchets 33.1s wall, 104s user; scanner 61.9s wall.
+          # 2026-11-27 (ADR-104): count-ratchets 30.3s wall; scanner 56.5s wall.
           # On-demand local runs:
           # `uv run python scripts/validation/git_hook_policy.py count-ratchets`
           # and `uv run python scripts/validation/check_plugin_scanner_score.py`.

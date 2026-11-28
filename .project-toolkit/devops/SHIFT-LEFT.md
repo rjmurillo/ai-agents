@@ -266,7 +266,7 @@ CI is the test authority). CI owns the ten ratchets in `checks_ratchet.py`
 required context, so a low score does not block a merge. Run them on demand
 with `uv run python scripts/validation/git_hook_policy.py count-ratchets` and
 `uv run python scripts/validation/check_plugin_scanner_score.py`. Measured
-2026-11-27: 33.1s and 61.9s wall. Inside the hook, `pre_pr.py` also skips the
+2026-11-27: 30.3s and 56.5s wall. Inside the hook, `pre_pr.py` also skips the
 `Count Ratchets` and `Generated Artifact Staleness` gates (`ci_owned_by`, skip
 reason `policy.ci_owned`), because `pytest.yml` `count-ratchet-guard`,
 `pytest.yml` `test`, `pr-validation.yml` `validate-pr`, and

@@ -5,8 +5,9 @@
 skip instead of running. ADR-104 rule 6 says a deferral is tested on what it
 relies on, so this module checks the CI side of the claim:
 
-- positive: each named job exists, has no job-level ``if:``, and feeds a
-  required context; the staleness owner runs ``build_all.py --check``; the
+- positive: each named job exists, has no job-level ``if:``, feeds a
+  required context, and sits in a workflow whose triggers carry no ``paths``
+  filter; the staleness owner runs ``build_all.py --check``; the
   Count Ratchets owners are exactly the required jobs that run every
   ``checks_ratchet.RATCHETS`` script.
 - negative: ``_owner_problems`` reports each failure mode on a fixture
@@ -112,7 +113,8 @@ def _ci_owned_entries(gate: object) -> list[str]:
 def _owner_problems(entry: str, needle: str | None, workflows_dir: Path | None = None) -> list[str]:
     """Return why ``entry`` (``<workflow>.yml <job-id>``) is not a valid CI owner.
 
-    Valid means: the workflow and job exist, the job has no job-level ``if:``,
+    Valid means: the workflow and job exist, no trigger carries a ``paths`` or
+    ``paths-ignore`` filter, the job has no job-level ``if:``,
     the job or a rollup that needs it is a required context, and, when
     ``needle`` is given, an unconditional step of the job runs it.
     """
@@ -125,10 +127,17 @@ def _owner_problems(entry: str, needle: str | None, workflows_dir: Path | None =
     path = base / workflow
     if not path.is_file():
         return [f"{entry!r}: {path} does not exist"]
-    jobs = yaml.safe_load(path.read_text(encoding="utf-8"))["jobs"]
+    document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    jobs = document["jobs"]
     if job_id not in jobs:
         return [f"{entry!r}: job {job_id!r} not in {workflow}"]
     problems: list[str] = []
+    # PyYAML reads the bare key ``on`` as boolean True.
+    triggers = document.get(True, document.get("on")) or {}
+    if isinstance(triggers, dict):
+        for event, config in triggers.items():
+            if isinstance(config, dict) and ({"paths", "paths-ignore"} & set(config)):
+                problems.append(f"{entry!r}: the {event} trigger carries a paths filter")
     if jobs[job_id].get("if") is not None:
         problems.append(f"{entry!r}: job carries an if:")
     if not _is_required_job(jobs, job_id):
@@ -145,6 +154,9 @@ class TestOwnerProblemsNegativeControls:
     """Each failure mode ``_owner_problems`` guards must be reported."""
 
     _WORKFLOW = (
+        "on:\n"
+        "  pull_request:\n"
+        "    branches: [main]\n"
         "jobs:\n"
         "  good:\n"
         "    name: Run Python Tests\n"
@@ -169,6 +181,8 @@ class TestOwnerProblemsNegativeControls:
     @pytest.fixture
     def workflows(self, tmp_path: Path) -> Path:
         (tmp_path / "w.yml").write_text(self._WORKFLOW, encoding="utf-8")
+        filtered = self._WORKFLOW.replace("    branches: [main]\n", "    paths: ['src/**']\n")
+        (tmp_path / "filtered.yml").write_text(filtered, encoding="utf-8")
         return tmp_path
 
     def test_a_valid_owner_has_no_problem(self, workflows: Path) -> None:
@@ -184,6 +198,7 @@ class TestOwnerProblemsNegativeControls:
             ("w.yml optional", None, "required"),
             ("w.yml stepgated", "build_all.py --check", "no unconditional step"),
             ("w.yml good", "some_other_script.py", "no unconditional step"),
+            ("filtered.yml good", None, "paths filter"),
         ],
     )
     def test_each_failure_mode_is_reported(

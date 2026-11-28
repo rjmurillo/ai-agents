@@ -30,8 +30,8 @@
 # (.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md, "Path filters gate the
 # diff, never the tree").
 #
-# Local twin: uv run --frozen python scripts/validation/check_plugin_scanner_score.py
-# (also the `plugin-scanner` pre-push job in lefthook.yml).
+# On-demand local twin: uv run --frozen python scripts/validation/check_plugin_scanner_score.py
+# (the pre-push job was removed on 2026-11-27, ADR-104; this workflow owns the score).
 
 name: Plugin Scanner
 
