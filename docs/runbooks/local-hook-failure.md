@@ -12,8 +12,8 @@ push that a hook blocks.
 - Every git command fails with `fatal: this operation must be run in a work tree`.
 - Git reports a bad line in `packed-refs`.
 - The hook does not run at all.
-- The pre-push `python-tests` job fails PowerShell tests with
-  `You must install or update .NET to run this application`, or with
+- Local `pytest` runs (or on-demand `git_hook_policy.py pytest`) fail PowerShell
+  tests with `You must install or update .NET to run this application`, or with
   `PowerShell parser exited 150`. The same tests fail on a clean `main`.
 
 ## Confirm

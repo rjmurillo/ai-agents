@@ -1,7 +1,7 @@
 ---
 name: skillopt
 version: 1.0.0
-description: Improve a skill, agent file, or prompt through bounded patches and a held-out, per-task acceptance gate. Use when you say `optimize this skill`, `make this skill better`, `compress these skills safely`, `tune this prompt against an eval`, or a skill keeps failing the same way. To find why a skill failed in past sessions, use skill-doctor first. Do NOT use to create or route skills (use skillforge) or to decide skill placement or compress markdown without an eval (use context-optimizer).
+description: "Improve a skill, agent file, or prompt through bounded patches and a held-out acceptance gate. Use when you say `optimize this skill`, `compress these skills safely`, `tune this prompt against an eval`, or a skill keeps failing (run skill-doctor first). Do NOT use to create or route skills (use skillforge) or to place skills or compress markdown without an eval (use context-optimizer)."
 license: Apache-2.0
 user-invocable: true
 ---

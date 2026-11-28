@@ -1,7 +1,7 @@
 ---
 name: spec
 version: 1.0.0
-description: Turn a problem into testable requirements with acceptance criteria, through a first-principles gate, a memory-first prior-art gate, and a PRD schema. Use when you say `spec this out`, `what should we build`, or `define the requirements`, and run it before plan. Do NOT use to sequence work into milestones (use plan), do NOT use to write the code (use build), and do NOT use to emit the REQ, DESIGN and TASK files directly (use spec-generator, which this invokes).
+description: "Turn a problem into testable requirements with acceptance criteria via a first-principles gate, prior-art gate, and PRD schema. Use when you say `spec this out`, `what should we build`, or `define the requirements`, before plan. Do NOT use to sequence milestones (use plan), write code (use build), or emit REQ/DESIGN/TASK files (use spec-generator, which this invokes)."
 license: Apache-2.0
 argument-hint: problem-statement-or-issue-number
 user-invocable: true
