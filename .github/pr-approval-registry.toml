@@ -1,0 +1,19 @@
+# Operator-owned identity registry for the PR approval policy.
+# Entries use stable GitHub account IDs. Logins are informational only.
+# Empty on purpose: until a maintainer registers authors and an approver
+# principal, every PR holds with AUTHOR_UNKNOWN and APPROVER_UNCONFIGURED.
+#
+# [[independent_authors]]
+# id = 0
+# login = "example"
+#
+# [[aliases]]
+# ids = [0, 0]
+# note = "same principal"
+
+schema_version = 1
+independent_authors = []
+agent_accounts = []
+bot_accounts = []
+approver_principals = []
+aliases = []
