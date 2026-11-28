@@ -37,7 +37,12 @@ def _walk_jobs(jobs: object) -> list[dict]:
     return found
 
 
-_REMOVED_HOOK_JOBS = ("count-ratchets", "plugin-scanner")
+# Job name, and the command fragment the job ran (d31aa71e60, 2026-11-27). The
+# fragment catches the same command moved under another job name.
+_REMOVED_HOOK_JOBS = (
+    ("count-ratchets", "git_hook_policy.py count-ratchets"),
+    ("plugin-scanner", "check_plugin_scanner_score.py"),
+)
 
 
 def _pre_push_jobs() -> list[dict]:
@@ -56,14 +61,35 @@ class TestCountRatchetsAreOwnedByCi:
     them, and every registry entry runs unconditionally in a required CI job.
     """
 
-    @pytest.mark.parametrize("removed", _REMOVED_HOOK_JOBS)
-    def test_the_pre_push_hook_does_not_run_the_removed_job(self, removed: str) -> None:
+    @pytest.mark.parametrize(("removed", "command"), _REMOVED_HOOK_JOBS)
+    def test_the_pre_push_hook_does_not_run_the_removed_job(
+        self, removed: str, command: str
+    ) -> None:
         names = {str(job.get("name")) for job in _pre_push_jobs()}
         assert removed not in names
         offenders = [
-            str(job.get("name")) for job in _pre_push_jobs() if removed in str(job.get("run", ""))
+            str(job.get("name")) for job in _pre_push_jobs() if command in str(job.get("run", ""))
         ]
         assert offenders == []
+
+    @pytest.mark.parametrize(("removed", "command"), _REMOVED_HOOK_JOBS)
+    def test_the_command_fragment_matched_the_job_before_removal(
+        self, removed: str, command: str
+    ) -> None:
+        """Negative control: on the base the fragment found the removed job."""
+        import subprocess
+
+        base = subprocess.run(
+            ["git", "show", "d31aa71e60:lefthook.yml"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if base.returncode != 0:
+            pytest.skip("base commit d31aa71e60 not in this clone (shallow checkout)")
+        jobs = _walk_jobs(yaml.safe_load(base.stdout)["pre-push"]["jobs"])
+        assert [str(j.get("name")) for j in jobs if command in str(j.get("run", ""))] == [removed]
 
     @pytest.mark.parametrize(
         "script", sorted(ratchet.script for ratchet in checks_ratchet.RATCHETS)

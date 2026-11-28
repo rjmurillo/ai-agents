@@ -866,8 +866,8 @@ changed files only, so not heavy), plus `pre-pr-validation`:
 | Job | CI gap |
 |---|---|
 | `workflow-local-run` | Runs each changed workflow under `act`, including schedule-only and dispatch-only ones such as `agent-metrics.yml`. No PR-triggered workflow executes those; `pr-validation.yml` validates schema only. |
-| `security-scan` | No workflow under `.github/workflows/` runs Semgrep; two files cite a rule id in a comment. |
-| `hook-anchoring-e2e`, `plugin-load-e2e` | `plugin-cli-smoke.yml` `smoke` runs `test_cli_hook_e2e.py` and `test_plugin_load_smoke.py` against the real Claude and Copilot CLIs with `if: github.event_name != 'pull_request'`, so dispatch only. PR-time legs cover hook discovery and other CLIs. |
+| `security-scan` | No workflow under `.github/workflows/` runs Semgrep; one file cites a rule id in a comment. |
+| `hook-anchoring-e2e`, `plugin-load-e2e` | No workflow runs `test_cli_hook_e2e.py`, and `test_plugin_load_smoke.py` runs in CI only as `-m "smoke and codex"`: #7654 (`f8398e1b2d`, 2026-11-27) deleted the dispatch-only `smoke` job that ran both against the real Claude and Copilot CLIs. `plugin-cli-smoke.yml` legs cover Claude hook discovery, Codex, and Pi. |
 | `pre-pr-validation` | No workflow runs `pre_pr.py`; its other gates are not mapped to CI one by one. |
 
 ### Measured Effect
