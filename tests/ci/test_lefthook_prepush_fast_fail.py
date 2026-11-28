@@ -3,11 +3,11 @@
 The pre-push hook declares ``piped: true``, so lefthook runs its top-level
 entries in order and a failing entry (job or group) skips everything after
 it. Issue #5066 leans on that to stage the hook: cheap blocking gates run
-first, the expensive jobs (python-tests at roughly twelve minutes,
-workflow-local-run, python-type-check, the e2e smokes, pre-pr-validation, whose
-Generated Artifact Staleness gate runs ``build_all.py --check`` internally
-since issue #5079 retired the standalone ``build-all-check`` job) run last, so
-a failure that is detectable in seconds never costs a full pytest run.
+first, the expensive jobs (workflow-local-run, python-type-check, the e2e
+smokes, count-ratchets, pre-pr-validation, whose Generated Artifact Staleness
+gate runs ``build_all.py --check`` internally since issue #5079 retired the
+standalone ``build-all-check`` job) run last, so a failure that is detectable
+in seconds never waits on multi-minute gates.
 
 Structural tests parse ``lefthook.yml`` and assert on the object graph
 (testing.md MUST 9: never substring a structured file). The runtime
@@ -66,10 +66,13 @@ FAST_PARALLEL_GATES = frozenset(
 # Generated Artifact Staleness gate now runs `build_all.py --check`
 # internally; a second concurrent invocation in this same parallel group
 # raced its snapshot/restore over the same owned prefixes.
+#
+# No `python-tests` or `zero-collection-tests` here: ADR-104 (2026-11-26
+# amendment) retired both from local pre-push; CI `pytest.yml` is the
+# authoritative gate for both pytest and zero-collection-guard.
 EXPENSIVE_JOBS = frozenset(
     {
         "pre-pr-validation",
-        "python-tests",
         "python-type-check",
         "workflow-local-run",
         "hook-anchoring-e2e",
@@ -78,7 +81,6 @@ EXPENSIVE_JOBS = frozenset(
 )
 EXPENSIVE_STAGE_ROSTER = EXPENSIVE_JOBS | frozenset(
     {
-        "zero-collection-tests",
         "count-ratchets",
         "worktree-gc-report",
         "branch-config-prune-report",
