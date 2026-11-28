@@ -465,7 +465,7 @@ A prompt change passes when all three criteria hold:
 
 ### Enforcement
 
-- **CI gate**: The `/spec` eval in `.github/workflows/slash-command-quality.yml` blocks merge on regression (see ADR-057 Amendment 2026-07-22 for advisory vs blocking scope).
+- **CI gate**: No CI job runs the `/spec` eval. The slash-command-quality workflow was deleted on 2026-11-25 with the other `agent-*` environment jobs, so run `eval-prompt-change.py` by hand (see ADR-057, Amendment 2026-11-25: the /spec CI leg is deleted).
 - **PR review**: For prompt files without a blocking CI leg, the gate is advisory and PR review carries judgment.
 
 ### References
@@ -964,19 +964,19 @@ Fix the flaky test, then push again or re-run the job.
 
 ## Copilot CLI Version Management
 
-The CLI smoke (`.github/workflows/plugin-cli-smoke.yml`) uses GitHub Copilot CLI to prove the plugin loads. The `ai-review` action reviews with Claude and no longer installs Copilot (REQ-047, issue #6069). The CLI version is pinned to prevent regressions from auto-updates.
+The CLI smoke (`.github/workflows/plugin-cli-smoke.yml`) no longer runs a Copilot leg: it was deleted on 2026-11-25 with the other `agent-*` environment jobs, and the `ai-review` action reviews with Claude and does not install Copilot (REQ-047, issue #6069). The Copilot CLI pin stays maintained for local use and for a restored leg, and the version is pinned to prevent regressions from auto-updates.
 
 ### Current Pin
 
-The only pin is `@github/copilot` in `.github/cli-smoke/copilot/package.json`. Its `package-lock.json` holds the integrity hashes, and the smoke installs both with `npm ci`. Renovate maintains the pair.
+The only pin is `@github/copilot` in `.github/cli-smoke/copilot/package.json`. Its `package-lock.json` holds the integrity hashes. No workflow step installs it now, and `check_copilot_version_pin.py` still guards the pair. Renovate maintains it.
 
 `scripts/validation/check_copilot_version_pin.py` rejects known-bad pins in that manifest. It is a denylist guard, not the version source or proof of runtime compatibility. See [ADR-094](.project-toolkit/architecture/ADR-094-govern-copilot-cli-compatibility.md) for the known-bad guard policy. That ADR's Amendment still names the former workflow env pin; use this section for the pin location until the ADR is amended.
 
 ### CLI Smoke Gate
 
-`.github/workflows/plugin-cli-smoke.yml` runs on pull requests. It proves the plugin loads in Claude, Copilot, and Codex on Ubuntu, macOS, and Windows. A path filter (`scripts/validation/cli_smoke_paths.py`) runs the legs only when a change touches a plugin-shipped path. Lefthook's `hook-anchoring-e2e` and `plugin-load-e2e` pre-push gates mirror that list, and `tests/validation/test_cli_smoke_paths.py` fails when they drift. A local push runs the smoke with the harness you use locally, `claude` or `codex`, on your own login. It never calls Copilot. Copilot cases run only in CI, behind the `agent-copilot` approval.
+`.github/workflows/plugin-cli-smoke.yml` runs on pull requests. It proves the plugin loads in Codex on Ubuntu, macOS, and Windows, that the repo root loads as a Pi package on Ubuntu, and that the Claude CLI discovers the plugin hooks on Ubuntu. A path filter (`scripts/validation/cli_smoke_paths.py`) runs the legs only when a change touches a plugin-shipped path. Lefthook's `hook-anchoring-e2e` and `plugin-load-e2e` pre-push gates mirror that list, and `tests/validation/test_cli_smoke_paths.py` fails when they drift. A local push runs the smoke with the harness you use locally, `claude` or `codex`, on your own login. It never calls Copilot, and CI has no Copilot or prompt-based Claude leg. Deleting those legs on 2026-11-25 also dropped their credential-free checks: the zero-token Claude and Copilot plugin-load tests on three operating systems, and the Windows Copilot install isolation test (`TestCopilotBinaryInstall`, issue #3324).
 
-The `CLI Smoke Result` check is advisory (owner decision 2026-11-05, ADR-114). It is not in the branch ruleset, and the readiness check does not block on it. It passes when no smoke path changed, and otherwise needs every leg green. Claude and Copilot legs wait for approval in `agent-claude` and `agent-copilot`. The Codex legs need no credential and no approval. A fork PR that touches a smoke path fails the result, because forks get no secrets. A maintainer reruns it from a same-repo branch.
+The `CLI Smoke Result` check is advisory (owner decision 2026-11-05, ADR-114). It is not in the branch ruleset, and the readiness check does not block on it. It passes when no smoke path changed, and otherwise needs every leg green. Every leg needs no credential and no approval. A fork PR that touches a smoke path fails the result, because the trusted-context gate rejects forks. A maintainer reruns it from a same-repo branch.
 
 ### Why Version Pinning
 
@@ -1026,7 +1026,7 @@ gh act pull_request \
 
 ### Upgrading the Copilot CLI Pin
 
-When changing the Copilot CLI version the smoke installs:
+When changing the Copilot CLI version pin:
 
 1. Install the new version locally: `npm install -g @github/copilot@X.Y.Z`
 2. Run the agent validation loop above

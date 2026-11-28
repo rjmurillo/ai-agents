@@ -3,47 +3,28 @@
 # items 3-4, ADR-071, issue #2736)
 #
 # Gates a pull request on proof that the shipped plugin loads in Codex on
-# Ubuntu, macOS, and Windows, and that the repo root loads as a Pi package on
-# Ubuntu. The Claude and Copilot legs run on dispatch only. A path filter
-# (scripts/validation/cli_smoke_paths.py, ADR-006: decision in Python, not YAML)
-# runs the legs only when a change can affect plugin loading. The "CLI Smoke
-# Result" job always runs, so it is the one check to require.
+# Ubuntu, macOS, and Windows, that the repo root loads as a Pi package on
+# Ubuntu, and that the Claude CLI discovers the plugin hooks on Ubuntu. A path
+# filter (scripts/validation/cli_smoke_paths.py, ADR-006: decision in Python,
+# not YAML) runs the legs only when a change can affect plugin loading. The
+# "CLI Smoke Result" job always runs, so it is the one check to require.
+#
+# Every leg makes no model call and reads no credential, so none has an
+# environment or a secret (ADR-114 decision 1: an environment is for a job that
+# calls a model and reads a provider secret). The Claude and Copilot real-CLI
+# smoke legs, which ran behind the agent-claude and agent-copilot approvals, were
+# removed on 2026-11-25 with every other job gated by an agent-* environment.
 #
 # Legs:
-#   - smoke: one matrix leg per CLI (claude, copilot) per OS. Each leg installs
-#     only its own CLI, runs inside the matching agent-<cli> environment (the
-#     required-reviewer approval gate, ADR-114), and receives only that
-#     provider's credential. Tests carry `claude` / `copilot` markers and each
-#     leg selects `-m "smoke and <cli>"`.
 #   - smoke-pi: one Ubuntu leg. The Pi package smoke makes no model call and
-#     reads no credential, so it has no environment and no secret (ADR-115).
+#     reads no credential (ADR-115).
 #   - smoke-codex: one leg per OS. The Codex plugin-load smoke makes no model
-#     call and reads no credential, so it has no environment and no secret.
+#     call and reads no credential.
 #   - smoke-claude-hooks: one Ubuntu leg. `claude plugin details` proves the CLI
 #     still discovers the hooks in src/claude/hooks/hooks.json (REQ-048 Stop
-#     nudge, D32). It makes no model call and reads no credential, so it has no
-#     environment and no secret (ADR-114 decision 1: an environment is for a job
-#     that calls a model and reads a provider secret; this one does neither).
+#     nudge, D32). It makes no model call and reads no credential.
 #
 # What the smokes prove:
-#   - Hook smoke (test_cli_hook_e2e.py): a plugin hook resolves and runs from the
-#     install tree, on the platforms (Windows PowerShell) where #2205 was filed.
-#   - Plugin-load smoke (test_plugin_load_smoke.py, issue #2736): the shipped
-#     plugin loads in each CLI and the lifecycle skills load with no
-#     argument-hint loader warning. The Copilot gate is zero-token
-#     (`copilot skill list --json`, D25) and never skips on quota.
-#     Claude and Copilot prompt-based checks are best-effort (D26): they skip
-#     with QUOTA_SKIP: only when the provider budget is spent (Copilot quota,
-#     Claude credit or a Claude 429, which the CLI cannot tell from quota).
-#     Copilot rate limit, auth, and transport blocks fail the test. Every
-#     Claude and Copilot assert step passes --allow-skip-marker QUOTA_SKIP:.
-#     Only the plugin-load asserts also pass --require-pass for the leg's
-#     zero-token test, so that test must PASS. The hook asserts have no
-#     zero-token test and can pass on quota skips alone (D26). The Codex
-#     leg stays strict.
-#   - Analyst contract smoke (test_plugin_load_smoke.py, issue #3918): each CLI
-#     loads the project analyst without shell tools, while an execution-agent
-#     control still reports shell.
 #   - Codex plugin-load smoke (REQ-047 AC11): `codex plugin add` installs
 #     project-toolkit@ai-agents into an isolated CODEX_HOME and
 #     `codex debug prompt-input` lists every expected skill.
@@ -51,16 +32,11 @@
 #     installed plugin cache, and `codex debug prompt-input` lists every shipped agent.
 #
 # Security (.claude/skills/security-review/references/rule-security.md, issue #2231 item 3):
-#   - pull_request runs for same-repo branches get secrets only through the
-#     agent-<cli> environment approval. A fork PR gets no secrets from GitHub.
-#     The trusted-context gate (scripts/validation/assert_trusted_smoke_context.py)
+#   - The trusted-context gate (scripts/validation/assert_trusted_smoke_context.py)
 #     re-checks event, repository, head repository, and ref and fails closed,
 #     and "CLI Smoke Result" fails a fork PR with a message naming the fork.
 #   - Least-privilege: top-level permissions are contents: read.
 #   - Every action is pinned to a commit SHA (no floating tags).
-#   - Auth tokens come from the secrets manager, scoped to the CLI step's env
-#     only, never written to the repo. Only the Copilot legs read the Copilot
-#     token (REQ-047 AC3). The Claude legs use the subscription OAuth token.
 #
 # Loud, not silent
 # (.claude/skills/ai-agents-generation-and-release/references/rule-generated-artifacts.md, issue
@@ -68,22 +44,11 @@
 #   The smoke tests skip without RUN_CLI_E2E=1 and the CLIs, and a skip reads as
 #   a pass in a green summary. scripts/validation/assert_smoke_ran.py parses the
 #   JUnit report and fails the job if the smoke was skipped or not collected, so
-#   a missing auth secret surfaces as a red run, not a silent green one.
-#   assert_smoke_ran.py, smoke_quota_report.py, assert_trusted_smoke_context.py,
-#   and scripts/validation/smoke_result.py are stdlib-only and run with `python -I`
+#   a missing CLI surfaces as a red run, not a silent green one.
+#   assert_smoke_ran.py, assert_trusted_smoke_context.py, and
+#   scripts/validation/smoke_result.py are stdlib-only and run with `python -I`
 #   from a base-commit checkout (trusted-base/), never from the pull request tree.
 #
-# Observability: after each Claude and Copilot gate, smoke_quota_report.py appends
-# the quota-skip count to a file (--skip-count-file), each
-# leg uploads the count as a quota-skips-<cli>-<os> artifact, and "CLI Smoke
-# Result" downloads them and prints "passed with N prompt checks quota-skipped"
-# when N is above zero, instead of a plain pass. A matrix job cannot expose one
-# job output per leg, so a per-leg artifact is the simplest correct carrier.
-#
-# Local equivalent (swap `claude` for `copilot` or `codex` to run the others):
-#   RUN_CLI_E2E=1 uv run --frozen pytest tests/e2e/test_cli_hook_e2e.py -m "smoke and claude" -v
-#   RUN_CLI_E2E=1 uv run --frozen pytest tests/e2e/test_plugin_load_smoke.py -m "smoke and claude" -v
-
 name: Plugin CLI Smoke
 
 on:
@@ -165,8 +130,8 @@ jobs:
         with:
           egress-policy: audit
 
-      # The trust gate decides who gets secrets, so its code must not come from the
-      # pull request. Run it from the base commit (workflow_dispatch uses its own ref).
+      # The trust gate decides which contexts run the smoke legs, so its code must not
+      # come from the pull request. Run it from the base commit (workflow_dispatch uses its own ref).
       - name: Checkout trusted scripts from the base commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -191,236 +156,6 @@ jobs:
             --head-repository "$HEAD_REPOSITORY" \
             --ref "$REF")
           echo "trusted=$trusted" >> "$GITHUB_OUTPUT"
-
-  smoke:
-    name: Smoke (${{ matrix.cli }}, ${{ matrix.os }})
-    needs: [changes, authorize]
-    # Dispatch only. The agent-claude and agent-copilot approvals are never
-    # given, so a PR run only waited and blocked auto-merge.
-    if: github.event_name != 'pull_request' && needs.changes.outputs.run == 'true' && needs.authorize.outputs.trusted == 'true'
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
-    environment: agent-${{ matrix.cli }}
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        cli: [claude, copilot]
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    env:
-      RUN_CLI_E2E: '1'
-    steps:
-      - name: Harden Runner
-        # Windows and macOS runners do not support harden-runner; gate it.
-        if: runner.os == 'Linux'
-        # yamllint disable-line rule:line-length
-        uses: step-security/harden-runner@aebdcf6156ab6691adf63218240e476564a1ed4c  # v2.23.0
-        with:
-          egress-policy: audit
-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          persist-credentials: false
-
-      # The gate decides pass or fail, so it runs from the base commit, not the pull
-      # request tree. It is stdlib-only, so `python -I` needs no environment.
-      - name: Checkout trusted scripts from the base commit
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          ref: ${{ github.event.pull_request.base.sha || github.sha }}
-          path: trusted-base
-          sparse-checkout: |
-            scripts/validation/assert_smoke_ran.py
-            scripts/validation/smoke_quota_report.py
-          sparse-checkout-cone-mode: false
-          persist-credentials: false
-
-      - name: Setup Python
-        # yamllint disable-line rule:line-length
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
-        with:
-          python-version: '3.15'
-
-      - name: Install uv
-        # yamllint disable-line rule:line-length
-        uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d  # v10.4.0
-        with:
-          enable-cache: true
-
-      - name: Setup Node
-        # yamllint disable-line rule:line-length
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
-        with:
-          node-version: 'lts/*'
-
-      # Keep credentials out of npm lifecycle scripts (CWE-829). npm ci installs
-      # the committed lockfile and checks every tarball integrity hash. Each
-      # install step puts its node_modules/.bin first on PATH for later steps, as
-      # the global npm bin did; CODEOWNERS covers .github/cli-smoke/, so a pin or
-      # lockfile change gets owner review.
-      - name: Install pinned Claude CLI
-        if: matrix.cli == 'claude'
-        shell: bash
-        working-directory: .github/cli-smoke/claude
-        env:
-          BIN_DIR: ${{ github.workspace }}/.github/cli-smoke/claude/node_modules/.bin
-        run: |
-          npm ci
-          echo "$BIN_DIR" >> "$GITHUB_PATH"
-
-      # Keep credentials out of npm lifecycle scripts (CWE-829). npm ci installs
-      # the committed lockfile and checks every tarball integrity hash.
-      - name: Install pinned Copilot CLI
-        if: matrix.cli == 'copilot'
-        shell: bash
-        working-directory: .github/cli-smoke/copilot
-        env:
-          BIN_DIR: ${{ github.workspace }}/.github/cli-smoke/copilot/node_modules/.bin
-        run: |
-          npm ci
-          echo "$BIN_DIR" >> "$GITHUB_PATH"
-
-      - name: Run real-CLI hook smoke (claude)
-        if: matrix.cli == 'claude'
-        shell: bash
-        env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-        run: >-
-          uv run --frozen pytest tests/e2e/test_cli_hook_e2e.py -m "smoke and claude"
-          --junitxml=smoke-report.xml
-
-      - name: Run real-CLI hook smoke (copilot)
-        if: matrix.cli == 'copilot'
-        shell: bash
-        env:
-          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
-        run: >-
-          uv run --frozen pytest tests/e2e/test_cli_hook_e2e.py -m "smoke and copilot"
-          --junitxml=smoke-report.xml
-
-      - name: Assert the hook smoke actually ran (claude)
-        # always(): the gate must run even if the smoke step failed, so a skip
-        # (which pytest exits 0 for) is still caught and reported as a red job.
-        # The hook smoke is prompt-based, so it is best-effort (D26): a
-        # QUOTA_SKIP: skip is reported but does not fail the leg.
-        if: always() && matrix.cli == 'claude'
-        shell: bash
-        run: |
-          python -I trusted-base/scripts/validation/assert_smoke_ran.py smoke-report.xml \
-            --expected-count 1 \
-            --allow-skip-marker QUOTA_SKIP:
-          python -I trusted-base/scripts/validation/smoke_quota_report.py smoke-report.xml \
-            --allow-skip-marker QUOTA_SKIP: \
-            --skip-count-file quota-skips.txt
-
-      - name: Assert the hook smoke actually ran (copilot)
-        # The Copilot hook smoke is prompt-based, so it is best-effort (REQ-047
-        # D26): a QUOTA_SKIP: skip is reported but does not fail the leg.
-        if: always() && matrix.cli == 'copilot'
-        shell: bash
-        run: |
-          python -I trusted-base/scripts/validation/assert_smoke_ran.py smoke-report.xml \
-            --expected-count 1 \
-            --allow-skip-marker QUOTA_SKIP:
-          python -I trusted-base/scripts/validation/smoke_quota_report.py smoke-report.xml \
-            --allow-skip-marker QUOTA_SKIP: \
-            --skip-count-file quota-skips.txt
-
-      - name: Run real-CLI plugin-load smoke (claude)
-        # always(): run even if the hook smoke step failed so both smokes report.
-        if: always() && matrix.cli == 'claude'
-        shell: bash
-        env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-        run: >-
-          uv run --frozen pytest tests/e2e/test_plugin_load_smoke.py -m "smoke and claude"
-          --junitxml=plugin-load-report.xml
-
-      - name: Run real-CLI plugin-load smoke (copilot)
-        # always(): run even if the hook smoke step failed so both smokes report.
-        if: always() && matrix.cli == 'copilot'
-        shell: bash
-        env:
-          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
-        run: >-
-          uv run --frozen pytest tests/e2e/test_plugin_load_smoke.py -m "smoke and copilot"
-          --junitxml=plugin-load-report.xml
-
-      - name: Assert the plugin-load smoke actually ran (claude)
-        # always(): a silent skip of the plugin-load smoke must also fail the job.
-        # The zero-token `plugin list` / `plugin details` test must PASS; the
-        # prompt-based agent probes may skip with QUOTA_SKIP: (D26).
-        if: always() && matrix.cli == 'claude'
-        shell: bash
-        run: |
-          python -I trusted-base/scripts/validation/assert_smoke_ran.py plugin-load-report.xml \
-            --smoke-substr test_plugin_load_smoke \
-            --expected-count 4 \
-            --allow-skip-marker QUOTA_SKIP: \
-            --require-pass test_claude_plugin_loads_expected_skills
-          python -I trusted-base/scripts/validation/smoke_quota_report.py plugin-load-report.xml \
-            --smoke-substr test_plugin_load_smoke \
-            --allow-skip-marker QUOTA_SKIP: \
-            --skip-count-file quota-skips.txt
-
-      - name: Assert the plugin-load smoke actually ran (copilot)
-        # The zero-token skill-list test is the gate and never skips on quota.
-        # The prompt-based tests are best-effort and may skip with QUOTA_SKIP:.
-        if: always() && matrix.cli == 'copilot'
-        shell: bash
-        run: |
-          python -I trusted-base/scripts/validation/assert_smoke_ran.py plugin-load-report.xml \
-            --smoke-substr test_plugin_load_smoke \
-            --expected-count 6 \
-            --allow-skip-marker QUOTA_SKIP: \
-            --require-pass test_copilot_plugin_loads_expected_skills
-          python -I trusted-base/scripts/validation/smoke_quota_report.py plugin-load-report.xml \
-            --smoke-substr test_plugin_load_smoke \
-            --allow-skip-marker QUOTA_SKIP: \
-            --skip-count-file quota-skips.txt
-
-      # Issue #3324: the isolation fix this covers is Windows-specific
-      # (Path.home() reads USERPROFILE first), and the test skips without the
-      # binary on PATH. The PR-time Windows leg has no CLI, so it exercised
-      # every part of that test except the part that shells out. This job has a
-      # pinned CLI on a windows-latest matrix leg, which makes it the only place
-      # the real install path runs on the platform that leaked.
-      # No credentials: `plugin install <local-dir>` reads a path, not the API.
-      # Verified by running this test with no COPILOT_GITHUB_TOKEN and an
-      # isolated home that hides stored auth. Least privilege, and the
-      # non-CLI-steps credential policy test stays intact without an exemption.
-      - name: Run Copilot install isolation smoke
-        # always(): run even if an earlier smoke failed so all three report.
-        # Copilot leg only: this test needs the copilot CLI, which the claude
-        # leg does not install.
-        if: always() && matrix.cli == 'copilot'
-        shell: bash
-        run: >-
-          uv run --frozen pytest
-          tests/integration/test_e2e_install.py::TestCopilotBinaryInstall
-          --junitxml=install-isolation-report.xml
-
-      - name: Assert the install isolation smoke actually ran
-        # always(): pytest exits 0 on a skip, so the skip needs its own gate.
-        if: always() && matrix.cli == 'copilot'
-        shell: bash
-        run: >-
-          python -I trusted-base/scripts/validation/assert_smoke_ran.py
-          install-isolation-report.xml
-          --smoke-substr TestCopilotBinaryInstall
-          --expected-count 1
-
-      # Per-leg observability: a matrix job cannot expose one output per leg, so
-      # each leg uploads its quota-skip count and "CLI Smoke Result" sums them.
-      - name: Upload quota-skip count
-        if: always() && hashFiles('quota-skips.txt') != ''
-        # yamllint disable-line rule:line-length
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
-        with:
-          name: quota-skips-${{ matrix.cli }}-${{ matrix.os }}
-          path: quota-skips.txt
-          retention-days: 1
 
   # Codex needs no credential: plugin add and debug prompt-input read the repo
   # and an isolated CODEX_HOME only. No environment, no secret (REQ-047 AC11).
@@ -673,7 +408,7 @@ jobs:
 
   smoke-result:
     name: CLI Smoke Result
-    needs: [changes, authorize, smoke, smoke-codex, smoke-claude-hooks, smoke-pi]
+    needs: [changes, authorize, smoke-codex, smoke-claude-hooks, smoke-pi]
     # The one terminal status to require: it runs on every pull request, passes
     # when the path filter says nothing relevant changed, and otherwise demands
     # every leg. !cancelled() rather than always(): a newer push cancels the run
@@ -702,19 +437,6 @@ jobs:
           sparse-checkout-cone-mode: false
           persist-credentials: false
 
-      # Each Claude and Copilot leg uploads its count of quota-skipped prompt
-      # checks. Only a run whose legs all passed has counts worth reading.
-      - name: Download quota-skip counts
-        if: needs.smoke.result == 'success'
-        # An artifact-service failure must not hide a green smoke; smoke_result.py
-        # reads a missing directory as zero.
-        continue-on-error: true
-        # yamllint disable-line rule:line-length
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8
-        with:
-          pattern: quota-skips-*
-          path: quota-skips
-
       - name: Report
         shell: bash
         env:
@@ -722,8 +444,6 @@ jobs:
           RUN: ${{ needs.changes.outputs.run }}
           AUTHORIZE_RESULT: ${{ needs.authorize.result }}
           TRUSTED: ${{ needs.authorize.outputs.trusted }}
-          EVENT_NAME: ${{ github.event_name }}
-          SMOKE_RESULT: ${{ needs.smoke.result }}
           CODEX_RESULT: ${{ needs.smoke-codex.result }}
           HOOKS_RESULT: ${{ needs.smoke-claude-hooks.result }}
           PI_RESULT: ${{ needs.smoke-pi.result }}

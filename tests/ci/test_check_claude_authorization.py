@@ -176,28 +176,5 @@ class TestOutputHandling:
         assert "authorized=true" in capsys.readouterr().out
 
 
-class TestWorkflowWiring:
-    """The workflow must call the script this module tests."""
-
-    def test_the_workflow_calls_the_wrapper(self) -> None:
-        """Positive: extraction is only real once the YAML points here."""
-        text = (REPO_ROOT / ".github" / "workflows" / "claude.yml").read_text(encoding="utf-8")
-        assert "scripts/ci/check_claude_authorization.py" in text
-
-    def test_the_inline_exit_code_handling_is_gone(self) -> None:
-        """Negative: the replaced shell must be removed, not bypassed."""
-        text = (REPO_ROOT / ".github" / "workflows" / "claude.yml").read_text(encoding="utf-8")
-        assert "exit_code=$?" not in text
-
-    def test_the_checker_path_is_supplied_by_the_workflow(self) -> None:
-        """Edge: the script must stay free of repository layout knowledge."""
-        text = (REPO_ROOT / ".github" / "workflows" / "claude.yml").read_text(encoding="utf-8")
-        assert "--checker ./tests/workflows/test_claude_authorization.py" in text
-        source = (REPO_ROOT / "scripts" / "ci" / "check_claude_authorization.py").read_text(
-            encoding="utf-8"
-        )
-        assert "tests/workflows" not in source
-
-
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))

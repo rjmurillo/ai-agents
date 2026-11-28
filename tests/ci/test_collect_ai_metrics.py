@@ -102,7 +102,7 @@ class TestFailSoft:
     """A metrics outage warns; it never fails the run."""
 
     def test_a_csv_failure_still_exits_zero(self, tmp_path: Path, monkeypatch) -> None:
-        """Positive: the weekly run survives an export outage."""
+        """Positive: a run survives an export outage."""
         _stub(monkeypatch, csv_rc=1)
         _outputs(tmp_path, monkeypatch)
         assert collector.main(_argv(tmp_path)) == 0
@@ -196,24 +196,6 @@ class TestCommandSafety:
         body = out.read_text(encoding="utf-8")
         assert "EOF_METRICS_ESCAPED" in body
         assert body.count("\nEOF_METRICS\n") == 1
-
-
-class TestWorkflowWiring:
-    """The workflow must call the script this module tests."""
-
-    def test_the_workflow_calls_the_collector(self) -> None:
-        """Positive: extraction is only real once the YAML points here."""
-        text = (REPO_ROOT / ".github" / "workflows" / "ai-metrics-analysis.yml").read_text(
-            encoding="utf-8"
-        )
-        assert "scripts/ci/collect_ai_metrics.py" in text
-
-    def test_the_inline_date_math_is_gone(self) -> None:
-        """Negative: the replaced shell must be removed, not bypassed."""
-        text = (REPO_ROOT / ".github" / "workflows" / "ai-metrics-analysis.yml").read_text(
-            encoding="utf-8"
-        )
-        assert "weeks ago" not in text
 
 
 if __name__ == "__main__":

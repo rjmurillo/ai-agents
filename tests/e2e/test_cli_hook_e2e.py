@@ -29,7 +29,8 @@ Code dispatches it under ``claude -p``.
 
 Why opt-in: these spawn real CLIs that need authentication and spend model
 credits, which bare CI does not have. They run wherever the CLIs are installed
-and ``RUN_CLI_E2E=1`` is set (local dev, plugin-cli-smoke.yml with secrets); elsewhere
+and ``RUN_CLI_E2E=1`` is set (local dev, or the pre-push ``hook-anchoring-e2e``
+job; no workflow runs them since 2026-11-25); elsewhere
 they SKIP with a loud reason so a skipped run never reads as a passed run. The
 fast, always-on guards are the unit/runtime-contract tests and the
 ``validate_hook_anchoring`` gate; this is the belt-and-suspenders e2e layer.
@@ -37,7 +38,7 @@ fast, always-on guards are the unit/runtime-contract tests and the
 Run locally:
     RUN_CLI_E2E=1 uv run pytest tests/e2e/test_cli_hook_e2e.py -v -m "not copilot"
 
-Copilot cases run only in CI, behind the agent-copilot environment.
+CI has no Copilot leg since the agent-copilot smoke leg was deleted.
 """
 
 from __future__ import annotations
@@ -82,10 +83,10 @@ _copilot_run_blocked = copilot_hook_probe.copilot_run_blocked
 def _skip_on_copilot_block(result: subprocess.CompletedProcess[str]) -> None:
     """Apply the D26 block policy to a Copilot run.
 
-    A spent monthly quota skips with QUOTA_SKIP:, which plugin-cli-smoke.yml
-    allows through ``assert_smoke_ran.py --allow-skip-marker``. Auth, rate
-    limit, and transport blocks fail in CI and skip unmarked locally, so the
-    smoke still turns red on them (issues #4504, #4483, #3275).
+    A spent monthly quota skips with QUOTA_SKIP:. No CI leg runs this smoke
+    now, so no workflow passes ``assert_smoke_ran.py --allow-skip-marker``.
+    Auth, rate limit, and transport blocks fail in CI and skip unmarked
+    locally, so the smoke still turns red on them (issues #4504, #4483, #3275).
     """
     smoke_skip_policy.skip_or_fail_on_copilot_block(result)
 
