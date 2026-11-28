@@ -146,8 +146,14 @@ def git_environment() -> dict[str, str]:
     }
 
 
+GIT_TIMEOUT_SECONDS = 60
+"""Upper bound on one git call. A hung git (a stalled lock, a dead network mount)
+must not hang a push hook forever; the timeout reads as the same failure as a
+git that could not launch."""
+
+
 def _git_run(repo_root: Path, argv: Sequence[str]) -> subprocess.CompletedProcess[str] | None:
-    """Run a git command, or None when git could not be launched."""
+    """Run a git command, or None when git could not be launched or timed out."""
     try:
         return subprocess.run(
             ["git", "-C", str(repo_root), *argv],
@@ -157,14 +163,18 @@ def _git_run(repo_root: Path, argv: Sequence[str]) -> subprocess.CompletedProces
             encoding="utf-8",
             check=False,
             env=git_environment(),
+            timeout=GIT_TIMEOUT_SECONDS,
         )
+    except subprocess.TimeoutExpired:
+        sys.stderr.write(f"git timed out after {GIT_TIMEOUT_SECONDS}s: git {' '.join(argv)}\n")
+        return None
     except (FileNotFoundError, OSError) as exc:
         sys.stderr.write(f"git could not be launched: {exc}\n")
         return None
 
 
 def _git_rc(repo_root: Path, argv: Sequence[str]) -> int | None:
-    """Exit status of a git command, or None when git could not be launched."""
+    """Exit status of a git command, or None when git could not be launched or timed out."""
     proc = _git_run(repo_root, argv)
     return None if proc is None else proc.returncode
 

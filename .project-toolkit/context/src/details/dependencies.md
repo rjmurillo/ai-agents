@@ -1,3 +1,3 @@
 ## Dependencies
 
-- `copilot-cli/lib/` and `claude/lib/`: rendered from `scripts/` packages by `build_all.py` in the same run (B5); no prerequisite step.
+- `build_all.py` renders lib packages and bootstrap from `scripts/`. See `.claude/AGENTS.md` for lib edit locations.
