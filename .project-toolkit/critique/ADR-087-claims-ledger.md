@@ -74,3 +74,20 @@ Verified 2026-11-25 for issue #7642, covering the "Amendment 2026-11-25" text an
 | A protected root that cannot be inspected is refused; caches in deny paths are digested. | Behavior | `test_protected_root_that_cannot_be_inspected_is_refused`, `test_cache_directory_in_a_deny_path_is_digested` | Pass. VERIFIED |
 | `run` installs and restores a SIGINT handler. | Behavior | `test_run_installs_and_restores_a_sigint_handler` | Pass. VERIFIED |
 | An extract input that escapes the run directory after filling is refused. | Behavior | `test_input_that_escapes_the_run_directory_is_refused` (`../` and sibling-prefix cases) | Pass. VERIFIED |
+
+
+## Amendment 2026-11-28 (skill path)
+
+Claims in ADR-087 Amendment 2026-11-28, read from the working tree on 2026-11-28.
+
+| Claim | Kind | Check | Result |
+| --- | --- | --- | --- |
+| `_optimizer_core.split_fingerprint(task_ids, *, seed, sel_ratio, test_ratio)` hashes seed, sorted task ids, and both ratios. | Behavior | `sed -n 316,345p scripts/eval/_optimizer_core.py` | Payload keys `seed`, `tasks` (sorted), `sel_ratio`, `test_ratio`. VERIFIED |
+| skillopt has no fingerprint code and no import of `_optimizer_core` today. | Absence | `grep -rn "fingerprint\|_optimizer_core\|scripts/eval" src/claude/skills/skillopt/scripts/ src/claude/skills/skillopt/references/` | No hit in `scripts/`. Reference doc mentions `exposed` only. The scope searched is `src/claude/skills/skillopt/`. VERIFIED |
+| The skillopt `eval.json` v1 manifest has `splits`, `exposed`, `tasks`. | Path | `grep -n "exposed\|splits" src/claude/skills/skillopt/references/eval-set-format.md` | Lines 19, 34 to 46. VERIFIED |
+| Open Requirement 7 is the test-group reveal path and 10 is the relocatable ledger root. | Quote | `grep -n "^7\. \*\*A one-time\|^10\. \*\*A ledger root" ADR-087-...md` | Lines 669 and 682. VERIFIED |
+| Decision Requirement 3 keys the ledger on membership alone and gives the reason. | Quote | `sed -n 205,222p ADR-087-...md` | "over-sharing a budget is safe, resetting one is not". VERIFIED |
+| Decision Requirement 5 reports `corpus_verified: false` for unknown-everywhere. | Quote | `sed -n 278,296p ADR-087-...md` | Present. VERIFIED |
+| ADR-127 decision 7 item 8 freezes scenarios before the first skill edit. | Quote | `sed -n 138,212p ADR-127-...md` | Item 8, "After that commit the scenario file is frozen until the change merges." VERIFIED |
+| `skillopt traces --split sel` exits 2 in a proposer context. | Behavior | plan task B6 | Plan text only. NOT RUN, stated as a decision with PR B named |
+| The tag check exists. | Absence | plan task C2.3 names "The tag check passes" | Names a check, no script exists yet. The ADR says "named in the plan". NOT RUN |

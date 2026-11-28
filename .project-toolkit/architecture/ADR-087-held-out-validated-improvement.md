@@ -1,7 +1,7 @@
 ---
 id: ADR-087
 status: proposed
-date: 2026-11-25
+date: 2026-11-28
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -371,8 +371,7 @@ requirement 12 stays open for them.
 
 ### What the mechanism protects against, and what it does not
 
-This is a discipline control against accidental overfitting by a cooperating
-optimizer. It is not a security boundary against an adversarial one.
+This is a discipline control against accidental overfitting by a cooperating optimizer. It is not a security boundary against an adversarial one.
 
 **Held-out membership is public, and has to be.** `split` publishes `opt` on
 stdout because the loop cannot edit toward a group it cannot name. The task
@@ -890,38 +889,15 @@ The corrected state of the evidence is one measured path, not three:
   The 2026-11-25 amendment records the first such pair.
 - **Hook path, deterministic by construction.**
 
-The error is more useful than the claim would have been, and it belongs in this
-ADR rather than in a commit message. The report schema already carried the field
-that falsifies the comparison. The tool that performed the comparison never read
-it. Nothing in the design would have stopped the next person from repeating the
-mistake, and the person who made it had just spent a session arguing that a
-property reported but not enforced is not a property. Open requirement 12
-already named the missing piece, that the seam carries no corpus identity. This
-is the first evidence of what that costs, and it raised the requirement from a
-budget-accounting nicety to a correctness gap: the same absence that lets two
-unrelated corpora share a ledger also lets two unrelated corpora be compared to
-each other. Decision Requirement 5 closes the comparison half on the one path
-whose
-scorer publishes an identity.
+The error is more useful than the claim would have been, and it belongs in this ADR rather than in a commit message. The report schema already carried the field that falsifies the comparison. The tool that performed the comparison never read it. Nothing in the design would have stopped the next person from repeating the mistake, and the person who made it had just spent a session arguing that a property reported but not enforced is not a property. Open requirement 12 already named the missing piece, that the seam carries no corpus identity. This is the first evidence of what that costs, and it raised the requirement from a budget-accounting nicety to a correctness gap: the same absence that lets two unrelated corpora share a ledger also lets two unrelated corpora be compared to each other. Decision Requirement 5 closes the comparison half on the one path whose scorer publishes an identity.
 
 ### What follows for anyone running this loop
 
-A `gate` ACCEPT is only as trustworthy as the benchmark underneath it. Say that
-plainly rather than burying it: `optimize-artifact.py gate` with no `--max-p` is
-a guard against an optimizing agent gaming its own benchmark, and it is not a
-guard against the benchmark being noisy. Those are different threats and only
-the first one is closed by default. On the one path where a control was actually
-run, the default issued an ACCEPT for gains that a no-op reproduced.
+A `gate` ACCEPT is only as trustworthy as the benchmark underneath it. Say that plainly rather than burying it: `optimize-artifact.py gate` with no `--max-p` is a guard against an optimizing agent gaming its own benchmark, and it is not a guard against the benchmark being noisy. Those are different threats and only the first one is closed by default. On the one path where a control was actually run, the default issued an ACCEPT for gains that a no-op reproduced.
 
-Until requirement 6 lands, a run of this loop against `rule_results` or
-`agent_results` is worth citing only alongside a null control, and `--max-p`
-should be supplied. The hook path needs neither, because it is deterministic.
+Until requirement 6 lands, a run of this loop against `rule_results` or `agent_results` is worth citing only alongside a null control, and `--max-p` should be supplied. The hook path needs neither, because it is deterministic.
 
-The ADR stays proposed. The rule path is live-validated; requirement 6 is why it
-cannot move further. A single-sample scorer at this benchmark size cannot
-distinguish an edit from noise, and that is a property of the benchmark rather
-than of the gate. That claim now rests on one benchmark, measured, rather than
-on two, one of which was not measuring what it said.
+The ADR stays proposed. The rule path is live-validated; requirement 6 is why it cannot move further. A single-sample scorer at this benchmark size cannot distinguish an edit from noise, and that is a property of the benchmark rather than of the gate. That claim now rests on one benchmark, measured, rather than on two, one of which was not measuring what it said.
 
 ## References
 
@@ -956,8 +932,7 @@ ADR-088 moved the book-derived rule cited above into the `software-engineering-l
 
 ## Amendment 2026-11-25
 
-Issue #7642 asked the owner whether this ADR is still wanted. The owner said
-yes. The status stays `proposed`.
+Issue #7642 asked the owner whether this ADR is still wanted. The owner said yes. The status stays `proposed`.
 
 ### Tracking
 
@@ -967,13 +942,7 @@ in the analysis file linked below.
 
 ### Open Requirement 1: the controller
 
-`scripts/eval/eval_controller.py` inverts the loop. The launcher runs the
-controller, which runs the scorer, `extract`, `split`, and `gate`. The agent
-runs as a child proposer. Each step it gets optimize-group results, step and
-budget counts, optional optimize-group task files, and the last decision, so a
-gated candidate teaches it one bit. Everything else stays in a controller state
-directory. The cap and ledger root come from launcher config. The owner chose
-this over a separate OS user or a protected CI job (#7642, decision D2).
+`scripts/eval/eval_controller.py` inverts the loop. The launcher runs the controller, which runs the scorer, `extract`, `split`, and `gate`. The agent runs as a child proposer. Each step it gets optimize-group results, step and budget counts, optional optimize-group task files, and the last decision, so a gated candidate teaches it one bit. Everything else stays in a controller state directory. The cap and ledger root come from launcher config. The owner chose this over a separate OS user or a protected CI job (#7642, decision D2).
 
 **The boundary is conditional.** Python cannot stop a same-user process from
 reading a file. The held-out group is withheld only under the rule
@@ -987,14 +956,45 @@ and can forge its own results. The stronger Decision form holds only for a
 controller-run loop under the rule; a direct `optimize-artifact.py` loop keeps
 the weaker bound.
 
-The noise threat stays open (`max_p` is optional; Open Requirement 6 covers
-rules only). Detail: `.project-toolkit/analysis/7678-adr-087-trusted-controller-and-null-control.md`.
+The noise threat stays open (`max_p` is optional; Open Requirement 6 covers rules only). Detail: `.project-toolkit/analysis/7678-adr-087-trusted-controller-and-null-control.md`.
 
 ### First valid agent-path null control
 
-Two architect-spike runs agree on `fixture_set_sha` (`f6310eb016cb`) and
-`agent_prompt_sha` (`dfcb7790a0e8`). Gated against each other on three held-out
-tasks, the gate returned REJECT on a tie at 0/3, p = 1.0. Both reports flag
-`halt-due-to-flakiness`, and three all-failing tasks tie almost by construction.
-This is a low-power noise-floor observation, not a false-accept rate. Numbers
-are in the analysis file.
+Two architect-spike runs agree on `fixture_set_sha` (`f6310eb016cb`) and `agent_prompt_sha` (`dfcb7790a0e8`). Gated against each other on three held-out tasks, the gate returned REJECT on a tie at 0/3, p = 1.0. Both reports flag `halt-due-to-flakiness`, and three all-failing tasks tie almost by construction. This is a low-power noise-floor observation, not a false-accept rate. Numbers are in the analysis file.
+
+## Amendment 2026-11-28
+
+The status stays `proposed`. Spec: `.project-toolkit/specs/SPEC-plugin-eval-migration.md` (item 3). Plan: `.project-toolkit/plans/PLAN-plugin-eval-migration.md`. Debate log: `.project-toolkit/critique/ADR-087-debate-log-2.md`. The ADR-057 half of this change is Amendment 2026-11-28 in `ADR-057-prompt-behavioral-evaluation.md`.
+
+**This amendment records decisions and changes no code.** It restates Decision Requirements 1 to 5 for one path: skill cases run through `claude plugin eval` and optimized by skillopt. The `optimize-artifact.py` path for agents, rules, and hooks, and the trusted controller, keep the text above. The mechanisms below are built by PR B (skillopt) and PR C1 (case tree, tag check, gate) and used by PR C2 (split commit, hillclimb), as the plan names them. Until they merge, the skill path has no split manifest, and the requirements below describe the target.
+
+### Why a separate path
+
+skillopt ships as a standalone skill, in stdlib Python, and cannot import `scripts/eval/_optimizer_core.py`. The skill path keeps its splits as explicit membership lists in a manifest, because cases are stratified by family and the existing rank draw does not account for family. The five requirements therefore need their own mechanisms. The owner chose to keep the two optimizers separate and defer merging them.
+
+### Requirements on the skill path
+
+1. **The decision group is fixed before the first edit.** `evals/skills/<skill>/split.json` will hold the skillopt `eval.json` v1 shape (`splits`, `exposed`, `tasks`) plus `frozen_at`, `seed`, `sel_ratio`, `corpus_sha256`, `split_fingerprint`, `sel_budget`, and `tier`. PR C2 commits it before round 1. The gate refuses a manifest not committed before the first candidate edit, a tag that disagrees with membership, overlapping groups, or fewer than 3 gated sel cases. The `split:train` and `split:sel` tags provide host filters; the manifest is authoritative. Sel case authorship in a separate session and withholding sel transcripts from the proposer are procedural controls, not access isolation. `skillopt traces --split sel` will refuse in a proposer context (PR B). The `exposed` list records what the proposer saw; exposed sel cases are refused. No test group is required on this path.
+2. **The split is content-bound.** `split_fingerprint` will use `_optimizer_core.split_fingerprint` on the case ids, seed and ratios (test ratio 0). This interoperation digest does not bind explicit membership. The stdlib copy is pinned by a conformance test with several fixtures. `corpus_sha256` binds the full actual case tree and membership: hash a canonical UTF-8 JSON array of split names sorted by name, each with its case ids sorted by id and their prompt and grader-file hashes sorted by relative path. It is independent of the tag filter used on a pass. Refuse either digest mismatch or a change to a frozen manifest during candidate evaluation.
+3. **Repeated decisions against the selection group are budgeted.** The default `sel_budget` is 3 candidate consultations per skill. Key the ledger by skill and sorted selection membership, with corpus hash recorded as a comparison identity rather than a budget namespace. A corpus change does not reset a budget for the same membership. This preserves Decision Requirement 3's conservative over-sharing rule. The fixed launcher pins the initial cap; a later cap change is refused. Charge and append under a lock before starting any candidate consultation, including one that aborts, returns partial results, or fails. Refuse an exhausted budget before reading results. The fixed pre-candidate baseline, oracle, noise-floor rerun, and probe do not consume candidate consultations if they are completed before the first candidate and expose no sel results to the proposer. They still consume spend. They cannot be refreshed within that candidate series. A fresh group requires a separately reviewed manifest. A line in the spend ledger records skill, selection membership digest, corpus hash, pass kind and charge. Open Requirements 1, 9, 10 and 12 remain open where the launcher and same-user ledger are not isolated. A new checkout or a changed ledger is outside the mechanical protection; the owner retains custody of the ledger.
+4. **No pass-to-fail transition is accepted on an aggregate gain.** Compare the per-case result to the frozen baseline, using the deterministic with-skill arm and the stable-base rule of ADR-057 Amendment 2026-11-28 item 3. A stable case that goes from pass to fail blocks the edit whatever the mean does. No override. This applies ADR-057's stable-base exclusions to this path.
+5. **A comparison whose declared corpora disagree is refused.** The adapter records the full case-tree and split-membership `corpus_sha256` from the actual scratch tree, for baseline and candidate. The manifest and both result identities must agree. Refuse known preflight identity mismatches before charging. Charge before launching a candidate consultation; a missing or different result identity discovered afterward refuses the result without refund, before reading its outcomes. The unknown-everywhere compatibility rule for the other artifact paths does not apply here.
+
+### What this changes and what it does not
+
+It specifies a content-bound split and a counted budget for skills. It does not discharge Open Requirement 1: skillopt is a same-user process and cannot stop a proposer from reading a file, so the claim is the bounded-consultation form of the Decision, and it is not validation on unseen tasks. `evals/skills/ledger.jsonl` will be in git, so Open Requirement 10 (a ledger root the loop cannot relocate) stays open for this path.
+
+### Alternatives considered
+
+| Option | Pros | Cons | Verdict |
+|---|---|---|---|
+| Run skills through `optimize-artifact.py` | One optimizer and one set of rails | That path scores verdict booleans and does not read plugin eval results | Rejected, merging is deferred |
+| Import `_optimizer_core` into skillopt | One fingerprint implementation | skillopt ships alone and stays stdlib, so the import fails in a consumer repository | Rejected |
+| Stdlib copy plus a conformance test | Works standalone, and drift fails a test | Two implementations to keep equal | Chosen |
+| Corpus-namespaced budget | Separates changed corpora | Resets the selection count when the same group is retained | Rejected; retain the membership-keyed budget |
+
+### Consequences
+
+Negative: the budget is a file in git, so a determined editor resets it and a reviewer must read the ledger diff. The key preserves Decision Requirement 3, and a corpus edit does not reset the budget for the same membership. Two fingerprint implementations must stay equal.
+
+Positive: every pass refuses when the manifest and the case tree it ran disagree, so a hand-edited membership list or an edited case does not pass silently.
