@@ -15,8 +15,8 @@ Detail behind Phase 1 of the skill. Ask `generator_inventory.py path <repo-path>
 | `src/copilot-cli/{skills,instructions,hooks}` | generated | `.claude/` trees | `build_all.py` |
 | `.github/instructions/` | generated | `.claude/rules/` | `build_all.py` (rules) |
 | `scripts/{hook_utilities,github_core,ai_review_common}` | canonical for shared Python | itself | n/a |
-| `src/claude/lib/`, `src/copilot-cli/lib/` | generated | `scripts/` packages | `build_all.py` lib step (B5) |
-| `.claude/lib/` | link into `src/claude/lib/` | `src/claude/lib/` | `build_all.py` binplace |
+| `src/claude/lib/`, `src/copilot-cli/lib/` | mixed | Shared packages and bootstrap come from their Python source packages. Edit Claude's `paths.py` and `ptk_run.py` in the Claude plugin tree. Maintain Copilot's top-level copies in its tree. | `build_all.py` lib step (B5) |
+| `.claude/lib/` | mixed | Packages, `bootstrap.py`, `paths.py`, and `ptk_run.py` link into `src/claude/lib/`. Edit the real dispatch modules in `.claude/lib/`. Copy edits into the Claude plugin tree by hand; a parity row checks the bytes. | `build_all.py` binplace |
 | `src/claude/{agents,rules,hooks,hooks.json,settings.json}` | generated (ADR-109 B1, B2, B4) | `templates/{agents,rules,hooks}/` | `build_all.py`, then binplaced to `.claude/` |
 | `src/claude/AGENTS.md`, `src/claude/claude-instructions.template.md` | hand-maintained, no template | itself | n/a |
 

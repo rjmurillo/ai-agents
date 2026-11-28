@@ -135,10 +135,16 @@ def snapshot(scope: RepositoryScope):
 
 @pytest.fixture
 def counters(monkeypatch):
-    state = {"registrations": 0, "resolved": [], "git_runs": 0}
+    state = {"registrations": 0, "resolved": [], "git_runs": 0, "spawns": 0, "spawned": []}
     real_registrations = repository_scope._registrations
     real_resolve = Path.resolve
     real_git_root = session_discovery._git_root
+
+    class CountedPopen(subprocess.Popen):
+        def __init__(self, *args, **kwargs):
+            state["spawns"] += 1
+            state["spawned"].append(args[0] if args else kwargs.get("args"))
+            super().__init__(*args, **kwargs)
 
     def registrations(common):
         state["registrations"] += 1
@@ -155,6 +161,7 @@ def counters(monkeypatch):
     monkeypatch.setattr(repository_scope, "_registrations", registrations)
     monkeypatch.setattr(Path, "resolve", resolve)
     monkeypatch.setattr(session_discovery, "_git_root", git_root)
+    monkeypatch.setattr(subprocess, "Popen", CountedPopen)
     return state
 
 
@@ -313,20 +320,30 @@ def test_infer_session_repos_skips_empty_and_missing_cwd(tmp_path, counters):
     assert counters["git_runs"] == 0
 
 
+def match_and_count(scope: RepositoryScope, sessions: list[dict[str, Any]]) -> None:
+    """The per-session half of the benchmark workload."""
+    for session in sessions:
+        scope.matches("copilot", session["meta"])
+    count_sessions_by_root(sessions, scope.paths)
+
+
 def test_benchmark_reports_workload_counts_and_runtime(tmp_path, counters, capsys):
     # Limitations: synthetic fixture, one machine, one run. It reports counts and
     # wall time to show the work no longer grows with checkouts. It is not a
-    # speedup claim and says nothing about real repositories.
+    # speedup claim and says nothing about real repositories. The seconds are
+    # printed and not asserted, because a loaded runner changes them. The counts
+    # here show one expansion per common directory, one resolution per unique
+    # cwd and no process. The step bounds below limit how fast the work grows.
     checkouts, session_count = 16, 400
     world = build_world(tmp_path, checkouts - 1)
     sessions = make_sessions(world, session_count)
     repos = [world["main"], *world["trees"]]
     counters["registrations"] = 0
+    counters["spawns"] = 0
+    counters["spawned"].clear()
     started = time.perf_counter()
     scope = resolve_repository_scope(repos)
-    for session in sessions:
-        scope.matches("copilot", session["meta"])
-    count_sessions_by_root(sessions, scope.paths)
+    match_and_count(scope, sessions)
     elapsed = time.perf_counter() - started
     resolutions = cwd_resolutions(counters, sessions)
     unique = len({s["meta"]["cwd"] for s in sessions})
@@ -335,10 +352,18 @@ def test_benchmark_reports_workload_counts_and_runtime(tmp_path, counters, capsy
         f"registrations={counters['registrations']} cwd_resolutions={resolutions} "
         f"seconds={elapsed:.3f}"
     )
+    # A process per session costs seconds and not one step, so the workload starts none.
+    assert counters["spawns"] == 0, f"the workload started: {counters['spawned'][:3]}"
     assert counters["registrations"] == 1
     assert resolutions == unique
-    assert elapsed < 2.0
     assert "benchmark:" in capsys.readouterr().out
+
+
+def test_the_spawn_count_sees_one_git_process(tmp_path, counters):
+    """Negative control for the benchmark's spawn count."""
+    counters["spawns"] = 0
+    session_discovery._git_root(tmp_path)
+    assert counters["spawns"] == 1
 
 
 _UNCACHED_LAUNCHER = """

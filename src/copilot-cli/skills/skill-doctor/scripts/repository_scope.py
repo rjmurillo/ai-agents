@@ -11,13 +11,23 @@ A rejected root also fences off its own subtree: a session whose deepest
 containing root is a rejected one stays out of scope even when a shallower
 included root contains it.
 
+Linked worktrees are often short lived. A session whose working directory no
+longer exists stays in scope when it recorded a branch this repository still
+has, other than the default branch, and its nearest existing ancestor is a
+checkout of this repository or the parent directory of one. A shared branch
+name alone never admits a session from an unrelated checkout. Repositories
+with reftable ref storage get no branch rule, and the report says so.
+Claude Code records ``gitBranch`` and Codex records ``git.branch``. The other
+harnesses record no branch, so their sessions in a removed worktree stay out.
+
 Clone discovery (a second clone of the same upstream) is not supported.
 """
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 from session_discovery import (
@@ -30,8 +40,11 @@ CLONE_DISCOVERY = "unsupported"
 BRANCH_FILTER = "none"
 _POINTER_PREFIX = "gitdir:"
 _REMOVED = (
-    "registered worktree directory is missing (removed); pass --repo PATH to include its sessions"
+    "registered worktree directory is missing (removed); its sessions stay in scope when they "
+    "recorded a branch this repository still has, pass --repo PATH to include the others"
 )
+_DEFAULT_BRANCHES = frozenset({"main", "master"})
+SCOPE_VIA_BRANCH = "removed_checkout_branch"
 _NOT_POINTING_BACK = "directory exists but its .git does not point back to the registration"
 _BAD_REGISTRATION = "registration gitdir file is empty, unreadable, or not a valid path"
 _UNREADABLE = "registered worktree directory is unreadable (permission or I/O error)"
@@ -55,6 +68,10 @@ class RepositoryScope:
     included: list[ScopeRoot] = field(default_factory=list)
     rejected: list[RejectedRoot] = field(default_factory=list)
     _fenced: dict[str, bool] = field(default_factory=dict, repr=False)
+    commons: set[Path] = field(default_factory=set)
+    branches: set[str] = field(default_factory=set)
+    checkout_parents: set[Path] = field(default_factory=set)
+    reftable: list[Path] = field(default_factory=list)
 
     @property
     def paths(self) -> list[Path]:
@@ -70,14 +87,46 @@ class RepositoryScope:
             self.rejected.append(RejectedRoot(path, reason))
 
     def matches(self, harness: str, meta: Any) -> bool:
-        """Apply the repository filter, then drop sessions inside a rejected root."""
+        """Apply the repository filter, then drop sessions inside a rejected root.
+
+        A session in a removed checkout is admitted by its recorded branch instead.
+        """
         if harness == "copilot":
             admitted = copilot_session_matches_repos(meta, self.paths)
             cwds = [meta.get("cwd"), *meta["cwd_history"]]
         else:
             admitted = session_matches_repos(meta.get("cwd"), self.paths)
             cwds = [meta.get("cwd")]
-        return admitted and not any(self._fenced_off(cwd) for cwd in cwds)
+        if admitted and not any(self._fenced_off(cwd) for cwd in cwds):
+            return True
+        if harness != "copilot" and self._removed_checkout_on_branch(meta):
+            meta["scope_via"] = SCOPE_VIA_BRANCH
+            return True
+        return False
+
+    def _removed_checkout_on_branch(self, meta: Any) -> bool:
+        """True for a vanished cwd whose session recorded a non-default branch of this repo."""
+        branch = session_branch(meta)
+        if branch is None or branch not in self.branches:
+            return False
+        cwd = meta.get("cwd")
+        if not isinstance(cwd, str) or bool(PureWindowsPath(cwd).drive) != (os.name == "nt"):
+            return False
+        path = Path(cwd)
+        try:
+            if not path.is_absolute() or path.exists():
+                return False
+            anchor, owner = _nearest_existing(path)
+        except OSError:
+            return False
+        if owner is not None:
+            return owner in self.commons
+        return anchor in self.checkout_parents
+
+    def branch_rule(self) -> str:
+        if self.reftable:
+            return "unavailable: reftable ref storage is not read"
+        return "on" if self.commons else "off"
 
     def _fenced_off(self, cwd: Any) -> bool:
         key = cwd if isinstance(cwd, str) else ""
@@ -110,14 +159,85 @@ class RepositoryScope:
                 for root in self.included
             ],
             "rejected": [{"path": str(item.path), "reason": item.reason} for item in self.rejected],
+            "removed_checkout_branch_rule": self.branch_rule(),
+            "removed_checkout_sessions": sum(
+                1 for session in sessions if session["meta"].get("scope_via") == SCOPE_VIA_BRANCH
+            ),
         }
 
 
-def _read_line(path: Path) -> str | None:
+def session_branch(meta: Any) -> str | None:
+    """The branch a session recorded: Claude Code ``git_branch`` or Codex ``git.branch``."""
+    branch = meta.get("git_branch")
+    git = meta.get("git")
+    if branch is None and isinstance(git, dict):
+        branch = git.get("branch")
+    return branch if isinstance(branch, str) and branch else None
+
+
+def _nearest_existing(path: Path) -> tuple[Path | None, Path | None]:
+    """The nearest existing ancestor, and the common directory of a checkout holding it."""
+    ancestors = [parent for parent in path.parents if parent.exists()]
+    for ancestor in ancestors:
+        if (ancestor / ".git").exists():
+            git_dir = git_dir_of(ancestor)
+            owner = common_dir_of(git_dir) if git_dir is not None else ancestor
+            return (ancestors[0] if ancestors else None), owner
+    return (ancestors[0] if ancestors else None), None
+
+
+def _uses_reftable(common: Path) -> bool:
+    config = (_read_text(common / "config") or "").lower().replace(" ", "")
+    return (common / "reftable").is_dir() or "refstorage=reftable" in config
+
+
+def _ref_names(common: Path) -> set[str]:
+    """Local and remote-tracking branch names, from loose refs and ``packed-refs``."""
+    names: set[str] = set()
+    for prefix, depth in (("refs/heads/", 0), ("refs/remotes/", 1)):
+        root = common / prefix
+        try:
+            files = [item for item in root.rglob("*") if item.is_file()]
+        except OSError:
+            files = []
+        for item in files:
+            parts = item.relative_to(root).parts[depth:]
+            if parts and parts != ("HEAD",):
+                names.add("/".join(parts))
+    for line in (_read_text(common / "packed-refs") or "").splitlines():
+        ref = line.partition(" ")[2]
+        for prefix, depth in (("refs/heads/", 0), ("refs/remotes/", 1)):
+            if ref.startswith(prefix):
+                parts = tuple(ref[len(prefix) :].split("/"))[depth:]
+                if parts and parts != ("HEAD",):
+                    names.add("/".join(parts))
+    return names
+
+
+def branch_names(common: Path) -> set[str]:
+    """Non-default branch names a removed checkout of this repository could have used."""
+    defaults = set(_DEFAULT_BRANCHES)
     try:
-        return path.read_text(encoding="utf-8", errors="replace").strip()
+        heads = sorted((common / "refs" / "remotes").glob("*/HEAD"))
+    except OSError:
+        heads = []
+    for head in heads:
+        target = _read_line(head) or ""
+        if target.startswith("ref: refs/remotes/"):
+            defaults.add(target.split("/", 3)[-1])
+    return _ref_names(common) - defaults
+
+
+def _read_text(path: Path) -> str | None:
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return None
+
+
+def _read_line(path: Path) -> str | None:
+    text = _read_text(path)
+    return text.strip() if text is not None else None
 
 
 def _resolve(base: Path, text: str) -> Path | None:
@@ -204,8 +324,18 @@ def _expand(scope: RepositoryScope, selected: Path, expanded: set[Path]) -> None
     if common in expanded:
         return
     expanded.add(common)
+    if _uses_reftable(common):
+        scope.reftable.append(common)
+    else:
+        scope.commons.add(common)
+        scope.branches |= branch_names(common)
+    scope.checkout_parents.add(selected.absolute().parent)
+    if common.name == ".git":
+        scope.checkout_parents.add(common.parent.parent)
     _admit_main(scope, common)
     for registration, worktree in _registrations(common):
+        if worktree is not None:
+            scope.checkout_parents.add(worktree.parent)
         _admit_worktree(scope, registration, worktree)
 
 
