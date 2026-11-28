@@ -206,10 +206,42 @@ class TestOwnerProblemsNegativeControls:
         (tmp_path / "w.yml").write_text(self._WORKFLOW, encoding="utf-8")
         filtered = self._WORKFLOW.replace("    branches: [main]\n", "    paths: ['src/**']\n")
         (tmp_path / "filtered.yml").write_text(filtered, encoding="utf-8")
+        (tmp_path / "rollup.yml").write_text(self._ROLLUPS, encoding="utf-8")
         return tmp_path
+
+    # ``inner`` is not a required context itself, so only a rollup can make it one.
+    _ROLLUP_INNER = (
+        "  inner:\n"
+        "    name: Not A Required Context\n"
+        "    steps:\n"
+        "      - run: uv run python build/scripts/build_all.py --check\n"
+    )
+    _ROLLUPS = (
+        "on:\n"
+        "  pull_request:\n"
+        "jobs:\n" + _ROLLUP_INNER + "  skipped_on_failure:\n"
+        "    name: Run Python Tests\n"
+        "    needs: inner\n"
+        "    steps:\n"
+        '      - run: test "${{ needs.inner.result }}" = success\n'
+        "  result_unread:\n"
+        "    name: Run Python Tests\n"
+        "    needs: [inner]\n"
+        "    if: ${{ !cancelled() }}\n"
+        "    steps:\n"
+        "      - run: echo done\n"
+    )
 
     def test_a_valid_owner_has_no_problem(self, workflows: Path) -> None:
         assert _owner_problems("w.yml good", "build_all.py --check", workflows) == []
+
+    def test_an_enforcing_rollup_makes_its_need_required(self, workflows: Path) -> None:
+        """Positive control for the rollup path: ``!cancelled()`` plus a result read."""
+        good = self._ROLLUPS.replace(
+            "      - run: echo done\n", '      - run: test "${{ needs.inner.result }}" = success\n'
+        )
+        (workflows / "good_rollup.yml").write_text(good, encoding="utf-8")
+        assert _owner_problems("good_rollup.yml inner", None, workflows) == []
 
     @pytest.mark.parametrize(
         ("entry", "needle", "fragment"),
@@ -224,6 +256,7 @@ class TestOwnerProblemsNegativeControls:
             ("filtered.yml good", None, "paths filter"),
             ("w.yml softjob", None, "continue-on-error"),
             ("w.yml softstep", "build_all.py --check", "no unconditional step"),
+            ("rollup.yml inner", None, "required"),
         ],
     )
     def test_each_failure_mode_is_reported(
