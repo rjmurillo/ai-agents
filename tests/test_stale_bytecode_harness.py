@@ -59,6 +59,17 @@ def _write_module(path: Path, return_val: str) -> None:
     path.write_text(src, encoding="utf-8")
 
 
+def _child_env(extra: dict[str, str] | None = None) -> dict[str, str]:
+    """Environment for a child that must keep its pyc beside the source.
+
+    A developer or runner environment may set PYTHONPYCACHEPREFIX. With it set the pyc lands
+    under the prefix, so these tests would purge the wrong directory.
+    """
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONPYCACHEPREFIX"}
+    env.update(extra or {})
+    return env
+
+
 def _prime_cache(module_path: Path) -> None:
     """Import the module in a child to create a .pyc cache entry."""
     probe = (
@@ -71,6 +82,7 @@ def _prime_cache(module_path: Path) -> None:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        env=_child_env(),
         check=True,
     )
     assert result.returncode == 0, result.stderr
@@ -84,13 +96,12 @@ def _read_identity(module_path: Path, env: dict[str, str] | None = None) -> str:
         f"m = importlib.util.module_from_spec(spec); "
         f"spec.loader.exec_module(m); print(m.identity(), end='')"
     )
-    merged_env = {**os.environ, **(env or {})}
     result = subprocess.run(
         [sys.executable, "-c", probe],
         capture_output=True,
         text=True,
         encoding="utf-8",
-        env=merged_env,
+        env=_child_env(env),
     )
     assert result.returncode == 0, f"stderr: {result.stderr}"
     return result.stdout.strip()

@@ -12,10 +12,13 @@ Exit 1 = a mutation survived (false survivor) or a control was killed.
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 
 import pytest
 
@@ -23,6 +26,16 @@ import pytest
 def _purge_cache(root: Path) -> None:
     for d in root.rglob("__pycache__"):
         shutil.rmtree(d, ignore_errors=True)
+
+
+def _child_env() -> dict[str, str]:
+    """Environment for the child pytest, without any inherited bytecode prefix.
+
+    _purge_cache clears only __pycache__ beside the source. With
+    PYTHONPYCACHEPREFIX set, the child would write the mutant checker's pyc
+    under the prefix, where no purge reaches the next child.
+    """
+    return {k: v for k, v in os.environ.items() if k != "PYTHONPYCACHEPREFIX"}
 
 
 def _apply_mutation(source: str, original: str, replacement: str) -> str:
@@ -39,6 +52,18 @@ def _apply_mutation(source: str, original: str, replacement: str) -> str:
 def test_apply_mutation_rejects_ambiguous_target() -> None:
     with pytest.raises(ValueError, match="expected exactly 1"):
         _apply_mutation("needle\nneedle\n", "needle", "replacement")
+
+
+def test_child_pytest_does_not_inherit_the_bytecode_prefix(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("PYTHONPYCACHEPREFIX", str(tmp_path / "bytecode-cache"))
+    with mock.patch.object(subprocess, "run", return_value=SimpleNamespace(returncode=0)) as run:
+        _run_tests(tmp_path)
+    env = run.call_args.kwargs.get("env")
+    assert env is not None, "child inherits the parent environment, prefix included"
+    carries_prefix = "PYTHONPYCACHEPREFIX" in env
+    assert not carries_prefix, "child env carries PYTHONPYCACHEPREFIX"
 
 
 def _write_isolated_test(repo_root: Path, checker_source: str) -> Path:
@@ -80,6 +105,7 @@ def _run_tests(repo_root: Path, checker_source: str | None = None) -> int:
         encoding="utf-8",
         errors="replace",
         cwd=repo_root,
+        env=_child_env(),
     )
     return result.returncode
 

@@ -248,7 +248,11 @@ class MutationRunner:
         command: Sequence[str],
         timeout_seconds: int | float = DEFAULT_COMMAND_TIMEOUT_SECONDS,
     ) -> subprocess.CompletedProcess[str]:
-        env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+        # purge_bytecode clears only __pycache__ beside the source. A caller that
+        # sets PYTHONPYCACHEPREFIX would let the child read stale pycs from the
+        # prefix tree, so the child never sees the variable.
+        env = {k: v for k, v in os.environ.items() if k != "PYTHONPYCACHEPREFIX"}
+        env["PYTHONDONTWRITEBYTECODE"] = "1"
         sys.stderr.flush()
         try:
             sys.stdout.flush()
