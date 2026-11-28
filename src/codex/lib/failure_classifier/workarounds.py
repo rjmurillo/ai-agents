@@ -93,7 +93,7 @@ _SECRET_RULES: tuple[tuple[re.Pattern[str], str], ...] = (
     (
         re.compile(
             r"(?i)\b(authorization[\"']?\s*[:=]\s*[\"']?)"
-            r"(?:(?:bearer|basic|token)\s+)?[^\s\"'&|;]+"
+            r"(?:(?:bearer|basic|token)\s+)?(?:\\.|[^\s\"'&|;\\])+"
         ),
         r"\1" + _REDACTED,
     ),

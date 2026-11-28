@@ -265,6 +265,8 @@ class TestQuotedSecretsAreRedactedWhole:
             "--password 'tuna'\\''s melt'",
             'TOKEN="tuna\\" melt"',
             "--password tuna\\ melt",
+            '--password "authorization=tuna\\" melt"',
+            'TOKEN="authorization: tuna\\" melt"',
         ],
         ids=[
             "single-quoted",
@@ -275,6 +277,8 @@ class TestQuotedSecretsAreRedactedWhole:
             "joined-single-quotes",
             "assignment-escaped-quote",
             "escaped-space",
+            "flag-value-an-earlier-rule-matches",
+            "assignment-value-an-earlier-rule-matches",
         ],
     )
     def test_a_quoted_credential_with_a_space_leaves_no_part_behind(
