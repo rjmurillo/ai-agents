@@ -57,7 +57,7 @@ class Decision:
     policy_digest: str | None
     evidence_fingerprint: str
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, object]:
         data = asdict(self)
         data["reasons"] = list(self.reasons)
         return data
@@ -246,37 +246,50 @@ def hard_stops(
     return list(dict.fromkeys(reasons))
 
 
-def rule_matches(rule: Rule, snapshot: Snapshot, registry: Registry) -> bool:
-    """Return True when every supplied selector matches. Unknown values fail."""
+def _paths_match(rule: Rule, snapshot: Snapshot) -> bool:
+    """Allow rules need every changed path; hold rules need any changed path."""
+    globs = rule.selector.paths
+    if globs is None:
+        return True
+    paths = _changed_paths(snapshot)
+    if rule.effect == "hold":
+        return any(any_match(globs, path) for path in paths)
+    return bool(paths) and all(any_match(globs, path) for path in paths)
+
+
+def _size_matches(rule: Rule, snapshot: Snapshot) -> bool:
     selector = rule.selector
     files = snapshot.files.items
-    if selector.paths is not None:
-        paths = _changed_paths(snapshot)
-        if rule.effect == "hold":
-            if not any(any_match(selector.paths, path) for path in paths):
-                return False
-        elif not paths or not all(any_match(selector.paths, path) for path in paths):
-            return False
-    if (
-        selector.author_class is not None
-        and author_class(snapshot, registry) != selector.author_class
-    ):
-        return False
     if selector.max_files is not None and len(files) > selector.max_files:
         return False
-    if selector.max_changed_lines is not None:
-        total = sum((f.additions or 0) + (f.deletions or 0) for f in files)
-        if total > selector.max_changed_lines:
-            return False
-    if selector.forbid_renames and any(
-        f.status in ("renamed", "copied") or f.previous_path for f in files
-    ):
+    total = sum((f.additions or 0) + (f.deletions or 0) for f in files)
+    return selector.max_changed_lines is None or total <= selector.max_changed_lines
+
+
+def _content_matches(rule: Rule, snapshot: Snapshot) -> bool:
+    """Forbid flags fail closed: an unknown flag value counts as present."""
+    selector = rule.selector
+    files = snapshot.files.items
+    renamed = any(f.status in ("renamed", "copied") or f.previous_path for f in files)
+    binary = any(f.binary is not False for f in files)
+    fenced = any(f.touches_code_fence is not False for f in files)
+    return not (
+        (selector.forbid_renames and renamed)
+        or (selector.forbid_binary and binary)
+        or (selector.forbid_code_fences and fenced)
+    )
+
+
+def rule_matches(rule: Rule, snapshot: Snapshot, registry: Registry) -> bool:
+    """Return True when every supplied selector matches. Unknown values fail."""
+    wanted_class = rule.selector.author_class
+    if wanted_class is not None and author_class(snapshot, registry) != wanted_class:
         return False
-    if selector.forbid_binary and any(f.binary is not False for f in files):
-        return False
-    if selector.forbid_code_fences and any(f.touches_code_fence is not False for f in files):
-        return False
-    return True
+    return (
+        _paths_match(rule, snapshot)
+        and _size_matches(rule, snapshot)
+        and _content_matches(rule, snapshot)
+    )
 
 
 def _hold(
@@ -306,7 +319,7 @@ def _hold(
 def _classify(rule: Rule, snapshot: Snapshot, policy: Policy, classifier: Classifier) -> str:
     if policy.budget.max_classifier_calls < 1 or policy.budget.max_spend_usd <= 0:
         return "CLASSIFIER_BUDGET"
-    evidence = {"paths": _changed_paths(snapshot)}
+    evidence: dict[str, object] = {"paths": _changed_paths(snapshot)}
     result = classifier.classify(rule.classifier or "", evidence)
     if result is None:
         return "CLASSIFIER_UNAVAILABLE"

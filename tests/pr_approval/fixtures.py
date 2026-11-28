@@ -115,7 +115,7 @@ def golden() -> dict:
 
 
 def run(
-    raw: dict,
+    raw: object,
     policy_toml: str = POLICY_TOML,
     registry_toml: str = REGISTRY_TOML,
     codeowners=CODEOWNERS,

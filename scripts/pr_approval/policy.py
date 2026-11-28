@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
+from typing import Any
 
 import tomllib
 
@@ -80,7 +81,7 @@ class Policy:
     digest: str
 
 
-def _check_keys(table: object, allowed: frozenset[str], where: str) -> dict:
+def _check_keys(table: object, allowed: frozenset[str], where: str) -> dict[str, Any]:
     if not isinstance(table, dict):
         raise PolicyError(f"{where} must be a table")
     unknown = sorted(set(table) - allowed)

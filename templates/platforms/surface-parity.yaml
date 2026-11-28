@@ -645,6 +645,8 @@ surfaces:
       - copilot-instructions.md
       - dependabot.yml
       - labeler.yml
+      - pr-approval-policy.toml
+      - pr-approval-registry.toml
       - release.yml
     reason: Repository configuration authored in place.
   - id: github-workflows

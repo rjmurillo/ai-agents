@@ -45,12 +45,14 @@ def parse_classifier_output(text: str) -> ClassifierResult:
 
 
 class Classifier(Protocol):
-    def classify(self, classifier_id: str, evidence: dict) -> ClassifierResult | None:
+    def classify(self, classifier_id: str, evidence: dict[str, object]) -> ClassifierResult | None:
         """Return a parsed result, or None when no classifier is available."""
 
 
 class StubClassifier:
     """No transport is wired. Every call reports the classifier unavailable."""
 
-    def classify(self, classifier_id: str, evidence: dict) -> ClassifierResult | None:
+    def classify(
+        self, _classifier_id: str, _evidence: dict[str, object]
+    ) -> ClassifierResult | None:
         return None

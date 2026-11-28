@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
 T = TypeVar("T")
 
@@ -29,11 +29,11 @@ def _bool(value: object) -> bool | None:
     return value if isinstance(value, bool) else None
 
 
-def _table(value: object) -> dict:
+def _table(value: object) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def _items(section: dict) -> list[dict] | None:
+def _items(section: dict[str, Any]) -> list[dict[str, Any]] | None:
     items = section.get("items")
     if not isinstance(items, list) or not all(isinstance(item, dict) for item in items):
         return None
@@ -111,7 +111,7 @@ class Snapshot:
     repo_stop: bool | None
 
 
-def _section(raw: object, build: Callable[[dict], T]) -> Section[T]:
+def _section(raw: object, build: Callable[[dict[str, Any]], T]) -> Section[T]:
     table = _table(raw)
     items = _items(table)
     if items is None:
