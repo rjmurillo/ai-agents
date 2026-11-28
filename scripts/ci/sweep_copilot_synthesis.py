@@ -1,6 +1,6 @@
 """Process all issues with the copilot-ready label in a sweep.
 
-Replaces the inline PowerShell block in copilot-context-synthesis.yml
+Replaces the inline PowerShell block in copilot-context-synthesis.yml (deleted 2026-11-25)
 (ADR-006: no logic in YAML). Iterates over all issue numbers in ISSUES,
 calls invoke_copilot_assignment.py for each, removes the copilot-ready
 label on success. Job-level failure is suppressed so as many issues as

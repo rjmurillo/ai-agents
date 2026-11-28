@@ -229,8 +229,7 @@ workflow instead.
 3. Re-run `get_pr_checks.py` after a minute. `MissingRequiredChecks` should shrink to empty.
 
 Reopening fires the `reopened` pull_request event. Every active pull_request
-workflow listens for it except the close-only ones (`milestone-tracking.yml`,
-`post-pr-retrospective.yml`); `tests/workflows/test_pull_request_reopened_triggers.py`
+workflow listens for it except the close-only one (`milestone-tracking.yml`); `tests/workflows/test_pull_request_reopened_triggers.py`
 enforces that list (issue #4827). Observed on PRs #4009, #4110, and #4095 (issue
 #4359): 0 pull_request runs on the head SHA before reopening, 36 to 37 after.
 
