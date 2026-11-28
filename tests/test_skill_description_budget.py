@@ -211,6 +211,7 @@ def test_main_runs_on_real_corpus(capsys):
 _REPO = Path(__file__).resolve().parents[1]
 _ROOT_CLAUDE = ".claude/skills"
 _ROOT_COPILOT = "src/copilot-cli/skills"
+_ROOT_SRC_CLAUDE = "src/claude/skills"
 
 
 def _budget_repo(tmp_path: Path, monkeypatch, limits: dict[str, int]) -> Path:
@@ -317,12 +318,14 @@ def test_budget_file_negative_top_is_config_error(tmp_path, monkeypatch, capsys)
 
 
 def test_repository_budget_file_passes_on_the_live_tree(capsys):
-    """The checked-in budgets must cover both shipped roots as they stand."""
+    """The checked-in budgets must cover every shipped root as they stand."""
     code = budget.main(["--budget-file", str(_REPO / "scripts" / "skill_description_budget.json")])
 
     assert code == budget.EXIT_OK, capsys.readouterr().err
     budgets = budget.load_root_budgets(_REPO / "scripts" / "skill_description_budget.json")
-    assert set(budgets) == {_ROOT_CLAUDE, _ROOT_COPILOT}
+    assert set(budgets) == {_ROOT_CLAUDE, _ROOT_SRC_CLAUDE, _ROOT_COPILOT}
+    config = budget.load_budget_config(_REPO / "scripts" / "skill_description_budget.json")
+    assert all(b.max_listing_chars is not None for b in config.roots.values())
 
 
 def test_workflow_blocks_and_covers_both_roots():
@@ -335,6 +338,7 @@ def test_workflow_blocks_and_covers_both_roots():
     assert "--budget-file scripts/skill_description_budget.json" in step
     for glob in (
         "'.claude/skills/**/SKILL.md'",
+        "'src/claude/skills/**/SKILL.md'",
         "'src/copilot-cli/skills/**/SKILL.md'",
         "'scripts/skill_description_budget.json'",
     ):

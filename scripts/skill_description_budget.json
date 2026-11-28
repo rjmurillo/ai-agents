@@ -1,7 +1,24 @@
 {
-  "_comment": "Local engineering ratchet on aggregate skill-description characters per shipped root (issue #5762). Set just above the measured corpus. Not a measured limit of any model host. Raise a value only with a reviewed reason in the same PR; lowering is always fine. Enforced by .github/workflows/skill-passive-compliance.yml.",
+  "_comment": "Local engineering ratchets on shipped skill roots (issues #5762, PR #7871). max_total_chars caps aggregate description characters, set just above the measured corpus; it is a local ratchet, not a measured limit of any model host. max_listing_chars caps ListingChars (the sum of 93 + len(name) + len(description) per skill, where 93 is the Copilot CLI per-entry markup cost for project entries); it is set at exactly the measured value and tied to that measured host entry cost. The Claude Code entry cost and listing budget are not yet recorded here. Ratchet rule: lower a value in the same PR as each cut; raise one only with a reviewed reason. host_budgets records each published or observed host listing budget with its state and source; they feed the fit report and do not gate. Enforced by .github/workflows/skill-passive-compliance.yml.",
   "roots": {
-    ".claude/skills": {"max_total_chars": 37200},
-    "src/copilot-cli/skills": {"max_total_chars": 31400}
-  }
+    ".claude/skills": {"max_total_chars": 37200, "max_listing_chars": 50342},
+    "src/claude/skills": {"max_total_chars": 31700, "max_listing_chars": 42854},
+    "src/copilot-cli/skills": {"max_total_chars": 31400, "max_listing_chars": 42451}
+  },
+  "host_budgets": [
+    {
+      "host": "copilot-cli",
+      "chars": 15000,
+      "state": "INFERRED",
+      "source": "PR #7871 evidence note receipt B: largest observed full-entry total 14,915 across 9,390 local sessions, Copilot CLI 1.0.32 to 1.0.116",
+      "date": "2026-11-28"
+    },
+    {
+      "host": "copilot-cli",
+      "chars": 30000,
+      "state": "DISPUTED",
+      "source": "PR #7871 evidence note upstream source 2 (source 1 says 15,000)",
+      "date": "2026-11-28"
+    }
+  ]
 }
