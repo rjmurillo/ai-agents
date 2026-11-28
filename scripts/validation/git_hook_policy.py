@@ -3018,6 +3018,12 @@ def is_blocked_suppression_line(path: str, line: str) -> bool:
     return not any((entry.path, entry.rule_id) == key for entry in ALLOWED_SEMGREP_SUPPRESSIONS)
 
 
+def _holds_allowed_semgrep_entry(path: str) -> bool:
+    """Return True when ``path`` is listed in ``ALLOWED_SEMGREP_SUPPRESSIONS``."""
+    normalized = PurePosixPath(path).as_posix()
+    return any(entry.path == normalized for entry in ALLOWED_SEMGREP_SUPPRESSIONS)
+
+
 def suppression_scan_lines(text: str) -> list[str]:
     """Split ``text`` into lines the way git counts them, on newline only.
 
@@ -6398,9 +6404,13 @@ def _parse_suppression_renames(
             return None
         source_scanned = Path(source).suffix.lower() in SECURITY_SUPPRESSION_SUFFIXES
         destination_scanned = Path(destination).suffix.lower() in SECURITY_SUPPRESSION_SUFFIXES
-        if status == "R100" and source_scanned and destination_scanned:
+        # An allowed Semgrep directive is keyed on its listed path. A rename
+        # carries it to the destination, where hunks alone would credit or skip
+        # it, so the destination is scanned in full under its own path.
+        leaves_allowed_path = _holds_allowed_semgrep_entry(source)
+        if status == "R100" and source_scanned and destination_scanned and not leaves_allowed_path:
             pure_scanned.add(destination)
-        if not source_scanned and destination_scanned:
+        if destination_scanned and (not source_scanned or leaves_allowed_path):
             promoted.add(destination)
         index += 3
     return SuppressionRenames(

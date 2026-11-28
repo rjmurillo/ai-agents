@@ -48,7 +48,8 @@ def write(repo: Path, path: str, body: str) -> None:
     """Write ``body`` to ``path`` inside ``repo``, creating parents."""
     target = repo / path
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(body, encoding="utf-8")
+    # newline="" keeps "\n" as written, so Windows does not add a CR.
+    target.write_text(body, encoding="utf-8", newline="")
 
 
 DIRECTIVE = "# " + "nosem" + "grep"

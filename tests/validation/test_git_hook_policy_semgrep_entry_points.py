@@ -134,3 +134,63 @@ def test_removing_an_allowed_line_earns_no_credit(
 ) -> None:
     repo, base = _repo_with_directive_base(tmp_path, head_line)
     assert entry_point(repo, base) == expected
+
+
+# --- a rename takes the directive away from its listed path -------------------
+
+
+def _repo_with_rename(tmp_path: Path, source: str, destination: str, edit: str) -> tuple[Path, str]:
+    repo = init_repo(tmp_path)
+    # Padding keeps the file similar enough that git pairs an edited rename.
+    padding = "".join(f"value_{index} = {index}\n" for index in range(20))
+    write(repo, source, body(allowed(EXEC_RULE)) + padding)
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "base")
+    base = git(repo, "rev-parse", "HEAD")
+    (repo / destination).parent.mkdir(parents=True, exist_ok=True)
+    git(repo, "mv", source, destination)
+    text = (repo / destination).read_text(encoding="utf-8")
+    if edit == "append":
+        text += "x = 1\n"
+    elif edit == "reindent":
+        text = text.replace(allowed(EXEC_RULE), allowed(EXEC_RULE, indent="        "))
+    write(repo, destination, text)
+    git(repo, "add", "-A")
+    return repo, base
+
+
+@pytest.mark.parametrize("entry_point", ENTRY_POINTS, ids=ENTRY_IDS)
+@pytest.mark.parametrize(
+    ("source", "destination", "edit", "expected"),
+    [
+        pytest.param(SOURCE, "src/claude/lib/ptk_launch.py", "none", 1, id="pure-to-unlisted"),
+        pytest.param(SOURCE, "src/claude/lib/ptk_launch.py", "append", 1, id="edited-to-unlisted"),
+        pytest.param(SOURCE, "src/claude/lib/ptk_launch.py", "reindent", 1, id="reindent-credit"),
+        pytest.param(SOURCE, "src/muse/lib/ptk_run.py", "none", 0, id="pure-to-listed-copy"),
+        pytest.param(SOURCE, "src/muse/lib/ptk_run.py", "append", 0, id="edited-to-listed-copy"),
+    ],
+)
+def test_rename_off_a_listed_path_is_scanned_in_full(
+    tmp_path: Path,
+    entry_point: Callable[[Path, str], int],
+    source: str,
+    destination: str,
+    edit: str,
+    expected: int,
+) -> None:
+    repo, base = _repo_with_rename(tmp_path, source, destination, edit)
+    assert entry_point(repo, base) == expected
+
+
+def test_only_a_listed_source_promotes_a_scanned_rename(monkeypatch: pytest.MonkeyPatch) -> None:
+    records = f"R100\0{SOURCE}\0src/claude/lib/ptk_launch.py\0R100\0a.py\0b.py\0"
+    renames = policy._parse_suppression_renames(records)
+    assert renames is not None
+    assert renames.promoted_destinations == {"src/claude/lib/ptk_launch.py"}
+    assert renames.pure_scanned_destinations == {"b.py"}
+    # Negative control: without the entry, the same rename is skipped as before.
+    monkeypatch.setattr(policy, "ALLOWED_SEMGREP_SUPPRESSIONS", ())
+    renames = policy._parse_suppression_renames(records)
+    assert renames is not None
+    assert renames.promoted_destinations == frozenset()
+    assert renames.pure_scanned_destinations == {"src/claude/lib/ptk_launch.py", "b.py"}

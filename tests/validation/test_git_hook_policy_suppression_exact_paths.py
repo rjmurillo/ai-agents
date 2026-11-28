@@ -7,6 +7,7 @@ Blob reads keep a lone carriage return, so one physical line stays one line.
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Callable
 from pathlib import Path
 
@@ -87,6 +88,9 @@ def test_exact_header_path_keeps_the_name_git_reports(raw: str, expected: str | 
     assert policy._exact_diff_header_path(raw) == expected
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="a backslash is a directory separator on Windows"
+)
 def test_git_writes_the_header_forms_the_parser_expects(tmp_path: Path) -> None:
     repo = init_repo(tmp_path)
     write(repo, "seed", "seed\n")
