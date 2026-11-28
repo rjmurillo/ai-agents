@@ -23,7 +23,8 @@ lives only in a scratch file, a tool result, or a chat reply is not logged.
 
 **Log format.** Name the entry `decision-<short-slug>`, where the slug states
 the finding, for example `decision-the-retrieval-instruction-beats-the-docs-file-map`.
-The body covers:
+The record is a committed file in the store below; a gitignored scratch file
+does not count. The body covers:
 
 1. **Question**: one sentence on the decision.
 2. **Conventional answer**: what Layer 1 or Layer 2 says, with a citation (ADR number, doc link, blog URL, codebase path).
@@ -40,10 +41,17 @@ names (ADR-126). The
 Serena MCP server is optional; file tools on the same folder work.
 
 1. Search the store for the same finding first. Update a matching entry, and
-   add a dated pointer to any older entry the new evidence supersedes.
+   add a dated pointer to any older entry the new evidence supersedes. When
+   the match is not named `decision-*`, write a `decision-<short-slug>` entry
+   anyway and add a dated pointer to it from the match.
 2. Write the entry. In an indexed Serena corpus, check the matching domain
    `*-index` file in the same change: update the entry's row if one exists,
-   and add a row only when none does.
+   and add a row only when none does. A new file under `.serena/memories/`
+   also gets a keyword line in `memory-index.md` (the `knowledge-persistence`
+   rule, MUST 5). Commit the decision entry, every matching or superseded
+   entry changed in step 1, and all changed index lines together. During
+   recovery, also remove any fallback comment block added by this procedure
+   in that same commit (leave the rest of the affected file unchanged).
 3. When the host also configures a memory service for this project, retain
    the same entry there, unless the worktree note below forbids it. A
    service is a retrieval aid, not a replacement for the repository entry.
@@ -59,8 +67,13 @@ Serena MCP server is optional; file tools on the same folder work.
 
 Why log: the next reader (you in three months, or another agent next session) will hit the same fork and want the reasoning. Without the log they will either repeat the analysis or revert to the conventional answer and undo your work. The log compounds.
 
-**When no store is writable.** If the checkout is read-only or the write
-fails, return the five fields to the parent session or the user with the
-intended entry name. As a last resort, put a comment block with the same five
-fields in the file the decision applies to. The comment is worse than a memory
-entry (less searchable, no graph) but better than losing the reasoning.
+**When the record is blocked.** If writing the entry, updating a matching or
+superseded entry from step 1, writing its index lines, or the commit fails or
+is forbidden, the record is blocked. Causes include a
+read-only file or checkout, no commit access, a rejected commit hook, and a
+user instruction against file changes or commits. Do two things:
+
+1. Put a comment block with the same five fields in the file the decision applies to. Use the reply instead when that file must not be edited: it does not exist, cannot be written, is generated (regeneration discards the comment), has no safe comment syntax (for example JSON), or the user forbids file changes.
+2. Add one line to the reply: `Blocked record: decision-<short-slug>, <cause>, <location>`. The location is the path and line of the comment block. If the reply holds the five fields instead, the location is `reply`. Once the user authorizes the change, the parent session or the user runs the full "Where to write it" procedure (steps 1 through 4) with those fields, including the recovery cleanup in step 2. If the repository commit is still blocked, preserve the five fields in the fallback comment or reply and report the remaining cause.
+
+A blocked record is reported, not silently dropped. The comment is worse than a memory entry (less searchable, no graph) but better than losing the reasoning.

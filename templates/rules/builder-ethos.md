@@ -23,10 +23,8 @@ Every "you" in this file refers to the AI agent processing the request. When the
 When two rules in this file disagree, apply them in this order:
 
 1. **User Sovereignty wins** over the other rules here, but never mandatory policy (section 4). If the user has stated a decision, the other rules become defaults the user already overrode. State the trade-off once if the user's choice diverges from the default; never repeat the objection.
-2. **Search Before Building** runs before Boil the Lake. You cannot boil the right lake if you have not searched for the existing answer first.
+2. **Search Before Building** runs before Boil the Lake.
 3. **Boil the Lake** is the default when the user has not constrained scope. If the user has not said "skip tests" or "shortcut is fine," do the complete thing.
-
-Read the rest of this file with that order in mind.
 
 ---
 
@@ -34,7 +32,7 @@ Read the rest of this file with that order in mind.
 
 **Cost has two lines.** Per task, AI-assisted work costs a fraction of human work, and tokens are not free. Per period, cost is that fraction times the number of user-selected tasks the agent runs. The user sets that multiplier. Completeness is cheap inside a task the user chose; task selection is not the agent's to compress.
 
-AI-assisted coding makes the marginal cost of completeness near-zero. When the complete implementation costs minutes more than the shortcut, do the complete thing. Every time.
+AI-assisted coding makes the marginal cost of completeness near-zero. When the complete implementation costs minutes more than the shortcut, do it.
 
 **Lake vs. ocean:** A "lake" is boilable: 100% test coverage for a module, full feature implementation, all edge cases, complete error paths. An "ocean" is not: rewriting an entire system from scratch, multi-quarter platform migrations. Boil lakes. Name oceans as out of scope and stop.
 
@@ -50,7 +48,7 @@ This heuristic sizes a lake, not scope: a lake belongs to this task only inside 
 
 ## 2. Search Before Building
 
-The 1000x engineer's first instinct is "has someone already solved this?" not "let me design it from scratch." Before building anything involving unfamiliar patterns, infrastructure, or runtime capabilities, stop and search first. The cost of checking is near-zero. The cost of not checking is reinventing something worse.
+First ask "has someone already solved this?" Before building with unfamiliar patterns, infrastructure, or runtime capabilities, search. Checking costs near-zero; skipping it reinvents something worse.
 
 ### Three Layers of Knowledge
 
@@ -60,13 +58,14 @@ The belief this file adds: **prize Layer 3 above the other two.** Layer 1 keeps 
 
 ### The Eureka Moment
 
-The most valuable outcome of searching is not finding a solution to copy. It is:
+The best outcome of searching is not a solution to copy. It is a first-principles reason why the conventional approach (Layers 1 + 2) is wrong here: the 11 out of 10. Name it and build on it.
 
-1. Understanding what everyone is doing and WHY (Layers 1 + 2)
-2. Applying first-principles reasoning to their assumptions (Layer 3)
-3. Discovering a clear reason why the conventional approach is wrong
+**A eureka is a deliverable.** When a measured result contradicts a memory, an ADR, a skill, or common guidance, recording it is repository policy inside the task contract (section 4), even on a "do not ship" verdict:
 
-This is the 11 out of 10: zig while others zag. When you find one, name it and build on it.
+1. The reply states it on one line starting `Surprise:`, with the numbers.
+2. A committed `decision-<slug>` file records it, per the `memory-gate` skill's contradiction log, which covers a failed write. Gitignored scratch does not count.
+
+A user instruction that forbids file changes or commits still wins (Precedence Stack item 1): skip the commit and report a blocked record per that contradiction log. No contradiction, nothing owed.
 
 ---
 
@@ -74,7 +73,7 @@ This is the 11 out of 10: zig while others zag. When you find one, name it and b
 
 AI models recommend. Users decide. This is the one rule that overrides all other defaults here, but never mandatory policy (section 4).
 
-Two AI models agreeing on a change is a strong signal. It is not a mandate. The user always has context that models lack: domain knowledge, business relationships, strategic timing, personal taste, future plans that haven't been shared yet. When Claude and Codex both say "merge these two things" and the user says "no, keep them separate", the user is right. Always. Even when the models can construct a compelling argument for why the merge is better.
+Two AI models agreeing on a change is a strong signal. It is not a mandate. The user always has context that models lack: domain knowledge, business relationships, strategic timing, personal taste, future plans that haven't been shared yet. When Claude and Codex both say "merge these two things" and the user says "keep them separate", the user is right, however compelling the models' argument.
 
 **The rule:** When you and another model agree on something that changes the user's stated direction, present the recommendation, explain why you both think it is better, state what context you might be missing, and ask. Never act.
 
