@@ -92,6 +92,8 @@ def test_the_hole_patterns_are_linear_on_a_long_run_of_blanks() -> None:
         (r"(?=\s*)\ue000", [_UNREAD_GROUP]),  # lookahead
         (r"(?:\s?)\ue000", [_UNREAD_GROUP]),  # non-capturing group
         (r"(?i)\s?\ue000", [_UNREAD_GROUP]),  # inline flag
+        # A "#" refusal is the only reason given too: the "*" after it is in plain sight.
+        (r"#\s*\ue000", [_UNREAD_HASH]),
         # Refused with no comment in the pattern: the safe direction.
         (r"(\s?)\ue000", [_UNREAD_GROUP]),  # the escape between "(" and "?" is gone by then
         (r"[(?#]\ue000", [_UNREAD_GROUP, _UNREAD_HASH]),  # literal in a class
