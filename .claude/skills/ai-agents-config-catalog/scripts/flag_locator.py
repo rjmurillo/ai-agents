@@ -48,13 +48,12 @@ FLAGS: dict[str, dict[str, Any]] = {
         "needle": "AI_AGENTS_PYTEST_WORKER_CAP",
         "files": [
             "scripts/validation/git_hook_policy.py",
-            "lefthook.yml",
             ".github/workflows/pytest.yml",
         ],
     },
     "pytest-cpu-reserve": {
         "needle": "AI_AGENTS_PYTEST_CPU_RESERVE",
-        "files": ["scripts/validation/git_hook_policy.py", "lefthook.yml"],
+        "files": ["scripts/validation/git_hook_policy.py"],
     },
     "size-exception": {
         "needle": "size-exception",

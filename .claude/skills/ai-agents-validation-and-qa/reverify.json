@@ -431,24 +431,6 @@
    "path": "scripts/validation/check_tmp_worktrees.py",
    "text": "mode = path.stat().st_mode",
    "id": "R75"
-  },
-  {
-   "kind": "contains",
-   "path": "lefthook.yml",
-   "text": "AI_AGENTS_PYTEST_CPU_RESERVE: \"3\"",
-   "id": "R76"
-  },
-  {
-   "kind": "contains",
-   "path": "tests/test_lefthook_integration.py",
-   "text": "\"AI_AGENTS_PYTEST_CPU_RESERVE\": str(len(cpu_bound_siblings))",
-   "id": "R77"
-  },
-  {
-   "kind": "contains",
-   "path": "scripts/validation/git_hook_policy.py",
-   "text": "PYTEST_WORKERS_AUTO = \"auto\"",
-   "id": "R78"
   }
  ]
 }

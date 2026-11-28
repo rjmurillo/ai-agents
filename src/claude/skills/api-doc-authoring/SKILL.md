@@ -1,7 +1,7 @@
 ---
 name: api-doc-authoring
 version: 1.0.0
-description: Write API docs around a developer use case, with executed examples and failure recovery. Use when you say `document this API` or `write the API guide`. Do NOT use to verify doc claims (use doc-accuracy), design the API, or write tutorials, concepts, or non-endpoint pages (use technical-writing).
+description: "Write API docs around a developer use case, with executed examples and failure recovery. Use when you say `document this API` or `write the API guide`. Do NOT use to verify doc claims (use doc-accuracy) or write tutorials, concepts, or non-endpoint pages (use technical-writing)."
 license: Apache-2.0
 user-invocable: true
 metadata:

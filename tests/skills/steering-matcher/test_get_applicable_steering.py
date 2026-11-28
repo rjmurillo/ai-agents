@@ -253,3 +253,19 @@ class TestMain:
         results = json.loads(completed.stdout)
         assert results[0]["Name"] == "universal"
         assert results[0]["Priority"] == 9
+
+
+class TestRepositorySecuritySteering:
+    """The shipped security steering covers the extracted hook-policy module."""
+
+    @pytest.mark.parametrize(
+        "file_path",
+        [
+            "scripts/validation/git_hook_policy.py",
+            "scripts/validation/adr_debate_evidence.py",
+        ],
+    )
+    def test_security_practices_matches_hook_policy_modules(self, file_path: str) -> None:
+        results = get_applicable_steering([file_path], str(REPO_ROOT / ".agents" / "steering"))
+
+        assert any(result["Name"] == "security-practices" for result in results)

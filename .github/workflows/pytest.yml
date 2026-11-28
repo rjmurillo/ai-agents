@@ -964,10 +964,10 @@ jobs:
   # (scripts/validation/testmon_seed.py re-checks event and head branch on the
   # run itself), so a pull request cannot plant a database by any route.
   #
-  # The seed uses the hook command, partitions, markers and COVERAGE_CORE=ctrace.
+  # The seed runs `git_hook_policy.py pytest` with its partitions and markers.
   # It keeps a fixed cap of 4 and no CPU reserve because it runs in its own job.
   # Seeding is switched off here so the build starts empty.
-  # The hook adds ctrace to avoid under-selection with sysmon on Python 3.14.
+  # The policy sets COVERAGE_CORE=ctrace; sysmon under-selects on Python 3.14.
   # tests/workflows/test_testmon_seed_job_build.py pins the cap and no reserve.
   #
   # Timing. Measured locally at 4 workers: 575 s cold. This runner is slower:

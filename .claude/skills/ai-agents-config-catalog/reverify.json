@@ -274,12 +274,6 @@
    "path": "scripts/validation/git_hook_policy.py",
    "text": "PYTEST_CPU_RESERVE_ENV = \"AI_AGENTS_PYTEST_CPU_RESERVE\"",
    "id": "R50"
-  },
-  {
-   "kind": "contains",
-   "path": "lefthook.yml",
-   "text": "AI_AGENTS_PYTEST_CPU_RESERVE: \"3\"",
-   "id": "R51"
   }
  ]
 }

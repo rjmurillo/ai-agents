@@ -14,82 +14,55 @@ implemented: true
 
 ## Status
 
-Accepted 2026-11-25 by owner direction (issue #7636). Six-seat adr-review debate held 2026-08-25; log at
-`.project-toolkit/critique/ADR-104-debate-log.md`. The first revision was blocked by two
-seats and this record is the rewrite. The branch merged as PR #5319 (`107205cf7`,
-2026-08-26), so `implemented` is true, per ADR-073's definition of that field.
+Accepted 2026-11-25 by owner direction (issue #7636); amended 2026-11-26 by owner
+direction. Original six-seat adr-review debate held 2026-08-25
+(`.project-toolkit/critique/ADR-104-debate-log.md`); merged as PR #5319
+(`107205cf7`, 2026-08-26), so `implemented` is true per ADR-073. Acceptance was
+gated on an in-hook wall-clock measurement per `ci-scripts.md` MUST-16 (cleared
+at 142.39s against 679s recorded for a comparable push).
 
-Acceptance was gated on an end-to-end wall-clock measurement of the hook during
-a real push, because `ci-scripts.md` MUST-16 forbids sizing a pre-push budget
-from a standalone run. That measurement now exists and is in Consequences
-below: 142.39s, against 679s recorded for a comparable push. The gate is
-cleared.
+Amended 2026-11-26 (owner direction following multi-worktree host-contention
+diagnosis; six-seat debate log at
+`.project-toolkit/critique/ADR-104-prepush-pytest-removal-debate-log.md`;
+empirical report at `.project-toolkit/analysis/host-contention-2026-11-26.md`):
+both `python-tests` and `zero-collection-tests` are removed from `lefthook.yml`
+`pre-push`. CI `.github/workflows/pytest.yml` runs `zero-collection-guard`
+(`:116-146`) and every pytest partition leg (`:318-380`) unconditionally on
+`push` to `main`, `pull_request` to `main`, and `merge_group` to `main`, feeding
+required branch-protection check `Run Python Tests` (`test-result`,
+`:1048-1108`). Local on-demand execution (`uv run pytest`,
+`uv run python scripts/validation/git_hook_policy.py pytest`,
+`AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1`, and
+`uv run python scripts/validation/check_zero_collection_tests.py`) remains
+intact, and `scripts/validation/checks_ci_parity.py`
+(`validate_unused_dependencies`) now passes `--isolated` to `uv run` so
+`pre_pr.py` never mutates a worktree `.venv` with the `eval` extra (`openai`).
+See `## Amendment 2026-11-26` below.
 
-Amended 2026-10-08 (PR #6239): the import-graph test selector is deleted.
-Until 2026-10-09, pre-push by default ran pytest collection only over
-`tests/`. The `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1` opt-in still runs the full
-suite. In CI,
-every pytest matrix leg runs its full partition on every event: the `test` job
-has no job-level `if:` or `needs:` (`pytest.yml:262-265`). Four pinned files
-(`_UNPARTITIONED_TESTS` in `run_pytest_partition.py`) run in `split-1` pin
-steps. `security` and `test-windows-pwsh` remain gated by `check-paths` and
-`scripts/ci/path_policy.yml`. The 300 s collection budget was not re-measured
-after #6239. Text below that describes selection is history unless it says
-otherwise.
+**Historical amendments (superseded for `pre-push` by 2026-11-26; kept for
+on-demand `git_hook_policy.py pytest` context):**
 
-Amended 2026-10-09 (owner decision, issue #6239 follow-up; the seed work and the
-measurements followed on 2026-10-10): pre-push no longer only collects. It runs
-`pytest --testmon` (pytest-testmon 2.2.0, MIT) over `tests/`, so tests impacted
-by the branch run locally and a failure blocks the push. When `.testmondata` is
-missing, the hook first fetches the database that main's CI built (see Seed and
-fallback below). When that fetch failed, it built the database locally by running
-the whole suite; the 2026-10-13 amendment below replaced that build with a
-collection. CI keeps running every leg in full and is the gate.
-Collection alone was not enough: it never ran an assertion, so a failure
-surfaced only in CI and cost a round trip for each one.
-
-Three facts of testmon 2.2.0 shape the command. The partitions pass
-`-m "not integration"`, and testmon turns selection off whenever `-m` or `-k` is
-present ("selection automatically deactivated because -m was used"), which would
-run the whole suite on every push, so the hook adds `--testmon-forceselect`.
-Python 3.14 makes coverage default to the sysmon core, which under-records, so
-the hook sets `COVERAGE_CORE=ctrace` (9 selected tests against 56 in the replay
-trial). And selection is best effort: testmon records which code each test runs
-in-process, so it misses code a test reaches only through a subprocess
-(confirmed in the 2026-10-09 trial: it did not re-select the two tests that fail
-when `scripts/validate_skill_output.py` breaks).
-
-The collection-only step was dropped, not kept first: the testmon run imports
-every test module, so a broken import fails it at collection with the same exit
-code. `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1` still runs the whole suite with no
-selection. The hook runs every partition even when one fails and returns the
-worst exit code (a signal-killed child counts as 1), so each partition records
-its tests; stopping at the first failure left the others unrecorded and the next
-push re-ran about 170 tests. The 2026-10-08 paragraph above and the collection
-text below are history unless they say otherwise.
-
-Amended 2026-10-13 (issue #6200, delegated owner decision): the pytest step is
-bounded to the 300s target, in two parts. First, the default path has a 180s
-budget, down from 780s; 780s stays with the
-`AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1` opt-in. A selection that does not finish
-in 180s stops and fails the push with a message that names the opt-in. Second,
-when `.testmondata` is missing and the seed fetch failed, the selection is the
-whole suite and the hook does not start it. It collects the suite instead, which
-still blocks a broken import, prints how many tests it did not run, and says CI
-runs them. This reverses the 2026-10-09 acceptance of a local cold build. See
-"Bounding the pytest step" below.
-
-Amended 2026-11-26 (text accuracy, no decision change): the 180s gap list and
-the Implementation Notes still described the pre-push worker cap as a fixed 4,
-and the seed job paragraph said the seed used the hook's worker cap. Since
-PR #6364 and PR #6295 (both 2026-10-12), `lefthook.yml` sets
-`AI_AGENTS_PYTEST_WORKER_CAP=scaled` and `AI_AGENTS_PYTEST_CPU_RESERVE=3`, while
-the seed keeps a fixed cap of 4. Those passages now say so. Dated measurements
-stay as recorded.
+- *2026-10-08 (PR #6239)*: deleted the import-graph test selector and switched
+  pre-push to pytest collection only over `tests/`. In CI, every pytest matrix
+  leg runs its full partition unconditionally (`pytest.yml:318-324` has no
+  job-level `if:` or `needs:`); four pinned files (`_UNPARTITIONED_TESTS`) run
+  in `split-1` pin steps; `security` and `test-windows-pwsh` stay gated by
+  `check-paths` (`scripts/ci/path_policy.yml`).
+- *2026-10-09 (issue #6239 follow-up; seeded/measured 2026-10-10)*: switched
+  pre-push to `pytest --testmon` (pytest-testmon 2.2.0, MIT) with
+  `--testmon-forceselect` (needed because partitions pass `-m "not integration"`),
+  `COVERAGE_CORE=ctrace` (Python 3.14's default `sysmon` core under-recorded:
+  9 vs 56 selected tests), and a CI `testmon-seed` DB fetch. Selection is best
+  effort and misses subprocess-only code; all partitions ran even on failure so
+  each recorded its tests.
+- *2026-10-13 (issue #6200, delegated owner decision)*: bounded the default
+  testmon step to 180s (keeping 780s under `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1`)
+  and deferred missing-seed runs to whole-suite collection instead of a local
+  cold build.
 
 ## Date
 
-2026-08-25
+2026-08-25 (amended 2026-10-08, 2026-10-09, 2026-10-13, 2026-11-26)
 
 ## Context
 
@@ -199,9 +172,8 @@ The base-ref comparison has a baseline the branch cannot edit, which is the
 property "may only fall" was claiming. Its normal enforcement point is CI, not
 pre-push, which is the reverse of what an earlier revision of this paragraph
 said. `pytest.yml` checks out with `fetch-depth: 0`, so PR CI has the base ref
-and executes the comparison; pre-push runs only the tests testmon selects,
-so it executes this test only when testmon finds the test's dependencies
-changed. So a cap-only edit is caught in CI and not reliably locally. Where no base ref is reachable the comparison
+and executes the comparison; pre-push no longer runs pytest (2026-11-26
+amendment), so a cap-only edit is caught in CI rather than locally. Where no base ref is reachable the comparison
 skips and the ceiling is the only guard; git being absent is a different thing
 and fails rather than skipping, because a gate that cannot tell "no base ref"
 from "no git" disables itself and calls it an environment.
@@ -249,8 +221,8 @@ rather than a cap. Two different quantities.
 A hang is one job. So:
 
 ```text
-declared sum, workstation        3450s   57.5 min   (was 4170s)
-largest single child, container    150s    2.5 min   (was 1800s)
+declared sum, workstation        3330s   55.5 min   (ceiling 3450s / 57.5 min; was 4170s)
+largest single child, container   150s    2.5 min   (was 1800s)
 ```
 
 No single pre-push **subprocess** can run longer than 150s inside a container.
@@ -259,12 +231,12 @@ earlier revision of this paragraph claimed. `pre-pr-validation` does not route
 through `_run_command` and carries its own 240s cap; every job whose work is a
 single subprocess is bounded by the clamp.
 
-Two jobs are not single-subprocess, so the per-subprocess clamp does not bound
-them by itself, and each now carries a deadline for the whole job.
-`run_pytest` clamps its aggregate, so the pytest step is held to 150s in a
-container whichever path it takes. `scan_pushed_heads` clamps one budget across
-every pushed ref and every target batch within a ref, where before each batch
-got a fresh allowance and N refs cost up to N times 150s.
+Among multi-subprocess jobs, `scan_pushed_heads` (`security-scan`) is now the
+sole pre-push job in that class (since `python-tests` was retired from pre-push
+on 2026-11-26); it clamps one aggregate budget across every pushed ref and
+every target batch within a ref, where before each batch got a fresh allowance
+and N refs cost up to N times 150s. On-demand `run_pytest` (`git_hook_policy.py
+pytest`) retains its aggregate deadline at 150s in a container across partitions.
 
 Rule 8 is closed for pre-push. It took four review rounds on PR #5319 to get
 there, and the shape repeated each time: a clamp on one child was read as a
@@ -294,9 +266,11 @@ applied, the target is redundant with it.
    it does not belong here.
 
 2. **Pre-push takes checks that are cheap and would otherwise be discovered
-   remotely.** Ratchets, branch-scope and push-ref policy, and the tests
-   pytest-testmon selects for the branch (best effort; CI runs the rest). The test is not "is this check valuable" but "does
-   running it here cost seconds and save a CI round trip".
+   remotely.** Ratchets, branch-scope and push-ref policy, and fast static
+   checks. Whole-suite or testmon-selected pytest execution and whole-tree
+   pytest collection belong in CI (amended 2026-11-26); developers run targeted
+   `uv run pytest <paths>` on demand. The test is not "is this check valuable"
+   but "does running it here cost seconds and save a CI round trip".
 
 3. **CI takes everything expensive, isolated, matrixed, or credentialed.**
    Whole-suite execution, end-to-end smokes, static analysis at full scope,
@@ -311,16 +285,21 @@ applied, the target is redundant with it.
    feedback; it is the thing preventing feedback.
 
 5. **When a check would exceed its tier's target, replace it with the cheapest
-   check that catches a defect class you have measured it to catch.** Not with
-   nothing, and not with a raised target. The whole-suite run became a
-   whole-suite collection on 2026-10-08 and, on 2026-10-09, the testmon-selected
-   run. State only the classes you probed, and probe them under production
-   configuration. Collection was probed to block on a broken import and on a
-   syntax error and to miss a missing fixture, two same-named test functions in
-   one module, and a same-basename module collision. The testmon run keeps the
-   first two catches because it collects the whole tree before it selects, and
-   it adds the assertions of every test whose dependencies changed. Its probed
-   miss is code a test reaches only through a subprocess.
+   check that catches a defect class you have measured it to catch, or retire it
+   to CI when even that replacement saturates shared local hosts.** Not with a
+   raised target. Historically, the whole-suite run became a whole-suite
+   collection on 2026-10-08 and, on 2026-10-09, the testmon-selected run. State
+   only the classes you probed, and probe them under production configuration.
+   Collection was probed to block on a broken import and on a syntax error and
+   to miss a missing fixture, two same-named test functions in one module, and a
+   same-basename module collision. The testmon run kept the first two catches
+   because it collected the whole tree before it selected, and added the
+   assertions of every test whose dependencies changed; its probed miss was code
+   a test reached only through a subprocess. On 2026-11-26, multi-worktree host
+   telemetry showed that both testmon-selected pytest and whole-tree pytest
+   collection still caused severe shared-host contention while duplicating
+   unconditional required CI checks (`pytest.yml`), so both were retired from
+   pre-push in favor of CI plus on-demand targeted local `uv run pytest`.
 
    The same-basename collision was once published here as a catch. It is a
    collection error under pytest's default `prepend` import mode and not under
@@ -407,28 +386,36 @@ running them; a workflow-only push would have skipped all four.
 
 The test that shipped with it checked the wrong half: it resolved job names and
 entry order, which catches a rename, and never read `glob`. Reverted.
-`tests/ci/test_lefthook_prepush_tiering.py` now fails if the flag or a deferral
-returns, and carries the condition that would make one sound. The duplication
-is real and worth roughly 40s; issue #5317 carries three costed options.
+`tests/ci/test_lefthook_prepush_tiering.py` enforces the soundness condition:
+issue #5317 later shipped sound deferral (`AI_AGENTS_PRE_PR_FAST_STAGE_RAN`)
+strictly for unconditional (non-glob-gated) fast-stage jobs, while glob-gated
+deferral remains forbidden.
 
 ### What ships with this record
 
-- `_resolve_pytest_commands` routes the default path through
-  `_testmon_stand_in`, which returns the four suite partitions under
-  `--testmon`. `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1` restores whole-suite
-  execution without selection and rejects any other value rather than quietly
-  doing less. (Revised 2026-10-09: this bullet first described a collection
-  stand-in with a 300s budget sized from the loaded 34.6s figure; both are
-  gone, and `TEST_COLLECTION_TIMEOUT_SECONDS` was deleted.)
-- `run_pytest` refuses an empty command list: a push must never pass by running
-  zero tests.
-- `.github/workflows/pytest.yml` gained the Markdown roots its own tests read,
-  so the delegation in rule 4 has somewhere to land at PR time.
-- Amended 2026-10-08 (PR #6239): the collection stand-in was the only default
-  path, because the import-graph selector was retired.
-- Amended 2026-10-09: the default path is the testmon selection. The pre-push
-  step runs with `COVERAGE_CORE=ctrace`, and `PYTEST_DIST_MODE` is `worksteal`
-  (owner decision; see SPEC-6211) for CI and the hook alike.
+- **Current (2026-11-26 amendment):** `python-tests` and `zero-collection-tests`
+  are removed from `lefthook.yml` `pre-push`, leaving CI
+  `.github/workflows/pytest.yml` as the authoritative gate for both pytest
+  execution (`:318-380`) and `zero-collection-guard` (`:116-146`), aggregated by
+  required context `Run Python Tests` (`test-result`, `:1048-1108`).
+- **Current (2026-11-26 amendment):** `scripts/validation/checks_ci_parity.py`
+  (`validate_unused_dependencies`) passes `--isolated` to
+  `uv run --isolated --frozen --extra dev --extra eval python` (measured
+  `2.21s-2.45s` warm across 3 runs) so `pre_pr.py` never mutates a worktree
+  `.venv` with `--extra eval` (`openai`).
+- **Current (2026-11-26 amendment):** `scripts/ci/lefthook_budget_model.py`
+  removes `zero-collection-tests` from `CONTAINER_UNCLAMPED_JOBS` (13 clamped,
+  14 unclamped = 27 pre-push jobs). Compute-lane declared worst case drops from
+  18m to 14m; live declared pre-push budget stays `3330s` (55.5 min, within the
+  `3450s` / 57.5 min baseline ceiling in `test_lefthook_declared_budget.py:81-96`)
+  because `workflow-local-run` at 30m still dominates.
+- **On-demand local wrapper (historical pre-push path, 2026-08-25 through
+  2026-10-13):** `git_hook_policy.py pytest` (`_resolve_pytest_commands`,
+  `_testmon_stand_in`, `run_pytest`) remains available on demand (not wired into
+  `lefthook.yml`), keeping `COVERAGE_CORE=ctrace`, `PYTEST_DIST_MODE=worksteal`
+  (SPEC-6211), non-empty command-list refusal, `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1`
+  opt-in, and CI's `testmon-seed` job. `.github/workflows/pytest.yml` keeps the
+  Markdown roots its own tests read (rule 4).
 
 ### Measured in-hook, first real push of this branch
 
@@ -531,468 +518,315 @@ ADR-004's drivers were immediate feedback and one discoverable entry point.
 Both still hold. Neither says what a tier may cost, so "run it locally too" was
 always the locally optimal answer.
 
-### Why Change Now
+### Why Change Now (Historical 2026-08-25 / 2026-10-08 / 2026-10-09 Rationale)
 
-The suite grew to roughly 27,900 tests, so "run the tests locally" costs
-minutes rather than seconds, and the common execution environment moved to
-4-CPU containers with a reclamation deadline, which turns a slow hook into a
-push that never lands. Collection now covers the defect class the local suite run
-most reliably caught, at a fraction of the cost, and every pytest matrix leg in
-CI runs its full partition on every event.
-Import-graph selection (issue #5050) also existed when this record was written.
-PR #6239 deleted it.
-
-Why the selector existed, and why it can go. Issue #5050 added it because the
-full suite cost 878 s per push, and earlier path filters had produced false
-greens (#4345, #4408). That per-push cost no longer bites: pre-push runs only
-the tests testmon selects. Every pytest matrix leg runs
-its full partition on every event, and the selector narrowed only 5 of 30
-PR runs (30 of the 32 pull_request runs among the 80 most recent
-completed `pytest.yml` runs, 2026-10-08). It saved an inferred 40 to 60 s of a roughly 480 s median,
-inferred from job medians and not measured end to end. Test selection is
-Context, not Core (owner decision 2026-10-07), so the repository buys
-(pytest-split) rather than builds.
-
-Limits of that evidence, stated so a later reader can weigh them. pytest-testmon
-2.2.0 was rejected as a CI gate on one confirmed miss: it did not select the
-tests that catch a broken subprocess-run script, on this repository with its
-default coverage core. That rejection is scoped to that version and setup and
-still stands for CI. On 2026-10-09 the owner adopted it for pre-push only,
-where a miss costs one CI round trip because CI runs everything. The
-5 of 30 rate covers pull_request runs only; push and merge_group timing was not
-sampled. The CI speed target in #6239 is measured on the pull request's own runs
-before merge.
-
-Revert path: the change is one pull request of about 20 files. To go back to
-collection only, delete `scripts/validation/testmon_seed*.py`, the
-`testmon-seed` job in `pytest.yml`, `tests/validation/testmon_seed_helpers.py`
-and the `test_testmon_seed*`, `test_pre_push_testmon*` and
-`test_testmon_seed_job*` tests, remove `--testmon` from
-`_testmon_commands`, and restore the collection command from git history.
-
-Risk of the change: a defect that only an executed test catches surfaces in CI
-rather than locally. Blast radius is one CI round trip per such defect, against
-a status quo where the push does not complete.
+In 2026-08-25, the suite grew to ~27,900 tests so local execution cost minutes
+inside 4-CPU containers with reclamation deadlines. PR #6239 (2026-10-08)
+retired issue #5050's import-graph selector (which had narrowed only 5 of 30
+sampled PR runs for an inferred 40-60s savings), adopting owner guidance
+(2026-10-07) that test selection is Context, not Core (buy `pytest-split` in CI
+rather than build). On 2026-10-09, `pytest-testmon` 2.2.0 was adopted for
+pre-push only (rejected for CI after a confirmed subprocess-execution miss),
+then bounded on 2026-10-13 (issue #6200). On 2026-11-26, multi-worktree host
+contention drove retirement of pre-push pytest altogether (see
+`## Amendment 2026-11-26` below).
 
 ## Rationale
 
 ### Alternatives Considered
 
 | Alternative | Pros | Cons | Why Not Chosen |
-|-------------|------|------|----------------|
-| Raise the container's patience | No repository change | Not a repository setting | Rejected: accepts an eleven-minute local gate and asks the environment to tolerate it |
-| Narrow the local selector to a per-path allowlist | Keeps local execution for real Python changes | An allowlist does not bound cost for a large Python change, where the graph maps everything and the subset is still large | Rejected as the primary fix. The fail-open objection an earlier revision gave was wrong: CI already maintains exactly such an allowlist and `runtime_read_patterns.txt` is nearly a copy of it. Making the two agree is worth doing and is issue #5318. Moot since #6239 retired the selector |
-| Drop `python-tests` from pre-push entirely | Cheapest possible hook | A broken import would reach CI and burn a whole matrix | Rejected: gives up the defect class that most deserves a local gate |
-| Keep execution, drop the mutation, safe-push and pr-autofix partitions locally | Saves the measured 212s those three cost | Leaves the 258s bulk partition | Rejected as insufficient, though CI does run those three as separate matrix legs, so they were already duplicated |
-| A hard hook deadline that defers remaining gates to CI on expiry | Bounds the push directly | Untried here; needs a resume story | Not adopted for the whole hook. Weighed under issue #5318, item 4: the container-reclaim asymmetry is real, but #5813 measured whole pre-push hooks at 124s to 128s against the 300s target on the measured classes. `workflow-local-run` is unmeasured. Revisit when it is measured or a measured push passes 150s. Issue #6200 adopted the narrow form for the pytest step alone: a 180s step budget plus a cold-start deferral (see "Bounding the pytest step") |
-| Size threshold on the selected subset (issue #6200, option 1) | Avoids starting a run that cannot finish | The selection size is known before the run only when testmon has no database; throughput varies 9x between selections (808 tests in 49.9s against 49,492 in 339.5s), so no test count maps to a time | Adopted at the one size that is known: the whole suite, when testmon has no database |
-| Lower the step budget alone (issue #6200, option 2) | One constant; catches every overrun | Inferred, not measured: a cold run killed at the budget records no database, so the next push repeats it and the push stays blocked until a seed exists | Adopted for the selection, together with the cold deferral |
-| Collect instead of execute on the fallback | 14s against 382s, still blocks import and syntax defects, CI executes the same commit | Gives up local assertion results; since #6239 that covers every push, not only the fallback class | Chosen 2026-10-08, superseded 2026-10-09 by the testmon row, and re-adopted 2026-10-13 for the no-database case only (issue #6200) |
-| Run the tests pytest-testmon selects in pre-push (buy, not build) | Impacted tests run locally so CI failures are rare; a repeat run with few changes took 4 to 36s in the replay trial; imports are still checked because testmon collects the whole tree | The cold run builds the database over the whole suite: 575 s at 4 workers, 1.9x the 300s target (the CI seed was the mitigation; since 2026-10-13 a missing seed means collection, not a build); selection misses code run only through a subprocess; local `.testmondata` state; a lock change forces a full run | **Chosen** 2026-10-09 (owner decision). The cold-run cost listed here was accepted then and removed 2026-10-13 by issue #6200 |
+|---|---|---|---|
+| Raise the container's patience | No repo change | Not a repo setting | Rejected: asks the environment to tolerate an 11-minute local gate |
+| Narrow local selector to a per-path allowlist | Keeps local execution for Python changes | Unbounded on large Python diffs | Rejected; moot since PR #6239 retired the selector |
+| Keep execution, drop mutation/safe-push/pr-autofix locally | Saves measured 212s | Leaves 258s bulk partition | Rejected as insufficient (CI already runs separate legs) |
+| Whole-hook hard deadline deferring remaining gates | Bounds push directly | Untried; needs resume story | Not adopted whole-hook (#5813 measured 124-128s vs 300s target; `workflow-local-run` unmeasured). Narrow form adopted 2026-10-13 for pytest step only |
+| Collect instead of execute on fallback / no-seed | 14-20.5s; blocks broken imports | No local assertions | Chosen 2026-10-08; superseded 2026-10-09 by testmon; retained 2026-10-13 for missing-seed fallback; **retired from pre-push 2026-11-26** |
+| Run `pytest --testmon` in pre-push (buy, not build) | 4-36s warm replay; catches assertions locally | Cold build 575s; misses subprocess-only code; lockfile or `.venv` extra mismatch forces full run; whole-tree collection bursts across concurrent worktrees | Chosen 2026-10-09, bounded 180s on 2026-10-13 (#6200), **retired from pre-push 2026-11-26**; retained on demand via `git_hook_policy.py pytest` |
+| **Fix `--isolated` alone (and clean `.venv`s), keep `python-tests` in pre-push, and re-measure** | Directly removes the `openai` `.venv` contamination that triggered 16/16 testmon fallbacks while preserving local testmon runs | Does not solve structural multi-worktree contention: suite grew ~3x (`27,900 -> 49,808 -> 81,060` items), so even clean whole-tree collection (`34.23s` warm / `87.48s` cold for `zero-collection-tests` alone) multiplied across 15-30 concurrent worktrees saturates a shared host; `uv.lock`/`pyproject.toml` changes (2/8 replayed commits) or cold seeds still trigger fleet-wide 180s overruns and `FULL_SUITE_LOCALLY=1` stampedes; duplicates unconditional required CI `pytest.yml` (Rule 4, Context-not-Core) | **Rejected 2026-11-26** by owner direction. Fix A (`--isolated`) still ships unconditionally because read-only `pre_pr.py` must never mutate a worktree `.venv` |
+| **Drop `python-tests` and `zero-collection-tests` from pre-push; keep CI `pytest.yml` + on-demand local runs** | Eliminates local pytest/collection CPU bursts on shared hosts, honors Rule 4 and Context-not-Core, and keeps fast targeted `uv run pytest <paths>` | Untested assertions, broken test imports, or zero-collecting test files surface in CI (`pull_request`/`merge_group`/`push` to `main`) unless caught by targeted local runs | Originally rejected 2026-08-25; **Chosen 2026-11-26** by owner direction |
 
-### Seed and fallback
+### Historical On-Demand Testmon Design (2026-10-09 Seed & 2026-10-13 Step Bound)
 
-Measured 2026-10-09 and 2026-10-10 on the owner's workstation; the raw lines are
-in `.project-toolkit/analysis/testmon-prepush-measurements.md`, and every figure
-is one run. Through `lefthook run pre-push --job python-tests` at the cap of 4
-workers: 575 s with no database, and 7.8 s with a warm one. The cold run is 1.9x
-the 300 s pre-push target. The warm path satisfies rule 2: it costs seconds and
-saves a CI round trip. The cold path is an accepted breach of rules 2 and 5. The
-seed is the mitigation. Issue #6200 changed what happens where no seed can be
-fetched: the breach no longer stands, because the cold run is not started (see
-"Bounding the pytest step").
+The following mechanisms were added for pre-push `python-tests` and remain
+active **only** for on-demand `git_hook_policy.py pytest` and CI's
+`testmon-seed` job (raw measurements in
+`.project-toolkit/analysis/testmon-prepush-measurements.md`):
 
-A CI job seeds the database. The `testmon-seed` job in `pytest.yml` runs on
-`push` to `main` only, runs the hook's command with the hook's partitions,
-markers and `COVERAGE_CORE=ctrace`, and uploads `.testmondata` as
-`testmon-db-<key>` with 7 day retention. Its worker env is its own: a fixed cap
-of 4 and no CPU reserve. On the 4-vCPU `ubuntu-latest` runner of the 2026-10
-measurement (run 38015601869), 4 is what the hook's `scaled` cap gives. No
-sibling job shares that runner, and the hook's reserve of 3 would leave one
-worker. `tests/workflows/test_testmon_seed_job_build.py` pins both. It has its
-own 3300 s run budget through
-`AI_AGENTS_TESTMON_SEED_BUDGET_SECONDS`, read only when the seed marker is set,
-because the hook's 780 s suite budget would kill a 30 minute run. It uploads only
-when the hook exits 0, so a failed partition, a budget kill or a signal never
-leaves a partial database behind. The build script exits with the hook's failure
-code, so a failing run turns the seed job red instead of hiding behind a warning;
-the job is outside `test-result` needs, so that red never reaches `Run Python
-Tests`. The key is a SHA-256 over `uv.lock` and
-`pyproject.toml`, computed by `scripts/validation/testmon_seed.py`. The job was
-specified to use `hashFiles`; the Actions runtime owns that function and its
-byte recipe cannot be checked from a checkout, and one differing byte would
-silently disable the seed, so the workflow and the hook share one Python function
-instead. The job is outside `test-result` needs, so a slow, failed or skipped seed
-cannot change `Run Python Tests`. Its 60 minute timeout is an exception to the 10
-minute cap issue #4854 set, recorded in
-`tests/workflows/test_pytest_job_timeout.py`. Run 38015601869 on main spent 1390 s
-across its six 4-vCPU legs without testmon, and ctrace adds about 1.4x, so the
-estimate is about 30 minutes. That estimate is inferred, not measured on a runner;
-the first main push after merge gives the figure. One database cannot be split
-across jobs because testmon keys it by path.
+- **CI seed & provenance (2026-10-09)**: `testmon-seed` (`.github/workflows/pytest.yml:984-1040`,
+  outside `test-result` `needs:`, 60m timeout exception in
+  `tests/workflows/test_pytest_job_timeout.py`, ~30 runner-minute estimate) runs
+  on `push` to `main` under a 3300s `AI_AGENTS_TESTMON_SEED_BUDGET_SECONDS` cap
+  with `COVERAGE_CORE=ctrace` and uploads `testmon-db-<sha256(uv.lock, pyproject.toml)>`
+  (7-day retention) only on exit 0. On-demand `git_hook_policy.py pytest`
+  fetches via read-only `gh api` under a 30s cap, validating event `push`,
+  branch `main`, repo `rjmurillo/ai-agents`, conclusion `success`, workflow
+  path, `git merge-base --is-ancestor` against `origin/main`, 256 MB zip cap,
+  single `.testmondata` member, SQLite magic bytes, and atomic staging via
+  `O_CREAT|O_EXCL|O_NOFOLLOW`. Any fetch failure falls back to collection.
+  Database portability across checkout paths is pinned by
+  `tests/validation/test_testmon_database_portable.py`; testmon conservatively
+  rejects mismatched Python/package versions.
+- **Seed trust**: anything that pushes to `main` can produce a seed, including
+  an administrator who bypasses review and any code that runs inside the
+  `testmon-seed` job. A poisoned database can suppress local selection, so an
+  on-demand run skips tests it should run; CI still runs them. It can also
+  exercise SQLite's parser, which has no code-execution path from a data file.
+  testmon reads it with SQLite queries and has no pickle, marshal, or exec path.
+  The worst case is a false local pass that CI catches.
+- **Step budget & cold deferral (2026-10-13, issue #6200)**: On-demand default
+  runs enforce a 180s selection budget (`780s` with
+  `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1`; 150s inside containers) and defer to
+  whole-suite collection (measured 20.5s across 49,808 tests in 2026-10-13)
+  when `.testmondata` is missing/interrupted and no seed is fetched. Overruns
+  exit non-zero rather than silently deferring. (Historical note: `lefthook.yml`
+  previously carried `timeout: 15m` on `python-tests` and `output: false`
+  during the 2026-10-13 trial, later changed to `output:` (`- failure`) at
+  `lefthook.yml:8-9`.)
 
-When no `.testmondata` exists the hook runs a read-only `gh api` fetch under one
-30 s deadline. It lists `pytest.yml` runs with `event=push` on `main`, then
-accepts a run only if the run object itself says: event `push`, head branch
-`main`, head repository `rjmurillo/ai-agents`, conclusion `success`, path
-`.github/workflows/pytest.yml`, and a full 40 character head SHA that
-`git merge-base --is-ancestor` finds in local `origin/main`. A missing
-`origin/main` means no network call and no seed, so the hook collects the suite,
-and an unknown commit skips that run. It takes the newest accepted run with an
-unexpired artifact named exactly for this checkout's key. The zip streams into a fresh private temporary
-directory with a 256 MB cap enforced while reading. The hook reads one member by
-the exact name `.testmondata`, and any other member name is ignored. The
-database must start with the SQLite magic bytes, and the hook stages it through a
-file opened with O_CREAT|O_EXCL|O_NOFOLLOW before renaming it into place. Pull
-request and fork runs are never read. Any failure (no `gh`, not logged in,
-offline, no `origin/main`, no match, timeout, oversize, bad zip) prints one line
-and the hook collects the suite instead of building the database.
+## Amendment 2026-11-26: Remove Pre-Push Pytest and Isolate Deptry
 
-Who can produce a seed: anything that pushes to `main`, including an
-administrator who bypasses review, and any code that runs inside the
-`testmon-seed` job. The hook trusts that origin and nothing else. A poisoned
-database can do two things. It can suppress local selection, so a push skips
-tests it should have run, which CI still runs. Or it can exercise SQLite's
-parser, which has no code-execution path from a data file. testmon 2.2.0 reads
-the file with SQLite queries and has no pickle, marshal or exec path. CI runs
-everything either way, so the worst case is a false local pass that CI catches.
+Decided 2026-11-26 by owner direction following host-contention diagnosis on
+the owner's shared 48-vCPU Linux host running concurrent worktree agent
+sessions. Full telemetry tables, `.venv` audit counts, and measurement details
+are recorded in `.project-toolkit/analysis/host-contention-2026-11-26.md`.
 
-The database is portable between checkout paths. A test builds one in a runner
-path, copies the tree to a different path, and runs testmon: 0 tests selected,
-and a one-file edit selects exactly the tests that import it
-(`tests/validation/test_testmon_database_portable.py`). The same check on this
-repository, with a second checkout and a separate virtualenv, selected 0 tests
-across all four partitions in 7 s (one run). testmon also rejects the database
-when the Python or package versions differ, which is the conservative failure.
+### Causal Diagnosis (Poisoned Incident vs. Structural Contention)
 
-### Bounding the pytest step
+1. **Poisoned-venv incident amplifier (Fix A root cause)**: The figures in
+   this item are incident-window numbers, measured while 44 of 121 `.venv`s
+   were poisoned. They size the incident Fix A ends, not the steady state. In a 715s capture
+   window (144 samples), host CPU averaged 90.4% busy (`load1` median 117.2,
+   max 208.7), with `hook:python-tests` consuming 19.99 CPUs (41.6% of all 48
+   vCPUs; peak 34 pytest controllers, 106 xdist workers), 108 180s budget
+   overruns in 6h (36x the `> 3/month` trigger), 59 signal kills, 59 load-retry
+   storms, 51 `headroom_timeout_run_anyway` events (fail-open headroom
+   remediation is tracked separately in parallel work), and 35 sessions passing
+   `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1`. Only 14 of 102 lefthook pytest
+   invocations ran with `--testmon`. Auditing 121 worktree `.venv`s showed the
+   trigger: `validate_unused_dependencies` in
+   `scripts/validation/checks_ci_parity.py` ran
+   `uv run --frozen --extra dev --extra eval python scripts/validation/check_unused_dependencies.py`
+   without `--isolated`, mutating `.venv` in place to install `openai-3.51.0`
+   (44/121 worktrees contaminated; 38 on 2026-11-26). Because CI's
+   `testmon-seed` builds `.testmondata` without `--extra eval`, 16/16 worktrees
+   with both `openai` and `.testmondata` hit a package mismatch
+   (`venv-only=['openai 3.51']`) and discarded selection to run all 81,060 tests.
+2. **Why Fix B (removing pre-push `python-tests` and `zero-collection-tests`)
+   stands independently of Fix A**: Even after `--isolated` eliminates `.venv`
+   poisoning, the suite has grown ~3x (`27,900 -> 49,808 -> 81,060` items).
+   Running `check_zero_collection_tests.py` alone on an idle 48-vCPU host
+   (`load1 = 1.94`, 2,697 test files) costs `34.23s` warm (`32.78s` user) and
+   `87.48s` cold `.venv`; `zero-collection-tests` is whole-tree by contract
+   (`rule-ci-scripts.md` forbids glob/diff-scoping it). Across 15-30 concurrent
+   agent worktrees, healthy collection bursts plus lockfile-change full-suite
+   invalidations (`uv.lock`/`pyproject.toml` changed in 2/8 replayed commits)
+   can contend for host CPU while duplicating required CI
+   `pytest.yml` (Rule 4; Context, not Core). Evidence basis: the per-run cost
+   is measured; the concurrency multiplier is an estimate. No load window was
+   measured after Fix A. Fix B rests on owner direction plus that estimate,
+   and the Re-evaluation Triggers below say what would reopen it.
+3. **Why Fix A (`--isolated`) remains mandatory after Fix B**: `pre_pr.py` is a
+   read-only validator and must never mutate a worktree's `.venv` with optional
+   `eval` packages; keeping `.venv` clean reduces installed attack surface and
+   preserves valid testmon matching for on-demand `git_hook_policy.py pytest`.
 
-Issue #6200, decided 2026-10-13 by the agent that fixed it, under the owner's
-delegation of 2026-10-11 for that issue. The delegation reached the agent in its
-task text, not in a repository file or an issue comment, so no URL records it.
-As relayed: where the issue leaves a design choice to the owner, pick the option
-the issue or its comments recommend; if none, pick the option with the best
-evidence and smallest blast radius. The issue recommends none of its three
-options. The owner can reverse the call; the revert path is at the end of this
-section. The issue was filed 2026-10-07 against the import-graph
-selector, which picked 835 to 1310 test files for a Markdown-only change and ran
-them for 212s to over 260s against a 780s inner budget and a 15m lefthook cap.
-#6239 deleted that selector and #6261 replaced it with testmon, so the subset
-sizes in the issue are gone. The missing bound was not: the step could still run
-780s inside a 15m cap.
+### Binding Changes
 
-Measured 2026-10-13 on a 48-thread workstation shared with other sessions (load
-average 4.36, 7.01 and 8.52 at the first run's start; later runs were not
-checked), scaled worker cap, current main. Raw lines are in
-`.project-toolkit/analysis/testmon-prepush-measurements.md`. Every figure is one
-run with no variance estimate, and no host with fewer than 48 threads was
-measured.
+1. Remove `python-tests` and `zero-collection-tests` from `lefthook.yml`
+   `pre-push` and remove `"zero-collection-tests"` from
+   `CONTAINER_UNCLAMPED_JOBS` in `scripts/ci/lefthook_budget_model.py`
+   (13 clamped, 14 unclamped = 27 pre-push jobs; compute lane `18m -> 14m`;
+   live declared budget stays `3330s` / 55.5 min within the `3450s` ceiling).
+2. Add `--isolated` to `validate_unused_dependencies` in
+   `scripts/validation/checks_ci_parity.py` (`uv run --isolated --frozen
+   --extra dev --extra eval python`). Measured warm wall-clock cost across 3
+   runs on 2026-11-26: `2.26s`, `2.45s`, `2.21s` (`Installed 123 packages in
+   82-112ms`, exit 0, `openai` absent from `.venv` after full `pre_pr.py`).
+   Offline with no cached `eval` wheels fails closed (non-zero -> `False`).
+3. Preserve on-demand local commands (`uv run pytest`,
+   `git_hook_policy.py pytest`, `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1`,
+   `check_zero_collection_tests.py`) and CI's `testmon-seed` job intact. The
+   change updates comments and one diagnostic in `scripts/validation/git_hook_policy.py`.
+   Its execution behavior is unchanged. It does not touch `host_headroom.py` or
+   `pre_pr_headroom.py` (avoiding conflicts with parallel PRs).
 
-| Case | Tests | Wall |
-|---|---|---|
-| Warm database, nothing changed | 0 selected | 4.4s |
-| Seeded, 73 files behind main | 808 run | 49.9s |
-| Seeded fresh worktree, in-hook beside the other jobs | not counted | 31.1s |
-| No database, run in sequence | 49,666 passed, 2 failed | 462s (bulk 339.5s, mutation 96.6s) |
-| No database, collect only | 49,808 collected | 20.5s |
+### Revert Path
 
-Older evidence, not re-measured: the 2026-10-08 replay trial (a 13,735-test bulk
-slice on a loaded host with the default `sysmon` core) selected 1 to 877 tests
-in 4.9s to 35.6s for six main commits, and two further replayed commits changed
-`uv.lock` and re-ran every test.
+Removing the two pre-push jobs is reversible with the file list below.
+Adding `--isolated` is one-way by design. To restore local pre-push pytest/collection: re-add `python-tests` and
+`zero-collection-tests` (and stage/compute-lane comments) in `lefthook.yml`,
+re-add `"zero-collection-tests"` to `CONTAINER_UNCLAMPED_JOBS` in
+`scripts/ci/lefthook_budget_model.py`, restore pre-push wiring assertions in
+`tests/test_lefthook_integration.py`, `tests/ci/test_lefthook_container_bound.py`,
+`tests/ci/test_lefthook_prepush_fast_fail.py`,
+`tests/ci/test_zero_collection_guard_wiring.py`,
+`tests/validation/test_pre_pr_covers_pre_push_jobs.py`,
+`tests/validation/test_pre_pr_covers_workflow_validators.py`, and
+`tests/validation/test_pre_push_headroom_wiring.py`, and revert docs/templates
+(`CONTRIBUTING.md`, `tests/AGENTS.md`, `templates/rules/session-logs.md` +
+rendered mirrors, `templates/skills/ai-agents-config-catalog.SKILL.md.tmpl` +
+rendered mirror, `docs/runbooks/local-hook-failure.md`,
+`.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`).
+**Never revert `--isolated`** on `validate_unused_dependencies` or in
+`CONTRIBUTING.md` / `.github/dependency-hygiene/policy.toml`: removing it
+reintroduces `.venv` contamination with `openai`.
 
-A whole push measured 196s in-hook (192.7s with a warm database), with
-`push-ref-policy` excluded because its security-marker check blocks a branch
-that has no `/review` marker. The stages before the expensive group took about
-26s, derived from the lefthook summary (193s wall minus `pre-pr-validation` at
-166s to 170s), and `pre-pr-validation` was the longest job in that group, not
-pytest. Earlier measured pushes took 124s to 128s (see Known non-conformances).
+### Trade-offs and Enforcement-Plane Boundaries
 
-Options from the issue and the call:
+Pre-push runs no pytest suite and no whole-tree pytest collection. Fast local
+feedback remains active via pre-commit `python-check` (advisory ruff),
+pre-push `python-type-check` (mypy) and `python-lint-advisory`, and
+`pre-pr-validation` (including `validate_python_syntax` and
+`Rule Lossless Fixtures`), plus contributor-run targeted `uv run pytest <paths>`.
+Untested assertions, broken test imports, or zero-collecting test files now
+surface in CI (`pull_request`, `merge_group`, `push` to `main`) at a cost of
+one CI round trip; a branch pushed with no open PR gets no `pytest.yml` run
+until a PR opens.
 
-- **Size threshold.** Not adopted as a test count. The cold bulk run ran 146
-  tests per second and the seeded run 16. The data fit a fixed cost plus a
-  per-test cost that varies by test, and neither magnitude was isolated. Two
-  points fit no N that converts to a time. The one size known before a run starts is the whole suite, which is what
-  testmon selects when it has no database. The threshold applies there only.
-- **Time budget.** Adopted for the selection: 180s. The 26s of stages before the
-  group plus 180s is 206s, under the 300s target with 94s of margin. That sum
-  is arithmetic from one in-hook run. Pytest running to 180s beside
-  `pre-pr-validation` was not measured, and the seed fetch (30s cap) spends the
-  same deadline, so a fetched run has about 150s. Inferred, not measured: a
-  budget alone cannot serve the cold case, because a killed run records no
-  database, so the next push repeats it.
-- **Both.** Chosen. The issue's "below, at, above the threshold" tests became
-  database finished, database interrupted (`user_version` 0 or not SQLite), and
-  database missing, because the only size known before a run is the whole suite.
-  A smaller local subset after collection (a smoke run) was not weighed: it would
-  need its own selection rule, which testmon already provides when a database
-  exists. With no database and no seed the hook collects the suite
-  instead of running it (20.5s). Collection imports every test module, so a
-  broken import or a syntax error still blocks the push. The hook prints how
-  many tests it did not run and says CI runs them on the pull request and in the
-  merge queue. Every pytest leg of `pytest.yml` runs in full on those events and
-  `Run Python Tests` is a required context
-  (`scripts/ci/ruleset_required_contexts.py`), so a deferred test still runs
-  before merge. A branch pushed with no pull request has no CI run yet.
+CI backstop scope and pre-existing ADR-101 limits (stated plainly):
 
-Why an overrun fails the push instead of deferring: the issue specifies it, and
-a run killed at the budget cannot say which tests it did not reach, so there is
-nothing to list and nothing to promise CI will run. Tests that failed before the
-kill are real failures. The message keys on a child having been killed, or a
-partition refused for lack of time, not on the clock, and it tells the developer that a dependency-file change needs the
-opt-in on each push.
-
-Visibility: `lefthook.yml` sets `output: false`, and a passing pre-push run
-printed nothing in the 2026-10-13 runs, including the testmon banner. A cold
-deferral exits 0, so its "Not run locally" notice reaches the developer only when
-the run is repeated with output enabled (`LEFTHOOK_OUTPUT=summary,success,failure`
-was the setting used). Failing runs did print under `output: false` in the same
-session (the dash-prohibition and security-marker failures in the measurements
-file). Changing `output` is outside this change.
-
-The declared bound is the inner budget. `lefthook.yml` keeps `timeout: 15m` on
-`python-tests` because the opt-in needs it; `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1`
-runs the whole suite with no selection, ignores the deferral, and keeps the 780s
-budget. The `testmon-seed` CI job sets `AI_AGENTS_TESTMON_NO_SEED` and still
-builds the database from nothing under its own 3300s budget.
-
-Reversal, stated plainly: on 2026-10-09 the owner accepted a local cold build as
-a breach of rules 2 and 5 and accepted that a container could not finish it.
-This amendment removes that breach. Accepted gaps, none measured beyond what is
-cited above:
-
-- A developer with no seed never builds a local database and gets collection on
-  every push until a seed exists, and a passing push shows no sign of it.
-- The first run after seeding a worktree failed once with the xdist
-  "Different tests were collected" error of issue #6477. It passed on the second
-  run. This amendment neither causes nor fixes it.
-- A `uv.lock` or `pyproject.toml` change with a database already present
-  re-selects the whole suite. The run passes 180s and fails the push, and the
-  next push repeats it, because the opt-in does not refresh `.testmondata`. The
-  opt-in is the way through, at 780s outside a container and 150s inside one,
-  where it cannot finish. Two of eight replayed main commits changed `uv.lock`,
-  so this is not rare. No test of the lock-change cost exists.
-- 180s is sized on a 48-thread host. A 4 to 8 thread machine runs 1 to 4
-  workers (the lesser of the scaled cap and the CPUs left after the 3-CPU
-  reserve: 1 at 4 threads, 4 at 7 or 8)
-  and may pass 180s on selections that took 50s here.
-- The "did not finish" line is local stdout, so the new re-evaluation trigger
-  below has no collector, like the seed trigger beside it.
-
-Revert: restore `TEST_SUITE_TIMEOUT_SECONDS` as the default budget in
-`_suite_budget_seconds` (and inline `_seed_budget_seconds`), and delete
-`PRE_PUSH_SELECTION_TIMEOUT_SECONDS`, `_PYTEST_NO_TESTS_COLLECTED`,
-`_should_defer_cold_selection`, `_collect_instead`, `_tail_of_output`,
-`_report_selection_overrun`, `_PytestOutcome` (return plain exit codes from
-`_run_pytest_lanes` and inline `_run_selected_partitions` back into `run_pytest`),
-`scripts/validation/pytest_deferral.py` and its tests
-(`tests/validation/test_pytest_deferral.py`,
-`tests/validation/test_pre_push_cold_deferral.py`). Restore the build message in
-`_seed_testmon_database` and the warm default in
-`tests/validation/pre_push_testmon_helpers.py`, and revert the comment edits in
-`lefthook.yml`, `.github/workflows/pytest.yml` and
-`scripts/validation/testmon_seed.py`.
-
-### Trade-offs
-
-A failing assertion testmon does not select is discovered by CI rather than by
-the push. Before #6239 this held for changes the import graph could not map.
-Between #6239 and 2026-10-09 it held for every push. Now it holds
-for the tests testmon does not select: code reached only through a subprocess.
-A first push with no database and no seed collects the suite and runs no test
-(issue #6200), so CI is the first run of every test on that push. The
-`AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1` opt-in still runs the full suite.
-
-That trade rests on CI executing the commit, and the shape of that is worth
-stating precisely because an earlier revision got it wrong. The `test` job in
-`pytest.yml` has no `needs:` and no job-level `if:` (its comment cites ADR-101
-requirement 1), so the full partition matrix runs on every event, including
-pull requests whose diff matches no path filter. `check-paths` still computes
-`python-changed` and forces it true for `merge_group` through its
-`FORCE_RUN_EVENTS: merge_group` setting, but that output no longer gates the
-partitions. An earlier revision of this paragraph said the matrix ran
-unconditionally only in the merge queue and at PR time only when the diff
-matched the filter; that described the filtered workflow retired by PR #6239.
-`Run Python Tests` is a required context
-(`scripts/ci/ruleset_required_contexts.py`), and the same name is carried by the
-skip-through job, so a required green check does not by itself mean tests ran.
-
-Since PR #6239 no leg narrows what it runs. Every pytest matrix leg runs its
-full partition on every event through `scripts/ci/run_pytest_partition.py`
-(the `test` job has no job-level `if:` or `needs:`, `pytest.yml:262-265`). Four
-pinned files run in `split-1` pin steps. `scripts/ci/path_policy.yml` still
-drives the `check-paths` gate for `security` and `test-windows-pwsh`.
+- In `.github/workflows/pytest.yml` (`:28-37`, no path filter), both
+  `zero-collection-guard` (`:116-146`) and the 8-leg `test` matrix (`:318-380`,
+  full partitions via `run_pytest_partition.py`, 4 pinned files in `split-1`)
+  have no `needs:` and no job-level `if:`. `test-result` (`Run Python Tests`,
+  `:1048-1108`) is a required ruleset context (`ruleset_required_contexts.py:16`)
+  that fails closed unless all 7 upstream jobs (`test`, `coverage`,
+  `zero-collection-guard`, `line-endings-guard`, `context-output-guard`,
+  `count-ratchet-guard`, `mutation-harness-guard`) succeed.
+- `security` (`Python Security Checks`: `pip-audit` + ruff security rules,
+  `pytest.yml:1109-1113`) and `test-windows-pwsh` remain path-filtered via
+  `check-paths` (`scripts/ci/path_policy.yml`) and sit outside `test-result`
+  and `REQUIRED_CONTEXTS`.
+- Per ADR-101 (`:155,196-198`), local pre-push is P0 (actor-controlled, never a
+  security boundary), so removing local pytest adds no new bypass. As a
+  pre-existing P1/P2 limit, `pytest.yml` and `scripts/ci/` are head-editable on
+  same-repo `pull_request` runs and `scripts/validation/ruleset_params_baseline.json`
+  records `require_code_owner_review: false`, `required_approving_review_count: 0`,
+  `strict_required_status_checks_policy: false`, and admin bypass (`actor_id: 5`);
+  tamper detection therefore rests on P2 required contexts plus
+  `enforcement-closure.yml`.
 
 ## Consequences
 
 ### Positive
 
-- A pre-push on a Markdown change selects few or no tests under testmon, so it
-  costs seconds of pytest once `.testmondata` exists. The first push without a
-  seed does not run tests at all: it collects the suite (see Negative).
-- Placement is a decision with a stated target, so the next check that wants to
-  be local has a rule to argue against rather than a precedent to follow.
-- The gap between what CI skips and what the hook runs is closed for the common
-  change class.
-- Hook output on the collection path dropped from 31,765 lines to 878, which is
-  a token cost as well as a wall-clock one. The three-`-q` collection command
-  that produced it was deleted 2026-10-09; testmon runs print pytest's normal
-  header and summary.
-- Measured end to end on a real push while pre-push only collected: 142.39s against 679s recorded for a
-  comparable push, a 4.8x reduction, with `python-tests` falling from 498.52s
-  to 15.10s.
+- Local pushes no longer spawn pytest controllers or xdist worker pools
+  (41.6% of host CPU during the 2026-11-26 incident; peak 34
+  controllers, 106 workers) or ~34s warm `zero-collection-tests` scans.
+- `validate_unused_dependencies` runs under `uv run --isolated` (`2.21s-2.45s`
+  warm), ending `.venv` contamination with `openai` and preserving testmon
+  matching for on-demand `git_hook_policy.py pytest`.
+- Compute-lane declared worst case drops `18m -> 14m` (`plugin-scanner` 3m +
+  `count-ratchets` 11m); container per-job ceiling stays `240s`
+  (`pre-pr-validation`).
+- Historical baseline before 2026-11-26: collection-only cut a comparable
+  4-CPU push from 679s to 142.39s (`python-tests` 498.52s to 15.10s).
 
 ### Negative
 
-- Local feedback is best effort. A test testmon does not select, because it
-  reaches code only through a subprocess, surfaces in CI. Before #6239 this
-  held only for the fallback class; between #6239 and 2026-10-09 it held for
-  every assertion.
-- Consequences of the testmon default, stated plainly:
-  - Tests that reach code only through a subprocess are never selected when
-    that code changes.
-  - A branch far from main re-selects many tests, and a lock change re-selects
-    all of them. A branch that changes `uv.lock` or `pyproject.toml` has no seed
-    for its key until it merges. With a local database already present the full
-    re-selection runs, passes the 180 s budget, and fails the push with a
-    message naming the opt-in. With no database the hook collects instead.
-  - No network, no `gh`, or no `gh` authentication means no seed, so the push
-    collects the suite and runs no test.
-  - In a managed container the 150 s clamp applies to the step as a whole.
-    Collection is expected to fit inside it (20.5 s on a 48-thread host);
-    nobody has measured it in a container.
-  - The seed artifact expires after 7 days. If main has no push for 7 days, the
-    next push without a local database collects the suite.
-  - Nothing builds a local database except a seed. A developer who stays offline
-    never gets selection and gets collection on every push.
-  - The seed uploads only from a passing main run, so a main push with any
-    failing test produces no seed.
-  - The seed job costs about 30 runner-minutes on every main push. That is
-    inferred from run 38015601869 and stays inferred until the first main run
-    measures it.
-- `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY` is one more configuration axis, and an
-  escape hatch nobody exercises rots. Its wiring is covered by a test.
-- The duplication between `pre-pr-validation` and the fast stage stays, and
-  costs roughly 40s per push, because the cheap way to remove it was unsound.
-- The workstation declared sum is still 57.5 minutes against a 300s target, and
-  the ratchet stops it rising rather than bringing it down. Closing that needs
-  the unmeasured jobs measured. Issue #5318 asked for that and is closed, so no
-  open issue carries it. On a workstation a hung e2e smoke
-  can still run for 20 minutes, which is slow rather than destructive.
-- **The failure this record exists to stop is closed for pre-push, and the
-  route to closing it is the negative worth keeping.** In a container no single
-  subprocess exceeds 150s, and the two jobs that run several subprocesses now
-  hold their own aggregate deadlines, so no pre-push job can outlive the
-  container. An earlier revision of this section asserted that bound before
-  either aggregate existed, on the strength of the per-child clamp.
-
-  Four review rounds were spent on the same confusion: a clamp on one child
-  read as a bound on a job that runs many. `run_pytest` was fixed first,
-  `scan_pushed_heads` last, and in between this paragraph twice described a gap
-  the previous commit had closed. The lesson is not about clamps. A safety
-  claim that is one inference away from what the code enforces will be made
-  again, and the only thing that caught it each time was a reviewer reading the
-  loop rather than the constant.
+- Broken imports in untouched test modules, zero-collecting test files, and
+  untested failing assertions surface in CI rather than at `git push` (one CI
+  round trip), and branches without an open PR run no `pytest.yml`.
+- On-demand `git_hook_policy.py pytest` and `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY`
+  are no longer exercised on default pushes; unit tests pin their contracts
+  (`test_pre_push_testmon.py`, `test_pre_push_headroom_wiring.py`).
+- Live workstation declared pre-push budget remains `3330s` (55.5 min; ceiling
+  `3450s` / 57.5 min) against the 300s target because `workflow-local-run`
+  (30m) and the two CLI e2e smokes (20m) dominate the outer parallel group.
+- Issue #5317 later shipped sound deferral (`AI_AGENTS_PRE_PR_FAST_STAGE_RAN`)
+  for 5 unconditional fast-stage jobs; remaining glob-gated duplication stays.
+- **Container-reclaim protection remains closed for pre-push:** no single
+  subprocess exceeds 150s in a container, and `scan_pushed_heads` (plus
+  on-demand `run_pytest`) holds aggregate deadlines.
 
 ### Neutral
 
-- The cap on `python-tests` fell from 30m to 15m. It is the ceiling for the
-  opt-in, whose inner budget is 780s. The default path's inner budget is 180s
-  (issue #6200). In a managed container `run_pytest` clamps the budget to 150s
-  for the step as a whole. The cold deferral is expected to fit inside it;
-  nobody has measured a collection inside a container.
-- Lefthook remains the local scheduler (ADR-086); protected CI remains the
-  authoritative backstop.
+- On-demand `git_hook_policy.py pytest` retains its internal budgets (180s
+  default, 780s full-suite opt-in, 150s container clamp, 900s headroom cap).
+- Lefthook remains the local scheduler (ADR-086); CI `pytest.yml` (`Run Python
+  Tests`) remains the authoritative test gate.
 
 ## Re-evaluation Triggers
 
-Revisit this record when any of these becomes true. Owner: the repository
-maintainer; mechanism: a comment on issue #5315.
+Revisit this record when any trigger fires. Owner: repository maintainer;
+mechanism: issue #5315 (or dedicated follow-up issue for `testmon-seed`).
 
-- A real push measures the pre-push hook above 300s.
-- Pushes fail the 180s selection budget more than 3 times in a month, counted
-  from the "did not finish" line the hook prints. That moves the budget or the
-  deferral rule.
-- The seed is missing or failed on more than 3 cold pushes in a month, counted
-  from the one-line fallback message the hook prints.
-- A coverage or Python upgrade changes the ctrace or sysmon behavior, which
-  `COVERAGE_CORE=ctrace` assumes.
-- The first main run of `testmon-seed` is measured against the 30 minute
-  estimate and the 60 minute cap.
-- A defect reaches CI that testmon did not select and an executed local run
-  would have caught more than once. That counts against best-effort selection.
-- A new pre-push job is proposed.
-- `pytest.yml` stops being a required context, or its merge-queue force-run is
-  removed. Rule 4's premise dies with either.
-- A defect reaches `main` that an executed local suite would have caught.
+- A real push measures pre-push above 300s after `python-tests` and
+  `zero-collection-tests` are removed.
+- More than 3 `pull_request` runs in one week fail `zero-collection-guard`
+  or fail pytest collection in a `test` matrix leg. Source: the Actions run
+  history for `pytest.yml`, read at the 2026-12-26 review.
+- Any proposal seeks to re-introduce pytest execution or collection into
+  `pre-commit` or `pre-push`, or add a new pre-push job.
+- `Run Python Tests` or `zero-collection-guard` stops being an unconditional
+  required context or loses merge-queue execution (invalidating Rule 4).
+- A defect reaches `main` that a local pytest gate would have caught and CI
+  missed.
+- **Time-boxed `testmon-seed` review (by 2026-12-26, 30 days post-merge):**
+  because local on-demand runs have no telemetry collector, open/review a
+  dedicated tracking issue by 2026-12-26 to retire CI's ~30-runner-minute
+  `testmon-seed` job and `git_hook_policy.py pytest` unless active on-demand
+  usage is confirmed.
 
 ## Impact on Dependent Components
 
 | Component | Dependency Type | Required Update | Risk |
-|-----------|----------------|-----------------|------|
-| `scripts/validation/git_hook_policy.py` | Direct | Default path runs the four suite partitions under `--testmon` with `COVERAGE_CORE=ctrace`; the collection stand-in and its 300s budget are deleted | Medium |
-| `.github/workflows/pytest.yml` | Direct | Paths filter widened to the Markdown roots its own tests read; every pytest matrix leg runs its full partition since PR #6239 | Medium |
-| `tests/validation/test_pytest_import_selection.py` (deleted by #6239), `tests/validation/test_pre_push_collection_only.py`, `tests/validation/test_collection_probes.py`, `tests/validation/test_collection_contract_surfaces.py` (all deleted 2026-10-09) | Direct | Old tests asserted pre-push collects only; `tests/validation/test_pre_push_testmon.py` asserts the testmon contract | Low |
-| `scripts/ci/path_policy.{py,yml}` | Direct | Decides whether `security` and `test-windows-pwsh` run, through the `check-paths` gate. Head-editable. `/scripts/ci/` already owns it (`.github/CODEOWNERS:61`) | High |
-| The pytest-split durations cache and `scripts/ci/run_pytest_partition.py` membership | Direct | The map lives in the main-scope cache, saved only on a push to main (`tests/ci/test_pytest_split_durations_save.py`). A pull request can write only its own `refs/pull/N/merge` scope, and only that pull request's reruns read it, so the worst it can do is skew its own balance. The invariant that makes the cache safe: pytest-split assigns every collected test to exactly one group, so a hostile or empty map ends red (exit 5 or 3) or unbalanced, never green with tests skipped (`tests/ci/test_pytest_split_pool.py`, `tests/ci/test_pytest_split_hostile_durations.py`). A cold or evicted cache (GitHub evicts caches idle for 7 days) makes the legs split evenly by test count with a `::warning`; that is a latency risk, not a correctness risk, and the blocking leg gate (480 s, in the `coverage` job that `Run Python Tests` requires) catches a leg that gets too slow. `run_pytest_partition.py` itself can still change the pool ignores, which is why it is Medium and owned by `/scripts/ci/`. The committed `tests/.test_durations` and its CODEOWNERS rule are removed | Medium |
-| `tests/test_safe_push_pr_branch.py`, `tests/validation/test_pytest_parallelism_policy.py` | Direct | Multi-command budget and worker-flag contracts opt into local execution | Low |
-| ADR-090 | Indirect | Its 30-minute lease TTL is calibrated against "the known 20 to 30 minute pre-push gate"; that input changed | Low |
-| `.claude/rules/session-logs.md` MUST-2 | Indirect | Describes the episode ratchet as running inside `python-tests`, which is now true only when testmon selects that test or on the full-suite path | Low |
+|---|---|---|---|
+| `lefthook.yml` | Direct | `python-tests` and `zero-collection-tests` removed from `pre-push` (2026-11-26) | Low |
+| `scripts/validation/checks_ci_parity.py` | Direct | `validate_unused_dependencies` passes `--isolated` to `uv run` | Low |
+| `scripts/ci/lefthook_budget_model.py` | Direct | `zero-collection-tests` removed from `CONTAINER_UNCLAMPED_JOBS` (13 clamped, 14 unclamped = 27) | Low |
+| `scripts/validation/git_hook_policy.py` | Direct | Comments and diagnostic only; execution unchanged for on-demand `pytest` and CI `testmon-seed` | Low |
+| `.github/workflows/pytest.yml` | Direct | Unconditional `zero-collection-guard` (`:116-146`) and 8-leg `test` (`:318-380`) feed required `Run Python Tests` (`:1048-1108`) | Medium |
+| Pre-push & isolation test suite (`test_lefthook_integration.py`, `test_lefthook_prepush_fast_fail.py`, `test_zero_collection_guard_wiring.py`, `test_pre_pr_covers_pre_push_jobs.py`, `test_pre_pr_covers_workflow_validators.py`, `test_pre_push_headroom_wiring.py`, `test_validate_unused_dependencies_isolation.py`) | Direct | Pin absence of `python-tests`/`zero-collection-tests` from pre-push, preserve CI wiring proofs, and pin `--isolated` | Low |
+| `scripts/ci/path_policy.{py,yml}` | Direct | Gates `security` and `test-windows-pwsh` via `check-paths`; head-editable; owned by `/scripts/ci/` (`.github/CODEOWNERS:78`) | High |
+| `pytest-split` durations cache & `scripts/ci/run_pytest_partition.py` | Direct | Main-scope durations cache (`test_pytest_split_durations_save.py`); pytest-split assigns every collected test to one group so hostile/empty maps fail red or unbalance, never skip (`test_pytest_split_pool.py`, `test_pytest_split_hostile_durations.py`); blocking 480s leg gate in `coverage` catches slow legs; owned by `/scripts/ci/` | Medium |
+| `tests/test_safe_push_pr_branch.py`, `tests/validation/test_pytest_parallelism_policy.py` | Direct | On-demand budget and worker-flag contracts for `git_hook_policy.py pytest` | Low |
+| ADR-090 | Indirect | 30-minute lease TTL calibrated for former 20-30m pre-push; pre-push no longer runs pytest | Low |
+| Contributor & agent docs (`CONTRIBUTING.md`, `.github/dependency-hygiene/policy.toml`, `tests/AGENTS.md`, `templates/rules/session-logs.md`, `templates/skills/ai-agents-config-catalog.SKILL.md.tmpl`, `docs/runbooks/local-hook-failure.md`, `.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`) | Indirect | Updated to reflect CI `Run Python Tests`, on-demand local pytest, and `--isolated` deptry | Low |
 
 ## Implementation Notes
 
 ```bash
-# Whole-suite execution, as pre-push ran it before this record
-AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1 AI_AGENTS_PYTEST_WORKER_CAP=4 \
+# Recommended local workflow before pushing: targeted tests for changed files
+uv run --frozen pytest tests/<area>/test_<module>.py -q
+
+# Clean already-contaminated worktree .venv (removes stray eval/openai packages)
+uv sync --frozen --extra dev
+
+# On-demand testmon-selected local run (not wired into pre-push)
+uv run --frozen python scripts/validation/git_hook_policy.py pytest
+
+# On-demand whole-suite local run across all 4 local partitions
+AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1 \
   uv run --frozen python scripts/validation/git_hook_policy.py pytest
 
-# What pre-push runs now for every push: the tests testmon selects (2026-10-09),
-# with the worker env lefthook sets (2026-10-12)
-AI_AGENTS_PYTEST_WORKER_CAP=scaled AI_AGENTS_PYTEST_CPU_RESERVE=3 \
-  uv run --frozen python scripts/validation/git_hook_policy.py pytest
+# On-demand whole-tree zero-collection check (also runs unconditionally in CI)
+uv run --frozen python scripts/validation/check_zero_collection_tests.py
+
+# Isolated deptry check (as run by pre_pr.py; does not mutate .venv)
+uv run --isolated --frozen --extra dev --extra eval \
+  python scripts/validation/check_unused_dependencies.py
 ```
-
-`lefthook.yml` sets `AI_AGENTS_PYTEST_WORKER_CAP=scaled` and
-`AI_AGENTS_PYTEST_CPU_RESERVE=3`. Workers are the lesser of the scaled cap and
-the visible CPUs minus the reserve, never fewer than one. The scaled cap is half
-the visible CPUs, at least 4 and at most 16, and never above the CPU count. That
-gives 1 on a
-4-CPU container, 16 on a 48-thread workstation. To use every CPU on the opt-in
-path, also set `AI_AGENTS_PYTEST_WORKERS=auto`, which wins over both.
 
 Every defect-class claim in rule 5 was probed against a throwaway tree, and the
 two that failed are recorded as failing rather than dropped quietly.
 
 ## Related Decisions
 
-- ADR-086: Lefthook owns local hook orchestration. This record says what the
-  pre-push event may hold.
-- ADR-071: placed the credentialed CLI e2e smokes in pre-push. Not overturned;
-  listed under Known non-conformances.
-- ADR-054: set the one prior pre-push cost bar, qualitatively, and an enforced
-  900s per-job kill ceiling for `security-scan`. It is compatible with this
-  record's 300s whole-hook target (see Known non-conformances).
+- ADR-086: Lefthook owns local hook orchestration; this record bounds pre-push.
+- ADR-071: placed CLI e2e smokes in pre-push (listed under Known non-conformances).
+- ADR-054: 900s per-job kill ceiling for `security-scan` (compatible with 300s target).
 - ADR-049: pre-PR validation gates.
-- ADR-101: enforcement planes. Complementary: that record asks whether a gate's
-  verdict can be trusted, this one asks where a gate should run.
-- ADR-073: frontmatter status enum and the `implemented` field's definition.
+- ADR-101: enforcement planes (complementary: trust vs. placement).
+- ADR-073: frontmatter status enum and `implemented` definition.
 - ADR-004: superseded by ADR-086.
 
 ## References
 
-- Issue #5315: the incident and the measurements.
-- Issue #5317: the duplication this record declined to remove unsoundly.
-- Issue #5318 (closed 2026-10-02; selector part moot after #6239): the tail, the
-  pre-commit measurement, and the selector/CI-filter reconciliation. The
-  measurements it asked for are not recorded here.
-- Issue #4710: local hook and validation latency.
-- Issue #5066: the fast-fail staging this record builds on.
-- `scripts/validation/testmon_seed.py` and the `testmon-seed` job in
-  `.github/workflows/pytest.yml`: the seed fetch and the main-push build.
-- Issue #5050: import-graph test selection and its non-Python fail-safe.
-  Retired by PR #6239.
-- PR #6239: deleted the test selector; pre-push collected only until 2026-10-09,
-  when it began running the tests testmon selects.
-- `.serena/memories/ci/ci-pre-push-wall-clock-is-python-tests.md`
-- The former `ci-scripts` rule (now at `.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md`), MUST-14, MUST-16, MUST-19, and MUST-21.
+- `.project-toolkit/analysis/host-contention-2026-11-26.md`: 2026-11-26 host-contention telemetry, `.venv` poisoning audit, and `--isolated` measurements.
+- `.project-toolkit/critique/ADR-104-prepush-pytest-removal-debate-log.md`: six-seat debate log for the 2026-11-26 amendment (prior debate log: `.project-toolkit/critique/ADR-104-debate-log.md`).
+- `.project-toolkit/analysis/testmon-prepush-measurements.md`: 2026-10-09/10-13 testmon measurements.
+- Issues #5315, #5317, #5318 (closed 2026-10-02), #4710, #5066, #5050 (retired by PR #6239), #6200, #7636.
+- `scripts/validation/testmon_seed.py`, `.github/workflows/pytest.yml` (`testmon-seed`, `zero-collection-guard`, `test`, `test-result`), `scripts/validation/checks_ci_parity.py` (`validate_unused_dependencies`).
+- `.serena/memories/ci/ci-pre-push-wall-clock-is-python-tests.md` and `.claude/skills/ai-agents-validation-and-qa/references/rule-ci-scripts.md` (MUST-14, MUST-16, MUST-19, MUST-21).

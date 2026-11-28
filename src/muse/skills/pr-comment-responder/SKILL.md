@@ -1,13 +1,7 @@
 ---
 name: pr-comment-responder
 version: 2.0.0
-description: Work the review threads on one pull request. Gathers every comment,
-  acknowledges it, triages by domain then reviewer, fixes or replies in-thread, and
-  records a terminal status for each thread. Use when you say "respond to PR comments",
-  "address the review feedback on this PR", "handle bot review comments", or "reply to reviewer".
-  Do NOT use for several PRs at once or a completion-gate verdict (use pr-review), for a
-  single known reply (use post_pr_comment_reply.py directly), for a full pre-merge review
-  (use review), or to run the local quality gates before pushing (use pr-quality).
+description: "Work the review threads on one PR: triage, fix or reply in-thread, record a status per thread. Use when you say \"respond to PR comments\", \"address the review feedback on this PR\", or \"handle bot review comments\". Do NOT use for several PRs or a merge verdict (use pr-review), a single known reply (use post_pr_comment_reply.py), pre-merge review (use review), or pre-push gates (use pr-quality)."
 license: Apache-2.0
 metadata:
   capability:

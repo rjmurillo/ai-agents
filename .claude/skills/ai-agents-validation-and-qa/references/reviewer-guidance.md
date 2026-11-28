@@ -70,11 +70,3 @@ The repo verified each reason against the code on 2026-11-26.
     `_init_repo` in `tests/validation/test_check_serena_memory_worktree_scope_failure_modes.py` is one.
     Still flag `shell=True`, a string command, or any argument from the environment, CLI, network, or file content.
     Still flag the same call outside `tests/`.
-14. **The pre-push pytest CPU reserve as a conflict with issue #4823.**
-    Issue #4823 sets `-n auto` on every logical CPU for CI and direct pytest runs.
-    Local pre-push is a later decision: PR #4932 capped it after shared-host timeouts.
-    PR #6295 (issue #5383) added `AI_AGENTS_PYTEST_CPU_RESERVE: "3"` in `lefthook.yml`.
-    It holds one CPU for each CPU-bound sibling job in the same Lefthook group.
-    `tests/test_lefthook_integration.py` pins the reserve to that sibling count.
-    Still flag a reserve that differs from the sibling count.
-    Still flag a cap or reserve on a CI pytest leg, outside the `testmon-seed` cap.
