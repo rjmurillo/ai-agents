@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import yaml
 
 from scripts.validation.checks_ratchet import RATCHETS as PRE_PUSH_RATCHETS
@@ -78,9 +79,10 @@ class TestMemoryTierGateEnforcement:
         assert entry.script == "scripts/ci/memory_index_count_ratchet.py"
         assert entry.uses_base_ref is True
 
-    def test_count_ratchets_job_has_no_glob_filter(self) -> None:
-        job = self._find_job("count-ratchets")
-        assert "glob" not in job
+    def test_count_ratchets_job_is_not_in_the_hook(self) -> None:
+        """Owner ruling 2026-11-27: CI owns the ratchets, so the hook has no such job."""
+        with pytest.raises(AssertionError, match="not found"):
+            self._find_job("count-ratchets")
 
     def test_cli_exit_contract_ratchet_watches_baseline_only_changes(self) -> None:
         ratchets = {ratchet.job_name: ratchet for ratchet in PRE_PUSH_RATCHETS}

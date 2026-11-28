@@ -258,7 +258,7 @@ to a CI round trip. Dropping the CI side reopens the hook-skipping routes.
 | Bare-python3 entrypoints (`check_python3_entrypoints.py`) | pre-PR gate `Python3 Entrypoints` | `Check bare-python3 documentation entrypoints` | Yes, same script | Keep both. The `Documented Interpreter Portability` gate is a different script. |
 | Rule scope declarations (`check_rule_scope_keys.py`) | pre-PR gate `Rule Scope Declarations (paths:)` | `Check rule scope declarations (paths:)` | Yes, same script | Keep both. |
 | ADR-006 run-block ratchet (`adr006_run_block_scanner.py`) | None | `Run ADR-006 run-block ratchet` | No | Keep CI. |
-| Taste-lint count ratchet | pre-push `count-ratchets`, pre-PR `Count Ratchets` | `Run taste-lint error-count ratchet` | Yes, same script | Keep both. |
+| Taste-lint count ratchet | pre-PR `Count Ratchets` (the pre-push `count-ratchets` job was removed 2026-11-27, CI owns it) | `Run taste-lint error-count ratchet` | Yes, same script | Keep both. |
 | Type-ignore count ratchet | same | `Run type-ignore count ratchet` | Yes, same script | Keep both. |
 | Unindexed-memory count ratchet | same | `Run unindexed-memory count ratchet` | Yes, same script | Keep both. |
 | Memory-index token ratchet | same | `Run memory-index token ratchet` | Yes, same script | Keep both. |
@@ -286,15 +286,16 @@ CI-only checks.
 | Hook Anchoring (Claude + Copilot) | `validate-plugin-manifests.yml` | Yes, same script | Keep both. |
 | Copilot Agent Frontmatter | `validate-generated-agents.yml` | Yes, same script | Keep both. |
 | Argument-Hint Frontmatter | `validate-generated-agents.yml` | Yes, same script | Keep both. |
-| Generated Artifact Staleness | `validate-generated-agents.yml` (`build_all.py --check`) | Yes, same command | Keep both. |
+| Generated Artifact Staleness | `validate-generated-agents.yml` (`build_all.py --check`) | Yes, same command | Keep both. Inside the pre-push hook the gate is skipped (`ci_owned_by`, 2026-11-27) because CI owns it. |
 | Instruction Budget (always-on) | `instruction-budget.yml` (`--ci`) | Yes, same command | Keep both. |
 | Count Ratchets: `ruff_ratchet.py`, `ruff_count_ratchet.py`, `subprocess_encoding_count_ratchet.py` (3 of the 9 registered ratchets) | `pytest.yml` | Yes, same scripts | Keep both. |
 | YAML Style Validation | `yaml-lint.yml` | Same tool and `.yamllint.yml`; the CI version comes from an action pin, so ADR-093 cannot call it identical | Keep both. Local is advisory. |
 
 Result: 24 same-script duplicates (21 gates and 3 ratchets), 1 same-tool pair.
 
-The 79 rows are registered gates. A pre-push run defers 5 of them to separate hook
-jobs (`already_run_by`), and `--quick` skips 4.
+The 79 rows are registered gates. A pre-push run defers 4 of them to separate hook
+jobs (`already_run_by`), skips 2 that CI owns (`ci_owned_by`, 2026-11-27), and
+`--quick` skips 4.
 
 The other 54 gates have no workflow step that runs the same script (79 gates,
 minus 25 with one: `Count Ratchets`, `Rule Scope Declarations`, `Model Pin
@@ -308,8 +309,9 @@ reaches CI without them.
 
 Total: 32 same-script duplicate check pairs across both tables (8 plus 24; the
 workflow YAML pair is a pre-commit hook, not a `_SEQUENCE` gate), against the
-"about 20 plus 5 ratchets" figure the issue carried from before #5132. Six of the
-nine registered ratchets run in both pre-push and `pr-validation.yml`, not five.
+"about 20 plus 5 ratchets" figure the issue carried from before #5132. Since
+2026-11-27 pre-push runs none of the `checks_ratchet.RATCHETS` entries: CI owns
+them (ADR-104).
 
 ## See Also
 
