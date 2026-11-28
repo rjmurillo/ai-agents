@@ -248,15 +248,29 @@ job or group skips everything after it. Stage order:
 1. Singleton guards: `repair-packed-refs`, `mutation-safety`,
    `push-ref-staleness`.
 2. Fast stage, stdin half: a piped group of cheap ref-payload policies.
-3. Fast stage, parallel half: ratchets and policy gates. The slowest job is
-   `count-ratchets`, 40.2s at p50 on 2026-10-23 (see Latency baseline).
+3. Fast stage, parallel half: policy gates. `count-ratchets` was the slowest
+   job here (40.2s at p50 on 2026-10-23, see Latency baseline) until its
+   removal on 2026-11-27.
 4. `security-scan` (semgrep), a serialized stdin consumer. Measured 6.7s for a
    7-file push.
 5. Expensive stage: `pre-pr-validation`, mypy,
    `workflow-local-run`, the CLI e2e smokes, and the advisory reporters.
 
 Pre-push no longer runs pytest or the zero-collection check (ADR-104
-amendment, 2026-11-26); CI `pytest.yml` gates both. The figures below are
+amendment, 2026-11-26); CI `pytest.yml` gates both. It also no longer runs the
+`count-ratchets` and `plugin-scanner` jobs (removed 2026-11-27, owner ruling:
+CI is the test authority). CI owns the ten ratchets in `checks_ratchet.py`
+`RATCHETS` through required jobs (`pytest.yml` `count-ratchet-guard` and
+`test`, `pr-validation.yml` `validate-pr`). CI owns the scanner through
+`plugin-scanner.yml` job `scan`, which runs on every pull request but is not a
+required context, so a low score does not block a merge. Run them on demand
+with `uv run python scripts/validation/git_hook_policy.py count-ratchets` and
+`uv run python scripts/validation/check_plugin_scanner_score.py`. Measured
+2026-11-27: 33.1s and 61.9s wall. Inside the hook, `pre_pr.py` also skips the
+`Count Ratchets` and `Generated Artifact Staleness` gates (`ci_owned_by`, skip
+reason `policy.ci_owned`), because `pytest.yml` `count-ratchet-guard`,
+`pytest.yml` `test`, `pr-validation.yml` `validate-pr`, and
+`validate-generated-agents.yml` `build-all-staleness` run them. The figures below are
 historical. On a 4-CPU container, `python-tests` took 475s across four serial partitions
 (bulk 257.9s, mutation 166.6s, safe-push 36.9s, pr-autofix 8.8s) in an earlier
 measurement. On the 48-CPU host in the Latency baseline below, `python-tests`
@@ -426,7 +440,6 @@ a security gate.
 | pre-push | `push-ref-policy` | push range (stdin) | Pushed ref policy, including a non-fast-forward check | - | no | Required: ruleset 11104075 non_fast_forward rule |
 | pre-push | `security-suppression-policy` | push range (stdin) | Security suppression markers in the pushed range | - | yes | Required: Run Python Tests, step Check security suppressions in diff (pull request, issue 4061) |
 | pre-push | `placeholder-identity` | push range (stdin) | Placeholder author identity in pushed commits | - | no | CI, not required: placeholder-identity-check.yml |
-| pre-push | `count-ratchets` | unscoped | Ten count ratchets from one registry (checks_ratchet.py RATCHETS) | - | no | Required: Run Python Tests (steps Run ruff ratchet (changed Python files), Run ruff count ratchet (whole tree), Run subprocess encoding count ratchet (whole tree)) and Validate PR (steps Run taste-lint error-count ratchet, Run type-ignore count ratchet, Run unindexed-memory count ratchet, Run memory-index token ratchet, Run CLI exit contract ratchet, Run canonical citations count ratchet, Run merge-tree ratchet) |
 | pre-push | `python-unreachable-statements` | unscoped | No statement after return, raise, continue, break | - | no | None found |
 | pre-push | `python-unused-arguments` | unscoped | ruff ARG (unused argument) findings equal the baseline, and the baseline gains no line the merge base lacks | - | no | Required: Run Python Tests, step Run unused-argument gate (whole tree) |
 | pre-push | `path-normalization` | unscoped | Documentation path normalization | - | no | Required: Validate Path Normalization, step Validate documentation paths (same script) |
@@ -438,7 +451,6 @@ a security gate.
 | pre-push | `pre-pr-validation` | unscoped | Runs pre_pr.py, 118 gates in _SEQUENCE | - | adjacent | None found as an aggregate: no workflow runs pre_pr.py, and some gates have their own CI steps |
 | pre-push | `worktree-gc-report` | unscoped | Reports stale registered worktrees, advisory | - | no | Local state, no CI analogue |
 | pre-push | `branch-config-prune-report` | unscoped | Reports stale branch sections in .git/config, advisory | - | no | Local state, no CI analogue |
-| pre-push | `plugin-scanner` | unscoped | HOL plugin scanner score of HEAD is at least 80 (awesome-ai-plugins listing bar) | - | adjacent | CI, not required: plugin-scanner.yml |
 | pre-push | `python-lint-advisory` | push files | Ruff on pushed Python, advisory | - | no | Required: Run Python Tests, step Run ruff ratchet (changed Python files) |
 | pre-push | `python-type-check` | push files | Mypy on pushed Python | - | no | Required: Run Python Tests, step Run mypy ratchet (changed Python files) |
 | pre-push | `workflow-local-run` | push files | Runs changed workflows locally with act | - | no | None found |
@@ -459,10 +471,12 @@ another clone or worktree, so neither hook can rely on the other having run.
 the commit and the push.
 
 `pre-push` job `pre-pr-validation` runs `pre_pr.py`, which holds 118 gates in
-`_SEQUENCE` (`pre_pr_sequence.py`, 2026-11-05). Five gates carry
+`_SEQUENCE` (`pre_pr_sequence.py`, 2026-11-05). Four gates carry
 `already_run_by` and skip when the matching unconditional pre-push job passed:
-`count-ratchets`, `python-unreachable-statements`, `dash-prohibition`,
-`path-normalization`, and `planning-artifacts`. The `Review Axis Drift` gate and
+`python-unreachable-statements`, `dash-prohibition`, `path-normalization`, and
+`planning-artifacts`. Two gates carry `ci_owned_by` and skip inside the hook
+with a visible `[SKIP]`, because a named CI job owns them (2026-11-27):
+`Count Ratchets` and `Generated Artifact Staleness`. The `Review Axis Drift` gate and
 the `review-axis-drift` job were retired on 2026-11-19 with the generated
 review-axis prompts. `Colocated Skill Tests` wraps the script behind the pre-commit job
 `colocated-skill-tests`. That repeat is not removed by this change.
@@ -505,8 +519,8 @@ What the numbers show:
 - Pre-push costs 263s at p50 for all three classes. The unscoped jobs set the
   floor, so a one-line Markdown push pays the same as a Python push.
 - `pre-pr-validation` takes 220s at p50, 84 percent of the pre-push wall clock.
-  It starts after the `count-ratchets` group, so the critical path is the group
-  plus that job.
+  Before 2026-11-27 it started after the `count-ratchets` group, so the
+  critical path was the group plus that job.
 - Pre-commit costs 25.5s to 27.9s at p50. `agents-write-targets` takes 23.8s to
   24.0s of that in all three classes, including a one-file Markdown change.
 - The first repetition was within 1 percent of the median in every row, so

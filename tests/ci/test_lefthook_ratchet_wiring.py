@@ -15,6 +15,14 @@ if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
 import checks_ratchet  # noqa: E402
 
+from scripts.ci.ruleset_required_contexts import REQUIRED_CONTEXTS  # noqa: E402
+from tests.ci.ratchet_test_helpers import (  # noqa: E402
+    ALLOWED_STEP_IF,
+    RATCHET_WORKFLOWS,
+    ci_owners_of,
+    workflow_jobs,
+)
+
 
 def _walk_jobs(jobs: object) -> list[dict]:
     if not isinstance(jobs, list):
@@ -30,32 +38,68 @@ def _walk_jobs(jobs: object) -> list[dict]:
     return found
 
 
-def _aggregate_job() -> dict | None:
+_REMOVED_HOOK_JOBS = ("count-ratchets", "plugin-scanner")
+
+
+def _pre_push_jobs() -> list[dict]:
     config = yaml.safe_load(_LEFTHOOK.read_text(encoding="utf-8"))
-    if not isinstance(config, dict):
-        return None
+    assert isinstance(config, dict)
     pre_push = config.get("pre-push")
-    if not isinstance(pre_push, dict):
-        return None
-    return next(
-        (job for job in _walk_jobs(pre_push.get("jobs")) if job.get("name") == "count-ratchets"),
-        None,
+    assert isinstance(pre_push, dict)
+    return _walk_jobs(pre_push.get("jobs"))
+
+
+class TestCountRatchetsAreOwnedByCi:
+    """Owner ruling 2026-11-27: CI is the test authority, so pre-push runs no ratchets.
+
+    This inverts the issue #4251 and #5482 contract, which asserted the
+    ratchets ran in the local hook. The contract now is: the hook does not run
+    them, and every registry entry runs unconditionally in a required CI job.
+    """
+
+    @pytest.mark.parametrize("removed", _REMOVED_HOOK_JOBS)
+    def test_the_pre_push_hook_does_not_run_the_removed_job(self, removed: str) -> None:
+        names = {str(job.get("name")) for job in _pre_push_jobs()}
+        assert removed not in names
+        offenders = [
+            str(job.get("name")) for job in _pre_push_jobs() if removed in str(job.get("run", ""))
+        ]
+        assert offenders == []
+
+    @pytest.mark.parametrize(
+        "script", sorted(ratchet.script for ratchet in checks_ratchet.RATCHETS)
     )
-
-
-class TestAggregateRatchetWiring:
-    def test_job_invokes_the_authoritative_registry(self) -> None:
-        job = _aggregate_job()
-        assert job is not None
-        assert str(job.get("run")) == (
-            "uv run --frozen python scripts/validation/git_hook_policy.py count-ratchets"
+    def test_every_registry_script_runs_in_a_required_unconditional_ci_job(
+        self, script: str
+    ) -> None:
+        assert ci_owners_of(script), (
+            f"{script} has no required, unconditional CI job in "
+            f"{RATCHET_WORKFLOWS}. With the pre-push job removed, nothing "
+            "would enforce this ratchet before merge."
         )
 
-    def test_job_runs_for_every_push(self) -> None:
-        job = _aggregate_job()
-        assert job is not None
-        assert job.get("glob") is None
+    def test_the_owner_check_rejects_an_unknown_script(self) -> None:
+        """Negative control: a script no workflow runs has no owner."""
+        assert ci_owners_of("scripts/ci/no_such_ratchet.py") == []
 
+    def test_the_owner_check_rejects_a_conditional_step(self) -> None:
+        """Negative control: a step-level `if:` other than the allowed one disqualifies."""
+        assert ci_owners_of("scripts/ci/ruff_ratchet.py") == ["pytest.yml test"]
+        saved = dict(ALLOWED_STEP_IF)
+        try:
+            ALLOWED_STEP_IF.clear()
+            assert ci_owners_of("scripts/ci/ruff_ratchet.py") == []
+        finally:
+            ALLOWED_STEP_IF.update(saved)
+
+    def test_the_owner_check_rejects_a_job_outside_the_required_contexts(self) -> None:
+        """Negative control: the plugin-scanner job runs unconditionally but is not required."""
+        jobs = workflow_jobs("plugin-scanner.yml")
+        assert jobs
+        assert not any(str(job.get("name")) in REQUIRED_CONTEXTS for job in jobs.values())
+
+
+class TestRegistryContents:
     def test_registry_retains_taste_and_type_ignore_ratchets(self) -> None:
         by_name = {ratchet.job_name: ratchet for ratchet in checks_ratchet.RATCHETS}
         assert by_name["taste-count-ratchet"].script == ("scripts/ci/taste_count_ratchet.py")
@@ -90,41 +134,6 @@ class TestAggregateRatchetWiring:
         by_name = {ratchet.job_name: ratchet for ratchet in checks_ratchet.RATCHETS}
         assert by_name["taste-count-ratchet"].uses_base_ref is True
         assert by_name["type-ignore-count-ratchet"].uses_base_ref is True
-
-
-class TestAggregateBudgetIsConsistentWithLefthook:
-    """The gate's own deadline must fire before lefthook kills the job (#5482).
-
-    If lefthook's timeout were the smaller of the two, it would kill the gate
-    mid-run with no attribution: the operator sees the job fail and not which
-    ratchet was responsible. The gate's deadline fires first precisely so the
-    failure names the offending entry.
-    """
-
-    def _count_ratchets_timeout_seconds(self) -> int:
-        config = yaml.safe_load((REPO_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
-        found: list[str] = []
-
-        def walk(node: object) -> None:
-            if isinstance(node, dict):
-                if node.get("name") == "count-ratchets":
-                    found.append(str(node.get("timeout", "")))
-                for value in node.values():
-                    walk(value)
-            elif isinstance(node, list):
-                for item in node:
-                    walk(item)
-
-        walk(config)
-        assert len(found) == 1, f"expected one count-ratchets job, found {found}"
-        return int(found[0].removesuffix("s"))
-
-    def test_lefthook_allows_more_time_than_the_aggregate_deadline(self) -> None:
-        assert self._count_ratchets_timeout_seconds() > checks_ratchet._AGGREGATE_TIMEOUT_SECONDS
-
-    def test_the_module_declares_the_lefthook_budget_it_assumes(self) -> None:
-        """Keep the two numbers from drifting apart silently."""
-        assert checks_ratchet._LEFTHOOK_TIMEOUT_SECONDS == self._count_ratchets_timeout_seconds()
 
 
 def ci_baseline_ratchet_scripts() -> list[str]:

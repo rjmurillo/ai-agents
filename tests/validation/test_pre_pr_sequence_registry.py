@@ -34,6 +34,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -195,9 +196,11 @@ QUICK_SKIPPED: frozenset[str] = frozenset(
         "Agent Drift Detection",
     }
 )
+# Heavy whole-tree gates a CI job owns (owner ruling 2026-11-27): skipped, with a
+# visible [SKIP], when pre_pr runs inside the pre-push hook.
+CI_OWNED_GATES = frozenset({"Count Ratchets", "Generated Artifact Staleness"})
 FAST_STAGE_DUPLICATES = frozenset(
     {
-        "Count Ratchets",
         "Unreachable Code Detection",
         "Path Normalization",
         "Planning Artifacts",
@@ -304,9 +307,11 @@ class TestFastStageDeferral:
         recorded, state, out = _record()
 
         emitted = {name for name, _skip in recorded}
-        assert set(EXPECTED_ORDER) - emitted == FAST_STAGE_DUPLICATES
-        assert state.total == state.skipped == len(FAST_STAGE_DUPLICATES)
-        assert "count-ratchets" in out
+        assert set(EXPECTED_ORDER) - emitted == FAST_STAGE_DUPLICATES | CI_OWNED_GATES
+        assert state.total == state.skipped == len(FAST_STAGE_DUPLICATES | CI_OWNED_GATES)
+        assert "python-unreachable-statements" in out
+        for gate in CI_OWNED_GATES:
+            assert f"[SKIP] {gate}" in out
 
     def test_other_flag_values_run_every_gate(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv(pre_pr_sequence.FAST_STAGE_RAN_ENV, "true")
@@ -321,8 +326,56 @@ class TestFastStageDeferral:
         monkeypatch.setenv(pre_pr_sequence.FAST_STAGE_RAN_ENV, "1")
         recorded, state, _out = _record(quick=True)
 
-        assert set(name for name, _ in recorded).isdisjoint(FAST_STAGE_DUPLICATES)
-        assert state.total == state.skipped == len(FAST_STAGE_DUPLICATES)
+        assert set(name for name, _ in recorded).isdisjoint(FAST_STAGE_DUPLICATES | CI_OWNED_GATES)
+        assert state.total == state.skipped == len(FAST_STAGE_DUPLICATES | CI_OWNED_GATES)
+
+
+class TestCiOwnedGates:
+    """``ci_owned_by`` names a real, unconditional CI job for every gate that sets it."""
+
+    @staticmethod
+    def _owned() -> list[pre_pr_sequence._Gate]:
+        return [gate for gate in pre_pr_sequence._SEQUENCE if gate.ci_owned_by]
+
+    def test_exactly_the_expected_gates_are_ci_owned(self) -> None:
+        assert {gate.name for gate in self._owned()} == CI_OWNED_GATES
+
+    def test_no_gate_sets_both_deferral_fields(self) -> None:
+        both = [
+            gate.name
+            for gate in pre_pr_sequence._SEQUENCE
+            if gate.already_run_by and gate.ci_owned_by
+        ]
+        assert both == []
+
+    def test_the_both_fields_check_detects_a_violation(self) -> None:
+        """Negative control: a gate with both fields is what the check above must catch."""
+        bad = pre_pr_sequence._Gate(
+            "Bad", lambda _r, _a: True, already_run_by="x", ci_owned_by="y.yml z"
+        )
+        assert bad.already_run_by and bad.ci_owned_by
+
+    @pytest.mark.parametrize("gate_name", sorted(CI_OWNED_GATES))
+    def test_every_ci_owned_by_entry_names_an_existing_unconditional_job(
+        self, gate_name: str
+    ) -> None:
+        gate = next(g for g in pre_pr_sequence._SEQUENCE if g.name == gate_name)
+        entries = [part.strip() for part in gate.ci_owned_by.split(",")]
+        assert all(entries)
+        for entry in entries:
+            workflow, _, job_id = entry.partition(" ")
+            assert workflow.endswith(".yml") and job_id, f"{entry!r} is not '<workflow>.yml <job>'"
+            path = REPO_ROOT / ".github" / "workflows" / workflow
+            assert path.is_file(), f"{entry!r}: {path} does not exist"
+            jobs = yaml.safe_load(path.read_text(encoding="utf-8"))["jobs"]
+            assert job_id in jobs, f"{entry!r}: job {job_id!r} not in {workflow}"
+            assert jobs[job_id].get("if") is None, f"{entry!r}: job carries an if:"
+
+    def test_an_entry_for_a_missing_job_is_rejected(self) -> None:
+        """Negative control: the lookup the test above relies on fails for an unknown job."""
+        path = REPO_ROOT / ".github" / "workflows" / "pytest.yml"
+        jobs = yaml.safe_load(path.read_text(encoding="utf-8"))["jobs"]
+        assert "no-such-job" not in jobs
 
 
 class TestPrePrReexportsEverySequenceValidator:

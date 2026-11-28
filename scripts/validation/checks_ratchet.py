@@ -45,9 +45,12 @@ second. Neither subsumes the other, and dropping the spawn would leave one
 verdict enforced in CI and in no local gate, which is the property issue #5482
 exists to remove.
 
-The pre-push hook and pre-PR runner both delegate to this module. Keeping the
-ratchet set and command construction here avoids nine parallel hook jobs
-duplicating the registry while preserving early failure before expensive jobs.
+The pre-PR runner and ``git_hook_policy.py count-ratchets`` both delegate to this
+module. Since 2026-11-27 the pre-push hook no longer runs it: CI is the test
+authority and runs every entry in required jobs (``pytest.yml``
+``count-ratchet-guard`` and ``test``, ``pr-validation.yml`` ``validate-pr``).
+``pre_pr.py`` skips the ``Count Ratchets`` gate inside the pre-push hook for the
+same reason (``ci_owned_by`` in ``pre_pr_sequence.py``).
 """
 
 from __future__ import annotations
@@ -148,9 +151,8 @@ RATCHETS: tuple[Ratchet, ...] = (
     ),
 )
 
-# The gate's own deadline, kept strictly below the lefthook cap below so the
-# deadline is what fires and names the offending ratchet, rather than lefthook
-# killing the job with no attribution.
+# The gate's own deadline, so the deadline fires and names the offending
+# ratchet, rather than an outer cap killing the run with no attribution.
 #
 # Issue #7070 raised it from 85s. That number was tuned on a fast 8 core host,
 # where the whole registry measured 43.46s to 56.00s and reached 85.3s at load
@@ -162,17 +164,13 @@ RATCHETS: tuple[Ratchet, ...] = (
 # failures for one storage-speed failure.
 #
 # The counts are the point of the gate. So the deadline is a hang bound, not a
-# speed target, and the job moved to the expensive pre-push stage, where a
-# 660s cap does not raise the declared budget
-# (`tests/ci/test_lefthook_declared_budget.py`). Speed regressions are still
-# measured on an uncontended runner by
-# `test_the_real_registry_finishes_with_margin_inside_the_deadline`.
+# speed target. Speed regressions are still measured on an uncontended runner
+# by `test_the_real_registry_finishes_with_margin_inside_the_deadline`.
 #
-# In a managed container the hook runs this through `git_hook_policy.py
-# count-ratchets`, which clamps the deadline to the container ceiling and arms
-# the whole-process watchdog (ADR-104 rule 8).
+# In a managed container `git_hook_policy.py count-ratchets` runs this and
+# clamps the deadline to the container ceiling and arms the whole-process
+# watchdog (ADR-104 rule 8).
 _AGGREGATE_TIMEOUT_SECONDS = 600
-_LEFTHOOK_TIMEOUT_SECONDS = 660
 
 _DEADLINE_EXHAUSTED = "aggregate timeout exhausted before this ratchet started"
 

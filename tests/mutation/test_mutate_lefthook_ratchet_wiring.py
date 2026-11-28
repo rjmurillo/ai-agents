@@ -1,4 +1,4 @@
-"""Mutation checks for the aggregate pre-push ratchet job (issue #5317)."""
+"""Mutation checks for the CI-owned count ratchet contract (issue #5317, 2026-11-27 ruling)."""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from tests.mutation._nested_pytest import private_basetemp
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _LEFTHOOK_REL = Path("lefthook.yml")
+_WORKFLOW_REL = Path(".github/workflows/pr-validation.yml")
 _TEST_PATH = "tests/ci/test_lefthook_ratchet_wiring.py"
 
 
@@ -33,35 +34,52 @@ def _run_wiring_tests(repo_root: Path) -> tuple[int, str]:
 
 @pytest.fixture()
 def mutation_repo() -> Iterator[Path]:
-    with isolated_mutation_worktree(_REPO_ROOT, [_LEFTHOOK_REL]) as workspace:
+    with isolated_mutation_worktree(_REPO_ROOT, [_LEFTHOOK_REL, _WORKFLOW_REL]) as workspace:
         yield workspace.root
 
 
 @pytest.mark.parametrize(
-    ("old", "new", "should_fail"),
+    ("target", "old", "new", "should_fail"),
     [
+        # Reintroducing either removed heavy job in the hook must fail.
         (
+            _LEFTHOOK_REL,
+            "          - name: python-lint-advisory",
             "          - name: count-ratchets",
-            "          - name: deleted-ratchets",
             True,
         ),
         (
-            "            run: uv run --frozen python "
-            "scripts/validation/git_hook_policy.py count-ratchets",
-            "            run: echo MUTANT-DELETED",
+            _LEFTHOOK_REL,
+            "          - name: python-lint-advisory",
+            "          - name: plugin-scanner",
+            True,
+        ),
+        # Breaking CI ownership of one ratchet script must fail.
+        (
+            _WORKFLOW_REL,
+            "scripts/ci/taste_count_ratchet.py --base-ref FETCH_HEAD",
+            "scripts/ci/taste_count_ratchet_gone.py --base-ref FETCH_HEAD",
+            True,
+        ),
+        # A job-level `if:` on the required job makes the ratchets conditional.
+        (
+            _WORKFLOW_REL,
+            "  validate-pr:\n",
+            "  validate-pr:\n    if: github.event_name == 'never'\n",
             True,
         ),
         (
+            _LEFTHOOK_REL,
             "    # a ratchet or policy miss costs seconds, not semgrep and pre-pr-validation.",
             "    # an inert comment mutation must leave wiring tests green.",
             False,
         ),
     ],
 )
-def test_aggregate_job_mutations_fail_wiring_tests(
-    mutation_repo: Path, old: str, new: str, should_fail: bool
+def test_ci_ownership_mutations_fail_wiring_tests(
+    mutation_repo: Path, target: Path, old: str, new: str, should_fail: bool
 ) -> None:
-    lefthook = mutation_repo / _LEFTHOOK_REL
+    lefthook = mutation_repo / target
     original = lefthook.read_text(encoding="utf-8")
     assert original.count(old) == 1
 
