@@ -108,11 +108,11 @@
         "Surprise:",
         "410ms",
         "395ms",
-        "decision-",
+        "Blocked record:",
         "do not ship"
       ],
       "expected_gate": "enforce-eureka-deliverable",
-      "rationale": "The Eureka Moment: a measured result that contradicts a memory is a deliverable inside the task contract, even on a do-not-ship verdict. The report should carry a one-line Surprise: with the numbers and name a decision-<slug> record."
+      "rationale": "The Eureka Moment: a measured result that contradicts a memory is a deliverable inside the task contract, even on a do-not-ship verdict. The user forbids file changes, so the report carries a one-line Surprise: with the numbers and a Blocked record: line for the decision-<slug> entry, not a claim that the record was committed."
     },
     {
       "id": "R5",

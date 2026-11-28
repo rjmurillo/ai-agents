@@ -67,8 +67,9 @@ Serena MCP server is optional; file tools on the same folder work.
 
 Why log: the next reader (you in three months, or another agent next session) will hit the same fork and want the reasoning. Without the log they will either repeat the analysis or revert to the conventional answer and undo your work. The log compounds.
 
-**When the record is blocked.** If writing the entry, its index lines, or the
-commit fails or is forbidden, the record is blocked. Causes include a
+**When the record is blocked.** If writing the entry, updating a matching or
+superseded entry from step 1, writing its index lines, or the commit fails or
+is forbidden, the record is blocked. Causes include a
 read-only file or checkout, no commit access, a rejected commit hook, and a
 user instruction against file changes or commits. Do two things:
 
