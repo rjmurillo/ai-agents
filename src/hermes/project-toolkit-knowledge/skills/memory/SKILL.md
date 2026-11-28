@@ -130,9 +130,10 @@ Contradiction order:
 2. Write it to the repository location in step 4 first, with the search and
    verification in step 3, even when a memory service is available. Write
    nothing to a memory service before this write lands.
-3. After the repository write lands, if a memory service is available, confirm
-   it is bound to the current checkout. When it is, copy the entry there too.
-   When you cannot confirm it, skip the copy and report the gap.
+3. After the repository write lands, if a memory service is available, apply
+   the destination and permission checks in step 2 to it, then confirm it is
+   bound to the current checkout. When both hold, copy the entry there too.
+   When either fails, skip the copy and report the gap.
 4. If the repository write fails, write to no memory service. Follow step 5.
 
 ### Serena in Repositories That Already Use It
