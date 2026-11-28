@@ -56,7 +56,7 @@ Searched `lefthook.yml`, `scripts/validation/`, `.claude/hooks`, `src/claude/hoo
 | `active_plan_closeout.py:194` | Advisory | None |
 | `spec_contradiction.py:145` | Skips the link check | None |
 | `checks_common.py:255` | WARN, falls back to `@{u}` then `origin/main` | None |
-| `git_hook_policy.py:9116` bot cascade | Always returns 0 | None |
+| `git_hook_policy.py:8916-8953` bot cascade | Always returns 0 | None |
 | `testmon_seed.py:150` | Runs the full suite | None |
 
 ## Options
