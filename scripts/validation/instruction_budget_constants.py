@@ -38,20 +38,14 @@ ALWAYS_ON_SKILL_PATTERN: re.Pattern[str] = re.compile(
 # Non-regression ratchet ceilings in bytes, seeded just above current measured
 # values (see module docstring). Lower these as the corpus shrinks.
 DEFAULT_CEILINGS_BYTES: dict[str, int] = {
-    ".py": 60_000,
-    ".cs": 60_000,
-    ".ps1": 60_000,
-    # Held at 83,000 deliberately. The rescope in issue #4871 dropped the `.md`
-    # corpus to 56,088 bytes, so a lower ceiling is measurable today, but #4871
-    # gates the downward ratchet on behavior evidence this repository does not
-    # have yet. Its own tracking comments list "Downward budget ratchet after
-    # accepted behavior evidence" as still open and state that behavior-changing
-    # rescope waits on the #4853 real-CLI evaluator. The probe run for this PR
-    # measured runtime membership (which rule files enter the system prompt),
-    # not a no-regression before/after on output quality, so it does not clear
-    # that gate. Lower this only once the #4853 evaluator produces a frozen
-    # before/after for passive repository instructions.
-    ".md": 83_000,
+    ".py": 39_500,
+    ".cs": 39_500,
+    ".ps1": 39_500,
+    # Lowered from 83,000 to 34,600 when `voice` and `builder-ethos` left the
+    # always-on set for the skill-authoring scope and the `core` rule joined it. The
+    # measured `.md` corpus is 33,708 bytes. The behavior evidence is
+    # evals/reports/rule-activation-always-on-core-2026-11-26.md.
+    ".md": 34_600,
 }
 
 # Per-fixture activated-bytes ratchet for `instruction_bytes` (issue #5400).
@@ -64,12 +58,12 @@ DEFAULT_CEILINGS_BYTES: dict[str, int] = {
 # in the same change. `test_instruction_ceiling_ratchet.py` blocks a raise
 # against origin/main.
 FIXTURE_CEILINGS_BYTES: dict[str, int] = {
-    "F1": 212_000,
-    "F2": 197_000,
-    "F3": 69_000,
-    "F4": 90_000,
-    "F5": 112_000,
-    "F6": 120_000,
+    "F1": 194_100,
+    "F2": 178_500,
+    "F3": 49_100,
+    "F4": 68_300,
+    "F5": 79_900,
+    "F6": 94_700,
 }
 
 # Minimum headroom a pull request may leave on a fixture it grew (issue #6480).

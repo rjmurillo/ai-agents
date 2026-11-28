@@ -111,7 +111,7 @@ def test_live_repo_only_set_matches_what_copilot_skips() -> None:
     assert templates - shipped == _PINNED_REPO_ONLY
 
 
-_ALWAYS_ON = frozenset({"builder-ethos", "universal", "voice"})
+_ALWAYS_ON = frozenset({"core", "universal"})
 
 
 def _template_names() -> set[str]:

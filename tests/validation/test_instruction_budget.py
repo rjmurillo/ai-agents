@@ -565,8 +565,7 @@ def test_real_repo_python_baseline_is_under_ceiling_and_nonzero() -> None:
     matched = set(py.matched_files)
     core_universal = {
         "universal.instructions.md",
-        "voice.instructions.md",
-        "builder-ethos.instructions.md",
+        "core.instructions.md",
     }
     missing = core_universal - matched
     assert not missing, f"matcher missed core always-on rules: {sorted(missing)}"

@@ -1,7 +1,7 @@
 ---
 name: avoiding-manufactured-work
 version: 1.1.0
-description: "Stop manufactured work after a deliverable looks done and classify post-completion findings into the four contract classes builder-ethos.md delegates here. Use when a worker produced a plan, issue, PR, backlog item, or follow-up task and you must verify a real user, criterion, or blocked decision demanded it. Also bounds drive-by fixes."
+description: "Stop manufactured work after a deliverable looks done and classify post-completion findings into the four contract classes. Use when a worker produced a plan, issue, PR, backlog item, or follow-up task and you must verify a real user, criterion, or blocked decision demanded it. Also bounds drive-by fixes."
 license: Apache-2.0
 ---
 
@@ -45,11 +45,18 @@ Next action: <smallest action, or none>
 
 ## Disposition Procedure for Post-Completion Findings
 
-The builder-ethos rule, section `## 4. Task Completion Contract`, owns the completion contract (directory prefix omitted on purpose: this skill ships in the plugin mirrors, where a `.claude/rules/` path dangles; look the rule up by name in whichever instruction tree you are reading, `builder-ethos.md` under `.claude/rules/` or `builder-ethos.instructions.md` under the instructions trees): precedence and the terminal predicate. Read that section for those two. Forming the contract and reactivation moved here; see `## Forming The Contract` and `## Reactivation` below. Its `### Finding disposition` subsection delegates exactly one step to this skill, verbatim:
+The core rule, section `## Task Completion Contract`, owns the completion contract (directory prefix omitted on purpose: this skill ships in the plugin mirrors, where a `.claude/rules/` path dangles; look the rule up by name in whichever instruction tree you are reading, `core.md` in the rules trees, `core.mdc` for Cursor, `core.instructions.md` in the instructions trees): precedence and the terminal predicate. Read that section for those two. Where no core rule file is installed (the Codex plugin ships no rules tree), use these: precedence is `system/host requirements > mandatory safety/repository policy > current user request > frozen task contract > optional improvements`; a task is terminal when every requested deliverable satisfies the frozen contract and no blocker remains, so stop autonomous work. Forming the contract and reactivation moved here; see `## Forming The Contract` and `## Reactivation` below. Its `### Finding disposition` subsection delegates exactly one step to this skill, verbatim:
 
 > Every post-satisfaction finding is one of four classes; classify it with the `avoiding-manufactured-work` skill's disposition procedure, not a second doctrine.
 
-This section is that procedure. It maps each class onto the keep/shrink/defer/delete dispositions above so a finding raised after the task is terminal gets one named outcome instead of a judgment call. Read the class definitions in `### Finding disposition`; this table adds only the outcome, so there is no second copy of the definitions to drift.
+This section is that procedure. It maps each class onto the keep/shrink/defer/delete dispositions above so a finding raised after the task is terminal gets one named outcome instead of a judgment call. Read the class definitions in `### Finding disposition` when a core rule file is installed. Where none is installed, use these definitions, repeated here because the Codex plugin ships no rules tree:
+
+- Blocker: evidence falsifies a frozen criterion or policy; keep the exact scope active.
+- Requested improvement: the frozen contract explicitly asks for it; keep the task active.
+- Optional enhancement: useful, but no criterion or consumer requires it; do not keep the task active.
+- Side quest: outside the requested objective; do not keep the task active.
+
+The outcome table adds only the outcome, so there is no second copy of the procedure to drift.
 
 | Class | Disposition |
 |---|---|
@@ -85,7 +92,7 @@ Stop conditions:
 
 For tidy fixes, name the readability gain and check that behavior stays the same. For defects and needed fixes, name what breaks and how you will prove the fix.
 
-Authority for class 3: a second PR is state the user did not name (builder-ethos section 6). It needs a user order or workflow contract that covers opening PRs for defects found along the way; an order to ship the requested change alone does not. One class 3 PR per task. A second confirmed defect is named in the PR body, not opened. In a question, review, or diagnosis, or once the task is terminal, name the defect, its impact, and its proof in the report instead (builder-ethos section 6). Filing an issue still follows the builder-ethos section 4 flag rule.
+Authority for class 3: a second PR is state the user did not name (the core rule, section `## Task Intent`). It needs a user order or workflow contract that covers opening PRs for defects found along the way; an order to ship the requested change alone does not. One class 3 PR per task. A second confirmed defect is named in the PR body, not opened. In a request that asks only for assessment, review, or diagnosis, or once the task is terminal, name the defect, its impact, and its proof in the report instead (the core rule, section `## Task Intent`). Filing an issue still follows the flag rule in the core rule, section `### Finding disposition`: flag an issue the agent found, and file it only when the user authorizes that item or a bounded standing authorization covers it.
 
 Practice behind the classes:
 

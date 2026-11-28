@@ -126,9 +126,8 @@ CONTROLS: Mapping[str, tuple[str, ...]] = {
         "CLAUDE.md",
         "AGENTS.md",
         ".claude/CLAUDE.md",
-        ".claude/rules/builder-ethos.md",
+        ".claude/rules/core.md",
         ".claude/rules/universal.md",
-        ".claude/rules/voice.md",
     ),
     "reduced": ("AGENTS.md",),
 }

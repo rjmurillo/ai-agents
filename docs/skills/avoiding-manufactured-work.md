@@ -57,7 +57,7 @@ Test Needed first. One drive-by fix never spawns another. About 20 to 30 lines o
 
 ## Advanced use
 
-The skill also owns the procedure that `builder-ethos.md` hands it for post-completion findings. Classify in this order, testing Blocker first:
+The skill also owns the procedure that `core.md` hands it for post-completion findings. Classify in this order, testing Blocker first:
 
 | Finding class | Disposition |
 | --- | --- |

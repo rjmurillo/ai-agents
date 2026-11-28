@@ -97,7 +97,7 @@ def test_corpus_prose_membership_matches_generated_trees(doc: str, path) -> None
 
 def test_corpus_prose_parser_rejects_divergent_membership() -> None:
     text = CORPUS_PROSE_DOCS[0][1].read_text(encoding="utf-8")
-    shortened = text.replace("`universal`, `voice`", "`universal`", 1)
+    shortened = text.replace("`core`, `universal`", "`universal`", 1)
     with pytest.raises(ValueError, match="divergent membership"):
         parse_corpus_membership(shortened, "shortened")
 

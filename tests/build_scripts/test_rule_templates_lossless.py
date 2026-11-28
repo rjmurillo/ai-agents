@@ -40,6 +40,7 @@ EXPECTED_RULES = frozenset(
         "builder-ethos",
         "canonical-source-mirror",
         "claude-agents",
+        "core",
         "governance",
         "knowledge-persistence",
         "plugin-self-containment",

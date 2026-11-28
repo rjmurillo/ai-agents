@@ -16,8 +16,8 @@ The generated trees currently preserve this membership:
 
 | Tree | Consumer | Always-on membership |
 |---|---|---|
-| `.github/instructions` | Copilot in this repository | `builder-ethos`, `universal`, `voice` |
-| `src/copilot-cli/instructions` | the shipped plugin | `builder-ethos`, `universal`, `voice` |
+| `.github/instructions` | Copilot in this repository | `core`, `universal` |
+| `src/copilot-cli/instructions` | the shipped plugin | `core`, `universal` |
 
 Do not infer membership from source grep. Parse generated frontmatter with
 `yaml.safe_load`. Inline scopes and block-list scopes express the same contract.

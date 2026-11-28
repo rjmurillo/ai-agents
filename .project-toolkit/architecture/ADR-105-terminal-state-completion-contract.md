@@ -1,7 +1,7 @@
 ---
 id: ADR-105
 status: accepted
-date: 2026-09-03
+date: 2026-11-26
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -114,6 +114,53 @@ owned it.
 This ADR is the governance record for the doctrine merged in PR #5506
 (commit `a7c362688`, 2026-09-03). It is written after the merge, not
 before it.
+
+## Amendment 2026-11-26
+
+ADR-129 changes which rule file owns this contract. It does not change the
+contract.
+
+1. **Owner of the contract (Decision item 1).** `.claude/rules/core.md`
+   section `## Task Completion Contract` now owns the contract end to end.
+   The five subsection headers, the terminal predicate and the precedence
+   line are unchanged. `builder-ethos.md` section `## 4. Task Completion
+   Contract` keeps its header and a two-sentence pointer to `core.md`.
+2. **Owner of the response-side rule (Decision item 2).** `core.md` section
+   `## Completion-Tail Audit` carries the always-on form, with the same
+   verbatim rule. `voice.md` keeps its section and its Quick Self-Review
+   entry, and now loads only on skill authoring paths. That entry now reads
+   "core.md Terminal Predicate" where item 2 quotes "builder-ethos.md
+   Terminal Predicate".
+3. **Delegation line (Decision item 4).** `### Finding disposition` in
+   `core.md` delegates to the `avoiding-manufactured-work` skill. Read
+   "builder-ethos.md" in item 4 as "core.md".
+4. **Invariant kept.** The Decision's first sentence still holds: the whole
+   contract sits on the always-on rule path. `core.md` declares
+   `paths: ["**"]` and `priority: critical`. `builder-ethos.md` and
+   `voice.md` keep `priority: critical` and now scope `paths` to skill
+   authoring files.
+5. **Failure-mode entry (Decision item 3).** `FAILURE-MODES.md` entry 12
+   now names `core.md` as the always-on owner of both rules. Its Index row
+   is unchanged. The Negative bullet "A fourth normative surface to keep in
+   sync" now means `core.md` sections `## Task Completion Contract` and
+   `## Completion-Tail Audit`.
+6. **Older sections record history.** The Alternatives row marked chosen,
+   the Impact row for `builder-ethos.md`, and the Negative bullets on
+   precedence still say `builder-ethos.md` section 4. They describe the
+   decision as made on 2026-09-03 and stay as written. Read the contract's
+   location in them as `core.md` section `## Task Completion Contract`.
+   `builder-ethos.md` still states the Precedence Stack and section 3.
+   On the always-on path, `core.md` clause 5 states user sovereignty, clause 6
+   ranks policy above a request, and `### Precedence` states the full order.
+
+Why: `builder-ethos.md` and `voice.md` left the always-on set to cut
+17,178 bytes from every request at d3c2d82df9 (2026-11-26). An eval showed
+a core without this contract fails the completion tail, so the contract
+moved with the always-on set. ADR-129 holds the evidence and the gate.
+
+This is an amendment, not a superseding record. The Decision's first sentence
+is unchanged, so the decision stands. Only the carrying file moved, as two
+subsection bodies did in the 2026-09-15 amendment.
 
 ## Prior Art Investigation
 

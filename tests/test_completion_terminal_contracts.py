@@ -3,7 +3,7 @@
 This change makes two kinds of claim, graded in two places, mirroring the
 pattern in ``test_orchestrator_shared_contracts.py``.
 
-Static contract claims, graded here: ``builder-ethos.md`` carries the Task
+Static contract claims, graded here: ``core.md`` carries the Task
 Completion Contract (terminal predicate, precedence, reactivation) and
 ``voice.md`` carries the Completion-Tail Audit, on every generated surface;
 the critic and QA agents no longer carry a manufactured-finding quota, on
@@ -36,10 +36,10 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-BUILDER_ETHOS_PATHS = (
-    Path(".claude/rules/builder-ethos.md"),
-    Path(".github/instructions/builder-ethos.instructions.md"),
-    Path("src/copilot-cli/instructions/builder-ethos.instructions.md"),
+CORE_PATHS = (
+    Path(".claude/rules/core.md"),
+    Path(".github/instructions/core.instructions.md"),
+    Path("src/copilot-cli/instructions/core.instructions.md"),
 )
 
 VOICE_PATHS = (
@@ -70,7 +70,7 @@ QUOTA_PHRASE = "Find at least three issues."
 EXHAUSTIVE_PHRASE = "Inspect exhaustively; do not manufacture a quota."
 
 TERMINAL_CONTRACT_PHRASES = (
-    "## 4. Task Completion Contract",
+    "## Task Completion Contract",
     "### Terminal predicate",
     "### Reactivation",
     "frozen task contract",
@@ -89,7 +89,7 @@ RUNTIME_FIXTURES_PATH = Path("tests/evals/completion-terminal-runtime-fixtures.j
 
 # The full 1-14 scenario catalog for the task-completion contract (issue
 # #5404, spec-5404.md AC11): scenarios 1-6 are orchestrator disposition
-# verdicts (builder-ethos.md's four-class table), 7-8 are the zero-finding
+# verdicts (core.md's four-class table), 7-8 are the zero-finding
 # and budget-conservation scenarios that already shipped in #5506, and 9-14
 # are runtime fixtures that install both rule files and grade a live
 # response. Scenario 7 covers the same "no manufactured finding" claim in
@@ -136,8 +136,8 @@ def _scenario(payload_path: Path, scenario_id: str) -> dict[str, Any]:
     return matches[0]
 
 
-@pytest.mark.parametrize("path", BUILDER_ETHOS_PATHS, ids=str)
-def test_builder_ethos_carries_the_terminal_contract(path: Path) -> None:
+@pytest.mark.parametrize("path", CORE_PATHS, ids=str)
+def test_core_carries_the_terminal_contract(path: Path) -> None:
     text = _text(path)
     for phrase in TERMINAL_CONTRACT_PHRASES:
         assert phrase in text, f"{path} is missing {phrase!r}"

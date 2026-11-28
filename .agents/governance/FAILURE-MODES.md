@@ -547,8 +547,8 @@ Issue #5404 names the mechanism directly rather than one dated incident. The rec
 
 | Gate | Mechanism | Blocking |
 |------|-----------|----------|
-| Task-contract ownership | `.claude/rules/builder-ethos.md` Task Completion Contract: terminal predicate, finding disposition, reactivation rules | Prompt-level (always-on) |
-| Response-tail ownership | `.claude/rules/voice.md` Completion-Tail Audit | Prompt-level (always-on) |
+| Task-contract ownership | `.claude/rules/core.md` Task Completion Contract: terminal predicate, finding disposition, reactivation rules | Prompt-level (always-on) |
+| Response-tail ownership | `.claude/rules/core.md` Completion-Tail Audit; `.claude/rules/voice.md` holds the long form for skill authors | Prompt-level (always-on) |
 | Reviewer quota removal | `templates/agents/critic.shared.md`, `templates/agents/qa.shared.md`: exhaustive inspection replaces a minimum finding count, mirrored to generated and hand-maintained copies | Prompt-level |
 | Verdict/decision scenarios | `tests/evals/critic-scenarios.json`, `tests/evals/qa-scenarios.json`, `tests/evals/orchestrator-scenarios.json` scored by `scripts/eval/eval-prompt-change.py` | Eval harness (manual/CI-optional) |
 | Ordinary response-tail scenarios | `tests/evals/completion-terminal-runtime-fixtures.json` scored by `scripts/eval/eval_runtime_parity.py` | Eval harness (manual): installs both rule files into an isolated Claude workspace, grades each reply with a calibrated model grader, and compares against the pre-#5506 rules with `--instructions-ref` |
@@ -558,8 +558,8 @@ The principle: **completion is a terminal state, not an invitation to search for
 ### References
 
 - Issue #5404 (task-completion contract and completion-tail audit).
-- `.claude/rules/builder-ethos.md`, section 4 (Task Completion Contract).
-- `.claude/rules/voice.md`, Completion-Tail Audit.
+- `.claude/rules/core.md`, Task Completion Contract and Completion-Tail Audit (ADR-129).
+- `.claude/rules/voice.md`, Completion-Tail Audit, long form for skill authors.
 - `.claude/skills/avoiding-manufactured-work/SKILL.md` (finding-disposition procedure this pattern reuses rather than duplicates).
 
 ---

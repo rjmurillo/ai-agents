@@ -2,7 +2,7 @@
 
 Each fixture carries both a regex/not_regex regression backstop for the
 completion-tail audit (`.claude/rules/voice.md`) and the task-completion
-terminal predicate (`.claude/rules/builder-ethos.md`), and a `semantic`
+terminal predicate (`.claude/rules/core.md`), and a `semantic`
 assertion graded through `scripts/eval/_runtime_grader.py`. The regex
 assertions are a useful fixture but are NOT the semantic authority: a
 response can reopen an interaction without using any exact prohibited
@@ -87,7 +87,7 @@ def test_every_fixture_installs_both_rule_files() -> None:
     fixtures = runtime_parity.load_fixtures(FIXTURES_PATH)
 
     for fixture in fixtures:
-        assert ".claude/rules/builder-ethos.md" in fixture.instructions
+        assert ".claude/rules/core.md" in fixture.instructions
         assert ".claude/rules/voice.md" in fixture.instructions
 
 

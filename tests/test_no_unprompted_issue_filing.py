@@ -1,7 +1,7 @@
 """Regression guard: no agent or skill template instructs unprompted issue filing.
 
 Epic #5698, AC-6. The owner decides what becomes a tracked issue. An agent that
-finds work flags it to the owner (builder-ethos.md, Task Completion Contract);
+finds work flags it to the owner (core.md, Task Completion Contract);
 it does not file it. Filing is allowed only when the user's request asked for it.
 
 Two checks run over every agent and skill authoring surface:

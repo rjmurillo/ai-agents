@@ -117,7 +117,7 @@ tests, security review, or substantive responses to review findings to reach a
 merge faster. After three failed attempts on the same blocker, stop repeating
 the strategy and report the attempts with evidence. A user-supplied patch is a
 signal to verify understanding before continuing. Discoveries outside the task
-contract follow the finding disposition in `builder-ethos.md` section 4.
+contract follow the finding disposition in `core.md`, Task Completion Contract.
 
 ## Choosing a persistence surface
 

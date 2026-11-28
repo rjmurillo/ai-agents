@@ -320,3 +320,26 @@ A repository check (`check_agents_write_targets.py`) forbids naming the Codex sk
 A second check, the ADR lifecycle `size-cap` in `scripts/validation/check_adr_lifecycle.py`, refuses ADR-101 past 500 lines, and its baseline may not be raised. The reviewed amendment text was therefore moved, unchanged, from its own section to the end of the Application B bullet it amends ("The dispatcher itself is in the tree it checks"). The `taste-lint` file-size waiver was dropped, since the file is back at 500 lines. The same inline placement was used for ADR-097 for the same reason (see `vendor-provenance-removal-notes-debate-log.md`). The waiver discussion in Round 1 (IT-2, architect W6, critic W3) is resolved by removing the waiver.
 
 The `/review` pass on the final tip (security axis PASS, correctness WARN with no blocker) added four hardenings, each with its own mutation-checked test. A configured path that is a directory above the link now refuses it, and the ADR text says so. A skill row whose install tree does not start with a dot is never exempt; this enforces the assumption behind skipping the work-tree import root. The `link: true` row condition gained its own negative test. An end-to-end test drives `main()` on the CI `--head-sha` path. The final count is 27 exemption tests; 167 dispatch-closure tests pass.
+
+## Amendment 2026-11-28: rule install links join the exemption (PR #7730)
+
+**Superseded at merge 357beb945 (2026-11-28)**: PR #7838 (121b25496) landed the same exemption on main first. The merge kept main's `scripts/ci/_link_exemption.py`, its test, and ADR-101, so PR #7730 no longer changes them. The record below is kept as history.
+
+**Trigger**: CodeRabbit review 6095946480 on PR #7730 (thread on `scripts/ci/_link_exemption.py:54`). The PR added `rules` and `instructions-github` to `EXEMPT_ROW_CLASSES`, and this ADR says a new exempt install tree needs a failing pull request and an amendment here. The failing pull request is #7730 itself: run 46108424270 on head 5f0809ccb9 reported `2 new symlinks`, `.claude/rules/core.md` and `.github/instructions/core.instructions.md`, with 0 files differing.
+
+**Change**: one amendment appended to the 2026-11-16 paragraph (the ADR is at its 500-line size cap, so the text stays on that line). A new negative test, `test_a_rule_link_under_an_import_root`, shows each rule link is still reported when its install tree is an import root. Negative control: with the verifier moved to `tools/run.py`, both parametrized cases fail; restored, both pass. The file has 30 tests, all passing.
+
+### Panel (full six seats; executable enforcement)
+
+| Seat | Vote | Findings applied |
+|------|------|------------------|
+| architect | Disagree-and-Commit | old scope sentence now says the rule trees joined below; merge path stated (job not required, owner accepts the red); content not reviewed stated; rollback cross-references ADR-129 |
+| critic | Disagree-and-Commit | merge path stated; rollback names the two rule-link tests; squash-only merge confirmed (repo allows squash only), so one revert holds |
+| security | Disagree-and-Commit | runtime `sys.path` residual now stated as inherited by these trees; directory-target test case not added (P2, not required) |
+| analyst | Disagree-and-Commit | byte claim measured and cited in ADR-129 (see ADR-129 debate log) |
+| independent-thinker | Disagree-and-Commit | owner acceptance of the red on this PR and on each later class addition stated; real `binplace.yaml` row test not added (P2) |
+| high-level-advisor | Accept | no new section and no extra test beyond the negative case; this log records the edit |
+
+### Outcome
+
+Consensus: one Accept and five Disagree-and-Commit, no Block. The amendment date is 2026-11-28 (UTC), the date of the cited run. Recorded dissent: the independent-thinker would add a test against the real `templates/platforms/binplace.yaml` rows, and the security seat would add a directory-target case; both are P2 and not in this change. ADR-101 status stays `accepted`; this is an amendment, not a new decision.

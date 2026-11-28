@@ -185,7 +185,8 @@ def test_discovery_excludes_the_folded_lossless_queue_reads_rule() -> None:
     """lossless-queue-reads left the always-on set when it folded into a skill reference."""
     names = {rule.name for rule in ALWAYS_ON_RULES}
     assert "lossless-queue-reads.md" not in names
-    assert {"builder-ethos.md", "universal.md", "voice.md"} <= names
+    assert {"core.md", "universal.md"} <= names
+    assert not {"builder-ethos.md", "voice.md"} & names
     folded = (
         REPO_ROOT
         / "src"
