@@ -254,6 +254,44 @@ def test_tracked_files_returns_none_when_git_cannot_launch(tmp_path, monkeypatch
     assert count_ratchet.tracked_files(tmp_path, ["*.py"]) is None
 
 
+def test_git_run_passes_a_timeout_to_subprocess(tmp_path, monkeypatch):
+    """Pos: every git call is bounded, so a hung git cannot hang a push hook."""
+    seen: dict[str, object] = {}
+
+    def _capture(*_args, **kwargs):
+        seen.update(kwargs)
+        return count_ratchet.subprocess.CompletedProcess([], 0, "", "")
+
+    monkeypatch.setattr(count_ratchet.subprocess, "run", _capture)
+
+    assert count_ratchet._git_run(tmp_path, ["status"]) is not None
+    assert seen["timeout"] == count_ratchet.GIT_TIMEOUT_SECONDS == 60
+
+
+def test_git_run_returns_none_and_names_the_timeout(tmp_path, monkeypatch, capsys):
+    """Neg: a timeout reads as the launch-failure return every caller already handles."""
+
+    def _hang(*_args, **_kwargs):
+        raise count_ratchet.subprocess.TimeoutExpired(cmd="git", timeout=60)
+
+    monkeypatch.setattr(count_ratchet.subprocess, "run", _hang)
+
+    assert count_ratchet._git_run(tmp_path, ["ls-files"]) is None
+    assert "git timed out after 60s: git ls-files" in capsys.readouterr().err
+
+
+def test_callers_treat_a_git_timeout_as_failure_not_an_empty_result(tmp_path, monkeypatch):
+    """Edge: a timeout must not become [] ("no files") or an rc, which would pass a ratchet."""
+
+    def _hang(*_args, **_kwargs):
+        raise count_ratchet.subprocess.TimeoutExpired(cmd="git", timeout=60)
+
+    monkeypatch.setattr(count_ratchet.subprocess, "run", _hang)
+
+    assert count_ratchet.tracked_files(tmp_path, ["*.py"]) is None
+    assert count_ratchet._git_rc(tmp_path, ["status"]) is None
+
+
 # --------------------------------------------------------------------------
 # The remaining git call sites
 # --------------------------------------------------------------------------
