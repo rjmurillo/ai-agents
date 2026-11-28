@@ -1,7 +1,7 @@
 ---
 id: ADR-087
 status: proposed
-date: 2026-11-25
+date: 2026-11-28
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -858,51 +858,7 @@ would show less is untested here.
 
 ### A retracted agent-path claim, and the guard it produced
 
-An earlier revision of this section claimed the architect spike reproduced the
-rule finding on a second benchmark: two runs of `claude-sonnet-4-6` against the
-same eight fixtures, five of eight moving, and an ACCEPT on a pure null control.
-**That claim was wrong. It is withdrawn in full, and so is the twelve of
-twenty-four figure built on it.**
-
-The two runs did not share a corpus. Each agent report carries
-`fixture_set_sha`, and `_fixture_set_sha` in `eval-agent-vs-baseline.py`
-documents its purpose exactly: it "allows the report consumer to verify that two
-runs hit the same set." The two architect runs report `be99fa1b1180` and
-`26136df314d6`, and all eight individual `fixture_sha` values differ. The
-fixtures were committed once, on 2026-05-29, after both runs; the committed
-copies match the later run, so the earlier corpus is unrecoverable. Fixture
-content is a second changed variable, so nothing about the movement can be
-attributed to run-to-run noise.
-
-The two corroborating pairs fail for a different reason. The critic and
-high-level-advisor comparisons hold `fixture_set_sha` fixed but differ in
-`agent_prompt_sha`. There the prompt is the changed variable. Three confounded
-comparisons pooled together do not make one valid one.
-
-The corrected state of the evidence is one measured path, not three:
-
-- **Rule path, measured.** The artifact was restored byte-for-byte and verified
-  identical to `origin/main` before the re-run, holding both the corpus and the
-  artifact fixed. Both held-out gains that earned the ACCEPT reproduced under
-  the no-op.
-- **Agent path, unmeasured.** A control needs two runs agreeing on both
-  `fixture_set_sha` and `agent_prompt_sha`. No committed pair did at the time.
-  The 2026-11-25 amendment records the first such pair.
-- **Hook path, deterministic by construction.**
-
-The error is more useful than the claim would have been, and it belongs in this
-ADR rather than in a commit message. The report schema already carried the field
-that falsifies the comparison. The tool that performed the comparison never read
-it. Nothing in the design would have stopped the next person from repeating the
-mistake, and the person who made it had just spent a session arguing that a
-property reported but not enforced is not a property. Open requirement 12
-already named the missing piece, that the seam carries no corpus identity. This
-is the first evidence of what that costs, and it raised the requirement from a
-budget-accounting nicety to a correctness gap: the same absence that lets two
-unrelated corpora share a ledger also lets two unrelated corpora be compared to
-each other. Decision Requirement 5 closes the comparison half on the one path
-whose
-scorer publishes an identity.
+An earlier revision of this section claimed the architect spike reproduced the rule finding on a second benchmark. The claim is withdrawn: the two runs did not share a corpus (different `fixture_set_sha`). That miss is the evidence behind Decision Requirement 5, which closes the comparison half on the one path whose scorer publishes a corpus identity. The full record, moved verbatim on 2026-11-28, is in `.project-toolkit/analysis/adr-087-retracted-agent-path-claim.md`.
 
 ### What follows for anyone running this loop
 
@@ -998,3 +954,40 @@ tasks, the gate returned REJECT on a tie at 0/3, p = 1.0. Both reports flag
 `halt-due-to-flakiness`, and three all-failing tasks tie almost by construction.
 This is a low-power noise-floor observation, not a false-accept rate. Numbers
 are in the analysis file.
+
+## Amendment 2026-11-28
+
+The status stays `proposed`. Spec: `.project-toolkit/specs/SPEC-plugin-eval-migration.md` (item 3). Plan: `.project-toolkit/plans/PLAN-plugin-eval-migration.md`. Debate log: `.project-toolkit/critique/ADR-087-debate-log-2.md`. The ADR-057 half of this change is Amendment 2026-11-28 in `ADR-057-prompt-behavioral-evaluation.md`.
+
+**This amendment records decisions and changes no code.** It restates Decision Requirements 1 to 5 for one path: skill cases run through `claude plugin eval` and optimized by skillopt. The `optimize-artifact.py` path for agents, rules, and hooks, and the trusted controller, keep the text above. The mechanisms below are built by PR B (skillopt) and PR C1 (case tree, tag check, gate) and used by PR C2 (split commit, hillclimb), as the plan names them. Until they merge, the skill path has no split manifest, and the requirements below describe the target.
+
+### Why a separate path
+
+skillopt ships as a standalone skill, in stdlib Python, and cannot import `scripts/eval/_optimizer_core.py`. The skill path keeps its splits as explicit membership lists in a manifest, because cases are stratified by family and the existing rank draw does not account for family. The five requirements therefore need their own mechanisms. The owner chose to keep the two optimizers separate and defer merging them.
+
+### Requirements on the skill path
+
+1. **The decision group is fixed before the first edit.** `evals/skills/<skill>/split.json` will hold the skillopt `eval.json` v1 shape (`splits`, `exposed`, `tasks`) plus `frozen_at`, `seed`, `sel_ratio`, `corpus_sha256`, `split_fingerprint`, `sel_budget`, and `tier`. PR C2 commits it before round 1. The gate refuses a manifest not committed before the first candidate edit, a tag that disagrees with membership, overlapping groups, or fewer than 3 gated sel cases. The `split:train` and `split:sel` tags provide host filters; the manifest is authoritative. Sel case authorship in a separate session and withholding sel transcripts from the proposer are procedural controls, not access isolation. `skillopt traces --split sel` will refuse in a proposer context (PR B). The `exposed` list records what the proposer saw; exposed sel cases are refused. No test group is required on this path.
+2. **The split is content-bound.** `split_fingerprint` will use `_optimizer_core.split_fingerprint` on the case ids, seed and ratios (test ratio 0). This interoperation digest does not bind explicit membership. The stdlib copy is pinned by a conformance test with several fixtures. `corpus_sha256` binds the full actual case tree and membership: hash a canonical UTF-8 JSON array of split names sorted by name, each with its case ids sorted by id and their prompt and grader-file hashes sorted by relative path. It is independent of the tag filter used on a pass. Refuse either digest mismatch or a change to a frozen manifest during candidate evaluation.
+3. **Repeated decisions against the selection group are budgeted.** The default `sel_budget` is 3 candidate consultations per skill. Key the ledger by skill and sorted selection membership, with corpus hash recorded as a comparison identity rather than a budget namespace. A corpus change does not reset a budget for the same membership. This preserves Decision Requirement 3's conservative over-sharing rule. The fixed launcher pins the initial cap; a later cap change is refused. Charge and append under a lock before starting any candidate consultation, including one that aborts, returns partial results, or fails. Refuse an exhausted budget before reading results. The fixed pre-candidate baseline, oracle, noise-floor rerun, and probe do not consume candidate consultations if they are completed before the first candidate and expose no sel results to the proposer. They still consume spend. They cannot be refreshed within that candidate series. A fresh group requires a separately reviewed manifest. A line in the spend ledger records skill, selection membership digest, corpus hash, pass kind and charge. Open Requirements 1, 9, 10 and 12 remain open where the launcher and same-user ledger are not isolated. A new checkout or a changed ledger is outside the mechanical protection; the owner retains custody of the ledger.
+4. **No pass-to-fail transition is accepted on an aggregate gain.** Compare the per-case result to the frozen baseline, using the deterministic with-skill arm and the stable-base rule of ADR-057 Amendment 2026-11-28 item 3. A stable case that goes from pass to fail blocks the edit whatever the mean does. No override. This applies ADR-057's stable-base exclusions to this path.
+5. **A comparison whose declared corpora disagree is refused.** The adapter records the full case-tree and split-membership `corpus_sha256` from the actual scratch tree, for baseline and candidate. The manifest and both result identities must agree. Refuse known preflight identity mismatches before charging. Charge before launching a candidate consultation; a missing or different result identity discovered afterward refuses the result without refund, before reading its outcomes. The unknown-everywhere compatibility rule for the other artifact paths does not apply here.
+
+### What this changes and what it does not
+
+It specifies a content-bound split and a counted budget for skills. It does not discharge Open Requirement 1: skillopt is a same-user process and cannot stop a proposer from reading a file, so the claim is the bounded-consultation form of the Decision, and it is not validation on unseen tasks. `evals/skills/ledger.jsonl` will be in git, so Open Requirement 10 (a ledger root the loop cannot relocate) stays open for this path.
+
+### Alternatives considered
+
+| Option | Pros | Cons | Verdict |
+|---|---|---|---|
+| Run skills through `optimize-artifact.py` | One optimizer and one set of rails | That path scores verdict booleans and does not read plugin eval results | Rejected, merging is deferred |
+| Import `_optimizer_core` into skillopt | One fingerprint implementation | skillopt ships alone and stays stdlib, so the import fails in a consumer repository | Rejected |
+| Stdlib copy plus a conformance test | Works standalone, and drift fails a test | Two implementations to keep equal | Chosen |
+| Corpus-namespaced budget | Separates changed corpora | Resets the selection count when the same group is retained | Rejected; retain the membership-keyed budget |
+
+### Consequences
+
+Negative: the budget is a file in git, so a determined editor resets it and a reviewer must read the ledger diff. The key preserves Decision Requirement 3, and a corpus edit does not reset the budget for the same membership. Two fingerprint implementations must stay equal.
+
+Positive: every pass refuses when the manifest and the case tree it ran disagree, so a hand-edited membership list or an edited case does not pass silently.

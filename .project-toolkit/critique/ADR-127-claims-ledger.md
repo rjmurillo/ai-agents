@@ -77,3 +77,11 @@ gstack rows were read from a clone of `github.com/garrytan/gstack` at `ec5d7e6fb
 | Documentation accuracy | Phase 4 ran once on 2026-11-25 (Sonnet, 11 tool uses, 61 s). 7 findings: 2 High, 2 Medium, 3 Low. All 7 fixed in the draft before the panel. High 1: the eval command pointed at the template, which feeds raw partial tags and skips `references/`. High 2: the draft called the grade deterministic and cited ADR-058. VERIFIED after the fixes by rows 28 to 31 |
 | Self-consistency | FAILED on the first draft, as the panel showed: freeze against retire inside decision 7, the gate trigger in decision 7 against decision 9, and the unfunded-key row against the NOT RUN rule. Re-run on the round 1 revision: VERIFIED for decisions 1 to 13 against each other and Consequences |
 | Refuting seat | Ran once on 2026-11-25 (`analyst`, Haiku, 52 tool uses, 126 s). 25 rows CONFIRMED. Row 6 not reproduced by the seat (no shell); row 14 not rerun by the seat. One finding outside the ledger: the ADR cited `SPEC-ship-driver.md`, which is not in this tree. Fixed by naming the unmerged branch instead. VERIFIED after the fix: `grep -c SPEC-ship-driver` on the ADR returns 0 |
+
+
+## Amendment 2026-11-28 (pointer note)
+
+| # | Claim | Kind | Command | Result |
+| --- | --- | --- | --- | --- |
+| 62 | ADR-127 decisions 7 and 9 name the runner command, the scenario location, the results file, and the identity block. | quote | `sed -n 138,252p ADR-127-workflow-skills-are-script-drivers.md` | Decision 7 items 2 and 9, decision 9 paragraph on `identity`. VERIFIED on 2026-11-28 |
+| 63 | The pointer names ADR-057 Amendment 2026-11-28, which exists. | path | `grep -n "^## Amendment 2026-11-28" ADR-057-prompt-behavioral-evaluation.md` | One hit. VERIFIED |

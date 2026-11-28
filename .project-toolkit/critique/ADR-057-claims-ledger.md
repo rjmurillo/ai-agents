@@ -88,3 +88,24 @@ Rows for the two sentences reworded when `main` content was merged into branch `
 | The check calls no model | quote | none: the ADR-127 amendment states it ("It is deterministic and calls no model") and the first ledger section above verifies it | NOT RUN: cited from the amendment and the row "The check calls no model." above |
 
 Correction, 2026-11-27: an earlier draft of this pass called `6c0a0fc5db` the last tip of the pull request #7630 branch. `git ls-remote origin refs/pull/7630/head` prints `f4557cc4f2`. The intro above now says what `6c0a0fc5db` is, and the last row gives a check that needs no local-only commit.
+
+
+## Amendment 2026-11-28 (plugin eval migration)
+
+Claims in ADR-057 Amendment 2026-11-28, read from the working tree on 2026-11-28. No paid `claude plugin eval` pass ran.
+
+| # | Claim | Kind | Command | Result |
+| --- | --- | --- | --- | --- |
+| 1 | `claude plugin eval --help` lists `--tag`, `--judge-model`, `--max-cost-usd`, `--no-publish`, `--runs`, `--ablation`, `--json`. | behavior | `claude plugin eval --help \| grep -nE '^\s+--(tag\|judge-model\|max-cost-usd\|no-publish\|runs\|ablation\|json)'` | All seven printed (lines 15, 44, 47, 49, 66, 77, 81). VERIFIED |
+| 2 | The host publishes the HTML report to claude.ai by default when the account supports it. | quote | same help, `--publish-report` text | "already the default when your account supports it". VERIFIED |
+| 3 | ADR-127 decision 7 item 3 reads "The grade is a label match, not a quality judgment." | quote | `grep -n "label match, not a quality judgment" ADR-127-workflow-skills-are-script-drivers.md` | Line 175. VERIFIED |
+| 4 | ADR-058 makes the LLM judge advisory and the gated signal deterministic. | behavior | `grep -n -i "advisory\|deterministic" ADR-058-agent-eval-discipline.md` | Lines 53, 156, 158, 309, 370. VERIFIED |
+| 5 | `tests/evals/skill-scenarios/` and `tests/evals/<skill>-scenarios.json` exist today. | path | `ls -d tests/evals/skill-scenarios; ls tests/evals/*-scenarios.json` | Directory and files present. VERIFIED |
+| 6 | `check_skill_rewrite_evidence.py` calls `load_runner()` and holds `_JUDGE_PATHS` and `_SKILL_PATH_PATTERNS`. | path | `grep -n "load_runner\|^_JUDGE_PATHS\|^_SKILL_PATH_PATTERNS" scripts/validation/check_skill_rewrite_evidence.py` | Lines 102, 115, 358, 438. VERIFIED |
+| 7 | `evals/skill-rewrites/skill-doctor/` holds legacy results files, and `evals/_archive/` exists. | path | `ls evals/skill-rewrites/*/ evals/_archive` | `results.json` and `results-2.json` present, archive directory present. VERIFIED. The refuting seat found no `schema` key in `results.json`, so the ADR no longer says "schema 1" |
+| 8 | The host default judge model is `haiku`, so "the host default is not a pin" is accurate. | quote | help, `--judge-model` | "Override LLM-grader model (default: haiku)". VERIFIED |
+| 9 | The spec's buy-versus-build record says the host runner records real tool traces. | quote | `grep -n "real tool traces" SPEC-plugin-eval-migration.md` | Present in "Buy-vs-build decision". VERIFIED |
+| 10 | The adapter exits 3 on a `claudeVersion` or `schemaVersion` mismatch. | behavior | plan task B2 acceptance criteria | Plan text only, code not written yet. NOT RUN, stated as a decision with PR B named |
+| 11 | The served model is readable from the trace. | behavior | none | UNCONFIRMED by the spec. The ADR states the fallback and does not assert it. NOT RUN |
+| 12 | Per-run cost rates. | count | none | INFERRED in the spec. The ADR states stage caps and the ceiling only. NOT RUN |
+| 13 | The $50 monthly line and the 2 hour line are in Cost Expectations. | quote | `grep -n "exceeds \$50" ADR-057-prompt-behavioral-evaluation.md` | Present. VERIFIED |

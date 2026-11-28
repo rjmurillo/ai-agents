@@ -301,6 +301,10 @@ The decision 9 check lands in the PR for issue #7589. Two changes follow.
 
 The debate is `.project-toolkit/critique/ADR-127-debate-log-5.md`.
 
+## Amendment 2026-11-28
+
+Decisions 7 and 9 (runner command, scenario location, results file, identity block) are superseded in part by ADR-057 Amendment 2026-11-28, effective when its PR C1 merges. The debate is `.project-toolkit/critique/ADR-127-debate-log-6.md`.
+
 ## Prior Art Investigation
 
 ### What Currently Exists
