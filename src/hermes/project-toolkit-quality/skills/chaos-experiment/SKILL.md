@@ -1,7 +1,7 @@
 ---
 name: chaos-experiment
 version: 1.1.0
-description: Design and document chaos engineering experiments. Guide steady state baseline, hypothesis formation, failure injection plans, and results analysis. Use when you say "design a chaos experiment", "plan a game day", "failure injection", "test resilience", or "chaos engineering". Do NOT use for security threat analysis (use threat-modeling) or pre-launch project risk identification (use pre-mortem).
+description: "Design chaos experiments with steady-state baseline, hypothesis, failure injection, and results analysis. Use when you say \"design a chaos experiment\", \"plan a game day\", \"failure injection\", or \"test resilience\". Do NOT use for security threat analysis (use threat-modeling) or pre-launch risk (use pre-mortem)."
 license: Apache-2.0
 user-invocable: true
 ---

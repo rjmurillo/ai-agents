@@ -1,16 +1,16 @@
 # tests/
 
-Pytest suite: root guard, `tests/conftest.py`, flat `test_*.py`, topic subdirs; run by contributors, lefthook, CI.
+Pytest suite: root guard, `tests/conftest.py`, flat `test_*.py`, topic subdirs; run on demand locally and by CI.
 
 ## Matters
 
 - Root `conftest.py` autouse `_guard_real_repo_head`, every test: fails (#2316) when a test-launched git command moves real HEAD, fails (#5123) when the call phase also failed, else warns (#3109).
-- `tests/conftest.py` autouse: git-config isolation (`GIT_CONFIG_COUNT=1`, gpgsign off, no leaked `core.hooksPath`), clears `CI` (`rule-testing.md` SHOULD-13), defaults `AI_AGENTS_PROJECT_REPO=1`, sanitizes `GIT_*`, caps git discovery at `tmp_path.parent` via `GIT_CEILING_DIRECTORIES`.
+- `tests/conftest.py` autouse: git-config isolation (`GIT_CONFIG_COUNT=3`: gpgsign/gc/maint off, no `core.hooksPath`), clears `CI` (`rule-testing.md` SHOULD-13), defaults `AI_AGENTS_PROJECT_REPO=1`, sanitizes `GIT_*`, caps git discovery at `tmp_path.parent` via `GIT_CEILING_DIRECTORIES`.
 - 111 `tests/skills/<name>/test_skill_md_contract.py` via `tests/skills/_template_contract.py`: template render == `src/claude/skills/<name>/SKILL.md` == `.claude/skills/<name>/SKILL.md`, no `@CLAUDE.md` line, no literal `{{`. Hand-editing a shipped SKILL.md reds one.
 
 ## Entry points
 
-- `git_hook_policy.py pytest`: pre-push, `pytest --testmon`.
+- `git_hook_policy.py pytest`: on-demand `pytest --testmon`; not in pre-push (ADR-104, 2026-11-26).
 - `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1`: the 4 local partitions, no testmon; CI runs 8 legs: `split-1`..`6`, `safe-push`, `pr-autofix`.
 - `check_zero_collection_tests.py`: finds a `test_*.py` under `testpaths` collecting zero tests.
 - One leg: `uv run python scripts/ci/run_pytest_partition.py --partition split-1`. Timings come from the Actions cache (`pytest-split-durations-`), saved on pushes to main; without it legs split by test count. `duration_gate_check.py` (coverage) fails main on a repeat leg over 480 s; PRs and 1.5x spread warn.
@@ -39,14 +39,14 @@ Pytest suite: root guard, `tests/conftest.py`, flat `test_*.py`, topic subdirs; 
 
 - `check_nested_tests.py` does not scan every test file, and not by depth: helpers not named `test_*.py` (`tests/hook_test_helpers.py`, `tests/ci/ratchet_test_helpers.py`) are never opened.
 - `checks_coverage.py` is not a coverage gate; it wraps the advisory `/review`-marker check. Real 100% pins: `coverage report --fail-under=100` steps in `pytest.yml`.
-- "My push ran the suite" is false: pre-push runs only testmon-selected tests; misses subprocess-only code. CI runs all.
+- "My push ran the suite" is false: pre-push runs no full pytest suite (ADR-104, 2026-11-26). Run `uv run pytest <paths>`; CI runs all.
 - `tests/evals/*-scenarios.json` are pytest input, not just `scripts/eval/` corpora. `tests/eval/test_eval_prompt_change.py::TestShippedScenariosValid` requires 2+ `verdict_options` each; sibling contract tests pin critic, qa, orchestrator and spec scenario IDs.
 
 ## Dependencies
 
 - Feeds `pytest.yml`'s `zero-collection-guard` (blocking, no `needs:`/`if:`) and the 8-leg matrix, which `check-paths` never gates.
 - Other workflows run named test files (grep below), so a rename reds a check the path filter never shows; `claude.yml` runs `tests/workflows/test_claude_authorization.py` as `scripts/ci/check_claude_authorization.py --checker`.
-- `lefthook.yml` pre-push expensive stage: `python-tests` (15m, `AI_AGENTS_PYTEST_WORKER_CAP=scaled`), `zero-collection-tests` (4m), both ignore the path filter.
+- `lefthook.yml` pre-push omits `python-tests` and `zero-collection-tests`; CI `pytest.yml` gates both.
 - Pre-PR gate registry and flags: `scripts/AGENTS.md`. Template-drift and parity semantics: `build/AGENTS.md`.
 
 ## Architecture
