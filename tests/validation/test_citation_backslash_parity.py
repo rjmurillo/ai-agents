@@ -10,8 +10,9 @@ import pytest
 from scripts.validation import check_citation_freshness  # noqa: F401
 from scripts.validation.citation_anchors import (
     _anchor_candidates,
+    _gap_split,
     _mask_escaped_backticks,
-    _snap_out_of_escaped_backtick,
+    _snap_out_of_backtick_prefix,
 )
 from tests.validation.citation_freshness_helpers import _add_doc, _repo, _run
 
@@ -28,12 +29,39 @@ def test_backtick_escape_depends_on_backslash_parity(backslashes: int) -> None:
     if backslashes == 2:
         assert anchors == ["return 0"]
         assert masked == line
-        assert _snap_out_of_escaped_backtick(line, point) == point
     else:
         assert anchors == []
         assert masked[point - 1 : point + 1] == "  "
         assert len(masked) == len(line)
-        assert _snap_out_of_escaped_backtick(line, point) == point - 1
+
+
+@pytest.mark.parametrize("backslashes", [0, 1, 2, 3, 4])
+def test_split_keeps_the_full_backtick_prefix(backslashes: int) -> None:
+    text = "label " + "\\" * backslashes + "`sample text`"
+    start = len("label ")
+    for point in range(start, start + backslashes + 1):
+        assert _snap_out_of_backtick_prefix(text, point) == start
+
+
+@pytest.mark.parametrize("backslashes", [2, 3, 4])
+def test_gap_split_preserves_backtick_prefix(backslashes: int) -> None:
+    prefix = "\\" * backslashes
+    text = "left     " + prefix + "`sample` right"
+    start = text.index(prefix)
+    low = start - 2
+    high = start + 4
+
+    point = _gap_split(text, low, high)
+
+    assert low <= point <= high
+    assert point == start
+    assert text[point:].startswith(prefix + "`")
+
+
+def test_split_leaves_a_backslash_run_without_a_backtick_alone() -> None:
+    text = "label " + "\\" * 3 + " suffix"
+    point = len("label ") + 1
+    assert _snap_out_of_backtick_prefix(text, point) == point
 
 
 @pytest.mark.parametrize("backslashes", [0, 1, 2, 3])

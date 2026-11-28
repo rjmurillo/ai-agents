@@ -343,9 +343,15 @@ def _mask_escaped_backticks(text: str) -> str:
     return "".join(out)
 
 
-def _snap_out_of_escaped_backtick(line: str, point: int) -> int:
-    if 0 < point < len(line) and line[point] == "`" and _backtick_is_escaped(line, point):
-        return point - 1
+def _snap_out_of_backtick_prefix(line: str, point: int) -> int:
+    """Keep the whole backslash run before a backtick in one segment."""
+    end = point
+    while end < len(line) and line[end] == "\\":
+        end += 1
+    if end == len(line) or line[end] != "`":
+        return point
+    while point > 0 and line[point - 1] == "\\":
+        point -= 1
     return point
 
 
@@ -384,7 +390,7 @@ def _gap_split(line: str, prev_end: int, next_start: int) -> int:
     point = prev_end + (next_start - prev_end) // 2
     for _ in range(3):
         snapped = _snap_out_of_tokens(text, point, prev_end, next_start)
-        snapped = _snap_out_of_escaped_backtick(line, snapped)
+        snapped = _snap_out_of_backtick_prefix(line, snapped)
         if snapped == point:
             break
         point = snapped

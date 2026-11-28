@@ -126,6 +126,18 @@ def test_split_is_clamped_when_the_snap_leaves_the_gap() -> None:
     assert "b.py:2" in _same_line_segment(line, matches, 1)
 
 
+def test_enclosing_code_span_keeps_both_citations() -> None:
+    line = f"`{HOOK}:1 then {TARGET}:3`"
+    matches = list(_CITATION.finditer(line))
+    prev_end, next_start = matches[0].end(), matches[1].start()
+
+    point = _gap_split(line, prev_end, next_start)
+
+    assert point == prev_end + (next_start - prev_end) // 2
+    assert f"{HOOK}:1" in _same_line_segment(line, matches, 0)
+    assert f"{TARGET}:3" in _same_line_segment(line, matches, 1)
+
+
 def _hook_repo(tmp_path: Path) -> Path:
     """Create the fixture repo with HOOK tracked beside TARGET."""
     root = _repo(tmp_path)
@@ -200,17 +212,27 @@ def test_an_escaped_backtick_inside_a_double_quoted_anchor_is_preserved() -> Non
     assert _anchor_candidates([line], "b.py:2") == ["Type \\` to open"]
 
 
-def test_gate_accepts_an_escaped_backtick_inside_a_double_quoted_anchor(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+@pytest.mark.parametrize(("cited_line", "expected"), [(2, 0), (1, 1)])
+def test_gate_judges_an_escaped_backtick_inside_a_double_quoted_anchor(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], cited_line: int, expected: int
 ) -> None:
     root = _repo(tmp_path)
     (root / "b.py").write_text('x = 0\nPROMPT = r"Type \\` to open"\n', encoding="utf-8")
-    row = '| b.py:2 gives the raw string "Type \\` to open" |'
+    row = f'| b.py:{cited_line} gives the raw string "Type \\` to open" |'
     _add_doc(root, "docs/inventory.md", f"| A |\n|---|\n{row}\n")
 
     code, out = _run(root, capsys)
 
-    assert code == 0, out
+    assert code == expected, out
+    assert "examined 1 citation(s)" in out
+    if expected:
+        assert repr("Type \\` to open") in out
+
+
+def test_quoted_argument_inside_a_flag_span_is_an_anchor() -> None:
+    line = 'b.py:2 describes `--label "sample text"`'
+
+    assert _anchor_candidates([line], "b.py:2") == ["sample text"]
 
 
 # A token that wraps a citation never sets the split. A double-quoted phrase
