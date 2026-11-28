@@ -198,6 +198,7 @@ from validate_python_syntax import validate_python_syntax
 # enums, so the sequence and the runner must resolve the same one.
 from scripts.validation.evidence import (
     REASON_ALREADY_RUN,
+    REASON_CI_OWNED,
     CheckOutcome,
     GateResult,
 )
@@ -258,12 +259,20 @@ class _Gate:
     the same whole-tree check. The piped hook cannot start pre-pr-validation
     unless that job passed. Direct and CI callers leave
     :data:`FAST_STAGE_RAN_ENV` unset and run the full sequence.
+
+    ``ci_owned_by`` names the CI workflow job(s) that own this heavy whole-tree
+    check. When :data:`FAST_STAGE_RAN_ENV` is ``"1"`` (pre_pr runs inside the
+    pre-push hook) the gate is recorded as SKIP with ``REASON_CI_OWNED`` and a
+    detail naming the CI job. Direct and CI callers leave the env unset and run
+    it. Unlike ``already_run_by``, no local job proved the check, so the skip is
+    not quiet under ``--compact``. A gate sets at most one of the two fields.
     """
 
     name: str
     run: Callable[[Path, argparse.Namespace], GateResult]
     skip_when_quick: bool = False
     already_run_by: str = ""
+    ci_owned_by: str = ""
     notes: str = field(default="", repr=False)
 
 
@@ -331,7 +340,9 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate(
         "Count Ratchets",
         _root_only(validate_count_ratchets),
-        already_run_by="count-ratchets",
+        ci_owned_by=(
+            "pytest.yml count-ratchet-guard, pytest.yml test, pr-validation.yml validate-pr"
+        ),
     ),
     _Gate("Nested Test Detection", _root_only(validate_no_nested_tests)),
     _Gate("Duplicate Test Helper Detection", _root_only(validate_duplicate_test_helpers)),
@@ -511,7 +522,11 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # Read-only.
     # Issue #5079: without it, a hand-edit to a generated file cleared every
     # local gate and the generator silently reverted it in CI (PR #5059).
-    _Gate("Generated Artifact Staleness", _root_only(validate_generated_staleness)),
+    _Gate(
+        "Generated Artifact Staleness",
+        _root_only(validate_generated_staleness),
+        ci_owned_by="validate-generated-agents.yml build-all-staleness",
+    ),
     # ADR-108: a template-owned .claude/skills/<name>/SKILL.md that drifted
     # from templates/skills/<name>.SKILL.md.tmpl. Runs generate_skills.py
     # --validate, which never writes.
@@ -889,6 +904,19 @@ def run_all_validations(
                 "which blocks the push when it fails"
             )
             outcome = CheckOutcome.skipped(gate.name, reason=REASON_ALREADY_RUN, detail=detail)
+            if not state.hides(outcome):
+                print(f"[SKIP] {gate.name} ({detail})")
+            state.record(gate.name, outcome)
+            continue
+
+        if fast_stage_ran and gate.ci_owned_by:
+            detail = (
+                f"owned by CI job {gate.ci_owned_by}; "
+                "not re-run in the pre-push hook (owner ruling 2026-11-27)"
+            )
+            outcome = CheckOutcome.skipped(gate.name, reason=REASON_CI_OWNED, detail=detail)
+            # is_quiet leaves REASON_CI_OWNED out, so hides() is False here: this
+            # skip did not prove the check locally and stays visible.
             if not state.hides(outcome):
                 print(f"[SKIP] {gate.name} ({detail})")
             state.record(gate.name, outcome)

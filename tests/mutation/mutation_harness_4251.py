@@ -30,7 +30,9 @@ TEST = "tests/ci/test_pre_pr_runs_lefthook_ratchets.py"
 COUNT_GATE_ROW = """    _Gate(
         "Count Ratchets",
         _root_only(validate_count_ratchets),
-        already_run_by="count-ratchets",
+        ci_owned_by=(
+            "pytest.yml count-ratchet-guard, pytest.yml test, pr-validation.yml validate-pr"
+        ),
     ),
 """
 SEQUENCE_TAIL = ")\n\n\ndef run_all_validations("
@@ -125,11 +127,11 @@ def _run_mutants(repo_root: Path) -> int:
             f"{TEST}::TestValidatorBehaviour::test_fails_when_one_ratchet_exits_nonzero",
         ),
         (
-            "M8 unwire the aggregate lefthook job",
+            "M8 reintroduce the removed count-ratchets lefthook job",
             lefthook,
+            "          - name: python-lint-advisory",
             "          - name: count-ratchets",
-            "          - name: phantom-count-ratchets",
-            f"{TEST}::TestAggregateLefthookDelegation::test_aggregate_job_exists",
+            f"{TEST}::TestAggregateLefthookDelegation::test_pre_push_hook_no_longer_runs_the_aggregate_job",
         ),
     ]
     snapshots = {path: path.read_text(encoding="utf-8") for path in (sequence, ratchet, lefthook)}

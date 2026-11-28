@@ -28,7 +28,7 @@ Workflow, hook, and skill documentation can name an entry point. Once a
 executable string literals.
 
 Under that model the scripts (128 under scripts/validation plus 30 under
-build/scripts at the time of this edit) yield five unreachable, real decisions
+build/scripts at the time of this edit) yield six unreachable, real decisions
 recorded in ``_NO_CALLER`` below rather than a bulk exemption.
 
 What this does not do: prove the caller is correct, or that the script would
@@ -97,6 +97,15 @@ _NO_CALLER: dict[str, str] = {
         "CI would run it against a handoff that does not exist there, and "
         "wiring it into a SKILL.md adds a ratcheted upstream-path reference to a "
         "shipped skill (issue #5766)."
+    ),
+    "scripts/validation/check_plugin_scanner_score.py": (
+        "The on-demand local twin of CI's Plugin Scanner check. The pre-push "
+        "hook ran it until 2026-11-27, when ADR-104 moved the score to CI. "
+        "plugin-scanner.yml runs the pinned scanner action, not this script, "
+        "and names it as the local twin in a comment. A developer runs it by "
+        "hand before a push that touches plugin surfaces. "
+        "tests/validation/test_check_plugin_scanner_score.py and "
+        "test_check_plugin_scanner_run.py are its callers."
     ),
     "build/scripts/copilot_launcher.py": (
         "A reference renderer, not a runner. No workflow, hook, or skill calls "
@@ -630,7 +639,7 @@ def test_the_allowlist_stays_small_enough_to_read() -> None:
     """The failure this guards is a list nobody reads.
 
     59 entries would be the literal-reference model's answer. The bound is
-    generous against the five real entries so that ordinary churn does not trip
+    generous against the six real entries so that ordinary churn does not trip
     it, and tight enough that a bulk exemption has to argue for itself.
     """
     assert len(_NO_CALLER) <= 12, (

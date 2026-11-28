@@ -1,5 +1,15 @@
 # Run the count ratchets before you push, because pre-push finds them last
 
+## Update 2026-11-27: pre-push no longer runs the ratchets (ADR-104)
+
+The `count-ratchets` pre-push job is gone. CI owns the ratchets: `pytest.yml`
+`count-ratchet-guard` and `test`, and `pr-validation.yml` `validate-pr`, all
+required. Inside the hook, `pre_pr.py` skips Count Ratchets with
+`policy.ci_owned`. A forgotten ratchet now costs a CI round trip, so the
+advice below matters more: run
+`uv run --frozen python scripts/validation/git_hook_policy.py count-ratchets`
+before you push. The updates below are history.
+
 ## Update 2026-11-03: the ratchets moved back to the expensive stage (issue #7070)
 
 The `count-ratchets` job now runs in the expensive parallel group, beside

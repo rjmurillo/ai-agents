@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import yaml
+from tests.ci.ratchet_test_helpers import ci_owners_of
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _VALIDATION_DIR = _REPO_ROOT / "scripts" / "validation"
@@ -14,33 +14,10 @@ if str(_VALIDATION_DIR) not in sys.path:
 import checks_ratchet  # noqa: E402
 
 
-def _aggregate_job() -> dict:
-    config = yaml.safe_load((_REPO_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
-    jobs: list[dict] = []
-
-    def collect(items: object) -> None:
-        if not isinstance(items, list):
-            return
-        for item in items:
-            if not isinstance(item, dict):
-                continue
-            jobs.append(item)
-            group = item.get("group")
-            if isinstance(group, dict):
-                collect(group.get("jobs"))
-
-    collect(config["pre-push"]["jobs"])
-    matches = [job for job in jobs if job.get("name") == "count-ratchets"]
-    assert len(matches) == 1
-    return matches[0]
-
-
-def test_ruff_ratchets_block_through_the_aggregate_job() -> None:
-    job = _aggregate_job()
-    assert job["run"] == (
-        "uv run --frozen python scripts/validation/git_hook_policy.py count-ratchets"
-    )
-    assert job.get("glob") is None
+def test_ruff_ratchets_block_through_required_ci_jobs() -> None:
+    """CI owns both ruff ratchets since the pre-push job was removed on 2026-11-27."""
+    assert ci_owners_of("scripts/ci/ruff_count_ratchet.py") == ["pytest.yml count-ratchet-guard"]
+    assert ci_owners_of("scripts/ci/ruff_ratchet.py") == ["pytest.yml test"]
 
 
 def test_registry_contains_both_ruff_ratchets() -> None:
