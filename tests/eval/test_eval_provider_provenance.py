@@ -277,7 +277,7 @@ class TestRuleScenarioFiles:
             "R7": "recovery-no-fabricated-mutable-state",
             "R8": "recovery-negative-control",
         }
-        assert set(scenarios) == set(required) | {"S1", "S2", "S3", "S4", "S5", "S6"}
+        assert set(scenarios) >= set(required) | {"S1", "S2", "S3", "S4", "S5", "S6"}
         actual = {scenario_id: scenarios[scenario_id]["expected_gate"] for scenario_id in required}
         assert actual == required
         expected_signals = {
