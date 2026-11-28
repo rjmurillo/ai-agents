@@ -59,7 +59,7 @@ The best outcome of searching is not a solution to copy. It is a first-principle
 1. The reply states it on one line starting `Surprise:`, with the numbers.
 2. A committed `decision-<slug>` file records it, per the `memory-gate` skill's contradiction log, which covers a failed write. Gitignored scratch does not count.
 
-No contradiction, nothing owed.
+A user instruction that forbids file changes still wins (Precedence Stack item 1): skip the commit and report a blocked record per that contradiction log. No contradiction, nothing owed.
 
 ---
 
