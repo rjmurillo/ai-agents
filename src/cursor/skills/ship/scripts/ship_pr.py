@@ -76,6 +76,7 @@ BODY_MARKER = checks_mod.BODY_MARKER
 # The run budget caps the push, less the PR create's reserve. A timeout kills its hooks.
 PUSH_TIMEOUT_SECONDS = 540
 PR_RESERVE_SECONDS = 120
+PR_TIMEOUT_SECONDS = 180  # the PR create's own cap; off Windows a timeout kills its group
 _EXTERNAL_RETURN_CODES = (124, 126, 127)  # timeout, cannot run, not found
 _RERUN_NOTE = "rerun publish; it detects an existing PR"
 _UNSURE_PUSH_NOTE = "check the remote, then rerun publish"
@@ -228,7 +229,7 @@ def cmd_check(args: argparse.Namespace, result: common.Result, _root: Path) -> c
 
 def _push(ctx: Context, result: common.Result) -> bool:
     """Push under the shared per-branch push lock, so the commit guard sees the push."""
-    with common.push_lock(ctx.branch) as lock:
+    with common.push_lock(ctx.branch, lambda cause: result.add("PUSH_LOCK_CAUSE", cause)) as lock:
         if lock == "busy":
             result.stop("push-locked", common.EXIT_EXTERNAL, _LOCK_BUSY)
             return False
@@ -288,7 +289,7 @@ def _create_github(
         argv.extend(["--body-file", str(body)])
     if args.draft:
         argv.append("--draft")
-    done = common.run(argv, cwd=ctx.root, timeout=180)
+    done = common.run(argv, cwd=ctx.root, timeout=PR_TIMEOUT_SECONDS, group=not common.on_windows())
     # new_pr.py echoes the title before gh prints the new PR URL, so a title
     # holding a PR URL must not win: take the last URL printed.
     matches = list(_GITHUB_PR_URL_RE.finditer(done.stdout))
@@ -471,13 +472,10 @@ def run(argv: list[str]) -> tuple[common.Result, str, Path | None]:
     except common.UsageError as exc:
         return result.stop("bad-arguments", common.EXIT_CONFIG, exc), common.peek_format(argv), None
     fmt = common.resolve_format(args.output_format)
-    base = getattr(args, "base", None)
-    if base is not None and not common.safe_ref(base):
-        return (
-            result.stop("bad-arguments", common.EXIT_CONFIG, "--base is not a plain ref"),
-            fmt,
-            None,
-        )
+    # prepare asks no host, so it keeps the plain-ref rule; the others let detect hold the rest.
+    strict = args.command == "prepare"
+    if (error := detect_mod.base_arg_error(getattr(args, "base", None), strict=strict)) is not None:
+        return result.stop("bad-arguments", common.EXIT_CONFIG, error), fmt, None
     if not all(preflight_mod.AXIS_RE.fullmatch(axis) for axis in getattr(args, "require_axis", [])):
         message = "--require-axis must be a lowercase axis name"
         return result.stop("bad-arguments", common.EXIT_CONFIG, message), fmt, None
